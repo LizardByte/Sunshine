@@ -3,10 +3,15 @@ name: Release Notifications (Moonlight)
 
 on:
   release:
-    types: [published]
+    types:
+      - released  # this triggers when a release is published, but does not include prereleases or drafts
 
 jobs:
   discord:
+    if: >-
+      startsWith(github.repository, 'LizardByte/') &&
+      !github.event.release.prerelease &&
+      !github.event.release.draft
     runs-on: ubuntu-latest
     steps:
       - name: discord

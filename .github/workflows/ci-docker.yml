@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -74,82 +74,49 @@ jobs:
           echo $matrix | jq .
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
+      - name: Find dotnet solution file
+        id: find_dotnet
+        run: |
+          solution=$(find . -maxdepth 1 -type f -iname "*.sln")
+
+          echo "found solution: ${solution}"
+
+          # do not quote to keep this as a single line
+          echo solution=${solution} >> $GITHUB_OUTPUT
+
+          if [[ $solution != "" ]]; then
+            echo "dotnet=true" >> $GITHUB_OUTPUT
+          else
+            echo "dotnet=false" >> $GITHUB_OUTPUT
+          fi
+
     outputs:
       dockerfiles: ${{ steps.find.outputs.dockerfiles }}
       matrix: ${{ steps.find.outputs.matrix }}
+      dotnet: ${{ steps.find_dotnet.outputs.dotnet }}
+      solution: ${{ steps.find_dotnet.outputs.solution }}
 
-  check_changelog:
-    name: Check Changelog
-    needs: [check_dockerfiles]
+  setup_release:
     if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
+    name: Setup Release
+    needs:
+      - check_dockerfiles
+    outputs:
+      publish_release: ${{ steps.setup_release.outputs.publish_release }}
+      release_commit: ${{ steps.setup_release.outputs.release_commit }}
+      release_tag: ${{ steps.setup_release.outputs.release_tag }}
+      release_version: ${{ steps.setup_release.outputs.release_version }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
         uses: actions/checkout@v4
 
-      - name: Verify Changelog
-        id: verify_changelog
-        if: ${{ github.ref == 'refs/heads/master' || github.base_ref == 'master' }}
-        # base_ref for pull request check, ref for push
-        uses: LizardByte/.github/actions/verify_changelog@master
+      - name: Setup Release
+        id: setup_release
+        uses: LizardByte/setup-release-action@v2024.524.1411
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-    outputs:
-      next_version: ${{ steps.verify_changelog.outputs.changelog_parser_version }}
-      next_version_bare: ${{ steps.verify_changelog.outputs.changelog_parser_version_bare }}
-      last_version: ${{ steps.verify_changelog.outputs.latest_release_tag_name }}
-      release_body: ${{ steps.verify_changelog.outputs.changelog_parser_description }}
-
-  setup_release:
-    name: Setup Release
-    needs: check_changelog
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set release details
-        id: release_details
-        env:
-          RELEASE_BODY: ${{ needs.check_changelog.outputs.release_body }}
-        run: |
-          # determine to create a release or not
-          if [[ $GITHUB_EVENT_NAME == "push" ]]; then
-            RELEASE=true
-          else
-            RELEASE=false
-          fi
-
-          # set the release tag
-          COMMIT=${{ github.sha }}
-          if [[ $GITHUB_REF == refs/heads/master ]]; then
-            TAG="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_NAME="${{ needs.check_changelog.outputs.next_version }}"
-            RELEASE_BODY="$RELEASE_BODY"
-            PRE_RELEASE="false"
-          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAG="nightly-dev"
-            RELEASE_NAME="nightly"
-            RELEASE_BODY="automated nightly release - $(date -u +'%Y-%m-%dT%H:%M:%SZ') - ${COMMIT}"
-            PRE_RELEASE="true"
-          fi
-
-          echo "create_release=${RELEASE}" >> $GITHUB_OUTPUT
-          echo "release_tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "release_commit=${COMMIT}" >> $GITHUB_OUTPUT
-          echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "pre_release=${PRE_RELEASE}" >> $GITHUB_OUTPUT
-
-          # this is stupid but works for multiline strings
-          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-          echo "$RELEASE_BODY" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-    outputs:
-      create_release: ${{ steps.release_details.outputs.create_release }}
-      release_tag: ${{ steps.release_details.outputs.release_tag }}
-      release_commit: ${{ steps.release_details.outputs.release_commit }}
-      release_name: ${{ steps.release_details.outputs.release_name }}
-      release_body: ${{ env.RELEASE_BODY }}
-      pre_release: ${{ steps.release_details.outputs.pre_release }}
+          dotnet: ${{ needs.check_dockerfiles.outputs.dotnet }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   lint_dockerfile:
     needs: [check_dockerfiles]
@@ -180,7 +147,7 @@ jobs:
           cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
 
   docker:
-    needs: [check_dockerfiles, check_changelog, setup_release]
+    needs: [check_dockerfiles, setup_release]
     if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
     runs-on: ubuntu-latest
     permissions:
@@ -193,7 +160,7 @@ jobs:
 
     steps:
       - name: Maximize build space
-        uses: easimon/maximize-build-space@v8
+        uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 30720  # https://github.com/easimon/maximize-build-space#caveats
           remove-dotnet: 'true'
@@ -210,24 +177,20 @@ jobs:
       - name: Prepare
         id: prepare
         env:
-          NV: ${{ needs.check_changelog.outputs.next_version }}
+          NV: ${{ needs.setup_release.outputs.release_tag }}
         run: |
           # get branch name
           BRANCH=${GITHUB_HEAD_REF}
 
-          RELEASE=false
+          RELEASE=${{ needs.setup_release.outputs.publish_release }}
+          COMMIT=${{ needs.setup_release.outputs.release_commit }}
 
           if [ -z "$BRANCH" ]; then
             echo "This is a PUSH event"
             BRANCH=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
             CLONE_URL=${{ github.event.repository.clone_url }}
-            if [[ $BRANCH == "master" ]]; then
-              RELEASE=true
-            fi
           else
             echo "This is a PULL REQUEST event"
-            COMMIT=${{ github.event.pull_request.head.sha }}
             CLONE_URL=${{ github.event.pull_request.head.repo.clone_url }}
           fi
 
@@ -260,7 +223,7 @@ jobs:
           # parse custom directives out of dockerfile
           # try to get the platforms from the dockerfile custom directive, i.e. `# platforms: xxx,yyy`
           # directives for PR event, i.e. not push event
-          if [[ ${PUSH} == "false" ]]; then
+          if [[ ${RELEASE} == "false" ]]; then
             while read -r line; do
               if [[ $line == "# platforms_pr: "* && $PLATFORMS == "" ]]; then
                 # echo the line and use `sed` to remove the custom directive
@@ -299,13 +262,10 @@ jobs:
 
           echo "branch=${BRANCH}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
-          echo "commit=${COMMIT}" >> $GITHUB_OUTPUT
           echo "clone_url=${CLONE_URL}" >> $GITHUB_OUTPUT
-          echo "release=${RELEASE}" >> $GITHUB_OUTPUT
           echo "artifacts=${ARTIFACTS}" >> $GITHUB_OUTPUT
           echo "no_cache_filters=${NO_CACHE_FILTERS}" >> $GITHUB_OUTPUT
           echo "platforms=${PLATFORMS}" >> $GITHUB_OUTPUT
-          echo "push=${PUSH}" >> $GITHUB_OUTPUT
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
 
       - name: Set Up QEMU
@@ -316,7 +276,7 @@ jobs:
         id: buildx
 
       - name: Cache Docker Layers
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /tmp/.buildx-cache
           key: Docker-buildx${{ matrix.tag }}-${{ github.sha }}
@@ -324,14 +284,14 @@ jobs:
             Docker-buildx${{ matrix.tag }}-
 
       - name: Log in to Docker Hub
-        if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Log in to the Container registry
-        if: ${{ steps.prepare.outputs.push == 'true' }}  # PRs do not have access to secrets
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -352,10 +312,10 @@ jobs:
           build-args: |
             BRANCH=${{ steps.prepare.outputs.branch }}
             BUILD_DATE=${{ steps.prepare.outputs.build_date }}
-            BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
-            COMMIT=${{ steps.prepare.outputs.commit }}
+            BUILD_VERSION=${{ needs.setup_release.outputs.release_tag }}
+            COMMIT=${{ needs.setup_release.outputs.release_commit }}
             CLONE_URL=${{ steps.prepare.outputs.clone_url }}
-            RELEASE=${{ steps.prepare.outputs.release }}
+            RELEASE=${{ needs.setup_release.outputs.publish_release }}
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
@@ -367,15 +327,15 @@ jobs:
         with:
           context: ./
           file: ${{ matrix.dockerfile }}
-          push: ${{ steps.prepare.outputs.push }}
+          push: ${{ needs.setup_release.outputs.publish_release }}
           platforms: ${{ steps.prepare.outputs.platforms }}
           build-args: |
             BRANCH=${{ steps.prepare.outputs.branch }}
             BUILD_DATE=${{ steps.prepare.outputs.build_date }}
-            BUILD_VERSION=${{ needs.check_changelog.outputs.next_version }}
-            COMMIT=${{ steps.prepare.outputs.commit }}
+            BUILD_VERSION=${{ needs.setup_release.outputs.release_tag }}
+            COMMIT=${{ needs.setup_release.outputs.release_commit }}
             CLONE_URL=${{ steps.prepare.outputs.clone_url }}
-            RELEASE=${{ steps.prepare.outputs.release }}
+            RELEASE=${{ needs.setup_release.outputs.publish_release }}
           tags: ${{ steps.prepare.outputs.tags }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
@@ -401,22 +361,21 @@ jobs:
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.create_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
-        uses: ncipollo/release-action@v1
+        if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
+        uses: LizardByte/create-release-action@v2024.520.211408
         with:
-          name: ${{ needs.setup_release.outputs.release_name }}
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          commit: ${{ needs.setup_release.outputs.release_commit }}
-          artifacts: "*artifacts/*"
-          token: ${{ secrets.GH_BOT_TOKEN }}
           allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
+          artifacts: "*artifacts/*"
           discussionCategory: announcements
-          prerelease: ${{ needs.setup_release.outputs.pre_release }}
+          generateReleaseNotes: true
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Update Docker Hub Description
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
-        uses: peter-evans/dockerhub-description@v3
+        uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_PASSWORD }}  # token is not currently supported

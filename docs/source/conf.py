@@ -74,7 +74,7 @@ html_theme = 'furo'
 
 html_theme_options = {
     "top_of_page_button": "edit",
-    "source_edit_link": "https://github.com/lizardbyte/sunshine/tree/nightly/docs/source/{filename}",
+    "source_edit_link": "https://github.com/lizardbyte/sunshine/tree/master/docs/source/{filename}",
 }
 
 # extension config options

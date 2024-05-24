@@ -1,6 +1,6 @@
 ---
 codecov:
-  branch: nightly
+  branch: master
 
 coverage:
   status:
