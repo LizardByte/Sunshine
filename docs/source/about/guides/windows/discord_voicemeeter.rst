@@ -18,11 +18,10 @@ Windows
 
 Discord
 ^^^^^^^
+
 #. Open the settings
-
 #. Go to Voice & Video
-
-#. Set your Output Device as the physical you recieve audio to
+#. Set your Output Device as the physical you receive audio to
 
 .. note:: It is usually the same device you set for Hardware Out in Voicemeeter.
 
