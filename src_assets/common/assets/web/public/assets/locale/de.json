@@ -322,6 +322,7 @@
   "index": {
     "description": "Sunshine ist ein selbst gehosteter Game-Stream-Host für Moonlight.",
     "download": "Download",
+    "installed_version_not_stable": "Sie verwenden eine Vor-Release-Version von Sunshine. Sie können Fehler oder andere Probleme haben. Bitte melde alle Probleme, auf die du triffst. Danke, dass du dabei geholfen hast, Sunshine zu einer besseren Software zu machen!",
     "loading_latest": "Lade neueste Version...",
     "new_pre_release": "Eine neue Pre-Release Version ist verfügbar!",
     "new_stable": "Eine neue <b>Stable</b> Version ist verfügbar!",
