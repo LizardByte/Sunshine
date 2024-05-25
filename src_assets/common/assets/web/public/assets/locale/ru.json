@@ -337,6 +337,10 @@
     "home": "Домашний",
     "password": "Изменить пароль",
     "pin": "Закрепить",
+    "theme_auto": "Авто",
+    "theme_dark": "Тёмная",
+    "theme_light": "Светлая",
+    "toggle_theme": "Тема",
     "troubleshoot": "Устранение проблем"
   },
   "password": {
