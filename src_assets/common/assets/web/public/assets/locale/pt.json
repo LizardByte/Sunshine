@@ -322,6 +322,7 @@
   "index": {
     "description": "O sol é um anfitrião de jogos auto-hospedado para o Moonlight.",
     "download": "BAIXAR",
+    "installed_version_not_stable": "Você está executando uma versão de pré-lançamento do Sol. Você pode enfrentar erros ou outros problemas. Por favor, reporte qualquer problema que você encontrar. Obrigado por ajudar a fazer do sol um software melhor!",
     "loading_latest": "Carregando a última versão...",
     "new_pre_release": "Uma nova versão de pré-lançamento está disponível!",
     "new_stable": "Uma nova versão <b>Stable</b> está disponível!",
