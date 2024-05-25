@@ -48,9 +48,9 @@
 	branch = master
 [submodule "third-party/wayland-protocols"]
 	path = third-party/wayland-protocols
-	url = https://gitlab.freedesktop.org/wayland/wayland-protocols
+	url = https://gitlab.freedesktop.org/wayland/wayland-protocols.git
 	branch = main
 [submodule "third-party/wlr-protocols"]
 	path = third-party/wlr-protocols
-	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols
+	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols.git
 	branch = master
