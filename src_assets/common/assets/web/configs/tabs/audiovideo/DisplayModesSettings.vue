@@ -65,3 +65,11 @@ const fpsIn = ref("")
     <div class="form-text">{{ $t('config.res_fps_desc') }}</div>
   </div>
 </template>
+
+<style scoped>
+.ms-item {
+  background-color: var(--bs-dark-bg-subtle);
+  font-size: 12px;
+  font-weight: bold;
+}
+</style>
