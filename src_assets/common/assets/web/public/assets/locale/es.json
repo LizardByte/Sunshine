@@ -325,7 +325,7 @@
     "installed_version_not_stable": "Está ejecutando una versión pre-lanzamiento de Sunshine. Puede que experimente fallos u otros problemas. Por favor, informe de cualquier problema que encuentres. ¡Gracias por ayudar a hacer de Sunshine un software mejor!",
     "loading_latest": "Cargando la última versión...",
     "new_pre_release": "¡Una nueva versión de pre-lanzamiento está disponible!",
-    "new_stable": "¡Una nueva versión <b>estable</b> está disponible!",
+    "new_stable": "¡Una nueva versión estable está disponible!",
     "startup_errors": "<b>Atención.</b> Sunshine ha detectado estos errores durante el arranque. <b>RECOMENDAMOS ENCARECIDAMENTE</b> solucionarlos antes de transmitir.",
     "version_dirty": "¡Gracias por ayudar a hacer de Sunshine un mejor software!",
     "version_latest": "Está ejecutando la última versión de Sunshine",
@@ -338,7 +338,7 @@
     "password": "Cambiar contraseña",
     "pin": "Pin",
     "theme_auto": "Auto",
-    "theme_dark": "Dark",
+    "theme_dark": "Oscuro",
     "theme_light": "Claro",
     "toggle_theme": "Tema",
     "troubleshoot": "Resolución de problemas"
