@@ -325,7 +325,7 @@
     "installed_version_not_stable": "您正在运行一个 Sunshine 的预发布版本。您可能会遇到Bug或其他问题。 请报告您遇到的任何问题。感谢您帮助将阳光变成一个更好的软件！",
     "loading_latest": "正在检测最新版本...",
     "new_pre_release": "有新的预发布版本可用！",
-    "new_stable": "新的<b>稳定</b>版本已发布！",
+    "new_stable": "新的稳定版本已发布！",
     "startup_errors": "<b>请注意！</b>Sunshine 在启动过程中检测到这些错误。我们<b>强烈建议</b>您在串流之前修复这些错误。",
     "version_dirty": "感谢您的帮助，让 Sunshine 变得更好！",
     "version_latest": "您正在运行最新版本的 Sunshine",
