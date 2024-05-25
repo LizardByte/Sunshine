@@ -337,6 +337,10 @@
     "home": "Residencial",
     "password": "Mudar a senha",
     "pin": "PIN",
+    "theme_auto": "Automático",
+    "theme_dark": "Escuro",
+    "theme_light": "Fino",
+    "toggle_theme": "Tema",
     "troubleshoot": "Solução de problemas"
   },
   "password": {
