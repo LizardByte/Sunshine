@@ -325,7 +325,7 @@
     "installed_version_not_stable": "Du kör en förhandsversion av Sunshine. Du kan uppleva buggar eller andra problem. Vänligen rapportera eventuella problem du stöter. Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "loading_latest": "Laddar senaste utgåvan...",
     "new_pre_release": "En ny version av förhandsversionen är tillgänglig!",
-    "new_stable": "En ny <b>stabil</b> version är tillgänglig!",
+    "new_stable": "En ny stabil version är tillgänglig!",
     "startup_errors": "<b>Uppmärksamhet!</b> Solsken upptäckte dessa fel vid uppstart. Vi <b>STARKLIG KUNSKAP</b> fixar dem innan vi streamar.",
     "version_dirty": "Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "version_latest": "Du kör den senaste versionen av Sunshine",
