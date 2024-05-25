@@ -38,10 +38,11 @@ if exist "%OLD_DIR%\credentials\" (
 rem Create the credentials directory if it wasn't migrated or already existing
 if not exist "%NEW_DIR%\credentials\" mkdir "%NEW_DIR%\credentials"
 
-rem Disallow read access to the credentials directory for normal users
-rem Note: We must use the SID directly because "Administrators" is localized
+rem Disallow read access to the credentials directory contents for normal users
+rem Note: We must use the SIDs directly because "Users" and "Administrators" are localized
 icacls "%NEW_DIR%\credentials" /inheritance:r
 icacls "%NEW_DIR%\credentials" /grant:r *S-1-5-32-544:(OI)(CI)(F)
+icacls "%NEW_DIR%\credentials" /grant:r *S-1-5-32-545:(R)
 
 rem Migrate the covers directory
 if exist "%OLD_DIR%\covers\" (
