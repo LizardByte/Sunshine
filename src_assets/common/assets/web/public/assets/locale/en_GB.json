@@ -337,6 +337,10 @@
     "home": "Home",
     "password": "Change Password",
     "pin": "Pin",
+    "theme_auto": "Auto",
+    "theme_dark": "Dark",
+    "theme_light": "Light",
+    "toggle_theme": "Theme",
     "troubleshoot": "Troubleshooting"
   },
   "password": {
