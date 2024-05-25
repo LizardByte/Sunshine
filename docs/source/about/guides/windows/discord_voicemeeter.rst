@@ -1,11 +1,11 @@
 Discord call audio cancellation with Voicemeeter (Standard)
 ===========================================================
+
 Voicemeeter
 ^^^^^^^^^^^
+
 #. Click Hardware Out
-
 #. Set the physical device you recieve audio to as your Hardware Out with MME
-
 #. Turn on BUS A for the Virtual Input
 
 Windows
