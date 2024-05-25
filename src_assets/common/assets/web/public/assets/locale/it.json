@@ -322,6 +322,7 @@
   "index": {
     "description": "Sunshine è un host di flussi di giochi auto-ospitato per Moonlight.",
     "download": "Download",
+    "installed_version_not_stable": "Stai eseguendo una versione pre-rilascio di Sunshine. Potresti riscontrare bug o altri problemi. Si prega di segnalare eventuali problemi incontrati. Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "loading_latest": "Caricamento dell'ultima versione...",
     "new_pre_release": "Una nuova versione pre-rilascio è disponibile!",
     "new_stable": "Una nuova versione <b>Stabile</b> è disponibile!",
