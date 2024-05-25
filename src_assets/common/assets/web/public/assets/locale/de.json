@@ -337,6 +337,10 @@
     "home": "Zuhause",
     "password": "Passwort ändern",
     "pin": "Pin",
+    "theme_auto": "Auto",
+    "theme_dark": "Dunkel",
+    "theme_light": "Hell",
+    "toggle_theme": "Thema",
     "troubleshoot": "Fehlerbehebung"
   },
   "password": {
