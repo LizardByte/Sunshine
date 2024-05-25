@@ -337,6 +337,10 @@
     "home": "ホーム",
     "password": "パスワードの変更",
     "pin": "Pin",
+    "theme_auto": "自動",
+    "theme_dark": "ダーク",
+    "theme_light": "ライト",
+    "toggle_theme": "テーマ",
     "troubleshoot": "トラブルシューティング"
   },
   "password": {
