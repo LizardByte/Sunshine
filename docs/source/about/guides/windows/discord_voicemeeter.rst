@@ -14,7 +14,9 @@ Windows
 #. Open the sound settings
 #. Set your default Playback as Voicemeeter Input
 
-.. note:: Run audio in the background to find the device that your Virtual Input is using (Voicemeeter In #), you will see the bar to the right of the device have green bars going up and down. This device will be referred to as Voicemeeter Input.
+.. note:: Run audio in the background to find the device that your Virtual Input is using
+   (Voicemeeter In #), you will see the bar to the right of the device have green bars
+   going up and down. This device will be referred to as Voicemeeter Input.
 
 Discord
 ^^^^^^^
