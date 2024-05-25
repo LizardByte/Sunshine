@@ -125,7 +125,7 @@ jobs:
       - name: Configure Flatpak Manifest
         run: |
           # variables for manifest
-          branch=${{ github.head_ref }}
+          branch="${{ github.head_ref }}"
           commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable
@@ -505,7 +505,7 @@ jobs:
       - name: Configure formula
         run: |
           # variables for formula
-          branch=${{ github.head_ref }}
+          branch="${{ github.head_ref }}"
           commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable
@@ -623,7 +623,7 @@ jobs:
       - name: Configure Portfile
         run: |
           # variables for Portfile
-          branch=${{ github.head_ref }}
+          branch="${{ github.head_ref }}"
           commit=${{ needs.setup_release.outputs.release_commit }}
 
           # check the branch variable

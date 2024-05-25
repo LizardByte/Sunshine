@@ -24,7 +24,7 @@
     <!-- Version -->
     <div class="card p-2 my-4">
       <div class="card-body" v-if="version">
-        <h2>Version {{version}}</h2>
+        <h2>Version {{version.version}}</h2>
         <br>
         <div v-if="loading">
           {{ $t('index.loading_latest') }}
@@ -32,7 +32,10 @@
         <div class="alert alert-success" v-if="buildVersionIsDirty">
           {{ $t('index.version_dirty') }} 🌇
         </div>
-        <div v-else-if="!preReleaseBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
+        <div class="alert alert-info" v-if="installedVersionNotStable">
+          {{ $t('index.installed_version_not_stable') }}
+        </div>
+        <div v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
           <div class="alert alert-success">
             {{ $t('index.version_latest') }}
           </div>
@@ -43,10 +46,10 @@
               <div class="my-2">
                 <p>{{ $t('index.new_pre_release') }}</p>
               </div>
-              <a class="btn btn-success m-1" :href="preReleaseVersion.html_url" target="_blank">{{ $t('index.download') }}</a>
+              <a class="btn btn-success m-1" :href="preReleaseVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
-            <pre><b>{{preReleaseVersion.name}}</b></pre>
-            <pre>{{preReleaseVersion.body}}</pre>
+            <pre><b>{{preReleaseVersion.release.name}}</b></pre>
+            <pre>{{preReleaseVersion.release.body}}</pre>
           </div>
         </div>
         <div v-if="stableBuildAvailable">
@@ -55,10 +58,10 @@
               <div class="my-2">
                 <p>{{ $t('index.new_stable') }}</p>
               </div>
-              <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">{{ $t('index.download') }}</a>
+              <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
-            <h3>{{githubVersion.name}}</h3>
-            <pre>{{githubVersion.body}}</pre>
+            <h3>{{githubVersion.release.name}}</h3>
+            <pre>{{githubVersion.release.body}}</pre>
           </div>
         </div>
       </div>
@@ -75,6 +78,7 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
+  import SunshineVersion from './sunshine_version'
 
   console.log("Hello, Sunshine!")
   let app = createApp({
@@ -96,10 +100,14 @@
       try {
         let config = await fetch("/api/config").then((r) => r.json());
         this.notifyPreReleases = config.notify_pre_releases;
-        this.version = config.version;
-        this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        this.githubPreRelease = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease);
+        this.version = new SunshineVersion(null, config.version);
+        console.log("Version: ", this.version.version)
+        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
+        console.log("GitHub Version: ", this.githubVersion.version)
+        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
+        console.log("Pre-Release Version: ", this.preReleaseVersion.version)
       } catch (e) {
+        console.error(e);
       }
       try {
         this.logs = (await fetch("/api/logs").then(r => r.text()))
@@ -109,41 +117,27 @@
       this.loading = false;
     },
     computed: {
+      installedVersionNotStable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.version.isGreater(this.githubVersion);
+      },
       stableBuildAvailable() {
         if (!this.githubVersion || !this.version) {
           return false;
         }
-        let v_github = this.githubVersion.name;
-        if (v_github.indexOf("v") === 0) {
-          v_github = v_github.substring(1);
-        }
-        let v_this = this.version;
-        if (v_this.indexOf("v") === 0) {
-          v_this = v_this.substring(1);
-        }
-        return v_github !== v_this;
+        return this.githubVersion.isGreater(this.version);
       },
       preReleaseBuildAvailable() {
-        if (!this.githubPreRelease || !this.githubVersion || !this.version) {
+        if (!this.preReleaseVersion || !this.githubVersion || !this.version) {
           return false;
         }
-        let v_github_pre = this.githubPreRelease.name;
-        if (v_github_pre.indexOf("v") === 0) {
-          v_github_pre = v_github_pre.substring(1);
-        }
-        let v_github_stable = this.githubVersion.name;
-        if (v_github_stable.indexOf("v") === 0) {
-          v_github_stable = v_github_stable.substring(1);
-        }
-        let v_this = this.version;
-        if (v_this.indexOf("v") === 0) {
-          v_this = v_this.substring(1);
-        }
-        return v_github_pre !== v_this && new Date(this.githubPreRelease.published_at) > new Date(this.githubVersion.published_at);
+        return this.preReleaseVersion.isGreater(this.version) && this.preReleaseVersion.isGreater(this.githubVersion);
       },
       buildVersionIsDirty() {
-        return this.version?.split(".").length === 5 &&
-          this.version.indexOf("dirty") !== -1
+        return this.version.version?.split(".").length === 5 &&
+          this.version.version.indexOf("dirty") !== -1
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {
