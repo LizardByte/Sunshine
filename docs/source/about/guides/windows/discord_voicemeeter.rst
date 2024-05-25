@@ -27,10 +27,9 @@ Discord
 
 Sunshine
 ^^^^^^^^
+
 #. Go to Configuration 
-
 #. Go to the Audio/Video tab
-
 #. Set Virtual Sink as Voicemeeter Input
 
 .. note:: This should be the device you set as default previously in Playback.
