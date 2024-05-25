@@ -322,6 +322,7 @@
   "index": {
     "description": "Solsken är en själv-värd spel ström värd för Moonlight.",
     "download": "Hämta",
+    "installed_version_not_stable": "Du kör en förhandsversion av Sunshine. Du kan uppleva buggar eller andra problem. Vänligen rapportera eventuella problem du stöter. Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "loading_latest": "Laddar senaste utgåvan...",
     "new_pre_release": "En ny version av förhandsversionen är tillgänglig!",
     "new_stable": "En ny <b>stabil</b> version är tillgänglig!",
