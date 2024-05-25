@@ -337,6 +337,10 @@
     "home": "首页",
     "password": "更改密码",
     "pin": "PIN 码",
+    "theme_auto": "自动操作",
+    "theme_dark": "深色",
+    "theme_light": "亮色的",
+    "toggle_theme": "主题",
     "troubleshoot": "故障排除"
   },
   "password": {
