@@ -337,6 +337,10 @@
     "home": "Hem",
     "password": "Ändra lösenord",
     "pin": "Fäst",
+    "theme_auto": "Automatiskt",
+    "theme_dark": "Mörk",
+    "theme_light": "Ljus",
+    "toggle_theme": "Tema",
     "troubleshoot": "Felsökning"
   },
   "password": {
