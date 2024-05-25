@@ -322,6 +322,7 @@
   "index": {
     "description": "Sunshine est un serveur de streaming auto-hébergé pour Moonlight.",
     "download": "Télécharger",
+    "installed_version_not_stable": "Vous utilisez une version pré-publiée de Sunshine. Vous pouvez rencontrer des bugs ou d'autres problèmes. Veuillez signaler tout problème que vous rencontrez. Merci de nous aider à faire de Sunshine un meilleur logiciel!",
     "loading_latest": "Chargement de la dernière version...",
     "new_pre_release": "Une nouvelle version de pré-version est disponible!",
     "new_stable": "Une nouvelle version <b>stable</b> est disponible !",
