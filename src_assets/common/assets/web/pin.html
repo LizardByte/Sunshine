@@ -25,7 +25,7 @@
 
 <script type="module">
   import { createApp } from 'vue'
-  import i18n from './locale.js'
+  import i18nLocale from './locale.js'
   import Navbar from './Navbar.vue'
   import {initApp} from "./init";
 
@@ -35,8 +35,9 @@
     }
   });
 
-  initApp(app, (app => {
+  initApp(app, (async app => {
     // this must be after mounting the app
+    const i18n = await i18nLocale()
     document.querySelector("#form").addEventListener("submit", (e) => {
       e.preventDefault();
       let pin = document.querySelector("#pin-input").value;
