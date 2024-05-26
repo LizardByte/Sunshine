@@ -9,9 +9,9 @@ name: "CodeQL"
 
 on:
   push:
-    branches: ["master", "nightly"]
+    branches: ["master"]
   pull_request:
-    branches: ["master", "nightly"]
+    branches: ["master"]
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
