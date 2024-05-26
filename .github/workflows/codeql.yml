@@ -140,9 +140,12 @@ jobs:
           submodules: recursive
 
       - name: Setup msys2
-        if: runner.os == 'Windows'
+        if: >-
+          runner.os == 'Windows' &&
+          matrix.language == 'cpp'
         uses: msys2/setup-msys2@v2
         with:
+          msystem: ucrt64
           update: true
 
       # Initializes the CodeQL tools for scanning.
