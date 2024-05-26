@@ -22,10 +22,10 @@ name: CI Docker
 
 on:
   pull_request:
-    branches: [master, nightly]
+    branches: [master]
     types: [opened, synchronize, reopened]
   push:
-    branches: [master, nightly]
+    branches: [master]
   workflow_dispatch:
 
 concurrency:
@@ -210,8 +210,6 @@ jobs:
           if [[ $GITHUB_REF == refs/heads/master ]]; then
             TAGS="${TAGS},${BASE_TAG}:latest${{ matrix.tag }},ghcr.io/${BASE_TAG}:latest${{ matrix.tag }}"
             TAGS="${TAGS},${BASE_TAG}:master${{ matrix.tag }},ghcr.io/${BASE_TAG}:master${{ matrix.tag }}"
-          elif [[ $GITHUB_REF == refs/heads/nightly ]]; then
-            TAGS="${TAGS},${BASE_TAG}:nightly${{ matrix.tag }},ghcr.io/${BASE_TAG}:nightly${{ matrix.tag }}"
           else
             TAGS="${TAGS},${BASE_TAG}:test${{ matrix.tag }},ghcr.io/${BASE_TAG}:test${{ matrix.tag }}"
           fi
