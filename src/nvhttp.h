@@ -9,6 +9,9 @@
 // standard includes
 #include <string>
 
+// lib includes
+#include <boost/property_tree/ptree.hpp>
+
 // local includes
 #include "thread_safe.h"
 
@@ -43,7 +46,11 @@ namespace nvhttp {
   void
   start();
   bool
-  pin(std::string pin);
+  pin(std::string pin, std::string name);
+  int
+  unpair_client(std::string uniqueid);
+  boost::property_tree::ptree
+  get_all_clients();
   void
   erase_all_clients();
 }  // namespace nvhttp

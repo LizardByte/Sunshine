@@ -693,7 +693,8 @@ namespace confighttp {
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
       std::string pin = inputTree.get<std::string>("pin");
-      outputTree.put("status", nvhttp::pin(pin));
+      std::string name = inputTree.get<std::string>("name");
+      outputTree.put("status", nvhttp::pin(pin, name));
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
@@ -717,6 +718,60 @@ namespace confighttp {
       response->write(data.str());
     });
     nvhttp::erase_all_clients();
+    proc::proc.terminate();
+    outputTree.put("status", true);
+  }
+
+  void
+  unpair(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+
+    pt::ptree inputTree, outputTree;
+
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    try {
+      // TODO: Input Validation
+      pt::read_json(ss, inputTree);
+      std::string uuid = inputTree.get<std::string>("uuid");
+      outputTree.put("status", nvhttp::unpair_client(uuid));
+    }
+    catch (std::exception &e) {
+      BOOST_LOG(warning) << "Unpair: "sv << e.what();
+      outputTree.put("status", false);
+      outputTree.put("error", e.what());
+      return;
+    }
+  }
+
+  void
+  listClients(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+
+    pt::ptree named_certs = nvhttp::get_all_clients();
+
+    pt::ptree outputTree;
+
+    outputTree.put("status", false);
+
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    outputTree.add_child("named_certs", named_certs);
     outputTree.put("status", true);
   }
 
@@ -765,7 +820,9 @@ namespace confighttp {
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
-    server.resource["^/api/clients/unpair$"]["POST"] = unpairAll;
+    server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
+    server.resource["^/api/clients/list$"]["GET"] = listClients;
+    server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;

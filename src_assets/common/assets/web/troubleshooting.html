@@ -75,24 +75,39 @@
         </div>
       </div>
     </div>
-    <!-- Unpair all Clients -->
-    <div class="card p-2 my-4">
+    <!-- Unpair Clients -->
+    <div class="card my-4">
       <div class="card-body">
-        <h2 id="unpair">{{ $t('troubleshooting.unpair_all') }}</h2>
-        <br>
-        <p>{{ $t('troubleshooting.unpair_all_desc') }}</p>
-        <div class="alert alert-success" v-if="unpairAllStatus === true">
-          {{ $t('troubleshooting.unpair_all_success') }}
-        </div>
-        <div class="alert alert-danger" v-if="unpairAllStatus === false">
-          {{ $t('troubleshooting.unpair_all_error') }}
-        </div>
-        <div>
-          <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-            {{ $t('troubleshooting.unpair_all') }}
-          </button>
+        <div class="p-2">
+          <div class="d-flex justify-content-end align-items-center">
+            <h2 id="unpair" class="text-center me-auto">{{ $t('troubleshooting.unpair_title') }}</h2>
+            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+              {{ $t('troubleshooting.unpair_all') }}
+            </button>
+          </div>
+          <br />
+          <p class="mb-0">{{ $t('troubleshooting.unpair_desc') }}</p>
+          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3" :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
+            <div class="me-2"><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
+            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
+          </div>
+          <div class="alert alert-success mt-3" v-if="unpairAllStatus === true">
+            {{ $t('troubleshooting.unpair_all_success') }}
+          </div>
+          <div class="alert alert-danger mt-3" v-if="unpairAllStatus === false">
+            {{ $t('troubleshooting.unpair_all_error') }}
+          </div>
         </div>
       </div>
+      <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
+        <div v-for="client in clients" class="list-group-item d-flex">
+          <div class="p-2 flex-grow-1">{{client.name != "" ? client.name : $t('troubleshooting.unpair_single_unknown')}}</div><div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
+        </div>
+      </ul>
+      <ul v-else class="list-group list-group-flush list-group-item-light">
+        <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em></div>
+      </ul>
+      
     </div>
     <!-- Logs -->
     <div class="card p-2 my-4">
@@ -123,14 +138,16 @@
       },
       data() {
         return {
+          clients: [],
           closeAppPressed: false,
           closeAppStatus: null,
-          unpairAllPressed: false,
-          unpairAllStatus: null,
-          restartPressed: false,
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
+          restartPressed: false,
+          showApplyMessage: false,
+          unpairAllPressed: false,
+          unpairAllStatus: null,
         };
       },
       computed: {
@@ -146,6 +163,7 @@
           this.refreshLogs();
         }, 5000);
         this.refreshLogs();
+        this.refreshClients();
       },
       beforeDestroy() {
         clearInterval(this.logInterval);
@@ -172,7 +190,7 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("/api/clients/unpair", { method: "POST" })
+          fetch("/api/clients/unpair-all", { method: "POST" })
             .then((r) => r.json())
             .then((r) => {
               this.unpairAllPressed = false;
@@ -180,7 +198,31 @@
               setTimeout(() => {
                 this.unpairAllStatus = null;
               }, 5000);
+              this.refreshClients();
             });
+        },
+        unpairSingle(uuid) {
+          fetch("/api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
+            this.showApplyMessage = true;
+            this.refreshClients();
+          });
+        },
+        refreshClients() {
+          fetch("/api/clients/list")
+            .then((response) => response.json())
+            .then((response) => {
+              const clientList = document.querySelector("#client-list");
+              if (response.status === 'true' && response.named_certs && response.named_certs.length) {
+                this.clients = response.named_certs.sort((a, b) => {
+                  return (a.name.toLowerCase() > b.name.toLowerCase() || a.name == "" ? 1 : -1)
+                });
+              } else {
+                this.clients = [];
+              }
+            });
+        },
+        clickedApplyBanner() {
+          this.showApplyMessage = false;
         },
         copyLogs() {
           navigator.clipboard.writeText(this.actualLogs);
