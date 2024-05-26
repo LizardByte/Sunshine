@@ -3,7 +3,7 @@
     "apply": "Aplicar",
     "auto": "Automático",
     "autodetect": "Detetar automaticamente (recomendado)",
-    "cancel": "cancelar",
+    "cancel": "Cancelar",
     "disabled": "Desabilitado",
     "disabled_def": "Desativado (padrão)",
     "do_cmd": "Faça o Comando",
@@ -390,7 +390,7 @@
     "create_creds": "Antes de começar, precisamos que você crie um novo nome de usuário e senha para acessar a interface da web.",
     "create_creds_alert": "As credenciais abaixo são necessárias para acessar a interface da Web do Sunshine. Mantenha-as seguras, já que você nunca vai vê-las novamente!",
     "greeting": "Bem-vindo ao Sol!",
-    "login": "Conectar-se",
+    "login": "Conectar",
     "welcome_success": "Esta página será recarregada em breve, seu navegador irá pedir novas credenciais"
   }
 }
