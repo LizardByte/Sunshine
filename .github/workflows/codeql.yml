@@ -9,9 +9,9 @@ name: "CodeQL"
 
 on:
   push:
-    branches: ["master", "nightly"]
+    branches: ["master"]
   pull_request:
-    branches: ["master", "nightly"]
+    branches: ["master"]
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
@@ -140,9 +140,12 @@ jobs:
           submodules: recursive
 
       - name: Setup msys2
-        if: runner.os == 'Windows'
+        if: >-
+          runner.os == 'Windows' &&
+          matrix.language == 'cpp'
         uses: msys2/setup-msys2@v2
         with:
+          msystem: ucrt64
           update: true
 
       # Initializes the CodeQL tools for scanning.

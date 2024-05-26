@@ -9,11 +9,11 @@ name: yaml lint
 
 on:
   pull_request:
-    branches: [master, nightly]
+    branches: [master]
     types: [opened, synchronize, reopened]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
