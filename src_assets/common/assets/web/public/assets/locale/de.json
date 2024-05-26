@@ -24,7 +24,7 @@
   "apps": {
     "actions": "Aktionen",
     "add_cmds": "Befehle hinzufügen",
-    "add_new": "Neu",
+    "add_new": "Neu hinzufügen",
     "app_name": "Anwendungsname",
     "app_name_desc": "Anwendungsname, wie auf Mondlicht gezeigt",
     "applications_desc": "Anwendungen werden nur beim Neustart des Clients aktualisiert",
@@ -215,6 +215,8 @@
     "mouse_desc": "Erlaubt Gästen das Host-System mit der Maus zu steuern",
     "native_pen_touch": "Native Pen/Touch Unterstützung",
     "native_pen_touch_desc": "Wenn aktiviert, durchläuft Sunshine natives Pen / Berühren von Moonlight-Clients. Dies kann nützlich sein, um ältere Anwendungen ohne nativen Stift-/Berührungs-Support zu deaktivieren.",
+    "notify_pre_releases": "Pre-Release-Benachrichtigungen",
+    "notify_pre_releases_desc": "Ob über neue Versionen von Sunshine benachrichtigt werden soll",
     "nvenc_h264_cavlc": "CAVLC gegenüber CABAC in H.264 bevorzugen",
     "nvenc_h264_cavlc_desc": "Einfachere Form der Entropy-Codierung. CAVLC benötigt ca. 10% mehr Bitrate für die gleiche Qualität. Nur relevant für wirklich alte Decodierungsgeräte.",
     "nvenc_latency_over_power": "Reduzierte Encoding-Latenz gegenüber Energieeinsparungen bevorzugen",
@@ -252,7 +254,7 @@
     "pkey": "Privater Schlüssel",
     "pkey_desc": "Der private Schlüssel, der für das Web-UI- und Moonlight-Client-Paar verwendet wird. Für bestmögliche Kompatibilität sollte dies ein privater RSA-2048 Schlüssel sein.",
     "port": "Port",
-    "port_alert_1": "Sonnenschein kann keine Ports unter 1024 benutzen!",
+    "port_alert_1": "Sunshine kann keine Ports unter 1024 benutzen!",
     "port_alert_2": "Ports über 65535 sind nicht verfügbar!",
     "port_desc": "Legen Sie die Familie der von Sunshine verwendeten Ports fest",
     "port_http_port_note": "Benutzen Sie diesen Port, um sich mit Moonlight zu verbinden.",
@@ -278,8 +280,8 @@
     "qsv_slow_hevc_desc": "Dies kann HEVC-Kodierung auf älteren Intel GPUs ermöglichen, auf Kosten einer höheren GPU-Nutzung und schlechteren Performance.",
     "res_fps_desc": "Die von Sunshine beworbenen Anzeigenmodi Einige Versionen von Moonlight, wie Moonlight-nx (Switch), verlassen sich auf diese Listen, um sicherzustellen, dass die angeforderten Auflösungen und fps unterstützt werden. Diese Einstellung ändert nicht die Art und Weise, wie der Bildschirm an Mondlight gesendet wird.",
     "resolutions": "Angemeldete Auflösungen",
-    "restart_note": "Sonnenschein wird neu gestartet, um Änderungen anzuwenden.",
-    "sunshine_name": "Sonnenscheinname",
+    "restart_note": "Sunshine wird neu gestartet, um Änderungen anzuwenden.",
+    "sunshine_name": "Sunshine Name",
     "sunshine_name_desc": "Der von Mononlight angezeigte Name, falls nicht angegeben, wird der Hostname des PCs verwendet",
     "sw_preset": "SW-Voreinstellungen",
     "sw_preset_desc": "Optimieren Sie den Abgleich zwischen der Kodierungsgeschwindigkeit (kodierte Frames pro Sekunde) und der Komprimierungseffizienz (Qualität pro Bit im Bitstream). Standard ist überflüssig.",
@@ -320,13 +322,14 @@
   "index": {
     "description": "Sunshine ist ein selbst gehosteter Game-Stream-Host für Moonlight.",
     "download": "Download",
+    "installed_version_not_stable": "Sie verwenden eine Vor-Release-Version von Sunshine. Sie können Fehler oder andere Probleme haben. Bitte melde alle Probleme, auf die du triffst. Danke, dass du dabei geholfen hast, Sunshine zu einer besseren Software zu machen!",
     "loading_latest": "Lade neueste Version...",
-    "new_nightly": "Eine neue <b>Nachts</b> Version ist verfügbar!",
-    "new_stable": "Eine neue <b>Stable</b> Version ist verfügbar!",
+    "new_pre_release": "Eine neue Pre-Release Version ist verfügbar!",
+    "new_stable": "Eine neue Stable Version ist verfügbar!",
     "startup_errors": "<b>Achtung!</b> Sunshine erkannte diese Fehler während des Starts. Wir <b>STRONGLY EMPFOHLEN</b> beheben sie vor dem Streaming.",
     "version_dirty": "Vielen Dank, dass Sie dazu beigetragen haben, Sunshine zu einer besseren Software zu machen!",
     "version_latest": "Du verwendest die neueste Version von Sunshine",
-    "welcome": "Hallo, Sonnenschein!"
+    "welcome": "Hallo, Sunshine!"
   },
   "navbar": {
     "applications": "Anwendungen",
@@ -334,6 +337,10 @@
     "home": "Zuhause",
     "password": "Passwort ändern",
     "pin": "Pin",
+    "theme_auto": "Auto",
+    "theme_dark": "Dunkel",
+    "theme_light": "Hell",
+    "toggle_theme": "Thema",
     "troubleshoot": "Fehlerbehebung"
   },
   "password": {
@@ -358,7 +365,7 @@
     "license": "Lizenz",
     "lizardbyte_website": "LizardByte Webseite",
     "resources": "Ressourcen",
-    "resources_desc": "Ressourcen für Sonnenschein!",
+    "resources_desc": "Ressourcen für Sunshine!",
     "third_party_notice": "Drittanbieter-Mitteilung"
   },
   "troubleshooting": {
@@ -369,9 +376,9 @@
     "logs": "Logs",
     "logs_desc": "Siehe die Logs hochgeladen von Sunshine",
     "logs_find": "Suchen...",
-    "restart_sunshine": "Sonnenschein neu starten",
+    "restart_sunshine": "Sunshine neu starten",
     "restart_sunshine_desc": "Wenn Sunshine nicht richtig funktioniert, können Sie versuchen, es neu zu starten. Dies wird alle laufenden Sitzungen beenden.",
-    "restart_sunshine_success": "Sonnenschein wird neu gestartet",
+    "restart_sunshine_success": "Sunshine wird neu gestartet",
     "troubleshooting": "Fehlerbehebung",
     "unpair_all": "Alle trennen",
     "unpair_all_desc": "Entferne alle deine gekoppelten Geräte",

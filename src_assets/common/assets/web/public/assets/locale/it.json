@@ -215,6 +215,8 @@
     "mouse_desc": "Permette ai guest di controllare il sistema host con il mouse",
     "native_pen_touch": "Supporto Nativo Della Penna/Tocco",
     "native_pen_touch_desc": "Se abilitato, Sunshine passerà direttamente gli eventi nativi della penna/tocco dal client Moonlight. Può essere utile disabilitarlo per le applicazioni più vecchie senza supporto nativo della penna/touch.",
+    "notify_pre_releases": "Notifiche PreRelease",
+    "notify_pre_releases_desc": "Indica se notificare o meno le nuove versioni pre-rilascio di Sunshine",
     "nvenc_h264_cavlc": "Preferisci CAVLC a CABAC in H.264",
     "nvenc_h264_cavlc_desc": "La forma più semplice di codifica dell'entropia. CAVLC ha bisogno di circa il 10% di bitrate in più per la stessa qualità. Rilevante solo per i dispositivi di decodifica molto vecchi.",
     "nvenc_latency_over_power": "Preferisci la latenza di codifica più bassa rispetto al risparmio energetico",
@@ -320,9 +322,10 @@
   "index": {
     "description": "Sunshine è un host di flussi di giochi auto-ospitato per Moonlight.",
     "download": "Download",
+    "installed_version_not_stable": "Stai eseguendo una versione pre-rilascio di Sunshine. Potresti riscontrare bug o altri problemi. Si prega di segnalare eventuali problemi incontrati. Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "loading_latest": "Caricamento dell'ultima versione...",
-    "new_nightly": "È disponibile una nuova versione <b>notturna</b>!",
-    "new_stable": "Una nuova versione <b>Stabile</b> è disponibile!",
+    "new_pre_release": "Una nuova versione pre-rilascio è disponibile!",
+    "new_stable": "Una nuova versione Stabile è disponibile!",
     "startup_errors": "<b>Attenzione!</b> Sunshine ha rilevato questi errori durante l'avvio. Si <b>raccomanda vivamente di</b> risolverli prima dello streaming.",
     "version_dirty": "Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "version_latest": "Stai eseguendo l'ultima versione di Sunshine",
@@ -334,6 +337,10 @@
     "home": "Home",
     "password": "Modifica Password",
     "pin": "Pin",
+    "theme_auto": "Automatico",
+    "theme_dark": "Scuro",
+    "theme_light": "Chiaro",
+    "toggle_theme": "Tema",
     "troubleshoot": "Risoluzione Dei Problemi"
   },
   "password": {

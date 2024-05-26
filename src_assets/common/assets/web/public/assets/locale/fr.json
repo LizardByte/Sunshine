@@ -215,6 +215,8 @@
     "mouse_desc": "Permet aux invités de contrôler le système hôte avec la souris",
     "native_pen_touch": "Prise en charge stylo/écran tactile native",
     "native_pen_touch_desc": "Lorsque cette option est activée, Sunshine transmet les événements stylo/touche natifs des clients Moonlight. Il peut être utile de désactiver cette fonction pour les applications plus anciennes qui ne prennent pas en charge le stylet et le tactile.",
+    "notify_pre_releases": "Notifications de pré-publication",
+    "notify_pre_releases_desc": "Si vous voulez être informé des nouvelles versions de la pré-version de Sunshine",
     "nvenc_h264_cavlc": "Préférer CAVLC sur CABAC en H.264",
     "nvenc_h264_cavlc_desc": "Forme plus simple de codage entropique. CAVLC a besoin d'environ 10% de débit en plus pour la même qualité. Uniquement pour les périphériques de décodage vraiment anciens.",
     "nvenc_latency_over_power": "Préférer une latence d'encodage plus faible aux économies d'énergie",
@@ -320,9 +322,10 @@
   "index": {
     "description": "Sunshine est un serveur de streaming auto-hébergé pour Moonlight.",
     "download": "Télécharger",
+    "installed_version_not_stable": "Vous utilisez une version pré-publiée de Sunshine. Vous pouvez rencontrer des bugs ou d'autres problèmes. Veuillez signaler tout problème que vous rencontrez. Merci de nous aider à faire de Sunshine un meilleur logiciel!",
     "loading_latest": "Chargement de la dernière version...",
-    "new_nightly": "Une nouvelle version <b>nightly</b> est disponible !",
-    "new_stable": "Une nouvelle version <b>stable</b> est disponible !",
+    "new_pre_release": "Une nouvelle version de pré-version est disponible!",
+    "new_stable": "Une nouvelle version stable est disponible !",
     "startup_errors": "<b>Attention !</b> Sunshine a détecté ces erreurs lors du démarrage. Nous <b>recommandons vivement de</b> les corriger avant de commencer à streamer.",
     "version_dirty": "Merci de contribuer à faire de Sunshine un meilleur logiciel !",
     "version_latest": "Vous utilisez la dernière version de Sunshine",
@@ -334,6 +337,10 @@
     "home": "Accueil",
     "password": "Changer le mot de passe",
     "pin": "Pin",
+    "theme_auto": "Automatique",
+    "theme_dark": "Sombre",
+    "theme_light": "Lumière",
+    "toggle_theme": "Thème",
     "troubleshoot": "Dépannage"
   },
   "password": {

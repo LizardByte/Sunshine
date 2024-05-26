@@ -215,6 +215,8 @@
     "mouse_desc": "ゲストがマウスでホストシステムを制御できるようにします",
     "native_pen_touch": "Native Pen/Touch サポート",
     "native_pen_touch_desc": "有効にすると、SunshineはMoonlightクライアントからネイティブのペン/タッチイベントを通過します。これはネイティブのペン/タッチサポートがない古いアプリケーションでは無効にするのに便利です。",
+    "notify_pre_releases": "プレリリース通知",
+    "notify_pre_releases_desc": "Sunshineの新しいプレリリースバージョンを通知するかどうか",
     "nvenc_h264_cavlc": "H.264よりCAVLCを優先する",
     "nvenc_h264_cavlc_desc": "単純なエントロピーコーディング形式。CAVLCは同じ品質のために約10%のビットレートを必要とします。本当に古いデコードデバイスにのみ関係します。",
     "nvenc_latency_over_power": "省電力よりもエンコーディングのレイテンシを低減したい場合",
@@ -320,9 +322,10 @@
   "index": {
     "description": "サンシャインはムーンライトのための自己ホストゲームストリームホストです。",
     "download": "ダウンロード",
+    "installed_version_not_stable": "Sunshineのプレリリース版を実行しています。バグやその他の問題が発生する可能性があります。 問題が発生した場合は報告してください。Sunshineをより良いソフトウェアにしていただきありがとうございます！",
     "loading_latest": "最新のリリースを読み込んでいます...",
-    "new_nightly": "新しい <b>ナイトリー</b> バージョンが利用可能です！",
-    "new_stable": "新しい<b>安定</b>版が利用可能です！",
+    "new_pre_release": "新しいプレリリースバージョンが利用可能です!",
+    "new_stable": "新しい安定版が利用可能です！",
     "startup_errors": "<b>注意</b>Sunshineは起動時にこれらのエラーを検出しました。ストリーミングの前にこれらのエラーを修正することを<b>強くお勧め</b>します。",
     "version_dirty": "Sunshineをより良いソフトウェアにしてくれてありがとうございます!",
     "version_latest": "サンシャインの最新バージョンを実行しています",
@@ -334,6 +337,10 @@
     "home": "ホーム",
     "password": "パスワードの変更",
     "pin": "Pin",
+    "theme_auto": "自動",
+    "theme_dark": "ダーク",
+    "theme_light": "ライト",
+    "toggle_theme": "テーマ",
     "troubleshoot": "トラブルシューティング"
   },
   "password": {
@@ -347,7 +354,7 @@
   "pin": {
     "pair_failure": "ペアリングに失敗しました：PINが正しく入力されたかどうかを確認します",
     "pair_success": "成功！Moonlight を確認して続行してください",
-    "pin_pairing": "PIN Pairing",
+    "pin_pairing": "PINペアリング",
     "send": "送信",
     "warning_msg": "ペアリングするクライアントにアクセスできることを確認してください。このソフトウェアは、あなたのコンピュータを完全にコントロールすることができますので、注意してください！"
   },

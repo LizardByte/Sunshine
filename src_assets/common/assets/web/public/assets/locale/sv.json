@@ -215,6 +215,8 @@
     "mouse_desc": "Tillåter gäster att styra värdsystemet med musen",
     "native_pen_touch": "Stöd för infödda pen/tryck",
     "native_pen_touch_desc": "När aktiverad, kommer Sunshine att passera genom infödda penn/touch händelser från Moonlight klienter. Detta kan vara användbart för att inaktivera för äldre applikationer utan inbyggt penn/touch stöd.",
+    "notify_pre_releases": "PreRelease Notiser",
+    "notify_pre_releases_desc": "Huruvida meddelas om nya förhandsversioner av Sunshine",
     "nvenc_h264_cavlc": "Föredrar CAVLC över CABAC i H.264",
     "nvenc_h264_cavlc_desc": "Enklare form av entropi-kodning. CAVLC behöver cirka 10% mer bithastighet för samma kvalitet. Endast relevant för riktigt gamla avkodningsenheter.",
     "nvenc_latency_over_power": "Föredrar lägre kodningsfördröjning över energibesparing",
@@ -320,9 +322,10 @@
   "index": {
     "description": "Solsken är en själv-värd spel ström värd för Moonlight.",
     "download": "Hämta",
+    "installed_version_not_stable": "Du kör en förhandsversion av Sunshine. Du kan uppleva buggar eller andra problem. Vänligen rapportera eventuella problem du stöter. Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "loading_latest": "Laddar senaste utgåvan...",
-    "new_nightly": "En ny <b>Nightly</b> version är tillgänglig!",
-    "new_stable": "En ny <b>stabil</b> version är tillgänglig!",
+    "new_pre_release": "En ny version av förhandsversionen är tillgänglig!",
+    "new_stable": "En ny stabil version är tillgänglig!",
     "startup_errors": "<b>Uppmärksamhet!</b> Solsken upptäckte dessa fel vid uppstart. Vi <b>STARKLIG KUNSKAP</b> fixar dem innan vi streamar.",
     "version_dirty": "Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "version_latest": "Du kör den senaste versionen av Sunshine",
@@ -334,6 +337,10 @@
     "home": "Hem",
     "password": "Ändra lösenord",
     "pin": "Fäst",
+    "theme_auto": "Automatiskt",
+    "theme_dark": "Mörk",
+    "theme_light": "Ljus",
+    "toggle_theme": "Tema",
     "troubleshoot": "Felsökning"
   },
   "password": {

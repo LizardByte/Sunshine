@@ -215,6 +215,8 @@
     "mouse_desc": "Permite aos convidados controlar o sistema de host com o mouse",
     "native_pen_touch": "Suporte nativo para Pen/Toque",
     "native_pen_touch_desc": "Quando ativado, o Sunshine irá passar por eventos nativos de caneta/toque de clientes de lua. Isto pode ser útil para desativar aplicações mais antigas sem o suporte nativo ao canal/toque.",
+    "notify_pre_releases": "Pré-Lançar notificações",
+    "notify_pre_releases_desc": "Se deve ser notificado de novas versões de lançamento do Sunshine",
     "nvenc_h264_cavlc": "Preferir CAVLC ao CABAC no H.264",
     "nvenc_h264_cavlc_desc": "Forma simples de codificação de entrope. CAVLC precisa de cerca de 10% mais bitrate para a mesma qualidade. Somente relevante para dispositivos de decodificação realmente antigos.",
     "nvenc_latency_over_power": "Prefere latência de codificação inferior sobre economia de energia",
@@ -320,9 +322,10 @@
   "index": {
     "description": "O sol é um anfitrião de jogos auto-hospedado para o Moonlight.",
     "download": "BAIXAR",
+    "installed_version_not_stable": "Você está executando uma versão de pré-lançamento do Sol. Você pode enfrentar erros ou outros problemas. Por favor, reporte qualquer problema que você encontrar. Obrigado por ajudar a fazer do sol um software melhor!",
     "loading_latest": "Carregando a última versão...",
-    "new_nightly": "Um novo <b>Nightly</b> versão está disponível!",
-    "new_stable": "Uma nova versão <b>Stable</b> está disponível!",
+    "new_pre_release": "Uma nova versão de pré-lançamento está disponível!",
+    "new_stable": "Uma nova versão Stable está disponível!",
     "startup_errors": "<b>Atenção!</b> A Sunshine detectou estes erros durante o arranque. Recomendamos <b>vivamente que</b> os corrija antes de transmitir.",
     "version_dirty": "Obrigado por ajudar a fazer do sol um software melhor!",
     "version_latest": "Você está executando a última versão do Sunshine",
@@ -334,6 +337,10 @@
     "home": "Residencial",
     "password": "Mudar a senha",
     "pin": "PIN",
+    "theme_auto": "Automático",
+    "theme_dark": "Escuro",
+    "theme_light": "Fino",
+    "toggle_theme": "Tema",
     "troubleshoot": "Solução de problemas"
   },
   "password": {

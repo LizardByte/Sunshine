@@ -215,6 +215,8 @@
     "mouse_desc": "Permite a los huéspedes controlar el sistema de host con el ratón",
     "native_pen_touch": "Soporte de lápiz/táctil nativo",
     "native_pen_touch_desc": "Cuando está activado, Sunshine pasará a través de eventos nativos de pluma/táctil de clientes de Sunshine. Esto puede ser útil para deshabilitar para aplicaciones antiguas sin soporte nativo de pluma/táctil.",
+    "notify_pre_releases": "Notificaciones de Preversión",
+    "notify_pre_releases_desc": "Si desea ser notificado de las nuevas versiones de Sunshine",
     "nvenc_h264_cavlc": "Preferir CAVLC sobre CABAC en H.264",
     "nvenc_h264_cavlc_desc": "Forma más simple de codificación entropía. CAVLC necesita alrededor del 10% más de la tasa de bits para la misma calidad. Sólo relevante para dispositivos de decodificación realmente antiguos.",
     "nvenc_latency_over_power": "Preferir menor latencia de codificación sobre ahorro de energía",
@@ -320,9 +322,10 @@
   "index": {
     "description": "Sunshine es un servidor de transmisión de juego autoalojado para Moonlight.",
     "download": "Descargar",
+    "installed_version_not_stable": "Está ejecutando una versión pre-lanzamiento de Sunshine. Puede que experimente fallos u otros problemas. Por favor, informe de cualquier problema que encuentres. ¡Gracias por ayudar a hacer de Sunshine un software mejor!",
     "loading_latest": "Cargando la última versión...",
-    "new_nightly": "¡Una nueva versión <b>Nocturna</b> está disponible!",
-    "new_stable": "¡Una nueva versión <b>estable</b> está disponible!",
+    "new_pre_release": "¡Una nueva versión de pre-lanzamiento está disponible!",
+    "new_stable": "¡Una nueva versión estable está disponible!",
     "startup_errors": "<b>Atención.</b> Sunshine ha detectado estos errores durante el arranque. <b>RECOMENDAMOS ENCARECIDAMENTE</b> solucionarlos antes de transmitir.",
     "version_dirty": "¡Gracias por ayudar a hacer de Sunshine un mejor software!",
     "version_latest": "Está ejecutando la última versión de Sunshine",
@@ -334,6 +337,10 @@
     "home": "Inicio",
     "password": "Cambiar contraseña",
     "pin": "Pin",
+    "theme_auto": "Auto",
+    "theme_dark": "Oscuro",
+    "theme_light": "Claro",
+    "toggle_theme": "Tema",
     "troubleshoot": "Resolución de problemas"
   },
   "password": {
