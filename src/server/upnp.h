@@ -1,10 +1,10 @@
 /**
- * @file src/upnp.h
+ * @file src/server/upnp.h
  * @brief Declarations for UPnP port mapping.
  */
 #pragma once
 
-#include "platform/common.h"
+#include "src/platform/common.h"
 
 /**
  * @brief UPnP port mapping.

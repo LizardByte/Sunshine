@@ -1,5 +1,5 @@
 /**
- * @file src/rtsp.h
+ * @file src/server/rtsp.h
  * @brief Declarations for RTSP streaming.
  */
 #pragma once
@@ -7,7 +7,7 @@
 #include <atomic>
 
 #include "crypto.h"
-#include "thread_safe.h"
+#include "src/thread_safe.h"
 
 namespace rtsp_stream {
   constexpr auto RTSP_SETUP_PORT = 21;

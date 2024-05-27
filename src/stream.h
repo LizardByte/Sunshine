@@ -3,12 +3,9 @@
  * @brief Declarations for the streaming protocols.
  */
 #pragma once
-#include <utility>
-
-#include <boost/asio.hpp>
 
 #include "audio.h"
-#include "crypto.h"
+#include "server/rtsp.h"
 #include "video.h"
 
 namespace stream {
