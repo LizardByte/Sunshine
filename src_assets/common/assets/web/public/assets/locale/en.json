@@ -7,6 +7,7 @@
     "cancel": "Cancel",
     "disabled": "Disabled",
     "disabled_def": "Disabled (default)",
+    "dismiss": "Dismiss",
     "do_cmd": "Do Command",
     "elevated": "Elevated",
     "enabled": "Enabled",
@@ -353,6 +354,7 @@
     "success_msg": "Password has been changed successfully! This page will reload soon, your browser will ask you for the new credentials."
   },
   "pin": {
+    "device_name": "Device Name",
     "pair_failure": "Pairing Failed: Check if the PIN is typed correctly",
     "pair_success": "Success! Please check Moonlight to continue",
     "pin_pairing": "PIN Pairing",
@@ -382,9 +384,13 @@
     "restart_sunshine_success": "Sunshine is restarting",
     "troubleshooting": "Troubleshooting",
     "unpair_all": "Unpair All",
-    "unpair_all_desc": "Remove all your paired devices",
     "unpair_all_error": "Error while unpairing",
-    "unpair_all_success": "Unpair Successful!"
+    "unpair_all_success": "All devices unpaired.",
+    "unpair_desc": "Remove your paired devices. Individually unpaired devices with an active session will remain connected, but cannot start or resume a session.",
+    "unpair_single_no_devices": "There are no paired devices.",
+    "unpair_single_success": "However, the device(s) may still be in an active session. Use the 'Force Close' button above to end any open sessions.",
+    "unpair_single_unknown": "Unknown Client",
+    "unpair_title": "Unpair Devices"
   },
   "welcome": {
     "confirm_password": "Confirm password",

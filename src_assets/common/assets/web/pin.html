@@ -8,10 +8,11 @@
 <body id="app" v-cloak>
   <Navbar></Navbar>
   <div id="content" class="container">
-    <h1 class="my-4">{{ $t('pin.pin_pairing') }}</h1>
-    <form action="" class="form d-flex flex-column align-items-center" id="form">
+    <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
+    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*" placeholder="PIN" autofocus id="pin-input" class="form-control my-4" />
+        <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control mt-2" required />
+        <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4" required />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
       <div class="alert alert-warning">
@@ -24,37 +25,38 @@
 
 <script type="module">
   import { createApp } from 'vue'
-  import i18n from './locale.js'
+  import { initApp } from './init'
   import Navbar from './Navbar.vue'
-  import {initApp} from "./init";
 
   let app = createApp({
     components: {
       Navbar
+    },
+    inject: ['i18n'],
+    methods: {
+      registerDevice(e) {
+        let pin = document.querySelector("#pin-input").value;
+        let name = document.querySelector("#name-input").value;
+        document.querySelector("#status").innerHTML = "";
+        let b = JSON.stringify({pin: pin, name: name});
+        fetch("/api/pin", {method: "POST", body: b})
+          .then((response) => response.json())
+          .then((response) => {
+            if (response.status.toString().toLowerCase() === "true") {
+              document.querySelector(
+                "#status"
+              ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t('pin.pair_success')}</div>`;
+              document.querySelector("#pin-input").value = "";
+              document.querySelector("#name-input").value = "";
+            } else {
+              document.querySelector(
+                "#status"
+              ).innerHTML = `<div class="alert alert-danger" role="alert">${this.i18n.t('pin.pair_failure')}</div>`;
+            }
+          });
+      }
     }
   });
 
-  initApp(app, (app => {
-    // this must be after mounting the app
-    document.querySelector("#form").addEventListener("submit", (e) => {
-      e.preventDefault();
-      let pin = document.querySelector("#pin-input").value;
-      document.querySelector("#status").innerHTML = "";
-      let b = JSON.stringify({ pin: pin });
-      fetch("/api/pin", { method: "POST", body: b })
-        .then((response) => response.json())
-        .then((response) => {
-          if (response.status.toString().toLowerCase() === "true") {
-            document.querySelector(
-              "#status"
-            ).innerHTML = `<div class="alert alert-success" role="alert">${i18n.global.t('pin.pair_success')}</div>`;
-            document.querySelector("#pin-input").value = "";
-          } else {
-            document.querySelector(
-              "#status"
-            ).innerHTML = `<div class="alert alert-danger" role="alert">${i18n.global.t('pin.pair_failure')}</div>`;
-          }
-        });
-    });
-  }));
+  initApp(app);
 </script>
