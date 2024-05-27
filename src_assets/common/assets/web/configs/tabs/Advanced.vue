@@ -59,14 +59,22 @@ const config = ref(props.config)
     </div>
 
     <!-- Capture -->
-    <div class="mb-3" v-if="platform === 'linux'">
+    <div class="mb-3" v-if="platform !== 'macos'">
       <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
       <select id="capture" class="form-select" v-model="config.capture">
         <option value="">{{ $t('_common.autodetect') }}</option>
-        <option value="nvfbc">NvFBC</option>
-        <option value="wlr">wlroots</option>
-        <option value="kms">KMS</option>
-        <option value="x11">X11</option>
+        <PlatformLayout :platform="platform">
+          <template #linux>
+            <option value="nvfbc">NvFBC</option>
+            <option value="wlr">wlroots</option>
+            <option value="kms">KMS</option>
+            <option value="x11">X11</option>
+          </template>
+          <template #windows>
+            <option value="ddx">Desktop Duplication API</option>
+            <option value="wgc">Windows.Graphics.Capture {{ $t('_common.beta') }}</option>
+          </template>
+        </PlatformLayout>
       </select>
       <div class="form-text">{{ $t('config.capture_desc') }}</div>
     </div>
