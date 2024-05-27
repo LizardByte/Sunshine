@@ -7,6 +7,7 @@
     "cancel": "Cancelar",
     "disabled": "Deshabilitado",
     "disabled_def": "Desactivado (por defecto)",
+    "dismiss": "Descartar",
     "do_cmd": "Hacer comando",
     "elevated": "Elevado",
     "enabled": "Habilitado",
@@ -353,6 +354,7 @@
     "success_msg": "¡La contraseña se ha cambiado con éxito! Esta página se recargará pronto, su navegador le pedirá las nuevas credenciales."
   },
   "pin": {
+    "device_name": "Nombre del dispositivo",
     "pair_failure": "Falló el emparejamiento: Compruebe si el PIN está escrito correctamente",
     "pair_success": "¡Éxito! Por favor revise Moonlight para continuar",
     "pin_pairing": "Emparejamiento de PIN",
@@ -382,9 +384,13 @@
     "restart_sunshine_success": "Sunshine se está reiniciando",
     "troubleshooting": "Resolución de problemas",
     "unpair_all": "Desemparejar todo",
-    "unpair_all_desc": "Elimine todos sus dispositivos emparejados",
     "unpair_all_error": "Error al desvincular",
-    "unpair_all_success": "¡Desvinculación exitosa!"
+    "unpair_all_success": "¡Desvinculación exitosa!",
+    "unpair_desc": "Quite sus dispositivos emparejados. Los dispositivos no emparejados con una sesión activa permanecerán conectados, pero no podrán iniciar ni reanudar una sesión.",
+    "unpair_single_no_devices": "No hay dispositivos emparejados.",
+    "unpair_single_success": "Sin embargo, los dispositivo(s) todavía pueden estar en una sesión activa. Utilice el botón \"Forzar cierre\" de arriba para terminar cualquier sesión abierta.",
+    "unpair_single_unknown": "Cliente desconocido",
+    "unpair_title": "Desemparejar dispositivos"
   },
   "welcome": {
     "confirm_password": "Confirmar contraseña",
