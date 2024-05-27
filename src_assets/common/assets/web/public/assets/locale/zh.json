@@ -7,6 +7,7 @@
     "cancel": "取消",
     "disabled": "禁用",
     "disabled_def": "禁用（默认)",
+    "dismiss": "关闭",
     "do_cmd": "打开时执行命令",
     "elevated": "提权运行",
     "enabled": "启用",
@@ -353,6 +354,7 @@
     "success_msg": "密码已成功更改！此页面即将重新加载，您的浏览器将要求您输入新的账户信息。"
   },
   "pin": {
+    "device_name": "设备名称",
     "pair_failure": "配对失败：请检查 PIN 码是否正确输入",
     "pair_success": "成功！请检查 Moonlight 以继续",
     "pin_pairing": "PIN 码配对",
@@ -382,9 +384,13 @@
     "restart_sunshine_success": "Sunhine 正在重启",
     "troubleshooting": "故障排除",
     "unpair_all": "全部取消配对",
-    "unpair_all_desc": "删除您所有已经配对的设备",
     "unpair_all_error": "取消配对时出错",
-    "unpair_all_success": "取消配对成功！"
+    "unpair_all_success": "取消配对成功！",
+    "unpair_desc": "删除您已配对的设备。未配对的单独设备与活动会话将保持连接，但不能启动或继续会话。",
+    "unpair_single_no_devices": "没有配对的设备。",
+    "unpair_single_success": "然而，设备可能仍然处于活动会话中，使用上面的“强制关闭”按钮结束任何打开的会话。",
+    "unpair_single_unknown": "未知客户端",
+    "unpair_title": "取消配对设备"
   },
   "welcome": {
     "confirm_password": "确认密码",
