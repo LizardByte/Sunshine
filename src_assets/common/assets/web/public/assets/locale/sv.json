@@ -7,6 +7,7 @@
     "cancel": "Avbryt",
     "disabled": "Inaktiverad",
     "disabled_def": "Inaktiverad (standard)",
+    "dismiss": "Avfärda",
     "do_cmd": "Gör kommando",
     "elevated": "Förhöjd",
     "enabled": "Aktiverad",
@@ -353,6 +354,7 @@
     "success_msg": "Lösenordet har ändrats! Den här sidan kommer att laddas om snart, din webbläsare kommer att be dig om de nya uppgifterna."
   },
   "pin": {
+    "device_name": "Enhetens namn",
     "pair_failure": "Parkoppling misslyckades: Kontrollera om PIN-koden är korrekt skriven",
     "pair_success": "Klart! Kontrollera Moonlight för att fortsätta",
     "pin_pairing": "PIN Pairing",
@@ -382,9 +384,13 @@
     "restart_sunshine_success": "Solsken startar om",
     "troubleshooting": "Felsökning",
     "unpair_all": "Ta bort alla",
-    "unpair_all_desc": "Ta bort alla dina parkopplade enheter",
     "unpair_all_error": "Fel vid avkoppling",
-    "unpair_all_success": "Opara ihop framgångsrikt!"
+    "unpair_all_success": "Opara ihop framgångsrikt!",
+    "unpair_desc": "Ta bort dina parkopplade enheter. Enskilda okopplade enheter med en aktiv session förblir anslutna, men kan inte starta eller återuppta en session.",
+    "unpair_single_no_devices": "Det finns inga parkopplade enheter.",
+    "unpair_single_success": "Enheten (er) kan dock fortfarande vara i en aktiv session. Använd knappen \"Tvinga nära\" ovan för att avsluta alla öppna sessioner.",
+    "unpair_single_unknown": "Okänd klient",
+    "unpair_title": "Ta bort enheter"
   },
   "welcome": {
     "confirm_password": "Bekräfta lösenord",
