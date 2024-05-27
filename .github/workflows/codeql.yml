@@ -160,6 +160,10 @@ jobs:
           # yamllint disable-line rule:line-length
           # For more details on CodeQL's query packs, refer to: https://docs.github.com/en/code-security/code-scanning/automatically-scanning-your-code-for-vulnerabilities-and-errors/configuring-code-scanning#using-queries-in-ql-packs
           # queries: security-extended,security-and-quality
+          config: |
+            paths-ignore:
+              - node_modules
+              - third-party
 
       # Pre autobuild
       # create a file named .codeql-prebuild-${{ matrix.language }}.sh in the root of your repository
