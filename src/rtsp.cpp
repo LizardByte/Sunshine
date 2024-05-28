@@ -111,7 +111,7 @@ namespace rtsp_stream {
       }
 
       if (session->rtsp_cipher) {
-        // For encrypted RTSP, we will read the the entire header first
+        // For encrypted RTSP, we will read the entire header first
         boost::asio::async_read(sock,
           boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)),
           boost::bind(
