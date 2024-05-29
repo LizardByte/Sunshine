@@ -29,15 +29,15 @@ const config = ref(props.config)
         <option value="auto">{{ $t('_common.auto') }}</option>
 
         <PlatformLayout :platform="platform">
-          <template #windows>
-            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
-            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
-          </template>
-
           <template #linux>
             <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
             <option value="xone">{{ $t("config.gamepad_xone") }}</option>
+          </template>
+          
+          <template #windows>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
           </template>
         </PlatformLayout>
       </select>
