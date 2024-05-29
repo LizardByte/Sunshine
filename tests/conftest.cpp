@@ -190,6 +190,7 @@ protected:
     deinit_guard.reset(nullptr);
     std::cout << "PlatformInitTest:: finished Fixture TearDown" << std::endl;
   }
+
 private:
   std::unique_ptr<platf::deinit_t> deinit_guard;
 };
