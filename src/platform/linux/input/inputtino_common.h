@@ -35,8 +35,7 @@ namespace platf {
       }
     }
 
-    ~
-    input_raw_t() = default;
+    ~input_raw_t() = default;
 
     // All devices are wrapped in Result because it might be that we aren't able to create them (ex: udev permission denied)
     inputtino::Result<inputtino::Mouse> mouse;
