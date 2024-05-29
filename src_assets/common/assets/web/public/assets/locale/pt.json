@@ -3,9 +3,11 @@
     "apply": "Aplicar",
     "auto": "Automático",
     "autodetect": "Detetar automaticamente (recomendado)",
+    "beta": "(beta)",
     "cancel": "Cancelar",
     "disabled": "Desabilitado",
     "disabled_def": "Desativado (padrão)",
+    "dismiss": "Descartar",
     "do_cmd": "Faça o Comando",
     "elevated": "Elevado",
     "enabled": "Ativado",
@@ -352,6 +354,7 @@
     "success_msg": "A senha foi alterada com sucesso! Essa página será recarregada em breve, seu navegador irá pedir as novas credenciais."
   },
   "pin": {
+    "device_name": "Nome do dispositivo",
     "pair_failure": "Falha no pareamento: Verifique se o PIN é digitado corretamente",
     "pair_success": "Sucesso! Por favor, verifique a Lua Lunar para continuar",
     "pin_pairing": "PIN Pairing",
@@ -381,9 +384,13 @@
     "restart_sunshine_success": "A luz do sol está reiniciando",
     "troubleshooting": "Solução de problemas",
     "unpair_all": "Desconectar todos",
-    "unpair_all_desc": "Remova todos os seus dispositivos pareados",
     "unpair_all_error": "Erro ao desemparelhar",
-    "unpair_all_success": "Desemparelhado com sucesso!"
+    "unpair_all_success": "Desemparelhado com sucesso!",
+    "unpair_desc": "Remova seus dispositivos emparelhados. Dispositivos desemparelhados individualmente com uma sessão ativa permanecerão conectados, mas não podem iniciar ou retomar uma sessão.",
+    "unpair_single_no_devices": "Não há dispositivos emparelhados.",
+    "unpair_single_success": "No entanto, os dispositivos ainda podem estar em uma sessão ativa. Use o botão 'Forçar Fechar' acima para finalizar todas as sessões abertas.",
+    "unpair_single_unknown": "Cliente Desconhecido",
+    "unpair_title": "Desconectar dispositivos"
   },
   "welcome": {
     "confirm_password": "Confirmar a senha",
