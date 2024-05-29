@@ -90,7 +90,7 @@ namespace platf {
     inputtino::Result<inputtino::PenTablet> pen;
   };
 
-  static float
+  inline float
   deg2rad(float degree) {
     return degree * (M_PI / 180.f);
   }

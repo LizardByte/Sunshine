@@ -26,11 +26,11 @@ namespace platf::keyboard {
     std::stringstream ss;
     ss << std::hex << std::setfill('0');
     for (const auto &ch : str) {
-      ss << ch;
+      ss << static_cast<uint32_t>(ch);
     }
 
     std::string hex_unicode(ss.str());
-    std::transform(hex_unicode.begin(), hex_unicode.end(), hex_unicode.begin(), ::toupper);
+    std::ranges::transform(hex_unicode, hex_unicode.begin(), ::toupper);
     return hex_unicode;
   }
 
