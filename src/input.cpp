@@ -963,7 +963,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::touch(input->client_context.get(), abs_port, touch);
+    platf::touch_update(input->client_context.get(), abs_port, touch);
   }
 
   /**
@@ -1022,7 +1022,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::pen(input->client_context.get(), abs_port, pen);
+    platf::pen_update(input->client_context.get(), abs_port, pen);
   }
 
   /**
