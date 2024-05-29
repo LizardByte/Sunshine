@@ -215,9 +215,7 @@ Install
    #. Create and reload `udev` rules for `uinput` and `uhid`.
          .. code-block:: bash
 
-            echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
-            sudo tee /etc/udev/rules.d/60-sunshine.rules
-            echo 'KERNEL=="uhid", TAG+="uaccess"' | \
+            echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"\nKERNEL=="uhid", TAG+="uaccess"' | \
             sudo tee /etc/udev/rules.d/60-sunshine.rules
             sudo udevadm control --reload-rules
             sudo udevadm trigger
