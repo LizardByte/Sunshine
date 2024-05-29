@@ -388,7 +388,7 @@
     "troubleshooting": "Troubleshooting",
     "unpair_all": "Unpair All",
     "unpair_all_error": "Error while unpairing",
-    "unpair_all_success": "All devices unpaired.",
+    "unpair_all_success": "Unpair Successful!",
     "unpair_desc": "Remove your paired devices. Individually unpaired devices with an active session will remain connected, but cannot start or resume a session.",
     "unpair_single_no_devices": "There are no paired devices.",
     "unpair_single_success": "However, the device(s) may still be in an active session. Use the 'Force Close' button above to end any open sessions.",
