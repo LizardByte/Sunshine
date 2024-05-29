@@ -695,9 +695,9 @@ namespace platf {
   void
   hscroll(input_t &input, int distance);
   void
-  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags);
+  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags);
   void
-  gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state);
+  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state);
   void
   unicode(input_t &input, char *utf8, int size);
 
@@ -718,7 +718,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
    * @brief Sends a pen event to the OS.
@@ -727,7 +727,7 @@ namespace platf {
    * @param pen The pen event.
    */
   void
-  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
 
   /**
    * @brief Sends a gamepad touch event to the OS.

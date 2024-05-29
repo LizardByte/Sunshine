@@ -1,5 +1,5 @@
 /**
- * @file src/platform/linux/input.cpp
+ * @file src/platform/linux/input/legacy_input.cpp
  * @brief todo
  */
 #include <fcntl.h>
@@ -32,7 +32,7 @@ extern "C" {
 
 #include "src/platform/common.h"
 
-#include "misc.h"
+#include "src/platform/linux/misc.h"
 
 // Support older versions
 #ifndef REL_HWHEEL_HI_RES
@@ -1502,7 +1502,7 @@ namespace platf {
    * ```
    */
   void
-  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto keyboard = ((input_raw_t *) input.get())->keyboard_input.get();
     if (!keyboard) {
       x_keyboard(input, modcode, release, flags);
@@ -1617,7 +1617,7 @@ namespace platf {
   }
 
   void
-  gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     TUPLE_2D_REF(uinput, gamepad_state_old, ((input_raw_t *) input.get())->gamepads[nr]);
 
     auto bf = gamepad_state.buttonFlags ^ gamepad_state_old.buttonFlags;
@@ -1764,7 +1764,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
     auto raw = (client_input_raw_t *) input;
 
     if (!raw->touch_input) {
@@ -1949,7 +1949,7 @@ namespace platf {
    * @param pen The pen event.
    */
   void
-  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
     auto raw = (client_input_raw_t *) input;
 
     if (!raw->pen_input) {
