@@ -1,0 +1,89 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# Use the `rtd` repository label to identify repositories that should trigger have this workflow.
+# If the project slug is not the repository name, add a repository variable named `READTHEDOCS_SLUG` with the value of
+# the ReadTheDocs project slug.
+
+# Update readthedocs on release events.
+
+name: Update docs
+
+on:
+  release:
+    types: [created, edited, deleted]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  cancel-in-progress: true
+
+jobs:
+  update-docs:
+    env:
+      RTD_SLUG: ${{ vars.READTHEDOCS_SLUG }}
+      RTD_TOKEN: ${{ secrets.READTHEDOCS_TOKEN }}
+      TAG: ${{ github.event.release.tag_name }}
+    if: >-
+      !github.event.release.draft
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get RTD_SLUG
+        run: |
+          # if the RTD_SLUG is not set, use the repository name in lowercase
+          if [ -z "${RTD_SLUG}" ]; then
+              RTD_SLUG=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          fi
+          echo "RTD_SLUG=${RTD_SLUG}" >> $GITHUB_ENV
+
+      - name: Deactivate deleted release
+        if: >-
+          github.event_name == 'release' &&
+          github.event.action == 'deleted'
+        run: |
+          json_body=$(jq -n \
+            --arg active "false" \
+            --arg hidden "false" \
+            --arg privacy_level "public" \
+            '{active: $active, hidden: $hidden, privacy_level: $privacy_level}')
+
+          curl \
+            -X PATCH \
+            -H "Authorization: Token ${RTD_TOKEN}" \
+              https://readthedocs.org/api/v3/projects/${RTD_SLUG}/versions/${TAG}/ \
+            -H "Content-Type: application/json" \
+            -d "$json_body"
+
+      - name: Check if edited release is latest GitHub release
+        id: check
+        if: >-
+          github.event_name == 'release' &&
+          github.event.action == 'edited'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const latestRelease = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            core.setOutput('isLatestRelease', latestRelease.data.tag_name === context.payload.release.tag_name);
+
+      - name: Update RTD project
+        # changing the default branch in readthedocs makes "latest" point to that branch/tag
+        # we can also update other properties like description, etc.
+        if: >-
+          steps.check.outputs.isLatestRelease == 'true'
+        run: |
+          json_body=$(jq -n \
+            --arg default_branch "${TAG}" \
+            --arg description "${{ github.event.repository.description }}" \
+            '{default_branch: $default_branch}')
+
+          curl \
+            -X PATCH \
+            -H "Authorization: Token ${RTD_TOKEN}" \
+              https://readthedocs.org/api/v3/projects/${RTD_SLUG}/ \
+            -H "Content-Type: application/json" \
+            -d "$json_body"
