@@ -12,6 +12,15 @@
 using namespace std::literals;
 
 namespace platf {
+
+  using joypads_t = std::variant<inputtino::XboxOneJoypad, inputtino::SwitchJoypad, inputtino::PS5Joypad>;
+
+  struct joypad_state {
+    std::unique_ptr<joypads_t> joypad;
+    gamepad_feedback_msg_t last_rumble;
+    gamepad_feedback_msg_t last_rgb_led;
+  };
+
   struct input_raw_t {
     input_raw_t():
         mouse(inputtino::Mouse::create({

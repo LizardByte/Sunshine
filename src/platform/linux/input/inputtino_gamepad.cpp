@@ -14,17 +14,9 @@ using namespace std::literals;
 
 namespace platf::gamepad {
 
-  using joypads_t = std::variant<inputtino::XboxOneJoypad, inputtino::SwitchJoypad, inputtino::PS5Joypad>;
-
-  struct joypad_state {
-    std::unique_ptr<joypads_t> joypad;
-    gamepad_feedback_msg_t last_rumble;
-    gamepad_feedback_msg_t last_rgb_led;
-  };
-
   int
   alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
-    gamepad::ControllerType selectedGamepadType;
+    ControllerType selectedGamepadType;
 
     if (config::input.gamepad == "xone"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox One controller (manual selection)"sv;
