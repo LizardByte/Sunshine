@@ -580,7 +580,6 @@ jobs:
         with:
           ignorePreReleases: "true"
           fromTag: ${{steps.github_latest_stable.outputs.tag_name}}
-          commitMode: true
           configurationJson: |
             {
               "template": "#{{CHANGELOG}}",
@@ -609,6 +608,12 @@ jobs:
               "label_extractor": [
                 {
                   "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "on_property": "body",
+                  "target": "$1"
+                },
+                {
+                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
+                  "on_property": "title",
                   "target": "$1"
                 }
               ],
