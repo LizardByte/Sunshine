@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/input/legacy_input.cpp
- * @brief todo
+ *  TODO: Remove this file after the next stable release
  */
 #include <fcntl.h>
 #include <linux/uinput.h>
