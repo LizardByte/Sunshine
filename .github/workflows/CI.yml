@@ -576,8 +576,8 @@ jobs:
         uses: requarks/changelog-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fromTag: ${{steps.github_latest_stable.outputs.tag_name}}
-          toTag: ${{ github.ref_name }}
+          fromTag: "v2024.529.1057"
+          toTag: ${{steps.github_latest_stable.outputs.tag_name}}
           writeToFile: false
 
       - name: "Print Changelog"
