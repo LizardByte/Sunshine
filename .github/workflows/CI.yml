@@ -562,6 +562,15 @@ jobs:
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: true
 
+      - uses: cardinalby/git-get-release-action@v1
+        id: github_latest_stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        with:
+          latest: true
+          draft: false
+          prerelease: false
+
       - name: "Generate Changelog"
         id: build_changelog
         # if: startsWith(github.ref, 'refs/tags/')
@@ -570,6 +579,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
         with:
           ignorePreReleases: "true"
+          fromTag: ${{steps.github_latest_stable.outputs.tag_name}}
 
       - name: "Print Changelog"
         id: print_changelog
