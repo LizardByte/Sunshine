@@ -565,7 +565,7 @@ jobs:
       - uses: cardinalby/git-get-release-action@v1
         id: github_latest_stable
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           latest: true
           draft: false
@@ -576,7 +576,7 @@ jobs:
         # if: startsWith(github.ref, 'refs/tags/')
         uses: mikepenz/release-changelog-builder-action@v4
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           ignorePreReleases: "true"
           fromTag: ${{steps.github_latest_stable.outputs.tag_name}}
@@ -584,7 +584,7 @@ jobs:
       - name: "Print Changelog"
         id: print_changelog
         run: |
-          echo "Generated Changelog"
+          echo "Generated Changelog fromTag ${{steps.github_latest_stable.outputs.tag_name}} to ${{steps.build_changelog.outputs.toTag}}"
           echo "${{steps.build_changelog.outputs.changelog}}"
       
       - name: Create/Update GitHub Release
