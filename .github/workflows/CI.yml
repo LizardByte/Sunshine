@@ -573,57 +573,18 @@ jobs:
 
       - name: "Generate Changelog"
         id: build_changelog
-        # if: startsWith(github.ref, 'refs/tags/')
-        uses: mikepenz/release-changelog-builder-action@v4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: requarks/changelog-action@v1
         with:
-          ignorePreReleases: "true"
-          fromTag: ${{steps.github_latest_stable.outputs.tag_name}}
-          configurationJson: |
-            {
-              "template": "#{{CHANGELOG}}",
-              "categories": [
-                {
-                    "title": "## Feature",
-                    "labels": ["feat", "feature"]
-                },
-                {
-                    "title": "## Fix",
-                    "labels": ["fix", "bug"]
-                },
-                {
-                    "title": "## Dependency changes",
-                    "labels": ["deps", "dependency", "build(deps)"]
-                },
-                {
-                    "title": "## Breaking changes",
-                    "labels": ["breaking"]
-                },
-                {
-                    "title": "## Other",
-                    "labels": []
-                }
-              ],
-              "label_extractor": [
-                {
-                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
-                  "on_property": "body",
-                  "target": "$1"
-                },
-                {
-                  "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test){1}(\\([\\w\\-\\.]+\\))?(!)?: ([\\w ])+([\\s\\S]*)",
-                  "on_property": "title",
-                  "target": "$1"
-                }
-              ],
-            }
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fromTag: ${{ github.ref_name }}
+          toTag: ${{steps.github_latest_stable.outputs.tag_name}}
+          writeToFile: false
 
       - name: "Print Changelog"
         id: print_changelog
         run: |
-          echo "Generated Changelog fromTag ${{steps.github_latest_stable.outputs.tag_name}} to ${{steps.build_changelog.outputs.toTag}}"
-          echo "${{steps.build_changelog.outputs.changelog}}"
+          echo "Generated Changelog fromTag ${{steps.github_latest_stable.outputs.tag_name}} to ${{ github.ref_name }}"
+          echo "${{steps.build_changelog.outputs.changes}}"
       
       - name: Create/Update GitHub Release
         if: >-
