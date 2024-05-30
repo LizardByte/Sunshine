@@ -954,6 +954,26 @@ jobs:
             mingw-w64-ucrt-x86_64-opus
             mingw-w64-ucrt-x86_64-toolchain
 
+      - name: Download mingw PR artifacts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NUMBER: 9312860396
+        run: |
+          # download the mingw PR artifacts
+          gh run download ${RUN_NUMBER} -n "UCRT64-packages" -R "msys2/MINGW-packages"  --dir "UCRT64-packages"
+
+      - name: Test mingw PR artifacts
+        shell: msys2 {0}
+        run: |
+          ls -a UCRT64-packages
+
+          # install the mingw PR artifacts
+          cd UCRT64-packages
+          for pkg in $(ls -d mingw-w64-ucrt-x86_64-*); do
+            echo "Installing $pkg"
+            pacman -U --noconfirm $pkg
+          done
+
       - name: Setup python
         # use this instead of msys2 python due to known issues using wheels, https://www.msys2.org/docs/python/
         id: setup-python
