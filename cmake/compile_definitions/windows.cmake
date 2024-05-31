@@ -12,11 +12,6 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-misleading-indentation)
 # see gcc bug 98723
 add_definitions(-DUSE_BOOST_REGEX)
 
-# curl
-add_definitions(-DCURL_STATICLIB)
-include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})
-link_directories(${CURL_STATIC_LIBRARY_DIRS})
-
 # miniupnpc
 add_definitions(-DMINIUPNP_STATICLIB)
 
@@ -78,10 +73,12 @@ list(PREPEND PLATFORM_LIBRARIES
         avrt
         iphlpapi
         shlwapi
-        PkgConfig::NLOHMANN_JSON
-        ${CURL_STATIC_LIBRARIES})
+        wininet
+        Boost::url
+        PkgConfig::NLOHMANN_JSON)
 
 if(SUNSHINE_ENABLE_TRAY)
     list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/httpcommon_win.cpp"
             "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray_windows.c")
 endif()

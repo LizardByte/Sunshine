@@ -24,8 +24,13 @@ namespace http {
   reload_user_creds(const std::string &file);
   bool
   download_file(const std::string &url, const std::string &file);
+  /**
+   * Percent-encodes a string into a URL-safe format.
+   * @param str
+   * @return
+   */
   std::string
-  url_escape(const std::string &url);
+  url_escape(const std::string &str);
   std::string
   url_get_host(const std::string &url);
 
