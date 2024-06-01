@@ -227,19 +227,10 @@ if(${SUNSHINE_USE_LEGACY_INPUT}) # TODO: Remove this legacy option after the nex
 else()
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino")
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES inputtino::libinputtino)
-    list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_common.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_gamepad.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_gamepad.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_keyboard.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_keyboard.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_mouse.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_mouse.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_pen.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_pen.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_touch.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino_touch.cpp"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino.cpp")
+    file(GLOB_RECURSE INPUTTINO_SOURCES
+            ${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino*.h
+            ${CMAKE_SOURCE_DIR}/src/platform/linux/input/inputtino*.cpp)
+    list(APPEND PLATFORM_TARGET_FILES ${INPUTTINO_SOURCES})
 endif()
 
 list(APPEND PLATFORM_TARGET_FILES
