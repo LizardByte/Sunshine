@@ -176,7 +176,7 @@ protected:
     std::cout << "PlatformInitTest:: starting Fixture SetUp" << std::endl;
 
     // initialize the platform
-    auto deinit_guard = platf::init();
+    deinit_guard = platf::init();
     if (!deinit_guard) {
       FAIL() << "Platform failed to initialize";
     }
@@ -187,8 +187,12 @@ protected:
   void
   TearDown() override {
     std::cout << "PlatformInitTest:: starting Fixture TearDown" << std::endl;
+    deinit_guard.reset(nullptr);
     std::cout << "PlatformInitTest:: finished Fixture TearDown" << std::endl;
   }
+
+private:
+  std::unique_ptr<platf::deinit_t> deinit_guard;
 };
 
 class DocsPythonVenvBase: public virtual BaseTest {

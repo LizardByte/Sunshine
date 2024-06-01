@@ -819,6 +819,12 @@ namespace rtsp_stream {
       ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
+    if (!session.surround_params.empty()) {
+      // If we have our own surround parameters, advertise them twice first
+      ss << "a=fmtp:97 surround-params="sv << session.surround_params << std::endl;
+      ss << "a=fmtp:97 surround-params="sv << session.surround_params << std::endl;
+    }
+
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
       auto &stream_config = audio::stream_configs[x];
       std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
@@ -1032,6 +1038,29 @@ namespace rtsp_stream {
           config.audio.flags[audio::config_t::HIGH_QUALITY] = (content.find("0.0.0.0"sv) == std::string::npos);
         }
       }
+    }
+    else if (session.surround_params.length() > 3) {
+      // Channels
+      std::uint8_t c = session.surround_params[0] - '0';
+      // Streams
+      std::uint8_t n = session.surround_params[1] - '0';
+      // Coupled streams
+      std::uint8_t m = session.surround_params[2] - '0';
+      auto valid = false;
+      if ((c == 6 || c == 8) && c == config.audio.channels && n + m == c && session.surround_params.length() == c + 3) {
+        config.audio.customStreamParams.channelCount = c;
+        config.audio.customStreamParams.streams = n;
+        config.audio.customStreamParams.coupledStreams = m;
+        valid = true;
+        for (std::uint8_t i = 0; i < c; i++) {
+          config.audio.customStreamParams.mapping[i] = session.surround_params[i + 3] - '0';
+          if (config.audio.customStreamParams.mapping[i] >= c) {
+            valid = false;
+            break;
+          }
+        }
+      }
+      config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = valid;
     }
 
     // If the client sent a configured bitrate, we will choose the actual bitrate ourselves

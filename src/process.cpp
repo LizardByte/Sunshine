@@ -185,6 +185,7 @@ namespace proc {
         _env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
         break;
     }
+    _env["SUNSHINE_CLIENT_AUDIO_SURROUND_PARAMS"] = launch_session->surround_params;
 
     if (!_app.output.empty() && _app.output != "null"sv) {
 #ifdef _WIN32
