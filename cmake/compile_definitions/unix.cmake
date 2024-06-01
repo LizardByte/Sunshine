@@ -2,7 +2,6 @@
 # put anything here that applies to both linux and macos
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
-        Boost::log
         ${CURL_LIBRARIES})
 
 # add install prefix to assets path if not already there

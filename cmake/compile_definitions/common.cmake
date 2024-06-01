@@ -125,8 +125,8 @@ include_directories(
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
+        ${Boost_INCLUDE_DIRS}
         ${FFMPEG_INCLUDE_DIRS}
-        ${PLATFORM_INCLUDE_DIRS}
 )
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES

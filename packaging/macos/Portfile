@@ -5,7 +5,6 @@
 PortSystem               1.0
 PortGroup                cmake 1.1
 PortGroup                github 1.0
-PortGroup                boost 1.0
 
 name                     @PROJECT_NAME@
 version                  @PROJECT_VERSION@
@@ -44,8 +43,6 @@ depends_lib              port:avahi \
 
 depends_test             port:doxygen \
                          port:graphviz
-
-boost.version            1.81
 
 configure.args           -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \

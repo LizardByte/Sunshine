@@ -1,9 +1,12 @@
 # load common dependencies
 # this file will also load platform specific dependencies
 
+# boost, this should be before Simple-Web-Server as it also depends on boost
+include(dependencies/Boost_Sunshine)
+
 # submodules
 # moonlight common library
-set(ENET_NO_INSTALL ON CACHE BOOL "Don't install any libraries build for enet")
+set(ENET_NO_INSTALL ON CACHE BOOL "Don't install any libraries built for enet")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 
 # web server

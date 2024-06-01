@@ -30,7 +30,6 @@ set -e
 dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
-  boost-devel-1.83.0* \
   cmake-3.28.* \
   doxygen \
   gcc-14.1.* \

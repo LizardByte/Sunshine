@@ -13,7 +13,6 @@ install=sunshine.install
 _gcc_version=13
 
 depends=('avahi'
-         'boost-libs'
          'curl'
          'libayatana-appindicator'
          'libcap'
@@ -37,8 +36,7 @@ depends=('avahi'
          'udev')
 checkdepends=('doxygen'
               'graphviz')
-makedepends=('boost'
-             'cmake'
+makedepends=('cmake'
              "gcc${_gcc_version}"
              'git'
              'make'
