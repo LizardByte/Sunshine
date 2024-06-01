@@ -6,7 +6,7 @@
 # Generated from CLion C/C++ Code Style settings
 BasedOnStyle: LLVM
 AccessModifierOffset: -2
-AlignAfterOpenBracket: DontAlign
+AlignAfterOpenBracket: BlockIndent
 AlignConsecutiveAssignments: None
 AlignEscapedNewlines: DontAlign
 AlignOperands: Align
@@ -42,11 +42,16 @@ BraceWrapping:
   IndentBraces: false
   SplitEmptyFunction: false
   SplitEmptyRecord: true
-BreakBeforeBinaryOperators: None
+BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeTernaryOperators: false
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon
-ColumnLimit: 120
+PenaltyBreakBeforeFirstCallParameter: 1
+PenaltyBreakComment: 1
+PenaltyBreakString: 1
+PenaltyBreakFirstLessLess: 0
+PenaltyExcessCharacter: 1000000
+ColumnLimit: 80
 CompactNamespaces: false
 ContinuationIndentWidth: 2
 IndentCaseLabels: true
