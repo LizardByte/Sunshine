@@ -207,7 +207,7 @@ namespace platf::gamepad {
           std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_motion(inputtino::PS5Joypad::ACCELERATION, motion.x, motion.y, motion.z);
           break;
         case LI_MOTION_TYPE_GYRO:
-          std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_motion(inputtino::PS5Joypad::GYROSCOPE, motion.x, motion.y, motion.z);
+          std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_motion(inputtino::PS5Joypad::GYROSCOPE, deg2rad(motion.x), deg2rad(motion.y), deg2rad(motion.z));
           break;
       }
     }
