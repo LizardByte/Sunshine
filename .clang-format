@@ -42,7 +42,7 @@ BraceWrapping:
   IndentBraces: false
   SplitEmptyFunction: false
   SplitEmptyRecord: true
-BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBinaryOperators: None
 BreakBeforeTernaryOperators: false
 BreakConstructorInitializers: AfterColon
 BreakInheritanceList: AfterColon
@@ -51,7 +51,7 @@ PenaltyBreakComment: 1
 PenaltyBreakString: 1
 PenaltyBreakFirstLessLess: 0
 PenaltyExcessCharacter: 1000000
-ColumnLimit: 80
+ColumnLimit: 120
 CompactNamespaces: false
 ContinuationIndentWidth: 2
 IndentCaseLabels: true
