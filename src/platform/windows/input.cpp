@@ -560,6 +560,7 @@ namespace platf {
 
   util::point_t
   get_mouse_loc(input_t &input) {
+    throw std::exception();  // TODO "not implemented"
     // TODO: Tests are failing, something wrong here?
     // syncThreadDesktop();
     POINT p;
