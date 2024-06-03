@@ -550,8 +550,8 @@ namespace platf {
     i.type = INPUT_MOUSE;
     auto &mi = i.mi;
 
-    // mi.dwFlags = MOUSEEVENTF_MOVE;
-    mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;  // TODO: Not sure if needed
+    mi.dwFlags = MOUSEEVENTF_MOVE;
+    // mi.dwFlags = MOUSEEVENTF_MOVE | MOUSEEVENTF_MOVE_NOCOALESCE;  // TODO: Not sure if needed
     mi.dx = deltaX;
     mi.dy = deltaY;
 
