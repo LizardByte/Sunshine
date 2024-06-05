@@ -1734,16 +1734,32 @@ namespace platf {
     delete input;
   }
 
-  /**
-   * @brief Gets the supported gamepads for this platform backend.
-   * @return Vector of gamepad type strings.
-   */
-  std::vector<std::string_view> &
-  supported_gamepads() {
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input) {
+    bool enabled;
+    if (input) {
+      auto vigem = ((input_raw_t *) input)->vigem;
+      enabled = vigem != nullptr;
+    }
+    else {
+      enabled = false;
+    }
+
+    auto reason = enabled ? "" : "gamepads.vigem-not-available";
+
     // ds4 == ps4
-    static std::vector<std::string_view> gps {
-      "auto"sv, "x360"sv, "ds4"sv, "ps4"sv
+    static std::vector gps {
+      supported_gamepad_t { "auto", true, reason },
+      supported_gamepad_t { "x360", enabled, reason },
+      supported_gamepad_t { "ds4", enabled, reason },
+      supported_gamepad_t { "ps4", enabled, reason }
     };
+
+    for (auto &[name, is_enabled, reason_disabled_key] : gps) {
+      if (!is_enabled) {
+        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled_key;
+      }
+    }
 
     return gps;
   }

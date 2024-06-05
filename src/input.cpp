@@ -1685,6 +1685,18 @@ namespace input {
     return std::make_unique<deinit_t>();
   }
 
+  bool
+  probe_gamepads() {
+    auto input = static_cast<platf::input_t *>(platf_input.get());
+    const auto gamepads = platf::supported_gamepads(input);
+    for (auto &gamepad : gamepads) {
+      if (gamepad.is_enabled && gamepad.name != "auto") {
+        return false;
+      }
+    }
+    return true;
+  }
+
   std::shared_ptr<input_t>
   alloc(safe::mail_t mail) {
     auto input = std::make_shared<input_t>(

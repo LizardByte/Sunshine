@@ -36,6 +36,6 @@ namespace platf::gamepad {
   void
   battery(input_raw_t *raw, const gamepad_battery_t &battery);
 
-  std::vector<std::string_view> &
-  supported_gamepads();
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input);
 }  // namespace platf::gamepad

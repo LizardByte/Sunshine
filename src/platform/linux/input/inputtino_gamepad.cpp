@@ -1,4 +1,5 @@
 #include <boost/locale.hpp>
+#include <fstream>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 
@@ -13,6 +14,13 @@
 using namespace std::literals;
 
 namespace platf::gamepad {
+
+  enum GamepadStatus {
+    UHID_NOT_AVAILABLE = 0,
+    UINPUT_NOT_AVAILABLE,
+    XINPUT_NOT_AVAILABLE,
+    GAMEPAD_STATUS  // Helper to indicate the number of status
+  };
 
   int
   alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -237,11 +245,77 @@ namespace platf::gamepad {
     }
   }
 
-  std::vector<std::string_view> &
-  supported_gamepads() {
-    static std::vector<std::string_view> gps {
-      "auto"sv, "xone"sv, "5"sv, "switch"sv
+  std::bitset<GamepadStatus::GAMEPAD_STATUS>
+  checkGamepadStatus() {
+    std::bitset<GamepadStatus::GAMEPAD_STATUS> status;
+    // Check for uhid device file
+    std::ifstream uhid("/dev/uhid");
+    if (!uhid.good()) {
+      status.set(GamepadStatus::UHID_NOT_AVAILABLE);
+    }
+
+    // Check for uinput device file
+    std::ifstream uinput("/dev/uinput");
+    if (!uinput.good()) {
+      status.set(GamepadStatus::UINPUT_NOT_AVAILABLE);
+    }
+
+    // Check for xinput availability
+    std::array<char, 128> buffer {};
+    FILE *pipe = popen("xinput --list", "r");
+    if (!pipe) {
+      status.set(GamepadStatus::XINPUT_NOT_AVAILABLE);
+    }
+    else {
+      std::string result;
+      while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        result += buffer.data();
+      }
+      if (pclose(pipe) == -1 || result.find("unable to connect to X server") != std::string::npos) {
+        status.set(GamepadStatus::XINPUT_NOT_AVAILABLE);
+      }
+    }
+    return status;
+  }
+
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input) {
+    if (!input) {
+      static std::vector gps {
+        supported_gamepad_t { "auto", true, "" },
+        supported_gamepad_t { "xone", false, "" },
+        supported_gamepad_t { "5", false, "" },
+        supported_gamepad_t { "switch", false, "" },
+      };
+
+      return gps;
+    }
+
+    const auto status = checkGamepadStatus();
+
+    const bool uhid_available = !status.test(GamepadStatus::UHID_NOT_AVAILABLE);
+    const bool uxinput_available = !status.test(GamepadStatus::UINPUT_NOT_AVAILABLE) || !status.test(GamepadStatus::XINPUT_NOT_AVAILABLE);
+
+    std::string reason_disabled;
+    if (status.test(GamepadStatus::UINPUT_NOT_AVAILABLE)) {
+      reason_disabled = "gamepads.uinput-not-available";
+    }
+    else {
+      reason_disabled = "gamepads.xinput-not-available";
+    }
+
+    static std::vector gps {
+      supported_gamepad_t { "auto", true, "" },
+      supported_gamepad_t { "xone", uxinput_available, reason_disabled },
+      supported_gamepad_t { "5", uhid_available, "gamepads.uhid-not-available" },
+      supported_gamepad_t { "switch", uxinput_available, reason_disabled },
     };
+
+    for (auto &[name, is_enabled, reason_disabled_key] : gps) {
+      if (!is_enabled) {
+        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled_key;
+      }
+    }
 
     return gps;
   }

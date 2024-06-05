@@ -136,8 +136,8 @@ namespace platf {
     return caps;
   }
 
-  std::vector<std::string_view> &
-  supported_gamepads() {
-    return platf::gamepad::supported_gamepads();
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input) {
+    return platf::gamepad::supported_gamepads(input);
   }
 }  // namespace platf

@@ -80,6 +80,12 @@ namespace platf {
   constexpr std::uint32_t TOUCHPAD_BUTTON = 0x100000;
   constexpr std::uint32_t MISC_BUTTON = 0x200000;
 
+  struct supported_gamepad_t {
+    std::string name;
+    bool is_enabled;
+    std::string reason_disabled_key;
+  };
+
   enum class gamepad_feedback_e {
     rumble,
     rumble_triggers,
@@ -784,6 +790,10 @@ namespace platf {
   [[nodiscard]] std::unique_ptr<deinit_t>
   init();
 
-  std::vector<std::string_view> &
-  supported_gamepads();
+  /**
+   * @brief Gets the supported gamepads for this platform backend.
+   * @return Vector of gamepad options and status.
+   */
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input);
 }  // namespace platf

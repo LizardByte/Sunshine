@@ -2594,9 +2594,11 @@ namespace platf {
     delete input;
   }
 
-  std::vector<std::string_view> &
-  supported_gamepads() {
-    static std::vector<std::string_view> gamepads { "x360"sv };
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input) {
+    static std::vector gamepads {
+      supported_gamepad_t { "x360", true, "" },
+    };
 
     return gamepads;
   }
