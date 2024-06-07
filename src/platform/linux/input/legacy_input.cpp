@@ -1,6 +1,7 @@
 /**
  * @file src/platform/linux/input/legacy_input.cpp
- *  TODO: Remove this file after the next stable release
+ * @brief Implementation of input handling, prior to migration to inputtino
+ * @todo Remove this file after the next stable release
  */
 #include <fcntl.h>
 #include <linux/uinput.h>

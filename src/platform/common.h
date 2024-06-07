@@ -83,7 +83,7 @@ namespace platf {
   struct supported_gamepad_t {
     std::string name;
     bool is_enabled;
-    std::string reason_disabled_key;
+    std::string reason_disabled;
   };
 
   enum class gamepad_feedback_e {

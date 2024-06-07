@@ -1,5 +1,4 @@
 #include <boost/locale.hpp>
-#include <fstream>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 
@@ -21,6 +20,32 @@ namespace platf::gamepad {
     XINPUT_NOT_AVAILABLE,
     GAMEPAD_STATUS  // Helper to indicate the number of status
   };
+
+  auto
+  create_xbox_one() {
+    return inputtino::XboxOneJoypad::create({ .name = "Sunshine X-Box One (virtual) pad",
+      // https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c#L147
+      .vendor_id = 0x045E,
+      .product_id = 0x02EA,
+      .version = 0x0408 });
+  }
+
+  auto
+  create_switch() {
+    return inputtino::SwitchJoypad::create({ .name = "Sunshine Nintendo (virtual) pad",
+      // https://github.com/torvalds/linux/blob/master/drivers/hid/hid-ids.h#L981
+      .vendor_id = 0x057e,
+      .product_id = 0x2009,
+      .version = 0x8111 });
+  }
+
+  auto
+  create_ds5() {
+    return inputtino::PS5Joypad::create({ .name = "Sunshine DualSense (virtual) pad",
+      .vendor_id = 0x054C,
+      .product_id = 0x0CE6,
+      .version = 0x8111 });
+  }
 
   int
   alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -97,11 +122,7 @@ namespace platf::gamepad {
 
     switch (selectedGamepadType) {
       case XboxOneWired: {
-        auto xOne = inputtino::XboxOneJoypad::create({ .name = "Sunshine X-Box One (virtual) pad",
-          // https://github.com/torvalds/linux/blob/master/drivers/input/joystick/xpad.c#L147
-          .vendor_id = 0x045E,
-          .product_id = 0x02EA,
-          .version = 0x0408 });
+        auto xOne = create_xbox_one();
         if (xOne) {
           (*xOne).set_on_rumble(on_rumble_fn);
           gamepad->joypad = std::make_unique<joypads_t>(std::move(*xOne));
@@ -114,11 +135,7 @@ namespace platf::gamepad {
         }
       }
       case SwitchProWired: {
-        auto switchPro = inputtino::SwitchJoypad::create({ .name = "Sunshine Nintendo (virtual) pad",
-          // https://github.com/torvalds/linux/blob/master/drivers/hid/hid-ids.h#L981
-          .vendor_id = 0x057e,
-          .product_id = 0x2009,
-          .version = 0x8111 });
+        auto switchPro = create_switch();
         if (switchPro) {
           (*switchPro).set_on_rumble(on_rumble_fn);
           gamepad->joypad = std::make_unique<joypads_t>(std::move(*switchPro));
@@ -131,7 +148,7 @@ namespace platf::gamepad {
         }
       }
       case DualSenseWired: {
-        auto ds5 = inputtino::PS5Joypad::create({ .name = "Sunshine DualSense (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111 });
+        auto ds5 = create_ds5();
         if (ds5) {
           (*ds5).set_on_rumble(on_rumble_fn);
           (*ds5).set_on_led([feedback_queue, idx = id.clientRelativeIndex, gamepad](int r, int g, int b) {
@@ -245,75 +262,33 @@ namespace platf::gamepad {
     }
   }
 
-  std::bitset<GamepadStatus::GAMEPAD_STATUS>
-  checkGamepadStatus() {
-    std::bitset<GamepadStatus::GAMEPAD_STATUS> status;
-    // Check for uhid device file
-    std::ifstream uhid("/dev/uhid");
-    if (!uhid.good()) {
-      status.set(GamepadStatus::UHID_NOT_AVAILABLE);
-    }
-
-    // Check for uinput device file
-    std::ifstream uinput("/dev/uinput");
-    if (!uinput.good()) {
-      status.set(GamepadStatus::UINPUT_NOT_AVAILABLE);
-    }
-
-    // Check for xinput availability
-    std::array<char, 128> buffer {};
-    FILE *pipe = popen("xinput --list", "r");
-    if (!pipe) {
-      status.set(GamepadStatus::XINPUT_NOT_AVAILABLE);
-    }
-    else {
-      std::string result;
-      while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
-        result += buffer.data();
-      }
-      if (pclose(pipe) == -1 || result.find("unable to connect to X server") != std::string::npos) {
-        status.set(GamepadStatus::XINPUT_NOT_AVAILABLE);
-      }
-    }
-    return status;
-  }
-
   std::vector<supported_gamepad_t> &
   supported_gamepads(input_t *input) {
     if (!input) {
       static std::vector gps {
         supported_gamepad_t { "auto", true, "" },
         supported_gamepad_t { "xone", false, "" },
-        supported_gamepad_t { "5", false, "" },
+        supported_gamepad_t { "ds5", false, "" },
         supported_gamepad_t { "switch", false, "" },
       };
 
       return gps;
     }
 
-    const auto status = checkGamepadStatus();
-
-    const bool uhid_available = !status.test(GamepadStatus::UHID_NOT_AVAILABLE);
-    const bool uxinput_available = !status.test(GamepadStatus::UINPUT_NOT_AVAILABLE) || !status.test(GamepadStatus::XINPUT_NOT_AVAILABLE);
-
-    std::string reason_disabled;
-    if (status.test(GamepadStatus::UINPUT_NOT_AVAILABLE)) {
-      reason_disabled = "gamepads.uinput-not-available";
-    }
-    else {
-      reason_disabled = "gamepads.xinput-not-available";
-    }
+    auto ds5 = create_ds5();
+    auto switchPro = create_switch();
+    auto xOne = create_xbox_one();
 
     static std::vector gps {
       supported_gamepad_t { "auto", true, "" },
-      supported_gamepad_t { "xone", uxinput_available, reason_disabled },
-      supported_gamepad_t { "5", uhid_available, "gamepads.uhid-not-available" },
-      supported_gamepad_t { "switch", uxinput_available, reason_disabled },
+      supported_gamepad_t { "xone", xOne, !xOne ? xOne.getErrorMessage() : "" },
+      supported_gamepad_t { "ds5", ds5, !ds5 ? ds5.getErrorMessage() : "" },
+      supported_gamepad_t { "switch", switchPro, !switchPro ? switchPro.getErrorMessage() : "" },
     };
 
-    for (auto &[name, is_enabled, reason_disabled_key] : gps) {
+    for (auto &[name, is_enabled, reason_disabled] : gps) {
       if (!is_enabled) {
-        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled_key;
+        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled;
       }
     }
 

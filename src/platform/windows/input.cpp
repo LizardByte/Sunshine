@@ -1751,13 +1751,12 @@ namespace platf {
     static std::vector gps {
       supported_gamepad_t { "auto", true, reason },
       supported_gamepad_t { "x360", enabled, reason },
-      supported_gamepad_t { "ds4", enabled, reason },
-      supported_gamepad_t { "ps4", enabled, reason }
+      supported_gamepad_t { "ds4", enabled, reason }
     };
 
-    for (auto &[name, is_enabled, reason_disabled_key] : gps) {
+    for (auto &[name, is_enabled, reason_disabled] : gps) {
       if (!is_enabled) {
-        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled_key;
+        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled;
       }
     }
 

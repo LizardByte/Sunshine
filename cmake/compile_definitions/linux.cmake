@@ -222,7 +222,7 @@ if(${SUNSHINE_ENABLE_TRAY} AND ${SUNSHINE_TRAY} EQUAL 0 AND SUNSHINE_REQUIRE_TRA
     message(FATAL_ERROR "Tray icon is required")
 endif()
 
-if(${SUNSHINE_USE_LEGACY_INPUT}) # TODO: Remove this legacy option after the next stable release
+if(${SUNSHINE_USE_LEGACY_INPUT})  # TODO: Remove this legacy option after the next stable release
     list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/input/legacy_input.cpp")
 else()
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino")
