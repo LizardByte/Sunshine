@@ -281,9 +281,9 @@ namespace platf::gamepad {
 
     static std::vector gps {
       supported_gamepad_t { "auto", true, "" },
-      supported_gamepad_t { "xone", xOne, !xOne ? xOne.getErrorMessage() : "" },
-      supported_gamepad_t { "ds5", ds5, !ds5 ? ds5.getErrorMessage() : "" },
-      supported_gamepad_t { "switch", switchPro, !switchPro ? switchPro.getErrorMessage() : "" },
+      supported_gamepad_t { "xone", xOne ? true : false, !xOne ? xOne.getErrorMessage() : "" },
+      supported_gamepad_t { "ds5", ds5 ? true : false, !ds5 ? ds5.getErrorMessage() : "" },
+      supported_gamepad_t { "switch", switchPro ? true : false, !switchPro ? switchPro.getErrorMessage() : "" },
     };
 
     for (auto &[name, is_enabled, reason_disabled] : gps) {
