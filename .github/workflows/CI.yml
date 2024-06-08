@@ -29,7 +29,9 @@ jobs:
     name: Setup Release
     outputs:
       publish_release: ${{ steps.setup_release.outputs.publish_release }}
+      release_body: ${{ steps.setup_release.outputs.release_body }}
       release_commit: ${{ steps.setup_release.outputs.release_commit }}
+      release_generate_release_notes: ${{ steps.setup_release.outputs.release_generate_release_notes }}
       release_tag: ${{ steps.setup_release.outputs.release_tag }}
       release_version: ${{ steps.setup_release.outputs.release_version }}
     runs-on: ubuntu-latest
@@ -39,7 +41,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2024.524.1411
+        uses: LizardByte/setup-release-action@v2024.608.210128
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -181,8 +183,9 @@ jobs:
         uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          generateReleaseNotes: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
           tag: ${{ needs.setup_release.outputs.release_tag }}
@@ -471,8 +474,9 @@ jobs:
         uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          generateReleaseNotes: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
           tag: ${{ needs.setup_release.outputs.release_tag }}
@@ -570,8 +574,9 @@ jobs:
         with:
           allowUpdates: true
           artifacts: '${{ github.workspace }}/homebrew/*'
+          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          generateReleaseNotes: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
           tag: ${{ needs.setup_release.outputs.release_tag }}
@@ -810,8 +815,9 @@ jobs:
         uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          generateReleaseNotes: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
           tag: ${{ needs.setup_release.outputs.release_tag }}
@@ -1078,8 +1084,9 @@ jobs:
         uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
           discussionCategory: announcements
-          generateReleaseNotes: true
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
           tag: ${{ needs.setup_release.outputs.release_tag }}
