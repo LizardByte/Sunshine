@@ -178,7 +178,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
-        uses: LizardByte/create-release-action@v2024.524.143912
+        uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
           discussionCategory: announcements
@@ -468,7 +468,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
-        uses: LizardByte/create-release-action@v2024.524.143912
+        uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
           discussionCategory: announcements
@@ -566,7 +566,7 @@ jobs:
         if: >-
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2024.524.143912
+        uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
           artifacts: '${{ github.workspace }}/homebrew/*'
@@ -807,7 +807,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
-        uses: LizardByte/create-release-action@v2024.524.143912
+        uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
           discussionCategory: announcements
@@ -1075,7 +1075,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
-        uses: LizardByte/create-release-action@v2024.524.143912
+        uses: LizardByte/create-release-action@v2024.608.160245
         with:
           allowUpdates: true
           discussionCategory: announcements
