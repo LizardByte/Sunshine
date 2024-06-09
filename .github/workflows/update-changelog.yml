@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Update Changelog
-        uses: LizardByte/update-changelog-action@v2024.609.1828
+        uses: LizardByte/update-changelog-action@v2024.609.4705
         with:
           changelogBranch: changelog
           changelogFile: CHANGELOG.md
