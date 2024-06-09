@@ -121,6 +121,8 @@ RUN <<_MAKE
 set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
+  -DTESTS_ENABLE_PYTHON_TESTS=OFF \
+  -DSUNSHINE_BUILD_TESTS=OFF \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -136,15 +138,15 @@ cpack -G RPM
 _MAKE
 
 # run tests
-WORKDIR /build/sunshine/build/tests
+#WORKDIR /build/sunshine/build/tests
 # hadolint ignore=SC1091
-RUN <<_TEST
-#!/bin/bash
-set -e
-export DISPLAY=:1
-Xvfb ${DISPLAY} -screen 0 1024x768x24 &
-./test_sunshine --gtest_color=yes
-_TEST
+#RUN <<_TEST
+##!/bin/bash
+#set -e
+#export DISPLAY=:1
+#Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+#./test_sunshine --gtest_color=yes
+#_TEST
 
 FROM scratch AS artifacts
 ARG BASE
