@@ -168,6 +168,18 @@ Install
             flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
             flatpak uninstall --delete-data dev.lizardbyte.sunshine
 
+   .. tab:: Homebrew
+
+      .. important:: The Homebrew package is experimental.
+
+      #. Install `Homebrew <https://docs.brew.sh/Installation>`__
+      #. Update the Homebrew sources and install Sunshine.
+
+         .. code-block:: bash
+
+            brew tap LizardByte/homebrew
+            brew install sunshine
+
    .. tab:: RPM Package
 
       #. Add `rpmfusion` repositories by running the following code.

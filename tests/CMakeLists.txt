@@ -107,6 +107,11 @@ list(REMOVE_ITEM SUNSHINE_SOURCES ${CMAKE_SOURCE_DIR}/src/main.cpp)
 add_executable(${PROJECT_NAME}
         ${TEST_SOURCES}
         ${SUNSHINE_SOURCES})
+
+foreach(dep ${SUNSHINE_TARGET_DEPENDENCIES})
+    add_dependencies(${PROJECT_NAME} ${dep})  # compile these before sunshine
+endforeach()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
 target_link_libraries(${PROJECT_NAME}
         ${SUNSHINE_EXTERNAL_LIBRARIES}

@@ -482,7 +482,7 @@ jobs:
           tag: ${{ needs.setup_release.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}
 
-  build_mac_brew:
+  build_homebrew:
     needs: [setup_release]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
@@ -491,20 +491,20 @@ jobs:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
           - os_version: "12"
-            release: true
+            os_name: "macos"
           - os_version: "13"
+            os_name: "macos"
           - os_version: "14"
-    name: Homebrew (macOS-${{ matrix.os_version }})
-    runs-on: macos-${{ matrix.os_version }}
+            os_name: "macos"
+          - os_version: "latest"
+            os_name: "ubuntu"
+            release: true
+    name: Homebrew (${{ matrix.os_name }}-${{ matrix.os_version }})
+    runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup Dependencies Homebrew
-        run: |
-          # install dependencies using homebrew
-          brew install cmake
 
       - name: Configure formula
         run: |
@@ -556,8 +556,20 @@ jobs:
           name: sunshine-homebrew
           path: homebrew/
 
+      - name: Setup Xvfb
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            xvfb
+
+          export DISPLAY=:1
+          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+
+          echo "DISPLAY=${DISPLAY}" >> $GITHUB_ENV
+
       - name: Validate Homebrew Formula
-        uses: LizardByte/homebrew-release-action@v2024.609.4731
+        uses: LizardByte/homebrew-release-action@v2024.612.21058
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}

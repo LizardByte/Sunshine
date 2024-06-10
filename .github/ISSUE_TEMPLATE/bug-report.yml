@@ -95,18 +95,18 @@ body:
         - Linux - deb
         - Linux - Docker
         - Linux - flatpak
+        - Linux - Homebrew
         - Linux - nixpkgs (Third Party)
         - Linux - PKGBUILD
         - Linux - pkg.tar.zst
         - Linux - rpm
-        - Linux - solus (Third Party)
-        - macOS - dmg
+        - macOS - Homebrew
         - macOS - Portfile
         - Windows - Chocolatey (Third Party)
         - Windows - installer
         - Windows - portable
         - Windows - Scoop (Third Party)
-        - Windows - Winget (Third Party)
+        - Windows - Winget
         - other (not listed)
         - other (self built)
         - other (fork of this repo)
