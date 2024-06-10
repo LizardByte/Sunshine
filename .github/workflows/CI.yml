@@ -557,7 +557,7 @@ jobs:
           path: homebrew/
 
       - name: Validate Homebrew Formula
-        uses: LizardByte/homebrew-release-action@v2024.522.222851
+        uses: LizardByte/homebrew-release-action@v2024.609.4731
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
