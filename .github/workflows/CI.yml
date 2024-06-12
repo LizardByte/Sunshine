@@ -787,8 +787,9 @@ jobs:
         working-directory:
           /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests
         run: |
-          sudo port install doxygen
-          sudo port install graphviz
+          sudo port install \
+            doxygen \
+            graphviz
           sudo ./test_sunshine --gtest_color=yes
 
       - name: Generate gcov report
