@@ -69,10 +69,6 @@ apt-get install -y --no-install-recommends \
   wget \
   x11-xserver-utils \
   xvfb
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  apt-get install -y --no-install-recommends \
-    libmfx-dev
-fi
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS

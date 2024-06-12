@@ -65,9 +65,6 @@ dnf -y install \
   wget \
   which \
   xorg-x11-server-Xvfb
-if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
-  dnf -y install intel-mediasdk-devel
-fi
 dnf clean all
 rm -rf /var/cache/yum
 _DEPS

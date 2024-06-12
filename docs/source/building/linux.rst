@@ -25,7 +25,6 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libminiupnpc-dev \
-          libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
@@ -59,7 +58,6 @@ Install Requirements
           cmake \
           gcc \
           gcc-c++ \
-          intel-mediasdk-devel \ # x86_64 only
           libappindicator-gtk3-devel \
           libcap-devel \
           libcurl-devel \
@@ -106,7 +104,6 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libminiupnpc-dev \
-          libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
@@ -147,7 +144,6 @@ Install Requirements
           libdrm-dev \  # KMS
           libevdev-dev \
           libminiupnpc-dev \
-          libmfx-dev \  # x86_64 only
           libnotify-dev \
           libnuma-dev \
           libopus-dev \
