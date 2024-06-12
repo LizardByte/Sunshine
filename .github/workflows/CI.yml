@@ -505,6 +505,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set IS_PR Environment Variable
+        if: github.event_name == 'pull_request'
+        run: echo "IS_PR=1" >> $GITHUB_ENV
+
       - name: Configure formula
         run: |
           # variables for formula
