@@ -733,19 +733,31 @@ jobs:
           name: sunshine-macports
           path: artifacts/
 
-      - name: Fix screen capture permissions
-        if: ${{ matrix.os_version != 12 }}  # macOS-12 is okay
-        # can be removed if the following is fixed in the runner image
-        # https://github.com/actions/runner-images/issues/9529
-        # https://github.com/actions/runner-images/pull/9530
+      - name: Fix permissions
         run: |
           # https://apple.stackexchange.com/questions/362865/macos-list-apps-authorized-for-full-disk-access
+          # https://github.com/actions/runner-images/issues/9529
+          # https://github.com/actions/runner-images/pull/9530
 
-          # permissions for screen capture
-          values="'kTCCServiceScreenCapture','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159"
+          # function to execute sql query for each value
+          function execute_sql_query {
+            local value=$1
+            local dbPath=$2
+
+            echo "Executing SQL query for value: $value"
+            sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
+          }
+
+          # permissions
+          declare -a values=(
+            "'kTCCServiceAccessibility','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552"
+            "'kTCCServiceScreenCapture','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159"
+          )
           if [[ "${{ matrix.os_version }}" == "14" ]]; then
             # TCC access table in Sonoma has extra 4 columns: pid, pid_version, boot_uuid, last_reminded
-            values="${values},NULL,NULL,'UNUSED',${values##*,}"
+            for i in "${!values[@]}"; do
+              values[$i]="${values[$i]},NULL,NULL,'UNUSED',${values[$i]##*,}"
+            done
           fi
 
           # system and user databases
@@ -754,32 +766,31 @@ jobs:
             "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
           )
 
-          sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
-
-          for dbPath in "${dbPaths[@]}"; do
-            echo "Column names for $dbPath"
-            echo "-------------------"
-            sudo sqlite3 "$dbPath" "PRAGMA table_info(access);"
-            echo "Current permissions for $dbPath"
-            echo "-------------------"
-            sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
-            sudo sqlite3 "$dbPath" "$sqlQuery"
-            echo "Updated permissions for $dbPath"
-            echo "-------------------"
-            sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+          for value in "${values[@]}"; do
+            for dbPath in "${dbPaths[@]}"; do
+              echo "Column names for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "PRAGMA table_info(access);"
+              echo "Current permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+              execute_sql_query "$value" "$dbPath"
+              echo "Updated permissions for $dbPath"
+              echo "-------------------"
+              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
+            done
           done
 
       - name: Run tests
         id: test
         timeout-minutes: 10
+        working-directory:
+          /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests
         run: |
-          sudo port test "Sunshine"
-
-      - name: Test Logs
-        if: always()
-        run: |
-          logfile="/opt/local/var/macports/logs/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/main.log"
-          cat "$logfile"
+          sudo port install \
+            doxygen \
+            graphviz
+          sudo ./test_sunshine --gtest_color=yes
 
       - name: Generate gcov report
         # any except canceled or skipped

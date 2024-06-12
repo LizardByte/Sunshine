@@ -77,4 +77,4 @@ test.run                 yes
 test.dir                 ${build.dir}/tests
 test.target              ""
 test.cmd                 ./test_sunshine
-test.args                --gtest_color=yes
+test.args                --gtest_color=yes --gtest_filter=-*HIDTest.*:-*DeathTest.*

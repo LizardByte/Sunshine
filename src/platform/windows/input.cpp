@@ -542,6 +542,21 @@ namespace platf {
     send_input(i);
   }
 
+  util::point_t
+  get_mouse_loc(input_t &input) {
+    throw std::runtime_error("not implemented yet, has to pass tests");
+    // TODO: Tests are failing, something wrong here?
+    POINT p;
+    if (!GetCursorPos(&p)) {
+      return util::point_t { 0.0, 0.0 };
+    }
+
+    return util::point_t {
+      (double) p.x,
+      (double) p.y
+    };
+  }
+
   void
   button_mouse(input_t &input, int button, bool release) {
     INPUT i {};

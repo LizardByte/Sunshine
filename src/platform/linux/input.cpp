@@ -1098,6 +1098,36 @@ namespace platf {
 #endif
   }
 
+  util::point_t
+  get_mouse_loc(input_t &input) {
+#ifdef SUNSHINE_BUILD_X11
+    Display *xdisplay = ((input_raw_t *) input.get())->display;
+    if (!xdisplay) {
+      return util::point_t {};
+    }
+    Window root, root_return, child_return;
+    root = DefaultRootWindow(xdisplay);
+    int root_x, root_y;
+    int win_x, win_y;
+    unsigned int mask_return;
+
+    if (XQueryPointer(xdisplay, root, &root_return, &child_return, &root_x, &root_y, &win_x, &win_y, &mask_return)) {
+      BOOST_LOG(debug)
+        << "Pointer is at:"sv << std::endl
+        << "  x: " << root_x << std::endl
+        << "  y: " << root_y << std::endl;
+
+      return util::point_t { (double) root_x, (double) root_y };
+    }
+    else {
+      BOOST_LOG(debug) << "Unable to query x11 pointer"sv << std::endl;
+    }
+#else
+    BOOST_LOG(debug) << "Unable to query wayland pointer"sv << std::endl;
+#endif
+    return util::point_t {};
+  }
+
   /**
    * @brief Absolute mouse move.
    * @param input The input_t instance to use.
