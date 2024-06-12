@@ -791,12 +791,6 @@ jobs:
           sudo port install graphviz
           sudo ./test_sunshine --gtest_color=yes
 
-      - name: Test Logs
-        if: always()
-        run: |
-          logfile="/opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests/test.log"
-          cat "$logfile"
-
       - name: Generate gcov report
         # any except canceled or skipped
         if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
