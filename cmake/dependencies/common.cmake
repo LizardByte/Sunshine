@@ -25,12 +25,6 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
         set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl)
     elseif(UNIX AND NOT APPLE)
         set(FFMPEG_PLATFORM_LIBRARIES numa va va-drm va-x11 vdpau X11)
-        # TODO: remove mfx, it's not used and deprecated
-        if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT SUNSHINE_BUILD_HOMEBREW)
-            list(APPEND FFMPEG_PLATFORM_LIBRARIES mfx)
-            set(CPACK_DEB_PLATFORM_PACKAGE_DEPENDS "libmfx1,")
-            set(CPACK_RPM_PLATFORM_PACKAGE_REQUIRES "intel-mediasdk >= 22.3.0,")
-        endif()
     endif()
     set(FFMPEG_PREPARED_BINARIES
             "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")

@@ -46,7 +46,6 @@ makedepends=('boost'
              'npm')
 optdepends=('cuda: Nvidia GPU encoding support'
             'libva-mesa-driver: AMD GPU encoding support'
-            'intel-media-driver: Intel GPU encoding support'
             'xorg-server-xvfb: Virtual X server for headless testing')
 
 provides=('sunshine')

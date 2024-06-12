@@ -265,7 +265,6 @@ jobs:
             libevdev-dev \
             libfuse2 \
             libminiupnpc-dev \
-            libmfx-dev \
             libnotify-dev \
             libnuma-dev \
             libopus-dev \
