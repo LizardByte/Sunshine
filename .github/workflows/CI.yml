@@ -510,6 +510,8 @@ jobs:
         run: echo "IS_PR=1" >> $GITHUB_ENV
 
       - name: Configure formula
+        env:
+          IS_PR: ${{ env.IS_PR }}
         run: |
           # variables for formula
           branch="${{ github.head_ref }}"
@@ -542,7 +544,7 @@ jobs:
             -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
-            -DIS_PR="1" \
+            -DIS_PR=${{ env.IS_PR }} \
             ..
           cd ..
 
@@ -574,6 +576,8 @@ jobs:
 
       - name: Validate Homebrew Formula
         uses: LizardByte/homebrew-release-action@v2024.612.21058
+        env:
+          IS_PR: ${{ env.IS_PR }}
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
