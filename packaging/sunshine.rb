@@ -6,21 +6,23 @@ class @PROJECT_NAME@ < Formula
   if ENV["IS_PR"] == "1"
     url "@GITHUB_CLONE_URL@", branch: "@GITHUB_BRANCH@", revision: "@GITHUB_COMMIT@"
   else
-    url "@GITHUB_CLONE_URL@", tag: "@GITHUB_TAG@"
+    url "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@", tag: "@BUILD_VERSION@"
   end
-  version "@PROJECT_VERSION@"
+  version "@BUILD_VERSION@"
   license all_of: ["GPL-3.0-only"]
   head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
 
-  # https://docs.brew.sh/Brew-Livecheck#githublatest-strategy-block
-  livecheck do
-    url :stable
-    regex(/^v?(\d+\.\d+\.\d+)$/i)
-    strategy :github_latest do |json, regex|
-      match = json["tag_name"]&.match(regex)
-      next if match.blank?
+  if ENV["IS_PR"] != "1"
+    # https://docs.brew.sh/Brew-Livecheck#githublatest-strategy-block
+    livecheck do
+      url :stable
+      regex(/^v?(\d+\.\d+\.\d+)$/i)
+      strategy :github_latest do |json, regex|
+        match = json["tag_name"]&.match(regex)
+        next if match.blank?
 
-      match[1]
+        match[1]
+      end
     end
   end
 
