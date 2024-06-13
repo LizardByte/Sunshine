@@ -136,6 +136,12 @@ namespace platf {
     return caps;
   }
 
+  util::point_t
+  get_mouse_loc(input_t &input) {
+    auto raw = (input_raw_t *) input.get();
+    return platf::mouse::get_location(raw);
+  }
+
   std::vector<supported_gamepad_t> &
   supported_gamepads(input_t *input) {
     return platf::gamepad::supported_gamepads(input);

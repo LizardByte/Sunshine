@@ -74,4 +74,19 @@ namespace platf::mouse {
       (*raw->mouse).horizontal_scroll(high_res_distance);
     }
   }
+
+  util::point_t
+  get_location(input_raw_t *raw) {
+    if (raw->mouse) {
+      auto TARGET_WIDTH = 1920; // TODO: change method signature and get from display
+      auto TARGET_HEIGHT = 1080; // TODO: get from display
+      auto li = create_libinput_context({(*raw->mouse).get_nodes()[1]});
+      auto event = get_event(li);
+      auto p_event = libinput_event_get_pointer_event(event.get());
+      auto x = libinput_event_pointer_get_absolute_x_transformed(p_event, TARGET_WIDTH);
+      auto y = libinput_event_pointer_get_absolute_y_transformed(p_event, TARGET_HEIGHT);
+      return {x, y};
+    }
+    return {0, 0};
+  }
 }  // namespace platf::mouse

@@ -25,4 +25,7 @@ namespace platf::mouse {
 
   void
   hscroll(input_raw_t *raw, int high_res_distance);
+
+  util::point_t
+  get_location(input_raw_t *raw);
 }  // namespace platf::mouse
