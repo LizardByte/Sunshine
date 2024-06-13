@@ -30,6 +30,10 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 
       sudo setcap -r $(readlink -f $(which sunshine))
 
+Note that the above command will not work with the AppImage or Flatpak packages.
+Please refer to the :ref:`Setup guide <about/setup:Install>` for more
+specific instructions.
+
 Gamescope compatibility
 -----------------------
 Some users have reported stuttering issues when streaming games running within Gamescope.
