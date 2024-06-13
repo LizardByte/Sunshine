@@ -34,6 +34,25 @@ Note that the above command will not work with the AppImage or Flatpak packages.
 Please refer to the :ref:`Setup guide <about/setup:Install>` for more
 specific instructions.
 
+AMD encoding latency issues
+---------------------------
+If you notice unexpectedly high encoding latencies (e.g. in Moolight's
+performance overlay) or strong fluctuations thereof, this is due to
+`missing support <https://gitlab.freedesktop.org/drm/amd/-/issues/3336>`_
+in Mesa/libva for AMD's low latency encoder mode. This is particularly
+problematic at higher resolutions (4K).
+
+As of now this can only be fixed by recompiling Mesa with a test patch (see
+gitlab issue) that unconditionally enables a low latency tuning mode for all
+encoder workloads. This is for advanced users only and neither support nor
+warranty are provided. Note also that this patch entails a higher power
+consumption while encoding and may not be suitable for all use cases.
+
+(A crude workaround is to *increase* the load on the de-/encoder by having it
+de- or encode an additional arbitrary video stream in the background. This
+ensures that the encoder's clock frequencies stay high and the latency
+fluctuations disappear.)
+
 Gamescope compatibility
 -----------------------
 Some users have reported stuttering issues when streaming games running within Gamescope.
