@@ -1,5 +1,5 @@
 /**
- * @file tests/test_mouse.cpp
+ * @file tests/unit/test_mouse.cpp
  * @brief Test src/input.*.
  */
 #include <src/input.h>
@@ -13,11 +13,12 @@ protected:
   SetUp() override {
     BaseTest::SetUp();
     PlatformInitBase::SetUp();
-#ifdef _WIN32
+#ifdef _WIN32 || __linux__
     // TODO: Windows tests are failing, `get_mouse_loc` seems broken and `platf::abs_mouse` too
+    // TODO: Inputtino waiting https://github.com/games-on-whales/inputtino/issues/6 is resolved.
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
     //       but I'm not sure about real work
-    GTEST_SKIP_("MouseTest:: skipped for now. TODO Windows");
+    GTEST_SKIP_("MouseTest:: skipped for now. TODO Windows/Inputtino");
 #endif
   }
 

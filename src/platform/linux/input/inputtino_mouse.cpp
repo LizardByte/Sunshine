@@ -78,15 +78,11 @@ namespace platf::mouse {
   util::point_t
   get_location(input_raw_t *raw) {
     if (raw->mouse) {
-      auto TARGET_WIDTH = 1920; // TODO: change method signature and get from display
-      auto TARGET_HEIGHT = 1080; // TODO: get from display
-      auto li = create_libinput_context({(*raw->mouse).get_nodes()[1]});
-      auto event = get_event(li);
-      auto p_event = libinput_event_get_pointer_event(event.get());
-      auto x = libinput_event_pointer_get_absolute_x(p_event);
-      auto y = libinput_event_pointer_get_absolute_y(p_event);
-      return {x, y};
+      // TODO: decide what to do after https://github.com/games-on-whales/inputtino/issues/6 is resolved.
+      // TODO: auto x = (*raw->mouse).get_absolute_x();
+      // TODO: auto y = (*raw->mouse).get_absolute_y();
+      return { 0, 0 };
     }
-    return {0, 0};
+    return { 0, 0 };
   }
 }  // namespace platf::mouse
