@@ -258,7 +258,7 @@ namespace platf::gamepad {
           state = inputtino::PS5Joypad::BATTERY_FULL;
           break;
       }
-      std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage / 2.55);  // TODO: 255 (0xFF) is 100%?
+      std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage);
     }
   }
 
