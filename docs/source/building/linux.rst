@@ -16,10 +16,6 @@ Install Requirements
           build-essential \
           cmake \
           libayatana-appindicator3-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
@@ -54,7 +50,6 @@ Install Requirements
       sudo dnf update && \
       sudo dnf group install "Development Tools" && \
       sudo dnf install \
-          boost-devel \
           cmake \
           gcc \
           gcc-c++ \
@@ -95,10 +90,6 @@ Install Requirements
           build-essential \
           cmake \
           libappindicator3-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS
@@ -135,10 +126,6 @@ Install Requirements
           gcc-11 \
           g++-11 \
           libappindicator3-dev \
-          libboost-filesystem-dev \
-          libboost-locale-dev \
-          libboost-log-dev \
-          libboost-program-options-dev \
           libcap-dev \  # KMS
           libcurl4-openssl-dev \
           libdrm-dev \  # KMS

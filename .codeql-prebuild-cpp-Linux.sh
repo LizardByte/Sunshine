@@ -24,10 +24,6 @@ sudo apt-get install -y \
   g++-10 \
   libayatana-appindicator3-dev \
   libavdevice-dev \
-  libboost-filesystem-dev \
-  libboost-locale-dev \
-  libboost-log-dev \
-  libboost-program-options-dev \
   libcap-dev \
   libcurl4-openssl-dev \
   libdrm-dev \

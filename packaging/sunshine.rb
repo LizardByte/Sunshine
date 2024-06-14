@@ -21,7 +21,6 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  depends_on "boost" => :build
   depends_on "cmake" => :build
   depends_on "node" => :build
   depends_on "pkg-config" => :build

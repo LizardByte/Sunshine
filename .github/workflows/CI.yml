@@ -255,10 +255,6 @@ jobs:
             g++-10 \
             libayatana-appindicator3-dev \
             libavdevice-dev \
-            libboost-filesystem-dev \
-            libboost-locale-dev \
-            libboost-log-dev \
-            libboost-program-options-dev \
             libcap-dev \
             libcurl4-openssl-dev \
             libdrm-dev \
@@ -979,7 +975,6 @@ jobs:
           pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
             doxygen \
             git \
-            mingw-w64-ucrt-x86_64-boost \
             mingw-w64-ucrt-x86_64-cmake \
             mingw-w64-ucrt-x86_64-cppwinrt \
             mingw-w64-ucrt-x86_64-graphviz \

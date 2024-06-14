@@ -12,14 +12,14 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install avahi boost180 cmake curl doxygen graphviz libopus miniupnpc npm9 pkgconfig python311 py311-pip
+      sudo port install avahi cmake curl doxygen graphviz libopus miniupnpc npm9 pkgconfig python311 py311-pip
 
 Homebrew
 """"""""
 Install Requirements
    .. code-block:: bash
 
-      brew install boost cmake doxygen graphviz miniupnpc node opus pkg-config python@3.11
+      brew install cmake doxygen graphviz icu4c miniupnpc node openssl@3 opus pkg-config python@3.11
 
 If there are issues with an SSL header that is not found:
    .. tab:: Intel
