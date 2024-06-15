@@ -64,10 +64,6 @@ class @PROJECT_NAME@ < Formula
       -DSUNSHINE_ENABLE_TRAY=OFF
       -DTESTS_ENABLE_PYTHON_TESTS=OFF
     ]
-    # On Linux we have to first build the evdev target manually since the library is not available on homebrew
-    on_linux do
-     system "cmake", "-S", ".", "-B", "build", *std_cmake_args, "--target", "libevdev"
-    end
     system "cmake", "-S", ".", "-B", "build", *std_cmake_args, *args
 
     cd "build" do
