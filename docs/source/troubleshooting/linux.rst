@@ -31,8 +31,8 @@ If screencasting fails with KMS, you may need to run the following to force unpr
       sudo setcap -r $(readlink -f $(which sunshine))
 
 .. note:: The above command will not work with the AppImage or Flatpak packages.
-Please refer to the :ref:`Setup guide <about/setup:Install>` for more
-specific instructions.
+   Please refer to the :ref:`Setup guide <about/setup:Install>` for more
+   specific instructions.
 
 KMS streaming fails on Nvidia GPUs
 ----------------------------------
