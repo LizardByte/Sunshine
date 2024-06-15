@@ -19,7 +19,7 @@ macro(find_package)  # cmake-lint: disable=C0103
     string(TOLOWER "${ARGV0}" ARGV0_LOWER)
     if(
         (("${ARGV0_LOWER}" STREQUAL "boost") AND DEFINED FETCH_CONTENT_BOOST_USED) OR
-        (("${ARGV0_LOWER}" STREQUAL "libevdev") AND DEFINED FETCH_CONTENT_LIBEVDEV_USED)
+        (("${ARGV0_LOWER}" STREQUAL "libevdev") AND DEFINED EXTERNAL_PROJECT_LIBEVDEV_USED)
     )
         # Do nothing, as the package has already been fetched
     else()
@@ -33,7 +33,7 @@ macro(pkg_check_modules)  # cmake-lint: disable=C0103
     string(TOLOWER "${ARGV0}" ARGV0_LOWER)
     if(
         (("${ARGV0_LOWER}" STREQUAL "boost") AND DEFINED FETCH_CONTENT_BOOST_USED) OR
-        (("${ARGV0_LOWER}" STREQUAL "libevdev") AND DEFINED FETCH_CONTENT_LIBEVDEV_USED)
+        (("${ARGV0_LOWER}" STREQUAL "libevdev") AND DEFINED EXTERNAL_PROJECT_LIBEVDEV_USED)
     )
         # Do nothing, as the package has already been fetched
     else()
