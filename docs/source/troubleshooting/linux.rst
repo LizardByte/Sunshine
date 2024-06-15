@@ -39,9 +39,9 @@ KMS streaming fails on Nvidia GPUs
 If KMS screen capture results in a black screen being streamed, you may need to
 set the parameter `modeset=1` for Nvidia's kernel module. This can be done by
 adding the following directive to the kernel command line:
-   .. code-block::
+.. code-block::
 
-      nvidia_drm.modeset=1
+   nvidia_drm.modeset=1
 
 Consult your distribution's documentation for details on how to do this. (Most
 often grub is used to load the kernel and set its command line.)
