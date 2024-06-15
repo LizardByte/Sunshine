@@ -1122,9 +1122,7 @@ keybindings
    Value      Platform  Description
    =========  ========  ===========
    nvfbc      Linux     Use NVIDIA Frame Buffer Capture to capture direct to GPU memory. This is usually the fastest method for
-                        NVIDIA cards. For GeForce cards it will only work with drivers patched with
-                        `nvidia-patch <https://github.com/keylase/nvidia-patch/>`__
-                        or `nvlax <https://github.com/illnyang/nvlax/>`__.
+                        NVIDIA cards. NvFBC does not have native Wayland support and does not work with XWayland.
    wlr        Linux     Capture for wlroots based Wayland compositors via DMA-BUF.
    kms        Linux     DRM/KMS screen capture from the kernel. This requires that sunshine has cap_sys_admin capability.
                         See :ref:`Linux Setup <about/setup:install>`.
