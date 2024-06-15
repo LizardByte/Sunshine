@@ -43,7 +43,7 @@ in Mesa/libva for AMD's low latency encoder mode. This is particularly
 problematic at higher resolutions (4K).
 
 As of now this can only be fixed by recompiling Mesa with a test patch (see
-gitlab issue) that unconditionally enables a low latency tuning mode for all
+url above) that unconditionally enables a low latency tuning mode for all
 encoder workloads. This is for advanced users only and neither support nor
 warranty are provided. Note also that this patch entails a higher power
 consumption while encoding and may not be suitable for all use cases.
