@@ -1156,6 +1156,7 @@ keybindings
    nvenc      For NVIDIA graphics cards
    quicksync  For Intel graphics cards
    amdvce     For AMD graphics cards
+   vaapi      Use Linux VA-API (AMD, Intel)
    software   Encoding occurs on the CPU
    =========  ===========
 
