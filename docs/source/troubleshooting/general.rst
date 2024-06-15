@@ -28,16 +28,6 @@ Web UI Access
 Can't access the web UI?
    #. Check firewall rules.
 
-Nvidia issues
--------------
-NvFBC, NvENC, or general issues with Nvidia graphics card.
-  - Consumer grade Nvidia cards are software limited to a specific number of encodes. See
-    `Video Encode and Decode GPU Support Matrix <https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new>`__
-    for more info.
-  - You can usually bypass the restriction with a driver patch. See Keylase's
-    `Linux <https://github.com/keylase/nvidia-patch>`__
-    or `Windows <https://github.com/keylase/nvidia-patch/blob/master/win>`__ patches for more guidance.
-
 Controller works on Steam but not in games
 ------------------------------------------
 One trick might be to change Steam settings and check or uncheck the configuration to support Xbox/Playstation
