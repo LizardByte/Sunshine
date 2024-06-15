@@ -467,6 +467,14 @@ typedef EGLBoolean(GLAD_API_PTR *PFNEGLWAITSYNCPROC)(EGLDisplay dpy, EGLSync syn
 typedef EGLImageKHR(EGLAPIENTRYP PFNEGLCREATEIMAGEKHRPROC)(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
 typedef EGLBoolean(EGLAPIENTRYP PFNEGLDESTROYIMAGEKHRPROC)(EGLDisplay dpy, EGLImageKHR image);
 
+typedef EGLenum(EGLAPIENTRYP PFNEGLQUERYDMABUFFORMATSEXTPROC)(EGLDisplay dpy, EGLint max_formats, EGLint *formats, EGLint *num_formats);
+typedef EGLenum(EGLAPIENTRYP PFNEGLQUERYDMABUFMODIFIERSEXTPROC)(EGLDisplay dpy, EGLint format, EGLint max_modifiers, EGLuint64KHR *modifiers, EGLBoolean *external_only, EGLint *num_modifiers);
+
+GLAD_API_CALL PFNEGLQUERYDMABUFFORMATSEXTPROC glad_eglQueryDmaBufFormatsEXT;
+#define eglQueryDmaBufFormatsEXT glad_eglQueryDmaBufFormatsEXT
+GLAD_API_CALL PFNEGLQUERYDMABUFMODIFIERSEXTPROC glad_eglQueryDmaBufModifiersEXT;
+#define eglQueryDmaBufModifiersEXT glad_eglQueryDmaBufModifiersEXT
+
 GLAD_API_CALL PFNEGLCREATEIMAGEKHRPROC glad_eglCreateImageKHR;
 #define eglCreateImageKHR glad_eglCreateImageKHR
 GLAD_API_CALL PFNEGLDESTROYIMAGEKHRPROC glad_eglDestroyImageKHR;

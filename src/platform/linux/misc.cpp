@@ -768,6 +768,9 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_X11
       X11,
 #endif
+#ifdef SUNSHINE_BUILD_PORTAL
+      PORTAL,
+#endif
       MAX_FLAGS
     };
   }  // namespace source
@@ -822,6 +825,18 @@ namespace platf {
   }
 #endif
 
+#ifdef SUNSHINE_BUILD_PORTAL
+  std::vector<std::string>
+  portal_display_names();
+  std::shared_ptr<display_t>
+  portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+
+  bool
+  verify_portal() {
+    return !portal_display_names().empty();
+  }
+#endif
+
   std::vector<std::string>
   display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
@@ -836,6 +851,9 @@ namespace platf {
 #endif
 #ifdef SUNSHINE_BUILD_X11
     if (sources[source::X11]) return x11_display_names();
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (sources[source::PORTAL]) return portal_display_names();
 #endif
     return {};
   }
@@ -852,6 +870,12 @@ namespace platf {
 
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (sources[source::PORTAL]) {
+      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
+      return portal_display(hwdevice_type, display_name, config);
+    }
+#endif
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
@@ -928,6 +952,13 @@ namespace platf {
     if (config::video.capture.empty() || config::video.capture == "x11") {
       if (verify_x11()) {
         sources[source::X11] = true;
+      }
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (config::video.capture.empty() || config::video.capture == "portal") {
+      if (verify_portal()) {
+	sources[source::PORTAL] = true;
       }
     }
 #endif
