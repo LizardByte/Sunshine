@@ -225,6 +225,11 @@ endif()
 if(${SUNSHINE_USE_LEGACY_INPUT})  # TODO: Remove this legacy option after the next stable release
     list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/src/platform/linux/input/legacy_input.cpp")
 else()
+    if(EVDEV_INCLUDE_DIR AND EVDEV_LIBRARY)
+        # These two needs to be set before adding the inputtino subdirectory in order for them to be picked up
+        set(LIBEVDEV_CUSTOM_INCLUDE_DIR ${EVDEV_INCLUDE_DIR})
+        set(LIBEVDEV_CUSTOM_LIBRARY ${EVDEV_LIBRARY})
+    endif ()
     add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/inputtino")
     list(APPEND SUNSHINE_EXTERNAL_LIBRARIES inputtino::libinputtino)
     file(GLOB_RECURSE INPUTTINO_SOURCES
