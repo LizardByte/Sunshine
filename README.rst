@@ -96,7 +96,7 @@ Downloads
    :alt: Docker
    :target: https://hub.docker.com/r/lizardbyte/sunshine
 
-.. image:: https://img.shields.io/badge/dynamic/json.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=pageProps.app.latestVersion&url=https%3A%2F%2Fwinstall.app%2F_next%2Fdata%2FixSYALJOWdJEOGpVihkFS%2Fapps%2FLizardByte.Sunshine.json&logo=microsoft
+.. image:: https://img.shields.io/badge/dynamic/json.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=$[-1:].name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fmicrosoft%2Fwinget-pkgs%2Fcontents%2Fmanifests%2Fl%2FLizardByte%2FSunshine&logo=microsoft
    :alt: Winget Version
    :target: https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LizardByte/Sunshine
 
