@@ -521,8 +521,10 @@ jobs:
             if [ "${{ matrix.release }}" == "true" ]; then
               # we will publish the formula with the release tag
               tag="${{ needs.setup_release.outputs.release_tag }}"
+              version="${{ needs.setup_release.outputs.release_version }}"
             else
               tag="${{ github.ref_name }}"
+              version="0.0.${{ github.run_number }}"
             fi
           else
             echo "This is a PR event"
@@ -531,6 +533,7 @@ jobs:
             branch="${{ github.event.pull_request.head.ref }}"
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
             tag="${{ github.event.pull_request.head.ref }}"
+            version="0.0.${{ github.event.number }}"
           fi
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
@@ -540,6 +543,7 @@ jobs:
           cd build
           cmake \
             -DBUILD_VERSION="${build_version}" \
+            -DFORMULA_VERSION="${version}" \
             -DGITHUB_BRANCH="${branch}" \
             -DGITHUB_COMMIT="${commit}" \
             -DGITHUB_CLONE_URL="${clone_url}" \
