@@ -522,10 +522,11 @@ jobs:
               # we will publish the formula with the release tag
               tag="${{ needs.setup_release.outputs.release_tag }}"
             else
-              tag="${{ github.sha }}"
+              tag="${{ github.ref_name }}"
             fi
           else
             echo "This is a PR event"
+            build_version="0.0.${{ github.event.number }}"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
