@@ -13,7 +13,7 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/Simple-Web-Server")
 
 # common dependencies
-find_package(OpenSSL REQUIRED)
+find_package(OpenSSL REQUIRED HINTS "/opt/homebrew/opt/openssl" "/usr/local/opt/openssl")  # hints are for macOS
 find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
 pkg_check_modules(CURL REQUIRED libcurl)
