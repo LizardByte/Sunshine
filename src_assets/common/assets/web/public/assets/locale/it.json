@@ -3,9 +3,11 @@
     "apply": "Applica",
     "auto": "Automatico",
     "autodetect": "Rilevamento automatico (consigliato)",
+    "beta": "(beta)",
     "cancel": "Annulla",
     "disabled": "Disattivato",
     "disabled_def": "Disabilitato (predefinito)",
+    "dismiss": "Ignora",
     "do_cmd": "Esegui Comando",
     "elevated": "Elevato",
     "enabled": "Abilitato",
@@ -167,8 +169,11 @@
     "gamepad_auto": "Opzioni di selezione automatica",
     "gamepad_desc": "Scegli quale tipo di gamepad emulare sull'host",
     "gamepad_ds4": "DS4 (PS4)",
+    "gamepad_ds5": "DS5 (PS5)",
+    "gamepad_switch": "Nintendo Pro (Switch)",
     "gamepad_manual": "Opzioni manuali DS4",
     "gamepad_x360": "X360 (Xbox 360)",
+    "gamepad_xone": "XOne (Xbox One)",
     "global_prep_cmd": "Comandi di preparazione",
     "global_prep_cmd_desc": "Configura un elenco di comandi da eseguire prima o dopo aver eseguito qualsiasi applicazione. Se uno qualsiasi dei comandi di preparazione specificati fallisce, il processo di avvio dell'applicazione verrà interrotto.",
     "hevc_mode": "Supporto HEVC",
@@ -352,6 +357,7 @@
     "success_msg": "La password è stata modificata con successo! Questa pagina verrà ricaricata presto, il tuo browser ti chiederà le nuove credenziali."
   },
   "pin": {
+    "device_name": "Nome Del Dispositivo",
     "pair_failure": "Accoppiamento non riuscito: verificare se il PIN è digitato correttamente",
     "pair_success": "Successo! Controlla la luce della luna per continuare",
     "pin_pairing": "PIN Pairing",
@@ -381,9 +387,13 @@
     "restart_sunshine_success": "Sunshine sta riavviando",
     "troubleshooting": "Risoluzione Dei Problemi",
     "unpair_all": "Disaccoppia Tutto",
-    "unpair_all_desc": "Rimuovi tutti i tuoi dispositivi accoppiati",
     "unpair_all_error": "Errore durante la disconnessione",
-    "unpair_all_success": "Disaccoppiamento Riuscito!"
+    "unpair_all_success": "Disaccoppiamento Riuscito!",
+    "unpair_desc": "Rimuove i dispositivi accoppiati. I dispositivi separati con una sessione attiva rimarranno collegati, ma non possono avviare o riprendere una sessione.",
+    "unpair_single_no_devices": "Non ci sono dispositivi accoppiati.",
+    "unpair_single_success": "Tuttavia, il dispositivo o i dispositivi possono essere ancora in una sessione attiva. Usa il pulsante 'Force Close' sopra per terminare qualsiasi sessione aperta.",
+    "unpair_single_unknown": "Client Sconosciuto",
+    "unpair_title": "Disconnetti Dispositivi"
   },
   "welcome": {
     "confirm_password": "Conferma password",

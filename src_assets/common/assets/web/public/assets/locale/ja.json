@@ -3,9 +3,11 @@
     "apply": "適用",
     "auto": "自動",
     "autodetect": "自動検出 (推奨)",
+    "beta": "(ベータ版)",
     "cancel": "キャンセル",
     "disabled": "無効",
     "disabled_def": "無効 (デフォルト)",
+    "dismiss": "却下する",
     "do_cmd": "コマンド実行",
     "elevated": "管理者として実行",
     "enabled": "有効",
@@ -167,8 +169,11 @@
     "gamepad_auto": "自動選択オプション",
     "gamepad_desc": "ホスト上でエミュレートするゲームパッドの種類を選択します",
     "gamepad_ds4": "DS4 (PS4)",
+    "gamepad_ds5": "DS5 (PS5)",
+    "gamepad_switch": "Nintendo Pro (Switch)",
     "gamepad_manual": "DS4マニュアルオプション",
     "gamepad_x360": "X360 (Xbox 360)",
+    "gamepad_xone": "XOne (Xbox One)",
     "global_prep_cmd": "コマンドの準備",
     "global_prep_cmd_desc": "アプリケーションの実行前または実行後に実行されるコマンドのリストを構成します。 指定された preparation コマンドのいずれかに失敗すると、アプリケーションの起動プロセスは中断されます。",
     "hevc_mode": "HEVC サポート",
@@ -352,6 +357,7 @@
     "success_msg": "パスワードが正常に変更されました！このページはまもなくリロードされます。ブラウザーは新しい資格情報を要求します。"
   },
   "pin": {
+    "device_name": "端末名",
     "pair_failure": "ペアリングに失敗しました：PINが正しく入力されたかどうかを確認します",
     "pair_success": "成功！Moonlight を確認して続行してください",
     "pin_pairing": "PINペアリング",
@@ -381,9 +387,13 @@
     "restart_sunshine_success": "サンシャインが再起動しています",
     "troubleshooting": "トラブルシューティング",
     "unpair_all": "すべてのペアリングを解除",
-    "unpair_all_desc": "ペアリング済みのデバイスをすべて削除する",
     "unpair_all_error": "ペアリング解除中のエラー",
-    "unpair_all_success": "ペアを解除しました！"
+    "unpair_all_success": "ペアを解除しました！",
+    "unpair_desc": "ペアリングされたデバイスを削除します。アクティブなセッションを持つペアリングされていないデバイスは、接続されたままですが、セッションを開始または再開することはできません。",
+    "unpair_single_no_devices": "ペアリングされたデバイスがありません。",
+    "unpair_single_success": "ただし、デバイスはまだアクティブなセッションにいる可能性があります。上の「強制終了」ボタンを使用して、開いているセッションを終了します。",
+    "unpair_single_unknown": "不明なクライアント",
+    "unpair_title": "デバイスのペアリングを解除"
   },
   "welcome": {
     "confirm_password": "パスワードの確認",

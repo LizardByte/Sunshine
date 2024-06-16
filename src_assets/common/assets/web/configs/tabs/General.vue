@@ -44,6 +44,7 @@ function removeCmd(index) {
         <option value="pt">Português (Portuguese)</option>
         <option value="ru">Русский (Russian)</option>
         <option value="sv">svenska (Swedish)</option>
+        <option value="tr">Türkçe (Turkish)</option>
         <option value="zh">简体中文 (Chinese Simplified)</option>
       </select>
       <div class="form-text">{{ $t('config.locale_desc') }}</div>

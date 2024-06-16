@@ -3,9 +3,11 @@
     "apply": "Anwenden",
     "auto": "Automatisch",
     "autodetect": "AutoDetection (empfohlen)",
+    "beta": "(Beta)",
     "cancel": "Abbrechen",
     "disabled": "Deaktiviert",
     "disabled_def": "Deaktiviert (Standard)",
+    "dismiss": "Verwerfen",
     "do_cmd": "Befehl ausführen",
     "elevated": "Erhöhte",
     "enabled": "Aktiviert",
@@ -167,8 +169,11 @@
     "gamepad_auto": "Automatische Auswahloptionen",
     "gamepad_desc": "Wähle welche Art von Gamepad emuliert werden soll",
     "gamepad_ds4": "DS4 (PS4)",
+    "gamepad_ds5": "DS5 (PS5)",
+    "gamepad_switch": "Nintendo Pro (Switch)",
     "gamepad_manual": "Manuelle DS4 Optionen",
     "gamepad_x360": "X360 (Xbox 360)",
+    "gamepad_xone": "XOne (Xbox One)",
     "global_prep_cmd": "Befehlsvorbereitungen",
     "global_prep_cmd_desc": "Konfigurieren Sie eine Liste von Befehlen, die vor oder nach Ausführung einer Anwendung ausgeführt werden sollen. Wenn eines der angegebenen Vorbereitungsbefehle fehlschlägt, wird der Anwendungsstart abgebrochen.",
     "hevc_mode": "HEVC Unterstützung",
@@ -352,6 +357,7 @@
     "success_msg": "Passwort wurde erfolgreich geändert! Diese Seite wird bald neu geladen, Ihr Browser wird Sie nach den neuen Zugangsdaten fragen."
   },
   "pin": {
+    "device_name": "Gerätename",
     "pair_failure": "Paarung fehlgeschlagen: Prüfen Sie, ob die PIN korrekt eingegeben wurde",
     "pair_success": "Erfolgreich! Bitte überprüfe Mondlicht um fortzufahren",
     "pin_pairing": "PIN Pairing",
@@ -381,9 +387,13 @@
     "restart_sunshine_success": "Sunshine wird neu gestartet",
     "troubleshooting": "Fehlerbehebung",
     "unpair_all": "Alle trennen",
-    "unpair_all_desc": "Entferne alle deine gekoppelten Geräte",
     "unpair_all_error": "Fehler beim Entkoppeln",
-    "unpair_all_success": "Erfolgreich getrennt!"
+    "unpair_all_success": "Erfolgreich getrennt!",
+    "unpair_desc": "Entferne deine gekoppelten Geräte. Einzelne nicht gekoppelte Geräte mit einer aktiven Sitzung bleiben verbunden, können aber keine Sitzung starten oder fortsetzen.",
+    "unpair_single_no_devices": "Es gibt keine gekoppelten Geräte.",
+    "unpair_single_success": "Die Geräte(n) können sich jedoch immer noch in einer aktiven Sitzung befinden. Benutzen Sie die Schaltfläche \"Schließen erzwingen\", um alle geöffneten Sitzungen zu beenden.",
+    "unpair_single_unknown": "Unbekannter Client",
+    "unpair_title": "Geräte trennen"
   },
   "welcome": {
     "confirm_password": "Passwort bestätigen",
