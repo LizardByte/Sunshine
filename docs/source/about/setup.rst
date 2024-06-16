@@ -206,7 +206,7 @@ Install
 
             sudo dnf remove sunshine
 
-   The `deb`, `rpm`, `zst`, `Flatpak` and `AppImage` packages should handle these steps automatically.
+   The `deb`, `rpm`, `zst`, `Flatpak` and `AppImage` packages should handle the steps below automatically.
    Third party packages may not.
 
    Sunshine needs access to `uinput` to create mouse and gamepad virtual devices and (optionally) to `uhid`
