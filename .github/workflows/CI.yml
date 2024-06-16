@@ -493,8 +493,10 @@ jobs:
             os_name: "macos"
           - os_version: "latest"
             os_name: "ubuntu"
+          - os_version: "latest"  # this job will only configure the formula for release, no validation
+            os_name: "ubuntu"
             release: true
-    name: Homebrew (${{ matrix.os_name }}-${{ matrix.os_version }})
+    name: Homebrew (${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }})
     runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
 
     steps:
@@ -515,14 +517,23 @@ jobs:
             clone_url=${{ github.event.repository.clone_url }}
             branch="${{ github.ref_name }}"
             default_branch="${{ github.event.repository.default_branch }}"
+
+            if [ "${{ matrix.release }}" == "true" ]; then
+              # we will publish the formula with the release tag
+              tag="${{ needs.setup_release.outputs.release_tag }}"
+            else
+              tag="${{ github.sha }}"
+            fi
           else
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
+            tag="${{ github.event.pull_request.head.ref }}"
           fi
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
+          echo "Tag: ${tag}"
 
           mkdir build
           cd build
@@ -532,6 +543,7 @@ jobs:
             -DGITHUB_COMMIT="${commit}" \
             -DGITHUB_CLONE_URL="${clone_url}" \
             -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
+            -DGITHUB_TAG="${tag}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
@@ -552,7 +564,9 @@ jobs:
           path: homebrew/
 
       - name: Setup Xvfb
-        if: ${{ runner.os == 'Linux' }}
+        if: |
+          matrix.release != true &&
+          runner.os == 'Linux'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -564,6 +578,8 @@ jobs:
           echo "DISPLAY=${DISPLAY}" >> $GITHUB_ENV
 
       - name: Validate Homebrew Formula
+        if: |
+          matrix.release != true
         uses: LizardByte/homebrew-release-action@v2024.612.21058
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
