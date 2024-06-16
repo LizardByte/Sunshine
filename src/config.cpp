@@ -1138,6 +1138,7 @@ namespace config {
                                                                    "pt"sv,  // Portuguese
                                                                    "ru"sv,  // Russian
                                                                    "sv"sv,  // Swedish
+                                                                   "tr"sv,  // Turkish
                                                                    "zh"sv,  // Chinese
                                                                  });
 

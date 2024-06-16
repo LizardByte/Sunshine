@@ -72,6 +72,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
    pt        Portuguese
    ru        Russian
    sv        Swedish
+   tr        Turkish
    zh        Chinese (Simplified)
    =======   ===========
 
