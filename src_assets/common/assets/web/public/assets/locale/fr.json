@@ -3,9 +3,11 @@
     "apply": "Appliquer",
     "auto": "Automatique",
     "autodetect": "Détection automatique (recommandé)",
+    "beta": "(bêta)",
     "cancel": "Annuler",
     "disabled": "Désactivé",
     "disabled_def": "Désactivé (par défaut)",
+    "dismiss": "Refuser",
     "do_cmd": "Commande de début",
     "elevated": "Élevée",
     "enabled": "Activé",
@@ -167,8 +169,11 @@
     "gamepad_auto": "Options de la sélection automatique",
     "gamepad_desc": "Choisissez le type de manette à émuler sur l'hôte",
     "gamepad_ds4": "DS4 (PS4)",
+    "gamepad_ds5": "DS5 (PS5)",
+    "gamepad_switch": "Nintendo Pro (Switch)",
     "gamepad_manual": "Options manuelles pour DS4",
     "gamepad_x360": "X360 (Xbox 360)",
+    "gamepad_xone": "XOne (Xbox One)",
     "global_prep_cmd": "Commandes de préparation",
     "global_prep_cmd_desc": "Configurer une liste de commandes à exécuter avant ou après l'exécution d'une application. Si l'une des commandes de préparation spécifiées échoue, le processus de lancement de l'application sera interrompu.",
     "hevc_mode": "Support du HEVC",
@@ -352,6 +357,7 @@
     "success_msg": "Le mot de passe a été modifié avec succès ! Cette page sera bientôt rechargée, votre navigateur vous demandera les nouveaux identifiants."
   },
   "pin": {
+    "device_name": "Nom de l'appareil",
     "pair_failure": "Échec de l'appairage : Vérifiez si le code PIN est correctement saisi",
     "pair_success": "Succès ! Veuillez vérifier Moonlight pour continuer",
     "pin_pairing": "Appairage par code PIN",
@@ -381,9 +387,13 @@
     "restart_sunshine_success": "Sunshine redémarre",
     "troubleshooting": "Dépannage",
     "unpair_all": "Dissocier tous les appareils",
-    "unpair_all_desc": "Supprimez tous vos appareils appariés",
     "unpair_all_error": "Erreur lors de la dissociation",
-    "unpair_all_success": "Désappairage réussi !"
+    "unpair_all_success": "Désappairage réussi !",
+    "unpair_desc": "Retirer vos appareils appariés. Les appareils individuellement non appariés avec une session active resteront connectés, mais ne peuvent pas démarrer ou reprendre une session.",
+    "unpair_single_no_devices": "Il n'y a aucun appareil associé.",
+    "unpair_single_success": "Cependant, le(s) appareil(s) peuvent toujours être dans une session active. Utilisez le bouton 'Forcer la fermeture' ci-dessus pour mettre fin à toute session ouverte.",
+    "unpair_single_unknown": "Client inconnu",
+    "unpair_title": "Délimiter les appareils"
   },
   "welcome": {
     "confirm_password": "Confirmation du mot de passe",
