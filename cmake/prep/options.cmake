@@ -54,4 +54,6 @@ elseif(UNIX)  # Linux
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11
             "Enable X11 grab if available." ON)
+    option(SUNSHINE_USE_LEGACY_INPUT  # TODO: Remove this legacy option after the next stable release
+            "Use the legacy virtual input implementation." OFF)
 endif()

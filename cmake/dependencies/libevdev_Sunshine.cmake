@@ -37,6 +37,9 @@ else()
 endif()
 
 if(EVDEV_INCLUDE_DIR AND EVDEV_LIBRARY)
+    message(STATUS "Found libevdev library: ${EVDEV_LIBRARY}")
+    message(STATUS "Found libevdev include directory: ${EVDEV_INCLUDE_DIR}")
+
     include_directories(SYSTEM ${EVDEV_INCLUDE_DIR})
     list(APPEND PLATFORM_LIBRARIES ${EVDEV_LIBRARY})
 else()

@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import PlatformLayout from '../../PlatformLayout.vue'
 
 const props = defineProps([
   'platform',
@@ -22,15 +23,27 @@ const config = ref(props.config)
     </div>
 
     <!-- Emulated Gamepad Type -->
-    <div class="mb-3" v-if="config.controller === 'enabled' && platform === 'windows'">
+    <div class="mb-3" v-if="config.controller === 'enabled' && platform !== 'macos'">
       <label for="gamepad" class="form-label">{{ $t('config.gamepad') }}</label>
       <select id="gamepad" class="form-select" v-model="config.gamepad">
         <option value="auto">{{ $t('_common.auto') }}</option>
-        <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
-        <option value="x360">{{ $t('config.gamepad_x360') }}</option>
+
+        <PlatformLayout :platform="platform">
+          <template #linux>
+            <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
+            <option value="switch">{{ $t("config.gamepad_switch") }}</option>
+            <option value="xone">{{ $t("config.gamepad_xone") }}</option>
+          </template>
+          
+          <template #windows>
+            <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            <option value="x360">{{ $t('config.gamepad_x360') }}</option>
+          </template>
+        </PlatformLayout>
       </select>
       <div class="form-text">{{ $t('config.gamepad_desc') }}</div>
     </div>
+
     <div class="accordion" v-if="config.gamepad === 'ds4'">
       <div class="accordion-item">
         <h2 class="accordion-header">

@@ -612,7 +612,7 @@ namespace platf {
   }
 
   void
-  keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     INPUT i {};
     i.type = INPUT_KEYBOARD;
     auto &ki = i.ki;
@@ -919,7 +919,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void
-  touch(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual touch input
@@ -1050,7 +1050,7 @@ namespace platf {
    * @param pen The pen event.
    */
   void
-  pen(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
     auto raw = (client_input_raw_t *) input;
 
     // Bail if we're not running on an OS that supports virtual pen input
@@ -1482,7 +1482,7 @@ namespace platf {
    * @param gamepad_state The gamepad button/axis state sent from the client.
    */
   void
-  gamepad(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     auto vigem = ((input_raw_t *) input.get())->vigem;
 
     // If there is no gamepad support
@@ -1734,16 +1734,31 @@ namespace platf {
     delete input;
   }
 
-  /**
-   * @brief Gets the supported gamepads for this platform backend.
-   * @return Vector of gamepad type strings.
-   */
-  std::vector<std::string_view> &
-  supported_gamepads() {
+  std::vector<supported_gamepad_t> &
+  supported_gamepads(input_t *input) {
+    bool enabled;
+    if (input) {
+      auto vigem = ((input_raw_t *) input)->vigem;
+      enabled = vigem != nullptr;
+    }
+    else {
+      enabled = false;
+    }
+
+    auto reason = enabled ? "" : "gamepads.vigem-not-available";
+
     // ds4 == ps4
-    static std::vector<std::string_view> gps {
-      "auto"sv, "x360"sv, "ds4"sv, "ps4"sv
+    static std::vector gps {
+      supported_gamepad_t { "auto", true, reason },
+      supported_gamepad_t { "x360", enabled, reason },
+      supported_gamepad_t { "ds4", enabled, reason }
     };
+
+    for (auto &[name, is_enabled, reason_disabled] : gps) {
+      if (!is_enabled) {
+        BOOST_LOG(warning) << "Gamepad " << name << " is disabled due to " << reason_disabled;
+      }
+    }
 
     return gps;
   }

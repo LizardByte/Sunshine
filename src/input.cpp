@@ -118,7 +118,7 @@ namespace input {
 
   void
   free_gamepad(platf::input_t &platf_input, int id) {
-    platf::gamepad(platf_input, id, platf::gamepad_state_t {});
+    platf::gamepad_update(platf_input, id, platf::gamepad_state_t {});
     platf::free_gamepad(platf_input, id);
 
     free_id(gamepadMask, id);
@@ -711,28 +711,28 @@ namespace input {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard(platf_input, VKEY_SHIFT, false, flags);
+        platf::keyboard_update(platf_input, VKEY_SHIFT, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard(platf_input, VKEY_CONTROL, false, flags);
+        platf::keyboard_update(platf_input, VKEY_CONTROL, false, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard(platf_input, VKEY_MENU, false, flags);
+        platf::keyboard_update(platf_input, VKEY_MENU, false, flags);
       }
     }
 
-    platf::keyboard(platf_input, map_keycode(key_code), release, flags);
+    platf::keyboard_update(platf_input, map_keycode(key_code), release, flags);
 
     if (!release) {
       // Raise any synthetic modifier keys we pressed
       if (synthetic_modifiers & MODIFIER_SHIFT) {
-        platf::keyboard(platf_input, VKEY_SHIFT, true, flags);
+        platf::keyboard_update(platf_input, VKEY_SHIFT, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_CTRL) {
-        platf::keyboard(platf_input, VKEY_CONTROL, true, flags);
+        platf::keyboard_update(platf_input, VKEY_CONTROL, true, flags);
       }
       if (synthetic_modifiers & MODIFIER_ALT) {
-        platf::keyboard(platf_input, VKEY_MENU, true, flags);
+        platf::keyboard_update(platf_input, VKEY_MENU, true, flags);
       }
     }
   }
@@ -963,7 +963,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::touch(input->client_context.get(), abs_port, touch);
+    platf::touch_update(input->client_context.get(), abs_port, touch);
   }
 
   /**
@@ -1022,7 +1022,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::pen(input->client_context.get(), abs_port, pen);
+    platf::pen_update(input->client_context.get(), abs_port, pen);
   }
 
   /**
@@ -1211,18 +1211,18 @@ namespace input {
             // Force the back button up
             gamepad.back_button_state = button_state_e::UP;
             state.buttonFlags &= ~platf::BACK;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             // Press Home button
             state.buttonFlags |= platf::HOME;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             // Sleep for a short time to allow the input to be detected
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
             // Release Home button
             state.buttonFlags &= ~platf::HOME;
-            platf::gamepad(platf_input, gamepad.id, state);
+            platf::gamepad_update(platf_input, gamepad.id, state);
 
             gamepad.back_timeout_id = nullptr;
           };
@@ -1236,7 +1236,7 @@ namespace input {
       }
     }
 
-    platf::gamepad(platf_input, gamepad.id, gamepad_state);
+    platf::gamepad_update(platf_input, gamepad.id, gamepad_state);
 
     gamepad.gamepad_state = gamepad_state;
   }
@@ -1665,7 +1665,7 @@ namespace input {
           // already released
           continue;
         }
-        platf::keyboard(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
+        platf::keyboard_update(platf_input, vk_from_kpid(kp.first) & 0x00FF, true, flags_from_kpid(kp.first));
         key_press[kp.first] = false;
       }
     });
@@ -1683,6 +1683,18 @@ namespace input {
     platf_input = platf::input();
 
     return std::make_unique<deinit_t>();
+  }
+
+  bool
+  probe_gamepads() {
+    auto input = static_cast<platf::input_t *>(platf_input.get());
+    const auto gamepads = platf::supported_gamepads(input);
+    for (auto &gamepad : gamepads) {
+      if (gamepad.is_enabled && gamepad.name != "auto") {
+        return false;
+      }
+    }
+    return true;
   }
 
   std::shared_ptr<input_t>

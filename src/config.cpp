@@ -434,8 +434,8 @@ namespace config {
     std::chrono::duration<double> { 1 / 24.9 },  // key_repeat_period
 
     {
-      platf::supported_gamepads().front().data(),
-      platf::supported_gamepads().front().size(),
+      platf::supported_gamepads(nullptr).front().name.data(),
+      platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
     true,  // back as touchpad click enabled (manual DS4 only)
     true,  // client gamepads with motion events are emulated as DS4
@@ -938,6 +938,17 @@ namespace config {
     return ret;
   }
 
+  std::vector<std::string_view> &
+  get_supported_gamepad_options() {
+    const auto options = platf::supported_gamepads(nullptr);
+    static std::vector<std::string_view> opts {};
+    opts.reserve(options.size());
+    for (auto &opt : options) {
+      opts.emplace_back(opt.name);
+    }
+    return opts;
+  }
+
   void
   apply_config(std::unordered_map<std::string, std::string> &&vars) {
     if (!fs::exists(stream.file_apps.c_str())) {
@@ -1086,7 +1097,7 @@ namespace config {
       input.key_repeat_delay = std::chrono::milliseconds { to };
     }
 
-    string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+    string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);

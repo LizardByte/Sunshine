@@ -209,12 +209,13 @@ Install
    The `deb`, `rpm`, `zst`, `Flatpak` and `AppImage` packages should handle these steps automatically.
    Third party packages may not.
 
-   Sunshine needs access to `uinput` to create mouse and gamepad events.
+   Sunshine needs access to `uinput` to create mouse and gamepad virtual devices and (optionally) to `uhid`
+   in order to emulate a PS5 DualSense joypad with Gyro, Acceleration and Touchpad support.
 
-   #. Create and reload `udev` rules for uinput.
+   #. Create and reload `udev` rules for `uinput` and `uhid`.
          .. code-block:: bash
 
-            echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"' | \
+            echo 'KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"\nKERNEL=="uhid", TAG+="uaccess"' | \
             sudo tee /etc/udev/rules.d/60-sunshine.rules
             sudo udevadm control --reload-rules
             sudo udevadm trigger

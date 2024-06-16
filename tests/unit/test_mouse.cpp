@@ -1,5 +1,5 @@
 /**
- * @file tests/test_mouse.cpp
+ * @file tests/unit/test_mouse.cpp
  * @brief Test src/input.*.
  */
 #include <src/input.h>
@@ -18,6 +18,9 @@ protected:
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
     //       but I'm not sure about real work
     GTEST_SKIP_("MouseTest:: skipped for now. TODO Windows");
+#elif __linux__
+    // TODO: Inputtino waiting https://github.com/games-on-whales/inputtino/issues/6 is resolved.
+    GTEST_SKIP_("MouseTest:: skipped for now. TODO Inputtino");
 #endif
   }
 

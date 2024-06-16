@@ -22,6 +22,9 @@ namespace input {
   [[nodiscard]] std::unique_ptr<platf::deinit_t>
   init();
 
+  bool
+  probe_gamepads();
+
   std::shared_ptr<input_t>
   alloc(safe::mail_t mail);
 
