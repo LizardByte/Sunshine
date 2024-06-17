@@ -265,6 +265,8 @@ modules:
       append-path: /usr/lib/sdk/node18/bin
       build-args:
         - --share=network
+      test-args:
+        - --share=network
       env:
         BUILD_VERSION: "@BUILD_VERSION@"
         BRANCH: "@GITHUB_BRANCH@"

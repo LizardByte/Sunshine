@@ -501,9 +501,7 @@ namespace confighttp {
     auto url = inputTree.get("url", "");
 
     const std::string coverdir = platf::appdata().string() + "/covers/";
-    if (!boost::filesystem::exists(coverdir)) {
-      boost::filesystem::create_directories(coverdir);
-    }
+    file_handler::make_directory(coverdir);
 
     std::basic_string path = coverdir + http::url_escape(key) + ".png";
     if (!url.empty()) {

@@ -1255,9 +1255,7 @@ namespace config {
     bool config_loaded = false;
     try {
       // Create appdata folder if it does not exist
-      if (!boost::filesystem::exists(platf::appdata().string())) {
-        boost::filesystem::create_directories(platf::appdata().string());
-      }
+      file_handler::make_directory(platf::appdata().string());
 
       // Create empty config file if it does not exist
       if (!fs::exists(sunshine.config_file)) {
