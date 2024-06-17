@@ -258,7 +258,9 @@ namespace platf::gamepad {
           state = inputtino::PS5Joypad::BATTERY_FULL;
           break;
       }
-      std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage);
+      // Battery values in Moonlight are in the range [0, 0xFF (255)]
+      // Inputtino expects them as a percentage [0, 100]
+      std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage / 2.55);
     }
   }
 
