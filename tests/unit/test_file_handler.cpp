@@ -6,6 +6,47 @@
 
 #include <tests/conftest.cpp>
 
+class FileHandlerParentDirectoryTest: public ::testing::TestWithParam<std::tuple<std::string, std::string>> {};
+
+TEST_P(FileHandlerParentDirectoryTest, Run) {
+  auto [input, expected] = GetParam();
+  EXPECT_EQ(file_handler::get_parent_directory(input), expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  FileHandlerTests,
+  FileHandlerParentDirectoryTest,
+  ::testing::Values(
+    std::make_tuple("/path/to/file.txt", "/path/to"),
+    std::make_tuple("/path/to/directory", "/path/to"),
+    std::make_tuple("/path/to/directory/", "/path/to")));
+
+class FileHandlerMakeDirectoryTest: public ::testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+
+TEST_P(FileHandlerMakeDirectoryTest, Run) {
+  auto [input, expected, remove] = GetParam();
+  const std::string test_dir = platf::appdata().string() + "/tests/path/";
+  input = test_dir + input;
+
+  EXPECT_EQ(file_handler::make_directory(input), expected);
+  EXPECT_TRUE(std::filesystem::exists(input));
+
+  // remove test directory
+  if (remove) {
+    std::filesystem::remove_all(test_dir);
+    EXPECT_FALSE(std::filesystem::exists(test_dir));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  FileHandlerTests,
+  FileHandlerMakeDirectoryTest,
+  ::testing::Values(
+    std::make_tuple("dir_123", true, false),
+    std::make_tuple("dir_123", true, true),
+    std::make_tuple("dir_123/abc", true, false),
+    std::make_tuple("dir_123/abc", true, true)));
+
 class FileHandlerTests: public virtual BaseTest, public ::testing::WithParamInterface<std::tuple<int, std::string>> {
 protected:
   void

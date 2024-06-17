@@ -200,6 +200,14 @@ namespace http {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
+
+    std::string file_dir = file_handler::get_parent_directory(file);
+    if (!file_handler::make_directory(file_dir)) {
+      BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
+      curl_easy_cleanup(curl);
+      return false;
+    }
+
     FILE *fp = fopen(file.c_str(), "wb");
     if (!fp) {
       BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
