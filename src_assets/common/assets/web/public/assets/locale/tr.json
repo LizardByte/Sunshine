@@ -211,6 +211,8 @@
     "log_level_desc": "Standart çıkışa yazdırılan minimum günlük düzeyi",
     "log_path": "Günlük Dosyası Yolu",
     "log_path_desc": "Sunshine'ın geçerli günlüklerinin depolandığı dosya.",
+    "min_fps_factor": "Minimum FPS Faktörü",
+    "min_fps_factor_desc": "Sunshine, kareler arasındaki minimum süreyi hesaplamak için bu faktörü kullanacaktır. Bu değeri biraz artırmak, çoğunlukla statik içerik akışı yaparken yardımcı olabilir. Daha yüksek değerler daha fazla bant genişliği tüketecektir.",
     "min_threads": "Minimum CPU İplik Sayısı",
     "min_threads_desc": "Değerin artırılması kodlama verimliliğini biraz azaltır, ancak kodlama için daha fazla CPU çekirdeği kullanımı elde etmek için genellikle buna değer. İdeal değer, donanımınızda istediğiniz akış ayarlarında güvenilir bir şekilde kodlama yapabilen en düşük değerdir.",
     "misc": "Çeşitli seçenekler",
