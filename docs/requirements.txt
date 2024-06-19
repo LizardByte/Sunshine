@@ -1,4 +1,3 @@
-breathe==4.35.0
 furo==2024.5.6
 m2r2==0.3.3.post2
 rstcheck[sphinx]==6.2.1
