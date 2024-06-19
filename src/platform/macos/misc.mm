@@ -253,11 +253,6 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
-  /**
-   * @brief Attempt to gracefully terminate a process group.
-   * @param native_handle The process group ID.
-   * @return true if termination was successfully requested.
-   */
   bool
   request_process_group_exit(std::uintptr_t native_handle) {
     if (killpg((pid_t) native_handle, SIGTERM) == 0 || errno == ESRCH) {
@@ -270,11 +265,6 @@ namespace platf {
     }
   }
 
-  /**
-   * @brief Checks if a process group still has running children.
-   * @param native_handle The process group ID.
-   * @return true if processes are still running.
-   */
   bool
   process_group_running(std::uintptr_t native_handle) {
     return waitpid(-((pid_t) native_handle), nullptr, WNOHANG) >= 0;

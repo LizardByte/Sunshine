@@ -1299,11 +1299,6 @@ namespace platf {
     return TRUE;
   }
 
-  /**
-   * @brief Attempt to gracefully terminate a process group.
-   * @param native_handle The job object handle.
-   * @return true if termination was successfully requested.
-   */
   bool
   request_process_group_exit(std::uintptr_t native_handle) {
     auto job_handle = (HANDLE) native_handle;
@@ -1348,11 +1343,6 @@ namespace platf {
     return enum_ctx.requested_exit;
   }
 
-  /**
-   * @brief Checks if a process group still has running children.
-   * @param native_handle The job object handle.
-   * @return true if processes are still running.
-   */
   bool
   process_group_running(std::uintptr_t native_handle) {
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting_info;

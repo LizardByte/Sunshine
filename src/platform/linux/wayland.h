@@ -196,8 +196,10 @@ namespace wl {
   class display_t {
   public:
     /**
-     * Initialize display with display_name
+     * @brief Initialize display.
      * If display_name == nullptr -> display_name = std::getenv("WAYLAND_DISPLAY")
+     * @param display_name The name of the display.
+     * @return 0 on success, -1 on failure.
      */
     int
     init(const char *display_name = nullptr);

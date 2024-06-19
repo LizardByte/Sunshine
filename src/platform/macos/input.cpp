@@ -297,14 +297,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
-  /**
-   * @brief Creates a new virtual gamepad.
-   * @param input The input context.
-   * @param id The gamepad ID.
-   * @param metadata Controller metadata from client (empty if none provided).
-   * @param feedback_queue The queue for posting messages back to the client.
-   * @return 0 on success.
-   */
   int
   alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;

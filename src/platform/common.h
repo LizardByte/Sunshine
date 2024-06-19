@@ -569,13 +569,12 @@ namespace platf {
   audio_control();
 
   /**
-   * display_name --> The name of the monitor that SHOULD be displayed
-   *    If display_name is empty --> Use the first monitor that's compatible you can find
-   *    If you require to use this parameter in a separate thread --> make a copy of it.
-   *
-   * config --> Stream configuration
-   *
-   * Returns display_t based on hwdevice_type
+   * @brief Get the display_t instance for the given hwdevice_type.
+   * @param display_name The name of the monitor that SHOULD be displayed
+   * If display_name is empty, use the first monitor that's compatible you can find
+   * If you require to use this parameter in a separate thread, make a copy of it.
+   * @param config Stream configuration
+   * @returns display_t based on hwdevice_type
    */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);

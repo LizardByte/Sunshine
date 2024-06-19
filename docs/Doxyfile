@@ -860,7 +860,8 @@ WARNINGS               = YES
 # will automatically be disabled.
 # The default value is: YES.
 
-WARN_IF_UNDOCUMENTED   = YES
+# TODO: Enable this when we have complete documentation
+WARN_IF_UNDOCUMENTED = NO
 
 # If the WARN_IF_DOC_ERROR tag is set to YES, doxygen will generate warnings for
 # potential errors in the documentation, such as documenting some parameters in

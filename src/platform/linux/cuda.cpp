@@ -498,8 +498,8 @@ namespace cuda {
 
   /**
    * @brief Create a GL->CUDA encoding device for consuming captured dmabufs.
-   * @param in_width Width of captured frames.
-   * @param in_height Height of captured frames.
+   * @param width Width of captured frames.
+   * @param height Height of captured frames.
    * @param offset_x Offset of content in captured frame.
    * @param offset_y Offset of content in captured frame.
    * @return FFmpeg encoding device context.
