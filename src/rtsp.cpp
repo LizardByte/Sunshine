@@ -1,5 +1,5 @@
 /**
- * @file src/rstp.cpp
+ * @file src/rtsp.cpp
  * @brief todo
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
