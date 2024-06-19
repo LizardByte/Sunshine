@@ -211,6 +211,8 @@
     "log_level_desc": "Der minimale Log-Level wird auf Standard gedruckt",
     "log_path": "Logdateipfad",
     "log_path_desc": "Die Datei, in der die aktuellen Logs von Sunshine gespeichert werden.",
+    "min_fps_factor": "Minimaler FPS Faktor",
+    "min_fps_factor_desc": "Sonnenschein verwendet diesen Faktor, um die minimale Zeit zwischen den Frames zu berechnen. Die Erhöhung dieses Wertes kann helfen, wenn überwiegend statische Inhalte gestreamt werden. Höhere Werte verbrauchen mehr Bandbreite.",
     "min_threads": "Minimale CPU-Thread-Anzahl",
     "min_threads_desc": "Die Erhöhung des Wertes verringert die Encoding-Effizienz, aber der Abgleich lohnt sich in der Regel, mehr CPU-Kerne für die Kodierung zu verwenden. Der ideale Wert ist der niedrigste Wert, der zuverlässig an den gewünschten Streaming-Einstellungen auf Ihrer Hardware kodieren kann.",
     "misc": "Verschiedene Optionen",
