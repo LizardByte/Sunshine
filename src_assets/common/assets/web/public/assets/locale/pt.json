@@ -211,6 +211,8 @@
     "log_level_desc": "O nível mínimo de log impresso no padrão",
     "log_path": "Caminho do Logfile",
     "log_path_desc": "O arquivo onde os logs atuais de Sunshine são armazenados.",
+    "min_fps_factor": "Fator mínimo de FPS",
+    "min_fps_factor_desc": "O Sunshine utilizará este fator para calcular o tempo mínimo entre quadros. Aumentar este valor ligeiramente pode ajudar ao fazer streaming de conteúdo principalmente estático. Valores mais altos consumirão mais largura de banda.",
     "min_threads": "Contagem mínima de tópicos da CPU",
     "min_threads_desc": "Aumentar o valor reduz ligeiramente a eficiência da codificação, mas a troca geralmente vale a pena para ganhar o uso de mais núcleos da CPU para codificação. O valor ideal é o mais baixo que pode codificar, de forma confiável, as configurações de streaming desejadas no seu hardware.",
     "misc": "Opções diversas",

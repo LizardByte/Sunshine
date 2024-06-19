@@ -211,6 +211,8 @@
     "log_level_desc": "El nivel mínimo de registro impreso a nivel estándar",
     "log_path": "Ruta del archivo de registro",
     "log_path_desc": "El archivo donde se almacenan los registros actuales de Sunshine.",
+    "min_fps_factor": "Factor FPS Mínimo",
+    "min_fps_factor_desc": "Sunshine usará este factor para calcular el tiempo mínimo entre fotogramas. Incrementar este valor ligeramente puede ayudar al streaming en su mayoría de contenido estático. Valores más altos consumirán más ancho de banda.",
     "min_threads": "Recuento mínimo de hilos de CPU",
     "min_threads_desc": "Incrementar el valor reduce ligeramente la eficiencia de la codificación, pero la compensación suele valer la pena para obtener el uso de más núcleos de CPU para la codificación. El valor ideal es el valor más bajo que puede codificar de forma fiable en los ajustes de streaming deseados en su hardware.",
     "misc": "Opciones varias",
