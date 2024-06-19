@@ -211,6 +211,8 @@
     "log_level_desc": "Minsta loggnivå utskriven till standard ut",
     "log_path": "Sökväg till loggfil",
     "log_path_desc": "Filen där de aktuella loggarna av Sunshine lagras.",
+    "min_fps_factor": "Minsta FPS faktor",
+    "min_fps_factor_desc": "Solsken kommer att använda denna faktor för att beräkna den minsta tiden mellan ramar. Att öka detta värde något kan hjälpa vid streaming mestadels statiskt innehåll. Högre värden kommer att förbruka mer bandbredd.",
     "min_threads": "Minsta antal CPU-trådar",
     "min_threads_desc": "Öka värdet något minskar kodningseffektivitet, men avvägningen är oftast värt det för att få användning av fler CPU-kärnor för kodning. Det ideala värdet är det lägsta värdet som tillförlitligt kan koda på dina önskade strömningsinställningar på din hårdvara.",
     "misc": "Diverse alternativ",
