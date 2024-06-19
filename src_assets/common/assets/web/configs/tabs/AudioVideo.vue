@@ -13,6 +13,7 @@ const props = defineProps([
   'config',
   'resolutions',
   'fps',
+  'min_fps_factor',
 ])
 
 const config = ref(props.config)
@@ -83,6 +84,7 @@ const config = ref(props.config)
         :config="config"
         :resolutions="resolutions"
         :fps="fps"
+        :min_fps_factor="min_fps_factor"
     />
 
   </div>

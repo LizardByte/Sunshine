@@ -8,6 +8,7 @@ const props = defineProps([
   'config',
   'resolutions',
   'fps',
+  'min_fps_factor',
 ])
 
 const config = ref(props.config)
@@ -62,7 +63,15 @@ const fpsIn = ref("")
       </form>
     </div>
 
-    <div class="form-text">{{ $t('config.res_fps_desc') }}</div>
+    <div class="form-text mb-3">{{ $t('config.res_fps_desc') }}</div>
+
+    <!--min_fps_factor-->
+    <div class="mb-3">
+      <label for="qp" class="form-label">{{ $t('config.min_fps_factor') }}</label>
+      <input type="number" min="1" max="3" class="form-control" id="min_fps_factor" placeholder="1" v-model="config.min_fps_factor" />
+      <div class="form-text">{{ $t('config.min_fps_factor_desc') }}</div>
+    </div>
+
   </div>
 </template>
 

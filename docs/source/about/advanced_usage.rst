@@ -697,6 +697,26 @@ keybindings
 
       fps = [10, 30, 60, 90, 120]
 
+min_fps_factor <https://localhost:47990/config/#min_fps_factor>`__
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Description**
+   Sunshine will use this factor to calculate the minimum time between frames. Increasing this value may help when
+   streaming mostly static content.
+
+   .. Warning:: Higher values will consume more bandwidth.
+
+**Default**
+   ``1``
+
+**Range**
+   ``1-3``
+
+**Example**
+   .. code-block:: text
+
+      min_fps_factor = 1
+
 `Network <https://localhost:47990/config/#network>`__
 -----------------------------------------------------
 
