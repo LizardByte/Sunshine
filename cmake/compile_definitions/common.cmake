@@ -126,7 +126,7 @@ include_directories(
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
         ${FFMPEG_INCLUDE_DIRS}
-        ${Boost_INCLUDE_DIRS}  # has to be the last one or we runtime error on macOS ffmpeg encoder
+        ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
