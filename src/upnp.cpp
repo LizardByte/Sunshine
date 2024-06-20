@@ -280,8 +280,8 @@ namespace upnp {
 
     /**
      * @brief Unmaps all ports.
+     * @param urls urls_t from UPNP_GetValidIGD()
      * @param data IGDdatas from UPNP_GetValidIGD()
-     * @param data urls_t from UPNP_GetValidIGD()
      */
     void
     unmap_all_upnp_ports(const urls_t &urls, const IGDdatas &data) {

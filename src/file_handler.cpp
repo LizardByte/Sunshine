@@ -13,7 +13,7 @@
 
 namespace file_handler {
   /**
-   * @breif Get the parent directory of a file or directory.
+   * @brief Get the parent directory of a file or directory.
    * @param path The path of the file or directory.
    * @return `std::string` : The parent directory.
    */
