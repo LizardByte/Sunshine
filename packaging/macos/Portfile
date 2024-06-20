@@ -46,7 +46,8 @@ depends_test             port:doxygen \
 
 configure.args           -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \
-                         -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
+                         -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets \
+                         -DBOOST_USE_STATIC=ON
 
 configure.env-append     BRANCH=@GITHUB_BRANCH@
 configure.env-append     BUILD_VERSION=@BUILD_VERSION@
