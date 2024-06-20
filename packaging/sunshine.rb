@@ -21,17 +21,17 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  option "without-dynamic-boost", "Statically link Boost libraries"  # default option
+  option "without-dynamic-boost", "Statically link Boost libraries" # default option
   option "with-dynamic-boost", "Dynamically link Boost libraries"
 
   depends_on "cmake" => :build
   depends_on "node" => :build
   depends_on "pkg-config" => :build
-  depends_on "icu4c" => :recommended
   depends_on "curl"
   depends_on "miniupnpc"
   depends_on "openssl"
   depends_on "opus"
+  depends_on "icu4c" => :recommended
 
   on_linux do
     depends_on "libcap"
@@ -80,9 +80,9 @@ class @PROJECT_NAME@ < Formula
         EOS
       end
       ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-      icu4c_lib_path = "#{Formula["icu4c"].opt_lib}"
+      icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
       ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
-      ENV["LIBRARY_PATH"] = "#{icu4c_lib_path}"
+      ENV["LIBRARY_PATH"] = icu4c_lib_path
       ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
     else
       args << "-DBOOST_USE_STATIC=OFF"
