@@ -44,10 +44,10 @@ depends_lib              port:avahi \
 depends_test             port:doxygen \
                          port:graphviz
 
-configure.args           -DBUILD_WERROR=ON \
+configure.args           -DBOOST_USE_STATIC=ON \
+                         -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \
-                         -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets \
-                         -DBOOST_USE_STATIC=ON
+                         -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets
 
 configure.env-append     BRANCH=@GITHUB_BRANCH@
 configure.env-append     BUILD_VERSION=@BUILD_VERSION@
