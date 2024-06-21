@@ -1583,6 +1583,9 @@ namespace platf::dxgi {
   }
 
   // This cannot use ID3D11DeviceContext because it can be called concurrently by the encoding thread
+  /**
+   * @memberof platf::dxgi::display_vram_t
+   */
   int
   display_vram_t::dummy_img(platf::img_t *img_base) {
     return complete_img(img_base, true);

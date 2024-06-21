@@ -910,8 +910,7 @@ WARN_IF_UNDOC_ENUM_VAL = NO
 # Possible values are: NO, YES, FAIL_ON_WARNINGS and FAIL_ON_WARNINGS_PRINT.
 # The default value is: NO.
 
-WARN_AS_ERROR          = NO
-# todo - ideally this will eventually become FAIL_ON_WARNINGS
+WARN_AS_ERROR = FAIL_ON_WARNINGS
 
 # The WARN_FORMAT tag determines the format of the warning messages that doxygen
 # can produce. The string should contain the $file, $line, and $text tags, which
@@ -2457,7 +2456,7 @@ INCLUDE_FILE_PATTERNS  =
 # recursively expanded use the := operator instead of the = operator.
 # This tag requires that the tag ENABLE_PREPROCESSING is set to YES.
 
-PREDEFINED             =
+PREDEFINED = DOXYGEN
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

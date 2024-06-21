@@ -31,11 +31,9 @@ dnf -y update
 dnf -y group install "Development Tools"
 dnf -y install \
   cmake-3.27.* \
-  doxygen \
   gcc-13.2.* \
   gcc-c++-13.2.* \
   git \
-  graphviz \
   libappindicator-gtk3-devel \
   libcap-devel \
   libcurl-devel \
@@ -59,7 +57,6 @@ dnf -y install \
   openssl-devel \
   opus-devel \
   pulseaudio-libs-devel \
-  python3.11 \
   rpm-build \
   wget \
   which \
@@ -119,6 +116,7 @@ cmake \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
   -DSUNSHINE_ENABLE_CUDA=ON \
+  -DTESTS_ENABLE_PYTHON_TESTS=OFF \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G RPM

@@ -339,6 +339,9 @@ namespace egl {
     return eglGetError() != EGL_SUCCESS;
   }
 
+  /**
+   * @memberof egl::display_t
+   */
   display_t
   make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
     constexpr auto EGL_PLATFORM_GBM_MESA = 0x31D7;
