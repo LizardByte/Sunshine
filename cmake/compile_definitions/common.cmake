@@ -125,8 +125,8 @@ include_directories(
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
-        ${Boost_INCLUDE_DIRS}
         ${FFMPEG_INCLUDE_DIRS}
+        ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
 
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
