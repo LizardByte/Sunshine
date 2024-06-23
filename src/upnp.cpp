@@ -109,7 +109,11 @@ namespace upnp {
       IGDdatas data;
       urls_t urls;
       std::array<char, INET6_ADDRESS_STRLEN> lan_addr;
+#if (MINIUPNPC_API_VERSION >= 18)
+      auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size(), nullptr, 0);
+#else
       auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size());
+#endif
       if (status != 1 && status != 2) {
         BOOST_LOG(debug) << "No valid IPv6 IGD: "sv << status_string(status);
         return false;
@@ -331,7 +335,11 @@ namespace upnp {
         std::array<char, INET6_ADDRESS_STRLEN> lan_addr;
 
         urls_t urls;
+#if (MINIUPNPC_API_VERSION >= 18)
+        auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size(), nullptr, 0);
+#else
         auto status = UPNP_GetValidIGD(device.get(), &urls.el, &data, lan_addr.data(), lan_addr.size());
+#endif
         if (status != 1 && status != 2) {
           BOOST_LOG(error) << status_string(status);
           mapped = false;
