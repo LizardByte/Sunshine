@@ -19,6 +19,7 @@ pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
   gcc \
   git \
   make \
+  mingw-w64-ucrt-x86_64-boost \
   mingw-w64-ucrt-x86_64-cmake \
   mingw-w64-ucrt-x86_64-cppwinrt \
   mingw-w64-ucrt-x86_64-graphviz \

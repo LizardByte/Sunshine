@@ -8,7 +8,7 @@ version: 2
 
 # Set the version of Python
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
     python: "3.11"
   apt_packages:

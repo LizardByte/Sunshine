@@ -55,37 +55,12 @@ Example Documentation Blocks
 Source
 ------
 
-.. toctree::
-   :caption: src
-   :maxdepth: 1
-   :glob:
+Please refer to the `Doxygen Documentation <../doxyhtml/index.html>`_ for more details.
 
-   src/*
+.. todo:: Sphinx and Breathe do not support the Objective-C Domain.
+   See https://github.com/breathe-doc/breathe/issues/129
 
-.. toctree::
-   :caption: src/platform
-   :maxdepth: 1
-   :glob:
+.. .. doxygenindex::
+..    :allow-dot-graphs:
 
-   src/platform/*
-
-.. toctree::
-   :caption: src/platform/linux
-   :maxdepth: 1
-   :glob:
-
-   src/platform/linux/*
-
-.. toctree::
-   :caption: src/platform/macos
-   :maxdepth: 1
-   :glob:
-
-   src/platform/macos/*
-
-.. toctree::
-   :caption: src/platform/windows
-   :maxdepth: 1
-   :glob:
-
-   src/platform/windows/*
+.. Ideally, we would use `doxygenfile` with `:allow-dot-graphs:`, but sphinx complains about duplicated namespaces...

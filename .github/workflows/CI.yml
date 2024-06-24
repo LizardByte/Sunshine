@@ -990,9 +990,11 @@ jobs:
 
           # install dependencies
           pacman -U --noconfirm mingw-w64-ucrt-x86_64-curl-8.8.0-1-any.pkg.tar.zst
-          pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
+          pacman -Syu --noconfirm \
+            --ignore=mingw-w64-ucrt-x86_64-curl \
             doxygen \
             git \
+            mingw-w64-ucrt-x86_64-boost \
             mingw-w64-ucrt-x86_64-cmake \
             mingw-w64-ucrt-x86_64-cppwinrt \
             mingw-w64-ucrt-x86_64-graphviz \
