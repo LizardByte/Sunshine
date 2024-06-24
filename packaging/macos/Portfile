@@ -31,18 +31,17 @@ post-fetch {
 }
 
 # https://guide.macports.org/chunked/reference.dependencies.html
-depends_build-append     port:npm9 \
-                         port:pkgconfig
+depends_build-append     port:doxygen \
+                         port:graphviz \
+                         port:npm9 \
+                         port:pkgconfig \
+                         port:python311 \
+                         port:py311-pip
 
 depends_lib              port:avahi \
                          port:curl \
                          port:libopus \
-                         port:miniupnpc \
-                         port:python311 \
-                         port:py311-pip
-
-depends_test             port:doxygen \
-                         port:graphviz
+                         port:miniupnpc
 
 configure.args           -DBOOST_USE_STATIC=ON \
                          -DBUILD_WERROR=ON \

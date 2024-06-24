@@ -61,6 +61,11 @@ add_custom_target(web-ui ALL
         COMMAND_EXPAND_LISTS
         VERBATIM)
 
+# docs
+if(BUILD_DOCS)
+    add_subdirectory(docs)
+endif()
+
 # tests
 if(BUILD_TESTS)
     add_subdirectory(tests)

@@ -21,10 +21,13 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  option "without-dynamic-boost", "Statically link Boost libraries" # default option
+  option "with-docs-off", "Disable docs"
   option "with-dynamic-boost", "Dynamically link Boost libraries"
+  option "without-dynamic-boost", "Statically link Boost libraries" # default option
 
   depends_on "cmake" => :build
+  depends_on "doxygen" => :build
+  depends_on "graphviz" => :build
   depends_on "node" => :build
   depends_on "pkg-config" => :build
   depends_on "curl"
@@ -66,8 +69,15 @@ class @PROJECT_NAME@ < Formula
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_ENABLE_TRAY=OFF
-      -DTESTS_ENABLE_PYTHON_TESTS=OFF
     ]
+
+    if build.with? "docs-off"
+      ohai "Building docs: disabled"
+      args << "-DBUILD_DOCS=OFF"
+    else
+      ohai "Building docs: enabled"
+      args << "-DBUILD_DOCS=ON"
+    end
 
     if build.without? "dynamic-boost"
       args << "-DBOOST_USE_STATIC=ON"

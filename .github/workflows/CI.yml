@@ -251,6 +251,8 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
+            doxygen \
+            graphviz \
             gcc-10 \
             g++-10 \
             libayatana-appindicator3-dev \
@@ -277,7 +279,8 @@ jobs:
             libxfixes-dev \
             libxrandr-dev \
             libxtst-dev \
-            python3
+            python3 \
+            python3-venv
 
           # clean apt cache
           sudo apt-get clean
@@ -414,9 +417,6 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
-            doxygen \
-            graphviz \
-            python3-venv \
             x11-xserver-utils \
             xvfb
 
@@ -803,9 +803,6 @@ jobs:
         working-directory:
           /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests
         run: |
-          sudo port install \
-            doxygen \
-            graphviz
           sudo ./test_sunshine --gtest_color=yes
 
       - name: Generate gcov report
@@ -1038,8 +1035,8 @@ jobs:
           cmake \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DPython_EXECUTABLE='${{ steps.python-path.outputs.python-path }}' \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -DTESTS_PYTHON_EXECUTABLE='${{ steps.python-path.outputs.python-path }}' \
             -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip' \
             -G "MinGW Makefiles" \
             ..

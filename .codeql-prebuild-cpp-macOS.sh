@@ -15,6 +15,7 @@ mkdir -p build
 cd build || exit 1
 cmake \
   -DBOOST_USE_STATIC=OFF \
+  -DBUILD_DOCS=OFF \
   -G "Unix Makefiles" ..
 make -j"$(sysctl -n hw.logicalcpu)"
 

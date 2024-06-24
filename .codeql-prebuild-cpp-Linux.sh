@@ -63,6 +63,7 @@ sudo update-alternatives --install \
 mkdir -p build
 cd build || exit 1
 cmake \
+  -DBUILD_DOCS=OFF \
   -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
   -G "Unix Makefiles" \
   ..

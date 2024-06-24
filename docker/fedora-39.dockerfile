@@ -107,6 +107,7 @@ RUN <<_MAKE
 set -e
 cmake \
   -DCMAKE_CUDA_COMPILER:PATH=/build/cuda/bin/nvcc \
+  -DBUILD_DOCS=OFF \
   -DBUILD_WERROR=ON \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=/usr \
@@ -116,7 +117,6 @@ cmake \
   -DSUNSHINE_ENABLE_X11=ON \
   -DSUNSHINE_ENABLE_DRM=ON \
   -DSUNSHINE_ENABLE_CUDA=ON \
-  -DTESTS_ENABLE_PYTHON_TESTS=OFF \
   /build/sunshine
 make -j "$(nproc)"
 cpack -G RPM

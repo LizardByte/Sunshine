@@ -32,16 +32,16 @@ depends=('avahi'
          'numactl'
          'openssl'
          'opus'
-         'python'
          'udev')
-checkdepends=('doxygen'
-              'graphviz')
 makedepends=('cmake'
+             'doxygen'
              "gcc${_gcc_version}"
+             'graphviz'
              'git'
              'make'
              'nodejs'
-             'npm')
+             'npm'
+             'python')
 optdepends=('cuda: Nvidia GPU encoding support'
             'libva-mesa-driver: AMD GPU encoding support'
             'xorg-server-xvfb: Virtual X server for headless testing')

@@ -35,7 +35,9 @@ pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
 # build
 mkdir -p build
 cd build || exit 1
-cmake -G "MinGW Makefiles" ..
+cmake \
+  -DBUILD_DOCS=OFF \
+  -G "MinGW Makefiles" ..
 mingw32-make -j"$(nproc)"
 
 # skip autobuild
