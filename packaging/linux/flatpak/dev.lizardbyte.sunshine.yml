@@ -274,6 +274,7 @@ modules:
         npm_config_nodedir: /usr/lib/sdk/node18
         NPM_CONFIG_LOGLEVEL: info
     config-opts:
+      - -DBUILD_DOCS=OFF
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_INSTALL_PREFIX=/app
@@ -285,7 +286,6 @@ modules:
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_BUILD_FLATPAK=ON
-      - -DTESTS_ENABLE_PYTHON_TESTS=OFF
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"

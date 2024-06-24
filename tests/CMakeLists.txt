@@ -3,9 +3,6 @@ cmake_minimum_required(VERSION 3.13)
 
 project(test_sunshine)
 
-set(PYTHON_PREFERRED_VERSION 3.11)
-set(PYTHON_MINIMUM_VERSION 3.9)
-
 include_directories("${CMAKE_SOURCE_DIR}")
 
 enable_testing()
@@ -37,55 +34,6 @@ elseif (NOT APPLE)
 endif ()
 
 set(TEST_DEFINITIONS)  # list will be appended as needed
-
-# IF option TESTS_ENABLE_PYTHON_TESTS is ON, then we need to find python
-if (TESTS_ENABLE_PYTHON_TESTS)
-    if (NOT DEFINED TESTS_PYTHON_EXECUTABLE)
-        # python is required for doc tests
-
-        # https://github.com/actions/setup-python/issues/121#issuecomment-777748504
-        if (POLICY CMP0094)  # https://cmake.org/cmake/help/latest/policy/CMP0094.html
-            cmake_policy(SET CMP0094 NEW)  # FindPython should return the first matching Python
-        endif ()
-
-        # needed on GitHub Actions CI: actions/setup-python does not touch registry/frameworks on Windows/macOS
-        # this mirrors PythonInterp behavior which did not consult registry/frameworks first
-        if (NOT DEFINED Python_FIND_REGISTRY)
-            set(Python_FIND_REGISTRY "LAST")  # cmake-lint: disable=C0103
-        endif ()
-        if (NOT DEFINED Python_FIND_FRAMEWORK)
-            set(Python_FIND_FRAMEWORK "LAST")  # cmake-lint: disable=C0103
-        endif ()
-
-        # first, try to find preferred version of python
-        find_package(Python ${PYTHON_PREFERRED_VERSION} EXACT COMPONENTS Interpreter)
-        if (Python_FOUND)
-            message(STATUS
-                    "Preferred Python ${PYTHON_PREFERRED_VERSION} found, tests dependent on Python will be enabled")
-        else ()
-            # fallback to minimum version
-            find_package(Python ${PYTHON_MINIMUM_VERSION} COMPONENTS Interpreter)
-        endif ()
-        if (Python_FOUND)
-            message(STATUS "Python found, tests dependent on Python will be enabled")
-            list(APPEND TEST_DEFINITIONS TESTS_ENABLE_VENV_TESTS=1)
-            list(APPEND TEST_DEFINITIONS TESTS_PYTHON_EXECUTABLE="${Python_EXECUTABLE}")
-        else ()
-            message(SEND_ERROR "Python not found, tests dependent on Python will be disabled")
-            list(APPEND TEST_DEFINITIONS TESTS_ENABLE_VENV_TESTS=0)
-        endif ()
-    else()
-        message(STATUS "Python executable is set to ${TESTS_PYTHON_EXECUTABLE}")
-        list(APPEND TEST_DEFINITIONS TESTS_ENABLE_VENV_TESTS=1)
-        list(APPEND TEST_DEFINITIONS TESTS_PYTHON_EXECUTABLE="${TESTS_PYTHON_EXECUTABLE}")
-    endif()
-else ()
-    message(STATUS "Python tests are disabled by 'TESTS_ENABLE_PYTHON_TESTS' option")
-    list(APPEND TEST_DEFINITIONS TESTS_ENABLE_VENV_TESTS=0)
-endif ()
-
-list(APPEND TEST_DEFINITIONS TESTS_SOURCE_DIR="${CMAKE_SOURCE_DIR}")  # add source directory to TEST_DEFINITIONS
-list(APPEND TEST_DEFINITIONS TESTS_DOCS_DIR="${CMAKE_SOURCE_DIR}/docs")  # add docs directory to TEST_DEFINITIONS
 
 # make sure TESTS_SOFTWARE_ENCODER_UNAVAILABLE is set to "fail" or "skip"
 if (NOT (TESTS_SOFTWARE_ENCODER_UNAVAILABLE STREQUAL "fail" OR TESTS_SOFTWARE_ENCODER_UNAVAILABLE STREQUAL "skip"))

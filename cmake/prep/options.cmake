@@ -1,3 +1,4 @@
+option(BUILD_DOCS "Build documentation" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(TESTS_ENABLE_PYTHON_TESTS "Enable Python tests" ON)
 
