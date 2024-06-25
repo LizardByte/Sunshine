@@ -61,11 +61,13 @@ namespace platf::pen {
         tilt_y = std::atan2(std::cos(-rotation_rads) * r, z) * 180.f / M_PI;
       }
 
+      bool is_touching = pen.eventType == LI_TOUCH_EVENT_DOWN || pen.eventType == LI_TOUCH_EVENT_MOVE;
+
       (*raw->pen).place_tool(tool,
         pen.x,
         pen.y,
-        pen.eventType == LI_TOUCH_EVENT_DOWN ? pen.pressureOrDistance : -1,
-        pen.eventType == LI_TOUCH_EVENT_HOVER ? pen.pressureOrDistance : -1,
+        is_touching ? pen.pressureOrDistance : -1,
+        is_touching ? -1 : pen.pressureOrDistance,
         tilt_x,
         tilt_y);
     }
