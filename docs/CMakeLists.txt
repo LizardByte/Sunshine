@@ -35,17 +35,28 @@ execute_process(
     RESULT_VARIABLE VENV_RESULT
 )
 
-# set Python3_EXECUTABLE to the python interpreter in the venv
-if(WIN32)
-    set(Python3_EXECUTABLE "${VENV_DIR}/Scripts/python.exe")  # cmake-lint: disable=C0103
-    set(Python3_ROOT_DIR "${VENV_DIR}/Scripts")  # cmake-lint: disable=C0103
-else()
-    set(Python3_EXECUTABLE "${VENV_DIR}/bin/python")  # cmake-lint: disable=C0103
-    set(Python3_ROOT_DIR "${VENV_DIR}/bin")  # cmake-lint: disable=C0103
-endif()
+unset(Python3_EXECUTABLE)
 
-# print path
-message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
+set(VENV_PATTERNS
+        ${VENV_DIR}/bin/python
+        ${VENV_DIR}/Scripts/python.exe
+)
+
+# set Python3_EXECUTABLE to the python interpreter in the venv
+foreach(pattern ${VENV_PATTERNS})
+    if(EXISTS ${pattern})
+        set(Python3_EXECUTABLE "${pattern}")  # cmake-lint: disable=C0103
+        get_filename_component(Python3_ROOT_DIR ${pattern} DIRECTORY)
+        message(STATUS "Using Python3_EXECUTABLE (venv): ${Python3_EXECUTABLE}")
+        message(STATUS "Using Python3_ROOT_DIR (venv): ${Python3_ROOT_DIR}")
+        break()
+    endif()
+endforeach()
+
+# fail if Python3_ROOT_DIR is not set
+if(NOT DEFINED Python3_EXECUTABLE)
+    message(FATAL_ERROR "Unable to setup python venv")
+endif()
 
 # call a simple python command
 execute_process(
