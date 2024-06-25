@@ -39,6 +39,7 @@ unset(Python3_EXECUTABLE)
 
 set(VENV_PATTERNS
         ${VENV_DIR}/bin/python
+        ${VENV_DIR}/bin/python.exe
         ${VENV_DIR}/Scripts/python.exe
 )
 
@@ -119,7 +120,7 @@ list(APPEND SPHINX_BUILD_EPUB_COMMAND
 add_custom_target(docs ALL
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Building documentation"
-        COMMAND ${SPHINX_BUILD_HTML_COMMAND}
-        COMMAND ${SPHINX_BUILD_EPUB_COMMAND}
+        COMMAND ${CMAKE_COMMAND} -E env DOXY_PATH=$<TARGET_FILE:Doxygen::doxygen> ${SPHINX_BUILD_HTML_COMMAND}
+        COMMAND ${CMAKE_COMMAND} -E env DOXY_PATH=$<TARGET_FILE:Doxygen::doxygen> ${SPHINX_BUILD_EPUB_COMMAND}
         VERBATIM
 )

@@ -13,6 +13,10 @@ Test clang-format locally.
 
 Sphinx
 ------
+.. note:: Documentation is now a cmake target and this is all handled by the cmake build system. When compiling docs
+   as a target, simply install Python, Doxygen, and Graphviz. The installation of python dependencies will be handled
+   automatically inside a virtual environment. The following instructions are for manual building of the docs.
+
 Sunshine uses `Sphinx <https://www.sphinx-doc.org/en/master/>`__ for documentation building. Sphinx, along with other
 required python dependencies are included in the `./docs/requirements.txt` file. Python is required to build
 sphinx docs. Installation and setup of python will not be covered here.

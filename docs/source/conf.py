@@ -128,9 +128,12 @@ todo_include_todos = True
 # https://github.com/readthedocs/readthedocs.org/blob/eadf6ac6dc6abc760a91e1cb147cc3c5f37d1ea8/docs/conf.py#L235-L236
 suppress_warnings = ["epub.unknown_project_files"]
 
+doxygen_cmd = os.getenv('DOXY_PATH', 'doxygen')
+print(f'doxygen command: {doxygen_cmd}')
+
 # get doxygen version
 doxy_version = _run_subprocess(
-    args_list=['doxygen', '--version'],
+    args_list=[doxygen_cmd, '--version'],
     cwd=source_dir,
 )
 
@@ -147,7 +150,7 @@ for d in directories:
 
 # run doxygen
 doxy_proc = _run_subprocess(
-    args_list=['doxygen', 'Doxyfile'],
+    args_list=[doxygen_cmd, 'Doxyfile'],
     cwd=source_dir
 )
 
