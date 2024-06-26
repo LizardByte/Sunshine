@@ -704,7 +704,7 @@ namespace platf::dxgi {
 
     int
     init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt, bool yuv444in420) {
-      if (yuv444in420 && format != DXGI_FORMAT_NV12 && format != DXGI_FORMAT_P010) {
+      if (yuv444in420 && pix_fmt != pix_fmt_e::nv12 && pix_fmt != pix_fmt_e::p010) {
         BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported on this surface format";
         return -1;
       }
