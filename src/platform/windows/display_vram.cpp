@@ -121,6 +121,18 @@ namespace platf::dxgi {
   blob_t convert_yuv444_packed_y410_ps_linear_hlsl;
   blob_t convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl;
   blob_t convert_yuv444_planar_vs_hlsl;
+  blob_t convert_yuv444in420_nv12_uv_ps_hlsl;
+  blob_t convert_yuv444in420_nv12_uv_ps_linear_hlsl;
+  blob_t convert_yuv444in420_nv12_y_ps_hlsl;
+  blob_t convert_yuv444in420_nv12_y_ps_linear_hlsl;
+  blob_t convert_yuv444in420_p010_uv_ps_hlsl;
+  blob_t convert_yuv444in420_p010_uv_ps_linear_hlsl;
+  blob_t convert_yuv444in420_p010_uv_ps_perceptual_quantizer_hlsl;
+  blob_t convert_yuv444in420_p010_y_ps_hlsl;
+  blob_t convert_yuv444in420_p010_y_ps_linear_hlsl;
+  blob_t convert_yuv444in420_p010_y_ps_perceptual_quantizer_hlsl;
+  blob_t convert_yuv444in420_uv_vs_hlsl;
+  blob_t convert_yuv444in420_y_vs_hlsl;
   blob_t cursor_ps_hlsl;
   blob_t cursor_ps_normalize_white_hlsl;
   blob_t cursor_vs_hlsl;
@@ -420,7 +432,7 @@ namespace platf::dxgi {
           device_ctx->OMSetRenderTargets(1, &out_Y_or_YUV_rtv, nullptr);
           device_ctx->VSSetShader(convert_Y_or_YUV_vs.get(), nullptr, 0);
           device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_or_YUV_fp16_ps.get() : convert_Y_or_YUV_ps.get(), nullptr, 0);
-          auto viewport_count = (format == DXGI_FORMAT_R16_UINT) ? 3 : 1;
+          auto viewport_count = (format == DXGI_FORMAT_R16_UINT || recombine_yuv444_into_yuv420) ? 3 : 1;
           assert(viewport_count <= y_or_yuv_viewports.size());
           device_ctx->RSSetViewports(viewport_count, y_or_yuv_viewports.data());
           device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
@@ -462,7 +474,8 @@ namespace platf::dxgi {
 
       if (format == DXGI_FORMAT_AYUV ||
           format == DXGI_FORMAT_R16_UINT ||
-          format == DXGI_FORMAT_Y410) {
+          format == DXGI_FORMAT_Y410 ||
+          recombine_yuv444_into_yuv420) {
         color_vectors = ::video::new_color_vectors_from_colorspace(colorspace);
       }
 
@@ -503,20 +516,53 @@ namespace platf::dxgi {
       auto offsetX = (out_width - out_width_f) / 2;
       auto offsetY = (out_height - out_height_f) / 2;
 
-      out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
-      out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // U plane
-      out_Y_or_YUV_viewports[1].TopLeftY += out_height;
-      out_Y_or_YUV_viewports[2] = out_Y_or_YUV_viewports[1];  // V plane
-      out_Y_or_YUV_viewports[2].TopLeftY += out_height;
+      if (recombine_yuv444_into_yuv420) {
+        //       Y         U     V
+        //       +-------+ +---+ +---+
+        //       |       | |   | |   |
+        // VP0-> |   Y   | |UR | |VR |
+        //       |       | |   | |   |
+        //       +---+---+ +---+ +---+
+        //       |   |   |
+        // VP1-> |UL |VL | <-VP2
+        //       |   |   |
+        //       +---+---+
+        out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
+        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // left half of U plane
+        out_Y_or_YUV_viewports[1].TopLeftY += out_height;
+        out_Y_or_YUV_viewports[1].Width = out_width / 2 - offsetX;
+        out_Y_or_YUV_viewports[2] = out_Y_or_YUV_viewports[1];  // left half of V plane
+        out_Y_or_YUV_viewports[2].TopLeftX += out_width / 2;
 
-      out_Y_or_YUV_viewports_for_clear[0] = { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };  // Y plane
-      out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // U plane
-      out_Y_or_YUV_viewports_for_clear[1].TopLeftY += out_height;
-      out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // V plane
-      out_Y_or_YUV_viewports_for_clear[2].TopLeftY += out_height;
+        out_Y_or_YUV_viewports_for_clear[0] = { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };  // Y plane
+        out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // left half of U plane
+        out_Y_or_YUV_viewports_for_clear[1].TopLeftY += out_height;
+        out_Y_or_YUV_viewports_for_clear[1].Width /= 2;
+        out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // left half of V plane
+        out_Y_or_YUV_viewports_for_clear[2].TopLeftX += out_Y_or_YUV_viewports_for_clear[1].Width;
 
-      out_UV_viewport = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
-      out_UV_viewport_for_clear = { 0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f };
+        out_UV_viewport = out_Y_or_YUV_viewports[0];
+        out_UV_viewport.TopLeftX = 0;
+        out_UV_viewport.Width = out_width_f - out_Y_or_YUV_viewports[1].Width;
+
+        out_UV_viewport_for_clear = { 0, 0, (float) out_width / 2, (float) out_height, 0.0f, 1.0f };
+      }
+      else {
+        out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
+        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // U plane
+        out_Y_or_YUV_viewports[1].TopLeftY += out_height;
+        out_Y_or_YUV_viewports[2] = out_Y_or_YUV_viewports[1];  // V plane
+        out_Y_or_YUV_viewports[2].TopLeftY += out_height;
+
+        out_Y_or_YUV_viewports_for_clear[0] = { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };  // Y plane
+        out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // U plane
+        out_Y_or_YUV_viewports_for_clear[1].TopLeftY += out_height;
+        out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // V plane
+        out_Y_or_YUV_viewports_for_clear[2].TopLeftY += out_height;
+
+        out_UV_viewport = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
+        out_UV_viewport_for_clear = { 0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f };
+      }
 
       float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
       subsample_offset = make_buffer(device.get(), subsample_offset_in);
@@ -544,15 +590,27 @@ namespace platf::dxgi {
 
       switch (format) {
         case DXGI_FORMAT_NV12:
-          rtv_Y_or_YUV_format = DXGI_FORMAT_R8_UNORM;
-          rtv_UV_format = DXGI_FORMAT_R8G8_UNORM;
-          rtv_simple_clear = true;
+          if (recombine_yuv444_into_yuv420) {
+            rtv_Y_or_YUV_format = DXGI_FORMAT_R8_UINT;
+            rtv_UV_format = DXGI_FORMAT_R8G8_UINT;
+          }
+          else {
+            rtv_Y_or_YUV_format = DXGI_FORMAT_R8_UNORM;
+            rtv_UV_format = DXGI_FORMAT_R8G8_UNORM;
+            rtv_simple_clear = true;
+          }
           break;
 
         case DXGI_FORMAT_P010:
-          rtv_Y_or_YUV_format = DXGI_FORMAT_R16_UNORM;
-          rtv_UV_format = DXGI_FORMAT_R16G16_UNORM;
-          rtv_simple_clear = true;
+          if (recombine_yuv444_into_yuv420) {
+            rtv_Y_or_YUV_format = DXGI_FORMAT_R16_UINT;
+            rtv_UV_format = DXGI_FORMAT_R16G16_UINT;
+          }
+          else {
+            rtv_Y_or_YUV_format = DXGI_FORMAT_R16_UNORM;
+            rtv_UV_format = DXGI_FORMAT_R16G16_UNORM;
+            rtv_simple_clear = true;
+          }
           break;
 
         case DXGI_FORMAT_AYUV:
@@ -611,7 +669,14 @@ namespace platf::dxgi {
     }
 
     int
-    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt, bool yuv444in420) {
+      if (yuv444in420 && pix_fmt != pix_fmt_e::nv12 && pix_fmt != pix_fmt_e::p010) {
+        BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported on this surface format";
+        return -1;
+      }
+
+      recombine_yuv444_into_yuv420 = yuv444in420;
+
       D3D_FEATURE_LEVEL featureLevels[] {
         D3D_FEATURE_LEVEL_11_1,
         D3D_FEATURE_LEVEL_11_0,
@@ -690,27 +755,53 @@ namespace platf::dxgi {
       switch (format) {
         case DXGI_FORMAT_NV12:
           // Semi-planar 8-bit YUV 4:2:0
-          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+          if (recombine_yuv444_into_yuv420) {
+            create_vertex_shader_helper(convert_yuv444in420_y_vs_hlsl, convert_Y_or_YUV_vs);
+            create_pixel_shader_helper(convert_yuv444in420_nv12_y_ps_hlsl, convert_Y_or_YUV_ps);
+            create_pixel_shader_helper(convert_yuv444in420_nv12_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+            create_vertex_shader_helper(convert_yuv444in420_uv_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv444in420_nv12_uv_ps_hlsl, convert_UV_ps);
+            create_pixel_shader_helper(convert_yuv444in420_nv12_uv_ps_linear_hlsl, convert_UV_fp16_ps);
+          }
+          else {
+            create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+          }
           break;
 
         case DXGI_FORMAT_P010:
           // Semi-planar 16-bit YUV 4:2:0, 10 most significant bits store the value
-          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+          if (recombine_yuv444_into_yuv420) {
+            create_vertex_shader_helper(convert_yuv444in420_y_vs_hlsl, convert_Y_or_YUV_vs);
+            create_pixel_shader_helper(convert_yuv444in420_p010_y_ps_hlsl, convert_Y_or_YUV_ps);
+            create_vertex_shader_helper(convert_yuv444in420_uv_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv444in420_p010_uv_ps_hlsl, convert_UV_ps);
+            if (display->is_hdr()) {
+              create_pixel_shader_helper(convert_yuv444in420_p010_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+              create_pixel_shader_helper(convert_yuv444in420_p010_uv_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            }
+            else {
+              create_pixel_shader_helper(convert_yuv444in420_p010_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+              create_pixel_shader_helper(convert_yuv444in420_p010_uv_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
           }
           else {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+            if (display->is_hdr()) {
+              create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            }
+            else {
+              create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
           }
           break;
 
@@ -902,6 +993,8 @@ namespace platf::dxgi {
       return resource_view;
     }
 
+    bool recombine_yuv444_into_yuv420 = false;
+
     ::video::color_t *color_p;
 
     buf_t subsample_offset;
@@ -944,8 +1037,8 @@ namespace platf::dxgi {
   class d3d_avcodec_encode_device_t: public avcodec_encode_device_t {
   public:
     int
-    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
-      int result = base.init(display, adapter_p, pix_fmt);
+    init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt, bool yuv444in420) {
+      int result = base.init(display, adapter_p, pix_fmt, yuv444in420);
       data = base.device.get();
       return result;
     }
@@ -1041,14 +1134,14 @@ namespace platf::dxgi {
   class d3d_nvenc_encode_device_t: public nvenc_encode_device_t {
   public:
     bool
-    init_device(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+    init_device(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt, bool yuv444in420) {
       buffer_format = nvenc::nvenc_format_from_sunshine_format(pix_fmt);
       if (buffer_format == NV_ENC_BUFFER_FORMAT_UNDEFINED) {
         BOOST_LOG(error) << "Unexpected pixel format for NvENC ["sv << from_pix_fmt(pix_fmt) << ']';
         return false;
       }
 
-      if (base.init(display, adapter_p, pix_fmt)) return false;
+      if (base.init(display, adapter_p, pix_fmt, yuv444in420)) return false;
 
       if (pix_fmt == pix_fmt_e::yuv444p16) {
         nvenc_d3d = std::make_unique<nvenc::nvenc_d3d11_on_cuda>(base.device.get());
@@ -1886,7 +1979,7 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<avcodec_encode_device_t>
-  display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+  display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
     if (pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
       BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
 
@@ -1895,7 +1988,7 @@ namespace platf::dxgi {
 
     auto device = std::make_unique<d3d_avcodec_encode_device_t>();
 
-    auto ret = device->init(shared_from_this(), adapter.get(), pix_fmt);
+    auto ret = device->init(shared_from_this(), adapter.get(), pix_fmt, yuv444in420);
 
     if (ret) {
       return nullptr;
@@ -1905,9 +1998,9 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<nvenc_encode_device_t>
-  display_vram_t::make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+  display_vram_t::make_nvenc_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
     auto device = std::make_unique<d3d_nvenc_encode_device_t>();
-    if (!device->init_device(shared_from_this(), adapter.get(), pix_fmt)) {
+    if (!device->init_device(shared_from_this(), adapter.get(), pix_fmt, yuv444in420)) {
       return nullptr;
     }
     return device;
@@ -1940,6 +2033,18 @@ namespace platf::dxgi {
     compile_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear);
     compile_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer);
     compile_vertex_shader_helper(convert_yuv444_planar_vs);
+    compile_pixel_shader_helper(convert_yuv444in420_nv12_uv_ps);
+    compile_pixel_shader_helper(convert_yuv444in420_nv12_uv_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444in420_nv12_y_ps);
+    compile_pixel_shader_helper(convert_yuv444in420_nv12_y_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_uv_ps);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_uv_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_uv_ps_perceptual_quantizer);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_y_ps);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_y_ps_linear);
+    compile_pixel_shader_helper(convert_yuv444in420_p010_y_ps_perceptual_quantizer);
+    compile_vertex_shader_helper(convert_yuv444in420_uv_vs);
+    compile_vertex_shader_helper(convert_yuv444in420_y_vs);
     compile_pixel_shader_helper(cursor_ps);
     compile_pixel_shader_helper(cursor_ps_normalize_white);
     compile_vertex_shader_helper(cursor_vs);

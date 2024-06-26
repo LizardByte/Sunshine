@@ -1417,11 +1417,18 @@ namespace video {
     }
 
     auto colorspace = encode_device->colorspace;
-    auto sw_fmt = (colorspace.bit_depth == 8 && config.chromaSamplingType == 0)  ? platform_formats->avcodec_pix_fmt_8bit :
-                  (colorspace.bit_depth == 8 && config.chromaSamplingType == 1)  ? platform_formats->avcodec_pix_fmt_yuv444_8bit :
-                  (colorspace.bit_depth == 10 && config.chromaSamplingType == 0) ? platform_formats->avcodec_pix_fmt_10bit :
-                  (colorspace.bit_depth == 10 && config.chromaSamplingType == 1) ? platform_formats->avcodec_pix_fmt_yuv444_10bit :
-                                                                                   AV_PIX_FMT_NONE;
+
+    AVPixelFormat sw_fmt = AV_PIX_FMT_NONE;
+    if (colorspace.bit_depth == 8) {
+      sw_fmt = (config.chromaSamplingType == 1) ?
+                 platform_formats->avcodec_pix_fmt_yuv444_8bit :
+                 platform_formats->avcodec_pix_fmt_8bit;
+    }
+    else if (colorspace.bit_depth == 10) {
+      sw_fmt = (config.chromaSamplingType == 1) ?
+                 platform_formats->avcodec_pix_fmt_yuv444_10bit :
+                 platform_formats->avcodec_pix_fmt_10bit;
+    }
 
     // Allow up to 1 retry to apply the set of fallback options.
     //
@@ -1669,7 +1676,7 @@ namespace video {
     frame->color_primaries = ctx->color_primaries;
     frame->color_trc = ctx->color_trc;
     frame->colorspace = ctx->colorspace;
-    frame->chroma_location = ctx->chroma_sample_location;
+    frame->chroma_location = (config.chromaSamplingType == 2) ? AVCHROMA_LOC_CENTER : ctx->chroma_sample_location;
 
     // Attach HDR metadata to the AVFrame
     if (colorspace_is_hdr(colorspace)) {
@@ -1921,10 +1928,10 @@ namespace video {
     }
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
-      result = disp.make_avcodec_encode_device(pix_fmt);
+      result = disp.make_avcodec_encode_device(pix_fmt, config.chromaSamplingType == 2);
     }
     else if (dynamic_cast<const encoder_platform_formats_nvenc *>(encoder.platform_formats.get())) {
-      result = disp.make_nvenc_encode_device(pix_fmt);
+      result = disp.make_nvenc_encode_device(pix_fmt, config.chromaSamplingType == 2);
     }
 
     if (result) {
