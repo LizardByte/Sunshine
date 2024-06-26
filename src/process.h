@@ -1,6 +1,6 @@
 /**
  * @file src/process.h
- * @brief todo
+ * @brief Declarations for the startup and shutdown of the apps started by a streaming Session.
  */
 #pragma once
 
@@ -78,7 +78,7 @@ namespace proc {
     execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
 
     /**
-     * @return _app_id if a process is running, otherwise returns 0
+     * @return `_app_id` if a process is running, otherwise returns `0`
      */
     int
     running();
@@ -116,8 +116,8 @@ namespace proc {
   };
 
   /**
-   * Calculate a stable id based on name and image data
-   * @return tuple of id calculated without index (for use if no collision) and one with
+   * @brief Calculate a stable id based on name and image data
+   * @return Tuple of id calculated without index (for use if no collision) and one with.
    */
   std::tuple<std::string, std::string>
   calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
@@ -129,8 +129,21 @@ namespace proc {
   std::optional<proc::proc_t>
   parse(const std::string &file_name);
 
+  /**
+   * @brief Initialize proc functions
+   * @return Unique pointer to `deinit_t` to manage cleanup
+   */
   std::unique_ptr<platf::deinit_t>
   init();
+
+  /**
+   * @brief Terminates all child processes in a process group.
+   * @param proc The child process itself.
+   * @param group The group of all children in the process tree.
+   * @param exit_timeout The timeout to wait for the process group to gracefully exit.
+   */
+  void
+  terminate_process_group(boost::process::child &proc, boost::process::group &group, std::chrono::seconds exit_timeout);
 
   extern proc_t proc;
 }  // namespace proc

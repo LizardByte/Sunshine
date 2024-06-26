@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_d3d11.cpp
+ * @brief Definitions for base NVENC d3d11.
+ */
 #include "src/logging.h"
 
 #ifdef _WIN32

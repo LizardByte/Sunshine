@@ -1,5 +1,5 @@
 /**
- * @file tests/test_audio.cpp
+ * @file tests/unit/test_audio.cpp
  * @brief Test src/audio.*.
  */
 #include <bitset>

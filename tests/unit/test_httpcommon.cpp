@@ -1,5 +1,5 @@
 /**
- * @file tests/test_httpcommon.cpp
+ * @file tests/unit/test_httpcommon.cpp
  * @brief Test src/httpcommon.*.
  */
 #include <src/httpcommon.h>

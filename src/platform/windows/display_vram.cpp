@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/display_vram.cpp
- * @brief todo
+ * @brief Definitions for handling video ram.
  */
 #include <cmath>
 
@@ -1617,10 +1617,10 @@ namespace platf::dxgi {
   }
 
   /**
-   * @brief Checks that a given codec is supported by the display device.
+   * @brief Check that a given codec is supported by the display device.
    * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
    * @param config The codec configuration.
-   * @return true if supported, false otherwise.
+   * @return `true` if supported, `false` otherwise.
    */
   bool
   display_vram_t::is_codec_supported(std::string_view name, const ::video::config_t &config) {

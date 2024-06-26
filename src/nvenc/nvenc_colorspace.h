@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_colorspace.h
+ * @brief Declarations for base NVENC colorspace.
+ */
 #pragma once
 
 #include <ffnvcodec/nvEncodeAPI.h>

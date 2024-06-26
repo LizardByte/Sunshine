@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/av_video.m
- * @brief todo
+ * @brief Definitions for video capture on macOS.
  */
 #import "av_video.h"
 

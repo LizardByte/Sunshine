@@ -1,10 +1,14 @@
 /**
  * @file src/move_by_copy.h
- * @brief todo
+ * @brief Declarations for the MoveByCopy utility class.
  */
 #pragma once
 
 #include <utility>
+
+/**
+ * @brief Contains utilities for moving objects by copying them.
+ */
 namespace move_by_copy_util {
   /**
    * When a copy is made, it moves the object

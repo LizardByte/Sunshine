@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino.cpp
+ * @brief Definitions for the inputtino Linux input handling.
+ */
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 

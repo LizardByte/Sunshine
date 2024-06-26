@@ -24,20 +24,25 @@
 # must be first
 DOXYFILE_ENCODING = UTF-8
 
-# https://breathe.readthedocs.io/en/latest/markups.html#aliases
-ALIASES = "rst=^^\verbatim embed:rst:leading-asterisk^^"
-ALIASES += "endrst=\endverbatim"
+ALIASES = ""
+ALIASES += "examples=^^**Examples**^^@code{.cpp}"
+ALIASES += "examples_end=@endcode^^"
+ALIASES += "rst=^^\verbatim embed:rst:leading-asterisk^^"
+ALIASES += "rst_end=\endverbatim"
 
+CASE_SENSE_NAMES = YES
 DISABLE_INDEX = NO
 DOCBOOK_OUTPUT = doxydocbook
 DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
 DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
 DOCSET_PUBLISHER_NAME = LizardByte
+DOT_GRAPH_MAX_NODES = 60
 DOT_IMAGE_FORMAT = svg
 
 # TODO: On Windows, Doxygen hangs when creating dot graphs if this is set to 0
 DOT_NUM_THREADS = 1
 
+EXTRACT_ALL = YES
 FULL_SIDEBAR = NO
 GENERATE_HTML = YES
 GENERATE_LATEX = NO
@@ -64,6 +69,14 @@ MACRO_EXPANSION = YES
 MAN_OUTPUT = doxyman
 NUM_PROC_THREADS = 1
 PREDEFINED = DOXYGEN
+PREDEFINED += __APPLE__
+PREDEFINED += linux
+PREDEFINED += __linux
+PREDEFINED += __linux__
+PREDEFINED += __MACH__
+PREDEFINED += _WIN32
+PREDEFINED += SUNSHINE_BUILD_WAYLAND
+PREDEFINED += SUNSHINE_TRAY=1
 PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
 PROJECT_LOGO = ../sunshine.png
@@ -78,5 +91,11 @@ WARN_AS_ERROR = FAIL_ON_WARNINGS
 
 # TODO: Enable this when we have complete documentation
 WARN_IF_UNDOCUMENTED = NO
+
+WARN_IF_DOC_ERROR = YES
+WARN_IF_INCOMPLETE_DOC = YES
+WARN_IF_UNDOC_ENUM_VAL = YES
+WARN_NO_PARAMDOC = YES
+WARNINGS = YES
 
 XML_OUTPUT = doxyxml

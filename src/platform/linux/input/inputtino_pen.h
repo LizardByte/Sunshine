@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_pen.h
+ * @brief Declarations for inputtino pen input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>

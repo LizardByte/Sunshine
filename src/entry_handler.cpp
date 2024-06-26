@@ -1,8 +1,7 @@
 /**
  * @file entry_handler.cpp
- * @brief Entry point related functions.
+ * @brief Definitions for entry handling functions.
  */
-
 // standard includes
 #include <csignal>
 #include <iostream>
@@ -27,28 +26,12 @@ extern "C" {
 
 using namespace std::literals;
 
-/**
- * @brief Launch the Web UI.
- *
- * EXAMPLES:
- * ```cpp
- * launch_ui();
- * ```
- */
 void
 launch_ui() {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
   platf::open_url(url);
 }
 
-/**
- * @brief Launch the Web UI at a specific endpoint.
- *
- * EXAMPLES:
- * ```cpp
- * launch_ui_with_path("/pin");
- * ```
- */
 void
 launch_ui_with_path(std::string path) {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
@@ -56,22 +39,10 @@ launch_ui_with_path(std::string path) {
 }
 
 namespace args {
-  /**
-   * @brief Reset the user credentials.
-   *
-   * @param name The name of the program.
-   * @param argc The number of arguments.
-   * @param argv The arguments.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * creds("sunshine", 2, {"new_username", "new_password"});
-   * ```
-   */
   int
   creds(const char *name, int argc, char *argv[]) {
     if (argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
-      help(name, argc, argv);
+      help(name);
     }
 
     http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
@@ -79,59 +50,21 @@ namespace args {
     return 0;
   }
 
-  /**
-   * @brief Print help to stdout, then exit.
-   * @param name The name of the program.
-   * @param argc The number of arguments. (Unused)
-   * @param argv The arguments. (Unused)
-   *
-   * EXAMPLES:
-   * ```cpp
-   * help("sunshine", 0, nullptr);
-   * ```
-   */
   int
-  help(const char *name, int argc, char *argv[]) {
+  help(const char *name) {
     logging::print_help(name);
     return 0;
   }
 
-  /**
-   * @brief Print the version to stdout, then exit.
-   * @param name The name of the program. (Unused)
-   * @param argc The number of arguments. (Unused)
-   * @param argv The arguments. (Unused)
-   *
-   * EXAMPLES:
-   * ```cpp
-   * version("sunshine", 0, nullptr);
-   * ```
-   */
   int
-  version(const char *name, int argc, char *argv[]) {
+  version() {
     // version was already logged at startup
     return 0;
   }
 
 #ifdef _WIN32
-  /**
-   * @brief Restore global NVIDIA control panel settings.
-   *
-   * If Sunshine was improperly terminated, this function restores
-   * the global NVIDIA control panel settings to the undo file left
-   * by Sunshine. This function is typically called by the uninstaller.
-   *
-   * @param name The name of the program. (Unused)
-   * @param argc The number of arguments. (Unused)
-   * @param argv The arguments. (Unused)
-   *
-   * EXAMPLES:
-   * ```cpp
-   * restore_nvprefs_undo("sunshine", 0, nullptr);
-   * ```
-   */
   int
-  restore_nvprefs_undo(const char *name, int argc, char *argv[]) {
+  restore_nvprefs_undo() {
     if (nvprefs_instance.load()) {
       nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
       nvprefs_instance.unload();
@@ -145,11 +78,6 @@ namespace lifetime {
   char **argv;
   std::atomic_int desired_exit_code;
 
-  /**
-   * @brief Terminates Sunshine gracefully with the provided exit code.
-   * @param exit_code The exit code to return from main().
-   * @param async Specifies whether our termination will be non-blocking.
-   */
   void
   exit_sunshine(int exit_code, bool async) {
     // Store the exit code of the first exit_sunshine() call
@@ -166,9 +94,6 @@ namespace lifetime {
     }
   }
 
-  /**
-   * @brief Breaks into the debugger or terminates Sunshine if no debugger is attached.
-   */
   void
   debug_trap() {
 #ifdef _WIN32
@@ -178,9 +103,6 @@ namespace lifetime {
 #endif
   }
 
-  /**
-   * @brief Gets the argv array passed to main().
-   */
   char **
   get_argv() {
     return argv;
@@ -188,10 +110,6 @@ namespace lifetime {
 }  // namespace lifetime
 
 #ifdef _WIN32
-/**
- * @brief Check if NVIDIA's GameStream software is running.
- * @return `true` if GameStream is enabled, `false` otherwise.
- */
 bool
 is_gamestream_enabled() {
   DWORD enabled;
@@ -284,14 +202,6 @@ namespace service_ctrl {
     SC_HANDLE service_handle = NULL;
   };
 
-  /**
-   * @brief Check if the service is running.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * is_service_running();
-   * ```
-   */
   bool
   is_service_running() {
     service_controller sc { SERVICE_QUERY_STATUS };
@@ -304,14 +214,6 @@ namespace service_ctrl {
     return status.dwCurrentState == SERVICE_RUNNING;
   }
 
-  /**
-   * @brief Start the service and wait for startup to complete.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * start_service();
-   * ```
-   */
   bool
   start_service() {
     service_controller sc { SERVICE_QUERY_STATUS | SERVICE_START };
@@ -338,14 +240,6 @@ namespace service_ctrl {
     return true;
   }
 
-  /**
-   * @brief Wait for the UI to be ready after Sunshine startup.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * wait_for_ui_ready();
-   * ```
-   */
   bool
   wait_for_ui_ready() {
     std::cout << "Waiting for Web UI to be ready...";

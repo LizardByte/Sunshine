@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_base.cpp
+ * @brief Definitions for base NVENC encoder.
+ */
 #include "nvenc_base.h"
 
 #include "src/config.h"
@@ -600,14 +604,6 @@ namespace nvenc {
     return false;
   }
 
-  /**
-   * @brief This function returns the corresponding struct version for the minimum API required by the codec.
-   * @details Reducing the struct versions maximizes driver compatibility by avoiding needless API breaks.
-   * @param version The raw structure version from `NVENCAPI_STRUCT_VERSION()`.
-   * @param v11_struct_version Optionally specifies the struct version to use with v11 SDK major versions.
-   * @param v12_struct_version Optionally specifies the struct version to use with v12 SDK major versions.
-   * @return A suitable struct version for the active codec.
-   */
   uint32_t
   nvenc_base::min_struct_version(uint32_t version, uint32_t v11_struct_version, uint32_t v12_struct_version) {
     assert(minimum_api_version);

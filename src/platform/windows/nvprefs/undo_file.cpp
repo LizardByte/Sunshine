@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/undo_file.cpp
+ * @brief Definitions for the nvidia undo file.
+ */
 // local includes
 #include "undo_file.h"
 

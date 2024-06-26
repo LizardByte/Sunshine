@@ -1,6 +1,6 @@
 /**
  * @file src/video.cpp
- * @brief todo
+ * @brief Definitions for video.
  */
 #include <atomic>
 #include <bitset>
@@ -53,30 +53,30 @@ namespace video {
   namespace nv {
 
     enum class profile_h264_e : int {
-      baseline,
-      main,
-      high,
-      high_444p,
+      baseline,  ///< Baseline profile
+      main,  ///< Main profile
+      high,  ///< High profile
+      high_444p,  ///< High 4:4:4 Predictive profile
     };
 
     enum class profile_hevc_e : int {
-      main,
-      main_10,
-      rext,
+      main,  ///< Main profile
+      main_10,  ///< Main 10 profile
+      rext,  ///< Rext profile
     };
   }  // namespace nv
 
   namespace qsv {
 
     enum class profile_h264_e : int {
-      baseline = 66,
-      main = 77,
-      high = 100,
+      baseline = 66,  ///< Baseline profile
+      main = 77,  ///< Main profile
+      high = 100,  ///< High profile
     };
 
     enum class profile_hevc_e : int {
-      main = 1,
-      main_10 = 2,
+      main = 1,  ///< Main profile
+      main_10 = 2,  ///< Main 10 profile
     };
   }  // namespace qsv
 
@@ -264,16 +264,16 @@ namespace video {
   };
 
   enum flag_e : uint32_t {
-    DEFAULT = 0,
-    PARALLEL_ENCODING = 1 << 1,  // Capture and encoding can run concurrently on separate threads
-    H264_ONLY = 1 << 2,  // When HEVC is too heavy
-    LIMITED_GOP_SIZE = 1 << 3,  // Some encoders don't like it when you have an infinite GOP_SIZE. *cough* VAAPI *cough*
-    SINGLE_SLICE_ONLY = 1 << 4,  // Never use multiple slices <-- Older intel iGPU's ruin it for everyone else :P
-    CBR_WITH_VBR = 1 << 5,  // Use a VBR rate control mode to simulate CBR
-    RELAXED_COMPLIANCE = 1 << 6,  // Use FF_COMPLIANCE_UNOFFICIAL compliance mode
-    NO_RC_BUF_LIMIT = 1 << 7,  // Don't set rc_buffer_size
-    REF_FRAMES_INVALIDATION = 1 << 8,  // Support reference frames invalidation
-    ALWAYS_REPROBE = 1 << 9,  // This is an encoder of last resort and we want to aggressively probe for a better one
+    DEFAULT = 0,  ///< Default flags
+    PARALLEL_ENCODING = 1 << 1,  ///< Capture and encoding can run concurrently on separate threads
+    H264_ONLY = 1 << 2,  ///< When HEVC is too heavy
+    LIMITED_GOP_SIZE = 1 << 3,  ///< Some encoders don't like it when you have an infinite GOP_SIZE. e.g. VAAPI
+    SINGLE_SLICE_ONLY = 1 << 4,  ///< Never use multiple slices. Older intel iGPU's ruin it for everyone else
+    CBR_WITH_VBR = 1 << 5,  ///< Use a VBR rate control mode to simulate CBR
+    RELAXED_COMPLIANCE = 1 << 6,  ///< Use FF_COMPLIANCE_UNOFFICIAL compliance mode
+    NO_RC_BUF_LIMIT = 1 << 7,  ///< Don't set rc_buffer_size
+    REF_FRAMES_INVALIDATION = 1 << 8,  ///< Support reference frames invalidation
+    ALWAYS_REPROBE = 1 << 9,  ///< This is an encoder of last resort and we want to aggressively probe for a better one
   };
 
   class avcodec_encode_session_t: public encode_session_t {
@@ -957,7 +957,7 @@ namespace video {
   }
 
   /**
-   * @brief Updates the list of display names before or during a stream.
+   * @brief Update the list of display names before or during a stream.
    * @details This will attempt to keep `current_display_index` pointing at the same display.
    * @param dev_type The encoder device type used for display lookup.
    * @param display_names The list of display names to repopulate.
@@ -2225,7 +2225,7 @@ namespace video {
   }
 
   enum validate_flag_e {
-    VUI_PARAMS = 0x01,
+    VUI_PARAMS = 0x01,  ///< VUI parameters
   };
 
   int
@@ -2464,13 +2464,6 @@ namespace video {
     return true;
   }
 
-  /**
-   * This is called once at startup and each time a stream is launched to
-   * ensure the best encoder is selected. Encoder availability can change
-   * at runtime due to all sorts of things from driver updates to eGPUs.
-   *
-   * This is only safe to call when there is no client actively streaming.
-   */
   int
   probe_encoders() {
     auto encoder_list = encoders;

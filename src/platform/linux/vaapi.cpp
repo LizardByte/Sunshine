@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/vaapi.cpp
- * @brief todo
+ * @brief Definitions for VA-API hardware accelerated capture.
  */
 #include <sstream>
 #include <string>

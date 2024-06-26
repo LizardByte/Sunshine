@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_gamepad.cpp
+ * @brief Definitions for inputtino gamepad input handling.
+ */
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
@@ -15,10 +19,10 @@ using namespace std::literals;
 namespace platf::gamepad {
 
   enum GamepadStatus {
-    UHID_NOT_AVAILABLE = 0,
-    UINPUT_NOT_AVAILABLE,
-    XINPUT_NOT_AVAILABLE,
-    GAMEPAD_STATUS  // Helper to indicate the number of status
+    UHID_NOT_AVAILABLE = 0,  ///< UHID is not available
+    UINPUT_NOT_AVAILABLE,  ///< UINPUT is not available
+    XINPUT_NOT_AVAILABLE,  ///< XINPUT is not available
+    GAMEPAD_STATUS  ///< Helper to indicate the number of status
   };
 
   auto

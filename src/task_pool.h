@@ -1,6 +1,6 @@
 /**
  * @file src/task_pool.h
- * @brief todo
+ * @brief Declarations for the task pool system.
  */
 #pragma once
 
@@ -114,7 +114,7 @@ namespace task_pool_util {
     }
 
     /**
-     * @return an id to potentially delay the task.
+     * @return An id to potentially delay the task.
      */
     template <class Function, class X, class Y, class... Args>
     auto

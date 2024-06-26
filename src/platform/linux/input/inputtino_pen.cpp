@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_pen.cpp
+ * @brief Definitions for inputtino pen input handling.
+ */
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>

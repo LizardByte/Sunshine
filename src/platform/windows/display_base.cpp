@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/display_base.cpp
- * @brief todo
+ * @brief Definitions for the Windows display base code.
  */
 #include <cmath>
 #include <initguid.h>

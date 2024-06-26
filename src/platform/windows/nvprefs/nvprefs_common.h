@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/nvprefs_common.h
+ * @brief Declarations for common nvidia preferences.
+ */
 #pragma once
 
 // sunshine utility header for generic smart pointers

@@ -1,6 +1,6 @@
 /**
  * @file src/httpcommon.h
- * @brief todo
+ * @brief Declarations for common HTTP.
  */
 #pragma once
 

@@ -1,6 +1,6 @@
 /**
  * @file src/stat_trackers.h
- * @brief todo
+ * @brief Declarations for streaming statistic tracking.
  */
 #pragma once
 

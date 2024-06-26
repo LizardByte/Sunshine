@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/misc.h
- * @brief todo
+ * @brief Miscellaneous declarations for Windows.
  */
 #pragma once
 
@@ -22,7 +22,7 @@ namespace platf {
   qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2);
 
   /**
-   * @brief Converts a UTF-8 string into a UTF-16 wide string.
+   * @brief Convert a UTF-8 string into a UTF-16 wide string.
    * @param string The UTF-8 string.
    * @return The converted UTF-16 wide string.
    */
@@ -30,7 +30,7 @@ namespace platf {
   from_utf8(const std::string &string);
 
   /**
-   * @brief Converts a UTF-16 wide string into a UTF-8 string.
+   * @brief Convert a UTF-16 wide string into a UTF-8 string.
    * @param string The UTF-16 wide string.
    * @return The converted UTF-8 string.
    */

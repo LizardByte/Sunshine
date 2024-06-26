@@ -1,8 +1,7 @@
 /**
  * @file src/main.cpp
- * @brief Main entry point for Sunshine.
+ * @brief Definitions for the main entry point for Sunshine.
  */
-
 // standard includes
 #include <codecvt>
 #include <csignal>
@@ -44,11 +43,11 @@ on_signal(int sig, FN &&fn) {
 }
 
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
-  { "creds"sv, args::creds },
-  { "help"sv, args::help },
-  { "version"sv, args::version },
+  { "creds"sv, [](const char *name, int argc, char **argv) { return args::creds(name, argc, argv); } },
+  { "help"sv, [](const char *name, int argc, char **argv) { return args::help(name); } },
+  { "version"sv, [](const char *name, int argc, char **argv) { return args::version(); } },
 #ifdef _WIN32
-  { "restore-nvprefs-undo"sv, args::restore_nvprefs_undo },
+  { "restore-nvprefs-undo"sv, [](const char *name, int argc, char **argv) { return args::restore_nvprefs_undo(); } },
 #endif
 };
 
@@ -74,16 +73,6 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
 }
 #endif
 
-/**
- * @brief Main application entry point.
- * @param argc The number of arguments.
- * @param argv The arguments.
- *
- * EXAMPLES:
- * ```cpp
- * main(1, const char* args[] = {"sunshine", nullptr});
- * ```
- */
 int
 main(int argc, char *argv[]) {
   lifetime::argv = argv;

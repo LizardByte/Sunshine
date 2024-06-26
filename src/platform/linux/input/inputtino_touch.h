@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_touch.h
+ * @brief Declarations for inputtino touch input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>

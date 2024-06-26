@@ -1,10 +1,9 @@
 /**
  * @file src/confighttp.cpp
- * @brief todo
+ * @brief Definitions for the Web UI Config HTTP server.
  *
  * @todo Authentication, better handling of routes common to nvhttp, cleanup
  */
-
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 #include "process.h"
@@ -54,8 +53,8 @@ namespace confighttp {
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
   enum class op_e {
-    ADD,
-    REMOVE
+    ADD,  ///< Add client
+    REMOVE  ///< Remove client
   };
 
   void
@@ -156,7 +155,9 @@ namespace confighttp {
               << data.str();
   }
 
-  // todo - combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
+  /**
+   * @todo combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
+   */
   void
   getIndexPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -255,10 +256,12 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @todo combine function with getSunshineLogoImage and possibly getNodeModules
+   * @todo use mime_types map
+   */
   void
   getFaviconImage(resp_https_t response, req_https_t request) {
-    // todo - combine function with getSunshineLogoImage and possibly getNodeModules
-    // todo - use mime_types map
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
@@ -267,10 +270,12 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
+  /**
+   * @todo combine function with getFaviconImage and possibly getNodeModules
+   * @todo use mime_types map
+   */
   void
   getSunshineLogoImage(resp_https_t response, req_https_t request) {
-    // todo - combine function with getFaviconImage and possibly getNodeModules
-    // todo - use mime_types map
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);

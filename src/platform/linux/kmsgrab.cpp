@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/kmsgrab.cpp
- * @brief todo
+ * @brief Definitions for KMS screen capture.
  */
 #include <drm_fourcc.h>
 #include <errno.h>

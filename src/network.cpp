@@ -1,6 +1,6 @@
 /**
  * @file src/network.cpp
- * @brief todo
+ * @brief Definitions for networking related functions.
  */
 #include "network.h"
 #include "config.h"
@@ -94,11 +94,6 @@ namespace net {
     return "wan"sv;
   }
 
-  /**
-   * @brief Returns the `af_e` enum value for the `address_family` config option value.
-   * @param view The config option value.
-   * @return The `af_e` enum value.
-   */
   af_e
   af_from_enum_string(const std::string_view &view) {
     if (view == "ipv4") {
@@ -112,11 +107,6 @@ namespace net {
     return BOTH;
   }
 
-  /**
-   * @brief Returns the wildcard binding address for a given address family.
-   * @param af Address family.
-   * @return Normalized address.
-   */
   std::string_view
   af_to_any_address_string(af_e af) {
     switch (af) {
@@ -130,12 +120,6 @@ namespace net {
     return "::"sv;
   }
 
-  /**
-   * @brief Converts an address to a normalized form.
-   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
-   * @param address The address to normalize.
-   * @return Normalized address.
-   */
   boost::asio::ip::address
   normalize_address(boost::asio::ip::address address) {
     // Convert IPv6-mapped IPv4 addresses into regular IPv4 addresses
@@ -149,23 +133,11 @@ namespace net {
     return address;
   }
 
-  /**
-   * @brief Returns the given address in normalized string form.
-   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
-   * @param address The address to normalize.
-   * @return Normalized address in string form.
-   */
   std::string
   addr_to_normalized_string(boost::asio::ip::address address) {
     return normalize_address(address).to_string();
   }
 
-  /**
-   * @brief Returns the given address in a normalized form for in the host portion of a URL.
-   * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
-   * @param address The address to normalize and escape.
-   * @return Normalized address in URL-escaped string.
-   */
   std::string
   addr_to_url_escaped_string(boost::asio::ip::address address) {
     address = normalize_address(address);
@@ -179,11 +151,6 @@ namespace net {
     }
   }
 
-  /**
-   * @brief Returns the encryption mode for the given remote endpoint address.
-   * @param address The address used to look up the desired encryption mode.
-   * @return The WAN or LAN encryption mode, based on the provided address.
-   */
   int
   encryption_mode_for_address(boost::asio::ip::address address) {
     auto nettype = net::from_address(address.to_string());
@@ -227,16 +194,6 @@ namespace net {
     enet_host_destroy(host);
   }
 
-  /**
-   * @brief Map a specified port based on the base port.
-   * @param port The port to map as a difference from the base port.
-   * @return `std:uint16_t` : The mapped port number.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * std::uint16_t mapped_port = net::map_port(1);
-   * ```
-   */
   std::uint16_t
   map_port(int port) {
     // calculate the port from the config port
@@ -246,8 +203,6 @@ namespace net {
     if (mapped_port < 1024 || mapped_port > 65535) {
       BOOST_LOG(warning) << "Port out of range: "sv << mapped_port;
     }
-
-    // TODO: Ensure port is not already in use by another application
 
     return mapped_port;
   }

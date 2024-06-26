@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/misc.h
- * @brief todo
+ * @brief Miscellaneous declarations for macOS platform.
  */
 #pragma once
 

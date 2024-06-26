@@ -7,6 +7,7 @@
 # standard imports
 from datetime import datetime
 import os
+import shutil
 import subprocess
 from typing import Mapping, Optional
 
@@ -147,6 +148,12 @@ for d in directories:
         name=d,
         exist_ok=True,
     )
+
+# remove existing html files
+# doxygen builds will not re-generated if the html directory already exists
+html_dir = os.path.join(source_dir, 'build', 'html')
+if os.path.exists(html_dir):
+    shutil.rmtree(html_dir)
 
 # run doxygen
 doxy_proc = _run_subprocess(

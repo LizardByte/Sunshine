@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/nv12_zero_device.cpp
- * @brief todo
+ * @brief Definitions for NV12 zero copy device on macOS.
  */
 #include <utility>
 

@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/driver_settings.h
+ * @brief Declarations for nvidia driver settings.
+ */
 #pragma once
 
 // nvapi headers

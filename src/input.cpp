@@ -1,6 +1,6 @@
 /**
  * @file src/input.cpp
- * @brief todo
+ * @brief Definitions for gamepad, keyboard, and mouse input handling.
  */
 // define uint32_t for <moonlight-common-c/src/Input.h>
 #include <cstdint>
@@ -49,9 +49,9 @@ namespace input {
   constexpr auto VKEY_RMENU = 0xA5;
 
   enum class button_state_e {
-    NONE,
-    DOWN,
-    UP
+    NONE,  ///< No button state
+    DOWN,  ///< Button is down
+    UP  ///< Button is up
   };
 
   template <std::size_t N>
@@ -88,9 +88,9 @@ namespace input {
   }
 
   /**
-   * @brief Converts a little-endian netfloat to a native endianness float.
+   * @brief Convert a little-endian netfloat to a native endianness float.
    * @param f Netfloat value.
-   * @return Float value.
+   * @return The native endianness float value.
    */
   float
   from_netfloat(netfloat f) {
@@ -98,11 +98,11 @@ namespace input {
   }
 
   /**
-   * @brief Converts a little-endian netfloat to a native endianness float and clamps it.
+   * @brief Convert a little-endian netfloat to a native endianness float and clamps it.
    * @param f Netfloat value.
    * @param min The minimium value for clamping.
    * @param max The maximum value for clamping.
-   * @return Clamped float value.
+   * @return Clamped native endianess float value.
    */
   float
   from_clamped_netfloat(netfloat f, float min, float max) {
@@ -150,11 +150,10 @@ namespace input {
 
   struct input_t {
     enum shortkey_e {
-      CTRL = 0x1,
-      ALT = 0x2,
-      SHIFT = 0x4,
-
-      SHORTCUT = CTRL | ALT | SHIFT
+      CTRL = 0x1,  ///< Control key
+      ALT = 0x2,  ///< Alt key
+      SHIFT = 0x4,  ///< Shift key
+      SHORTCUT = CTRL | ALT | SHIFT  ///< Shortcut combination
     };
 
     input_t(
@@ -191,11 +190,9 @@ namespace input {
   };
 
   /**
-   * Apply shortcut based on VKEY
-   * On success
-   *    return > 0
-   * On nothing
-   *    return 0
+   * @brief Apply shortcut based on VKEY
+   * @param keyCode The VKEY code
+   * @return 0 if no shortcut applied, > 0 if shortcut applied.
    */
   inline int
   apply_shortcut(short keyCode) {
@@ -499,7 +496,7 @@ namespace input {
   }
 
   /**
-   * @brief Multiplies a polar coordinate pair by a cartesian scaling factor.
+   * @brief Multiply a polar coordinate pair by a cartesian scaling factor.
    * @param r The radial coordinate.
    * @param angle The angular coordinate (radians).
    * @param scalar The scalar cartesian coordinate pair.
@@ -519,17 +516,10 @@ namespace input {
     return std::sqrt(std::pow(x, 2) + std::pow(y, 2));
   }
 
-  /**
-   * @brief Scales the ellipse axes according to the provided size.
-   * @param val The major and minor axis pair.
-   * @param rotation The rotation value from the touch/pen event.
-   * @param scalar The scalar cartesian coordinate pair.
-   * @return The major and minor axis pair.
-   */
   std::pair<float, float>
   scale_client_contact_area(const std::pair<float, float> &val, uint16_t rotation, const std::pair<float, float> &scalar) {
     // If the rotation is unknown, we'll just scale both axes equally by using
-    // a 45 degree angle for our scaling calculations
+    // a 45-degree angle for our scaling calculations
     float angle = rotation == LI_ROT_UNKNOWN ? (M_PI / 4) : (rotation * (M_PI / 180));
 
     // If we have a major but not a minor axis, treat the touch as circular
@@ -650,7 +640,7 @@ namespace input {
   }
 
   /**
-   * Update flags for keyboard shortcut combo's
+   * @brief Update flags for keyboard shortcut combo's
    */
   inline void
   update_shortcutFlags(int *flags, short keyCode, bool release) {
@@ -1242,16 +1232,16 @@ namespace input {
   }
 
   enum class batch_result_e {
-    batched,  // This entry was batched with the source entry
-    not_batchable,  // Not eligible to batch but continue attempts to batch
-    terminate_batch,  // Stop trying to batch with this entry
+    batched,  ///< This entry was batched with the source entry
+    not_batchable,  ///< Not eligible to batch but continue attempts to batch
+    terminate_batch,  ///< Stop trying to batch with this entry
   };
 
   /**
    * @brief Batch two relative mouse messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
@@ -1275,7 +1265,7 @@ namespace input {
    * @brief Batch two absolute mouse messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_ABS_MOUSE_MOVE_PACKET dest, PNV_ABS_MOUSE_MOVE_PACKET src) {
@@ -1293,7 +1283,7 @@ namespace input {
    * @brief Batch two vertical scroll messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_SCROLL_PACKET dest, PNV_SCROLL_PACKET src) {
@@ -1314,7 +1304,7 @@ namespace input {
    * @brief Batch two horizontal scroll messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_HSCROLL_PACKET dest, PSS_HSCROLL_PACKET src) {
@@ -1334,7 +1324,7 @@ namespace input {
    * @brief Batch two controller state messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
@@ -1363,7 +1353,7 @@ namespace input {
    * @brief Batch two touch messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
@@ -1398,7 +1388,7 @@ namespace input {
    * @brief Batch two pen messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
@@ -1432,7 +1422,7 @@ namespace input {
    * @brief Batch two controller touch messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
@@ -1473,7 +1463,7 @@ namespace input {
    * @brief Batch two controller motion messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
@@ -1497,7 +1487,7 @@ namespace input {
    * @brief Batch two input messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_INPUT_HEADER dest, PNV_INPUT_HEADER src) {

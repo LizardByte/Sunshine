@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/graphics.cpp
- * @brief todo
+ * @brief Definitions for graphics related functions.
  */
 #include "graphics.h"
 #include "src/file_handler.h"
@@ -507,7 +507,7 @@ namespace egl {
   }
 
   /**
-   * @brief Returns EGL attributes for eglCreateImage() to import the provided surface.
+   * @brief Get EGL attributes for eglCreateImage() to import the provided surface.
    * @param surface The surface descriptor.
    * @return Vector of EGL attributes.
    */
@@ -576,7 +576,7 @@ namespace egl {
   }
 
   /**
-   * @brief Creates a black RGB texture of the specified image size.
+   * @brief Create a black RGB texture of the specified image size.
    * @param img The image to use for texture sizing.
    * @return The new RGB texture.
    */
@@ -655,7 +655,7 @@ namespace egl {
   }
 
   /**
-   * @brief Creates biplanar YUV textures to render into.
+   * @brief Create biplanar YUV textures to render into.
    * @param width Width of the target frame.
    * @param height Height of the target frame.
    * @param format Format of the target frame.

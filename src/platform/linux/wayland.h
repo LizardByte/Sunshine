@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/wayland.h
- * @brief todo
+ * @brief Declarations for Wayland capture.
  */
 #pragma once
 
@@ -17,7 +17,7 @@
  * The classes defined in this macro block should only be used by
  * cpp files whose compilation depends on SUNSHINE_BUILD_WAYLAND
  */
-#if defined(SUNSHINE_BUILD_WAYLAND) || defined(DOXYGEN)
+#ifdef SUNSHINE_BUILD_WAYLAND
 
 namespace wl {
   using display_internal_t = util::safe_ptr<wl_display, wl_display_disconnect>;
@@ -34,9 +34,9 @@ namespace wl {
   class dmabuf_t {
   public:
     enum status_e {
-      WAITING,
-      READY,
-      REINIT,
+      WAITING,  ///< Waiting for a frame
+      READY,  ///< Frame is ready
+      REINIT,  ///< Reinitialize the frame
     };
 
     dmabuf_t(dmabuf_t &&) = delete;
@@ -154,9 +154,9 @@ namespace wl {
 
   public:
     enum interface_e {
-      XDG_OUTPUT,
-      WLR_EXPORT_DMABUF,
-      MAX_INTERFACES,
+      XDG_OUTPUT,  ///< xdg-output
+      WLR_EXPORT_DMABUF,  ///< Export dmabuf
+      MAX_INTERFACES,  ///< Maximum number of interfaces
     };
 
     interface_t(interface_t &&) = delete;

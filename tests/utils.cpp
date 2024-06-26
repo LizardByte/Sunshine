@@ -1,8 +1,7 @@
 /**
- * @file utils.cpp
- * @brief Utility functions
+ * @file tests/utils.cpp
+ * @brief Definition for utility functions.
  */
-
 #include "utils.h"
 
 /**

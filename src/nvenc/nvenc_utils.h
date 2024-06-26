@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_utils.h
+ * @brief Declarations for base NVENC utilities.
+ */
 #pragma once
 
 #ifdef _WIN32

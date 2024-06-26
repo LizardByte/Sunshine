@@ -1,6 +1,6 @@
 /**
  * @file src/config.h
- * @brief todo
+ * @brief Declarations for the configuration of Sunshine.
  */
 #pragma once
 
@@ -143,12 +143,12 @@ namespace config {
 
   namespace flag {
     enum flag_e : std::size_t {
-      PIN_STDIN = 0,  // Read PIN from stdin instead of http
-      FRESH_STATE,  // Do not load or save state
-      FORCE_VIDEO_HEADER_REPLACE,  // force replacing headers inside video data
-      UPNP,  // Try Universal Plug 'n Play
-      CONST_PIN,  // Use "universal" pin
-      FLAG_SIZE
+      PIN_STDIN = 0,  ///< Read PIN from stdin instead of http
+      FRESH_STATE,  ///< Do not load or save state
+      FORCE_VIDEO_HEADER_REPLACE,  ///< force replacing headers inside video data
+      UPNP,  ///< Try Universal Plug 'n Play
+      CONST_PIN,  ///< Use "universal" pin
+      FLAG_SIZE  ///< Number of flags
     };
   }
 

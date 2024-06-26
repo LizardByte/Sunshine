@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/publish.cpp
- * @brief todo
+ * @brief Definitions for Windows mDNS service registration.
  */
 #include <winsock2.h>
 

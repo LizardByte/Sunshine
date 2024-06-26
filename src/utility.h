@@ -1,6 +1,6 @@
 /**
  * @file src/utility.h
- * @brief todo
+ * @brief Declarations for utility functions.
  */
 #pragma once
 
@@ -970,12 +970,11 @@ namespace util {
   defined(__AARCH64EL__) ||                                       \
   defined(_MIPSEL) || defined(__MIPSEL) || defined(__MIPSEL__) || \
   defined(_WIN32)
-        // It's a little-endian target architecture
-        little = true,
+        little = true,  ///< little-endian target architecture
 #else
   #error "Unknown Endianness"
 #endif
-        big = !little
+        big = !little  ///< big-endian target architecture
       };
     };
 

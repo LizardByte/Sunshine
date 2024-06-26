@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_encoded_frame.h
+ * @brief Declarations for base NVENC encoded frame.
+ */
 #pragma once
 
 #include <cstdint>

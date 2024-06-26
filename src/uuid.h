@@ -1,11 +1,14 @@
 /**
  * @file src/uuid.h
- * @brief todo
+ * @brief Declarations for UUID generation.
  */
 #pragma once
 
 #include <random>
 
+/**
+ * @brief UUID utilities.
+ */
 namespace uuid_util {
   union uuid_t {
     std::uint8_t b8[16];

@@ -1,6 +1,6 @@
 /**
  * @file src/rtsp.h
- * @brief todo
+ * @brief Declarations for RTSP streaming.
  */
 #pragma once
 
@@ -41,6 +41,10 @@ namespace rtsp_stream {
   void
   launch_session_raise(std::shared_ptr<launch_session_t> launch_session);
 
+  /**
+   * @brief Clear state for the specified launch session.
+   * @param launch_session_id The ID of the session to clear.
+   */
   void
   launch_session_clear(uint32_t launch_session_id);
 

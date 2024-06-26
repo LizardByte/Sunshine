@@ -1,6 +1,6 @@
 /**
  * @file src/thread_safe.h
- * @brief todo
+ * @brief Declarations for thread-safe data structures.
  */
 #pragma once
 

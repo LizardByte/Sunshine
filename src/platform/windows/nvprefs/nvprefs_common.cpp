@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/nvprefs_common.cpp
+ * @brief Definitions for common nvidia preferences.
+ */
 // local includes
 #include "nvprefs_common.h"
 #include "src/logging.h"

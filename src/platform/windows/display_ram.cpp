@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/display_ram.cpp
- * @brief todo
+ * @brief Definitions for handling ram.
  */
 #include "display.h"
 

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/audio.cpp
- * @brief todo
+ * @brief Definitions for audio control on Linux.
  */
 #include <bitset>
 #include <sstream>

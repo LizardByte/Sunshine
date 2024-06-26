@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/cuda.cpp
- * @brief todo
+ * @brief Definitions for CUDA encoding.
  */
 #include <bitset>
 #include <fcntl.h>

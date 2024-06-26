@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/nvprefs_interface.cpp
+ * @brief Definitions for nvidia preferences interface.
+ */
 // standard includes
 #include <cassert>
 

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/x11grab.cpp
- * @brief todo
+ * @brief Definitions for x11 capture.
  */
 #include "src/platform/common.h"
 

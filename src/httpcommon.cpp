@@ -1,6 +1,6 @@
 /**
  * @file src/httpcommon.cpp
- * @brief todo
+ * @brief Definitions for common HTTP.
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
