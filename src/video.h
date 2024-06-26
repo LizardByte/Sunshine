@@ -37,7 +37,7 @@ namespace video {
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
     int dynamicRange;
 
-    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4, 2 - 4:4:4 recombined into 4:2:0
   };
 
   platf::mem_type_e
@@ -123,6 +123,7 @@ namespace video {
       CBR,  ///< Some encoders don't support CBR, if not supported attempt constant quantization parameter instead.
       DYNAMIC_RANGE,  ///< HDR support.
       YUV444,  ///< YUV 4:4:4 support.
+      YUV444_IN_420,  ///< YUV 4:4:4 recombined into 4:2:0 support.
       VUI_PARAMETERS,  ///< AMD encoder with VAAPI doesn't add VUI parameters to SPS.
       MAX_FLAGS  ///< Maximum number of flags.
     };
@@ -138,6 +139,7 @@ namespace video {
         _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(YUV444);
+        _CONVERT(YUV444_IN_420);
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }
@@ -351,6 +353,7 @@ namespace video {
   extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  extern bool last_encoder_probe_supported_yuv444in420;
 
   void
   capture(
@@ -371,4 +374,25 @@ namespace video {
    */
   int
   probe_encoders();
+
+  /**
+   * @brief Dimensional information of the particular YUV 4:4:4 recombined into 4:2:0 video.
+   */
+  struct yuv444in420_dimensions_t {
+    uint32_t width;  ///< Recombined video width.
+    uint32_t height;  ///< Recombined video height.
+    uint32_t stack_dimension;  ///< Recombined video stack height or width (depending on stacking direction).
+    bool vertical_stacking;  ///< Whether the recombination stacking is vertical.
+                             ///< Usually `true` for landscape and `false` for portrait oriented videos.
+  };
+
+  /**
+   * @brief Calculate YUV 4:4:4 recombined into 4:2:0 video dimensions from the source picture dimensions.
+   * @param width Source picture width.
+   * @param height Source picture height.
+   * @return Recombined video dimensions.
+   */
+  yuv444in420_dimensions_t
+  calculate_yuv444in420_dimensions(uint32_t width, uint32_t height);
+
 }  // namespace video

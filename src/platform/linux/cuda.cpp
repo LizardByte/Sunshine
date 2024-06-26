@@ -961,7 +961,12 @@ namespace cuda {
       }
 
       std::unique_ptr<platf::avcodec_encode_device_t>
-      make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) {
+      make_avcodec_encode_device(platf::pix_fmt_e pix_fmt, bool yuv444in420) {
+        if (yuv444in420) {
+          BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported";
+          return nullptr;
+        }
+
         return ::cuda::make_avcodec_encode_device(width, height, true);
       }
 

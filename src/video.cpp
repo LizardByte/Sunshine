@@ -992,6 +992,7 @@ namespace video {
   int active_av1_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+  bool last_encoder_probe_supported_yuv444in420 = false;
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
@@ -1458,11 +1459,18 @@ namespace video {
     }
 
     auto colorspace = encode_device->colorspace;
-    auto sw_fmt = (colorspace.bit_depth == 8 && config.chromaSamplingType == 0)  ? platform_formats->avcodec_pix_fmt_8bit :
-                  (colorspace.bit_depth == 8 && config.chromaSamplingType == 1)  ? platform_formats->avcodec_pix_fmt_yuv444_8bit :
-                  (colorspace.bit_depth == 10 && config.chromaSamplingType == 0) ? platform_formats->avcodec_pix_fmt_10bit :
-                  (colorspace.bit_depth == 10 && config.chromaSamplingType == 1) ? platform_formats->avcodec_pix_fmt_yuv444_10bit :
-                                                                                   AV_PIX_FMT_NONE;
+
+    AVPixelFormat sw_fmt = AV_PIX_FMT_NONE;
+    if (colorspace.bit_depth == 8) {
+      sw_fmt = (config.chromaSamplingType == 1) ?
+                 platform_formats->avcodec_pix_fmt_yuv444_8bit :
+                 platform_formats->avcodec_pix_fmt_8bit;
+    }
+    else if (colorspace.bit_depth == 10) {
+      sw_fmt = (config.chromaSamplingType == 1) ?
+                 platform_formats->avcodec_pix_fmt_yuv444_10bit :
+                 platform_formats->avcodec_pix_fmt_10bit;
+    }
 
     // Allow up to 1 retry to apply the set of fallback options.
     //
@@ -1472,8 +1480,16 @@ namespace video {
     avcodec_ctx_t ctx;
     for (int retries = 0; retries < 2; retries++) {
       ctx.reset(avcodec_alloc_context3(codec));
-      ctx->width = config.width;
-      ctx->height = config.height;
+      if (config.chromaSamplingType == 2) {
+        // YUV 4:4:4 recombined into YUV 4:2:0
+        auto recombined_dimensions = video::calculate_yuv444in420_dimensions(config.width, config.height);
+        ctx->width = recombined_dimensions.width;
+        ctx->height = recombined_dimensions.height;
+      }
+      else {
+        ctx->width = config.width;
+        ctx->height = config.height;
+      }
       ctx->time_base = AVRational { 1, config.framerate };
       ctx->framerate = AVRational { config.framerate, 1 };
 
@@ -1718,7 +1734,7 @@ namespace video {
     frame->color_primaries = ctx->color_primaries;
     frame->color_trc = ctx->color_trc;
     frame->colorspace = ctx->colorspace;
-    frame->chroma_location = ctx->chroma_sample_location;
+    frame->chroma_location = (config.chromaSamplingType == 2) ? AVCHROMA_LOC_UNSPECIFIED : ctx->chroma_sample_location;
 
     // Attach HDR metadata to the AVFrame
     if (colorspace_is_hdr(colorspace)) {
@@ -1759,7 +1775,7 @@ namespace video {
     if (!encode_device->data) {
       auto software_encode_device = std::make_unique<avcodec_software_encode_device_t>();
 
-      if (software_encode_device->init(width, height, frame.get(), sw_fmt, hardware)) {
+      if (software_encode_device->init(ctx->width, ctx->height, frame.get(), sw_fmt, hardware)) {
         return nullptr;
       }
       software_encode_device->colorspace = colorspace;
@@ -1964,10 +1980,10 @@ namespace video {
     }
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
-      result = disp.make_avcodec_encode_device(pix_fmt);
+      result = disp.make_avcodec_encode_device(pix_fmt, config.chromaSamplingType == 2);
     }
     else if (dynamic_cast<const encoder_platform_formats_nvenc *>(encoder.platform_formats.get())) {
-      result = disp.make_nvenc_encode_device(pix_fmt);
+      result = disp.make_nvenc_encode_device(pix_fmt, config.chromaSamplingType == 2);
     }
 
     if (result) {
@@ -2506,6 +2522,14 @@ namespace video {
       encoder.av1.capabilities.reset();
     }
 
+    // Set YUV 4:4:4 in 4:2:0 recombination capabilities
+    {
+      const bool supported = disp->is_yuv444in420_supported();
+      if (encoder.h264[encoder_t::PASSED]) encoder.h264[encoder_t::YUV444_IN_420] = supported;
+      if (encoder.hevc[encoder_t::PASSED]) encoder.hevc[encoder_t::YUV444_IN_420] = supported;
+      if (encoder.av1[encoder_t::PASSED]) encoder.av1[encoder_t::YUV444_IN_420] = supported;
+    }
+
     // Test HDR and YUV444 support
     {
       // H.264 is special because encoders may support YUV 4:4:4 without supporting 10-bit color depth
@@ -2725,6 +2749,8 @@ namespace video {
                                                        encoder.hevc[encoder_t::YUV444];
     last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
                                                        encoder.av1[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444in420 = encoder.h264[encoder_t::PASSED] &&
+                                               encoder.h264[encoder_t::YUV444_IN_420];
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
@@ -2930,6 +2956,28 @@ namespace video {
     }
 
     return platf::pix_fmt_e::unknown;
+  }
+
+  yuv444in420_dimensions_t
+  calculate_yuv444in420_dimensions(uint32_t width, uint32_t height) {
+    if (width >= height) {
+      auto stack = (height + 7) / 8 * 8;  // pad to 8x8 transform block
+      return {
+        .width = width,
+        .height = stack * 2,
+        .stack_dimension = stack,
+        .vertical_stacking = true,
+      };
+    }
+    else {
+      auto stack = (width + 7) / 8 * 8;  // pad to 8x8 transform block
+      return {
+        .width = stack * 2,
+        .height = height,
+        .stack_dimension = stack,
+        .vertical_stacking = false,
+      };
+    }
   }
 
 }  // namespace video
