@@ -24,7 +24,7 @@
     "warning": "警告！"
   },
   "apps": {
-    "actions": "操作",
+    "actions": "行为",
     "add_cmds": "添加命令",
     "add_new": "添加新应用",
     "app_name": "应用名称",
@@ -117,7 +117,7 @@
     "amd_usage_lowlatency": "lowlatency -- 低延迟（最快）",
     "amd_usage_lowlatency_high_quality": "lowlatency_high_quality -- 低延迟、高质量（快速）",
     "amd_usage_transcoding": "transcoding -- 转码（最慢）",
-    "amd_usage_ultralowlatency": "ultralowlatency -- 超低延迟（最快）",
+    "amd_usage_ultralowlatency": "超低延迟-超低延迟(最快)",
     "amd_usage_webcam": "webcam -- 网络摄像头（慢）",
     "amd_vbaq": "AMF 基于方差的自适应量化 (VBAQ)",
     "amd_vbaq_desc": "人的视觉系统通常对高成形地区的艺术品不太敏感。 在 VBAQ 模式下，像素差异用于表示空间纹理的复杂性，使编码器能够将更多的比特分配给较平的区域。 启用此功能可提高主观视觉品质及一些内容。",
@@ -254,7 +254,7 @@
     "origin_web_ui_allowed_wan": "任何人都可以访问 Web UI",
     "output_name_desc_unix": "在 Sunshine 启动过程中，您将看到检测到的显示器列表。注意：您需要使用括号内的 ID 值。",
     "output_name_desc_windows": "手动指定用于抓取的显示。如果未设置，则捕获主显示。 注意：如果您在上面指定了GPU，则此显示必须连接到该GPU。可以使用以下命令找到相应的值：",
-    "output_name_unix": "显示器编号",
+    "output_name_unix": "显示号码",
     "output_name_windows": "输出名称",
     "ping_timeout": "Ping 超时",
     "ping_timeout_desc": "关闭串流前等待 Moonlight 数据的时间（以毫秒计）",
