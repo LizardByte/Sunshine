@@ -669,7 +669,7 @@ namespace platf::dxgi {
           return -1;
         }
 
-        rt_cleared = false;  // can't use ClearRenderTargetView() on Y plane, will clear on first convert()
+        rt_cleared = false;  // can't use ClearRenderTargetView(), will clear on first convert()
       }
       else {
         D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
