@@ -102,6 +102,7 @@ namespace nvenc {
 
     encoder_params.width = client_config.width;
     encoder_params.height = client_config.height;
+    if (client_config.chromaSamplingType == 2) encoder_params.height *= 2;  // YUV 4:4:4 recombined into YUV 4:2:0
     encoder_params.buffer_format = buffer_format;
     encoder_params.rfi = true;
 

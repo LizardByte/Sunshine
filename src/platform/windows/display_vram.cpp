@@ -467,29 +467,19 @@ namespace platf::dxgi {
             rt_cleared = true;
           }
 
-          assert(outY_input_layout && outY_index_buffer && outY_vertex_buffer && outY_vertex_buffer_stride);
-          assert(outUV_input_layout && outUV_index_buffer && outUV_vertex_buffer && outUV_vertex_buffer_stride);
-
           device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
           device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
           device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_fp16_ps.get() : convert_Y_ps.get(), nullptr, 0);
           assert(outYUVinY_views.size() == 3);
           device_ctx->RSSetViewports(outYUVinY_views.size(), outYUVinY_views.data());
-          device_ctx->IASetInputLayout(outY_input_layout.get());
-          device_ctx->IASetIndexBuffer(outY_index_buffer.get(), DXGI_FORMAT_R32_UINT, 0);
-          UINT y_buffer_offset = 0;
-          device_ctx->IASetVertexBuffers(0, 1, &outY_vertex_buffer, &outY_vertex_buffer_stride, &y_buffer_offset);
-          device_ctx->DrawIndexed(outY_index_buffer_size, 0, 0);
+          device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
+          device_ctx->Draw(9, 0);  // vertex shader spreads 9 vertices across 3 viewports
 
           device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
           device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
           device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
           device_ctx->RSSetViewports(1, &outUV_view);
-          device_ctx->IASetInputLayout(outUV_input_layout.get());
-          device_ctx->IASetIndexBuffer(outUV_index_buffer.get(), DXGI_FORMAT_R32_UINT, 0);
-          UINT uv_buffer_offset = 0;
-          device_ctx->IASetVertexBuffers(0, 1, &outUV_vertex_buffer, &outUV_vertex_buffer_stride, &uv_buffer_offset);
-          device_ctx->DrawIndexed(outUV_index_buffer_size, 0, 0);
+          device_ctx->Draw(3, 0);
         }
         else {
           assert(rt_cleared);
@@ -575,22 +565,26 @@ namespace platf::dxgi {
       outYUV_views_for_clear = { outY_view_for_clear, outY_view_for_clear, outY_view_for_clear };
       outYUV_views_for_clear[1].TopLeftY += out_height;
       outYUV_views_for_clear[2].TopLeftY += 2 * out_height;
-      {
-        //  Y         U     V
-        // +-------+ +---+ +---+
-        // |       | |U0 | |V0 |
-        // |   Y   | +---+ +---+
-        // |       | |U1 | |V1 |
-        // +---+---+ +---+ +---+
-        // |U2 |U3 |
-        // +---|---+
-        // |V2 |V3 |
-        // +---+---+
-        outYUVinY_views = { outY_view, outY_view, outY_view };  // Y view, U2-U3 view, V2-V3 view
+      if (recombine_yuv444_into_yuv420) {
+        //       Y         U     V
+        //       +-------+ +---+ +---+
+        //       |       | |   | |   |
+        // VP0-> |   Y   | |UR | |VR |
+        //       |       | |   | |   |
+        //       +---+---+ +---+ +---+
+        //       |   |   |
+        // VP1-> |UL |VL | <-VP2
+        //       |   |   |
+        //       +---+---+
+        outYUVinY_views = { outY_view, outY_view, outY_view };  // Y view, UL view, VL view
         outYUVinY_views[1].TopLeftY += height;
-        outYUVinY_views[1].Height /= 2;
-        outYUVinY_views[2].TopLeftY = outYUVinY_views[1].TopLeftY + outYUVinY_views[1].Height;
-        outYUVinY_views[2].Height /= 2;
+        outYUVinY_views[1].Width /= 2;
+        outYUVinY_views[2].TopLeftX += outYUVinY_views[1].Width;
+        outYUVinY_views[2].TopLeftY = outYUVinY_views[1].TopLeftY;
+        outYUVinY_views[2].Width = outYUVinY_views[1].Width;
+
+        outUV_view = outY_view;
+        outUV_view.Width /= 2;
       }
 
       float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
@@ -797,159 +791,6 @@ namespace platf::dxgi {
         create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
         create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_ps);
         create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-      }
-
-      if (yuv444in420) {
-        // Create input layouts
-        {
-          D3D11_INPUT_ELEMENT_DESC outY_input_layout_desc[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "SV_ViewportArrayIndex", 0, DXGI_FORMAT_R32_UINT, 0, 16, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-          };
-          status = device->CreateInputLayout(outY_input_layout_desc, ARRAYSIZE(outY_input_layout_desc),
-            convert_yuv420_planar_y_ps_hlsl->GetBufferPointer(),
-            convert_yuv420_planar_y_ps_hlsl->GetBufferSize(),
-            &outY_input_layout);
-          if (status) {
-            BOOST_LOG(error) << "Failed to create input layout [0x" << util::hex(status).to_string_view() << "]";
-            return -1;
-          }
-
-          D3D11_INPUT_ELEMENT_DESC outUV_input_layout_desc[] = {
-            { "POSITION", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-            { "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 8, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-          };
-          status = device->CreateInputLayout(outUV_input_layout_desc, ARRAYSIZE(outUV_input_layout_desc),
-            convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferPointer(),
-            convert_yuv420_packed_uv_type0_ps_hlsl->GetBufferSize(),
-            &outUV_input_layout);
-          if (status) {
-            BOOST_LOG(error) << "Failed to create input layout [0x" << util::hex(status).to_string_view() << "]";
-            return -1;
-          }
-        }
-
-        struct vertex_t {
-          float v[4];
-        };
-        struct vertex_viewport_t {
-          float v[4];
-          uint32_t vp;
-        };
-        std::vector<vertex_viewport_t> outY_vertices;
-        std::vector<uint32_t> outY_indices;
-        std::vector<vertex_t> outUV_vertices;
-        std::vector<uint32_t> outUV_indices;
-
-        // Generate vertices and indices
-        {
-          struct screen_rect_t {
-            float left, top, right, bottom;
-          };
-          struct texture_offset_t {
-            float u, v;
-          };
-
-          //  Y         U     V
-          // +-------+ +---+ +---+
-          // |       | |U0 | |V0 |
-          // |   Y   | +---+ +---+
-          // |       | |U1 | |V1 |
-          // +---+---+ +---+ +---+
-          // |U2 |U3 |
-          // +---|---+
-          // |V2 |V3 |
-          // +---+---+
-
-          auto add_quad_viewport = [&](auto &vertices, auto &indices,
-                                     screen_rect_t screen, texture_offset_t offset, uint32_t viewport) {
-            // 0 1
-            // 2 3
-            const uint32_t index_offset = vertices.size();
-            vertices.push_back(vertex_viewport_t({ screen.left, screen.top, offset.u, offset.v }, viewport));
-            vertices.push_back(vertex_viewport_t({ screen.right, screen.top, 1 + offset.u, offset.v }, viewport));
-            vertices.push_back(vertex_viewport_t({ screen.right, screen.bottom, 1 + offset.u, 1 + offset.v }, viewport));
-            vertices.push_back(vertex_viewport_t({ screen.left, screen.bottom, 0, 1 + offset.v }, viewport));
-            indices.insert(indices.end(), { index_offset, index_offset + 1, index_offset + 3 });
-            indices.insert(indices.end(), { index_offset, index_offset + 3, index_offset + 2 });
-          };
-
-          add_quad_viewport(outY_vertices, outY_indices, { 0, 0, 1, 1 }, { 0, 0 }, 0);  // Y
-          add_quad_viewport(outY_vertices, outY_indices, { 0, 0, 0.5f, 1 }, { 0, 0 }, 1);  // U2
-          add_quad_viewport(outY_vertices, outY_indices, { 0.5f, 0, 1, 1 }, { 0, 0 }, 1);  // U3
-          add_quad_viewport(outY_vertices, outY_indices, { 0, 0, 0.5f, 1 }, { 0, 0 }, 2);  // V2
-          add_quad_viewport(outY_vertices, outY_indices, { 0.5f, 0, 1, 1 }, { 0, 0 }, 2);  // V3
-
-          auto add_quad = [&](auto &vertices, auto &indices,
-                            screen_rect_t screen, texture_offset_t offset) {
-            // 0 1
-            // 2 3
-            const uint32_t index_offset = vertices.size();
-            vertices.push_back(vertex_t({ screen.left, screen.top, offset.u, offset.v }));
-            vertices.push_back(vertex_t({ screen.right, screen.top, 1 + offset.u, offset.v }));
-            vertices.push_back(vertex_t({ screen.right, screen.bottom, 1 + offset.u, 1 + offset.v }));
-            vertices.push_back(vertex_t({ screen.left, screen.bottom, 0, 1 + offset.v }));
-            indices.insert(indices.end(), { index_offset, index_offset + 1, index_offset + 3 });
-            indices.insert(indices.end(), { index_offset, index_offset + 3, index_offset + 2 });
-          };
-
-          add_quad(outUV_vertices, outUV_indices, { 0, 0, 1, 0.5f }, { 0, 0 });  // U0,V0
-          add_quad(outUV_vertices, outUV_indices, { 0, 0.5f, 1, 1 }, { 0, 0 });  // U1,V1
-        }
-
-        // Create vertex and index buffers
-        {
-          auto create_buffers = [&]<typename T>(std::span<T> vertices, auto &vertex_buffer, auto &vertex_buffer_stride,
-                                  std::span<uint32_t> indices, auto &index_buffer, auto &index_buffer_size) {
-            D3D11_BUFFER_DESC vertex_buffer_desc = {};
-            vertex_buffer_desc.ByteWidth = vertices.size_bytes();
-            vertex_buffer_desc.Usage = D3D11_USAGE_IMMUTABLE;
-            vertex_buffer_desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-            vertex_buffer_desc.CPUAccessFlags = 0;
-            vertex_buffer_desc.MiscFlags = 0;
-            vertex_buffer_desc.StructureByteStride = sizeof(T);
-
-            D3D11_SUBRESOURCE_DATA vertex_buffer_data = {};
-            vertex_buffer_data.pSysMem = vertices.data();
-
-            status = device->CreateBuffer(&vertex_buffer_desc, &vertex_buffer_data, &vertex_buffer);
-            if (FAILED(status)) {
-              BOOST_LOG(error) << "Failed to create vertex buffer [0x" << util::hex(status).to_string_view() << "]";
-              return status;
-            };
-
-            vertex_buffer_stride = vertex_buffer_desc.StructureByteStride;
-
-            D3D11_BUFFER_DESC index_buffer_desc = {};
-            index_buffer_desc.ByteWidth = indices.size_bytes();
-            index_buffer_desc.Usage = D3D11_USAGE_IMMUTABLE;
-            index_buffer_desc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-            index_buffer_desc.CPUAccessFlags = 0;
-            index_buffer_desc.MiscFlags = 0;
-            index_buffer_desc.StructureByteStride = sizeof(uint32_t);
-
-            D3D11_SUBRESOURCE_DATA index_buffer_data = {};
-            index_buffer_data.pSysMem = indices.data();
-
-            status = device->CreateBuffer(&index_buffer_desc, &index_buffer_data, &index_buffer);
-            if (FAILED(status)) {
-              BOOST_LOG(error) << "Failed to create index buffer [0x" << util::hex(status).to_string_view() << "]";
-              return status;
-            };
-
-            index_buffer_size = indices.size();
-
-            return status;
-          };
-
-          if (!create_buffers(std::span(outY_vertices), outY_vertex_buffer, outY_vertex_buffer_stride,
-                outY_indices, outY_index_buffer, outY_index_buffer_size) ||
-              !create_buffers(std::span(outUV_vertices), outUV_vertex_buffer, outUV_vertex_buffer_stride,
-                outUV_indices, outUV_index_buffer, outUV_index_buffer_size)) {
-            return -1;
-          }
-        }
       }
 
       // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
@@ -1194,17 +1035,6 @@ namespace platf::dxgi {
     D3D11_VIEWPORT outUV_view;
     std::array<D3D11_VIEWPORT, 3> outYUV_views, outYUV_views_for_clear;
     std::array<D3D11_VIEWPORT, 3> outYUVinY_views;
-
-    input_layout_t outY_input_layout;
-    buf_t outY_vertex_buffer;
-    UINT outY_vertex_buffer_stride = 0;
-    buf_t outY_index_buffer;
-    UINT outY_index_buffer_size = 0;
-    input_layout_t outUV_input_layout;
-    buf_t outUV_vertex_buffer;
-    UINT outUV_vertex_buffer_stride = 0;
-    buf_t outUV_index_buffer;
-    UINT outUV_index_buffer_size = 0;
 
     DXGI_FORMAT format;
 

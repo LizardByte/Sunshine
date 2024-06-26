@@ -19,16 +19,16 @@ uint main_ps(vertex_t input) : SV_Target
 uint2 main_ps(vertex_t input) : SV_Target
 #endif
 {
-    //  Y         U     V
-    // +-------+ +---+ +---+
-    // |       | |U0 | |V0 |
-    // |   Y   | +---+ +---+
-    // |       | |U1 | |V1 |
-    // +---+---+ +---+ +---+
-    // |U2 |U3 |
-    // +---|---+
-    // |V2 |V3 |
-    // +---+---+
+    //       Y         U     V
+    //       +-------+ +---+ +---+
+    //       |       | |   | |   |
+    // VP0-> |   Y   | |UR | |VR |
+    //       |       | |   | |   |
+    //       +---+---+ +---+ +---+
+    //       |   |   |
+    // VP1-> |UL |VL | <-VP2
+    //       |   |   |
+    //       +---+---+
 
     float3 rgb = CONVERT_FUNCTION(image.Sample(def_sampler, input.tex_coord, 0).rgb);
 
