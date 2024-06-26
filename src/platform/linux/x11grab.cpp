@@ -561,7 +561,12 @@ namespace platf {
     }
 
     std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) override {
+      if (yuv444in420) {
+        BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported";
+        return nullptr;
+      }
+
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, false);

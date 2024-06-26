@@ -4,6 +4,8 @@
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float subsample_offset, int rotate_texture_steps)
 #elif defined(TOPLEFT_SUBSAMPLING)
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_offset, int rotate_texture_steps)
+#elif defined(RECOMBINED444_V_SAMPLING)
+vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 sample_offset, bool second_stack, int rotate_texture_steps)
 #else
 vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_steps)
 #endif
@@ -37,6 +39,16 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_
 #elif defined (TOPLEFT_SUBSAMPLING)
     output.tex_right_left_top = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y - subsample_offset.y);
     output.tex_right_left_bottom = float3(tex_coord.x, tex_coord.x - subsample_offset.x, tex_coord.y);
+#elif defined(RECOMBINED444_V_SAMPLING)
+    // 0   1
+    //   x
+    // 2   3
+    // if (!second_stack) { left = 0; right = 1 }
+    // else { left = 2; right = 3 }
+    output.tex_right_left_center = float3(tex_coord.x + sample_offset.x,
+                                          tex_coord.x - sample_offset.x,
+                                          second_stack ? tex_coord.y + sample_offset.y :
+                                                         tex_coord.y - sample_offset.y);
 #else
     output.tex_coord = tex_coord;
 #endif

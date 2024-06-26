@@ -104,8 +104,16 @@ namespace nvenc {
     if (encoder) destroy_encoder();
     auto fail_guard = util::fail_guard([this] { destroy_encoder(); });
 
-    encoder_params.width = client_config.width;
-    encoder_params.height = client_config.height;
+    if (client_config.chromaSamplingType == 2) {
+      // YUV 4:4:4 recombined into YUV 4:2:0
+      auto recombined_dimensions = video::calculate_yuv444in420_dimensions(client_config.width, client_config.height);
+      encoder_params.width = recombined_dimensions.width;
+      encoder_params.height = recombined_dimensions.height;
+    }
+    else {
+      encoder_params.width = client_config.width;
+      encoder_params.height = client_config.height;
+    }
     encoder_params.buffer_format = buffer_format;
     encoder_params.rfi = true;
 
@@ -288,7 +296,7 @@ namespace nvenc {
       vui_config.colourPrimaries = colorspace.primaries;
       vui_config.transferCharacteristics = colorspace.tranfer_function;
       vui_config.colourMatrix = colorspace.matrix;
-      vui_config.chromaSampleLocationFlag = buffer_is_yuv444() ? 0 : 1;
+      vui_config.chromaSampleLocationFlag = (client_config.chromaSamplingType == 0) ? 1 : 0;
       vui_config.chromaSampleLocationTop = 0;
       vui_config.chromaSampleLocationBot = 0;
     };
@@ -341,7 +349,7 @@ namespace nvenc {
         format_config.transferCharacteristics = colorspace.tranfer_function;
         format_config.matrixCoefficients = colorspace.matrix;
         format_config.colorRange = colorspace.full_range;
-        format_config.chromaSamplePosition = buffer_is_yuv444() ? 0 : 1;
+        format_config.chromaSamplePosition = (client_config.chromaSamplingType == 0) ? 1 : 0;
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
         set_minqp_if_enabled(config.min_qp_av1);
 
@@ -395,6 +403,7 @@ namespace nvenc {
       std::string extra;
       if (init_params.enableEncodeAsync) extra += " async";
       if (buffer_is_yuv444()) extra += " yuv444";
+      if (client_config.chromaSamplingType == 2) extra += " yuv444in420";
       if (buffer_is_10bit()) extra += " 10-bit";
       if (enc_config.rcParams.multiPass != NV_ENC_MULTI_PASS_DISABLED) extra += " two-pass";
       if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
