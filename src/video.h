@@ -327,7 +327,7 @@ namespace video {
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
     int dynamicRange;
 
-    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4, 2 - 4:4:4 recombined into 4:2:0
   };
 
   extern int active_hevc_mode;

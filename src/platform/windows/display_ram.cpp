@@ -398,7 +398,11 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<avcodec_encode_device_t>
-  display_ram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+  display_ram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
+    if (yuv444in420) {
+      BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported";
+      return nullptr;
+    }
     return std::make_unique<avcodec_encode_device_t>();
   }
 
