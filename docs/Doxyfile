@@ -28,6 +28,7 @@ DOXYFILE_ENCODING = UTF-8
 ALIASES = "rst=^^\verbatim embed:rst:leading-asterisk^^"
 ALIASES += "endrst=\endverbatim"
 
+DISABLE_INDEX = NO
 DOCBOOK_OUTPUT = doxydocbook
 DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
 DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
@@ -37,15 +38,23 @@ DOT_IMAGE_FORMAT = svg
 # TODO: On Windows, Doxygen hangs when creating dot graphs if this is set to 0
 DOT_NUM_THREADS = 1
 
+FULL_SIDEBAR = NO
 GENERATE_HTML = YES
 GENERATE_LATEX = NO
+GENERATE_TREEVIEW = YES
 
 # TODO: Sphinx/Breathe does not support Objective-C right now, so disable XML
 # https://github.com/breathe-doc/breathe/issues/129
 GENERATE_XML = NO
 
 HAVE_DOT = YES
-HTML_COLORSTYLE = TOGGLE
+HTML_COLORSTYLE = LIGHT  # required with Doxygen >= 1.9.5
+HTML_EXTRA_FILES = ../third-party/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
+HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
+HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-paragraph-link.js
+HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-interactive-toc.js
+HTML_EXTRA_STYLESHEET = ../third-party/doxygen-awesome-css/doxygen-awesome.css
+HTML_HEADER = doxygen/header.html
 HTML_OUTPUT = doxyhtml
 INCLUDE_PATH = ../third-party/build-deps/ffmpeg/Linux-x86_64/include/
 INPUT = ../src
@@ -55,7 +64,7 @@ MACRO_EXPANSION = YES
 MAN_OUTPUT = doxyman
 NUM_PROC_THREADS = 1
 PREDEFINED = DOXYGEN
-PROJECT_BRIEF = "Sunshine is a Gamestream host for Moonlight."
+PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
 PROJECT_LOGO = ../sunshine.png
 PROJECT_NAME = Sunshine

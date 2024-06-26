@@ -1,0 +1,12 @@
+---
+name: RTD
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - doxygen=1.10.0
+  - graphviz=11.0.0
+  - pip
+  - python=3.11
+  - pip:
+      - -r ./requirements.txt
