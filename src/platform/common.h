@@ -206,6 +206,9 @@ namespace platf {
     yuv420p10,
     nv12,
     p010,
+    ayuv,
+    yuv444p16,
+    y410,
     unknown
   };
 
@@ -220,6 +223,9 @@ namespace platf {
       _CONVERT(yuv420p10);
       _CONVERT(nv12);
       _CONVERT(p010);
+      _CONVERT(ayuv);
+      _CONVERT(yuv444p16);
+      _CONVERT(y410);
       _CONVERT(unknown);
     }
 #undef _CONVERT
@@ -471,12 +477,12 @@ namespace platf {
     dummy_img(img_t *img) = 0;
 
     virtual std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
       return nullptr;
     }
 
     virtual std::unique_ptr<nvenc_encode_device_t>
-    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+    make_nvenc_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
       return nullptr;
     }
 

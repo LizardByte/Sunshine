@@ -275,7 +275,7 @@ namespace platf::dxgi {
     get_supported_capture_formats() override;
 
     std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) override;
 
     D3D11_MAPPED_SUBRESOURCE img_info;
     texture2d_t texture;
@@ -299,10 +299,10 @@ namespace platf::dxgi {
     is_codec_supported(std::string_view name, const ::video::config_t &config) override;
 
     std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) override;
 
     std::unique_ptr<nvenc_encode_device_t>
-    make_nvenc_encode_device(pix_fmt_e pix_fmt) override;
+    make_nvenc_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) override;
 
     std::atomic<uint32_t> next_image_id;
   };
