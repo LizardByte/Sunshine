@@ -104,10 +104,10 @@ vertex_t main_vs(uint vertex_id : SV_VertexID)
     }
     else if (vertex_id == 1) {
         output.viewpoint_pos = float4(-3, 5, 0, 1);
-        tex_coord = float2(0, -1);
+        tex_coord = float2(0, -2);
     }
     else {
-        output.viewpoint_pos = float4(3, -1, 0, 1);
+        output.viewpoint_pos = float4(5, -1, 0, 1);
         tex_coord = float2(2, 1);
     }
 #endif
