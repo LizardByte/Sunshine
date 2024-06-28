@@ -1,3 +1,7 @@
+/**
+ * @file src/input/keyboard.h
+ * @brief Declarations for common keyboard input.
+ */
 #pragma once
 
 #include <cstdint>

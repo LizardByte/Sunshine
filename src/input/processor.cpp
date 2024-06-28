@@ -1,6 +1,6 @@
 /**
  * @file src/input/processor.cpp
- * @brief todo
+ * @brief Definitions for common processor input.
  */
 // define uint32_t for <moonlight-common-c/src/Input.h>
 
@@ -97,7 +97,7 @@ namespace input {
    * @brief Batch two input messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_INPUT_HEADER dest, PNV_INPUT_HEADER src) {
@@ -232,11 +232,6 @@ namespace input {
     }
   }
 
-  /**
-   * @brief Called on the control stream thread to queue an input message.
-   * @param input The input context pointer.
-   * @param input_data The input message.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data) {
     {

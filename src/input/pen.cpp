@@ -1,3 +1,7 @@
+/**
+ * @file src/input/pen.cpp
+ * @brief Definitions for common pen input.
+ */
 #include <cstdint>
 extern "C" {
 #include <moonlight-common-c/src/Input.h>
@@ -28,10 +32,6 @@ extern "C" {
 using namespace std::literals;
 
 namespace input::pen {
-  /**
-   * @brief Prints a pen packet.
-   * @param packet The pen packet.
-   */
   void
   print(PSS_PEN_PACKET packet) {
     BOOST_LOG(debug)
@@ -49,11 +49,6 @@ namespace input::pen {
       << "--end pen packet--"sv;
   }
 
-  /**
-   * @brief Called to pass a pen message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The pen packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
     if (!config::input.mouse) {
@@ -108,12 +103,6 @@ namespace input::pen {
     platf::pen_update(input->client_context.get(), abs_port, pen);
   }
 
-  /**
-   * @brief Batch two pen messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
     // Only batch hover or move events

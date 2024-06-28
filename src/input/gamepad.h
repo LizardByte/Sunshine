@@ -1,3 +1,7 @@
+/**
+ * @file src/input/gamepad.h
+ * @brief Declarations for common gamepad input.
+ */
 #pragma once
 
 #include "platform_input.h"
@@ -133,7 +137,7 @@ namespace input::gamepad {
    * @brief Batch two controller touch messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src);
@@ -142,7 +146,7 @@ namespace input::gamepad {
    * @brief Batch two controller state messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src);
@@ -151,7 +155,7 @@ namespace input::gamepad {
    * @brief Batch two controller motion messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src);

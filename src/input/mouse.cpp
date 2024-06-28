@@ -1,3 +1,7 @@
+/**
+ * @file src/input/mouse.cpp
+ * @brief Definitions for common mouse input.
+ */
 #include "mouse.h"
 
 #include "init.h"
@@ -121,6 +125,7 @@ namespace input::mouse {
 
       mouse_press[button] = !release;
     }
+
     /**
      * When Moonlight sends mouse input through absolute coordinates,
      * it's possible that BUTTON_RIGHT is pressed down immediately after releasing BUTTON_LEFT.
@@ -166,11 +171,6 @@ namespace input::mouse {
     platf::button_mouse(PlatformInput::getInstance(), button, release);
   }
 
-  /**
-   * @brief Called to pass a vertical scroll message the platform backend.
-   * @param input The input context pointer.
-   * @param packet The scroll packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
     if (!config::input.mouse) {
@@ -190,11 +190,6 @@ namespace input::mouse {
     }
   }
 
-  /**
-   * @brief Called to pass a horizontal scroll message the platform backend.
-   * @param input The input context pointer.
-   * @param packet The scroll packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
     if (!config::input.mouse) {
@@ -214,12 +209,6 @@ namespace input::mouse {
     }
   }
 
-  /**
-   * @brief Batch two relative mouse messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
     short deltaX, deltaY;
@@ -238,12 +227,6 @@ namespace input::mouse {
     return batch_result_e::batched;
   }
 
-  /**
-   * @brief Batch two absolute mouse messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PNV_ABS_MOUSE_MOVE_PACKET dest, PNV_ABS_MOUSE_MOVE_PACKET src) {
     // Batching must only happen if the reference width and height don't change
@@ -256,12 +239,6 @@ namespace input::mouse {
     return batch_result_e::batched;
   }
 
-  /**
-   * @brief Batch two vertical scroll messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PNV_SCROLL_PACKET dest, PNV_SCROLL_PACKET src) {
     short scrollAmt;
@@ -277,12 +254,6 @@ namespace input::mouse {
     return batch_result_e::batched;
   }
 
-  /**
-   * @brief Batch two horizontal scroll messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PSS_HSCROLL_PACKET dest, PSS_HSCROLL_PACKET src) {
     short scrollAmt;

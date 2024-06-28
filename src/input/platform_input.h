@@ -1,3 +1,7 @@
+/**
+ * @file src/input/platform_input.h
+ * @brief Declarations for common platform input.
+ */
 #pragma once
 
 #include "src/platform/common.h"

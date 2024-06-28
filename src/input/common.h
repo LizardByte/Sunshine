@@ -1,3 +1,7 @@
+/**
+ * @file src/input/common.h
+ * @brief Declarations for common input.
+ */
 #pragma once
 
 #include <cstdint>
@@ -38,25 +42,25 @@ namespace input {
   };
 
   /**
-   * @brief Converts a little-endian netfloat to a native endianness float and clamps it.
+   * @brief Convert a little-endian netfloat to a native endianness float and clamps it.
    * @param f Netfloat value.
    * @param min The minimium value for clamping.
    * @param max The maximum value for clamping.
-   * @return Clamped float value.
+   * @return Clamped native endianess float value.
    */
   float
   from_clamped_netfloat(netfloat f, float min, float max);
 
   /**
-   * @brief Converts a little-endian netfloat to a native endianness float.
+   * @brief Convert a little-endian netfloat to a native endianness float.
    * @param f Netfloat value.
-   * @return Float value.
+   * @return The native endianness float value.
    */
   float
   from_netfloat(netfloat f);
 
   /**
-   * @brief Multiplies a polar coordinate pair by a cartesian scaling factor.
+   * @brief Multiply a polar coordinate pair by a cartesian scaling factor.
    * @param r The radial coordinate.
    * @param angle The angular coordinate (radians).
    * @param scalar The scalar cartesian coordinate pair.
@@ -66,7 +70,7 @@ namespace input {
   multiply_polar_by_cartesian_scalar(float r, float angle, const std::pair<float, float> &scalar);
 
   /**
-   * @brief Scales the ellipse axes according to the provided size.
+   * @brief Scale the ellipse axes according to the provided size.
    * @param val The major and minor axis pair.
    * @param rotation The rotation value from the touch/pen event.
    * @param scalar The scalar cartesian coordinate pair.

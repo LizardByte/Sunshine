@@ -1,3 +1,7 @@
+/**
+ * @file src/input/pen.h
+ * @brief Declarations for common pen input.
+ */
 #pragma once
 
 #include <cstdint>
@@ -32,7 +36,7 @@ namespace input::pen {
    * @brief Batch two pen messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src);

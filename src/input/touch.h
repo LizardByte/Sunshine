@@ -1,3 +1,7 @@
+/**
+ * @file src/input/touch.h
+ * @brief Declarations for common touch input.
+ */
 #pragma once
 
 #include <cstdint>
@@ -22,7 +26,7 @@ namespace input::touch {
   print(PSS_TOUCH_PACKET packet);
 
   /**
-   * @brief Converts client coordinates on the specified surface into screen coordinates.
+   * @brief Convert client coordinates on the specified surface into screen coordinates.
    * @param input The input context.
    * @param val The cartesian coordinate pair to convert.
    * @param size The size of the client's surface containing the value.
@@ -43,7 +47,7 @@ namespace input::touch {
    * @brief Batch two touch messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src);

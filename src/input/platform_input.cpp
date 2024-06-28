@@ -1,3 +1,7 @@
+/**
+ * @file src/input/platform_input.cpp
+ * @brief Definitions for common platform input.
+ */
 #include "platform_input.h"
 
 platf::input_t PlatformInput::_instance;

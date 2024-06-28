@@ -1,6 +1,6 @@
 /**
  * @file src/input/processor.h
- * @brief Declarations for gamepad, keyboard, and mouse input handling.
+ * @brief Declarations for common processor input.
  */
 #pragma once
 
@@ -37,11 +37,10 @@ namespace input {
 
   struct input_t {
     enum shortkey_e {
-      CTRL = 0x1,
-      ALT = 0x2,
-      SHIFT = 0x4,
-
-      SHORTCUT = CTRL | ALT | SHIFT
+      CTRL = 0x1,  ///< Control/Command key
+      ALT = 0x2,  ///< Alt key
+      SHIFT = 0x4,  ///< Shift key
+      SHORTCUT = CTRL | ALT | SHIFT  ///< Shortcut combo
     };
 
     input_t(

@@ -1,3 +1,7 @@
+/**
+ * @file src/input/gamepad.cpp
+ * @brief Definitions for common gamepad input.
+ */
 #include "gamepad.h"
 #include "common.h"
 #include "init.h"
@@ -55,10 +59,6 @@ namespace input::gamepad {
       << "--end controller packet--"sv;
   }
 
-  /**
-   * @brief Prints a controller arrival packet.
-   * @param packet The controller arrival packet.
-   */
   void
   print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
     BOOST_LOG(debug)
@@ -70,10 +70,6 @@ namespace input::gamepad {
       << "--end controller arrival packet--"sv;
   }
 
-  /**
-   * @brief Prints a controller touch packet.
-   * @param packet The controller touch packet.
-   */
   void
   print(PSS_CONTROLLER_TOUCH_PACKET packet) {
     BOOST_LOG(debug)
@@ -87,10 +83,6 @@ namespace input::gamepad {
       << "--end controller touch packet--"sv;
   }
 
-  /**
-   * @brief Prints a controller motion packet.
-   * @param packet The controller motion packet.
-   */
   void
   print(PSS_CONTROLLER_MOTION_PACKET packet) {
     BOOST_LOG(verbose)
@@ -103,10 +95,6 @@ namespace input::gamepad {
       << "--end controller motion packet--"sv;
   }
 
-  /**
-   * @brief Prints a controller battery packet.
-   * @param packet The controller battery packet.
-   */
   void
   print(PSS_CONTROLLER_BATTERY_PACKET packet) {
     BOOST_LOG(verbose)
@@ -117,11 +105,6 @@ namespace input::gamepad {
       << "--end controller battery packet--"sv;
   }
 
-  /**
-   * @brief Called to pass a controller arrival message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller arrival packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
     if (!config::input.controller) {
@@ -158,11 +141,6 @@ namespace input::gamepad {
     (*input->gamepads)[packet->controllerNumber].id = id;
   }
 
-  /**
-   * @brief Called to pass a controller touch message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller touch packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
     if (!config::input.controller) {
@@ -192,11 +170,6 @@ namespace input::gamepad {
     platf::gamepad_touch(PlatformInput::getInstance(), touch);
   }
 
-  /**
-   * @brief Called to pass a controller motion message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller motion packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
     if (!config::input.controller) {
@@ -343,11 +316,6 @@ namespace input::gamepad {
     gamepad.gamepad_state = gamepad_state;
   }
 
-  /**
-   * @brief Called to pass a controller battery message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The controller battery packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
     if (!config::input.controller) {
@@ -374,12 +342,6 @@ namespace input::gamepad {
     platf::gamepad_battery(PlatformInput::getInstance(), battery);
   }
 
-  /**
-   * @brief Batch two controller touch messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
     // Only batch hover or move events
@@ -415,12 +377,6 @@ namespace input::gamepad {
     return batch_result_e::batched;
   }
 
-  /**
-   * @brief Batch two controller state messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
     // Do not allow batching if the active controllers change
@@ -444,12 +400,6 @@ namespace input::gamepad {
     return batch_result_e::batched;
   }
 
-  /**
-   * @brief Batch two controller motion messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
     // We can only batch entries for the same controller, but allow batching attempts to continue

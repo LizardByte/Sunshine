@@ -1,3 +1,7 @@
+/**
+ * @file src/input/mouse.h
+ * @brief Declarations for common mouse input.
+ */
 #pragma once
 
 #include <cstdint>
@@ -62,7 +66,7 @@ namespace input::mouse {
    * @brief Batch two relative mouse messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src);
@@ -71,7 +75,7 @@ namespace input::mouse {
    * @brief Batch two absolute mouse messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_ABS_MOUSE_MOVE_PACKET dest, PNV_ABS_MOUSE_MOVE_PACKET src);
@@ -80,7 +84,7 @@ namespace input::mouse {
    * @brief Batch two vertical scroll messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PNV_SCROLL_PACKET dest, PNV_SCROLL_PACKET src);
@@ -89,7 +93,7 @@ namespace input::mouse {
    * @brief Batch two horizontal scroll messages.
    * @param dest The original packet to batch into.
    * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
+   * @return The status of the batching operation.
    */
   batch_result_e
   batch(PSS_HSCROLL_PACKET dest, PSS_HSCROLL_PACKET src);
@@ -98,7 +102,7 @@ namespace input::mouse {
   reset(platf::input_t &platf_input);
 
   /**
-   * Move the mouse slightly to force a video frame render
+   * @brief Move the mouse slightly to force a video frame render
    * @param platf_input
    */
   void

@@ -1,3 +1,7 @@
+/**
+ * @file src/input/keyboard.cpp
+ * @brief Definitions for common keyboard input.
+ */
 #include "keyboard.h"
 #include "init.h"
 
@@ -55,11 +59,9 @@ namespace input::keyboard {
   }
 
   /**
-   * Apply shortcut based on VKEY
-   * On success
-   *    return > 0
-   * On nothing
-   *    return 0
+   * @brief Apply shortcut based on VKEY.
+   * @param keyCode The VKEY code.
+   * @return 0 if no shortcut applied, > 0 if shortcut applied.
    */
   inline int
   apply_shortcut(short keyCode) {
@@ -93,7 +95,7 @@ namespace input::keyboard {
   }
 
   /**
-   * Update flags for keyboard shortcut combo's
+   * @brief Update flags for keyboard shortcut combos
    */
   inline void
   update_shortcutFlags(int *flags, short keyCode, bool release) {

@@ -1,13 +1,12 @@
+/**
+ * @file src/input/touch.cpp
+ * @brief Definitions for common touch input.
+ */
 #include "touch.h"
 #include "init.h"
 #include "processor.h"
 
 namespace input::touch {
-
-  /**
-   * @brief Prints a touch packet.
-   * @param packet The touch packet.
-   */
   void
   print(PSS_TOUCH_PACKET packet) {
     BOOST_LOG(debug)
@@ -23,13 +22,6 @@ namespace input::touch {
       << "--end touch packet--"sv;
   }
 
-  /**
-   * @brief Converts client coordinates on the specified surface into screen coordinates.
-   * @param input The input context.
-   * @param val The cartesian coordinate pair to convert.
-   * @param size The size of the client's surface containing the value.
-   * @return The host-relative coordinate pair if a touchport is available.
-   */
   std::optional<std::pair<float, float>>
   client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
     auto &touch_port_event = input->touch_port_event;
@@ -57,11 +49,6 @@ namespace input::touch {
     return std::pair { (x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv };
   }
 
-  /**
-   * @brief Called to pass a touch message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The touch packet.
-   */
   void
   passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
     if (!config::input.mouse) {
@@ -114,12 +101,6 @@ namespace input::touch {
     platf::touch_update(input->client_context.get(), abs_port, touch);
   }
 
-  /**
-   * @brief Batch two touch messages.
-   * @param dest The original packet to batch into.
-   * @param src A later packet to attempt to batch.
-   * @return `batch_result_e` : The status of the batching operation.
-   */
   batch_result_e
   batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
     // Only batch hover or move events

@@ -8,6 +8,9 @@
 namespace crypto {
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
 
+  /**
+   * @memberof crypto
+   */
   cert_chain_t::
     cert_chain_t():
       _certs {},
