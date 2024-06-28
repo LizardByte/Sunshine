@@ -42,7 +42,7 @@ DOT_IMAGE_FORMAT = svg
 # TODO: On Windows, Doxygen hangs when creating dot graphs if this is set to 0
 DOT_NUM_THREADS = 1
 
-EXTRACT_ALL = YES
+EXTRACT_ALL = NO
 FULL_SIDEBAR = NO
 GENERATE_HTML = YES
 GENERATE_LATEX = NO
