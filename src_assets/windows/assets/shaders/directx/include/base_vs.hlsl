@@ -19,7 +19,7 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, int rotate_texture_
         output.viewpoint_pos = float4(-1, 3, 0, 1);
         tex_coord = float2(0, -1);
     }
-    else if (vertex_id == 2) {
+    else {
         output.viewpoint_pos = float4(3, -1, 0, 1);
         tex_coord = float2(2, 1);
     }
