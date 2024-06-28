@@ -54,6 +54,7 @@ GENERATE_XML = NO
 
 HAVE_DOT = YES
 HTML_COLORSTYLE = LIGHT  # required with Doxygen >= 1.9.5
+HTML_COPY_CLIPBOARD = NO  # required for Doxygen >= 1.10.0
 HTML_EXTRA_FILES = ../third-party/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
 HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
 HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-paragraph-link.js
