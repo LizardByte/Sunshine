@@ -351,7 +351,7 @@
     "troubleshoot": "Fehlerbehebung"
   },
   "password": {
-    "confirm_password": "Passwort bestätigen",
+    "confirm_password": "Passwort wiederholen",
     "current_creds": "Aktuelle Zugangsdaten",
     "new_creds": "Neue Zugangsdaten",
     "new_username_desc": "Wenn nicht angegeben, wird der Benutzername nicht geändert",
