@@ -1,6 +1,6 @@
 /**
  * @file src/crypto.h
- * @brief todo
+ * @brief Declarations for cryptography functions.
  */
 #pragma once
 
@@ -126,10 +126,12 @@ namespace crypto {
       gcm_t(const crypto::aes_t &key, bool padding = true);
 
       /**
+       * @brief Encrypts the plaintext using AES GCM mode.
        * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size
-       *
-       * return -1 on error
-       * return bytes written on success
+       * @param plaintext The plaintext data to be encrypted.
+       * @param tagged_cipher The buffer where the resulting ciphertext and GCM tag will be written.
+       * @param iv The initialization vector to be used for the encryption.
+       * @return The total length of the ciphertext and GCM tag written into tagged_cipher. Returns -1 in case of an error.
        */
       int
       encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv);
@@ -148,10 +150,12 @@ namespace crypto {
       cbc_t(const crypto::aes_t &key, bool padding = true);
 
       /**
+       * @brief Encrypts the plaintext using AES CBC mode.
        * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size())
-       *
-       * return -1 on error
-       * return bytes written on success
+       * @param plaintext The plaintext data to be encrypted.
+       * @param cipher The buffer where the resulting ciphertext will be written.
+       * @param iv The initialization vector to be used for the encryption.
+       * @return The total length of the ciphertext written into cipher. Returns -1 in case of an error.
        */
       int
       encrypt(const std::string_view &plaintext, std::uint8_t *cipher, aes_t *iv);

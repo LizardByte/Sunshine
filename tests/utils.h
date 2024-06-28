@@ -1,8 +1,7 @@
 /**
- * @file utils.h
- * @brief Reusable functions for tests.
+ * @file tests/utils.h
+ * @brief Declarations for utility functions.
  */
-
 #pragma once
 
 #include <string>

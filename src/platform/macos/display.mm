@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/display.mm
- * @brief todo
+ * @brief Definitions for display capture on macOS.
  */
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"

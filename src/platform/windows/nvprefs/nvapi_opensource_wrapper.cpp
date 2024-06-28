@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/nvapi_opensource_wrapper.cpp
+ * @brief Definitions for the NVAPI wrapper.
+ */
 // standard library headers
 #include <map>
 

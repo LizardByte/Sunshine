@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/driver_settings.cpp
+ * @brief Definitions for nvidia driver settings.
+ */
 // local includes
 #include "driver_settings.h"
 #include "nvprefs_common.h"

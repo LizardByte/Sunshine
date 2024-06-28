@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/cuda.cu
- * @brief todo
+ * @brief CUDA implementation for Linux.
  */
 // #include <algorithm>
 #include <helper_math.h>

@@ -1,6 +1,6 @@
 /**
  * @file src/thread_pool.h
- * @brief todo
+ * @brief Declarations for the thread pool system.
  */
 #pragma once
 

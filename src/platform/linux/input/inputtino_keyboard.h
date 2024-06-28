@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_keyboard.h
+ * @brief Declarations for inputtino keyboard input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/misc.cpp
- * @brief todo
+ * @brief Miscellaneous definitions for Windows.
  */
 #include <csignal>
 #include <filesystem>
@@ -462,7 +462,7 @@ namespace platf {
    * @brief Impersonate the current user and invoke the callback function.
    * @param user_token A handle to the user's token that was obtained from the shell.
    * @param callback A function that will be executed while impersonating the user.
-   * @return An `std::error_code` object that will store any error that occurred during the impersonation
+   * @return Object that will store any error that occurred during the impersonation
    */
   std::error_code
   impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
@@ -496,11 +496,11 @@ namespace platf {
   }
 
   /**
-   * @brief A function to create a `STARTUPINFOEXW` structure for launching a process.
+   * @brief Create a `STARTUPINFOEXW` structure for launching a process.
    * @param file A pointer to a `FILE` object that will be used as the standard output and error for the new process, or null if not needed.
    * @param job A job object handle to insert the new process into. This pointer must remain valid for the life of this startup info!
    * @param ec A reference to a `std::error_code` object that will store any error that occurred during the creation of the structure.
-   * @return A `STARTUPINFOEXW` structure that contains information about how to launch the new process.
+   * @return A structure that contains information about how to launch the new process.
    */
   STARTUPINFOEXW
   create_startup_info(FILE *file, HANDLE *job, std::error_code &ec) {
@@ -615,7 +615,7 @@ namespace platf {
   }
 
   /**
-   * @brief This function quotes/escapes an argument according to the Windows parsing convention.
+   * @brief Quote/escape an argument according to the Windows parsing convention.
    * @param argument The raw argument to process.
    * @return An argument string suitable for use by CreateProcess().
    */
@@ -655,7 +655,7 @@ namespace platf {
   }
 
   /**
-   * @brief This function escapes an argument according to cmd's parsing convention.
+   * @brief Escape an argument according to cmd's parsing convention.
    * @param argument An argument already escaped by `escape_argument()`.
    * @return An argument string suitable for use by cmd.exe.
    */
@@ -676,7 +676,7 @@ namespace platf {
   }
 
   /**
-   * @brief This function resolves the given raw command into a proper command string for CreateProcess().
+   * @brief Resolve the given raw command into a proper command string for CreateProcess().
    * @details This converts URLs and non-executable file paths into a runnable command like ShellExecute().
    * @param raw_cmd The raw command provided by the user.
    * @param working_dir The working directory for the new process.
@@ -1701,11 +1701,6 @@ namespace platf {
     return {};
   }
 
-  /**
-   * @brief Converts a UTF-8 string into a UTF-16 wide string.
-   * @param string The UTF-8 string.
-   * @return The converted UTF-16 wide string.
-   */
   std::wstring
   from_utf8(const std::string &string) {
     // No conversion needed if the string is empty
@@ -1733,11 +1728,6 @@ namespace platf {
     return output;
   }
 
-  /**
-   * @brief Converts a UTF-16 wide string into a UTF-8 string.
-   * @param string The UTF-16 wide string.
-   * @return The converted UTF-8 string.
-   */
   std::string
   to_utf8(const std::wstring &string) {
     // No conversion needed if the string is empty

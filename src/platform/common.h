@@ -1,6 +1,6 @@
 /**
  * @file src/platform/common.h
- * @brief todo
+ * @brief Declarations for common platform specific utilities.
  */
 #pragma once
 
@@ -87,10 +87,10 @@ namespace platf {
   };
 
   enum class gamepad_feedback_e {
-    rumble,
-    rumble_triggers,
-    set_motion_event_state,
-    set_rgb_led,
+    rumble,  ///< Rumble
+    rumble_triggers,  ///< Rumble triggers
+    set_motion_event_state,  ///< Set motion event state
+    set_rgb_led,  ///< Set RGB LED
   };
 
   struct gamepad_feedback_msg_t {
@@ -158,15 +158,15 @@ namespace platf {
 
   namespace speaker {
     enum speaker_e {
-      FRONT_LEFT,
-      FRONT_RIGHT,
-      FRONT_CENTER,
-      LOW_FREQUENCY,
-      BACK_LEFT,
-      BACK_RIGHT,
-      SIDE_LEFT,
-      SIDE_RIGHT,
-      MAX_SPEAKERS,
+      FRONT_LEFT,  ///< Front left
+      FRONT_RIGHT,  ///< Front right
+      FRONT_CENTER,  ///< Front center
+      LOW_FREQUENCY,  ///< Low frequency
+      BACK_LEFT,  ///< Back left
+      BACK_RIGHT,  ///< Back right
+      SIDE_LEFT,  ///< Side left
+      SIDE_RIGHT,  ///< Side right
+      MAX_SPEAKERS,  ///< Maximum number of speakers
     };
 
     constexpr std::uint8_t map_stereo[] {
@@ -193,20 +193,20 @@ namespace platf {
   }  // namespace speaker
 
   enum class mem_type_e {
-    system,
-    vaapi,
-    dxgi,
-    cuda,
-    videotoolbox,
-    unknown
+    system,  ///< System memory
+    vaapi,  ///< VAAPI
+    dxgi,  ///< DXGI
+    cuda,  ///< CUDA
+    videotoolbox,  ///< VideoToolbox
+    unknown  ///< Unknown
   };
 
   enum class pix_fmt_e {
-    yuv420p,
-    yuv420p10,
-    nv12,
-    p010,
-    unknown
+    yuv420p,  ///< YUV 4:2:0
+    yuv420p10,  ///< YUV 4:2:0 10-bit
+    nv12,  ///< NV12
+    p010,  ///< P010
+    unknown  ///< Unknown
   };
 
   inline std::string_view
@@ -382,7 +382,8 @@ namespace platf {
     }
 
     /**
-     * implementations must take ownership of 'frame'
+     * @brief Set the frame to be encoded.
+     * @note Implementations must take ownership of 'frame'.
      */
     virtual int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
@@ -391,13 +392,15 @@ namespace platf {
     };
 
     /**
-     * Implementations may set parameters during initialization of the hwframes context
+     * @brief Initialize the hwframes context.
+     * @note Implementations may set parameters during initialization of the hwframes context.
      */
     virtual void
     init_hwframes(AVHWFramesContext *frames) {};
 
     /**
-     * Implementations may make modifications required before context derivation
+     * @brief Prepare to derive a context.
+     * @note Implementations may make modifications required before context derivation
      */
     virtual int
     prepare_to_derive_context(int hw_device_type) {
@@ -413,34 +416,30 @@ namespace platf {
   };
 
   enum class capture_e : int {
-    ok,
-    reinit,
-    timeout,
-    interrupted,
-    error
+    ok,  ///< Success
+    reinit,  ///< Need to reinitialize
+    timeout,  ///< Timeout
+    interrupted,  ///< Capture was interrupted
+    error  ///< Error
   };
 
   class display_t {
   public:
     /**
+     * @brief Callback for when a new image is ready.
      * When display has a new image ready or a timeout occurs, this callback will be called with the image.
      * If a frame was captured, frame_captured will be true. If a timeout occurred, it will be false.
-     *
-     * On Break Request -->
-     *    Returns false
-     *
-     * On Success -->
-     *    Returns true
+     * @retval true On success
+     * @retval false On break request
      */
     using push_captured_image_cb_t = std::function<bool(std::shared_ptr<img_t> &&img, bool frame_captured)>;
 
     /**
-     * Use to get free image from the pool. Calls must be synchronized.
+     * @brief Get free image from pool.
+     * Calls must be synchronized.
      * Blocks until there is free image in the pool or capture is interrupted.
-     *
-     * Returns:
-     *     'true' on success, img_out contains free image
-     *     'false' when capture has been interrupted, img_out contains nullptr
+     * @retval true On success, img_out contains free image
+     * @retval false When capture has been interrupted, img_out contains nullptr
      */
     using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
@@ -448,18 +447,16 @@ namespace platf {
         offset_x { 0 }, offset_y { 0 } {}
 
     /**
-     * push_captured_image_cb --> The callback that is called with captured image,
-     *                            must be called from the same thread as capture()
-     * pull_free_image_cb --> Capture backends call this callback to get empty image
-     *                        from the pool. If backend uses multiple threads, calls to this
-     *                        callback must be synchronized. Calls to this callback and
-     *                        push_captured_image_cb must be synchronized as well.
-     * bool *cursor --> A pointer to the flag that indicates whether the cursor should be captured as well
-     *
-     * Returns either:
-     *    capture_e::ok when stopping
-     *    capture_e::error on error
-     *    capture_e::reinit when need of reinitialization
+     * @brief Capture a frame.
+     * @param push_captured_image_cb The callback that is called with captured image,
+     * must be called from the same thread as capture()
+     * @param pull_free_image_cb Capture backends call this callback to get empty image from the pool.
+     * If backend uses multiple threads, calls to this callback must be synchronized.
+     * Calls to this callback and push_captured_image_cb must be synchronized as well.
+     * @param cursor A pointer to the flag that indicates whether the cursor should be captured as well.
+     * @retval capture_e::ok When stopping
+     * @retval capture_e::error On error
+     * @retval capture_e::reinit When need of reinitialization
      */
     virtual capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
@@ -492,10 +489,10 @@ namespace platf {
     }
 
     /**
-     * @brief Checks that a given codec is supported by the display device.
+     * @brief Check that a given codec is supported by the display device.
      * @param name The FFmpeg codec name (or similar for non-FFmpeg codecs).
      * @param config The codec configuration.
-     * @return true if supported, false otherwise.
+     * @return `true` if supported, `false` otherwise.
      */
     virtual bool
     is_codec_supported(std::string_view name, const ::video::config_t &config) {
@@ -570,11 +567,11 @@ namespace platf {
 
   /**
    * @brief Get the display_t instance for the given hwdevice_type.
-   * @param display_name The name of the monitor that SHOULD be displayed
    * If display_name is empty, use the first monitor that's compatible you can find
    * If you require to use this parameter in a separate thread, make a copy of it.
+   * @param display_name The name of the monitor that SHOULD be displayed
    * @param config Stream configuration
-   * @returns display_t based on hwdevice_type
+   * @return The display_t instance based on hwdevice_type.
    */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
@@ -584,7 +581,7 @@ namespace platf {
   display_names(mem_type_e hwdevice_type);
 
   /**
-   * @brief Returns if GPUs/drivers have changed since the last call to this function.
+   * @brief Check if GPUs/drivers have changed since the last call to this function.
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.
    */
   bool
@@ -594,10 +591,10 @@ namespace platf {
   run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
 
   enum class thread_priority_e : int {
-    low,
-    normal,
-    high,
-    critical
+    low,  ///< Low priority
+    normal,  ///< Normal priority
+    high,  ///< High priority
+    critical  ///< Critical priority
   };
   void
   adjust_thread_priority(thread_priority_e priority);
@@ -637,12 +634,12 @@ namespace platf {
   send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
-    audio,
-    video
+    audio,  ///< Audio
+    video  ///< Video
   };
 
   /**
-   * @brief Enables QoS on the given socket for traffic to the specified destination.
+   * @brief Enable QoS on the given socket for traffic to the specified destination.
    * @param native_socket The native socket handle.
    * @param address The destination address for traffic sent on this socket.
    * @param port The destination port for traffic sent on this socket.
@@ -662,15 +659,15 @@ namespace platf {
   /**
    * @brief Attempt to gracefully terminate a process group.
    * @param native_handle The native handle of the process group.
-   * @return true if termination was successfully requested.
+   * @return `true` if termination was successfully requested.
    */
   bool
   request_process_group_exit(std::uintptr_t native_handle);
 
   /**
-   * @brief Checks if a process group still has running children.
+   * @brief Check if a process group still has running children.
    * @param native_handle The native handle of the process group.
-   * @return true if processes are still running.
+   * @return `true` if processes are still running.
    */
   bool
   process_group_running(std::uintptr_t native_handle);
@@ -678,14 +675,12 @@ namespace platf {
   input_t
   input();
   /**
-   * @brief Gets the current mouse position on screen
+   * @brief Get the current mouse position on screen
    * @param input The input_t instance to use.
-   * @return util::point_t (x, y)
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @return Screen coordinates of the mouse.
+   * @examples
    * auto [x, y] = get_mouse_loc(input);
-   * ```
+   * @examples_end
    */
   util::point_t
   get_mouse_loc(input_t &input);
@@ -709,7 +704,7 @@ namespace platf {
   typedef deinit_t client_input_t;
 
   /**
-   * @brief Allocates a context to store per-client input data.
+   * @brief Allocate a context to store per-client input data.
    * @param input The global input context.
    * @return A unique pointer to a per-client input data context.
    */
@@ -717,7 +712,7 @@ namespace platf {
   allocate_client_input_context(input_t &input);
 
   /**
-   * @brief Sends a touch event to the OS.
+   * @brief Send a touch event to the OS.
    * @param input The client-specific input context.
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param touch The touch event.
@@ -726,7 +721,7 @@ namespace platf {
   touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
-   * @brief Sends a pen event to the OS.
+   * @brief Send a pen event to the OS.
    * @param input The client-specific input context.
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param pen The pen event.
@@ -735,7 +730,7 @@ namespace platf {
   pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
 
   /**
-   * @brief Sends a gamepad touch event to the OS.
+   * @brief Send a gamepad touch event to the OS.
    * @param input The global input context.
    * @param touch The touch event.
    */
@@ -743,7 +738,7 @@ namespace platf {
   gamepad_touch(input_t &input, const gamepad_touch_t &touch);
 
   /**
-   * @brief Sends a gamepad motion event to the OS.
+   * @brief Send a gamepad motion event to the OS.
    * @param input The global input context.
    * @param motion The motion event.
    */
@@ -751,7 +746,7 @@ namespace platf {
   gamepad_motion(input_t &input, const gamepad_motion_t &motion);
 
   /**
-   * @brief Sends a gamepad battery event to the OS.
+   * @brief Send a gamepad battery event to the OS.
    * @param input The global input context.
    * @param battery The battery event.
    */
@@ -759,7 +754,7 @@ namespace platf {
   gamepad_battery(input_t &input, const gamepad_battery_t &battery);
 
   /**
-   * @brief Creates a new virtual gamepad.
+   * @brief Create a new virtual gamepad.
    * @param input The global input context.
    * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
@@ -772,7 +767,7 @@ namespace platf {
   free_gamepad(input_t &input, int nr);
 
   /**
-   * @brief Returns the supported platform capabilities to advertise to the client.
+   * @brief Get the supported platform capabilities to advertise to the client.
    * @return Capability flags.
    */
   platform_caps::caps_t

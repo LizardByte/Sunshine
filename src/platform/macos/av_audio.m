@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/av_audio.m
- * @brief todo
+ * @brief Definitions for audio capture on macOS.
  */
 #import "av_audio.h"
 

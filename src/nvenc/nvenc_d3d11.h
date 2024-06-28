@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_d3d11.h
+ * @brief Declarations for base NVENC d3d11.
+ */
 #pragma once
 #ifdef _WIN32
 

@@ -1,6 +1,6 @@
 /**
  * @file tools/audio.cpp
- * @brief todo
+ * @brief Handles collecting audio device information from Windows.
  */
 #define INITGUID
 #include <audioclient.h>

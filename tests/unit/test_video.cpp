@@ -1,5 +1,5 @@
 /**
- * @file tests/test_video.cpp
+ * @file tests/unit/test_video.cpp
  * @brief Test src/video.*.
  */
 #include <src/video.h>

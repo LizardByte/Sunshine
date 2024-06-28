@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_mouse.h
+ * @brief Declarations for inputtino mouse input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>

@@ -1,6 +1,6 @@
 /**
  * @file src/rtsp.cpp
- * @brief todo
+ * @brief Definitions for RTSP streaming.
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -95,7 +95,7 @@ namespace rtsp_stream {
         handle_data_fn { std::move(handle_data_fn) }, sock { ios } {}
 
     /**
-     * @brief Queues an asynchronous read to begin the next message.
+     * @brief Queue an asynchronous read to begin the next message.
      */
     void
     read() {
@@ -130,7 +130,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handles the initial read of the header of an encrypted message.
+     * @brief Handle the initial read of the header of an encrypted message.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -185,7 +185,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handles the final read of the content of an encrypted message.
+     * @brief Handle the final read of the content of an encrypted message.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -251,7 +251,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Queues an asynchronous read of the payload portion of a plaintext message.
+     * @brief Queue an asynchronous read of the payload portion of a plaintext message.
      */
     void
     read_plaintext_payload() {
@@ -275,7 +275,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handles the read of the payload portion of a plaintext message.
+     * @brief Handle the read of the payload portion of a plaintext message.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -344,7 +344,7 @@ namespace rtsp_stream {
     }
 
     /**
-     * @brief Handles the read of the header portion of a plaintext message.
+     * @brief Handle the read of the header portion of a plaintext message.
      * @param socket The socket the message was received on.
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
@@ -562,11 +562,9 @@ namespace rtsp_stream {
     /**
      * @brief Clear launch sessions.
      * @param all If true, clear all sessions. Otherwise, only clear timed out and stopped sessions.
-     *
-     * EXAMPLES:
-     * ```cpp
+     * @examples
      * clear(false);
-     * ```
+     * @examples_end
      */
     void
     clear(bool all = true) {
@@ -641,10 +639,6 @@ namespace rtsp_stream {
     server.session_raise(std::move(launch_session));
   }
 
-  /**
-   * @brief Clear state for the specified launch session.
-   * @param launch_session_id The ID of the session to clear.
-   */
   void
   launch_session_clear(uint32_t launch_session_id) {
     server.session_clear(launch_session_id);

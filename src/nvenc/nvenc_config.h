@@ -1,16 +1,15 @@
+/**
+ * @file src/nvenc/nvenc_config.h
+ * @brief Declarations for base NVENC configuration.
+ */
 #pragma once
 
 namespace nvenc {
 
   enum class nvenc_two_pass {
-    // Single pass, the fastest and no extra vram
-    disabled,
-
-    // Larger motion vectors being caught, faster and uses less extra vram
-    quarter_resolution,
-
-    // Better overall statistics, slower and uses more extra vram
-    full_resolution,
+    disabled,  ///< Single pass, the fastest and no extra vram
+    quarter_resolution,  ///< Larger motion vectors being caught, faster and uses less extra vram
+    full_resolution,  ///< Better overall statistics, slower and uses more extra vram
   };
 
   struct nvenc_config {

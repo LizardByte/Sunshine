@@ -1,6 +1,6 @@
 /**
  * @file src/stat_trackers.cpp
- * @brief todo
+ * @brief Definitions for streaming statistic tracking.
  */
 #include "stat_trackers.h"
 

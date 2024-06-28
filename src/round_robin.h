@@ -1,11 +1,16 @@
 /**
  * @file src/round_robin.h
- * @brief todo
+ * @brief Declarations for a round-robin iterator.
  */
 #pragma once
 
 #include <iterator>
 
+/**
+ * @brief A round-robin iterator utility.
+ * @tparam V The value type.
+ * @tparam T The iterator type.
+ */
 namespace round_robin_util {
   template <class V, class T>
   class it_wrap_t {

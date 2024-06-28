@@ -1,6 +1,6 @@
 /**
  * @file src/confighttp.h
- * @brief todo
+ * @brief Declarations for the Web UI Config HTTP server.
  */
 #pragma once
 

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/wlgrab.cpp
- * @brief todo
+ * @brief Definitions for wlgrab capture.
  */
 #include <thread>
 

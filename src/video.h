@@ -1,6 +1,6 @@
 /**
  * @file src/video.h
- * @brief todo
+ * @brief Declarations for video.
  */
 #pragma once
 
@@ -83,12 +83,12 @@ namespace video {
   struct encoder_t {
     std::string_view name;
     enum flag_e {
-      PASSED,  // Is supported
-      REF_FRAMES_RESTRICT,  // Set maximum reference frames
-      CBR,  // Some encoders don't support CBR, if not supported --> attempt constant quantatication parameter instead
-      DYNAMIC_RANGE,  // hdr
-      VUI_PARAMETERS,  // AMD encoder with VAAPI doesn't add VUI parameters to SPS
-      MAX_FLAGS
+      PASSED,  ///< Indicates the encoder is supported.
+      REF_FRAMES_RESTRICT,  ///< Set maximum reference frames.
+      CBR,  ///< Some encoders don't support CBR, if not supported attempt constant quantization parameter instead.
+      DYNAMIC_RANGE,  ///< HDR support.
+      VUI_PARAMETERS,  ///< AMD encoder with VAAPI doesn't add VUI parameters to SPS.
+      MAX_FLAGS  ///< Maximum number of flags.
     };
 
     static std::string_view
@@ -326,6 +326,15 @@ namespace video {
 
   bool
   validate_encoder(encoder_t &encoder, bool expect_failure);
+
+  /**
+   * @brief Probe encoders and select the preferred encoder.
+   * This is called once at startup and each time a stream is launched to
+   * ensure the best encoder is selected. Encoder availability can change
+   * at runtime due to all sorts of things from driver updates to eGPUs.
+   *
+   * @warning This is only safe to call when there is no client actively streaming.
+   */
   int
   probe_encoders();
 }  // namespace video

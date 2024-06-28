@@ -1,6 +1,6 @@
 /**
  * @file src/process.cpp
- * @brief Handles the startup and shutdown of the apps started by a streaming Session.
+ * @brief Definitions for the startup and shutdown of the apps started by a streaming Session.
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -40,7 +40,6 @@
 
 namespace proc {
   using namespace std::literals;
-  namespace bp = boost::process;
   namespace pt = boost::property_tree;
 
   proc_t proc;
@@ -52,23 +51,13 @@ namespace proc {
     }
   };
 
-  /**
-   * @brief Initializes proc functions
-   * @return Unique pointer to `deinit_t` to manage cleanup
-   */
   std::unique_ptr<platf::deinit_t>
   init() {
     return std::make_unique<deinit_t>();
   }
 
-  /**
-   * @brief Terminates all child processes in a process group.
-   * @param proc The child process itself.
-   * @param group The group of all children in the process tree.
-   * @param exit_timeout The timeout to wait for the process group to gracefully exit.
-   */
   void
-  terminate_process_group(bp::child &proc, bp::group &group, std::chrono::seconds exit_timeout) {
+  terminate_process_group(boost::process::child &proc, boost::process::group &group, std::chrono::seconds exit_timeout) {
     if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
       if (exit_timeout.count() > 0) {
         // Request processes in the group to exit gracefully
@@ -109,7 +98,7 @@ namespace proc {
   }
 
   boost::filesystem::path
-  find_working_directory(const std::string &cmd, bp::environment &env) {
+  find_working_directory(const std::string &cmd, boost::process::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
     auto parts = boost::program_options::split_winmain(cmd);
@@ -312,8 +301,8 @@ namespace proc {
     std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);
-    _process = bp::child();
-    _process_group = bp::group();
+    _process = boost::process::child();
+    _process_group = boost::process::group();
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
@@ -414,7 +403,7 @@ namespace proc {
   }
 
   std::string
-  parse_env_val(bp::native_environment &env, const std::string_view &val_raw) {
+  parse_env_val(boost::process::native_environment &env, const std::string_view &val_raw) {
     auto pos = std::begin(val_raw);
     auto dollar = std::find(pos, std::end(val_raw), '$');
 

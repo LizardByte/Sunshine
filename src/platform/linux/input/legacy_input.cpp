@@ -1074,11 +1074,9 @@ namespace platf {
    * @param input The input_t instance to use.
    * @param x Absolute x position.
    * @param y Absolute y position.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * x_abs_mouse(input, 0, 0);
-   * ```
+   * @examples_end
    */
   static void
   x_abs_mouse(input_t &input, float x, float y) {
@@ -1128,11 +1126,9 @@ namespace platf {
    * @param touch_port The touch_port instance to use.
    * @param x Absolute x position.
    * @param y Absolute y position.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * abs_mouse(input, touch_port, 0, 0);
-   * ```
+   * @examples_end
    */
   void
   abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
@@ -1160,11 +1156,9 @@ namespace platf {
    * @param input The input_t instance to use.
    * @param deltaX Relative x position.
    * @param deltaY Relative y position.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * x_move_mouse(input, 10, 10);  // Move mouse 10 pixels down and right
-   * ```
+   * @examples_end
    */
   static void
   x_move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -1183,11 +1177,9 @@ namespace platf {
    * @param input The input_t instance to use.
    * @param deltaX Relative x position.
    * @param deltaY Relative y position.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * move_mouse(input, 10, 10); // Move mouse 10 pixels down and right
-   * ```
+   * @examples_end
    */
   void
   move_mouse(input_t &input, int deltaX, int deltaY) {
@@ -1218,11 +1210,9 @@ namespace platf {
    * @param input The input_t instance to use.
    * @param button Which mouse button to emulate.
    * @param release Whether the event was a press (false) or a release (true)
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * x_button_mouse(input, 1, false); // Press left mouse button
-   * ```
+   * @examples_end
    */
   static void
   x_button_mouse(input_t &input, int button, bool release) {
@@ -1261,11 +1251,9 @@ namespace platf {
    * @param input The input_t instance to use.
    * @param button Which mouse button to emulate.
    * @param release Whether the event was a press (false) or a release (true)
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * button_mouse(input, 1, false);  // Press left mouse button
-   * ```
+   * @examples_end
    */
   void
   button_mouse(input_t &input, int button, bool release) {
@@ -1348,11 +1336,9 @@ namespace platf {
    * @param distance How far to scroll.
    * @param button_pos Which mouse button to emulate for positive scroll.
    * @param button_neg Which mouse button to emulate for negative scroll.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * x_scroll(input, 10, 4, 5);
-   * ```
+   * @examples_end
    */
   static void
   x_scroll(input_t &input, int distance, int button_pos, int button_neg) {
@@ -1375,11 +1361,9 @@ namespace platf {
    * @brief Vertical mouse scroll.
    * @param input The input_t instance to use.
    * @param high_res_distance How far to scroll.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * scroll(input, 1200);
-   * ```
+   * @examples_end
    */
   void
   scroll(input_t &input, int high_res_distance) {
@@ -1409,11 +1393,9 @@ namespace platf {
    * @brief Horizontal mouse scroll.
    * @param input The input_t instance to use.
    * @param high_res_distance How far to scroll.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * hscroll(input, 1200);
-   * ```
+   * @examples_end
    */
   void
   hscroll(input_t &input, int high_res_distance) {
@@ -1454,11 +1436,9 @@ namespace platf {
    * @param modcode The moonlight key code.
    * @param release Whether the event was a press (false) or a release (true).
    * @param flags SS_KBE_FLAG_* values.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * x_keyboard(input, 0x5A, false, 0);  // Press Z
-   * ```
+   * @examples_end
    */
   static void
   x_keyboard(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
@@ -1489,11 +1469,9 @@ namespace platf {
    * @param modcode The moonlight key code.
    * @param release Whether the event was a press (false) or a release (true).
    * @param flags SS_KBE_FLAG_* values.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * keyboard(input, 0x5A, false, 0);  // Press Z
-   * ```
+   * @examples_end
    */
   void
   keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
@@ -2106,11 +2084,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new keyboard and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_keyboard = keyboard();
-   * ```
+   * @examples_end
    */
   evdev_t
   keyboard() {
@@ -2135,11 +2111,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new `uinput` virtual relative mouse and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_mouse = mouse_rel();
-   * ```
+   * @examples_end
    */
   evdev_t
   mouse_rel() {
@@ -2186,11 +2160,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new `uinput` virtual absolute mouse and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_mouse = mouse_abs();
-   * ```
+   * @examples_end
    */
   evdev_t
   mouse_abs() {
@@ -2241,11 +2213,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new `uinput` virtual touchscreen and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_touchscreen = touchscreen();
-   * ```
+   * @examples_end
    */
   evdev_t
   touchscreen() {
@@ -2348,11 +2318,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new `uinput` virtual pen pad and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_penpad = penpad();
-   * ```
+   * @examples_end
    */
   evdev_t
   penpad() {
@@ -2447,11 +2415,9 @@ namespace platf {
 
   /**
    * @brief Initialize a new `uinput` virtual X360 gamepad and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_x360 = x360();
-   * ```
+   * @examples_end
    */
   evdev_t
   x360() {
@@ -2524,11 +2490,9 @@ namespace platf {
 
   /**
    * @brief Initialize the input system and return it.
-   *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * auto my_input = input();
-   * ```
+   * @examples_end
    */
   input_t
   input() {

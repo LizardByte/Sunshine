@@ -1,8 +1,7 @@
 /**
- * @file src/nvhttp.h
- * @brief todo
+ * @file src/nvhttp.cpp
+ * @brief Definitions for the nvhttp (GameStream) server.
  */
-
 // macros
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
@@ -161,8 +160,8 @@ namespace nvhttp {
   using req_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
 
   enum class op_e {
-    ADD,
-    REMOVE
+    ADD,  ///< Add certificate
+    REMOVE  ///< Remove certificate
   };
 
   std::string
@@ -610,17 +609,6 @@ namespace nvhttp {
     }
   }
 
-  /**
-   * @brief Compare the user supplied pin to the Moonlight pin.
-   * @param pin The user supplied pin.
-   * @param name The user supplied name.
-   * @return `true` if the pin is correct, `false` otherwise.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * bool pin_status = nvhttp::pin("1234", "laptop");
-   * ```
-   */
   bool
   pin(std::string pin, std::string name) {
     pt::ptree tree;
@@ -1050,14 +1038,6 @@ namespace nvhttp {
     response->close_connection_after_response = true;
   }
 
-  /**
-   * @brief Start the nvhttp server.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * nvhttp::start();
-   * ```
-   */
   void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1188,14 +1168,6 @@ namespace nvhttp {
     tcp.join();
   }
 
-  /**
-   * @brief Remove all paired clients.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * nvhttp::erase_all_clients();
-   * ```
-   */
   void
   erase_all_clients() {
     client_t client;
@@ -1204,14 +1176,6 @@ namespace nvhttp {
     save_state();
   }
 
-  /**
-   * @brief Remove single client.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
-   * ```
-   */
   int
   unpair_client(std::string uuid) {
     int removed = 0;

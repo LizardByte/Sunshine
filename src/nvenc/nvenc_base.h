@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_base.h
+ * @brief Declarations for base NVENC encoder.
+ */
 #pragma once
 
 #include "nvenc_colorspace.h"

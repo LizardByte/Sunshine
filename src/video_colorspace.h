@@ -1,3 +1,7 @@
+/**
+ * @file src/video_colorspace.h
+ * @brief Declarations for colorspace functions.
+ */
 #pragma once
 
 extern "C" {
@@ -7,10 +11,10 @@ extern "C" {
 namespace video {
 
   enum class colorspace_e {
-    rec601,
-    rec709,
-    bt2020sdr,
-    bt2020,
+    rec601,  ///< Rec. 601
+    rec709,  ///< Rec. 709
+    bt2020sdr,  ///< Rec. 2020 SDR
+    bt2020,  ///< Rec. 2020 HDR
   };
 
   struct sunshine_colorspace_t {

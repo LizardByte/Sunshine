@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/audio.cpp
- * @brief todo
+ * @brief Definitions for Windows audio capture.
  */
 #define INITGUID
 #include <audioclient.h>
@@ -91,10 +91,10 @@ namespace platf::audio {
 
   struct format_t {
     enum type_e : int {
-      none,
-      stereo,
-      surr51,
-      surr71,
+      none,  ///< No format
+      stereo,  ///< Stereo
+      surr51,  ///< Surround 5.1
+      surr71,  ///< Surround 7.1
     } type;
 
     std::string_view name;
@@ -327,8 +327,7 @@ namespace platf::audio {
 
     /**
      * @brief Checks if the default rendering device changed and resets the change flag
-     *
-     * @return true if the device changed since last call
+     * @return `true` if the device changed since last call
      */
     bool
     check_default_render_device_changed() {
@@ -689,9 +688,7 @@ namespace platf::audio {
 
     /**
      * @brief Gets information encoded in the raw sink name
-     *
      * @param sink The raw sink name
-     *
      * @return A pair of type and the real sink name
      */
     std::pair<format_t::type_e, std::string_view>

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/graphics.h
- * @brief todo
+ * @brief Declarations for graphics related functions.
  */
 #pragma once
 

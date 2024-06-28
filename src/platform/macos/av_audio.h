@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/av_audio.h
- * @brief todo
+ * @brief Declarations for audio capture on macOS.
  */
 #pragma once
 

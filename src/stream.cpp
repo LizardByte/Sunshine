@@ -1,6 +1,6 @@
 /**
  * @file src/stream.cpp
- * @brief todo
+ * @brief Definitions for the streaming protocols.
  */
 #include "process.h"
 
@@ -73,8 +73,8 @@ using namespace std::literals;
 namespace stream {
 
   enum class socket_e : int {
-    video,
-    audio
+    video,  ///< Video
+    audio  ///< Audio
   };
 
 #pragma pack(push, 1)
@@ -288,7 +288,7 @@ namespace stream {
     iterate(std::chrono::milliseconds timeout);
 
     /**
-     * @brief Calls the handler for a given control stream message.
+     * @brief Call the handler for a given control stream message.
      * @param type The message type.
      * @param session The session the message was received on.
      * @param payload The payload of the message.
@@ -550,7 +550,7 @@ namespace stream {
   }
 
   /**
-   * @brief Calls the handler for a given control stream message.
+   * @brief Call the handler for a given control stream message.
    * @param type The message type.
    * @param session The session the message was received on.
    * @param payload The payload of the message.

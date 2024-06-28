@@ -1,6 +1,6 @@
 /**
  * @file tools/ddprobe.cpp
- * @brief todo
+ * @brief Handles probing for DXGI duplication support.
  */
 #include <d3d11.h>
 #include <dxgi1_2.h>

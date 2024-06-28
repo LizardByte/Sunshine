@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/av_img_t.h
- * @brief todo
+ * @brief Declarations for AV image types on macOS.
  */
 #pragma once
 

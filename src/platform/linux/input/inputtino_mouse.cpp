@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_mouse.cpp
+ * @brief Definitions for inputtino mouse input handling.
+ */
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>

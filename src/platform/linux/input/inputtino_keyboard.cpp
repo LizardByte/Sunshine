@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_keyboard.cpp
+ * @brief Definitions for inputtino keyboard input handling.
+ */
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>

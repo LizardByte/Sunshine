@@ -1,6 +1,6 @@
 /**
  * @file src/upnp.cpp
- * @brief todo
+ * @brief Definitions for UPnP port mapping.
  */
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/upnpcommands.h>
@@ -95,7 +95,7 @@ namespace upnp {
     /**
      * @brief Opens pinholes for IPv6 traffic if the IGD is capable.
      * @details Not many IGDs support this feature, so we perform error logging with debug level.
-     * @return true if the pinholes were opened successfully.
+     * @return `true` if the pinholes were opened successfully.
      */
     bool
     create_ipv6_pinholes() {

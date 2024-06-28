@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/misc.mm
- * @brief todo
+ * @brief Miscellaneous definitions for macOS platform.
  */
 
 // Required for IPV6_PKTINFO with Darwin headers

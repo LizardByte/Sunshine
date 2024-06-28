@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/input.cpp
- * @brief todo
+ * @brief Definitions for input handling on Windows.
  */
 #define WINVER 0x0A00
 #include <windows.h>

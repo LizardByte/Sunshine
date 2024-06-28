@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/av_video.h
- * @brief todo
+ * @brief Declarations for video capture on macOS.
  */
 #pragma once
 

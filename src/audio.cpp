@@ -1,6 +1,6 @@
 /**
  * @file src/audio.cpp
- * @brief todo
+ * @brief Definitions for audio capture and encoding.
  */
 #include <thread>
 

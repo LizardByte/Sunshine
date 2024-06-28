@@ -1,3 +1,7 @@
+/**
+ * @file src/video_colorspace.cpp
+ * @brief Definitions for colorspace functions.
+ */
 #include "video_colorspace.h"
 
 #include "logging.h"

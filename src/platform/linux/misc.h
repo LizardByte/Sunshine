@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/misc.h
- * @brief todo
+ * @brief Miscellaneous declarations for Linux.
  */
 #pragma once
 
@@ -16,9 +16,9 @@ KITTY_USING_MOVE_T(file_t, int, -1, {
 });
 
 enum class window_system_e {
-  NONE,
-  X11,
-  WAYLAND,
+  NONE,  ///< No window system
+  X11,  ///< X11
+  WAYLAND,  ///< Wayland
 };
 
 extern window_system_e window_system;

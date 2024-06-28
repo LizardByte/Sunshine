@@ -1,6 +1,6 @@
 /**
  * @file src/system_tray.cpp
- * @brief todo
+ * @brief Definitions for the system tray icon and notification system.
  */
 // macros
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
@@ -49,56 +49,32 @@ using namespace std::literals;
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
 
-  /**
-   * @brief Callback for opening the UI from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
     launch_ui();
   }
 
-  /**
-   * @brief Callback for opening GitHub Sponsors from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_donate_github_cb(struct tray_menu *item) {
     platf::open_url("https://github.com/sponsors/LizardByte");
   }
 
-  /**
-   * @brief Callback for opening MEE6 donation from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_donate_mee6_cb(struct tray_menu *item) {
     platf::open_url("https://mee6.xyz/m/804382334370578482");
   }
 
-  /**
-   * @brief Callback for opening Patreon from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_donate_patreon_cb(struct tray_menu *item) {
     platf::open_url("https://www.patreon.com/LizardByte");
   }
 
-  /**
-   * @brief Callback for opening PayPal donation from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_donate_paypal_cb(struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
-  /**
-   * @brief Callback for restarting Sunshine from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_restart_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Restarting from system tray"sv;
@@ -106,10 +82,6 @@ namespace system_tray {
     platf::restart();
   }
 
-  /**
-   * @brief Callback for exiting Sunshine from the system tray.
-   * @param item The tray menu item.
-   */
   void
   tray_quit_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Quitting from system tray"sv;
@@ -151,11 +123,6 @@ namespace system_tray {
     .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
   };
 
-  /**
-   * @brief Create the system tray.
-   * @details This function has an endless loop, so it should be run in a separate thread.
-   * @return 1 if the system tray failed to create, otherwise 0 once the tray has been terminated.
-   */
   int
   system_tray() {
   #ifdef _WIN32
@@ -249,10 +216,6 @@ namespace system_tray {
     return 0;
   }
 
-  /**
-   * @brief Run the system tray with platform specific options.
-   * @note macOS requires that UI elements be created on the main thread, so the system tray is not currently implemented for macOS.
-   */
   void
   run_tray() {
     // create the system tray
@@ -272,10 +235,6 @@ namespace system_tray {
   #endif
   }
 
-  /**
-   * @brief Exit the system tray.
-   * @return 0 after exiting the system tray.
-   */
   int
   end_tray() {
     tray_initialized = false;
@@ -283,10 +242,6 @@ namespace system_tray {
     return 0;
   }
 
-  /**
-   * @brief Sets the tray icon in playing mode and spawns the appropriate notification
-   * @param app_name The started application name
-   */
   void
   update_tray_playing(std::string app_name) {
     if (!tray_initialized) {
@@ -309,10 +264,6 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  /**
-   * @brief Sets the tray icon in pausing mode (stream stopped but app running) and spawns the appropriate notification
-   * @param app_name The paused application name
-   */
   void
   update_tray_pausing(std::string app_name) {
     if (!tray_initialized) {
@@ -335,10 +286,6 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  /**
-   * @brief Sets the tray icon in stopped mode (app and stream stopped) and spawns the appropriate notification
-   * @param app_name The started application name
-   */
   void
   update_tray_stopped(std::string app_name) {
     if (!tray_initialized) {
@@ -361,9 +308,6 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  /**
-   * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
-   */
   void
   update_tray_require_pin() {
     if (!tray_initialized) {

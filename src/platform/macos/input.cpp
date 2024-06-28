@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/input.cpp
- * @brief todo
+ * @brief Definitions for macOS input handling.
  */
 #include "src/input.h"
 

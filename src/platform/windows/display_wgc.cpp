@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/display_wgc.cpp
- * @brief WinRT Windows.Graphics.Capture API
+ * @brief Definitions for WinRT Windows.Graphics.Capture API
  */
 #include <dxgi1_2.h>
 
@@ -26,7 +26,8 @@ namespace winrt {
   HRESULT __stdcall CreateDirect3D11DeviceFromDXGIDevice(::IDXGIDevice *dxgiDevice, ::IInspectable **graphicsDevice);
   }
 
-  /* Windows structures sometimes have compile-time GUIDs. GCC supports this, but in a roundabout way.
+  /**
+   * Windows structures sometimes have compile-time GUIDs. GCC supports this, but in a roundabout way.
    * If WINRT_IMPL_HAS_DECLSPEC_UUID is true, then the compiler supports adding this attribute to a struct. For example, Visual Studio.
    * If not, then MinGW GCC has a workaround to assign a GUID to a structure.
    */
@@ -66,8 +67,8 @@ namespace platf::dxgi {
   }
 
   /**
-   * Initialize the Windows.Graphics.Capture backend.
-   * @return 0 on success
+   * @brief Initialize the Windows.Graphics.Capture backend.
+   * @return 0 on success, -1 on failure.
    */
   int
   wgc_capture_t::init(display_base_t *display, const ::video::config_t &config) {
@@ -161,7 +162,7 @@ namespace platf::dxgi {
   }
 
   /**
-   * Get the next frame from the producer thread.
+   * @brief Get the next frame from the producer thread.
    * If not available, the capture thread blocks until one is, or the wait times out.
    * @param timeout how long to wait for the next frame
    * @param out a texture containing the frame just captured
@@ -227,11 +228,11 @@ namespace platf::dxgi {
   }
 
   /**
-   * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
+   * @brief Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
    * @param pull_free_image_cb call this to get a new free image from the video subsystem.
    * @param img_out the captured frame is returned here
    * @param timeout how long to wait for the next frame
-   * @param cursor_visible
+   * @param cursor_visible whether to capture the cursor
    */
   capture_e
   display_wgc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {

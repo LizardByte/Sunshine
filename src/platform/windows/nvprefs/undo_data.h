@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/undo_data.h
+ * @brief Declarations for undoing changes to nvidia preferences.
+ */
 #pragma once
 
 // standard library headers

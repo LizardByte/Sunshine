@@ -1,3 +1,7 @@
+/**
+ * @file src/nvenc/nvenc_utils.cpp
+ * @brief Definitions for base NVENC utilities.
+ */
 #include <cassert>
 
 #include "nvenc_utils.h"

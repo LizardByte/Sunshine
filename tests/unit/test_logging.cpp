@@ -1,5 +1,5 @@
 /**
- * @file tests/test_logging.cpp
+ * @file tests/unit/test_logging.cpp
  * @brief Test src/logging.*.
  */
 #include <fstream>

@@ -1,6 +1,6 @@
 /**
  * @file src/sync.h
- * @brief todo
+ * @brief Declarations for synchronization utilities.
  */
 #pragma once
 

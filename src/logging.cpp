@@ -1,8 +1,7 @@
 /**
  * @file src/logging.cpp
- * @brief Logging implementation file for the Sunshine application.
+ * @brief Definitions for logging related functions.
  */
-
 // standard includes
 #include <fstream>
 #include <iostream>
@@ -38,21 +37,10 @@ bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 namespace logging {
-  /**
-   * @brief A destructor that restores the initial state.
-   */
   deinit_t::~deinit_t() {
     deinit();
   }
 
-  /**
-   * @brief Deinitialize the logging system.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * deinit();
-   * ```
-   */
   void
   deinit() {
     log_flush();
@@ -60,17 +48,6 @@ namespace logging {
     sink.reset();
   }
 
-  /**
-   * @brief Initialize the logging system.
-   * @param min_log_level The minimum log level to output.
-   * @param log_file The log file to write to.
-   * @returns A deinit_t object that will deinitialize the logging system when it goes out of scope.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * log_init(2, "sunshine.log");
-   * ```
-   */
   [[nodiscard]] std::unique_ptr<deinit_t>
   init(int min_log_level, const std::string &log_file) {
     if (sink) {
@@ -131,10 +108,6 @@ namespace logging {
     return std::make_unique<deinit_t>();
   }
 
-  /**
-   * @brief Setup AV logging.
-   * @param min_log_level The log level.
-   */
   void
   setup_av_logging(int min_log_level) {
     if (min_log_level >= 1) {
@@ -169,14 +142,6 @@ namespace logging {
     });
   }
 
-  /**
-   * @brief Flush the log.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * log_flush();
-   * ```
-   */
   void
   log_flush() {
     if (sink) {
@@ -184,15 +149,6 @@ namespace logging {
     }
   }
 
-  /**
-   * @brief Print help to stdout.
-   * @param name The name of the program.
-   *
-   * EXAMPLES:
-   * ```cpp
-   * print_help("sunshine");
-   * ```
-   */
   void
   print_help(const char *name) {
     std::cout

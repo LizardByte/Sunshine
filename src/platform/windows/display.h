@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/display.h
- * @brief todo
+ * @brief Declarations for the Windows display backend.
  */
 #pragma once
 
@@ -187,12 +187,12 @@ namespace platf::dxgi {
     util::safe_ptr_v2<std::remove_pointer_t<HANDLE>, BOOL, CloseHandle> timer;
 
     typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
-      D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
-      D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,
-      D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,
-      D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,
-      D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,
-      D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
+      D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,  ///< Idle priority class
+      D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,  ///< Below normal priority class
+      D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,  ///< Normal priority class
+      D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,  ///< Above normal priority class
+      D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,  ///< High priority class
+      D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME  ///< Realtime priority class
     } D3DKMT_SCHEDULINGPRIORITYCLASS;
 
     typedef UINT D3DKMT_HANDLE;

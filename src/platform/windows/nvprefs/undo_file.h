@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/windows/nvprefs/undo_file.h
+ * @brief Declarations for the nvidia undo file.
+ */
 #pragma once
 
 // standard library headers

@@ -1,5 +1,5 @@
 /**
- * @file tests/test_file_handler.cpp
+ * @file tests/unit/test_file_handler.cpp
  * @brief Test src/file_handler.*.
  */
 #include <src/file_handler.h>

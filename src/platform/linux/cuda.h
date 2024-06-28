@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/cuda.h
- * @brief todo
+ * @brief Definitions for CUDA implementation.
  */
 #pragma once
 

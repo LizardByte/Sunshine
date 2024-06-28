@@ -1,3 +1,9 @@
+/**
+ * @file tests/conftest.cpp
+ * @brief Common test fixtures for all tests.
+ * While not a header, this file should be included in all test files.
+ * @todo Separate parts of this into a header file.
+ */
 #include <filesystem>
 #include <gtest/gtest.h>
 

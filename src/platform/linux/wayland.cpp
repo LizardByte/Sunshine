@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/wayland.cpp
- * @brief todo
+ * @brief Definitions for Wayland capture.
  */
 #include <poll.h>
 #include <wayland-client.h>
@@ -65,7 +65,7 @@ namespace wl {
   /**
    * @brief Waits up to the specified timeout to dispatch new events on the wl_display.
    * @param timeout The timeout in milliseconds.
-   * @return true if new events were dispatched or false if the timeout expired.
+   * @return `true` if new events were dispatched or `false` if the timeout expired.
    */
   bool
   display_t::dispatch(std::chrono::milliseconds timeout) {

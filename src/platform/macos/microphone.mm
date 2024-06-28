@@ -1,6 +1,6 @@
 /**
  * @file src/platform/macos/microphone.mm
- * @brief todo
+ * @brief Definitions for microphone capture on macOS.
  */
 #include "src/platform/common.h"
 #include "src/platform/macos/av_audio.h"

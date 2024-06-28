@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/vaapi.h
- * @brief todo
+ * @brief Declarations for VA-API hardware accelerated capture.
  */
 #pragma once
 

@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/misc.cpp
- * @brief todo
+ * @brief Miscellaneous definitions for Linux.
  */
 
 // Required for in6_pktinfo with glibc headers
@@ -747,18 +747,18 @@ namespace platf {
   namespace source {
     enum source_e : std::size_t {
 #ifdef SUNSHINE_BUILD_CUDA
-      NVFBC,
+      NVFBC,  ///< NvFBC
 #endif
 #ifdef SUNSHINE_BUILD_WAYLAND
-      WAYLAND,
+      WAYLAND,  ///< Wayland
 #endif
 #ifdef SUNSHINE_BUILD_DRM
-      KMS,
+      KMS,  ///< KMS
 #endif
 #ifdef SUNSHINE_BUILD_X11
-      X11,
+      X11,  ///< X11
 #endif
-      MAX_FLAGS
+      MAX_FLAGS  ///< The maximum number of flags
     };
   }  // namespace source
 

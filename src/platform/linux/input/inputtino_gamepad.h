@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_gamepad.h
+ * @brief Declarations for inputtino gamepad input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>
@@ -13,9 +17,9 @@ using namespace std::literals;
 namespace platf::gamepad {
 
   enum ControllerType {
-    XboxOneWired,
-    DualSenseWired,
-    SwitchProWired
+    XboxOneWired,  ///< Xbox One Wired Controller
+    DualSenseWired,  ///< DualSense Wired Controller
+    SwitchProWired  ///< Switch Pro Wired Controller
   };
 
   int

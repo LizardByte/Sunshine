@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/x11grab.h
- * @brief todo
+ * @brief Declarations for x11 capture.
  */
 #pragma once
 

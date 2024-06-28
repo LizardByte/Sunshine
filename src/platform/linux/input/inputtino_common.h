@@ -1,3 +1,7 @@
+/**
+ * @file src/platform/linux/input/inputtino_common.h
+ * @brief Declarations for inputtino common input handling.
+ */
 #pragma once
 
 #include <boost/locale.hpp>
