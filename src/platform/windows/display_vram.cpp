@@ -413,62 +413,38 @@ namespace platf::dxgi {
           return -1;
         }
 
-        if (format == DXGI_FORMAT_AYUV || format == DXGI_FORMAT_Y410) {
-          device_ctx->OMSetRenderTargets(1, &yuv444_rt, nullptr);
-          device_ctx->VSSetShader(convert_YUV_vs.get(), nullptr, 0);
-          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_YUV_fp16_ps.get() : convert_YUV_ps.get(), nullptr, 0);
+        auto draw = [&](auto &input, auto &y_or_yuv_viewports) {
+          device_ctx->PSSetShaderResources(0, 1, &input);
 
-          if (!rt_cleared) {
-            device_ctx->RSSetViewports(1, outYUV_views_for_clear.data());
-            auto black = create_black_texture_for_render_target_clear();
-            if (black) {
-              device_ctx->PSSetShaderResources(0, 1, &black);
-              device_ctx->Draw(3, 0);
-            }
-            rt_cleared = true;
+          // Draw Y/YUV
+          device_ctx->OMSetRenderTargets(1, &out_Y_or_YUV_rtv, nullptr);
+          device_ctx->VSSetShader(convert_Y_or_YUV_vs.get(), nullptr, 0);
+          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_or_YUV_fp16_ps.get() : convert_Y_or_YUV_ps.get(), nullptr, 0);
+          auto viewport_count = (format == DXGI_FORMAT_R16_UINT) ? 3 : 1;
+          assert(viewport_count <= y_or_yuv_viewports.size());
+          device_ctx->RSSetViewports(viewport_count, y_or_yuv_viewports.data());
+          device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
+
+          // Draw UV if needed
+          if (out_UV_rtv) {
+            assert(format == DXGI_FORMAT_NV12 || format == DXGI_FORMAT_P010);
+            device_ctx->OMSetRenderTargets(1, &out_UV_rtv, nullptr);
+            device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
+            device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
+            device_ctx->RSSetViewports(1, &out_UV_viewport);
+            device_ctx->Draw(3, 0);
           }
+        };
 
-          device_ctx->RSSetViewports(1, outYUV_views.data());
-          device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
-          device_ctx->Draw(3, 0);
+        // Clear render target view(s) once so that the aspect ratio mismatch "bars" appear black
+        if (!rtvs_cleared) {
+          auto black = create_black_texture_for_rtv_clear();
+          if (black) draw(black, out_Y_or_YUV_viewports_for_clear);
+          rtvs_cleared = true;
         }
-        else if (format == DXGI_FORMAT_R16_UINT) {
-          device_ctx->OMSetRenderTargets(1, &yuv444_rt, nullptr);
-          device_ctx->VSSetShader(convert_YUV_vs.get(), nullptr, 0);
-          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_YUV_fp16_ps.get() : convert_YUV_ps.get(), nullptr, 0);
 
-          if (!rt_cleared) {
-            assert(outYUV_views_for_clear.size() == 3);
-            device_ctx->RSSetViewports(3, outYUV_views_for_clear.data());
-            auto black = create_black_texture_for_render_target_clear();
-            if (black) {
-              device_ctx->PSSetShaderResources(0, 1, &black);
-              device_ctx->Draw(9, 0);  // vertex shader spreads 9 vertices across 3 viewports
-            }
-            rt_cleared = true;
-          }
-
-          assert(outYUV_views.size() == 3);
-          device_ctx->RSSetViewports(3, outYUV_views.data());
-          device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
-          device_ctx->Draw(9, 0);  // vertex shader spreads 9 vertices across 3 viewports
-        }
-        else {
-          assert(rt_cleared);
-
-          device_ctx->OMSetRenderTargets(1, &nv12_Y_rt, nullptr);
-          device_ctx->VSSetShader(scene_vs.get(), nullptr, 0);
-          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_fp16_ps.get() : convert_Y_ps.get(), nullptr, 0);
-          device_ctx->RSSetViewports(1, &outY_view);
-          device_ctx->PSSetShaderResources(0, 1, &img_ctx.encoder_input_res);
-          device_ctx->Draw(3, 0);
-
-          device_ctx->OMSetRenderTargets(1, &nv12_UV_rt, nullptr);
-          device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
-          device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
-          device_ctx->RSSetViewports(1, &outUV_view);
-          device_ctx->Draw(3, 0);
-        }
+        // Draw captured frame
+        draw(img_ctx.encoder_input_res, out_Y_or_YUV_viewports);
 
         // Release encoder mutex to allow capture code to reuse this image
         img_ctx.encoder_mutex->ReleaseSync(0);
@@ -527,15 +503,19 @@ namespace platf::dxgi {
       auto offsetX = (out_width - out_width_f) / 2;
       auto offsetY = (out_height - out_height_f) / 2;
 
-      outY_view = D3D11_VIEWPORT { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };
-      outUV_view = D3D11_VIEWPORT { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
-      outYUV_views = { outY_view, outY_view, outY_view };  // Planar YUV
-      outYUV_views[1].TopLeftY += out_height;  // U plane
-      outYUV_views[2].TopLeftY += 2 * out_height;  // V plane
-      auto outY_view_for_clear = D3D11_VIEWPORT { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };
-      outYUV_views_for_clear = { outY_view_for_clear, outY_view_for_clear, outY_view_for_clear };
-      outYUV_views_for_clear[1].TopLeftY += out_height;
-      outYUV_views_for_clear[2].TopLeftY += 2 * out_height;
+      out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
+      out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // U plane
+      out_Y_or_YUV_viewports[1].TopLeftY += out_height;
+      out_Y_or_YUV_viewports[2] = out_Y_or_YUV_viewports[1];  // V plane
+      out_Y_or_YUV_viewports[2].TopLeftY += out_height;
+
+      out_Y_or_YUV_viewports_for_clear[0] = { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };  // Y plane
+      out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // U plane
+      out_Y_or_YUV_viewports_for_clear[1].TopLeftY += out_height;
+      out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // V plane
+      out_Y_or_YUV_viewports_for_clear[2].TopLeftY += out_height;
+
+      out_UV_viewport = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
 
       float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
       subsample_offset = make_buffer(device.get(), subsample_offset_in);
@@ -557,68 +537,73 @@ namespace platf::dxgi {
         device_ctx->VSSetConstantBuffers(1, 1, &rotation);
       }
 
-      if (format == DXGI_FORMAT_AYUV) {
-        D3D11_RENDER_TARGET_VIEW_DESC rt_desc = {};
-        rt_desc.Format = DXGI_FORMAT_R8G8B8A8_UINT;
-        rt_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+      DXGI_FORMAT rtv_Y_or_YUV_format = DXGI_FORMAT_UNKNOWN;
+      DXGI_FORMAT rtv_UV_format = DXGI_FORMAT_UNKNOWN;
+      bool rtv_simple_clear = false;
 
-        auto status = device->CreateRenderTargetView(output_texture.get(), &rt_desc, &yuv444_rt);
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
+      switch (format) {
+        case DXGI_FORMAT_NV12:
+          rtv_Y_or_YUV_format = DXGI_FORMAT_R8_UNORM;
+          rtv_UV_format = DXGI_FORMAT_R8G8_UNORM;
+          rtv_simple_clear = true;
+          break;
+
+        case DXGI_FORMAT_P010:
+          rtv_Y_or_YUV_format = DXGI_FORMAT_R16_UNORM;
+          rtv_UV_format = DXGI_FORMAT_R16G16_UNORM;
+          rtv_simple_clear = true;
+          break;
+
+        case DXGI_FORMAT_AYUV:
+          rtv_Y_or_YUV_format = DXGI_FORMAT_R8G8B8A8_UINT;
+          break;
+
+        case DXGI_FORMAT_R16_UINT:
+          rtv_Y_or_YUV_format = DXGI_FORMAT_R16_UINT;
+          break;
+
+        case DXGI_FORMAT_Y410:
+          rtv_Y_or_YUV_format = DXGI_FORMAT_R10G10B10A2_UINT;
+          break;
+
+        default:
+          BOOST_LOG(error) << "Unable to create render target views because of the unrecognized surface format";
           return -1;
-        }
-        rt_cleared = false;  // can't use ClearRenderTargetView(), will clear on first convert()
       }
-      else if (format == DXGI_FORMAT_R16_UINT) {
-        D3D11_RENDER_TARGET_VIEW_DESC rt_desc = {};
-        rt_desc.Format = DXGI_FORMAT_R16_UINT;
-        rt_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 
-        auto status = device->CreateRenderTargetView(output_texture.get(), &rt_desc, &yuv444_rt);
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-        rt_cleared = false;  // can't use ClearRenderTargetView(), will clear on first convert()
-      }
-      else if (format == DXGI_FORMAT_Y410) {
-        D3D11_RENDER_TARGET_VIEW_DESC rt_desc = {};
-        rt_desc.Format = DXGI_FORMAT_R10G10B10A2_UINT;
-        rt_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+      auto create_rtv = [&](auto &rt, DXGI_FORMAT rt_format) -> bool {
+        D3D11_RENDER_TARGET_VIEW_DESC rtv_desc = {};
+        rtv_desc.Format = rt_format;
+        rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
 
-        auto status = device->CreateRenderTargetView(output_texture.get(), &rt_desc, &yuv444_rt);
+        auto status = device->CreateRenderTargetView(output_texture.get(), &rtv_desc, &rt);
         if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
-        rt_cleared = false;  // can't use ClearRenderTargetView(), will clear on first convert()
-      }
-      else {
-        D3D11_RENDER_TARGET_VIEW_DESC nv12_rt_desc {
-          format == DXGI_FORMAT_P010 ? DXGI_FORMAT_R16_UNORM : DXGI_FORMAT_R8_UNORM,
-          D3D11_RTV_DIMENSION_TEXTURE2D
-        };
-
-        auto status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_Y_rt);
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
+          BOOST_LOG(error) << "Failed to create render target view: " << util::log_hex(status);
+          return false;
         }
 
-        nv12_rt_desc.Format = (format == DXGI_FORMAT_P010) ? DXGI_FORMAT_R16G16_UNORM : DXGI_FORMAT_R8G8_UNORM;
+        return true;
+      };
 
-        status = device->CreateRenderTargetView(output_texture.get(), &nv12_rt_desc, &nv12_UV_rt);
-        if (FAILED(status)) {
-          BOOST_LOG(error) << "Failed to create render target view [0x"sv << util::hex(status).to_string_view() << ']';
-          return -1;
-        }
+      // Create Y/YUV render target view
+      if (!create_rtv(out_Y_or_YUV_rtv, rtv_Y_or_YUV_format)) return -1;
 
+      // Create UV render target view if needed
+      if (rtv_UV_format != DXGI_FORMAT_UNKNOWN && !create_rtv(out_UV_rtv, rtv_UV_format)) return -1;
+
+      if (rtv_simple_clear) {
         // Clear the RTVs to ensure the aspect ratio padding is black
         const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-        device_ctx->ClearRenderTargetView(nv12_Y_rt.get(), y_black);
-        const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
-        device_ctx->ClearRenderTargetView(nv12_UV_rt.get(), uv_black);
-        rt_cleared = true;
+        device_ctx->ClearRenderTargetView(out_Y_or_YUV_rtv.get(), y_black);
+        if (out_UV_rtv) {
+          const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+          device_ctx->ClearRenderTargetView(out_UV_rtv.get(), uv_black);
+        }
+        rtvs_cleared = true;
+      }
+      else {
+        // Can't use ClearRenderTargetView(), will clear on first convert()
+        rtvs_cleared = false;
       }
 
       return 0;
@@ -690,61 +675,78 @@ namespace platf::dxgi {
           return -1;
       }
 
-#define create_vertex_shader_helper(x, y)                                                                               \
-  if ((status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) {                  \
-    BOOST_LOG(error) << "Failed to create vertex shader " << #x << " [0x" << util::hex(status).to_string_view() << "]"; \
-    return -1;                                                                                                          \
+#define create_vertex_shader_helper(x, y)                                                                    \
+  if (FAILED(status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+    BOOST_LOG(error) << "Failed to create vertex shader " << #x << ": " << util::log_hex(status);            \
+    return -1;                                                                                               \
   }
-#define create_pixel_shader_helper(x, y)                                                                               \
-  if ((status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) {                  \
-    BOOST_LOG(error) << "Failed to create pixel shader " << #x << " [0x" << util::hex(status).to_string_view() << "]"; \
-    return -1;                                                                                                         \
+#define create_pixel_shader_helper(x, y)                                                                    \
+  if (FAILED(status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+    BOOST_LOG(error) << "Failed to create pixel shader " << #x << ": " << util::log_hex(status);            \
+    return -1;                                                                                              \
   }
 
-      create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, scene_vs);
-      create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
-      create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_ps);
-      create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+      switch (format) {
+        case DXGI_FORMAT_NV12:
+          // Semi-planar 8-bit YUV 4:2:0
+          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+          break;
 
-      // If the display is in HDR and we're streaming HDR, we'll be converting scRGB to SMPTE 2084 PQ.
-      if (format == DXGI_FORMAT_P010 && display->is_hdr()) {
-        create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_fp16_ps);
-        create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
-      }
-      else {
-        // If the display is in Advanced Color mode, the desktop format will be scRGB FP16.
-        // scRGB uses linear gamma, so we must use our linear to sRGB conversion shaders.
-        create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_fp16_ps);
-        create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
-      }
+        case DXGI_FORMAT_P010:
+          // Semi-planar 16-bit YUV 4:2:0, 10 most significant bits store the value
+          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+          }
+          break;
 
-      if (format == DXGI_FORMAT_R16_UINT) {
-        // Planar 16-bit YUV 4:4:4, 10 most significant bits store the value
-        create_vertex_shader_helper(convert_yuv444_planar_vs_hlsl, convert_YUV_vs);
-        create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_YUV_ps);
-        if (display->is_hdr()) {
-          create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_YUV_fp16_ps);
-        }
-        else {
-          create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_YUV_fp16_ps);
-        }
-      }
-      else if (format == DXGI_FORMAT_AYUV) {
-        // Packed 8-bit YUV 4:4:4
-        create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_YUV_vs);
-        create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_YUV_ps);
-        create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_YUV_fp16_ps);
-      }
-      else if (format == DXGI_FORMAT_Y410) {
-        // Packed 10-bit YUV 4:4:4
-        create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_YUV_vs);
-        create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_YUV_ps);
-        if (display->is_hdr()) {
-          create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_YUV_fp16_ps);
-        }
-        else {
-          create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_YUV_fp16_ps);
-        }
+        case DXGI_FORMAT_R16_UINT:
+          // Planar 16-bit YUV 4:4:4, 10 most significant bits store the value
+          create_vertex_shader_helper(convert_yuv444_planar_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          break;
+
+        case DXGI_FORMAT_AYUV:
+          // Packed 8-bit YUV 4:4:4
+          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_ps);
+          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          break;
+
+        case DXGI_FORMAT_Y410:
+          // Packed 10-bit YUV 4:4:4
+          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          break;
+
+        default:
+          BOOST_LOG(error) << "Unable to create shaders because of the unrecognized surface format";
+          return -1;
       }
 
 #undef create_vertex_shader_helper
@@ -865,7 +867,7 @@ namespace platf::dxgi {
     }
 
     shader_res_t
-    create_black_texture_for_render_target_clear() {
+    create_black_texture_for_rtv_clear() {
       constexpr auto width = 32;
       constexpr auto height = 32;
 
@@ -907,10 +909,9 @@ namespace platf::dxgi {
     blend_t blend_disable;
     sampler_state_t sampler_linear;
 
-    render_target_t yuv444_rt;
-    render_target_t nv12_Y_rt;
-    render_target_t nv12_UV_rt;
-    bool rt_cleared = false;
+    render_target_t out_Y_or_YUV_rtv;
+    render_target_t out_UV_rtv;
+    bool rtvs_cleared = false;
 
     // d3d_img_t::id -> encoder_img_ctx_t
     // These store the encoder textures for each img_t that passes through
@@ -920,19 +921,16 @@ namespace platf::dxgi {
 
     std::shared_ptr<display_base_t> display;
 
+    vs_t convert_Y_or_YUV_vs;
+    ps_t convert_Y_or_YUV_ps;
+    ps_t convert_Y_or_YUV_fp16_ps;
+
     vs_t convert_UV_vs;
     ps_t convert_UV_ps;
     ps_t convert_UV_fp16_ps;
-    ps_t convert_Y_ps;
-    ps_t convert_Y_fp16_ps;
-    vs_t convert_YUV_vs;
-    ps_t convert_YUV_ps;
-    ps_t convert_YUV_fp16_ps;
-    vs_t scene_vs;
 
-    D3D11_VIEWPORT outY_view;
-    D3D11_VIEWPORT outUV_view;
-    std::array<D3D11_VIEWPORT, 3> outYUV_views, outYUV_views_for_clear;
+    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports, out_Y_or_YUV_viewports_for_clear;
+    D3D11_VIEWPORT out_UV_viewport;
 
     DXGI_FORMAT format;
 

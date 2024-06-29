@@ -267,6 +267,12 @@ namespace util {
     return Hex<T>(elem, rev);
   }
 
+  template <typename T>
+  std::string
+  log_hex(const T &value) {
+    return "0x" + Hex<T>(value, false).to_string();
+  }
+
   template <class It>
   std::string
   hex_vec(It begin, It end, bool rev = false) {
@@ -606,7 +612,8 @@ namespace util {
       return _deleter;
     }
 
-    explicit operator bool() const {
+    explicit
+    operator bool() const {
       return _p != nullptr;
     }
 
