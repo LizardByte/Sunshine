@@ -881,20 +881,20 @@ namespace platf::dxgi {
       texture_desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
       texture_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 
-      std::vector<char> mem(4 * width * height, 0);
+      std::vector<uint8_t> mem(4 * width * height, 0);
       D3D11_SUBRESOURCE_DATA texture_data = { mem.data(), 4 * width, 0 };
 
       texture2d_t texture;
       auto status = device->CreateTexture2D(&texture_desc, &texture_data, &texture);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create black texture [0x" << util::hex(status).to_string_view() << "]";
+        BOOST_LOG(error) << "Failed to create black texture: " << util::log_hex(status);
         return {};
       }
 
       shader_res_t resource_view;
       status = device->CreateShaderResourceView(texture.get(), nullptr, &resource_view);
       if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create black texture resource view [0x" << util::hex(status).to_string_view() << "]";
+        BOOST_LOG(error) << "Failed to create black texture resource view: " << util::log_hex(status);
         return {};
       }
 
