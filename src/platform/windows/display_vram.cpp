@@ -1043,6 +1043,7 @@ namespace platf::dxgi {
     init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt, bool yuv444in420) {
       int result = base.init(display, adapter_p, pix_fmt, yuv444in420);
       data = base.device.get();
+      recombine_yuv444_into_yuv420 = yuv444in420;
       return result;
     }
 
@@ -1126,12 +1127,13 @@ namespace platf::dxgi {
         frame_texture = (ID3D11Texture2D *) frame->data[0];
       }
 
-      return base.init_output(frame_texture, frame->width, frame->height);
+      return base.init_output(frame_texture, frame->width, recombine_yuv444_into_yuv420 ? frame->height / 2 : frame->height);
     }
 
   private:
     d3d_base_encode_device base;
     frame_t hwframe;
+    bool recombine_yuv444_into_yuv420 = false;
   };
 
   class d3d_nvenc_encode_device_t: public nvenc_encode_device_t {

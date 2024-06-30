@@ -1440,6 +1440,7 @@ namespace video {
       ctx.reset(avcodec_alloc_context3(codec));
       ctx->width = config.width;
       ctx->height = config.height;
+      if (config.chromaSamplingType == 2) ctx->height *= 2;  // YUV 4:4:4 recombined into YUV 4:2:0
       ctx->time_base = AVRational { 1, config.framerate };
       ctx->framerate = AVRational { config.framerate, 1 };
 
@@ -1717,7 +1718,7 @@ namespace video {
     if (!encode_device->data) {
       auto software_encode_device = std::make_unique<avcodec_software_encode_device_t>();
 
-      if (software_encode_device->init(width, height, frame.get(), sw_fmt, hardware)) {
+      if (software_encode_device->init(ctx->width, ctx->height, frame.get(), sw_fmt, hardware)) {
         return nullptr;
       }
       software_encode_device->colorspace = colorspace;
