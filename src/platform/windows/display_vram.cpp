@@ -432,7 +432,9 @@ namespace platf::dxgi {
           device_ctx->OMSetRenderTargets(1, &out_Y_or_YUV_rtv, nullptr);
           device_ctx->VSSetShader(convert_Y_or_YUV_vs.get(), nullptr, 0);
           device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_Y_or_YUV_fp16_ps.get() : convert_Y_or_YUV_ps.get(), nullptr, 0);
-          auto viewport_count = (format == DXGI_FORMAT_R16_UINT || recombine_yuv444_into_yuv420) ? 3 : 1;
+          auto viewport_count = format == DXGI_FORMAT_R16_UINT ? 3 :
+                                recombine_yuv444_into_yuv420   ? 2 :
+                                                                 1;
           assert(viewport_count <= y_or_yuv_viewports.size());
           device_ctx->RSSetViewports(viewport_count, y_or_yuv_viewports.data());
           device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
@@ -519,43 +521,34 @@ namespace platf::dxgi {
       auto offsetY = (out_height - out_height_f) / 2;
 
       if (recombine_yuv444_into_yuv420) {
-        //       Y         U     V
-        //       +-------+ +---+ +---+
-        //       |       | |   | |   |
-        // VP0-> |   Y   | |UR | |VR |
-        //       |       | |   | |   |
-        //       +---+---+ +---+ +---+
-        //       |   |   |
-        // VP1-> |UL |VL | <-VP2
-        //       |   |   |
-        //       +---+---+
-        /*
+        //     Y       U     V
+        // +-------+ +---+ +---+
+        // |       | |V0 | |V1 |
+        // |   Y   | +---+ +---+
+        // |       | |V2 | |V3 |
+        // +-------+ +---+ +---+
+        // |       |
+        // |   U   |
+        // |       |
+        // +-------+
+
         out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
-        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // left half of U plane
+        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // U plane
         out_Y_or_YUV_viewports[1].TopLeftY += out_height;
-        out_Y_or_YUV_viewports[1].Width = out_width / 2 - offsetX;
-        out_Y_or_YUV_viewports[2] = out_Y_or_YUV_viewports[1];  // left half of V plane
-        out_Y_or_YUV_viewports[2].TopLeftX += out_width / 2;
 
         out_Y_or_YUV_viewports_for_clear[0] = { 0, 0, (float) out_width, (float) out_height, 0.0f, 1.0f };  // Y plane
-        out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // left half of U plane
+        out_Y_or_YUV_viewports_for_clear[1] = out_Y_or_YUV_viewports_for_clear[0];  // U plane
         out_Y_or_YUV_viewports_for_clear[1].TopLeftY += out_height;
-        out_Y_or_YUV_viewports_for_clear[1].Width /= 2;
-        out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // left half of V plane
-        out_Y_or_YUV_viewports_for_clear[2].TopLeftX += out_Y_or_YUV_viewports_for_clear[1].Width;
-        */
 
-        out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
-        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // left half of U plane
-        out_Y_or_YUV_viewports[1].TopLeftY += out_height;
-
+        // V plane
         out_UV_viewports[0] = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
         out_UV_viewports[1] = out_UV_viewports[0];
         out_UV_viewports[1].TopLeftY += out_height / 2;
 
-        // TODO: clear viewports
-        out_Y_or_YUV_viewports_for_clear = out_Y_or_YUV_viewports;
-        out_UV_viewports_for_clear = out_UV_viewports;
+        // V plane
+        out_UV_viewports_for_clear[0] = { 0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f };
+        out_UV_viewports_for_clear[1] = out_UV_viewports_for_clear[0];
+        out_UV_viewports_for_clear[1].TopLeftY += out_height / 2;
       }
       else {
         out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane

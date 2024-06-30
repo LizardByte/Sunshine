@@ -1676,7 +1676,7 @@ namespace video {
     frame->color_primaries = ctx->color_primaries;
     frame->color_trc = ctx->color_trc;
     frame->colorspace = ctx->colorspace;
-    frame->chroma_location = (config.chromaSamplingType == 2) ? AVCHROMA_LOC_CENTER : ctx->chroma_sample_location;
+    frame->chroma_location = (config.chromaSamplingType == 2) ? AVCHROMA_LOC_UNSPECIFIED : ctx->chroma_sample_location;
 
     // Attach HDR metadata to the AVFrame
     if (colorspace_is_hdr(colorspace)) {

@@ -286,9 +286,9 @@ namespace nvenc {
       vui_config.colourPrimaries = colorspace.primaries;
       vui_config.transferCharacteristics = colorspace.tranfer_function;
       vui_config.colourMatrix = colorspace.matrix;
-      vui_config.chromaSampleLocationFlag = buffer_is_yuv444() ? 0 : 1;
-      vui_config.chromaSampleLocationTop = (!buffer_is_yuv444() && client_config.chromaSamplingType == 2) ? 1 : 0;
-      vui_config.chromaSampleLocationBot = (!buffer_is_yuv444() && client_config.chromaSamplingType == 2) ? 1 : 0;
+      vui_config.chromaSampleLocationFlag = (client_config.chromaSamplingType == 0) ? 1 : 0;
+      vui_config.chromaSampleLocationTop = 0;
+      vui_config.chromaSampleLocationBot = 0;
     };
 
     switch (client_config.videoFormat) {
@@ -339,9 +339,7 @@ namespace nvenc {
         format_config.transferCharacteristics = colorspace.tranfer_function;
         format_config.matrixCoefficients = colorspace.matrix;
         format_config.colorRange = colorspace.full_range;
-        format_config.chromaSamplePosition = buffer_is_yuv444()                    ? 0 :
-                                             client_config.chromaSamplingType == 2 ? 3 :
-                                                                                     1;
+        format_config.chromaSamplePosition = (client_config.chromaSamplingType == 0) ? 1 : 0;
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numFwdRefs, 8);
         set_minqp_if_enabled(config.min_qp_av1);
 
