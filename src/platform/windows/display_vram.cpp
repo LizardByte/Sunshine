@@ -425,7 +425,7 @@ namespace platf::dxgi {
           return -1;
         }
 
-        auto draw = [&](auto &input, auto &y_or_yuv_viewports, auto &uv_viewport) {
+        auto draw = [&](auto &input, auto &y_or_yuv_viewports, auto &uv_viewports) {
           device_ctx->PSSetShaderResources(0, 1, &input);
 
           // Draw Y/YUV
@@ -443,20 +443,22 @@ namespace platf::dxgi {
             device_ctx->OMSetRenderTargets(1, &out_UV_rtv, nullptr);
             device_ctx->VSSetShader(convert_UV_vs.get(), nullptr, 0);
             device_ctx->PSSetShader(img.format == DXGI_FORMAT_R16G16B16A16_FLOAT ? convert_UV_fp16_ps.get() : convert_UV_ps.get(), nullptr, 0);
-            device_ctx->RSSetViewports(1, &uv_viewport);
-            device_ctx->Draw(3, 0);
+            viewport_count = recombine_yuv444_into_yuv420 ? 2 : 1;
+            assert(viewport_count <= uv_viewports.size());
+            device_ctx->RSSetViewports(viewport_count, uv_viewports.data());
+            device_ctx->Draw(3 * viewport_count, 0);  // vertex shader will spread vertices across viewports
           }
         };
 
         // Clear render target view(s) once so that the aspect ratio mismatch "bars" appear black
         if (!rtvs_cleared) {
           auto black = create_black_texture_for_rtv_clear();
-          if (black) draw(black, out_Y_or_YUV_viewports_for_clear, out_UV_viewport_for_clear);
+          if (black) draw(black, out_Y_or_YUV_viewports_for_clear, out_UV_viewports_for_clear);
           rtvs_cleared = true;
         }
 
         // Draw captured frame
-        draw(img_ctx.encoder_input_res, out_Y_or_YUV_viewports, out_UV_viewport);
+        draw(img_ctx.encoder_input_res, out_Y_or_YUV_viewports, out_UV_viewports);
 
         // Release encoder mutex to allow capture code to reuse this image
         img_ctx.encoder_mutex->ReleaseSync(0);
@@ -527,6 +529,7 @@ namespace platf::dxgi {
         // VP1-> |UL |VL | <-VP2
         //       |   |   |
         //       +---+---+
+        /*
         out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
         out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // left half of U plane
         out_Y_or_YUV_viewports[1].TopLeftY += out_height;
@@ -540,12 +543,19 @@ namespace platf::dxgi {
         out_Y_or_YUV_viewports_for_clear[1].Width /= 2;
         out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // left half of V plane
         out_Y_or_YUV_viewports_for_clear[2].TopLeftX += out_Y_or_YUV_viewports_for_clear[1].Width;
+        */
 
-        out_UV_viewport = out_Y_or_YUV_viewports[0];
-        out_UV_viewport.TopLeftX = 0;
-        out_UV_viewport.Width = out_width_f - out_Y_or_YUV_viewports[1].Width;
+        out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
+        out_Y_or_YUV_viewports[1] = out_Y_or_YUV_viewports[0];  // left half of U plane
+        out_Y_or_YUV_viewports[1].TopLeftY += out_height;
 
-        out_UV_viewport_for_clear = { 0, 0, (float) out_width / 2, (float) out_height, 0.0f, 1.0f };
+        out_UV_viewports[0] = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
+        out_UV_viewports[1] = out_UV_viewports[0];
+        out_UV_viewports[1].TopLeftY += out_height / 2;
+
+        // TODO: clear viewports
+        out_Y_or_YUV_viewports_for_clear = out_Y_or_YUV_viewports;
+        out_UV_viewports_for_clear = out_UV_viewports;
       }
       else {
         out_Y_or_YUV_viewports[0] = { offsetX, offsetY, out_width_f, out_height_f, 0.0f, 1.0f };  // Y plane
@@ -560,8 +570,8 @@ namespace platf::dxgi {
         out_Y_or_YUV_viewports_for_clear[2] = out_Y_or_YUV_viewports_for_clear[1];  // V plane
         out_Y_or_YUV_viewports_for_clear[2].TopLeftY += out_height;
 
-        out_UV_viewport = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
-        out_UV_viewport_for_clear = { 0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f };
+        out_UV_viewports[0] = { offsetX / 2, offsetY / 2, out_width_f / 2, out_height_f / 2, 0.0f, 1.0f };
+        out_UV_viewports_for_clear[0] = { 0, 0, (float) out_width / 2, (float) out_height / 2, 0.0f, 1.0f };
       }
 
       float subsample_offset_in[16 / sizeof(float)] { 1.0f / (float) out_width_f, 1.0f / (float) out_height_f };  // aligned to 16-byte
@@ -1024,7 +1034,7 @@ namespace platf::dxgi {
     ps_t convert_UV_fp16_ps;
 
     std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports, out_Y_or_YUV_viewports_for_clear;
-    D3D11_VIEWPORT out_UV_viewport, out_UV_viewport_for_clear;
+    std::array<D3D11_VIEWPORT, 2> out_UV_viewports, out_UV_viewports_for_clear;
 
     DXGI_FORMAT format;
 
