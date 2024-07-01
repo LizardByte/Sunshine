@@ -37,6 +37,7 @@ class @PROJECT_NAME@ < Formula
   depends_on "icu4c" => :recommended
 
   on_linux do
+    depends_on "avahi"
     depends_on "libcap"
     depends_on "libdrm"
     depends_on "libnotify"
