@@ -430,6 +430,7 @@ jobs:
         run: |
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+          sleep 5  # give Xvfb time to start
 
           ./test_sunshine --gtest_color=yes
 
