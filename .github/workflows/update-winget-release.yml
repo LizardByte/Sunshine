@@ -47,7 +47,7 @@ jobs:
         id: download
         if: >-
           steps.check.outputs.hasTopic == 'true'
-        uses: robinraju/release-downloader@v1.10
+        uses: robinraju/release-downloader@v1.11
         with:
           repository: "${{ github.repository }}"
           tag: "${{ github.event.release.tag_name }}"
