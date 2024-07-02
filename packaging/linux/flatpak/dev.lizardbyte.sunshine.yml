@@ -34,7 +34,7 @@ build-options:
   prepend-ld-library-path: /usr/lib/sdk/vala/lib
 
 modules:
-  - "org.flatpak.Builder.BaseApp/xvfb.json"
+  - "modules/xvfb/xvfb.json"
 
   - name: avahi
     disabled: false

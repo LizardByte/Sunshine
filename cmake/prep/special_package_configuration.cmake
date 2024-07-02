@@ -37,6 +37,7 @@ elseif(UNIX)
     if(${SUNSHINE_CONFIGURE_FLATPAK_MAN})
         configure_file(packaging/linux/flatpak/dev.lizardbyte.sunshine.yml dev.lizardbyte.sunshine.yml @ONLY)
         file(COPY packaging/linux/flatpak/deps/ DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY packaging/linux/flatpak/modules DESTINATION ${CMAKE_BINARY_DIR})
     endif()
 endif()
 
