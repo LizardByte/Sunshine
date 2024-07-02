@@ -1,0 +1,147 @@
+{
+  "name": "xvfb",
+  "buildsystem": "meson",
+  "config-opts": [
+    "-Dxorg=true",
+    "-Dxvfb=true",
+    "-Dhal=false"
+  ],
+  "build-commands": [
+    "install -Dm755 ../xvfb-run /app/bin/xvfb-run"
+  ],
+  "sources": [
+    {
+      "type": "archive",
+      "url": "https://gitlab.freedesktop.org/xorg/xserver/-/archive/xorg-server-21.1.13/xserver-xorg-server-21.1.13.tar.bz2",
+      "sha256": "ee2bf6d65f4b111ce86ca817c3327dc1e70d9c958aa16876f2820caf7bf7cffa",
+      "x-checker-data": {
+        "type": "anitya",
+        "project-id": 5250,
+        "stable-only": true,
+        "url-template": "https://gitlab.freedesktop.org/xorg/xserver/-/archive/xorg-server-$version/xserver-xorg-server-$version.tar.bz2"
+      }
+    },
+    {
+      "type": "file",
+      "path": "xvfb-run"
+    }
+  ],
+  "modules": [
+    {
+      "name": "libxcvt",
+      "buildsystem": "meson",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://gitlab.freedesktop.org/xorg/lib/libxcvt/-/archive/libxcvt-0.1.2/libxcvt-libxcvt-0.1.2.tar.bz2",
+          "sha256": "590e5a6da87ace7aa7857026b207a2c4d378620035441e20ea97efedd15d6d4a",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 235147,
+            "stable-only": true,
+            "url-template": "https://gitlab.freedesktop.org/xorg/lib/libxcvt/-/archive/libxcvt-$version/libxcvt-libxcvt-$version.tar.bz2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libXmu",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://xorg.freedesktop.org/archive/individual/lib/libXmu-1.2.1.tar.gz",
+          "sha256": "bf0902583dd1123856c11e0a5085bd3c6e9886fbbd44954464975fd7d52eb599",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1785,
+            "stable-only": true,
+            "url-template": "https://xorg.freedesktop.org/archive/individual/lib/libXmu-$version.tar.gz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libfontenc",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://xorg.freedesktop.org/archive/individual/lib/libfontenc-1.1.8.tar.xz",
+          "sha256": "7b02c3d405236e0d86806b1de9d6868fe60c313628b38350b032914aa4fd14c6",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1613,
+            "stable-only": true,
+            "url-template": "https://xorg.freedesktop.org/archive/individual/lib/libfontenc-$version.tar.xz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "libtirpc",
+      "config-opts": [
+        "--disable-gssapi"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://downloads.sourceforge.net/sourceforge/libtirpc/libtirpc-1.3.4.tar.bz2",
+          "sha256": "1e0b0c7231c5fa122e06c0609a76723664d068b0dba3b8219b63e6340b347860",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 1740,
+            "stable-only": true,
+            "url-template": "https://downloads.sourceforge.net/sourceforge/libtirpc/libtirpc-$version.tar.bz2"
+          }
+        }
+      ]
+    },
+    {
+      "name": "font-util",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://xorg.freedesktop.org/archive/individual/font/font-util-1.4.1.tar.gz",
+          "sha256": "f029ae80cdd75d89bee7f7af61c21e07982adfb9f72344a158b99f91f77ef5ed",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 15055,
+            "stable-only": true,
+            "url-template": "https://xorg.freedesktop.org/archive/individual/font/font-util-$version.tar.gz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "xvfb-libXfont2",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://xorg.freedesktop.org/archive/individual/lib/libXfont2-2.0.6.tar.gz",
+          "sha256": "a944df7b6837c8fa2067f6a5fc25d89b0acc4011cd0bc085106a03557fb502fc",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 17165,
+            "stable-only": true,
+            "url-template": "https://xorg.freedesktop.org/archive/individual/lib/libXfont2-$version.tar.gz"
+          }
+        }
+      ]
+    },
+    {
+      "name": "xvfb-xauth",
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://gitlab.freedesktop.org/xorg/app/xauth/-/archive/xauth-1.1.1/xauth-xauth-1.1.3.tar.bz2",
+          "sha256": "3cee16ebe9de0e85c62513f6d6353710407c8ebb1f855b18d03807c27d38a215",
+          "x-checker-data": {
+            "type": "anitya",
+            "project-id": 5253,
+            "stable-only": true,
+            "url-template": "https://gitlab.freedesktop.org/xorg/app/xauth/-/archive/xauth-1.1.1/xauth-xauth-$version.tar.bz2"
+          }
+        }
+      ]
+    }
+  ]
+}
