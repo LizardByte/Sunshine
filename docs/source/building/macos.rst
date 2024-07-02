@@ -12,7 +12,7 @@ MacPorts
 Install Requirements
    .. code-block:: bash
 
-      sudo port install avahi cmake curl doxygen graphviz libopus miniupnpc npm9 pkgconfig python311 py311-pip
+      sudo port install cmake curl doxygen graphviz libopus miniupnpc npm9 pkgconfig python311 py311-pip
 
 Homebrew
 """"""""
