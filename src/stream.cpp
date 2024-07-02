@@ -1340,9 +1340,9 @@ namespace stream {
       // it will generate greater than DATA_SHARDS_MAX shards.
       // Therefore, we start breaking the data up into three separate fec blocks.
       auto multi_fec_threshold = 90 * blocksize;
-
-      // We can go up to 4 fec blocks, but 3 is plenty
-      constexpr auto MAX_FEC_BLOCKS = 3;
+      
+      // We can go up to 4 fec blocks
+      constexpr auto MAX_FEC_BLOCKS = 4;
 
       std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
       decltype(fec_blocks)::iterator
@@ -1357,12 +1357,12 @@ namespace stream {
         auto unaligned_size = payload.size() / MAX_FEC_BLOCKS;
         auto aligned_size = ((unaligned_size + (blocksize - 1)) / blocksize) * blocksize;
 
-        // Break the data up into 3 blocks, each containing multiple complete video packets.
-        fec_blocks[0] = payload.substr(0, aligned_size);
-        fec_blocks[1] = payload.substr(aligned_size, aligned_size);
-        fec_blocks[2] = payload.substr(aligned_size * 2);
+        // Break the data up into blocks, each containing multiple complete video packets.
+        for (int x = 0; x < MAX_FEC_BLOCKS; ++x) {
+            fec_blocks[x] = payload.substr(aligned_size*x, aligned_size);
+        }
 
-        lastBlockIndex = 2 << 6;
+        lastBlockIndex = (MAX_FEC_BLOCKS - 1) << 6;
         fec_blocks_end = std::end(fec_blocks);
       }
       else {
