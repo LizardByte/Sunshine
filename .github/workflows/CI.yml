@@ -72,6 +72,8 @@ jobs:
       matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
 
   build_linux_flatpak:
+    env:
+      APP_ID: dev.lizardbyte.app.Sunshine
     name: Linux Flatpak
     runs-on: ubuntu-22.04
     needs: [setup_release, setup_flatpak_matrix]
@@ -157,20 +159,75 @@ jobs:
             -DSUNSHINE_CONFIGURE_ONLY=ON \
             ..
 
+      - name: Debug Manifest
+        working-directory: build
+        run: |
+          cat ${APP_ID}.yml
+
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
-            --stop-at=cuda build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c "flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            --stop-at=cuda build-sunshine ${APP_ID}.yml"
           cp -r .flatpak-builder copy-of-flatpak-builder
-          sudo su $(whoami) -c 'flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
-            build-sunshine dev.lizardbyte.sunshine.yml'
+          sudo su $(whoami) -c "flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+            build-sunshine ${APP_ID}.yml"
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
-          sudo su $(whoami) -c 'flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
-            ../artifacts/sunshine_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine'
-          sudo su $(whoami) -c 'flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
-            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak dev.lizardbyte.sunshine.Debug'
+          sudo su $(whoami) -c "flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_${{ matrix.arch }}.flatpak ${APP_ID}"
+          sudo su $(whoami) -c "flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
+            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak ${APP_ID}.Debug"
+
+      - name: Lint Flatpak
+        working-directory: build
+        run: |
+          echo "Linting flatpak manifest"
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            manifest ${APP_ID}.yml > _flatpak-lint-exceptions_manifest.json || true
+
+          echo "Linting flatpak repo"
+          # TODO: add arg
+          # --mirror-screenshots-url=https://dl.flathub.org/media \
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
+            repo repo > _flatpak-lint-exceptions_repo.json || true
+
+          checks=(manifest repo)
+          exit_code=0
+
+          # check if files are equal
+          for check in "${checks[@]}"; do
+            echo "Validating $check"
+
+            # load baseline and result files
+            baseline="${{ github.workspace }}/packaging/linux/flatpak/flatpak-lint-baseline_${check}.json"
+            result="_flatpak-lint-exceptions_${check}.json"
+
+            # Extract errors from both JSON files
+            readarray -t result_errors < <(jq -r '.errors[]' "$result")
+            readarray -t baseline_errors < <(jq -r '.errors[]' "$baseline")
+
+            # Loop through result errors and check against baseline errors
+            for error in "${result_errors[@]}"; do
+              if printf '%s\n' "${baseline_errors[@]}" | grep -q -F "$error"; then
+                echo "::warning:: '$error'"
+              else
+                echo "::error:: '$error'"
+                exit_code=1
+              fi
+            done
+          done
+
+          # if exit code is not 0, print results
+          if [ $exit_code -ne 0 ]; then
+            echo "Manifest lint results:"
+            cat _flatpak-lint-exceptions_manifest.json
+            echo "Repo lint results:"
+            cat _flatpak-lint-exceptions_repo.json
+          fi
+
+          # exit with the correct code
+          exit $exit_code
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

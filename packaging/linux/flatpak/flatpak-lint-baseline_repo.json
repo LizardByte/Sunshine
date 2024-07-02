@@ -1,0 +1,11 @@
+{
+    "errors": [
+        "appstream-external-screenshot-url",
+        "finish-args-flatpak-spawn-access"
+    ],
+    "info": [
+        "appstream-external-screenshot-url: Screenshots are not mirrored to https://dl.flathub.org/media",
+        "finish-args-flatpak-spawn-access: finish-args has a talk-name access for org.freedesktop.Flatpak"
+    ],
+    "message": "Please consult the documentation at https://docs.flathub.org/docs/for-app-authors/linter"
+}

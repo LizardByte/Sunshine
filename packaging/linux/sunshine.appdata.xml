@@ -5,7 +5,7 @@
     <project_license>@PROJECT_LICENSE@</project_license>
     <name>@PROJECT_NAME@</name>
     <url type="homepage">@CMAKE_PROJECT_HOMEPAGE_URL@</url>
-    <summary>@PROJECT_DESCRIPTION@</summary>
+    <summary>@PROJECT_BRIEF_DESCRIPTION@</summary>
     <description>
         <p>
             @PROJECT_LONG_DESCRIPTION@

@@ -1,6 +1,6 @@
 [Desktop Entry]
 Name=@PROJECT_NAME@ (KMS)
-Exec=sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.sunshine
+Exec=sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run @PROJECT_FQDN@
 Terminal=true
 Type=Application
 NoDisplay=true

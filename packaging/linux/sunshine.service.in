@@ -4,7 +4,8 @@ StartLimitIntervalSec=500
 StartLimitBurst=5
 
 [Service]
-ExecStart=@SUNSHINE_EXECUTABLE_PATH@
+@SUNSHINE_SERVICE_START_COMMAND@
+@SUNSHINE_SERVICE_STOP_COMMAND@
 Restart=on-failure
 RestartSec=5s
 
