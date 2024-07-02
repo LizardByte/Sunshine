@@ -949,6 +949,7 @@ namespace video {
   int active_av1_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
   std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+  bool last_encoder_probe_supported_yuv444in420 = false;
 
   void
   reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
@@ -2471,6 +2472,14 @@ namespace video {
       encoder.av1.capabilities.reset();
     }
 
+    // Set YUV 4:4:4 in 4:2:0 recombination capabilities
+    {
+      const bool supported = disp->is_yuv444in420_supported();
+      if (encoder.h264[encoder_t::PASSED]) encoder.h264[encoder_t::YUV444_IN_420] = supported;
+      if (encoder.hevc[encoder_t::PASSED]) encoder.hevc[encoder_t::YUV444_IN_420] = supported;
+      if (encoder.av1[encoder_t::PASSED]) encoder.av1[encoder_t::YUV444_IN_420] = supported;
+    }
+
     // Test HDR and YUV444 support
     {
       // H.264 is special because encoders may support YUV 4:4:4 without supporting 10-bit color depth
@@ -2683,6 +2692,8 @@ namespace video {
                                                        encoder.hevc[encoder_t::YUV444];
     last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
                                                        encoder.av1[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444in420 = encoder.h264[encoder_t::PASSED] &&
+                                               encoder.h264[encoder_t::YUV444_IN_420];
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {

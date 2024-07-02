@@ -298,6 +298,11 @@ namespace platf::dxgi {
     bool
     is_codec_supported(std::string_view name, const ::video::config_t &config) override;
 
+    bool
+    is_yuv444in420_supported() override {
+      return true;
+    }
+
     std::unique_ptr<avcodec_encode_device_t>
     make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) override;
 

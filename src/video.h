@@ -100,6 +100,7 @@ namespace video {
       CBR,  // Some encoders don't support CBR, if not supported --> attempt constant quantatication parameter instead
       DYNAMIC_RANGE,  // hdr
       YUV444,  // 4:4:4
+      YUV444_IN_420,
       VUI_PARAMETERS,  // AMD encoder with VAAPI doesn't add VUI parameters to SPS
       MAX_FLAGS
     };
@@ -115,6 +116,7 @@ namespace video {
         _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(YUV444);
+        _CONVERT(YUV444_IN_420);
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }
@@ -334,6 +336,7 @@ namespace video {
   extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  extern bool last_encoder_probe_supported_yuv444in420;
 
   void
   capture(

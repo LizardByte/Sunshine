@@ -508,6 +508,11 @@ namespace platf {
       return true;
     }
 
+    virtual bool
+    is_yuv444in420_supported() {
+      return false;
+    }
+
     virtual ~display_t() = default;
 
     // Offsets for when streaming a specific monitor. By default, they are 0.
