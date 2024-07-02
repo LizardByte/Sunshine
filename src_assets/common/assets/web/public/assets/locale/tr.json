@@ -1,13 +1,13 @@
 {
   "_common": {
-    "apply": "Başvurmak",
+    "apply": "Uygula",
     "auto": "Otomatik",
-    "autodetect": "Otomatik Algılama (önerilir)",
+    "autodetect": "Otomatik Algıla (önerilir)",
     "beta": "(beta)",
     "cancel": "İptal",
-    "disabled": "Engelli",
-    "disabled_def": "Devre dışı (varsayılan)",
-    "dismiss": "Dağılın",
+    "disabled": "Devre Dışı",
+    "disabled_def": "Devre Dışı (varsayılan)",
+    "dismiss": "Yoksay",
     "do_cmd": "Komut Yap",
     "elevated": "Yükseltilmiş",
     "enabled": "Etkin",
