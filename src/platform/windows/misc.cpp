@@ -61,6 +61,38 @@
   #define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD) (_minor)) << 16 | (_major))
 #endif
 
+#include <winternl.h>
+extern "C" {
+NTSTATUS NTAPI
+NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
+}
+
+namespace {
+
+  std::atomic<bool> used_nt_set_timer_resolution = false;
+
+  bool
+  nt_set_timer_resolution_max() {
+    ULONG minimum, maximum, current;
+    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+        !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
+      return false;
+    }
+    return true;
+  }
+
+  bool
+  nt_set_timer_resolution_min() {
+    ULONG minimum, maximum, current;
+    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+        !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
+      return false;
+    }
+    return true;
+  }
+
+}  // namespace
+
 namespace bp = boost::process;
 
 using namespace std::literals;
@@ -1115,8 +1147,15 @@ namespace platf {
     // Enable MMCSS scheduling for DWM
     DwmEnableMMCSS(true);
 
-    // Reduce timer period to 1ms
-    timeBeginPeriod(1);
+    // Reduce timer period to 0.5ms
+    if (nt_set_timer_resolution_max()) {
+      used_nt_set_timer_resolution = true;
+    }
+    else {
+      BOOST_LOG(error) << "NtSetTimerResolution() failed, falling back to timeBeginPeriod()";
+      timeBeginPeriod(1);
+      used_nt_set_timer_resolution = false;
+    }
 
     // Promote ourselves to high priority class
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -1199,8 +1238,16 @@ namespace platf {
     // Demote ourselves back to normal priority class
     SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 
-    // End our 1ms timer request
-    timeEndPeriod(1);
+    // End our 0.5ms timer request
+    if (used_nt_set_timer_resolution) {
+      used_nt_set_timer_resolution = false;
+      if (!nt_set_timer_resolution_min()) {
+        BOOST_LOG(error) << "nt_set_timer_resolution_min() failed even though nt_set_timer_resolution_max() succeeded";
+      }
+    }
+    else {
+      timeEndPeriod(1);
+    }
 
     // Disable MMCSS scheduling for DWM
     DwmEnableMMCSS(false);
