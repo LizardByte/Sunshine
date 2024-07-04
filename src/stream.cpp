@@ -29,6 +29,8 @@ extern "C" {
 #include "thread_safe.h"
 #include "utility.h"
 
+#include "platform/common.h"
+
 #define IDX_START_A 0
 #define IDX_START_B 1
 #define IDX_INVALIDATE_REF_FRAMES 2
@@ -1246,12 +1248,28 @@ namespace stream {
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     stat_trackers::min_max_avg_tracker<uint16_t> frame_processing_latency_tracker;
+
+    stat_trackers::min_max_avg_tracker<double> frame_send_batch_latency_tracker;
+    stat_trackers::min_max_avg_tracker<double> frame_fec_latency_tracker;
+    stat_trackers::min_max_avg_tracker<double> frame_network_latency_tracker;
+
     crypto::aes_t iv(12);
+
+    auto timer = platf::create_high_precision_timer();
+    if (!timer || !*timer) {
+      BOOST_LOG(error) << "Failed to create timer, aborting video broadcast thread";
+      return;
+    }
+
+    auto ratecontrol_next_frame_start = std::chrono::steady_clock::now();
 
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
         break;
       }
+
+      auto frame_packet_start_time = std::chrono::steady_clock::now();
+      std::chrono::nanoseconds fec_time = 0ns;
 
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
@@ -1381,6 +1399,21 @@ namespace stream {
       }
 
       try {
+        // Use around 80% of 1Gbps          1Gbps            percent    ms     packet      byte
+        size_t ratecontrol_packets_in_1ms = std::giga::num * 80 / 100 / 1000 / blocksize / 8;
+
+        // Send less than 64K in a single batch.
+        // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,
+        // appear in "Other I/O" and begin waiting for interrupts.
+        // This gives inconsistent performance so we'd rather avoid it.
+        size_t send_batch_size = 64 * 1024 / blocksize;
+
+        // Don't ignore the last ratecontrol group of the previous frame
+        auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start, std::chrono::steady_clock::now());
+
+        size_t ratecontrol_frame_packets_sent = 0;
+        size_t ratecontrol_group_packets_sent = 0;
+
         auto blockIndex = 0;
         std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
           auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
@@ -1404,9 +1437,26 @@ namespace stream {
             }
           }
 
+          auto fec_start = std::chrono::steady_clock::now();
+
           // If video encryption is enabled, we allocate space for the encryption header before each shard
           auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets,
             session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
+
+          fec_time += std::chrono::steady_clock::now() - fec_start;
+
+          auto peer_address = session->video.peer.address();
+          auto batch_info = platf::batched_send_info_t {
+            nullptr,
+            shards.prefixsize + shards.blocksize,
+            0,
+            (uintptr_t) sock.native_handle(),
+            peer_address,
+            session->video.peer.port(),
+            session->localAddress,
+          };
+
+          size_t next_shard_to_send = 0;
 
           // set FEC info now that we know for sure what our percentage will be for this frame
           for (auto x = 0; x < shards.size(); ++x) {
@@ -1448,35 +1498,87 @@ namespace stream {
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
               session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize }, prefix->tag, &iv);
             }
+
+            if (x - next_shard_to_send + 1 >= send_batch_size ||
+                x + 1 == shards.size()) {
+              // Do pacing within the frame.
+              // Also trigger pacing before the first send_batch() of the frame
+              // to account for the last send_batch() of the previous frame.
+              if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms ||
+                  ratecontrol_frame_packets_sent == 0) {
+                auto due = ratecontrol_frame_start +
+                           std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
+                             ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
+
+                auto now = std::chrono::steady_clock::now();
+                if (now < due) {
+                  timer->sleep_for(due - now);
+                }
+
+                ratecontrol_group_packets_sent = 0;
+              }
+
+              size_t current_batch_size = x - next_shard_to_send + 1;
+              batch_info.buffer = shards.prefix(next_shard_to_send);
+              batch_info.block_count = current_batch_size;
+
+              auto batch_start_time = std::chrono::steady_clock::now();
+              // Use a batched send if it's supported on this platform
+              if (!platf::send_batch(batch_info)) {
+                // Batched send is not available, so send each packet individually
+                BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
+                for (auto y = 0; y < current_batch_size; y++) {
+                  auto send_info = platf::send_info_t {
+                    shards.prefix(next_shard_to_send + y),
+                    shards.prefixsize + shards.blocksize,
+                    (uintptr_t) sock.native_handle(),
+                    peer_address,
+                    session->video.peer.port(),
+                    session->localAddress,
+                  };
+
+                  platf::send(send_info);
+                }
+              }
+              if (config::sunshine.min_log_level <= 1) {
+                // Print send_batch() latency stats to debug log every 20 seconds
+                auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
+                  auto f = stat_trackers::one_digit_after_decimal();
+                  BOOST_LOG(debug) << "Network: individual send_batch() latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
+                };
+                double send_batch_latency = (std::chrono::steady_clock::now() - batch_start_time).count() / 1000000.;
+                frame_send_batch_latency_tracker.collect_and_callback_on_interval(send_batch_latency, print_info, 20s);
+              }
+
+              ratecontrol_group_packets_sent += current_batch_size;
+              ratecontrol_frame_packets_sent += current_batch_size;
+              next_shard_to_send = x + 1;
+            }
           }
 
-          auto peer_address = session->video.peer.address();
-          auto batch_info = platf::batched_send_info_t {
-            shards.shards.begin(),
-            shards.prefixsize + shards.blocksize,
-            shards.nr_shards,
-            (uintptr_t) sock.native_handle(),
-            peer_address,
-            session->video.peer.port(),
-            session->localAddress,
-          };
+          // remember this in case the next frame comes immediately
+          ratecontrol_next_frame_start = ratecontrol_frame_start +
+                                         std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
+                                           ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
 
-          // Use a batched send if it's supported on this platform
-          if (!platf::send_batch(batch_info)) {
-            // Batched send is not available, so send each packet individually
-            BOOST_LOG(verbose) << "Falling back to unbatched send"sv;
-            for (auto x = 0; x < shards.size(); ++x) {
-              auto send_info = platf::send_info_t {
-                shards.prefix(x),
-                shards.prefixsize + shards.blocksize,
-                (uintptr_t) sock.native_handle(),
-                peer_address,
-                session->video.peer.port(),
-                session->localAddress,
-              };
+          if (config::sunshine.min_log_level <= 1) {
+            // Print frame FEC latency stats to debug log every 20 seconds
+            auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
+              auto f = stat_trackers::one_digit_after_decimal();
+              BOOST_LOG(debug) << "Network: frame FEC latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
+            };
+            double fec_latency = fec_time.count() / 1000000.;
+            frame_fec_latency_tracker.collect_and_callback_on_interval(fec_latency, print_info, 20s);
+          }
 
-              platf::send(send_info);
-            }
+          if (config::sunshine.min_log_level <= 1) {
+            // Print frame network latency stats to debug log every 20 seconds
+            auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
+              auto f = stat_trackers::one_digit_after_decimal();
+              BOOST_LOG(debug) << "Network: frame complete network latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
+            };
+            double network_latency = (std::chrono::steady_clock::now() - frame_packet_start_time).count() / 1000000.;
+            frame_network_latency_tracker.collect_and_callback_on_interval(network_latency, print_info, 20s);
           }
 
           if (packet->is_idr()) {
@@ -1626,6 +1728,14 @@ namespace stream {
       BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
 
       return -1;
+    }
+
+    // Set video socket send buffer size (SO_SENDBUF) to 1MB
+    try {
+      ctx.video_sock.set_option(boost::asio::socket_base::send_buffer_size(1024 * 1024));
+    }
+    catch (...) {
+      BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
     }
 
     ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);

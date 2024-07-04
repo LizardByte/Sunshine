@@ -1803,4 +1803,55 @@ namespace platf {
 
     return output;
   }
+
+  class win32_high_precision_timer: public high_precision_timer {
+  public:
+    win32_high_precision_timer() {
+      // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+      timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+      if (!timer) {
+        timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+        if (!timer) {
+          BOOST_LOG(error) << "Unable to create high_precision_timer, CreateWaitableTimerEx() failed: " << GetLastError();
+        }
+      }
+    }
+
+    ~win32_high_precision_timer() {
+      if (timer) CloseHandle(timer);
+    }
+
+    void
+    sleep_for(const std::chrono::nanoseconds &duration) override {
+      if (!timer) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with uninitialized timer";
+        return;
+      }
+      if (duration < 0s) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with negative duration";
+        return;
+      }
+      if (duration > 5s) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with unexpectedly large duration (>5s)";
+        return;
+      }
+
+      LARGE_INTEGER due_time;
+      due_time.QuadPart = duration.count() / -100;
+      SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+      WaitForSingleObject(timer, INFINITE);
+    }
+
+    operator bool() override {
+      return timer != NULL;
+    }
+
+  private:
+    HANDLE timer = NULL;
+  };
+
+  std::unique_ptr<high_precision_timer>
+  create_high_precision_timer() {
+    return std::make_unique<win32_high_precision_timer>();
+  }
 }  // namespace platf
