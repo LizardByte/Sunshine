@@ -765,11 +765,22 @@ jobs:
             sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
           }
 
-          # permissions
-          declare -a values=(
-            "'kTCCServiceAccessibility','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552"
-            "'kTCCServiceScreenCapture','/opt/off/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159"
-          )
+          # Find all provisioner paths and store them in an array
+          readarray -t provisioner_paths < <(sudo find /opt /usr -name provisioner)
+          echo "Provisioner paths: ${provisioner_paths[@]}"
+
+          # Create an empty array
+          declare -a values=()
+
+          # Loop through the provisioner paths and add them to the values array
+          for p_path in "${provisioner_paths[@]}"; do
+            # Adjust the service name and other parameters as needed
+            values+=("'kTCCServiceAccessibility','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552")
+            values+=("'kTCCServiceScreenCapture','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159")
+          done
+
+          echo "Values: ${values[@]}"
+
           if [[ "${{ matrix.os_version }}" == "14" ]]; then
             # TCC access table in Sonoma has extra 4 columns: pid, pid_version, boot_uuid, last_reminded
             for i in "${!values[@]}"; do
