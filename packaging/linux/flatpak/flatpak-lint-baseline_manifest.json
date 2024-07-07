@@ -1,0 +1,9 @@
+{
+    "errors": [
+        "finish-args-flatpak-spawn-access"
+    ],
+    "info": [
+        "finish-args-flatpak-spawn-access: finish-args has a talk-name access for org.freedesktop.Flatpak"
+    ],
+    "message": "Please consult the documentation at https://docs.flathub.org/docs/for-app-authors/linter"
+}

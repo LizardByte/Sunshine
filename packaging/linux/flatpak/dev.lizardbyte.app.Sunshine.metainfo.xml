@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>@PROJECT_FQDN@</id>
+
+  <name>@CMAKE_PROJECT_NAME@</name>
+  <summary>@PROJECT_BRIEF_DESCRIPTION@</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>@PROJECT_LICENSE@</project_license>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>gamepad</control>
+  </supports>
+
+  <url type="bugtracker">https://github.com/LizardByte/Sunshine/issues</url>
+  <url type="homepage">@PROJECT_HOMEPAGE_URL@</url>
+  <url type="donation">https://app.lizardbyte.dev/#Donate</url>
+  <url type="contact">https://app.lizardbyte.dev/support</url>
+  <url type="translate">https://translate.lizardbyte.dev</url>
+  <url type="contribute">https://docs.lizardbyte.dev</url>
+  <url type="vcs-browser">https://github.com/LizardByte/Sunshine</url>
+
+  <description>
+    <p>
+      @PROJECT_LONG_DESCRIPTION@
+    </p>
+
+    <p>NOTE: Allow Sunshine Virtual Input (Required)</p>
+    <p>sudo chown $USER /dev/uinput &amp;&amp; echo 'KERNEL=="uinput", SUBSYSTEM=="misc",
+      OPTIONS+="static_node=uinput", TAG+="uaccess"' | sudo tee
+      /etc/udev/rules.d/60-sunshine-input.rules</p>
+    <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure,
+      but it is safe.</p>
+    <p>NOTE: KMS Grab (Optional)</p>
+    <p>sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}')
+      flatpak run @PROJECT_FQDN@</p>
+  </description>
+
+  <releases>
+    <release version="0.23.1" date="2024-04-21"/>
+    <release version="0.23.0" date="2024-04-06"/>
+    <release version="0.22.2" date="2024-03-15"/>
+    <release version="0.22.1" date="2024-03-13"/>
+    <release version="0.22.0" date="2024-03-04"/>
+    <release version="0.21.0" date="2023-10-15"/>
+    <release version="0.20.0" date="2023-05-29"/>
+    <release version="0.19.1" date="2023-03-30"/>
+  </releases>
+
+  <developer_name>LizardByte</developer_name>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://app.lizardbyte.dev/Sunshine/assets/images/AdobeStock_305732536_1920x1280.jpg</image>
+      <caption>Sunshine</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.0">
+    <content_attribute id="language-profanity">moderate</content_attribute>
+    <content_attribute id="language-humor">mild</content_attribute>
+    <content_attribute id="money-purchasing">mild</content_attribute>
+  </content_rating>
+  <launchable type="desktop-id">@PROJECT_FQDN@.desktop</launchable>
+</component>

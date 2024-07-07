@@ -148,25 +148,25 @@ Install
          Additional installation (required)
             .. code-block:: bash
 
-               flatpak run --command=additional-install.sh dev.lizardbyte.sunshine
+               flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 
       Start:
          X11 and NVFBC capture (X11 Only)
             .. code-block:: bash
 
-               flatpak run dev.lizardbyte.sunshine
+               flatpak run dev.lizardbyte.app.Sunshine
 
          KMS capture (Wayland & X11)
             .. code-block:: bash
 
                sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') \
-                 flatpak run dev.lizardbyte.sunshine
+                 flatpak run dev.lizardbyte.app.Sunshine
 
       Uninstall:
          .. code-block:: bash
 
-            flatpak run --command=remove-additional-install.sh dev.lizardbyte.sunshine
-            flatpak uninstall --delete-data dev.lizardbyte.sunshine
+            flatpak run --command=remove-additional-install.sh dev.lizardbyte.app.Sunshine
+            flatpak uninstall --delete-data dev.lizardbyte.app.Sunshine
 
    .. tab:: Homebrew
 
@@ -253,7 +253,7 @@ Install
                Restart=on-failure
                RestartSec=5s
                #Flatpak Only
-               #ExecStop=flatpak kill dev.lizardbyte.sunshine
+               #ExecStop=flatpak kill dev.lizardbyte.app.Sunshine
 
                [Install]
                WantedBy=graphical-session.target
@@ -268,7 +268,7 @@ Install
                deb        /usr/bin/sunshine                                ✔
                rpm        /usr/bin/sunshine                                ✔
                AppImage   ~/sunshine.AppImage                              ✔
-               Flatpak    flatpak run dev.lizardbyte.sunshine              ✔
+               Flatpak    flatpak run dev.lizardbyte.app.Sunshine          ✔
                ========   ==============================================   ===============
 
       **Start once**
@@ -504,7 +504,7 @@ To get a list of available arguments run the following:
 
    .. code-block:: bash
 
-      flatpak run --command=sunshine dev.lizardbyte.Sunshine --help
+      flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help
 
 Shortcuts
 ---------

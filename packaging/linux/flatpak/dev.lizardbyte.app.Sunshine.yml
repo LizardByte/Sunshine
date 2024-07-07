@@ -1,5 +1,5 @@
 ---
-app-id: dev.lizardbyte.sunshine
+app-id: "@PROJECT_FQDN@"
 runtime: org.freedesktop.Platform
 runtime-version: "22.08"
 sdk: org.freedesktop.Sdk
@@ -17,7 +17,7 @@ finish-args:
   - --share=network  # access network
   - --socket=pulseaudio  # play sounds using pulseaudio
   - --socket=wayland  # show windows using Wayland
-  - --socket=x11  # show windows using X11
+  - --socket=fallback-x11  # show windows using X11
   - --system-talk-name=org.freedesktop.Avahi  # talk to avahi on the system bus
   - --talk-name=org.freedesktop.Flatpak  # talk to flatpak on the session bus
 
@@ -194,7 +194,7 @@ modules:
           stable-only: true
 
   - name: miniupnpc
-    buildsystem: cmake
+    buildsystem: cmake-ninja
     config-opts:
       - -DUPNPC_BUILD_SAMPLE=OFF
       - -DUPNPC_BUILD_SHARED=ON
@@ -258,7 +258,7 @@ modules:
 
   - name: sunshine
     disabled: false
-    buildsystem: cmake
+    buildsystem: cmake-ninja
     no-make-install: false
     builddir: true
     build-options:
@@ -277,7 +277,6 @@ modules:
       - -DBUILD_DOCS=OFF
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
-      - -DCMAKE_INSTALL_PREFIX=/app
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
@@ -289,20 +288,10 @@ modules:
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"
-        branch: "@GITHUB_BRANCH@"
         commit: "@GITHUB_COMMIT@"
     post-install:
-      # use `sed` to update apps.json with prefixes required for flatpak
-      # -r (regex)
-      # -z (handle new lines) https://linuxhint.com/sed-replace-newline-with-space
-      # `/gm` global and multiline
-      - sed -r -z -i -e
-        's/("((do)|(undo)|(cmd)|(detached))"\s*:\s*\[?\n*\s*")(.*")/\1flatpak-spawn --host \7/gm'
-        /app/share/sunshine/apps.json
-      - sed -i
-        's%/app/bin/sunshine%flatpak run dev.lizardbyte.sunshine\nExecStop=flatpak kill dev.lizardbyte.sunshine%g'
-        /app/share/sunshine/systemd/user/sunshine.service
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
+      - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/apps.json /app/share/sunshine/apps.json
     run-tests: true
     test-rule: ""  # empty to disable
     test-commands:
