@@ -2,9 +2,10 @@
 
 # Ensure Sunshine can grab images from KMS
 path_to_setcap=$(which setcap)
+path_to_sunshine=$(readlink -f $(which sunshine))
 if [ -x "$path_to_setcap" ] ; then
-  echo "$path_to_setcap cap_sys_admin+p /usr/bin/sunshine"
-	$path_to_setcap cap_sys_admin+p $(readlink -f /usr/bin/sunshine)
+  echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
+        $path_to_setcap cap_sys_admin+p $path_to_sunshine
 fi
 
 # Trigger udev rule reload for /dev/uinput
