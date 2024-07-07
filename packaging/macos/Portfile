@@ -38,8 +38,7 @@ depends_build-append     port:doxygen \
                          port:python311 \
                          port:py311-pip
 
-depends_lib              port:avahi \
-                         port:curl \
+depends_lib              port:curl \
                          port:libopus \
                          port:miniupnpc
 

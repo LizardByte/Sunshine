@@ -2,7 +2,6 @@
  * @file src/platform/linux/publish.cpp
  * @brief Definitions for publishing services on Linux.
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
- * @todo Use a common file for this and src/platform/macos/publish.cpp
  */
 #include <thread>
 
