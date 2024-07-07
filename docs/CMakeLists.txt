@@ -88,7 +88,8 @@ set(RST_PATTERNS
 foreach(pattern ${RST_PATTERNS})
     message(STATUS "Checking RST files: ${pattern}")
     execute_process(
-        COMMAND "${Python3_ROOT_DIR}/rstcheck" -r "${pattern}"
+        # run rstcheck and disable pretty traceback
+        COMMAND ${CMAKE_COMMAND} -E env _TYPER_STANDARD_TRACEBACK=1 "${Python3_ROOT_DIR}/rstcheck" -r "${pattern}"
         COMMAND_ERROR_IS_FATAL ANY
         RESULT_VARIABLE RST_RESULT
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
