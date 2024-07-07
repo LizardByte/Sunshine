@@ -1,0 +1,25 @@
+{
+  "name": "miniupnpc",
+  "buildsystem": "cmake-ninja",
+  "config-opts": [
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DUPNPC_BUILD_SAMPLE=OFF",
+    "-DUPNPC_BUILD_SHARED=ON",
+    "-DUPNPC_BUILD_TESTS=OFF"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://salsa.debian.org/miniupnp-team/miniupnpc.git",
+      "commit": "c5fe3aa794e92a503cecec6a4071eb6d310b4e42",
+      "tag": "debian/2.2.4-1",
+      "x-checker-data": {
+        "type": "git",
+        "tag-pattern": "^debian\\/(\\d.+)$",
+        "versions": {
+          "<": "2.2.5"
+        }
+      }
+    }
+  ]
+}

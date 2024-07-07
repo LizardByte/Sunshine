@@ -1,0 +1,53 @@
+{
+  "name": "avahi",
+  "cleanup": [
+    "/bin",
+    "/lib/avahi",
+    "/share"
+  ],
+  "config-opts": [
+    "--with-distro=none",
+    "--disable-gobject",
+    "--disable-introspection",
+    "--disable-qt3",
+    "--disable-qt4",
+    "--disable-qt5",
+    "--disable-gtk",
+    "--disable-core-docs",
+    "--disable-manpages",
+    "--disable-libdaemon",
+    "--disable-python",
+    "--disable-pygobject",
+    "--disable-mono",
+    "--disable-monodoc",
+    "--disable-autoipd",
+    "--disable-doxygen-doc",
+    "--disable-doxygen-dot",
+    "--disable-doxygen-xml",
+    "--disable-doxygen-html",
+    "--disable-manpages",
+    "--disable-xmltoman",
+    "--disable-libevent"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://salsa.debian.org/utopia-team/avahi.git",
+      "commit": "1412c015d348166d58ea9c192239b00769eae24e",
+      "tag": "debian/0.8-13",
+      "x-checker-data": {
+        "type": "git",
+        "tag-pattern": "^debian\\/(\\d.+)$",
+        "versions": {
+          "<": "0.9"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "commands": [
+        "autoreconf -ivf"
+      ]
+    }
+  ]
+}

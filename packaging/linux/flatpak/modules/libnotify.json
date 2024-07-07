@@ -1,0 +1,26 @@
+{
+  "name": "libnotify",
+  "buildsystem": "meson",
+  "config-opts": [
+    "-Dtests=false",
+    "-Dintrospection=disabled",
+    "-Dman=false",
+    "-Dgtk_doc=false",
+    "-Ddocbook_docs=disabled"
+  ],
+  "sources": [
+    {
+      "type": "git",
+      "url": "https://salsa.debian.org/gnome-team/libnotify.git",
+      "commit": "ccf2f62ef0a4b264dd4eff32cab70a3e213ceb1a",
+      "tag": "debian/0.8.1-1",
+      "x-checker-data": {
+        "type": "git",
+        "tag-pattern": "^debian\\/(\\d.+)$",
+        "versions": {
+          "<": "0.8.2"
+        }
+      }
+    }
+  ]
+}
