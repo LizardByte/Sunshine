@@ -129,6 +129,16 @@ namespace va {
       return 0;
     }
 
+    void
+    init_codec_options(AVCodecContext *ctx, AVDictionary *options) override {
+      // Don't set the RC buffer size when using H.264 on Intel GPUs. It causes
+      // major encoding quality degradation.
+      auto vendor = vaQueryVendorString(va_display);
+      if (ctx->codec_id != AV_CODEC_ID_H264 || (vendor && !strstr(vendor, "Intel"))) {
+        ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+      }
+    }
+
     int
     set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(frame);

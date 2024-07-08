@@ -859,6 +859,7 @@ namespace video {
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
+    // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT
   };
 #endif
@@ -1609,6 +1610,9 @@ namespace video {
         BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support qp"sv;
         return nullptr;
       }
+
+      // Allow the encoding device a final opportunity to set/unset or override any options
+      encode_device->init_codec_options(ctx.get(), options);
 
       if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
         char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
