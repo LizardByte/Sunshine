@@ -27,6 +27,8 @@ struct sockaddr;
 struct AVFrame;
 struct AVBufferRef;
 struct AVHWFramesContext;
+struct AVCodecContext;
+struct AVDictionary;
 
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
@@ -397,6 +399,13 @@ namespace platf {
      */
     virtual void
     init_hwframes(AVHWFramesContext *frames) {};
+
+    /**
+     * @brief Provides a hook for allow platform-specific code to adjust codec options.
+     * @note Implementations may set or modify codec options prior to codec initialization.
+     */
+    virtual void
+    init_codec_options(AVCodecContext *ctx, AVDictionary *options) {};
 
     /**
      * @brief Prepare to derive a context.
