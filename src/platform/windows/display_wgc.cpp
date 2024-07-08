@@ -11,6 +11,7 @@
 
 #include <windows.graphics.capture.interop.h>
 #include <winrt/windows.foundation.h>
+#include <winrt/windows.foundation.metadata.h>
 #include <winrt/windows.graphics.directx.direct3d11.h>
 
 namespace platf {
@@ -19,6 +20,7 @@ namespace platf {
 
 namespace winrt {
   using namespace Windows::Foundation;
+  using namespace Windows::Foundation::Metadata;
   using namespace Windows::Graphics::Capture;
   using namespace Windows::Graphics::DirectX::Direct3D11;
 
@@ -120,7 +122,12 @@ namespace platf::dxgi {
       return -1;
     }
     try {
-      capture_session.IsBorderRequired(false);
+      if (winrt::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsBorderRequired")) {
+        capture_session.IsBorderRequired(false);
+      }
+      else {
+        BOOST_LOG(warning) << "Can't disable colored border around capture area on this version of Windows";
+      }
     }
     catch (winrt::hresult_error &e) {
       BOOST_LOG(warning) << "Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x"sv << util::hex(e.code()).to_string_view() << ']';
