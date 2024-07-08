@@ -11,4 +11,9 @@ namespace stat_trackers {
     return boost::format("%1$.1f");
   }
 
+  boost::format
+  two_digits_after_decimal() {
+    return boost::format("%1$.2f");
+  }
+
 }  // namespace stat_trackers

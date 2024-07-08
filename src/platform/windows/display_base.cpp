@@ -17,7 +17,6 @@ typedef long NTSTATUS;
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-#include "src/stat_trackers.h"
 #include "src/video.h"
 
 namespace platf {
@@ -218,7 +217,7 @@ namespace platf::dxgi {
       SetThreadExecutionState(ES_CONTINUOUS);
     });
 
-    sleep_overshoot_tracker.reset();
+    sleep_overshoot_logger.reset();
 
     while (true) {
       // This will return false if the HDR state changes or for any number of other
@@ -248,8 +247,8 @@ namespace platf::dxgi {
         }
         else {
           timer->sleep_for(sleep_period);
-          std::chrono::nanoseconds overshoot_ns = std::chrono::steady_clock::now() - sleep_target;
-          log_sleep_overshoot(overshoot_ns);
+          sleep_overshoot_logger.first_point(sleep_target);
+          sleep_overshoot_logger.second_point_now_and_log();
 
           status = snapshot(pull_free_image_cb, img_out, 0ms, *cursor);
 

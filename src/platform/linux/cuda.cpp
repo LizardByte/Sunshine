@@ -806,16 +806,15 @@ namespace cuda {
           handle.reset();
         });
 
-        sleep_overshoot_tracker.reset();
+        sleep_overshoot_logger.reset();
 
         while (true) {
           auto now = std::chrono::steady_clock::now();
           if (next_frame > now) {
             std::this_thread::sleep_for(next_frame - now);
+            sleep_overshoot_logger.first_point(next_frame);
+            sleep_overshoot_logger.second_point_now_and_log();
           }
-          now = std::chrono::steady_clock::now();
-          std::chrono::nanoseconds overshoot_ns = now - next_frame;
-          log_sleep_overshoot(overshoot_ns);
 
           next_frame += delay;
           if (next_frame < now) {  // some major slowdown happened; we couldn't keep up

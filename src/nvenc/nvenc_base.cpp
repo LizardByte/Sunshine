@@ -383,7 +383,7 @@ namespace nvenc {
     }
 
     {
-      auto f = stat_trackers::one_digit_after_decimal();
+      auto f = stat_trackers::two_digits_after_decimal();
       BOOST_LOG(debug) << "NvEnc: requested encoded frame size " << f % (client_config.bitrate / 8. / client_config.framerate) << " kB";
     }
 
@@ -501,15 +501,7 @@ namespace nvenc {
       BOOST_LOG(error) << "NvEncUnlockBitstream failed: " << last_error_string;
     }
 
-    if (config::sunshine.min_log_level <= 1) {
-      // Print encoded frame size stats to debug log every 20 seconds
-      auto callback = [&](float stat_min, float stat_max, double stat_avg) {
-        auto f = stat_trackers::one_digit_after_decimal();
-        BOOST_LOG(debug) << "NvEnc: encoded frame sizes (min max avg) " << f % stat_min << " " << f % stat_max << " " << f % stat_avg << " kB";
-      };
-      using namespace std::literals;
-      encoder_state.frame_size_tracker.collect_and_callback_on_interval(encoded_frame.data.size() / 1000., callback, 20s);
-    }
+    encoder_state.frame_size_logger.collect_and_log(encoded_frame.data.size() / 1000.);
 
     return encoded_frame;
   }
