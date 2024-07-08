@@ -93,17 +93,42 @@ Install
 
    .. tab:: Arch Linux Package
 
-      #. Open terminal and run the following code.
+      .. warning:: We do not provide support for any AUR packages.
 
-         .. code-block:: bash
+      .. tab:: Prebuilt Package
 
-            wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.zst
-            pacman -U --noconfirm sunshine.pkg.tar.zst
+         #. Open terminal and run the following code.
 
-      Uninstall:
-         .. code-block:: bash
+            .. code-block:: bash
 
-            pacman -R sunshine
+               wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.zst
+               pacman -U --noconfirm sunshine.pkg.tar.zst
+
+         Uninstall:
+            .. code-block:: bash
+
+               pacman -R sunshine
+
+      .. tab:: PKGBUILD Archive
+
+         #. Open terminal and run the following code.
+
+            .. code-block:: bash
+
+               wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.gz
+               tar -xvf sunshine.pkg.tar.gz
+               cd sunshine
+
+               # install optional dependencies
+               pacman -S cuda  # Nvidia GPU encoding support
+               pacman -S libva-mesa-driver  # AMD GPU encoding support
+
+               makepkg -si
+
+         Uninstall:
+            .. code-block:: bash
+
+               pacman -R sunshine
 
    .. tab:: Debian/Ubuntu Package
 
@@ -261,15 +286,15 @@ Install
             .. table::
                :widths: auto
 
-               ========   ==============================================   ===============
-               package    ExecStart                                        Auto Configured
-               ========   ==============================================   ===============
-               aur        /usr/bin/sunshine                                ✔
-               deb        /usr/bin/sunshine                                ✔
-               rpm        /usr/bin/sunshine                                ✔
-               AppImage   ~/sunshine.AppImage                              ✔
-               Flatpak    flatpak run dev.lizardbyte.app.Sunshine          ✔
-               ========   ==============================================   ===============
+               =========   ==============================================   ===============
+               package     ExecStart                                        Auto Configured
+               =========   ==============================================   ===============
+               ArchLinux   /usr/bin/sunshine                                ✔
+               deb         /usr/bin/sunshine                                ✔
+               rpm         /usr/bin/sunshine                                ✔
+               AppImage    ~/sunshine.AppImage                              ✔
+               Flatpak     flatpak run dev.lizardbyte.app.Sunshine          ✔
+               =========   ==============================================   ===============
 
       **Start once**
             .. code-block:: bash

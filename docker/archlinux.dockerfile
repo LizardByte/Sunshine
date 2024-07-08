@@ -81,7 +81,16 @@ WORKDIR /build/sunshine/pkg
 RUN mv /build/sunshine/build/PKGBUILD .
 RUN mv /build/sunshine/build/sunshine.install .
 
+# create a PKGBUILD archive
+USER root
+RUN <<_REPO
+#!/bin/bash
+set -e
+tar -czf /build/sunshine/sunshine.pkg.tar.gz .
+_REPO
+
 # namcap and build PKGBUILD file
+USER builder
 RUN <<_PKGBUILD
 #!/bin/bash
 set -e
@@ -96,6 +105,7 @@ _PKGBUILD
 FROM scratch as artifacts
 
 COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
 
 FROM sunshine-base as sunshine
 
