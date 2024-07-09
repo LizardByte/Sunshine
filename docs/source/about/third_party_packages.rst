@@ -3,13 +3,6 @@ Third Party Packages
 
 .. danger:: These packages are not maintained by LizardByte. Use at your own risk.
 
-AUR
----
-
-.. image:: https://img.shields.io/badge/dynamic/json.svg?color=blue&label=AUR&style=for-the-badge&query=$.results.0.Version&url=https%3A%2F%2Fapp.lizardbyte.dev%2Funo%2Faur%2Fsunshine.json&logo=archlinux
-   :alt: AUR
-   :target: https://aur.archlinux.org/packages/sunshine
-
 Chocolatey
 ----------
 
