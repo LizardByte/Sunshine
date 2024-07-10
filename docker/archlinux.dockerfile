@@ -3,7 +3,7 @@
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
 # no-cache-filters: artifacts,sunshine
-ARG BASE=archlinux
+ARG BASE=archlinux/archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
 
@@ -13,6 +13,7 @@ RUN <<_DEPS
 set -e
 pacman -Syu --disable-download-timeout --needed --noconfirm \
   archlinux-keyring
+pacman -Scc --noconfirm
 _DEPS
 
 # Setup builder user, arch prevents running makepkg as root
@@ -45,6 +46,7 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   git \
   namcap \
   xorg-server-xvfb
+pacman -Scc --noconfirm
 _DEPS
 
 # Setup builder user
@@ -80,6 +82,7 @@ _MAKE
 WORKDIR /build/sunshine/pkg
 RUN mv /build/sunshine/build/PKGBUILD .
 RUN mv /build/sunshine/build/sunshine.install .
+RUN makepkg --printsrcinfo > .SRCINFO
 
 # create a PKGBUILD archive
 USER root
@@ -121,6 +124,7 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   archlinux-keyring
 pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
+pacman -Scc --noconfirm
 _INSTALL_SUNSHINE
 
 # network setup

@@ -97,12 +97,12 @@ Install
 
       .. tab:: Prebuilt Package
 
-         #. Open terminal and run the following code.
+         #. Follow the instructions at LizardByte's `pacman-repo <https://github.com/LizardByte/pacman-repo>`__ to add
+            the repository. Then run the following code.
 
             .. code-block:: bash
 
-               wget https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.pkg.tar.zst
-               pacman -U --noconfirm sunshine.pkg.tar.zst
+               pacman -S sunshine
 
          Uninstall:
             .. code-block:: bash
