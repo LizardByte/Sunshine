@@ -13,8 +13,10 @@
 #include <boost/endian/arithmetic.hpp>
 
 extern "C" {
+// clang-format off
 #include <moonlight-common-c/src/Limelight-internal.h>
-#include <rs.h>
+#include "rswrapper.h"
+// clang-format on
 }
 
 #include "config.h"
@@ -236,7 +238,6 @@ namespace stream {
   }
   constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 1400;
 
-  using rh_t = util::safe_ptr<reed_solomon, reed_solomon_release>;
   using video_packet_t = util::c_ptr<video_packet_raw_t>;
   using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
   using audio_fec_packet_t = util::c_ptr<audio_fec_packet_raw_t>;
@@ -621,7 +622,7 @@ namespace stream {
   }
 
   namespace fec {
-    using rs_t = util::safe_ptr<reed_solomon, reed_solomon_release>;
+    using rs_t = util::safe_ptr<reed_solomon, [](reed_solomon *rs) { reed_solomon_release(rs); }>;
 
     struct fec_t {
       size_t data_shards;
