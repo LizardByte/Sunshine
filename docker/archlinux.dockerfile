@@ -7,15 +7,6 @@ ARG BASE=archlinux/archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
 
-# install dependencies
-RUN <<_DEPS
-#!/bin/bash
-set -e
-pacman -Syu --disable-download-timeout --needed --noconfirm \
-  archlinux-keyring
-pacman -Scc --noconfirm
-_DEPS
-
 # Setup builder user, arch prevents running makepkg as root
 RUN useradd -m builder && \
     echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -40,6 +31,7 @@ RUN <<_DEPS
 #!/bin/bash
 set -e
 pacman -Syu --disable-download-timeout --needed --noconfirm \
+  archlinux-keyring \
   base-devel \
   cmake \
   cuda \
