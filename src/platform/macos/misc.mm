@@ -507,6 +507,22 @@ namespace platf {
     return std::make_unique<qos_t>(sockfd, reset_options);
   }
 
+  class macos_high_precision_timer: public high_precision_timer {
+  public:
+    void
+    sleep_for(const std::chrono::nanoseconds &duration) override {
+      std::this_thread::sleep_for(duration);
+    }
+
+    operator bool() override {
+      return true;
+    }
+  };
+
+  std::unique_ptr<high_precision_timer>
+  create_high_precision_timer() {
+    return std::make_unique<macos_high_precision_timer>();
+  }
 }  // namespace platf
 
 namespace dyn {

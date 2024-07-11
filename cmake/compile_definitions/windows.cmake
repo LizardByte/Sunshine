@@ -67,6 +67,7 @@ list(PREPEND PLATFORM_LIBRARIES
         libstdc++.a
         libwinpthread.a
         libssp.a
+        ntdll
         ksuser
         wsock32
         ws2_32

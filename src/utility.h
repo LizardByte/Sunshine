@@ -606,7 +606,8 @@ namespace util {
       return _deleter;
     }
 
-    explicit operator bool() const {
+    explicit
+    operator bool() const {
       return _p != nullptr;
     }
 

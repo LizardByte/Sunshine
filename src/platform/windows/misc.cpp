@@ -61,6 +61,38 @@
   #define WLAN_API_MAKE_VERSION(_major, _minor) (((DWORD) (_minor)) << 16 | (_major))
 #endif
 
+#include <winternl.h>
+extern "C" {
+NTSTATUS NTAPI
+NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
+}
+
+namespace {
+
+  std::atomic<bool> used_nt_set_timer_resolution = false;
+
+  bool
+  nt_set_timer_resolution_max() {
+    ULONG minimum, maximum, current;
+    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+        !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
+      return false;
+    }
+    return true;
+  }
+
+  bool
+  nt_set_timer_resolution_min() {
+    ULONG minimum, maximum, current;
+    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+        !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
+      return false;
+    }
+    return true;
+  }
+
+}  // namespace
+
 namespace bp = boost::process;
 
 using namespace std::literals;
@@ -1115,8 +1147,15 @@ namespace platf {
     // Enable MMCSS scheduling for DWM
     DwmEnableMMCSS(true);
 
-    // Reduce timer period to 1ms
-    timeBeginPeriod(1);
+    // Reduce timer period to 0.5ms
+    if (nt_set_timer_resolution_max()) {
+      used_nt_set_timer_resolution = true;
+    }
+    else {
+      BOOST_LOG(error) << "NtSetTimerResolution() failed, falling back to timeBeginPeriod()";
+      timeBeginPeriod(1);
+      used_nt_set_timer_resolution = false;
+    }
 
     // Promote ourselves to high priority class
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
@@ -1199,8 +1238,16 @@ namespace platf {
     // Demote ourselves back to normal priority class
     SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 
-    // End our 1ms timer request
-    timeEndPeriod(1);
+    // End our 0.5ms timer request
+    if (used_nt_set_timer_resolution) {
+      used_nt_set_timer_resolution = false;
+      if (!nt_set_timer_resolution_min()) {
+        BOOST_LOG(error) << "nt_set_timer_resolution_min() failed even though nt_set_timer_resolution_max() succeeded";
+      }
+    }
+    else {
+      timeEndPeriod(1);
+    }
 
     // Disable MMCSS scheduling for DWM
     DwmEnableMMCSS(false);
@@ -1755,5 +1802,56 @@ namespace platf {
     }
 
     return output;
+  }
+
+  class win32_high_precision_timer: public high_precision_timer {
+  public:
+    win32_high_precision_timer() {
+      // Use CREATE_WAITABLE_TIMER_HIGH_RESOLUTION if supported (Windows 10 1809+)
+      timer = CreateWaitableTimerEx(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+      if (!timer) {
+        timer = CreateWaitableTimerEx(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
+        if (!timer) {
+          BOOST_LOG(error) << "Unable to create high_precision_timer, CreateWaitableTimerEx() failed: " << GetLastError();
+        }
+      }
+    }
+
+    ~win32_high_precision_timer() {
+      if (timer) CloseHandle(timer);
+    }
+
+    void
+    sleep_for(const std::chrono::nanoseconds &duration) override {
+      if (!timer) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with uninitialized timer";
+        return;
+      }
+      if (duration < 0s) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with negative duration";
+        return;
+      }
+      if (duration > 5s) {
+        BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with unexpectedly large duration (>5s)";
+        return;
+      }
+
+      LARGE_INTEGER due_time;
+      due_time.QuadPart = duration.count() / -100;
+      SetWaitableTimer(timer, &due_time, 0, nullptr, nullptr, false);
+      WaitForSingleObject(timer, INFINITE);
+    }
+
+    operator bool() override {
+      return timer != NULL;
+    }
+
+  private:
+    HANDLE timer = NULL;
+  };
+
+  std::unique_ptr<high_precision_timer>
+  create_high_precision_timer() {
+    return std::make_unique<win32_high_precision_timer>();
   }
 }  // namespace platf

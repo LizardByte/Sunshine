@@ -161,9 +161,6 @@ namespace platf::dxgi {
     int
     init(const ::video::config_t &config, const std::string &display_name);
 
-    void
-    high_precision_sleep(std::chrono::nanoseconds duration);
-
     capture_e
     capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override;
 
@@ -184,7 +181,7 @@ namespace platf::dxgi {
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
 
-    util::safe_ptr_v2<std::remove_pointer_t<HANDLE>, BOOL, CloseHandle> timer;
+    std::unique_ptr<high_precision_timer> timer = create_high_precision_timer();
 
     typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
       D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,  ///< Idle priority class
