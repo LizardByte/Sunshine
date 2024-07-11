@@ -1,0 +1,110 @@
+---
+# This action is a candidate to centrally manage in https://github.com/<organization>/.github/
+# If more pacman packages are developed, consider moving this action to the organization's .github repository,
+# using the `pacman-pkg` repository label to identify repositories that should trigger have this workflow.
+
+# Update pacman repo on release events.
+
+name: Update pacman repo
+
+on:
+  release:
+    types: [created, edited]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  cancel-in-progress: true
+
+jobs:
+  update-homebrew-release:
+    if: >-
+      github.repository_owner == 'LizardByte' &&
+      !github.event.release.draft && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if pacman repo
+        env:
+          TOPIC: pacman-pkg
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const topic = process.env.TOPIC;
+            console.log(`Checking if repo has topic: ${topic}`);
+
+            const repoTopics = await github.rest.repos.getAllTopics({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            console.log(`Repo topics: ${repoTopics.data.names}`);
+
+            const hasTopic = repoTopics.data.names.includes(topic);
+            console.log(`Has topic: ${hasTopic}`);
+
+            core.setOutput('hasTopic', hasTopic);
+
+      - name: Check if edited release is latest GitHub release
+        id: check
+        if: >-
+          github.event_name == 'release' &&
+          github.event.action == 'edited'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const latestRelease = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            core.setOutput('isLatestRelease', latestRelease.data.tag_name === context.payload.release.tag_name);
+
+      - name: Checkout pacman-repo
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          steps.check.outputs.isLatestRelease == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/pacman-repo
+
+      - name: Prep
+        id: prep
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          steps.check.outputs.isLatestRelease == 'true'
+        run: |
+          echo "pkg_name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Download release asset
+        id: download
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          steps.check.outputs.isLatestRelease == 'true'
+        uses: robinraju/release-downloader@v1.11
+        with:
+          repository: "${{ github.repository }}"
+          tag: "${{ github.event.release.tag_name }}"
+          fileName: "*.pkg.tar.gz"
+          tarBall: false
+          zipBall: false
+          out-file-path: "pkgbuilds/${{ steps.prep.outputs.pkg_name }}"
+          extract: true
+
+      - name: Create/Update Pull Request
+        if: >-
+          steps.check.outputs.hasTopic == 'true'&&
+          steps.check.outputs.isLatestRelease == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        uses: peter-evans/create-pull-request@v6
+        with:
+          add-paths: |
+            pkgbuilds/*
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          commit-message: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}
+          branch: bot/bump-${{ github.repository }}-${{ github.event.release.tag_name }}
+          delete-branch: true
+          base: master
+          title: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}
+          body: ${{ github.event.release.body }}
+          labels: |
+            auto-approve
+            auto-merge

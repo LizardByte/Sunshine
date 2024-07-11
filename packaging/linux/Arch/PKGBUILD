@@ -12,41 +12,51 @@ install=sunshine.install
 
 _gcc_version=13
 
-depends=('avahi'
-         'curl'
-         'libayatana-appindicator'
-         'libcap'
-         'libdrm'
-         'libevdev'
-         'libmfx'
-         'libnotify'
-         'libpulse'
-         'libva'
-         'libvdpau'
-         'libx11'
-         'libxcb'
-         'libxfixes'
-         'libxrandr'
-         'libxtst'
-         'miniupnpc'
-         'numactl'
-         'openssl'
-         'opus'
-         'udev')
-makedepends=('cmake'
-             'doxygen'
-             "gcc${_gcc_version}"
-             'graphviz'
-             'git'
-             'make'
-             'nodejs'
-             'npm'
-             'python')
-optdepends=('cuda: Nvidia GPU encoding support'
-            'libva-mesa-driver: AMD GPU encoding support'
-            'xorg-server-xvfb: Virtual X server for headless testing')
+depends=(
+  'avahi'
+  'curl'
+  'libayatana-appindicator'
+  'libcap'
+  'libdrm'
+  'libevdev'
+  'libmfx'
+  'libnotify'
+  'libpulse'
+  'libva'
+  'libvdpau'
+  'libx11'
+  'libxcb'
+  'libxfixes'
+  'libxrandr'
+  'libxtst'
+  'miniupnpc'
+  'numactl'
+  'openssl'
+  'opus'
+  'udev'
+)
 
-provides=('sunshine')
+makedepends=(
+  'cmake'
+  'cuda'
+  'doxygen'
+  "gcc${_gcc_version}"
+  'graphviz'
+  'git'
+  'make'
+  'nodejs'
+  'npm'
+  'python'
+)
+
+optdepends=(
+  'cuda: Nvidia GPU encoding support'
+  'libva-mesa-driver: AMD GPU encoding support'
+  'xorg-server-xvfb: Virtual X server for headless testing'
+)
+
+provides=()
+conflicts=()
 
 source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')

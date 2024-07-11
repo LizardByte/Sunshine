@@ -7,10 +7,15 @@ ARG BASE=archlinux/archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
 
-# Setup builder user, arch prevents running makepkg as root
-RUN useradd -m builder && \
-    echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-# makepkg is used in sunshine-build and uploader build stages
+# Update keyring to avoid signature errors, and update system
+RUN <<_DEPS
+#!/bin/bash
+set -e
+pacman -Syy --disable-download-timeout --needed --noconfirm \
+  archlinux-keyring
+pacman -Syu --disable-download-timeout --noconfirm
+pacman -Scc --noconfirm
+_DEPS
 
 FROM sunshine-base as sunshine-build
 
@@ -25,13 +30,20 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Setup builder user, arch prevents running makepkg as root
+RUN useradd -m builder && \
+    echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+# patch the build flags
+# hadolint ignore=SC2016
+RUN sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
+
 # install dependencies
-# cuda is an optional build-time dependency for PKGBUILD
 RUN <<_DEPS
 #!/bin/bash
 set -e
 pacman -Syu --disable-download-timeout --needed --noconfirm \
-  archlinux-keyring \
   base-devel \
   cmake \
   cuda \
@@ -89,6 +101,8 @@ USER builder
 RUN <<_PKGBUILD
 #!/bin/bash
 set -e
+# shellcheck source=/dev/null
+source /etc/profile  # ensure cuda is in the PATH
 export DISPLAY=:1
 Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 namcap -i PKGBUILD
@@ -104,16 +118,12 @@ COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.
 
 FROM sunshine-base as sunshine
 
-# copy from uploader instead of artifacts or uploader stage will not run
 COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-# update keyring to prevent cached keyring errors
-pacman -Syu --disable-download-timeout --needed --noconfirm \
-  archlinux-keyring
 pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
 pacman -Scc --noconfirm
@@ -139,10 +149,6 @@ ENV HOME=/home/$UNAME
 RUN <<_SETUP_USER
 #!/bin/bash
 set -e
-# first delete the builder user
-userdel -r builder
-
-# then create the lizard user
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine
