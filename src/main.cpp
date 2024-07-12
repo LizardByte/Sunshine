@@ -23,7 +23,7 @@
 #include "video.h"
 
 extern "C" {
-#include <rs.h>
+#include "rswrapper.h"
 }
 
 using namespace std::literals;
