@@ -1,7 +1,7 @@
 ---
 # This action is a candidate to centrally manage in https://github.com/<organization>/.github/
 # If more Winget applications are developed, consider moving this action to the organization's .github repository,
-# using the `winget-pkg` repository label to identify repositories that should trigger have this workflow.
+# using the `winget-pkg` repository label to identify repositories that should trigger this workflow.
 
 # Update Winget on release events.
 
