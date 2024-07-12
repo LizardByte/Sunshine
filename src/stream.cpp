@@ -1397,6 +1397,10 @@ namespace stream {
         // appear in "Other I/O" and begin waiting for interrupts.
         // This gives inconsistent performance so we'd rather avoid it.
         size_t send_batch_size = 64 * 1024 / blocksize;
+        // Also don't exceed 64 packets, which can happen when Moonlight requests
+        // unusually small packet size.
+        // Generic Segmentation Offload on Linux can't do more than 64.
+        send_batch_size = std::min<size_t>(64, send_batch_size);
 
         // Don't ignore the last ratecontrol group of the previous frame
         auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start, std::chrono::steady_clock::now());
