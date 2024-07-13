@@ -4,11 +4,8 @@ Linux
 Requirements
 ------------
 
-Debian Bullseye/Bookworm
-^^^^^^^^^^^^^^^^^^^^^^^^
-End of Life (Bullseye): July, 2024
-End of Life (Bookworm): TBD
-
+Debian Bookworm
+^^^^^^^^^^^^^^^
 Install Requirements
    .. code-block:: bash
 
