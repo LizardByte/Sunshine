@@ -24,7 +24,6 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "network.h"
-#include "stat_trackers.h"
 #include "stream.h"
 #include "sync.h"
 #include "system_tray.h"
@@ -1248,11 +1247,11 @@ namespace stream {
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
-    stat_trackers::min_max_avg_tracker<uint16_t> frame_processing_latency_tracker;
+    logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(debug, "Frame processing latency", "ms");
 
-    stat_trackers::min_max_avg_tracker<double> frame_send_batch_latency_tracker;
-    stat_trackers::min_max_avg_tracker<double> frame_fec_latency_tracker;
-    stat_trackers::min_max_avg_tracker<double> frame_network_latency_tracker;
+    logging::time_delta_periodic_logger frame_send_batch_latency_logger(debug, "Network: each send_batch() latency");
+    logging::time_delta_periodic_logger frame_fec_latency_logger(debug, "Network: each FEC block latency");
+    logging::time_delta_periodic_logger frame_network_latency_logger(debug, "Network: frame's overall network latency");
 
     crypto::aes_t iv(12);
 
@@ -1269,8 +1268,7 @@ namespace stream {
         break;
       }
 
-      auto frame_packet_start_time = std::chrono::steady_clock::now();
-      std::chrono::nanoseconds fec_time = 0ns;
+      frame_network_latency_logger.first_point_now();
 
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
@@ -1309,17 +1307,8 @@ namespace stream {
         };
 
         uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
-
-        if (config::sunshine.min_log_level <= 1) {
-          // Print frame processing latency stats to debug log every 20 seconds
-          auto print_info = [&](uint16_t min_latency, uint16_t max_latency, double avg_latency) {
-            auto f = stat_trackers::one_digit_after_decimal();
-            BOOST_LOG(debug) << "Frame processing latency (min/max/avg): " << f % (min_latency / 10.) << "ms/" << f % (max_latency / 10.) << "ms/" << f % (avg_latency / 10.) << "ms";
-          };
-          frame_processing_latency_tracker.collect_and_callback_on_interval(latency, print_info, 20s);
-        }
-
         frame_header.frame_processing_latency = latency;
+        frame_processing_latency_logger.collect_and_log(latency / 10.);
       }
       else {
         frame_header.frame_processing_latency = 0;
@@ -1408,6 +1397,10 @@ namespace stream {
         // appear in "Other I/O" and begin waiting for interrupts.
         // This gives inconsistent performance so we'd rather avoid it.
         size_t send_batch_size = 64 * 1024 / blocksize;
+        // Also don't exceed 64 packets, which can happen when Moonlight requests
+        // unusually small packet size.
+        // Generic Segmentation Offload on Linux can't do more than 64.
+        send_batch_size = std::min<size_t>(64, send_batch_size);
 
         // Don't ignore the last ratecontrol group of the previous frame
         auto ratecontrol_frame_start = std::max(ratecontrol_next_frame_start, std::chrono::steady_clock::now());
@@ -1438,13 +1431,11 @@ namespace stream {
             }
           }
 
-          auto fec_start = std::chrono::steady_clock::now();
-
+          frame_fec_latency_logger.first_point_now();
           // If video encryption is enabled, we allocate space for the encryption header before each shard
           auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets,
             session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
-
-          fec_time += std::chrono::steady_clock::now() - fec_start;
+          frame_fec_latency_logger.second_point_now_and_log();
 
           auto peer_address = session->video.peer.address();
           auto batch_info = platf::batched_send_info_t {
@@ -1523,7 +1514,7 @@ namespace stream {
               batch_info.buffer = shards.prefix(next_shard_to_send);
               batch_info.block_count = current_batch_size;
 
-              auto batch_start_time = std::chrono::steady_clock::now();
+              frame_send_batch_latency_logger.first_point_now();
               // Use a batched send if it's supported on this platform
               if (!platf::send_batch(batch_info)) {
                 // Batched send is not available, so send each packet individually
@@ -1541,15 +1532,7 @@ namespace stream {
                   platf::send(send_info);
                 }
               }
-              if (config::sunshine.min_log_level <= 1) {
-                // Print send_batch() latency stats to debug log every 20 seconds
-                auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
-                  auto f = stat_trackers::one_digit_after_decimal();
-                  BOOST_LOG(debug) << "Network: individual send_batch() latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
-                };
-                double send_batch_latency = (std::chrono::steady_clock::now() - batch_start_time).count() / 1000000.;
-                frame_send_batch_latency_tracker.collect_and_callback_on_interval(send_batch_latency, print_info, 20s);
-              }
+              frame_send_batch_latency_logger.second_point_now_and_log();
 
               ratecontrol_group_packets_sent += current_batch_size;
               ratecontrol_frame_packets_sent += current_batch_size;
@@ -1562,25 +1545,7 @@ namespace stream {
                                          std::chrono::duration_cast<std::chrono::nanoseconds>(1ms) *
                                            ratecontrol_frame_packets_sent / ratecontrol_packets_in_1ms;
 
-          if (config::sunshine.min_log_level <= 1) {
-            // Print frame FEC latency stats to debug log every 20 seconds
-            auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
-              auto f = stat_trackers::one_digit_after_decimal();
-              BOOST_LOG(debug) << "Network: frame FEC latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
-            };
-            double fec_latency = fec_time.count() / 1000000.;
-            frame_fec_latency_tracker.collect_and_callback_on_interval(fec_latency, print_info, 20s);
-          }
-
-          if (config::sunshine.min_log_level <= 1) {
-            // Print frame network latency stats to debug log every 20 seconds
-            auto print_info = [&](double min_latency, double max_latency, double avg_latency) {
-              auto f = stat_trackers::one_digit_after_decimal();
-              BOOST_LOG(debug) << "Network: frame complete network latency (min/max/avg): " << f % min_latency << "ms/" << f % max_latency << "ms/" << f % avg_latency << "ms";
-            };
-            double network_latency = (std::chrono::steady_clock::now() - frame_packet_start_time).count() / 1000000.;
-            frame_network_latency_tracker.collect_and_callback_on_interval(network_latency, print_info, 20s);
-          }
+          frame_network_latency_logger.second_point_now_and_log();
 
           if (packet->is_idr()) {
             BOOST_LOG(verbose) << "Key Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv;

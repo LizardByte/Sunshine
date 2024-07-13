@@ -8,7 +8,7 @@
 #include "nvenc_config.h"
 #include "nvenc_encoded_frame.h"
 
-#include "src/stat_trackers.h"
+#include "src/logging.h"
 #include "src/video.h"
 
 #include <ffnvcodec/nvEncodeAPI.h>
@@ -89,7 +89,7 @@ namespace nvenc {
       uint64_t last_encoded_frame_index = 0;
       bool rfi_needs_confirmation = false;
       std::pair<uint64_t, uint64_t> last_rfi_range;
-      stat_trackers::min_max_avg_tracker<float> frame_size_tracker;
+      logging::min_max_avg_periodic_logger<double> frame_size_logger = { debug, "NvEnc: encoded frame sizes in kB", "" };
     } encoder_state;
   };
 
