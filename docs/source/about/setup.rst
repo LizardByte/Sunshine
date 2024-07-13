@@ -42,7 +42,6 @@ Install
       sunshine.pkg.tar.zst                         11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine_{arch}.flatpak                      12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-debian-bookworm-{arch}.deb          12.0.0           525.60.13         50;52;60;61;62;70;75;80;86;90
-      sunshine-debian-bullseye-{arch}.deb          11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
       sunshine-fedora-39-{arch}.rpm                12.4.0           525.60.13         50;52;60;61;62;70;75;80;86;90
       sunshine-fedora-40-{arch}.rpm                n/a              n/a               n/a
       sunshine-ubuntu-22.04-{arch}.deb             11.8.0           450.80.02         35;50;52;60;61;62;70;75;80;86;90
@@ -55,14 +54,13 @@ Install
 
       According to AppImageLint the supported distro matrix of the AppImage is below.
 
-      - ✔ Debian bullseye
+      - ✖ Debian bullseye
       - ✔ Debian bookworm
       - ✔ Debian trixie
-      - ✖ Debian sid
-      - ✔ Ubuntu mantic
-      - ✔ Ubuntu lunar
+      - ✔ Debian sid
+      - ✔ Ubuntu noble
       - ✔ Ubuntu jammy
-      - ✔ Ubuntu focal
+      - ✖ Ubuntu focal
       - ✖ Ubuntu bionic
       - ✖ Ubuntu xenial
       - ✖ Ubuntu trusty
