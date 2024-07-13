@@ -248,9 +248,9 @@ namespace platf::gamepad {
     if (!gamepad) {
       return;
     }
-    // Only the PS5 controller supports motion
+    // Only the PS5 controller supports battery reports
     if (std::holds_alternative<inputtino::PS5Joypad>(*gamepad->joypad)) {
-      inputtino::PS5Joypad::BATTERY_STATE state = inputtino::PS5Joypad::CHARGHING_ERROR;
+      inputtino::PS5Joypad::BATTERY_STATE state;
       switch (battery.state) {
         case LI_BATTERY_STATE_CHARGING:
           state = inputtino::PS5Joypad::BATTERY_CHARGHING;
@@ -262,6 +262,8 @@ namespace platf::gamepad {
           state = inputtino::PS5Joypad::BATTERY_FULL;
           break;
         case LI_BATTERY_STATE_UNKNOWN:
+        case LI_BATTERY_STATE_NOT_PRESENT:
+        default:
           return;
       }
       if (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN) {
