@@ -98,9 +98,9 @@ jobs:
           submodules: recursive
 
       - name: Setup Dependencies Linux Flatpak
+        env:
+          PLATFORM_VERSION: "22.08"
         run: |
-          PLATFORM_VERSION=22.08
-
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \

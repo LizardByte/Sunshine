@@ -1,0 +1,36 @@
+{
+  "name": "cuda",
+  "build-options": {
+    "no_debuginfo": true
+  },
+  "buildsystem": "simple",
+  "cleanup": [
+    "*"
+  ],
+  "build-commands": [
+    "chmod u+x ./cuda.run",
+    "./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR",
+    "rm -r $FLATPAK_DEST/cuda/nsight-systems-*",
+    "rm ./cuda.run"
+  ],
+  "sources": [
+    {
+      "type": "file",
+      "only-arches": [
+        "x86_64"
+      ],
+      "url": "https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux.run",
+      "sha256": "905e9b9516900839fb76064719db752439f38b8cb730b49335d8bd53ddfad392",
+      "dest-filename": "cuda.run"
+    },
+    {
+      "type": "file",
+      "only-arches": [
+        "aarch64"
+      ],
+      "url": "https://developer.download.nvidia.com/compute/cuda/12.0.0/local_installers/cuda_12.0.0_525.60.13_linux_sbsa.run",
+      "sha256": "cd13e9c65d4c8f895a968706f46064d536be09f9706bce081cc864b7e4fa4544",
+      "dest-filename": "cuda.run"
+    }
+  ]
+}
