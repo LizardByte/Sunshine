@@ -674,11 +674,14 @@ namespace stream {
       for (auto x = 0; x < nr_shards; ++x) {
         shards_p[x] = (uint8_t *) &shards[(x + 1) * prefixsize + x * blocksize];
 
+        // GCC doesn't figure out that std::copy_n() can be replaced with memcpy() here
+        // and ends up compiling a horribly slow element-by-element copy loop, so we
+        // help it by using memcpy()/memset() directly.
         auto copy_len = std::min<size_t>(blocksize, std::end(payload) - next);
-        std::copy_n(next, copy_len, shards_p[x]);
+        std::memcpy(shards_p[x], next, copy_len);
         if (copy_len < blocksize) {
           // Zero any additional space after the end of the payload
-          std::fill_n(shards_p[x] + copy_len, blocksize - copy_len, 0);
+          std::memset(shards_p[x] + copy_len, 0, blocksize - copy_len);
         }
 
         next += copy_len;
