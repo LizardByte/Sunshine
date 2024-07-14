@@ -702,31 +702,49 @@ namespace stream {
     }
   }  // namespace fec
 
-  template <class F>
+  /**
+   * @brief Combines two buffers and inserts new buffers at each slice boundary of the result.
+   * @param insert_size The number of bytes to insert.
+   * @param slice_size The number of bytes between insertions.
+   * @param data1 The first data buffer.
+   * @param data2 The second data buffer.
+   */
   std::vector<uint8_t>
-  insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data, F &&f) {
-    auto pad = data.size() % slice_size != 0;
-    auto elements = data.size() / slice_size + (pad ? 1 : 0);
+  concat_and_insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data1, const std::string_view &data2) {
+    auto data_size = data1.size() + data2.size();
+    auto pad = data_size % slice_size != 0;
+    auto elements = data_size / slice_size + (pad ? 1 : 0);
 
     std::vector<uint8_t> result;
-    result.resize(elements * insert_size + data.size());
+    result.resize(elements * insert_size + data_size);
 
-    auto next = std::begin(data);
-    for (auto x = 0; x < elements - 1; ++x) {
+    auto next = std::begin(data1);
+    auto end = std::end(data1);
+    for (auto x = 0; x < elements; ++x) {
       void *p = &result[x * (insert_size + slice_size)];
 
-      f(p, x, elements);
+      // For the last iteration, only copy to the end of the data
+      if (x == elements - 1) {
+        slice_size = data_size - (x * slice_size);
+      }
 
-      std::copy(next, next + slice_size, (char *) p + insert_size);
-      next += slice_size;
+      // Test if this slice will extend into the next buffer
+      if (next + slice_size > end) {
+        // Copy the first portion from the first buffer
+        auto copy_len = end - next;
+        std::copy(next, end, (char *) p + insert_size);
+
+        // Copy the remaining portion from the second buffer
+        next = std::begin(data2);
+        end = std::end(data2);
+        std::copy(next, next + (slice_size - copy_len), (char *) p + copy_len + insert_size);
+        next += slice_size - copy_len;
+      }
+      else {
+        std::copy(next, next + slice_size, (char *) p + insert_size);
+        next += slice_size;
+      }
     }
-
-    auto x = elements - 1;
-    void *p = &result[x * (insert_size + slice_size)];
-
-    f(p, x, elements);
-
-    std::copy(next, std::end(data), (char *) p + insert_size);
 
     return result;
   }
@@ -1314,24 +1332,13 @@ namespace stream {
         frame_header.frame_processing_latency = 0;
       }
 
-      std::vector<uint8_t> payload_new;
-      std::copy_n((uint8_t *) &frame_header, sizeof(frame_header), std::back_inserter(payload_new));
-      std::copy(std::begin(payload), std::end(payload), std::back_inserter(payload_new));
-
-      payload = { (char *) payload_new.data(), payload_new.size() };
-
-      // insert packet headers
-      auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
-      auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);
-
       auto fecPercentage = config::stream.fec_percentage;
 
-      payload_new = insert(sizeof(video_packet_raw_t), payload_blocksize,
-        payload, [&](void *p, int fecIndex, int end) {
-          video_packet_raw_t *video_packet = (video_packet_raw_t *) p;
-
-          video_packet->packet.flags = FLAG_CONTAINS_PIC_DATA;
-        });
+      // Insert space for packet headers
+      auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
+      auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);
+      auto payload_new = concat_and_insert(sizeof(video_packet_raw_t), payload_blocksize,
+        std::string_view { (char *) &frame_header, sizeof(frame_header) }, payload);
 
       payload = std::string_view { (char *) payload_new.data(), payload_new.size() };
 
@@ -1422,10 +1429,10 @@ namespace stream {
             inspect->packet.multiFecFlags = 0x10;
             inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
 
+            inspect->packet.flags = FLAG_CONTAINS_PIC_DATA;
             if (x == 0) {
               inspect->packet.flags |= FLAG_SOF;
             }
-
             if (x == packets - 1) {
               inspect->packet.flags |= FLAG_EOF;
             }
