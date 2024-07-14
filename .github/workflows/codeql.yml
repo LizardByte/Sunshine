@@ -162,6 +162,7 @@ jobs:
           # queries: security-extended,security-and-quality
           config: |
             paths-ignore:
+              - build
               - node_modules
               - third-party
 
@@ -196,6 +197,7 @@ jobs:
           input: sarif-results/${{ matrix.language }}.sarif
           output: sarif-results/${{ matrix.language }}.sarif
           patterns: |
+            -build/**
             -node_modules/**
             -third\-party/**
 
