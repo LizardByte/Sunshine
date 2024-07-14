@@ -248,9 +248,9 @@ namespace platf::gamepad {
     if (!gamepad) {
       return;
     }
-    // Only the PS5 controller supports motion
+    // Only the PS5 controller supports battery reports
     if (std::holds_alternative<inputtino::PS5Joypad>(*gamepad->joypad)) {
-      inputtino::PS5Joypad::BATTERY_STATE state = inputtino::PS5Joypad::CHARGHING_ERROR;
+      inputtino::PS5Joypad::BATTERY_STATE state;
       switch (battery.state) {
         case LI_BATTERY_STATE_CHARGING:
           state = inputtino::PS5Joypad::BATTERY_CHARGHING;
@@ -261,10 +261,14 @@ namespace platf::gamepad {
         case LI_BATTERY_STATE_FULL:
           state = inputtino::PS5Joypad::BATTERY_FULL;
           break;
+        case LI_BATTERY_STATE_UNKNOWN:
+        case LI_BATTERY_STATE_NOT_PRESENT:
+        default:
+          return;
       }
-      // Battery values in Moonlight are in the range [0, 0xFF (255)]
-      // Inputtino expects them as a percentage [0, 100]
-      std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage / 2.55);
+      if (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN) {
+        std::get<inputtino::PS5Joypad>(*gamepad->joypad).set_battery(state, battery.percentage);
+      }
     }
   }
 
