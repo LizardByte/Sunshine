@@ -9,7 +9,7 @@ const props = defineProps([
 ])
 
 const config = ref(props.config)
-const outputNamePlaceholder = (props.platform === 'windows') ? '\\.\DISPLAY1' : '0'
+const outputNamePlaceholder = (props.platform === 'windows') ? '\\\\.\\DISPLAY1' : '0'
 </script>
 
 <template>
