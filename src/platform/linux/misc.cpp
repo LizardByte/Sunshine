@@ -606,12 +606,19 @@ namespace platf {
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }
 
-    struct iovec iov = {};
-    iov.iov_base = (void *) send_info.buffer;
-    iov.iov_len = send_info.size;
+    struct iovec iovs[2] = {};
+    int iovlen = 0;
+    if (send_info.header) {
+      iovs[iovlen].iov_base = (void *) send_info.header;
+      iovs[iovlen].iov_len = send_info.header_size;
+      iovlen++;
+    }
+    iovs[iovlen].iov_base = (void *) send_info.payload;
+    iovs[iovlen].iov_len = send_info.payload_size;
+    iovlen++;
 
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
+    msg.msg_iov = iovs;
+    msg.msg_iovlen = iovlen;
 
     msg.msg_controllen = cmbuflen;
 

@@ -1535,12 +1535,19 @@ namespace platf {
       msg.namelen = sizeof(taddr_v4);
     }
 
-    WSABUF buf;
-    buf.buf = (char *) send_info.buffer;
-    buf.len = send_info.size;
+    WSABUF bufs[2];
+    DWORD bufcount = 0;
+    if (send_info.header) {
+      bufs[bufcount].buf = (char *) send_info.header;
+      bufs[bufcount].len = send_info.header_size;
+      bufcount++;
+    }
+    bufs[bufcount].buf = (char *) send_info.payload;
+    bufs[bufcount].len = send_info.payload_size;
+    bufcount++;
 
-    msg.lpBuffers = &buf;
-    msg.dwBufferCount = 1;
+    msg.lpBuffers = bufs;
+    msg.dwBufferCount = bufcount;
     msg.dwFlags = 0;
 
     char cmbuf[std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};

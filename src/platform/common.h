@@ -620,8 +620,10 @@ namespace platf {
   send_batch(batched_send_info_t &send_info);
 
   struct send_info_t {
-    const char *buffer;
-    size_t size;
+    const char *header;
+    size_t header_size;
+    const char *payload;
+    size_t payload_size;
 
     std::uintptr_t native_socket;
     boost::asio::ip::address &target_address;
