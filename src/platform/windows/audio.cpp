@@ -152,14 +152,14 @@ namespace platf::audio {
     wave_format.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
     wave_format.Format.nChannels = format.channels;
     wave_format.Format.nSamplesPerSec = SAMPLE_RATE;
-    wave_format.Format.wBitsPerSample = 16;
+    wave_format.Format.wBitsPerSample = 32;
     wave_format.Format.nBlockAlign = wave_format.Format.nChannels * wave_format.Format.wBitsPerSample / 8;
     wave_format.Format.nAvgBytesPerSec = wave_format.Format.nSamplesPerSec * wave_format.Format.nBlockAlign;
     wave_format.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
 
-    wave_format.Samples.wValidBitsPerSample = 16;
+    wave_format.Samples.wValidBitsPerSample = 32;
     wave_format.dwChannelMask = format.channel_mask;
-    wave_format.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
+    wave_format.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
 
     return wave_format;
   }
@@ -167,7 +167,7 @@ namespace platf::audio {
   int
   set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
     wave_format->nSamplesPerSec = SAMPLE_RATE;
-    wave_format->wBitsPerSample = 16;
+    wave_format->wBitsPerSample = 24;
 
     switch (wave_format->wFormatTag) {
       case WAVE_FORMAT_PCM:
@@ -176,7 +176,7 @@ namespace platf::audio {
         break;
       case WAVE_FORMAT_EXTENSIBLE: {
         auto wave_ex = (PWAVEFORMATEXTENSIBLE) wave_format.get();
-        wave_ex->Samples.wValidBitsPerSample = 16;
+        wave_ex->Samples.wValidBitsPerSample = 24;
         wave_ex->dwChannelMask = format.channel_mask;
         wave_ex->SubFormat = KSDATAFORMAT_SUBTYPE_PCM;
         break;
@@ -341,7 +341,7 @@ namespace platf::audio {
   class mic_wasapi_t: public mic_t {
   public:
     capture_e
-    sample(std::vector<std::int16_t> &sample_out) override {
+    sample(std::vector<float> &sample_out) override {
       auto sample_size = sample_out.size();
 
       // Refill the sample buffer if needed
@@ -432,7 +432,7 @@ namespace platf::audio {
       }
 
       // *2 --> needs to fit double
-      sample_buf = util::buffer_t<std::int16_t> { std::max(frames, frame_size) * 2 * channels_out };
+      sample_buf = util::buffer_t<float> { std::max(frames, frame_size) * 2 * channels_out };
       sample_buf_pos = std::begin(sample_buf);
 
       status = audio_client->GetService(IID_IAudioCaptureClient, (void **) &audio_capture);
@@ -489,7 +489,7 @@ namespace platf::audio {
       // Total number of samples
       struct sample_aligned_t {
         std::uint32_t uninitialized;
-        std::int16_t *samples;
+        float *samples;
       } sample_aligned;
 
       // number of samples / number of channels
@@ -588,8 +588,8 @@ namespace platf::audio {
 
     REFERENCE_TIME default_latency_ms;
 
-    util::buffer_t<std::int16_t> sample_buf;
-    std::int16_t *sample_buf_pos;
+    util::buffer_t<float> sample_buf;
+    float *sample_buf_pos;
     int channels;
 
     HANDLE mmcss_task_handle = NULL;

@@ -18,7 +18,7 @@
 namespace audio {
   using namespace std::literals;
   using opus_t = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
-  using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<std::int16_t>>>;
+  using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<float>>>;
 
   struct audio_ctx_t {
     // We want to change the sink for the first stream only
@@ -128,7 +128,7 @@ namespace audio {
     while (auto sample = samples->pop()) {
       buffer_t packet { 1400 };
 
-      int bytes = opus_multistream_encode(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
+      int bytes = opus_multistream_encode_float(opus.get(), sample->data(), frame_size, std::begin(packet), packet.size());
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio: "sv << opus_strerror(bytes);
         packets->stop();
@@ -228,7 +228,7 @@ namespace audio {
     int samples_per_frame = frame_size * stream.channelCount;
 
     while (!shutdown_event->peek()) {
-      std::vector<std::int16_t> sample_buffer;
+      std::vector<float> sample_buffer;
       sample_buffer.resize(samples_per_frame);
 
       auto status = mic->sample(sample_buffer);
