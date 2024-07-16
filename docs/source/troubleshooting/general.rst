@@ -61,13 +61,9 @@ direction (from server to client) at a given bitrate (e.g. 50 Mbps):
 Watch the output on the client for packet loss and jitter values. Both should be
 (very) low.
 
-For Android clients use PingMaster_.
+For Android clients use `PingMaster <https://play.google.com/store/apps/details?id=com.appplanex.pingmasternetworktools>`__.
 
-.. _PingMaster: https://play.google.com/store/apps/details?id=com.appplanex.pingmasternetworktools
-
-For iOS clients use `HE.NET Network Tools`_.
-
-.. _`HE.NET Network Tools`: https://apps.apple.com/us/app/he-net-network-tools/id858241710
+For iOS clients use `HE.NET Network Tools <https://apps.apple.com/us/app/he-net-network-tools/id858241710>`__.
 
 If you are testing a remote connection (over the internet) you will need to
 forward the port 5201 (TCP and UDP) from your host.
