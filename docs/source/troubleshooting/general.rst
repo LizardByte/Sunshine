@@ -43,9 +43,7 @@ For real-time game streaming the most important characteristic of the network
 path between server and client is not pure bandwidth but rather stability and
 consistency (low latency with low variance, minimal or no packet loss).
 
-The network can be tested using the multi-platform tool iPerf3_.
-
-.. _iPerf3: https://iperf.fr
+The network can be tested using the multi-platform tool `iPerf3 <https://iperf.fr>`__.
 
 On the Sunshine host ``iperf3`` is started in server mode:
 
