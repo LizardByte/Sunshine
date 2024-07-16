@@ -56,7 +56,7 @@ direction (from server to client) at a given bitrate (e.g. 50 Mbps):
 
 .. code-block:: bash
 
-   iperf3 -c HostAddress -t 60 -u -R -b 50M
+   iperf3 -c {HostIpAddress} -t 60 -u -R -b 50M
 
 Watch the output on the client for packet loss and jitter values. Both should be
 (very) low.
