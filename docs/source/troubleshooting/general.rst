@@ -37,8 +37,8 @@ Also, if you have many controllers already directly connected to the host, it mi
 Sunshine provided controller (connected to the guest) is the "first" one. In Linux this can be accomplished on USB
 devices by finding the device in `/sys/bus/usb/devices/` and writing `0` to the `authorized` file.
 
-Network performance test using iPerf3
--------------------------------------
+Network performance test
+------------------------
 For real-time game streaming the most important characteristic of the network
 path between server and client is not pure bandwidth but rather stability and
 consistency (low latency with low variance, minimal or no packet loss).
