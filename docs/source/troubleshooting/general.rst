@@ -37,6 +37,37 @@ Also, if you have many controllers already directly connected to the host, it mi
 Sunshine provided controller (connected to the guest) is the "first" one. In Linux this can be accomplished on USB
 devices by finding the device in `/sys/bus/usb/devices/` and writing `0` to the `authorized` file.
 
+Network performance test
+------------------------
+For real-time game streaming the most important characteristic of the network
+path between server and client is not pure bandwidth but rather stability and
+consistency (low latency with low variance, minimal or no packet loss).
+
+The network can be tested using the multi-platform tool `iPerf3 <https://iperf.fr>`__.
+
+On the Sunshine host ``iperf3`` is started in server mode:
+
+.. code-block:: bash
+
+   iperf3 -s
+
+On the client device iperf3 is asked to perform a 60-second UDP test in reverse
+direction (from server to client) at a given bitrate (e.g. 50 Mbps):
+
+.. code-block:: bash
+
+   iperf3 -c {HostIpAddress} -t 60 -u -R -b 50M
+
+Watch the output on the client for packet loss and jitter values. Both should be
+(very) low. Ideally packet loss remains less than 5% and jitter below 1ms.
+
+For Android clients use `PingMaster <https://play.google.com/store/apps/details?id=com.appplanex.pingmasternetworktools>`__.
+
+For iOS clients use `HE.NET Network Tools <https://apps.apple.com/us/app/he-net-network-tools/id858241710>`__.
+
+If you are testing a remote connection (over the internet) you will need to
+forward the port 5201 (TCP and UDP) from your host.
+
 Packet loss (Buffer overrun)
 ----------------------------
 If the host PC (running Sunshine) has a much faster connection to the network

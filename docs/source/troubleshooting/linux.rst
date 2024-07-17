@@ -26,9 +26,10 @@ documentation for instructions.
 KMS Streaming fails
 -------------------
 If screencasting fails with KMS, you may need to run the following to force unprivileged screencasting.
-   .. code-block:: bash
 
-      sudo setcap -r $(readlink -f $(which sunshine))
+.. code-block:: bash
+
+   sudo setcap -r $(readlink -f $(which sunshine))
 
 .. note:: The above command will not work with the AppImage or Flatpak packages.
    Please refer to the :ref:`Setup guide <about/setup:Install>` for more
@@ -37,8 +38,9 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 KMS streaming fails on Nvidia GPUs
 ----------------------------------
 If KMS screen capture results in a black screen being streamed, you may need to
-set the parameter `modeset=1` for Nvidia's kernel module. This can be done by
+set the parameter ``modeset=1`` for Nvidia's kernel module. This can be done by
 adding the following directive to the kernel command line:
+
 .. code-block::
 
    nvidia_drm.modeset=1

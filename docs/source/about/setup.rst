@@ -134,7 +134,7 @@ Install
 
          .. code-block:: bash
 
-            sudo apt install -f ./sunshine-{distro}-{distro-version}-{arch}.deb
+            sudo dpkg -i ./sunshine-{distro}-{distro-version}-{arch}.deb
 
          .. note:: The ``{distro-version}`` is the version of the distro we built the package on. The ``{arch}`` is the
             architecture of your operating system.
