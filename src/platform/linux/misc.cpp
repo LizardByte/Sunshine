@@ -440,7 +440,7 @@ namespace platf {
       // UDP GSO on Linux currently only supports sending 64K or 64 segments at a time
       size_t seg_index = 0;
       const size_t seg_max = 65536 / 1500;
-      struct iovec iovs[(send_info.headers ? send_info.block_count : 1) * max_iovs_per_msg] = {};
+      struct iovec iovs[(send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg] = {};
       auto msg_size = send_info.header_size + send_info.payload_size;
       while (seg_index < send_info.block_count) {
         int iovlen = 0;
@@ -509,7 +509,7 @@ namespace platf {
             continue;
           }
 
-          BOOST_LOG(warning) << "sendmsg() failed: "sv << errno;
+          BOOST_LOG(verbose) << "sendmsg() failed: "sv << errno;
           break;
         }
 
