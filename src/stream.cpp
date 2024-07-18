@@ -668,7 +668,7 @@ namespace stream {
         shards_p[x] = (uint8_t *) next;
         next += blocksize;
       }
-      payload_buffers.push_back({ std::begin(payload), aligned_data_shards * blocksize });
+      payload_buffers.emplace_back(std::begin(payload), aligned_data_shards * blocksize);
 
       // If the last data shard needs to be zero-padded, we must use the shards buffer
       if (pad) {
@@ -686,7 +686,7 @@ namespace stream {
       }
 
       // Add a payload buffer describing the shard buffer
-      payload_buffers.push_back(platf::buffer_descriptor_t { std::begin(shards), shards.size() });
+      payload_buffers.emplace_back(std::begin(shards), shards.size());
 
       if (fecpercentage != 0) {
         // Point into our allocated buffer for the parity shards
