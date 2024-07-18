@@ -609,6 +609,12 @@ namespace platf {
   struct buffer_descriptor_t {
     const char *buffer;
     size_t size;
+
+    // Constructors required for emplace_back() prior to C++20
+    buffer_descriptor_t(const char *buffer, size_t size):
+        buffer(buffer), size(size) {}
+    buffer_descriptor_t():
+        buffer(nullptr), size(0) {}
   };
 
   struct batched_send_info_t {
