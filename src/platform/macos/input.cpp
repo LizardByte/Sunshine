@@ -8,6 +8,7 @@
 #include <chrono>
 #include <mach/mach.h>
 
+#include "src/display_device.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -541,7 +542,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Default to main display
     macos_input->display = CGMainDisplayID();
 
-    auto output_name = config::video.output_name;
+    auto output_name = display_device::map_output_name(config::video.output_name);
     // If output_name is set, try to find the display with that display id
     if (!output_name.empty()) {
       uint32_t max_display = 32;

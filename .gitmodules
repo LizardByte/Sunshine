@@ -22,6 +22,10 @@
 	path = third-party/inputtino
 	url = https://github.com/games-on-whales/inputtino.git
 	branch = stable
+[submodule "third-party/libdisplaydevice"]
+	path = third-party/libdisplaydevice
+	url = https://github.com/LizardByte/libdisplaydevice.git
+	branch = master
 [submodule "third-party/moonlight-common-c"]
 	path = third-party/moonlight-common-c
 	url = https://github.com/moonlight-stream/moonlight-common-c.git

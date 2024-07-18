@@ -1,0 +1,15 @@
+{
+  "name": "nlohmann_json",
+  "buildsystem": "cmake-ninja",
+  "config-opts": [
+    "-DJSON_MultipleHeaders=OFF",
+    "-DJSON_BuildTests=OFF"
+  ],
+  "sources": [
+    {
+      "type": "archive",
+      "url": "https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz",
+      "sha256": "d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d"
+    }
+  ]
+}

@@ -3,8 +3,7 @@ import {ref} from 'vue'
 import {$tp} from '../../platform-i18n'
 import PlatformLayout from '../../PlatformLayout.vue'
 import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
-import LegacyDisplayOutputSelector from './audiovideo/LegacyDisplayOutputSelector.vue'
-import NewDisplayOutputSelector from './audiovideo/NewDisplayOutputSelector.vue'
+import DisplayOutputSelector from './audiovideo/DisplayOutputSelector.vue'
 import DisplayDeviceOptions from "./audiovideo/DisplayDeviceOptions.vue";
 import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
 
@@ -71,7 +70,7 @@ const config = ref(props.config)
         :config="config"
     />
 
-    <LegacyDisplayOutputSelector
+    <DisplayOutputSelector
       :platform="platform"
       :config="config"
     />
