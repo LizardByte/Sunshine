@@ -185,7 +185,7 @@ namespace crypto {
      * The resulting ciphertext and the GCM tag are written into the tagged_cipher buffer.
      */
     int
-    gcm_t::encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv) {
+    gcm_t::encrypt(const std::string_view &plaintext, std::uint8_t *tag, std::uint8_t *ciphertext, aes_t *iv) {
       if (!encrypt_ctx && init_encrypt_gcm(encrypt_ctx, &key, iv, padding)) {
         return -1;
       }
@@ -196,18 +196,15 @@ namespace crypto {
         return -1;
       }
 
-      auto tag = tagged_cipher;
-      auto cipher = tag + tag_size;
-
       int update_outlen, final_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), ciphertext, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
         return -1;
       }
 
       // GCM encryption won't ever fill ciphertext here but we have to call it anyway
-      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), cipher + update_outlen, &final_outlen) != 1) {
+      if (EVP_EncryptFinal_ex(encrypt_ctx.get(), ciphertext + update_outlen, &final_outlen) != 1) {
         return -1;
       }
 
@@ -216,6 +213,12 @@ namespace crypto {
       }
 
       return update_outlen + final_outlen;
+    }
+
+    int
+    gcm_t::encrypt(const std::string_view &plaintext, std::uint8_t *tagged_cipher, aes_t *iv) {
+      // This overload handles the common case of [GCM tag][cipher text] buffer layout
+      return encrypt(plaintext, tagged_cipher, tagged_cipher + tag_size, iv);
     }
 
     int

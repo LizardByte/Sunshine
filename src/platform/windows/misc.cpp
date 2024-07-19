@@ -1452,12 +1452,37 @@ namespace platf {
       msg.namelen = sizeof(taddr_v4);
     }
 
-    WSABUF buf;
-    buf.buf = (char *) send_info.buffer;
-    buf.len = send_info.block_size * send_info.block_count;
+    auto const max_bufs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
 
-    msg.lpBuffers = &buf;
-    msg.dwBufferCount = 1;
+    WSABUF bufs[(send_info.headers ? send_info.block_count : 1) * max_bufs_per_msg];
+    DWORD bufcount = 0;
+    if (send_info.headers) {
+      // Interleave buffers for headers and payloads
+      for (auto i = 0; i < send_info.block_count; i++) {
+        bufs[bufcount].buf = (char *) &send_info.headers[(send_info.block_offset + i) * send_info.header_size];
+        bufs[bufcount].len = send_info.header_size;
+        bufcount++;
+        auto payload_desc = send_info.buffer_for_payload_offset((send_info.block_offset + i) * send_info.payload_size);
+        bufs[bufcount].buf = (char *) payload_desc.buffer;
+        bufs[bufcount].len = send_info.payload_size;
+        bufcount++;
+      }
+    }
+    else {
+      // Translate buffer descriptors into WSABUFs
+      auto payload_offset = send_info.block_offset * send_info.payload_size;
+      auto payload_length = payload_offset + (send_info.block_count * send_info.payload_size);
+      while (payload_offset < payload_length) {
+        auto payload_desc = send_info.buffer_for_payload_offset(payload_offset);
+        bufs[bufcount].buf = (char *) payload_desc.buffer;
+        bufs[bufcount].len = std::min(payload_desc.size, payload_length - payload_offset);
+        payload_offset += bufs[bufcount].len;
+        bufcount++;
+      }
+    }
+
+    msg.lpBuffers = bufs;
+    msg.dwBufferCount = bufcount;
     msg.dwFlags = 0;
 
     // At most, one DWORD option and one PKTINFO option
@@ -1505,7 +1530,7 @@ namespace platf {
       cm->cmsg_level = IPPROTO_UDP;
       cm->cmsg_type = UDP_SEND_MSG_SIZE;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(DWORD));
-      *((DWORD *) WSA_CMSG_DATA(cm)) = send_info.block_size;
+      *((DWORD *) WSA_CMSG_DATA(cm)) = send_info.header_size + send_info.payload_size;
     }
 
     msg.Control.len = cmbuflen;

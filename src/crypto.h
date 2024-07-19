@@ -127,6 +127,17 @@ namespace crypto {
 
       /**
        * @brief Encrypts the plaintext using AES GCM mode.
+       * @param plaintext The plaintext data to be encrypted.
+       * @param tag The buffer where the GCM tag will be written.
+       * @param ciphertext The buffer where the resulting ciphertext will be written.
+       * @param iv The initialization vector to be used for the encryption.
+       * @return The total length of the ciphertext and GCM tag. Returns -1 in case of an error.
+       */
+      int
+      encrypt(const std::string_view &plaintext, std::uint8_t *tag, std::uint8_t *ciphertext, aes_t *iv);
+
+      /**
+       * @brief Encrypts the plaintext using AES GCM mode.
        * length of cipher must be at least: round_to_pkcs7_padded(plaintext.size()) + crypto::cipher::tag_size
        * @param plaintext The plaintext data to be encrypted.
        * @param tagged_cipher The buffer where the resulting ciphertext and GCM tag will be written.
