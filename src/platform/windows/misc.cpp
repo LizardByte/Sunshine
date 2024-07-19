@@ -1537,7 +1537,7 @@ namespace platf {
 
     // If USO is not supported, this will fail and the caller will fall back to unbatched sends.
     DWORD bytes_sent;
-    return WSASendMsg((SOCKET) send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
+    return WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
   }
 
   bool
@@ -1614,7 +1614,7 @@ namespace platf {
     msg.Control.len = cmbuflen;
 
     DWORD bytes_sent;
-    if (WSASendMsg((SOCKET) send_info.native_socket, &msg, 1, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
+    if (WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) == SOCKET_ERROR) {
       auto winerr = WSAGetLastError();
       BOOST_LOG(warning) << "WSASendMsg() failed: "sv << winerr;
       return false;
