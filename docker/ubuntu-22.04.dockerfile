@@ -67,6 +67,27 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
+# install cmake
+# sunshine requires cmake >= 3.25
+WORKDIR /build/cmake
+# https://cmake.org/download/
+ENV CMAKE_VERSION="3.30.1"
+# hadolint ignore=SC3010
+RUN <<_INSTALL_CMAKE
+#!/bin/bash
+cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
+if [[ "${TARGETPLATFORM}" == 'linux/amd64' ]]; then
+  cmake_arch="x86_64"
+elif [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
+  cmake_arch="aarch64"
+fi
+url="${cmake_prefix}${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${cmake_arch}.sh"
+echo "cmake url: ${url}"
+wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cmake.sh
+sh ./cmake.sh --prefix=/usr/local --skip-license
+cmake --version
+_INSTALL_CMAKE
+
 #Install Node
 # hadolint ignore=SC1091
 RUN <<_INSTALL_NODE
