@@ -20,6 +20,7 @@ extern "C" {
 }
 
 #include "config.h"
+#include "display_device.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -1948,11 +1949,15 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
         if (proc::proc.running()) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
-        }
 #endif
+        }
+        else {
+          display_device::revert_configuration();
+        }
+
         platf::streaming_will_stop();
       }
 

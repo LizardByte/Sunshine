@@ -722,6 +722,13 @@ namespace platf::audio {
       return sink;
     }
 
+    bool
+    is_sink_available(const std::string &sink) override {
+      const auto match_list = match_all_fields(from_utf8(sink));
+      const auto matched = find_device_id(match_list);
+      return static_cast<bool>(matched);
+    }
+
     /**
      * @brief Extract virtual audio sink information possibly encoded in the sink name.
      * @param sink The sink name
