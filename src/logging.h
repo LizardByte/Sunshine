@@ -204,4 +204,20 @@ namespace logging {
     min_max_avg_periodic_logger<double> logger;
   };
 
+  /**
+   * @brief Enclose string in square brackets.
+   * @param input Input string.
+   * @return Enclosed string.
+   */
+  ///@{
+  std::string
+  bracket(const std::string &input);
+  std::string
+  bracket(const std::string_view &input);
+  std::wstring
+  bracket(const std::wstring &input);
+  std::wstring
+  bracket(const std::wstring_view &input);
+  ///@}
+
 }  // namespace logging
