@@ -71,8 +71,8 @@ To check whether low-latency mode is being used, one can watch the ``VCLK`` and
 frequencies will fluctuate strongly, whereas with active low-latency encoding
 they will stay high as long as the encoder is used.
 
-Sunshine only works correctly if manually started
--------------------------------------------------
+Sunshine service not working
+----------------------------
 If Sunshine won't start correctly if started as an automatic background service
 via systemd (e.g. it can't find a display to stream), but it does work fine if
 restarted manually with
