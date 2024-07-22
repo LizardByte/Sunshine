@@ -71,6 +71,32 @@ To check whether low-latency mode is being used, one can watch the ``VCLK`` and
 frequencies will fluctuate strongly, whereas with active low-latency encoding
 they will stay high as long as the encoder is used.
 
+Sunshine only works correctly if manually started
+-------------------------------------------------
+If Sunshine won't start correctly if started as an automatic background service
+via systemd (e.g. it can't find a display to stream), but it does work fine if
+restarted manually with
+
+.. code-block:: bash
+
+   systemctl --user restart sunshine
+
+then this misbehavior is probably due to a race condition at startup. In other
+words Sunshine is started a few seconds too early when the desktop environment
+is not yet fully initialized. In that case add a forced delay in an override
+file for Sunshine's systemd unit using the following command:
+
+.. code-block:: bash
+
+   systemctl --user edit sunshine
+
+Add the following two lines in the editor:
+
+.. code-block::
+
+   [Service]
+   ExecStartPre=/bin/sleep 5
+
 Gamescope compatibility
 -----------------------
 Some users have reported stuttering issues when streaming games running within Gamescope.
