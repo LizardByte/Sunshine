@@ -200,11 +200,11 @@ Changing Resolution and Refresh Rate
 
    .. tab:: X11
 
-      +----------------------+------------------------------------------------------------------------------------------------------------------------------------+
-      | Command Preparations | Do: ``sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"`` |
-      |                      +------------------------------------------------------------------------------------------------------------------------------------+
-      |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                       |
-      +----------------------+------------------------------------------------------------------------------------------------------------------------------------+
+      +----------------------+--------------------------------------------------------------------------------------------------------------------------------+
+      | Command Preparations | Do: ``sh -c "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"`` |
+      |                      +--------------------------------------------------------------------------------------------------------------------------------+
+      |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                   |
+      +----------------------+--------------------------------------------------------------------------------------------------------------------------------+
 
       .. hint::
          The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS and iOS devices, since they use non standard resolutions.
@@ -258,19 +258,21 @@ Changing Resolution and Refresh Rate
 
       .. hint::
 
-         ``wlr-xrandr`` only works with wlroots-basec compositors.
+         ``wlr-xrandr`` only works with wlroots-based compositors.
 
    .. tab:: Gnome (Wayland, X11)
 
-      +----------------------+----------------------------------------------------------------------------------------------------------------------------------------+
-      | Command Preparations | Do: ``sh -c "gnome-randr.py --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"`` |
-      |                      +----------------------------------------------------------------------------------------------------------------------------------------+
-      |                      | Undo: ``gnome-randr.py --output HDMI-1 --mode 3840x2160 --rate 120``                                                                   |
-      +----------------------+----------------------------------------------------------------------------------------------------------------------------------------+
+      +----------------------+--------------------------------------------------------------------------------------------------------------------------------+
+      | Command Preparations | Do: ``sh -c "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"`` |
+      |                      +--------------------------------------------------------------------------------------------------------------------------------+
+      |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                   |
+      +----------------------+--------------------------------------------------------------------------------------------------------------------------------+
 
-      The ``gnome-randr.py`` script is available `on gitlab
-      <https://gitlab.com/Oschowa/gnome-randr>`_. For Gnome on X11 you can also
-      use ``xrandr`` which is likely provided by your distribution.
+      The commands above are valid for an X11 session but won't work for
+      Wayland. In that case ``xrandr`` must be replaced by `gnome-randr.py
+      <https://gitlab.com/Oschowa/gnome-randr>`_. This script is intended as a
+      drop-in replacement with the same syntax. (It can be saved in
+      ``/usr/local/bin`` and needs to be made executable.)
 
    .. tab:: KDE Plasma (Wayland, X11)
 
