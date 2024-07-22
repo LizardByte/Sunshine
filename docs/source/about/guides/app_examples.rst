@@ -256,6 +256,22 @@ Changing Resolution and Refresh Rate
       |                      | Undo: ``wlr-xrandr --output HDMI-1 --mode 3840x2160@120Hz``                                                                       |
       +----------------------+-----------------------------------------------------------------------------------------------------------------------------------+
 
+      .. hint::
+
+         ``wlr-xrandr`` only works with wlroots-basec compositors.
+
+   .. tab:: Gnome (Wayland, X11)
+
+      +----------------------+----------------------------------------------------------------------------------------------------------------------------------------+
+      | Command Preparations | Do: ``sh -c "gnome-randr.py --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"`` |
+      |                      +----------------------------------------------------------------------------------------------------------------------------------------+
+      |                      | Undo: ``gnome-randr.py --output HDMI-1 --mode 3840x2160 --rate 120``                                                                   |
+      +----------------------+----------------------------------------------------------------------------------------------------------------------------------------+
+
+      The ``gnome-randr.py`` script is available `on gitlab
+      <https://gitlab.com/Oschowa/gnome-randr>`_. For Gnome on X11 you can also
+      use ``xrandr`` which is likely provided by your distribution.
+
    .. tab:: KDE Plasma (Wayland, X11)
 
       +----------------------+-------------------------------------------------------------------------------------------------------------------------------+
