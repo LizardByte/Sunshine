@@ -74,7 +74,23 @@ namespace config {
     std::string capture;
     std::string encoder;
     std::string adapter_name;
+
+    struct display_mode_remapping_t {
+      std::string type;
+      std::string received_resolution;
+      std::string received_fps;
+      std::string final_resolution;
+      std::string final_refresh_rate;
+    };
+
     std::string output_name;
+    int display_device_prep;
+    int resolution_change;
+    std::string manual_resolution;
+    int refresh_rate_change;
+    std::string manual_refresh_rate;
+    int hdr_prep;
+    std::vector<display_mode_remapping_t> display_mode_remapping;
   };
 
   struct audio_t {
@@ -151,13 +167,17 @@ namespace config {
   }
 
   struct prep_cmd_t {
-    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
+    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated, bool &&on_session):
+        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)),
+        on_session(std::move(on_session)) {}
+    explicit prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)) {}
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
     std::string do_cmd;
     std::string undo_cmd;
     bool elevated;
+    bool on_session;
   };
   struct sunshine_t {
     std::string locale;

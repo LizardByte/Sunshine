@@ -9,6 +9,7 @@
     #define WIN32_LEAN_AND_MEAN
     #include <accctrl.h>
     #include <aclapi.h>
+    #include <windows.h>
     #define TRAY_ICON WEB_DIR "images/sunshine.ico"
     #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.ico"
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
@@ -87,11 +88,19 @@ namespace system_tray {
     BOOST_LOG(info) << "Quitting from system tray"sv;
 
   #ifdef _WIN32
-    // If we're running in a service, return a special status to
-    // tell it to terminate too, otherwise it will just respawn us.
-    if (GetConsoleWindow() == NULL) {
-      lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
-      return;
+    int msgboxID = MessageBoxW(
+      NULL,
+      L"你不能退出!\n那么想退吗? 真拿你没办法呢, 继续点一下吧~",
+      L"退你妹",
+      MB_ICONWARNING | MB_OKCANCEL);
+
+    if (msgboxID == IDOK) {
+      // If we're running in a service, return a special status to
+      // tell it to terminate too, otherwise it will just respawn us.
+      if (GetConsoleWindow() == NULL) {
+        lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
+        return;
+      }
     }
   #endif
 

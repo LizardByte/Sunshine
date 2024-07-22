@@ -11,6 +11,9 @@
 #include <openssl/err.h>
 
 #include <boost/endian/arithmetic.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/program_options/parsers.hpp>
+#include <boost/process.hpp>
 
 extern "C" {
 // clang-format off
@@ -20,6 +23,7 @@ extern "C" {
 }
 
 #include "config.h"
+#include "display_device/session.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -334,6 +338,8 @@ namespace stream {
 
   struct session_t {
     config_t config;
+
+    boost::process::environment env;
 
     safe::mail_t mail;
 
@@ -1901,11 +1907,43 @@ namespace stream {
   }
 
   namespace session {
+    typedef config::prep_cmd_t cmd_t;
     std::atomic_uint running_sessions;
 
     state_e
     state(session_t &session) {
       return session.state.load(std::memory_order_relaxed);
+    }
+
+    boost::filesystem::path
+    find_working_directory(const std::string &cmd) {
+      // Parse the raw command string into parts to get the actual command portion
+#ifdef _WIN32
+      auto parts = boost::program_options::split_winmain(cmd);
+#else
+      auto parts = boost::program_options::split_unix(cmd);
+#endif
+      if (parts.empty()) {
+        BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
+        return boost::filesystem::path();
+      }
+
+      BOOST_LOG(debug) << "Parsed executable ["sv << parts.at(0) << "] from command ["sv << cmd << ']';
+
+      // If the cmd path is not an absolute path, resolve it using our PATH variable
+      boost::filesystem::path cmd_path(parts.at(0));
+      if (!cmd_path.is_absolute()) {
+        cmd_path = boost::process::search_path(parts.at(0));
+        if (cmd_path.empty()) {
+          BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
+          return boost::filesystem::path();
+        }
+      }
+
+      BOOST_LOG(debug) << "Resolved executable ["sv << parts.at(0) << "] to path ["sv << cmd_path << ']';
+
+      // Now that we have a complete path, we can just use parent_path()
+      return cmd_path.parent_path();
     }
 
     void
@@ -1915,6 +1953,32 @@ namespace stream {
       auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
       if (already_stopping) {
         return;
+      }
+
+      std::error_code ec;
+      std::vector<cmd_t>::const_iterator prep_it = std::end(config::sunshine.prep_cmds);
+      for (; prep_it != std::begin(config::sunshine.prep_cmds); --prep_it) {
+        auto &cmd = *(prep_it - 1);
+
+        // Skip empty and non session commands
+        if (cmd.undo_cmd.empty() || !cmd.on_session) {
+          continue;
+        }
+
+        boost::filesystem::path working_dir = find_working_directory(cmd.do_cmd);
+        BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
+        auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, session.env, nullptr, ec, nullptr);
+
+        if (ec) {
+          BOOST_LOG(warning) << "Couldn't run ["sv << cmd.undo_cmd << "]: "sv << ec.message();
+        }
+
+        child.wait();
+        auto ret = child.exit_code();
+
+        if (ret != 0) {
+          BOOST_LOG(warning) << '[' << cmd.undo_cmd << "] failed with code ["sv << ret << ']';
+        }
       }
 
       session.shutdown_event->raise(true);
@@ -1948,11 +2012,20 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+        bool restore_display_state { true };
         if (proc::proc.running()) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
-        }
 #endif
+
+          // TODO: make this configurable per app
+          restore_display_state = false;
+        }
+
+        if (restore_display_state) {
+          display_device::session_t::get().restore_state();
+        }
+
         platf::streaming_will_stop();
       }
 
@@ -1966,6 +2039,33 @@ namespace stream {
       session.broadcast_ref = broadcast.ref();
       if (!session.broadcast_ref) {
         return -1;
+      }
+
+      std::error_code ec;
+      std::vector<cmd_t>::const_iterator prep_it = std::begin(config::sunshine.prep_cmds);
+      for (; prep_it != std::end(config::sunshine.prep_cmds); ++prep_it) {
+        auto &cmd = *prep_it;
+
+        // Skip empty and non session commands
+        if (cmd.do_cmd.empty() || !cmd.on_session) {
+          continue;
+        }
+
+        boost::filesystem::path working_dir = find_working_directory(cmd.do_cmd);
+        BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
+        auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, session.env, nullptr, ec, nullptr);
+
+        if (ec) {
+          BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
+          return -1;
+        }
+
+        child.wait();
+        auto ret = child.exit_code();
+        if (ret != 0) {
+          BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
+          return -1;
+        }
       }
 
       session.control.expected_peer_address = addr_string;
@@ -2012,6 +2112,7 @@ namespace stream {
       session->launch_session_id = launch_session.id;
 
       session->config = config;
+      session->env = launch_session.env;
 
       session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);

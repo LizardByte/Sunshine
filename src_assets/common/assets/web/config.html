@@ -6,12 +6,19 @@
     <style>
       .config-page {
         padding: 1em;
-        border: 1px solid #dee2e6;
+        border: 1px solid transparent;
         border-top: none;
       }
 
       .buttons {
         padding: 1em 0;
+      }
+
+      .ms-item {
+        border: 1px solid;
+        border-radius: 2px;
+        font-size: 12px;
+        font-weight: bold;
       }
     </style>
 </head>
@@ -20,7 +27,7 @@
   <Navbar></Navbar>
   <div class="container">
     <h1 class="my-4">{{ $t('config.configuration') }}</h1>
-    <div class="form" v-if="config">
+    <div class="form card" v-if="config">
       <!-- Header -->
       <ul class="nav nav-tabs">
         <li class="nav-item" v-for="tab in tabs" :key="tab.id">
@@ -49,6 +56,9 @@
         v-if="currentTab === 'av'"
         :config="config"
         :platform="platform"
+        :resolutions="resolutions"
+        :fps="fps"
+        :display_mode_remapping="display_mode_remapping"
       >
       </audio-video>
 
@@ -128,6 +138,7 @@
         config: null,
         currentTab: "general",
         global_prep_cmd: [],
+        display_mode_remapping: [],
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -170,6 +181,15 @@
               "install_steam_audio_drivers": "enabled",
               "adapter_name": "",
               "output_name": "",
+              "display_device_prep": "no_operation",
+              "resolution_change": "automatic",
+              "manual_resolution": "",
+              "refresh_rate_change": "automatic",
+              "manual_refresh_rate": "",
+              "hdr_prep": "automatic",
+              "display_mode_remapping": "[]",
+              "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,2560x1440,3440x1440,1920x1200,3840x2160,3840x1600]",
+              "fps": "[10,30,60,90,120]",
               "min_fps_factor": 1,
             },
           },
@@ -316,6 +336,9 @@
 
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
+
+          this.config.display_mode_remapping = this.config.display_mode_remapping || [];
+          this.display_mode_remapping = JSON.parse(this.config.display_mode_remapping);
         });
     },
     methods: {
@@ -324,6 +347,7 @@
       },
       serialize() {
         this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
+        this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping);
       },
       save() {
         this.saved = false;
@@ -338,7 +362,7 @@
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            if (["global_prep_cmd"].includes(optionKey)) {
+            if (["resolutions", "fps", "global_prep_cmd", "display_mode_remapping"].includes(optionKey)) {
               let config_value, default_value
 
               config_value = JSON.parse(config[optionKey])

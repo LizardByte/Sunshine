@@ -17,11 +17,13 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <nlohmann/json.hpp>
 #include <string>
 
 // local includes
 #include "config.h"
 #include "crypto.h"
+#include "display_device/session.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -35,6 +37,8 @@
 #include "utility.h"
 #include "uuid.h"
 #include "video.h"
+
+using json = nlohmann::json;
 
 using namespace std::literals;
 namespace nvhttp {
@@ -353,6 +357,29 @@ namespace nvhttp {
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
     std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
+
+    launch_session->env["SUNSHINE_CLIENT_ID"] = std::to_string(launch_session->id);
+    launch_session->env["SUNSHINE_CLIENT_UNIQUE_ID"] = launch_session->unique_id;
+    launch_session->env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
+    launch_session->env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
+    launch_session->env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);
+    launch_session->env["SUNSHINE_CLIENT_HDR"] = launch_session->enable_hdr ? "true" : "false";
+    launch_session->env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
+    launch_session->env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
+    launch_session->env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
+    int channelCount = launch_session->surround_info & (65535);
+    switch (channelCount) {
+      case 2:
+        launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "2.0";
+        break;
+      case 6:
+        launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "5.1";
+        break;
+      case 8:
+        launch_session->env["SUNSHINE_CLIENT_AUDIO_CONFIGURATION"] = "7.1";
+        break;
+    }
+
     return launch_session;
   }
 
@@ -785,6 +812,20 @@ namespace nvhttp {
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
+      json json_cmds;
+
+      for (auto &cmd : proc.menu_cmds) {
+        json json_cmd;
+        json_cmd["id"] = cmd.id;
+        json_cmd["name"] = cmd.name;
+        json_cmd["do_cmd"] = cmd.do_cmd;
+        json_cmd["elevated"] = cmd.elevated;
+
+        json_cmds.push_back(json_cmd);
+      }
+
+      app.put("SuperCmds"s, json_cmds.dump(4));
+
       apps.push_back(std::make_pair("App", std::move(app)));
     }
   }
@@ -794,12 +835,17 @@ namespace nvhttp {
     print_req<SimpleWeb::HTTPS>(request);
 
     pt::ptree tree;
+    bool need_to_restore_display_state { false };
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
       pt::write_xml(data, tree);
       response->write(data.str());
       response->close_connection_after_response = true;
+
+      if (need_to_restore_display_state) {
+        display_device::session_t::get().restore_state();
+      }
     });
 
     if (rtsp_stream::session_count() == config::stream.channels) {
@@ -834,11 +880,22 @@ namespace nvhttp {
       return;
     }
 
-    // Probe encoders again before streaming to ensure our chosen
-    // encoder matches the active GPU (which could have changed
-    // due to hotplugging, driver crash, primary monitor change,
-    // or any number of other factors).
+    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    const auto launch_session = make_launch_session(host_audio, args);
+
     if (rtsp_stream::session_count() == 0) {
+      // We want to prepare display only if there are no active sessions at
+      // the moment. This should to be done before probing encoders as it could
+      // change display device's state.
+      display_device::session_t::get().configure_display(config::video, *launch_session);
+
+      // The display should be restored by the fail guard in case something happens.
+      need_to_restore_display_state = true;
+
+      // Probe encoders again before streaming to ensure our chosen
+      // encoder matches the active GPU (which could have changed
+      // due to hotplugging, driver crash, primary monitor change,
+      // or any number of other factors).
       if (video::probe_encoders()) {
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
@@ -847,9 +904,6 @@ namespace nvhttp {
         return;
       }
     }
-
-    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-    auto launch_session = make_launch_session(host_audio, args);
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
     if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
@@ -880,6 +934,9 @@ namespace nvhttp {
     tree.put("root.gamesession", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
+
+    // Stream was started successfully, we will restore the state when the app or session terminates
+    need_to_restore_display_state = false;
   }
 
   void
@@ -925,7 +982,20 @@ namespace nvhttp {
       return;
     }
 
+    // Newer Moonlight clients send localAudioPlayMode on /resume too,
+    // so we should use it if it's present in the args and there are
+    // no active sessions we could be interfering with.
+    if (rtsp_stream::session_count() == 0 && args.find("localAudioPlayMode"s) != std::end(args)) {
+      host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    }
+    const auto launch_session = make_launch_session(host_audio, args);
+
     if (rtsp_stream::session_count() == 0) {
+      // We want to prepare display only if there are no active sessions at
+      // the moment. This should to be done before probing encoders as it could
+      // change display device's state.
+      display_device::session_t::get().configure_display(config::video, *launch_session);
+
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed
       // due to hotplugging, driver crash, primary monitor change,
@@ -937,16 +1007,7 @@ namespace nvhttp {
 
         return;
       }
-
-      // Newer Moonlight clients send localAudioPlayMode on /resume too,
-      // so we should use it if it's present in the args and there are
-      // no active sessions we could be interfering with.
-      if (args.find("localAudioPlayMode"s) != std::end(args)) {
-        host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-      }
     }
-
-    auto launch_session = make_launch_session(host_audio, args);
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
     if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
@@ -997,6 +1058,57 @@ namespace nvhttp {
     if (proc::proc.running() > 0) {
       proc::proc.terminate();
     }
+
+    // The state needs to be restored regardless of whether "proc::proc.terminate()" was called or not.
+    display_device::session_t::get().restore_state();
+  }
+
+  void
+  sleep(resp_https_t response, req_https_t request) {
+    print_req<SimpleWeb::HTTPS>(request);
+
+    boost::process::environment _env = boost::this_process::environment();
+    auto working_dir = boost::filesystem::path();
+    std::error_code ec;
+    std::string cmd = "rundll32.exe powrprof.dll,SetSuspendState 0,1,0";
+
+    auto child = platf::run_command(false, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Executing sleep cmd ["sv << cmd << "]"sv;
+      child.detach();
+    }
+
+    pt::ptree tree;
+    tree.put("root.pcsleep", 1);
+    tree.put("root.<xmlattr>.status_code", 200);
+
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+    response->close_connection_after_response = true;
+  }
+
+  void
+  execSuperCmd(resp_https_t response, req_https_t request) {
+    print_req<SimpleWeb::HTTPS>(request);
+
+    auto args = request->parse_query_string();
+    auto cmdId = get_arg(args, "cmdId", "");
+    proc::proc.run_menu_cmd(cmdId);
+
+    pt::ptree tree;
+    tree.put("root.supercmd", 1);
+    tree.put("root.<xmlattr>.status_code", 200);
+
+    std::ostringstream data;
+
+    pt::write_xml(data, tree);
+    response->write(data.str());
+    response->close_connection_after_response = true;
   }
 
   void
@@ -1102,6 +1214,8 @@ namespace nvhttp {
     https_server.resource["^/launch$"]["GET"] = [&host_audio](auto resp, auto req) { launch(host_audio, resp, req); };
     https_server.resource["^/resume$"]["GET"] = [&host_audio](auto resp, auto req) { resume(host_audio, resp, req); };
     https_server.resource["^/cancel$"]["GET"] = cancel;
+    https_server.resource["^/pcsleep$"]["GET"] = sleep;
+    https_server.resource["^/supercmd$"]["GET"] = execSuperCmd;
 
     https_server.config.reuse_address = true;
     https_server.config.address = net::af_to_any_address_string(address_family);

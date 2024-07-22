@@ -58,3 +58,7 @@
 	path = third-party/wlr-protocols
 	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols.git
 	branch = master
+[submodule "src_assets/common/sunshine-control-panel"]
+	path = src_assets/common/sunshine-control-panel
+	url = https://github.com/qiin2333/sunshine-control-panel.git
+	branch = master

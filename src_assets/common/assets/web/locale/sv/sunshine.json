@@ -1,0 +1,13 @@
+{
+  "index": {
+    "welcome": "",
+    "description": "",
+    "startup_errors": "",
+    "loading_latest": "",
+    "version_dirty": "",
+    "version_latest": "",
+    "new_nightly": "",
+    "new_stable": "",
+    "download": ""
+  }
+}

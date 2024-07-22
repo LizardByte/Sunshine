@@ -2,38 +2,38 @@
 <html lang="en" data-bs-theme="auto">
 
 <head>
-      <%- header %>
-      <style>
-        .troubleshooting-logs {
-          white-space: pre;
-          font-family: monospace;
-          overflow: auto;
-          max-height: 500px;
-          min-height: 500px;
-          font-size: 16px;
-          position: relative;
-        }
+  <%- header %>
+    <style>
+      .troubleshooting-logs {
+        white-space: pre;
+        font-family: monospace;
+        overflow: auto;
+        max-height: 500px;
+        min-height: 500px;
+        font-size: 16px;
+        position: relative;
+      }
 
-        .copy-icon {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          padding: 8px;
-          cursor: pointer;
-          color: rgba(0, 0, 0, 1);
-          appearance: none;
-          border: none;
-          background: none;
-        }
+      .copy-icon {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 8px;
+        cursor: pointer;
+        color: rgba(0, 0, 0, 1);
+        appearance: none;
+        border: none;
+        background: none;
+      }
 
-        .copy-icon:hover {
-          color: rgba(0, 0, 0, 0.75);
-        }
+      .copy-icon:hover {
+        color: rgba(0, 0, 0, 0.75);
+      }
 
-        .copy-icon:active {
-          color: rgba(0, 0, 0, 1);
-        }
-      </style>
+      .copy-icon:active {
+        color: rgba(0, 0, 0, 1);
+      }
+    </style>
 </head>
 
 <body id="app" v-cloak>
@@ -75,38 +75,24 @@
         </div>
       </div>
     </div>
-    <!-- Unpair Clients -->
-    <div class="card my-4">
+    <!-- Reset persistent display device settings -->
+    <div class="card p-2 my-4" v-if="platform === 'windows'">
       <div class="card-body">
-        <div class="p-2">
-          <div class="d-flex justify-content-end align-items-center">
-            <h2 id="unpair" class="text-center me-auto">{{ $t('troubleshooting.unpair_title') }}</h2>
-            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-              {{ $t('troubleshooting.unpair_all') }}
-            </button>
-          </div>
-          <br />
-          <p class="mb-0">{{ $t('troubleshooting.unpair_desc') }}</p>
-          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3" :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
-            <div class="me-2"><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
-            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
-          </div>
-          <div class="alert alert-success mt-3" v-if="unpairAllStatus === true">
-            {{ $t('troubleshooting.unpair_all_success') }}
-          </div>
-          <div class="alert alert-danger mt-3" v-if="unpairAllStatus === false">
-            {{ $t('troubleshooting.unpair_all_error') }}
-          </div>
+        <h2 id="reset_display_device">{{ $t('troubleshooting.reset_display_device_windows') }}</h2>
+        <br>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.reset_display_device_desc_windows') }}</p>
+        <div class="alert alert-success" v-if="resetDisplayDeviceStatus === true">
+          {{ $t('troubleshooting.reset_display_device_success_windows') }}
+        </div>
+        <div class="alert alert-danger" v-if="resetDisplayDeviceStatus === false">
+          {{ $t('troubleshooting.reset_display_device_error_windows') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="resetDisplayDevicePressed" @click="resetDisplayDevicePersistence">
+            {{ $t('troubleshooting.reset_display_device_windows') }}
+          </button>
         </div>
       </div>
-      <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
-        <div v-for="client in clients" class="list-group-item d-flex">
-          <div class="p-2 flex-grow-1">{{client.name != "" ? client.name : $t('troubleshooting.unpair_single_unknown')}}</div><div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
-        </div>
-      </ul>
-      <ul v-else class="list-group list-group-flush list-group-item-light">
-        <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em></div>
-      </ul>
       
     </div>
     <!-- Logs -->
@@ -138,9 +124,12 @@
       },
       data() {
         return {
-          clients: [],
+          platform: "",
           closeAppPressed: false,
           closeAppStatus: null,
+          restartPressed: false,
+          resetDisplayDevicePressed: false,
+          resetDisplayDeviceStatus: null,
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
@@ -159,6 +148,12 @@
         }
       },
       created() {
+        fetch("/api/config")
+          .then((r) => r.json())
+          .then((r) => {
+            this.platform = r.platform;
+          });
+
         this.logInterval = setInterval(() => {
           this.refreshLogs();
         }, 5000);
@@ -188,41 +183,17 @@
               }, 5000);
             });
         },
-        unpairAll() {
-          this.unpairAllPressed = true;
-          fetch("/api/clients/unpair-all", { method: "POST" })
+        resetDisplayDevicePersistence() {
+          this.resetDisplayDevicePressed = true;
+          fetch("/api/reset-display-device-persistence", { method: "POST" })
             .then((r) => r.json())
             .then((r) => {
-              this.unpairAllPressed = false;
-              this.unpairAllStatus = r.status.toString() === "true";
+              this.resetDisplayDevicePressed = false;
+              this.resetDisplayDeviceStatus = r.status.toString() === "true";
               setTimeout(() => {
-                this.unpairAllStatus = null;
+                this.resetDisplayDeviceStatus = null;
               }, 5000);
-              this.refreshClients();
             });
-        },
-        unpairSingle(uuid) {
-          fetch("/api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
-            this.showApplyMessage = true;
-            this.refreshClients();
-          });
-        },
-        refreshClients() {
-          fetch("/api/clients/list")
-            .then((response) => response.json())
-            .then((response) => {
-              const clientList = document.querySelector("#client-list");
-              if (response.status === 'true' && response.named_certs && response.named_certs.length) {
-                this.clients = response.named_certs.sort((a, b) => {
-                  return (a.name.toLowerCase() > b.name.toLowerCase() || a.name == "" ? 1 : -1)
-                });
-              } else {
-                this.clients = [];
-              }
-            });
-        },
-        clickedApplyBanner() {
-          this.showApplyMessage = false;
         },
         copyLogs() {
           navigator.clipboard.writeText(this.actualLogs);

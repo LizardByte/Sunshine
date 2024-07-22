@@ -1,0 +1,13 @@
+{
+  "index": {
+    "welcome": "Hello, Sunshine!",
+    "description": "Sunshine is a self-hosted game stream host for Moonlight.",
+    "startup_errors": "<b>Attention!</b> Sunshine detected these errors during startup. We <b>STRONGLY RECOMMEND</b> fixing them before streaming.",
+    "loading_latest": "Loading latest release...",
+    "version_dirty": "Thank you for helping to make Sunshine a better software!",
+    "version_latest": "You are running the latest version of Sunshine",
+    "new_nightly": "A new <b>Nightly</b> Version is Available!",
+    "new_stable": "A new <b>Stable</b> Version is Available!",
+    "download": "Download"
+  }
+}

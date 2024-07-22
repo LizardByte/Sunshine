@@ -11,6 +11,9 @@ import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
 const props = defineProps([
   'platform',
   'config',
+  'resolutions',
+  'fps',
+  'display_mode_remapping',
   'min_fps_factor',
 ])
 
@@ -71,9 +74,15 @@ const config = ref(props.config)
         :config="config"
     />
 
-    <LegacyDisplayOutputSelector
+    <NewDisplayOutputSelector
       :platform="platform"
       :config="config"
+    />
+
+    <DisplayDeviceOptions
+      :platform="platform"
+      :config="config"
+      :display_mode_remapping="display_mode_remapping"
     />
 
     <!-- Display Modes -->
