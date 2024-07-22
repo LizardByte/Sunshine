@@ -117,50 +117,46 @@ namespace {
     return waveformat;
   }
 
-  using virtual_device_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
+  using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
   template <WORD channel_count>
-  virtual_device_waveformats_t
+  virtual_sink_waveformats_t
   create_virtual_sink_waveformats() {
-    switch (channel_count) {
-      case 2: {
-        auto channel_mask = waveformat_mask_stereo;
-        return {
-          create_waveformat(sample_format_e::f32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s24, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s16, channel_count, channel_mask),
-        };
-      }
-
-      case 6: {
-        auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
-        auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers;
-        return {
-          create_waveformat(sample_format_e::f32, channel_count, channel_mask1),
-          create_waveformat(sample_format_e::f32, channel_count, channel_mask2),
-          create_waveformat(sample_format_e::s32, channel_count, channel_mask1),
-          create_waveformat(sample_format_e::s32, channel_count, channel_mask2),
-          create_waveformat(sample_format_e::s24in32, channel_count, channel_mask1),
-          create_waveformat(sample_format_e::s24in32, channel_count, channel_mask2),
-          create_waveformat(sample_format_e::s24, channel_count, channel_mask1),
-          create_waveformat(sample_format_e::s24, channel_count, channel_mask2),
-          create_waveformat(sample_format_e::s16, channel_count, channel_mask1),
-          create_waveformat(sample_format_e::s16, channel_count, channel_mask2),
-        };
-      }
-
-      case 8: {
-        auto channel_mask = waveformat_mask_surround71;
-        return {
-          create_waveformat(sample_format_e::f32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s24, channel_count, channel_mask),
-          create_waveformat(sample_format_e::s16, channel_count, channel_mask),
-        };
-      }
+    if constexpr (channel_count == 2) {
+      auto channel_mask = waveformat_mask_stereo;
+      return {
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s24, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s16, channel_count, channel_mask),
+      };
+    }
+    else if (channel_count == 6) {
+      auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
+      auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers;
+      return {
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask1),
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask2),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask1),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask2),
+        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask1),
+        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask2),
+        create_waveformat(sample_format_e::s24, channel_count, channel_mask1),
+        create_waveformat(sample_format_e::s24, channel_count, channel_mask2),
+        create_waveformat(sample_format_e::s16, channel_count, channel_mask1),
+        create_waveformat(sample_format_e::s16, channel_count, channel_mask2),
+      };
+    }
+    else if (channel_count == 8) {
+      auto channel_mask = waveformat_mask_surround71;
+      return {
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s24, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s16, channel_count, channel_mask),
+      };
     }
   }
 
@@ -253,7 +249,7 @@ namespace platf::audio {
     WORD channel_count;
     std::string name;
     int capture_waveformat_default_channel_mask;
-    virtual_device_waveformats_t virtual_device_waveformats;
+    virtual_sink_waveformats_t virtual_sink_waveformats;
   };
 
   const std::array<const format_t, 3> formats = {
@@ -796,7 +792,7 @@ namespace platf::audio {
       }
 
       auto &device_id = virtual_sink_info.value().first;
-      auto &waveformats = virtual_sink_info.value().second.get().virtual_device_waveformats;
+      auto &waveformats = virtual_sink_info.value().second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
         // We're using completely undocumented and unlisted API,
         // better not pass our static objects.
