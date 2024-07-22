@@ -791,8 +791,8 @@ namespace platf::audio {
         }
       }
 
-      auto &device_id = virtual_sink_info.value().first;
-      auto &waveformats = virtual_sink_info.value().second.get().virtual_sink_waveformats;
+      auto &device_id = virtual_sink_info->first;
+      auto &waveformats = virtual_sink_info->second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
         // We're using completely undocumented and unlisted API,
         // better not pass our static objects.
