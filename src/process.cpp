@@ -23,6 +23,7 @@
 
 #include "config.h"
 #include "crypto.h"
+#include "display_device/session.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "system_tray.h"
@@ -98,7 +99,7 @@ namespace proc {
   }
 
   boost::filesystem::path
-  find_working_directory(const std::string &cmd, boost::process::environment &env) {
+  find_working_directory(const std::string &cmd) {
     // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
     auto parts = boost::program_options::split_winmain(cmd);
@@ -152,7 +153,8 @@ namespace proc {
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
-    // Add Stream-specific environment variables
+    // Add Process-specific environment variables
+    _env = launch_session->env;
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
     _env["SUNSHINE_APP_NAME"] = _app.name;
     _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
@@ -206,7 +208,7 @@ namespace proc {
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.do_cmd, _env) :
+                                              find_working_directory(cmd.do_cmd) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
       auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -231,7 +233,7 @@ namespace proc {
 
     for (auto &cmd : _app.detached) {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd, _env) :
+                                              find_working_directory(cmd) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
       auto child = platf::run_command(_app.elevated, true, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -249,7 +251,7 @@ namespace proc {
     }
     else {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(_app.cmd, _env) :
+                                              find_working_directory(_app.cmd) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
       _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
@@ -312,7 +314,7 @@ namespace proc {
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.undo_cmd, _env) :
+                                              find_working_directory(cmd.undo_cmd) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
       auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -330,15 +332,18 @@ namespace proc {
     }
 
     _pipe.reset();
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
     bool has_run = _app_id > 0;
 
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
     if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
-    }
 #endif
+
+      // Same applies when restoring display state
+      display_device::session_t::get().restore_state();
+    }
 
     _app_id = -1;
   }
@@ -369,6 +374,30 @@ namespace proc {
   std::string
   proc_t::get_last_run_app_name() {
     return _app.name;
+  }
+
+  void
+  proc_t::run_menu_cmd(std::string cmd_id) {
+    auto iter = std::find_if(_app.menu_cmds.begin(), _app.menu_cmds.end(), [&cmd_id](const auto menu_cmd) {
+      return menu_cmd.id == cmd_id;
+    });
+
+    if (iter != _app.menu_cmds.end()) {
+      auto cmd = iter->do_cmd;
+      std::error_code ec;
+
+      boost::filesystem::path working_dir = _app.working_dir.empty() ?
+                                              find_working_directory(cmd) :
+                                              boost::filesystem::path(_app.working_dir);
+      auto child = platf::run_command(iter->elevated, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+      if (ec) {
+        BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+      }
+      else {
+        BOOST_LOG(info) << "Executing cmd ["sv << cmd << "]"sv;
+        child.detach();
+      }
+    }
   }
 
   proc_t::~proc_t() {
@@ -592,6 +621,7 @@ namespace proc {
         proc::ctx_t ctx;
 
         auto prep_nodes_opt = app_node.get_child_optional("prep-cmd"s);
+        auto menu_nodes_opt = app_node.get_child_optional("menu-cmd"s);
         auto detached_nodes_opt = app_node.get_child_optional("detached"s);
         auto exclude_global_prep = app_node.get_optional<bool>("exclude-global-prep-cmd"s);
         auto output = app_node.get_optional<std::string>("output"s);
@@ -608,6 +638,10 @@ namespace proc {
         if (!exclude_global_prep.value_or(false)) {
           prep_cmds.reserve(config::sunshine.prep_cmds.size());
           for (auto &prep_cmd : config::sunshine.prep_cmds) {
+            if (prep_cmd.on_session) {
+              continue;
+            }
+
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 
@@ -631,6 +665,20 @@ namespace proc {
               parse_env_val(this_env, do_cmd.value_or("")),
               parse_env_val(this_env, undo_cmd.value_or("")),
               std::move(elevated.value_or(false)));
+          }
+        }
+
+        std::vector<proc::scmd_t> menu_cmds;
+        if (menu_nodes_opt) {
+          auto &menu_nodes = *menu_nodes_opt;
+
+          menu_cmds.reserve(menu_nodes.size());
+          for (auto &[_, menu_node] : menu_nodes) {
+            auto id = menu_node.get<std::string>("id"s);
+            auto name = menu_node.get<std::string>("name"s);
+            auto do_cmd = parse_env_val(this_env, menu_node.get<std::string>("cmd"s));
+            auto elevated = menu_node.get_optional<bool>("elevated");
+            menu_cmds.emplace_back(std::move(id), std::move(name), std::move(do_cmd), std::move(elevated.value_or(false)));
           }
         }
 
@@ -684,6 +732,7 @@ namespace proc {
 
         ctx.name = std::move(name);
         ctx.prep_cmds = std::move(prep_cmds);
+        ctx.menu_cmds = std::move(menu_cmds);
         ctx.detached = std::move(detached);
 
         apps.emplace_back(std::move(ctx));

@@ -6,6 +6,8 @@
 
 #include <atomic>
 
+#include <boost/process.hpp>
+
 #include "crypto.h"
 #include "thread_safe.h"
 
@@ -20,6 +22,8 @@ namespace rtsp_stream {
 
     std::string av_ping_payload;
     uint32_t control_connect_data;
+
+    boost::process::environment env;
 
     bool host_audio;
     std::string unique_id;

@@ -28,6 +28,9 @@
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
+#include "src/display_device/display_device.h"
+#include "src/display_device/to_string.h"
+#include "display_device/session.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -104,6 +107,10 @@ namespace confighttp {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
+    }
+
+    if (ip_type == net::LAN || ip_type == net::PC) {
+      return true;
     }
 
     // If credentials are shown, redirect the user to a /welcome page
@@ -542,6 +549,17 @@ namespace confighttp {
       response->write(data.str());
     });
 
+    auto devices { display_device::enum_available_devices() };
+
+    pt::ptree devices_nodes;
+    for (const auto &[device_id, data] : devices) {
+      pt::ptree devices_node;
+      devices_node.put("device_id"s, device_id);
+      devices_node.put("data"s, to_string(data));
+      devices_nodes.push_back(std::make_pair(""s, devices_node));
+    }
+
+    outputTree.add_child("display_devices", devices_nodes);
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
@@ -615,6 +633,23 @@ namespace confighttp {
 
     // We may not return from this call
     platf::restart();
+  }
+
+  void
+  resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+
+    pt::ptree outputTree;
+    auto g = util::fail_guard([&]() {
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    display_device::session_t::get().reset_persistence();
+    outputTree.put("status", true);
   }
 
   void
@@ -821,10 +856,12 @@ namespace confighttp {
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/list$"]["GET"] = listClients;
+    server.resource["^/api/clients/list$"]["POST"] = saveConfig;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;

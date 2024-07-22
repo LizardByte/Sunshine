@@ -171,6 +171,56 @@
             </tbody>
           </table>
         </div>
+
+        <!-- menu-cmd -->
+        <div class="mb-3">
+          <label for="appName" class="form-label">炒鸡菜单命令</label>
+          <div class="form-text">配置后在客户端返回菜单中可见，用于在不打断串流的情况下快速执行特定操作，例如调出辅助程序。</div>
+          <div class="form-text">示例：展示名称-关闭你的颠佬；指令-shutdown -s -t 10 </div>
+          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['menu-cmd'].length === 0">
+            <button class="btn btn-success" @click="addMenuCmd">
+              <i class="fas fa-plus mr-1"></i> 添加菜单命令
+            </button>
+          </div>
+          <table class="table" v-if="editForm['menu-cmd'].length > 0">
+            <thead>
+              <tr>
+                <th scope="col"><i class="fas fa-play"></i> 展示名称</th>
+                <th scope="col"><i class="fas fa-undo"></i> 指令</th>
+                <th scope="col" v-if="platform === 'windows'">
+                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
+                </th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(c, i) in editForm['menu-cmd']">
+                <td>
+                  <input type="text" class="form-control monospace" v-model="c.name" />
+                </td>
+                <td>
+                  <input type="text" class="form-control monospace" v-model="c.cmd" />
+                </td>
+                <td v-if="platform === 'windows'">
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
+                      true-value="true" false-value="false" />
+                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('_common.elevated') }}</label>
+                  </div>
+                </td>
+                <td>
+                  <button class="btn btn-danger" @click="editForm['menu-cmd'].splice(i,1)">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                  <button class="btn btn-success" @click="addMenuCmd">
+                    <i class="fas fa-plus"></i>
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <!-- detached -->
         <div class="mb-3">
           <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
@@ -359,6 +409,7 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
+  import { nanoid } from 'nanoid'
 
   const app = createApp({
     components: {
@@ -401,6 +452,7 @@
           "wait-all": true,
           "exit-timeout": 5,
           "prep-cmd": [],
+          "menu-cmd": [],
           detached: [],
           "image-path": ""
         };
@@ -410,12 +462,10 @@
       editApp(id) {
         this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
         this.editForm.index = id;
-        if (this.editForm["prep-cmd"] === undefined)
-          this.editForm["prep-cmd"] = [];
-        if (this.editForm["detached"] === undefined)
-          this.editForm["detached"] = [];
-        if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.editForm["exclude-global-prep-cmd"] = [];
+        if (!this.editForm["prep-cmd"]) this.editForm["prep-cmd"] = [];
+        if (!this.editForm["menu-cmd"]) this.editForm["menu-cmd"] = [];
+        if (!this.editForm["detached"]) this.editForm["detached"] = [];
+        if (!this.editForm["exclude-global-prep-cmd"]) this.editForm["exclude-global-prep-cmd"] = [];
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
           this.editForm["elevated"] = [];
         }
@@ -451,6 +501,19 @@
         }
 
         this.editForm["prep-cmd"].push(template);
+      },
+      addMenuCmd() {
+        let template = {
+          id: nanoid(10),
+          name: "",
+          cmd: ""
+        };
+
+        if (this.platform === 'windows') {
+          template = { ...template, elevated: false };
+        }
+
+        this.editForm["menu-cmd"].push(template);
       },
       showCoverFinder($event) {
         this.coverCandidates = [];

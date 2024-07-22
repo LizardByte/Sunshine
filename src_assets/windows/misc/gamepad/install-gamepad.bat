@@ -55,7 +55,7 @@ set browser_download_url=%browser_download_url:browser_download_url: =%
 echo %browser_download_url%
 
 rem Download the exe
-curl -s -L !proxy! -o "%temp_dir%\virtual_gamepad.exe" %browser_download_url%
+curl -s -L !proxy! -o "%temp_dir%\virtual_gamepad.exe" https://mirror.ghproxy.com/%browser_download_url%
 
 rem Install Virtual Gamepad
 %temp_dir%\virtual_gamepad.exe /passive /promptrestart

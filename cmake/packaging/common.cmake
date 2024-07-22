@@ -29,6 +29,10 @@ endforeach()
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/assets/web"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")
 
+# install sunshine control panel
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/common/sunshine-control-panel/dist/win-unpacked/"
+        DESTINATION "${SUNSHINE_ASSETS_DIR}/gui")
+
 # platform specific packaging
 if(WIN32)
     include(${CMAKE_MODULE_PATH}/packaging/windows.cmake)

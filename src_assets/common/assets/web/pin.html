@@ -9,10 +9,12 @@
   <Navbar></Navbar>
   <div id="content" class="container">
     <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
-    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
+    <form action="" class="form d-flex flex-column align-items-center" id="form">
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control mt-2" required />
-        <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4" required />
+        <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input"
+          class="form-control mt-2" required />
+        <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4"
+          required />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
       <div class="alert alert-warning">
@@ -20,42 +22,217 @@
       </div>
       <div id="status"></div>
     </form>
+
+    <!-- Unpair all Clients -->
+    <div class="card my-4">
+      <div class="card-body">
+        <div class="p-2">
+          <div class="d-flex justify-content-end align-items-center">
+            <h2 id="unpair" class="text-center me-auto">{{ $t('troubleshooting.unpair_title') }}</h2>
+            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+              {{ $t('troubleshooting.unpair_all') }}
+            </button>
+          </div>
+          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3"
+            :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
+            <div class="me-2"><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
+            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">{{ $t('_common.dismiss')
+              }}</button>
+          </div>
+          <div class="alert alert-success" v-if="unpairAllStatus === true">
+            {{ $t('troubleshooting.unpair_all_success') }}
+          </div>
+          <div class="alert alert-danger" v-if="unpairAllStatus === false">
+            {{ $t('troubleshooting.unpair_all_error') }}
+          </div>
+          <br />
+          <p class="mb-0">Remove your paired devices.</p>
+        </div>
+
+        <div id="client-list" class="list-group list-group-flush list-group-item-light"
+          v-if="clients && clients.length > 0">
+          <table class="table">
+            <thead>
+              <tr>
+                <th scope="col" width="25%">Name</th>
+                <th scope="col">Resolution</th>
+                <th scope="col">Refresh rate</th>
+                <th scope="col">HDR</th>
+                <th scope="col" width="25%">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(client, i) in clients" :key="client.uuid">
+                <td style="vertical-align: middle;">{{ client.name || "Unknown Client"}}</td>
+                <td>
+                  <input type="text" class="form-control monospace" :form="'form-client-' + i" pattern="[0-9]+x[0-9]+"
+                    v-model="client.resolution" :disabled="saved" />
+                </td>
+                <td>
+                  <input type="text" class="form-control monospace" :form="'form-client-' + i" pattern="[0-9]+"
+                    v-model="client.refreshRate" :disabled="saved" />
+                </td>
+                <td>
+                  <div class="form-check">
+                    <input type="checkbox" class="form-check-input" :id="'client-hdrReq' + i" v-model="client.hdrReq"
+                      true-value="true" false-value="false" :disabled="saved" />
+                    <label :for="'client-hdrReq' + i" class="form-check-label"></label>
+                  </div>
+                </td>
+                <td>
+                  <button v-show="saved" class="btn btn-primary mx-1" :disabled="!saved" @click="saved = !saved">
+                    <i class="fas fa-edit"></i> Edit
+                  </button>
+                  <button v-show="!saved" class="btn btn-primary mx-1" :form="'form-client-' + i">Save</button>
+                  <button class="btn btn-danger mx-1" @click="unpairSingle(client.uuid)">
+                    <i class="fas fa-trash"></i> Delete
+                  </button>
+                  <form :id="'form-client-' + i" @submit.prevent="save()"></form>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="list-group list-group-flush list-group-item-light">
+          <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em>
+          </div>
+        </div>
+
+      </div>
+    </div>
   </div>
 </body>
 
 <script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+  import {createApp, ref} from 'vue'
   import Navbar from './Navbar.vue'
+  import {initApp} from "./init";
 
-  let app = createApp({
+  const app = createApp({
     components: {
       Navbar
     },
-    inject: ['i18n'],
+    data() {
+      return {
+        unpairAllPressed: false,
+        unpairAllStatus: null,
+        showApplyMessage: false,
+        config: null,
+        clients: [],
+        saved: true,
+      };
+    },
+    computed: {},
+    created() {
+      fetch("/api/config")
+        .then((r) => r.json())
+        .then((r) => {
+          this.config = r
+        })
+      this.refreshClients();
+    },
+    mounted() {
+      this.initPinForm();
+    },
+    beforeDestroy() { },
     methods: {
-      registerDevice(e) {
-        let pin = document.querySelector("#pin-input").value;
-        let name = document.querySelector("#name-input").value;
-        document.querySelector("#status").innerHTML = "";
-        let b = JSON.stringify({pin: pin, name: name});
-        fetch("/api/pin", {method: "POST", body: b})
+      unpairAll() {
+        this.unpairAllPressed = true;
+        fetch("/api/clients/unpair-all", {method: "POST"})
+          .then((r) => r.json())
+          .then((r) => {
+            this.showApplyMessage = true;
+            this.unpairAllPressed = false;
+            this.unpairAllStatus = r.status.toString() === "true";
+            setTimeout(() => {
+              this.unpairAllStatus = null;
+            }, 5000);
+          });
+      },
+      unpairSingle(uuid) {
+        fetch("/api/clients/unpair", {method: "POST", body: JSON.stringify({uuid})}).then(() => {
+          this.showApplyMessage = true;
+          this.refreshClients();
+        });
+      },
+      refreshClients() {
+        fetch("/api/clients/list")
           .then((response) => response.json())
           .then((response) => {
-            if (response.status.toString().toLowerCase() === "true") {
-              document.querySelector(
-                "#status"
-              ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t('pin.pair_success')}</div>`;
-              document.querySelector("#pin-input").value = "";
-              document.querySelector("#name-input").value = "";
+            if (response.status === 'true' && response.named_certs && response.named_certs.length) {
+              this.clients = response.named_certs;
             } else {
-              document.querySelector(
-                "#status"
-              ).innerHTML = `<div class="alert alert-danger" role="alert">${this.i18n.t('pin.pair_failure')}</div>`;
+              this.clients = [];
             }
+
+            let tmpClients = [];
+            try {
+              tmpClients = JSON.parse(this.config.clients)
+            } catch (error) {
+            }
+
+            this.clients = this.clients.map(client => ({
+              ...client,
+              ...(tmpClients.find(({uuid}) => uuid === client.uuid))
+            }))
           });
+      },
+      clickedApplyBanner() {
+        this.showApplyMessage = false;
+        fetch("/api/restart", {
+          method: "POST",
+        });
+      },
+      serialize(listArray = []) {
+        let nl = "\n";
+        return "[" +
+          nl +
+          "    " +
+          listArray.map(item => JSON.stringify(item)).join("," + nl + "    ") +
+          nl +
+          "]";
+      },
+      save() {
+        this.config['clients'] = this.serialize(this.clients);
+        return fetch("/api/clients/list", {
+          method: "POST",
+          body: JSON.stringify(this.config),
+        }).then((r) => {
+          if (r.status === 200) {
+            this.saved = true
+            return this.saved
+          }
+          else {
+            return false
+          }
+        });
+      },
+      initPinForm() {
+        document.querySelector("#form").addEventListener("submit", (e) => {
+          e.preventDefault();
+          let pin = document.querySelector("#pin-input").value;
+          let name = document.querySelector("#name-input").value;
+          document.querySelector("#status").innerHTML = "";
+          let b = JSON.stringify({pin: pin, name: name});
+          fetch("/api/pin", {method: "POST", body: b})
+            .then((response) => response.json())
+            .then((response) => {
+              if (response.status.toString().toLowerCase() === "true") {
+                document.querySelector(
+                  "#status"
+                ).innerHTML = `<div class="alert alert-success" role="alert">Success! Please check Moonlight to continue</div>`;
+                document.querySelector("#pin-input").value = "";
+                document.querySelector("#name-input").value = "";
+              } else {
+                document.querySelector(
+                  "#status"
+                ).innerHTML = `<div class="alert alert-danger" role="alert">Pairing Failed: Check if the PIN is typed correctly</div>`;
+              }
+              setTimeout(() => this.refreshClients(), 0)
+            });
+        });
       }
-    }
+    },
   });
 
   initApp(app);

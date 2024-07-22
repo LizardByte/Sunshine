@@ -22,6 +22,14 @@ namespace proc {
   using file_t = util::safe_ptr_v2<FILE, int, fclose>;
 
   typedef config::prep_cmd_t cmd_t;
+  struct scmd_t {
+    scmd_t(std::string &&id, std::string &&name, std::string &&do_cmd, bool &&elevated):
+        id(std::move(id)), name(std::move(name)), do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
+    std::string id;
+    std::string name;
+    std::string do_cmd;
+    bool elevated;
+  };
   /**
    * pre_cmds -- guaranteed to be executed unless any of the commands fail.
    * detached -- commands detached from Sunshine
@@ -36,6 +44,7 @@ namespace proc {
    */
   struct ctx_t {
     std::vector<cmd_t> prep_cmds;
+    std::vector<scmd_t> menu_cmds;
 
     /**
      * Some applications, such as Steam, either exit quickly, or keep running indefinitely.
@@ -93,6 +102,8 @@ namespace proc {
     get_app_image(int app_id);
     std::string
     get_last_run_app_name();
+    void
+    run_menu_cmd(std::string cmd_id);
     void
     terminate();
 
