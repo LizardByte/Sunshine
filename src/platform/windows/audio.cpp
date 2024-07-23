@@ -248,7 +248,7 @@ namespace platf::audio {
   struct format_t {
     WORD channel_count;
     std::string name;
-    int capture_waveformat_default_channel_mask;
+    int capture_waveformat_channel_mask;
     virtual_sink_waveformats_t virtual_sink_waveformats;
   };
 
@@ -289,7 +289,7 @@ namespace platf::audio {
     }
 
     WAVEFORMATEXTENSIBLE capture_waveformat =
-      create_waveformat(sample_format_e::f32, format.channel_count, format.capture_waveformat_default_channel_mask);
+      create_waveformat(sample_format_e::f32, format.channel_count, format.capture_waveformat_channel_mask);
 
     {
       wave_format_t mixer_waveformat;
@@ -679,6 +679,7 @@ namespace platf::audio {
     sink_info() override {
       sink_t sink;
 
+      // Fill host sink name with the device_id of the current default audio device.
       {
         auto device = default_device(device_enum);
         if (!device) {
@@ -691,6 +692,9 @@ namespace platf::audio {
         sink.host = to_utf8(id.get());
       }
 
+      // Prepare to search for the device_id of the virtual audio sink device,
+      // this device can be either user-configured or
+      // the Steam Streaming Speakers we use by default.
       match_fields_list_t match_list;
       if (config::audio.virtual_sink.empty()) {
         match_list = match_steam_speakers();
@@ -699,13 +703,17 @@ namespace platf::audio {
         match_list = match_all_fields(from_utf8(config::audio.virtual_sink));
       }
 
+      // Search for the virtual audio sink device currently present in the system.
       auto matched = find_device_id(match_list);
       if (matched) {
-        auto name_suffix = to_utf8(matched->second);
+        // Prepare to fill virtual audio sink names with device_id.
+        auto device_id = to_utf8(matched->second);
+        // Also prepend format name (basically channel layout at the moment)
+        // because we don't want to extend the platform interface.
         sink.null = std::make_optional(sink_t::null_t {
-          "virtual-"s + formats[0].name + name_suffix,
-          "virtual-"s + formats[1].name + name_suffix,
-          "virtual-"s + formats[2].name + name_suffix,
+          "virtual-"s + formats[0].name + device_id,
+          "virtual-"s + formats[1].name + device_id,
+          "virtual-"s + formats[2].name + device_id,
         });
       }
       else if (!config::audio.virtual_sink.empty()) {
@@ -716,13 +724,14 @@ namespace platf::audio {
     }
 
     /**
-     * @brief Extracts virtual sink extra information encoded in the raw sink name
-     * @param sink The raw sink name
-     * @return Optional pair of device_id and format reference
+     * @brief Extract virtual audio sink information possibly encoded in the sink name.
+     * @param sink The sink name
+     * @return A pair of device_id and format reference if the sink name matches
+     *         our naming scheme for virtual audio sinks, `std::nullopt` otherwise.
      */
     std::optional<std::pair<std::wstring, std::reference_wrapper<const format_t>>>
     extract_virtual_sink_info(const std::string &sink) {
-      // extra data encoding format:
+      // Encoding format:
       // [virtual-(format name)]device_id
       std::string current = sink;
       auto prefix = "virtual-"sv;
@@ -751,7 +760,7 @@ namespace platf::audio {
 
       // If this is a virtual sink, set a callback that will change the sink back if it's changed
       auto virtual_sink_info = extract_virtual_sink_info(assigned_sink);
-      if (virtual_sink_info.has_value()) {
+      if (virtual_sink_info) {
         mic->default_endpt_changed_cb = [this] {
           BOOST_LOG(info) << "Resetting sink to ["sv << assigned_sink << "] after default changed";
           set_sink(assigned_sink);
@@ -777,9 +786,9 @@ namespace platf::audio {
 
       auto virtual_sink_info = extract_virtual_sink_info(sink);
 
-      if (!virtual_sink_info.has_value()) {
-        // Sink name does not contain virtual-(format name),
-        // hence it's not a virtual sink and we don't want to change its format.
+      if (!virtual_sink_info) {
+        // Sink name does not begin with virtual-(format name), hence it's not a virtual sink
+        // and we don't want to change playback format of the corresponding device.
         // Also need to perform matching, sink name is not necessarily device_id in this case.
         auto matched = find_device_id(match_all_fields(from_utf8(sink)));
         if (matched) {
@@ -795,9 +804,9 @@ namespace platf::audio {
       auto &waveformats = virtual_sink_info->second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
         // We're using completely undocumented and unlisted API,
-        // better not pass our static objects.
+        // better not pass objects without copying them first.
         auto device_id_copy = device_id;
-        WAVEFORMATEXTENSIBLE waveformat_copy = waveformat;
+        auto waveformat_copy = waveformat;
         auto waveformat_copy_pointer = reinterpret_cast<WAVEFORMATEX *>(&waveformat_copy);
 
         WAVEFORMATEXTENSIBLE p {};
