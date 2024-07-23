@@ -11,10 +11,12 @@ do_udev_reload() {
 post_install() {
   do_setcap
   do_udev_reload
+  modprobe uhid
 }
 
 post_upgrade() {
   do_setcap
   do_udev_reload
+  modprobe uhid
 }
 
