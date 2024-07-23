@@ -235,6 +235,12 @@ Install
    Sunshine needs access to `uinput` to create mouse and gamepad virtual devices and (optionally) to `uhid`
    in order to emulate a PS5 DualSense joypad with Gyro, Acceleration and Touchpad support.
 
+   #. Ensure that `uhid` is loaded at boottime.
+         .. code-block:: bash
+
+            echo "uhid" | sudo tee /etc/modules-load.d/60-sunshine-uhid.conf
+            sudo modprobe uhid
+
    #. Create and reload `udev` rules for `uinput` and `uhid`.
          .. code-block:: bash
 
