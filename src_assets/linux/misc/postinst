@@ -8,6 +8,9 @@ if [ -x "$path_to_setcap" ] ; then
         $path_to_setcap cap_sys_admin+p $path_to_sunshine
 fi
 
+# Load uhid (DS5 emulation)
+modprobe uhid
+
 # Trigger udev rule reload for /dev/uinput
 path_to_udevadm=$(which udevadm)
 if [ -x "$path_to_udevadm" ] ; then
