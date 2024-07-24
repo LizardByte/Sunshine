@@ -853,10 +853,10 @@ namespace platf::audio {
     }
 
     enum class match_field_e {
-      device_id,
-      device_friendly_name,
-      adapter_friendly_name,
-      device_description,
+      device_id,  ///< Match device_id
+      device_friendly_name,  ///< Match endpoint friendly name
+      adapter_friendly_name,  ///< Match adapter friendly name
+      device_description,  ///< Match endpoint description
     };
 
     using match_fields_list_t = std::vector<std::pair<match_field_e, std::wstring>>;
