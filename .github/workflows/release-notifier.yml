@@ -27,9 +27,9 @@ jobs:
           RELEASE_BODY: ${{ github.event.release.body }}
         id: output
         run: |
-          echo ${RELEASE_BODY} >> ./release_body.md
+          echo "${RELEASE_BODY}" > ./release_body.md
           modified_body=$(sed '/^---$/d; /^## Contributors$/,/<\/a>/d' ./release_body.md)
-          echo "modified_body: \n${modified_body}"
+          echo "modified_body: ${modified_body}"
           echo "simplified_body=${modified_body}" >> $GITHUB_OUTPUT
 
   discord:
