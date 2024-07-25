@@ -920,10 +920,6 @@ namespace platf::audio {
         prop->GetValue(PKEY_DeviceInterface_FriendlyName, &adapter_friendly_name.prop);
         prop->GetValue(PKEY_Device_DeviceDesc, &device_desc.prop);
 
-        auto adapter_name = (LPWSTR) adapter_friendly_name.prop.pszVal;
-        auto device_name = (LPWSTR) device_friendly_name.prop.pszVal;
-        auto device_description = (LPWSTR) device_desc.prop.pszVal;
-
         for (size_t i = 0; i < match_list.size(); i++) {
           if (matched[i].empty()) {
             const wchar_t *match_value = nullptr;
@@ -933,15 +929,15 @@ namespace platf::audio {
                 break;
 
               case match_field_e::device_friendly_name:
-                match_value = device_name;
+                match_value = device_friendly_name.prop.pwszVal;
                 break;
 
               case match_field_e::adapter_friendly_name:
-                match_value = adapter_name;
+                match_value = adapter_friendly_name.prop.pwszVal;
                 break;
 
               case match_field_e::device_description:
-                match_value = device_description;
+                match_value = device_desc.prop.pwszVal;
                 break;
             }
             if (match_value && std::wcscmp(match_value, match_list[i].second.c_str()) == 0) {
