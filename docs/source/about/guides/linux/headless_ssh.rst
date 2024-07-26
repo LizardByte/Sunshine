@@ -508,7 +508,8 @@ You could write a script if you found a DPI you like for streaming to your iPad.
    #!/bin/bash
    /path/to/start-stream.sh 180
 
-DPI References:
+**DPI reference:**
+
   - https://wiki.archlinux.org/title/xorg
   - https://winaero.com/find-change-screen-dpi-linux/
 
@@ -522,5 +523,5 @@ If you have any feedback and any suggestions, feel free to make a post on Discor
 
 .. seealso::
    Now that you have a virtual display, you may want to automate changing the resolution
-   and refresh rate on the host prior to connecting to an app. See :ref:`Changing Resolution and Refresh Rate
+   and refresh rate, on the host, prior to connecting to an app. See :ref:`Changing Resolution and Refresh Rate
    <about/guides/app_examples:changing resolution and refresh rate>` for more information.

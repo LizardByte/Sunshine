@@ -206,7 +206,7 @@ Changing Resolution and Refresh Rate
       |                      | Undo: ``xrandr --output HDMI-1 --mode 3840x2160 --rate 120``                                                                       |
       +----------------------+------------------------------------------------------------------------------------------------------------------------------------+
 
-      .. warning::
+      .. attention::
          Due to the sandboxed nature of Flatpak, Sunshine cannot access the global ``SUNSHINE*`` variables on the host.
 
       .. hint::
@@ -254,9 +254,10 @@ Changing Resolution and Refresh Rate
          .. note::
             Using ``xrandr --scale`` may lead to poor results like blurriness. It is preferred to adjust the DPI instead.
 
-            reference:
-              - https://wiki.archlinux.org/title/xorg
-              - https://winaero.com/find-change-screen-dpi-linux/
+            **reference:**
+
+               - https://wiki.archlinux.org/title/xorg
+               - https://winaero.com/find-change-screen-dpi-linux/
 
    .. tab:: Wayland
 
