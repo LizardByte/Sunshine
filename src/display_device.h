@@ -27,10 +27,9 @@ namespace display_device {
      * @brief Get the singleton instance.
      * @returns Singleton instance for the class.
      *
-     * EXAMPLES:
-     * ```cpp
+     * @examples
      * session_t& session { session_t::get() };
-     * ```
+     * @end_examples
      */
     [[nodiscard]] static session_t &
     get();
@@ -39,10 +38,9 @@ namespace display_device {
      * @brief Initialize the singleton and perform the initial state recovery (if needed).
      * @returns A deinit_t instance that performs cleanup when destroyed.
      *
-     * EXAMPLES:
-     * ```cpp
+     * @examples
      * const auto session_guard { session_t::init() };
-     * ```
+     * @end_examples
      */
     [[nodiscard]] static std::unique_ptr<platf::deinit_t>
     init();
@@ -52,12 +50,11 @@ namespace display_device {
      * @param output_name The user-configurable output name.
      * @returns Mapped display name or empty string if the output name could not be mapped.
      *
-     * EXAMPLES:
-     * ```cpp
+     * @examples
      * session_t& session { session_t::get() };
      * const auto mapped_name_config { session.get_display_name(config::video.output_name) };
      * const auto mapped_name_custom { session.get_display_name("{some-device-id}") };
-     * ```
+     * @end_examples
      */
     [[nodiscard]] std::string
     map_output_name(const std::string &output_name) const;

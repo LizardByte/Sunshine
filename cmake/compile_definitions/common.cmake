@@ -142,9 +142,9 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${MINIUPNP_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         enet
+        libdisplaydevice::display_device
         opus
         ${FFMPEG_LIBRARIES}
         ${Boost_LIBRARIES}
         ${OPENSSL_LIBRARIES}
-        ${PLATFORM_LIBRARIES}
-        libdisplaydevice::display_device)
+        ${PLATFORM_LIBRARIES})
