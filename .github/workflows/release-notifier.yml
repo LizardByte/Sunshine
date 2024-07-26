@@ -19,7 +19,7 @@ jobs:
       !github.event.release.prerelease &&
       !github.event.release.draft
     outputs:
-      simplified_body: ${{ steps.output.outputs.simplified_body }}
+      SIMPLIFIED_BODY: ${{ steps.output.outputs.SIMPLIFIED_BODY }}
     runs-on: ubuntu-latest
     steps:
       - name: remove contributors section
@@ -30,7 +30,11 @@ jobs:
           echo "${RELEASE_BODY}" > ./release_body.md
           modified_body=$(sed '/^---$/d; /^## Contributors$/,/<\/a>/d' ./release_body.md)
           echo "modified_body: ${modified_body}"
-          echo "simplified_body=${modified_body}" >> $GITHUB_OUTPUT
+
+          # use a heredoc to ensure the output is multiline
+          echo "SIMPLIFIED_BODY<<EOF" >> $GITHUB_OUTPUT
+          echo "${modified_body}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
   discord:
     if: >-
@@ -45,7 +49,7 @@ jobs:
         with:
           avatar_url: ${{ secrets.ORG_LOGO_URL }}
           color: 0x00ff00
-          description: ${{ needs.simplified_changelog.outputs.simplified_body }}
+          description: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
           nodetail: true
           nofail: false
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
@@ -104,7 +108,7 @@ jobs:
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
           url: ${{ github.event.release.html_url }}
           flair-id: ${{ secrets.REDDIT_FLAIR_ID }}  # https://www.reddit.com/r/<subreddit>>/api/link_flair.json
-          comment: ${{ needs.simplified_changelog.outputs.simplified_body }}
+          comment: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
 
   x:
     if: >-
