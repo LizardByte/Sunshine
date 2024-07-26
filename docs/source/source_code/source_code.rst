@@ -44,11 +44,11 @@ of a documentation block for the main function.
      * @return The exit code.
      * @examples
      * main(1, const char* args[] = {"hello", "markdown", nullptr});
-     * @end_examples
+     * @examples_end
      */
    int main(int argc, char *argv[]);
 
-.. attention:: The `@examples` and `@end_examples` tags are not standard Doxygen tags. They are custom aliases
+.. attention:: The `@examples` and `@examples_end` tags are not standard Doxygen tags. They are custom aliases
    we have specified to simplify documenting examples. Do not confuse this with the standard `@example` tag.
 
 In some cases, it could be valuable to have slightly different documentation for the definitions, especially when
