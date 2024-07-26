@@ -29,7 +29,7 @@ namespace display_device {
      *
      * @examples
      * session_t& session { session_t::get() };
-     * @end_examples
+     * @examples_end
      */
     [[nodiscard]] static session_t &
     get();
@@ -40,7 +40,7 @@ namespace display_device {
      *
      * @examples
      * const auto session_guard { session_t::init() };
-     * @end_examples
+     * @examples_end
      */
     [[nodiscard]] static std::unique_ptr<platf::deinit_t>
     init();
@@ -54,7 +54,7 @@ namespace display_device {
      * session_t& session { session_t::get() };
      * const auto mapped_name_config { session.get_display_name(config::video.output_name) };
      * const auto mapped_name_custom { session.get_display_name("{some-device-id}") };
-     * @end_examples
+     * @examples_end
      */
     [[nodiscard]] std::string
     map_output_name(const std::string &output_name) const;
