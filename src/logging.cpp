@@ -172,22 +172,12 @@ namespace logging {
 
   std::string
   bracket(const std::string &input) {
-    return bracket(std::string_view(input));
-  }
-
-  std::string
-  bracket(const std::string_view &input) {
-    return "["s + std::string(input) + "]"s;
+    return "["s + input + "]"s;
   }
 
   std::wstring
   bracket(const std::wstring &input) {
-    return bracket(std::wstring_view(input));
-  }
-
-  std::wstring
-  bracket(const std::wstring_view &input) {
-    return L"["s + std::wstring(input) + L"]"s;
+    return L"["s + input + L"]"s;
   }
 
 }  // namespace logging
