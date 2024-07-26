@@ -217,23 +217,7 @@ namespace logging {
    * @param input Input string.
    * @return Enclosed string.
    */
-  std::string
-  bracket(const std::string_view &input);
-
-  /**
-   * @brief Enclose string in square brackets.
-   * @param input Input string.
-   * @return Enclosed string.
-   */
   std::wstring
   bracket(const std::wstring &input);
-
-  /**
-   * @brief Enclose string in square brackets.
-   * @param input Input string.
-   * @return Enclosed string.
-   */
-  std::wstring
-  bracket(const std::wstring_view &input);
 
 }  // namespace logging
