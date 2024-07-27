@@ -407,21 +407,6 @@ namespace config {
     boost::asio::ip::host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
-    {
-      "352x240"s,
-      "480x360"s,
-      "858x480"s,
-      "1280x720"s,
-      "1920x1080"s,
-      "2560x1080"s,
-      "2560x1440"s,
-      "3440x1440"s,
-      "1920x1200"s,
-      "3840x2160"s,
-      "3840x1600"s,
-    },  // supported resolutions
-
-    { 10, 30, 60, 90, 120 },  // supported fps
   };
 
   input_t input {
@@ -1044,8 +1029,6 @@ namespace config {
     path_f(vars, "credentials_file", config::sunshine.credentials_file);
 
     string_f(vars, "external_ip", nvhttp.external_ip);
-    list_string_f(vars, "resolutions"s, nvhttp.resolutions);
-    list_int_f(vars, "fps"s, nvhttp.fps);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
 
     string_f(vars, "audio_sink", audio.sink);
