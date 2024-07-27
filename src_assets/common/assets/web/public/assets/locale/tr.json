@@ -220,7 +220,7 @@
     "motion_as_ds4_desc": "Devre dışı bırakılırsa, gamepad tipi seçimi sırasında hareket sensörleri dikkate alınmaz.",
     "mouse": "Fare Girişini Etkinleştir",
     "mouse_desc": "Konukların ana sistemi fare ile kontrol etmesini sağlar",
-    "native_pen_touch": "Yerel Kalem/Dokunmatik Desteği",
+    "native_pen_touch": "Kalem/Dokunma Desteği",
     "native_pen_touch_desc": "Etkinleştirildiğinde Sunshine, Moonlight istemcilerinden gelen yerel kalem/dokunma olaylarını aktarır. Bu, yerel kalem/dokunmatik desteği olmayan eski uygulamalar için devre dışı bırakmak için yararlı olabilir.",
     "notify_pre_releases": "Yayın Öncesi Bildirimler",
     "notify_pre_releases_desc": "Sunshine'ın yeni yayın öncesi sürümlerinden haberdar edilip edilmeme",
@@ -361,7 +361,7 @@
   "pin": {
     "device_name": "Cihaz Adı",
     "pair_failure": "Eşleştirme Başarısız: PIN'in doğru yazılıp yazılmadığını kontrol edin",
-    "pair_success": "Başarılı! Devam etmek için lütfen Moonlight'ı kontrol edin",
+    "pair_success": "Başarılı! Devam etmek için lütfen Moonlight'ı kontrol ediniz",
     "pin_pairing": "PIN Eşleştirme",
     "send": "Gönder",
     "warning_msg": "Eşleştirdiğiniz istemciye erişiminiz olduğundan emin olun. Bu yazılım bilgisayarınıza tam kontrol sağlayabilir, bu yüzden dikkatli olun!"
