@@ -86,6 +86,9 @@ instead of 2.5 or 100 Mbps instead of 1 Gbps. (A technically more advanced
 solution would be to configure traffic shaping rules at the OS-level, so that
 only Sunshine's traffic is slowed down.)
 
+Sunshine versions > 0.23.1 include improved networking code that should
+alleviate or even solve this issue (without reducing the NIC speed).
+
 Packet loss (MTU)
 -----------------
 Albeit unlikely, some guests might work better with a lower `MTU

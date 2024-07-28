@@ -169,4 +169,15 @@ namespace logging {
       << "        -p | Enable/Disable UPnP"sv << std::endl
       << std::endl;
   }
+
+  std::string
+  bracket(const std::string &input) {
+    return "["s + input + "]"s;
+  }
+
+  std::wstring
+  bracket(const std::wstring &input) {
+    return L"["s + input + L"]"s;
+  }
+
 }  // namespace logging

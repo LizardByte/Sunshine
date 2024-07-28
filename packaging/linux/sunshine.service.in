@@ -4,6 +4,8 @@ StartLimitIntervalSec=500
 StartLimitBurst=5
 
 [Service]
+# Avoid starting Sunshine before the desktop is fully initialized.
+ExecStartPre=/bin/sleep 5
 @SUNSHINE_SERVICE_START_COMMAND@
 @SUNSHINE_SERVICE_STOP_COMMAND@
 Restart=on-failure

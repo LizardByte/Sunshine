@@ -87,8 +87,8 @@
     (NSString *) AVFormatIDKey: [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM],
     (NSString *) AVSampleRateKey: [NSNumber numberWithUnsignedInt:sampleRate],
     (NSString *) AVNumberOfChannelsKey: [NSNumber numberWithUnsignedInt:channels],
-    (NSString *) AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:16],
-    (NSString *) AVLinearPCMIsFloatKey: @NO,
+    (NSString *) AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:32],
+    (NSString *) AVLinearPCMIsFloatKey: @YES,
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
 

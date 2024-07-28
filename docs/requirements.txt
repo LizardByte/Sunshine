@@ -1,4 +1,4 @@
-furo==2024.5.6
+furo==2024.7.18
 m2r2==0.3.3.post2
 rstcheck[sphinx]==6.2.4
 rstfmt==0.0.14

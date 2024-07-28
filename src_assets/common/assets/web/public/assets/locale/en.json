@@ -252,7 +252,7 @@
     "origin_web_ui_allowed_lan": "Only those in LAN may access Web UI",
     "origin_web_ui_allowed_pc": "Only localhost may access Web UI",
     "origin_web_ui_allowed_wan": "Anyone may access Web UI",
-    "output_name_desc_unix": "During Sunshine startup, you should see the list of detected displays. Note: You need to use the id value inside the parenthesis.",
+    "output_name_desc_unix": "During Sunshine startup, you should see the list of detected displays. Note: You need to use the id value inside the parenthesis. Below is an example; the actual output can be found in the Troubleshooting tab.",
     "output_name_desc_windows": "Manually specify a display to use for capture. If unset, the primary display is captured. Note: If you specified a GPU above, this display must be connected to that GPU. The appropriate values can be found using the following command:",
     "output_name_unix": "Display number",
     "output_name_windows": "Output Name",

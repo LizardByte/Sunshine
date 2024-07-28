@@ -126,22 +126,12 @@ namespace stream {
   };
 
   struct video_packet_enc_prefix_t {
-    video_packet_raw_t *
-    payload() {
-      return (video_packet_raw_t *) (this + 1);
-    }
-
     std::uint8_t iv[12];  // 12-byte IV is ideal for AES-GCM
     std::uint32_t frameNumber;
     std::uint8_t tag[16];
   };
 
-  struct audio_packet_raw_t {
-    uint8_t *
-    payload() {
-      return (uint8_t *) (this + 1);
-    }
-
+  struct audio_packet_t {
     RTP_PACKET rtp;
   };
 
@@ -219,12 +209,7 @@ namespace stream {
     // encrypted control_header_v2 and payload data follow
   } *control_encrypted_p;
 
-  struct audio_fec_packet_raw_t {
-    uint8_t *
-    payload() {
-      return (uint8_t *) (this + 1);
-    }
-
+  struct audio_fec_packet_t {
     RTP_PACKET rtp;
     AUDIO_FEC_HEADER fecHeader;
   };
@@ -237,9 +222,6 @@ namespace stream {
   }
   constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 1400;
 
-  using video_packet_t = util::c_ptr<video_packet_raw_t>;
-  using audio_packet_t = util::c_ptr<audio_packet_raw_t>;
-  using audio_fec_packet_t = util::c_ptr<audio_fec_packet_raw_t>;
   using audio_aes_t = std::array<char, round_to_pkcs7_padded(MAX_AUDIO_PACKET_SIZE)>;
 
   using av_session_id_t = std::variant<asio::ip::address, std::string>;  // IP address or SS-Ping-Payload from RTSP handshake
@@ -249,14 +231,14 @@ namespace stream {
   // return bytes written on success
   // return -1 on error
   static inline int
-  encode_audio(bool encrypted, const audio::buffer_t &plaintext, audio_packet_t &destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
+  encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
     if (!encrypted) {
-      std::copy(std::begin(plaintext), std::end(plaintext), destination->payload());
+      std::copy(std::begin(plaintext), std::end(plaintext), destination);
       return plaintext.size();
     }
 
-    return cbc.encrypt(std::string_view { (char *) std::begin(plaintext), plaintext.size() }, destination->payload(), &iv);
+    return cbc.encrypt(std::string_view { (char *) std::begin(plaintext), plaintext.size() }, destination, &iv);
   }
 
   static inline void
@@ -631,15 +613,19 @@ namespace stream {
       size_t blocksize;
       size_t prefixsize;
       util::buffer_t<char> shards;
+      util::buffer_t<char> headers;
+      util::buffer_t<uint8_t *> shards_p;
+
+      std::vector<platf::buffer_descriptor_t> payload_buffers;
 
       char *
       data(size_t el) {
-        return &shards[(el + 1) * prefixsize + el * blocksize];
+        return (char *) shards_p[el];
       }
 
       char *
       prefix(size_t el) {
-        return &shards[el * (prefixsize + blocksize)];
+        return prefixsize ? &headers[el * prefixsize] : nullptr;
       }
 
       size_t
@@ -654,7 +640,8 @@ namespace stream {
 
       auto pad = payload_size % blocksize != 0;
 
-      auto data_shards = payload_size / blocksize + (pad ? 1 : 0);
+      auto aligned_data_shards = payload_size / blocksize;
+      auto data_shards = aligned_data_shards + (pad ? 1 : 0);
       auto parity_shards = (data_shards * fecpercentage + 99) / 100;
 
       // increase the FEC percentage for this frame if the parity shard minimum is not met
@@ -667,27 +654,46 @@ namespace stream {
 
       auto nr_shards = data_shards + parity_shards;
 
-      util::buffer_t<char> shards { nr_shards * (blocksize + prefixsize) };
+      // If we need to store a zero-padded data shard, allocate that first to
+      // to keep the shards in order and reduce buffer fragmentation
+      auto parity_shard_offset = pad ? 1 : 0;
+      util::buffer_t<char> shards { (parity_shard_offset + parity_shards) * blocksize };
       util::buffer_t<uint8_t *> shards_p { nr_shards };
+      std::vector<platf::buffer_descriptor_t> payload_buffers;
+      payload_buffers.reserve(2);
 
+      // Point into the payload buffer for all except the final padded data shard
       auto next = std::begin(payload);
-      for (auto x = 0; x < nr_shards; ++x) {
-        shards_p[x] = (uint8_t *) &shards[(x + 1) * prefixsize + x * blocksize];
+      for (auto x = 0; x < aligned_data_shards; ++x) {
+        shards_p[x] = (uint8_t *) next;
+        next += blocksize;
+      }
+      payload_buffers.emplace_back(std::begin(payload), aligned_data_shards * blocksize);
+
+      // If the last data shard needs to be zero-padded, we must use the shards buffer
+      if (pad) {
+        shards_p[aligned_data_shards] = (uint8_t *) &shards[0];
 
         // GCC doesn't figure out that std::copy_n() can be replaced with memcpy() here
         // and ends up compiling a horribly slow element-by-element copy loop, so we
         // help it by using memcpy()/memset() directly.
         auto copy_len = std::min<size_t>(blocksize, std::end(payload) - next);
-        std::memcpy(shards_p[x], next, copy_len);
+        std::memcpy(shards_p[aligned_data_shards], next, copy_len);
         if (copy_len < blocksize) {
           // Zero any additional space after the end of the payload
-          std::memset(shards_p[x] + copy_len, 0, blocksize - copy_len);
+          std::memset(shards_p[aligned_data_shards] + copy_len, 0, blocksize - copy_len);
         }
-
-        next += copy_len;
       }
 
+      // Add a payload buffer describing the shard buffer
+      payload_buffers.emplace_back(std::begin(shards), shards.size());
+
       if (fecpercentage != 0) {
+        // Point into our allocated buffer for the parity shards
+        for (auto x = 0; x < parity_shards; ++x) {
+          shards_p[data_shards + x] = (uint8_t *) &shards[(parity_shard_offset + x) * blocksize];
+        }
+
         // packets = parity_shards + data_shards
         rs_t rs { reed_solomon_new(data_shards, parity_shards) };
 
@@ -700,7 +706,10 @@ namespace stream {
         fecpercentage,
         blocksize,
         prefixsize,
-        std::move(shards)
+        std::move(shards),
+        util::buffer_t<char> { nr_shards * prefixsize },
+        std::move(shards_p),
+        std::move(payload_buffers),
       };
     }
   }  // namespace fec
@@ -755,6 +764,7 @@ namespace stream {
   std::vector<uint8_t>
   replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
     std::vector<uint8_t> replaced;
+    replaced.reserve(original.size() + _new.size() - old.size());
 
     auto begin = std::begin(original);
     auto end = std::end(original);
@@ -1449,8 +1459,11 @@ namespace stream {
 
           auto peer_address = session->video.peer.address();
           auto batch_info = platf::batched_send_info_t {
-            nullptr,
-            shards.prefixsize + shards.blocksize,
+            shards.headers.begin(),
+            shards.prefixsize,
+            shards.payload_buffers,
+            shards.blocksize,
+            0,
             0,
             (uintptr_t) sock.native_handle(),
             peer_address,
@@ -1498,7 +1511,8 @@ namespace stream {
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
               prefix->frameNumber = packet->frame_index();
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
-              session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize }, prefix->tag, &iv);
+              session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize },
+                prefix->tag, (uint8_t *) inspect, &iv);
             }
 
             if (x - next_shard_to_send + 1 >= send_batch_size ||
@@ -1521,7 +1535,7 @@ namespace stream {
               }
 
               size_t current_batch_size = x - next_shard_to_send + 1;
-              batch_info.buffer = shards.prefix(next_shard_to_send);
+              batch_info.block_offset = next_shard_to_send;
               batch_info.block_count = current_batch_size;
 
               frame_send_batch_latency_logger.first_point_now();
@@ -1532,7 +1546,9 @@ namespace stream {
                 for (auto y = 0; y < current_batch_size; y++) {
                   auto send_info = platf::send_info_t {
                     shards.prefix(next_shard_to_send + y),
-                    shards.prefixsize + shards.blocksize,
+                    shards.prefixsize,
+                    shards.data(next_shard_to_send + y),
+                    shards.blocksize,
                     (uintptr_t) sock.native_handle(),
                     peer_address,
                     session->video.peer.port(),
@@ -1584,9 +1600,7 @@ namespace stream {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
 
-    constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);
-
-    audio_packet_t audio_packet { (audio_packet_raw_t *) malloc(sizeof(audio_packet_raw_t) + max_block_size) };
+    audio_packet_t audio_packet;
     fec::rs_t rs { reed_solomon_new(RTPA_DATA_SHARDS, RTPA_FEC_SHARDS) };
     crypto::aes_t iv(16);
 
@@ -1598,9 +1612,9 @@ namespace stream {
     const unsigned char parity[] = { 0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c };
     memcpy(rs.get()->p, parity, sizeof(parity));
 
-    audio_packet->rtp.header = 0x80;
-    audio_packet->rtp.packetType = 97;
-    audio_packet->rtp.ssrc = 0;
+    audio_packet.rtp.header = 0x80;
+    audio_packet.rtp.packetType = 97;
+    audio_packet.rtp.ssrc = 0;
 
     // Audio traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1618,26 +1632,28 @@ namespace stream {
 
       *(std::uint32_t *) iv.data() = util::endian::big<std::uint32_t>(session->audio.avRiKeyId + sequenceNumber);
 
-      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, audio_packet, iv, session->audio.cipher);
+      auto &shards_p = session->audio.shards_p;
+
+      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data,
+        shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio packet"sv;
         break;
       }
 
-      audio_packet->rtp.sequenceNumber = util::endian::big(sequenceNumber);
-      audio_packet->rtp.timestamp = util::endian::big(timestamp);
+      audio_packet.rtp.sequenceNumber = util::endian::big(sequenceNumber);
+      audio_packet.rtp.timestamp = util::endian::big(timestamp);
 
       session->audio.sequenceNumber++;
       session->audio.timestamp += session->config.audio.packetDuration;
 
-      auto &shards_p = session->audio.shards_p;
-
-      std::copy_n(audio_packet->payload(), bytes, shards_p[sequenceNumber % RTPA_DATA_SHARDS]);
       auto peer_address = session->audio.peer.address();
       try {
         auto send_info = platf::send_info_t {
-          (const char *) audio_packet.get(),
-          sizeof(audio_packet_raw_t) + bytes,
+          (const char *) &audio_packet,
+          sizeof(audio_packet),
+          (const char *) shards_p[sequenceNumber % RTPA_DATA_SHARDS],
+          (size_t) bytes,
           (uintptr_t) sock.native_handle(),
           peer_address,
           session->audio.peer.port(),
@@ -1649,8 +1665,8 @@ namespace stream {
         auto &fec_packet = session->audio.fec_packet;
         // initialize the FEC header at the beginning of the FEC block
         if (sequenceNumber % RTPA_DATA_SHARDS == 0) {
-          fec_packet->fecHeader.baseSequenceNumber = util::endian::big(sequenceNumber);
-          fec_packet->fecHeader.baseTimestamp = util::endian::big(timestamp);
+          fec_packet.fecHeader.baseSequenceNumber = util::endian::big(sequenceNumber);
+          fec_packet.fecHeader.baseTimestamp = util::endian::big(timestamp);
         }
 
         // generate parity shards at the end of the FEC block
@@ -1658,13 +1674,14 @@ namespace stream {
           reed_solomon_encode(rs.get(), shards_p.begin(), RTPA_TOTAL_SHARDS, bytes);
 
           for (auto x = 0; x < RTPA_FEC_SHARDS; ++x) {
-            fec_packet->rtp.sequenceNumber = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
-            fec_packet->fecHeader.fecShardIndex = x;
-            memcpy(fec_packet->payload(), shards_p[RTPA_DATA_SHARDS + x], bytes);
+            fec_packet.rtp.sequenceNumber = util::endian::big<std::uint16_t>(sequenceNumber + x + 1);
+            fec_packet.fecHeader.fecShardIndex = x;
 
             auto send_info = platf::send_info_t {
-              (const char *) fec_packet.get(),
-              sizeof(audio_fec_packet_raw_t) + bytes,
+              (const char *) &fec_packet,
+              sizeof(fec_packet),
+              (const char *) shards_p[RTPA_DATA_SHARDS + x],
+              (size_t) bytes,
               (uintptr_t) sock.native_handle(),
               peer_address,
               session->audio.peer.port(),
@@ -2030,15 +2047,13 @@ namespace stream {
       session->audio.shards = std::move(shards);
       session->audio.shards_p = std::move(shards_p);
 
-      session->audio.fec_packet.reset((audio_fec_packet_raw_t *) malloc(sizeof(audio_fec_packet_raw_t) + max_block_size));
+      session->audio.fec_packet.rtp.header = 0x80;
+      session->audio.fec_packet.rtp.packetType = 127;
+      session->audio.fec_packet.rtp.timestamp = 0;
+      session->audio.fec_packet.rtp.ssrc = 0;
 
-      session->audio.fec_packet->rtp.header = 0x80;
-      session->audio.fec_packet->rtp.packetType = 127;
-      session->audio.fec_packet->rtp.timestamp = 0;
-      session->audio.fec_packet->rtp.ssrc = 0;
-
-      session->audio.fec_packet->fecHeader.payloadType = 97;
-      session->audio.fec_packet->fecHeader.ssrc = 0;
+      session->audio.fec_packet.fecHeader.payloadType = 97;
+      session->audio.fec_packet.fecHeader.ssrc = 0;
 
       session->audio.cipher = crypto::cipher::cbc_t {
         launch_session.gcm_key, true
