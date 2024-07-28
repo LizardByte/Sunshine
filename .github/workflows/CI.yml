@@ -41,7 +41,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2024.717.220227
+        uses: LizardByte/setup-release-action@v2024.725.234618
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
