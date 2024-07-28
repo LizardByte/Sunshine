@@ -10,6 +10,9 @@
 #include <display_device/retry_scheduler.h>
 #include <display_device/settings_manager_interface.h>
 
+// local includes
+#include "platform/common.h"
+
 // platform-specific includes
 #ifdef _WIN32
   #include <display_device/windows/settings_manager.h>
@@ -19,6 +22,15 @@
 
 namespace display_device {
   namespace {
+    /**
+     * @brief A global for the settings manager interface whose lifetime is managed by `display_device::init()`.
+     */
+    std::unique_ptr<RetryScheduler<SettingsManagerInterface>> SM_INSTANCE;
+
+    /**
+     * @brief Construct a settings manager interface to manage display device settings.
+     * @return An interface or nullptr if the OS does not support the interface.
+     */
     std::unique_ptr<SettingsManagerInterface>
     make_settings_manager() {
 #ifdef _WIN32
@@ -33,23 +45,17 @@ namespace display_device {
     }
   }  // namespace
 
-  session_t &
-  session_t::get() {
-    static session_t session;
-    return session;
-  }
-
   std::unique_ptr<platf::deinit_t>
-  session_t::init() {
+  init() {
     // We can support re-init without any issues, however we should make sure to cleanup first!
-    get().impl = nullptr;
+    SM_INSTANCE = nullptr;
 
     // If we fail to create settings manager, this means platform is not supported and
     // we will need to provided error-free passtrough in other methods
     if (auto settings_manager { make_settings_manager() }) {
-      get().impl = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
+      SM_INSTANCE = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
 
-      const auto available_devices { get().impl->execute([](auto &settings_iface) { return settings_iface.enumAvailableDevices(); }) };
+      const auto available_devices { SM_INSTANCE->execute([](auto &settings_iface) { return settings_iface.enumAvailableDevices(); }) };
       BOOST_LOG(info) << "Currently available display devices:\n"
                       << toJson(available_devices);
 
@@ -60,21 +66,19 @@ namespace display_device {
     public:
       ~deinit_t() override {
         // TODO: In the upcoming PR, execute recovery once here
-        get().impl = nullptr;
+        SM_INSTANCE = nullptr;
       }
     };
     return std::make_unique<deinit_t>();
   }
 
   std::string
-  session_t::map_output_name(const std::string &output_name) const {
-    if (impl) {
-      return impl->execute([&output_name](auto &settings_iface) { return settings_iface.getDisplayName(output_name); });
+  map_output_name(const std::string &output_name) {
+    if (!SM_INSTANCE) {
+      // Fallback to giving back the output name if the platform is not supported.
+      return output_name;
     }
 
-    // Fallback to giving back the output name if the platform is not supported.
-    return output_name;
+    return SM_INSTANCE->execute([&output_name](auto &settings_iface) { return settings_iface.getDisplayName(output_name); });
   }
-
-  session_t::session_t() = default;
 }  // namespace display_device

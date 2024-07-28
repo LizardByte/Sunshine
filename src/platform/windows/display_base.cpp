@@ -1082,7 +1082,7 @@ namespace platf {
     BOOST_LOG(debug) << "Detecting monitors..."sv;
 
     // We must set the GPU preference before calling any DXGI APIs!
-    const auto output_name { display_device::session_t::get().map_output_name(config::video.output_name) };
+    const auto output_name { display_device::map_output_name(config::video.output_name) };
     if (!dxgi::probe_for_gpu_preference(output_name)) {
       BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
     }
