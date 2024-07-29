@@ -10,27 +10,52 @@ name: Release Notifications
 on:
   release:
     types:
-      - released  # this triggers when a release is published, but does not include prereleases or drafts
+      - released  # this triggers when a release is published, but does not include pre-releases or drafts
 
 jobs:
+  simplified_changelog:
+    if: >-
+      startsWith(github.repository, 'LizardByte/') &&
+      !github.event.release.prerelease &&
+      !github.event.release.draft
+    outputs:
+      SIMPLIFIED_BODY: ${{ steps.output.outputs.SIMPLIFIED_BODY }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: remove contributors section
+        env:
+          RELEASE_BODY: ${{ github.event.release.body }}
+        id: output
+        run: |
+          echo "${RELEASE_BODY}" > ./release_body.md
+          modified_body=$(sed '/^---$/d; /^## Contributors$/,/<\/a>/d' ./release_body.md)
+          echo "modified_body: ${modified_body}"
+
+          # use a heredoc to ensure the output is multiline
+          echo "SIMPLIFIED_BODY<<EOF" >> $GITHUB_OUTPUT
+          echo "${modified_body}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
   discord:
     if: >-
       startsWith(github.repository, 'LizardByte/') &&
       !github.event.release.prerelease &&
       !github.event.release.draft
+    needs: simplified_changelog
     runs-on: ubuntu-latest
     steps:
       - name: discord
         uses: sarisia/actions-status-discord@v1
         with:
-          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          avatar_url: ${{ secrets.ORG_LOGO_URL }}
+          color: 0x00ff00
+          description: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
           nodetail: true
           nofail: false
-          username: ${{ secrets.DISCORD_USERNAME }}
-          avatar_url: ${{ secrets.ORG_LOGO_URL }}
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          description: ${{ github.event.release.body }}
-          color: 0xFF4500
+          url: ${{ github.event.release.html_url }}
+          username: ${{ secrets.DISCORD_USERNAME }}
+          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
 
   facebook_group:
     if: >-
@@ -46,7 +71,6 @@ jobs:
           access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
           message: |
             ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-            ${{ github.event.release.body }}
           url: ${{ github.event.release.html_url }}
 
   facebook_page:
@@ -63,7 +87,6 @@ jobs:
           access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
           message: |
             ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-            ${{ github.event.release.body }}
           url: ${{ github.event.release.html_url }}
 
   reddit:
@@ -71,6 +94,7 @@ jobs:
       startsWith(github.repository, 'LizardByte/') &&
       !github.event.release.prerelease &&
       !github.event.release.draft
+    needs: simplified_changelog
     runs-on: ubuntu-latest
     steps:
       - name: reddit
@@ -84,20 +108,20 @@ jobs:
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
           url: ${{ github.event.release.html_url }}
           flair-id: ${{ secrets.REDDIT_FLAIR_ID }}  # https://www.reddit.com/r/<subreddit>>/api/link_flair.json
-          comment: ${{ github.event.release.body }}
+          comment: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
 
-  twitter:
+  x:
     if: >-
       startsWith(github.repository, 'LizardByte/') &&
       !github.event.release.prerelease &&
       !github.event.release.draft
     runs-on: ubuntu-latest
     steps:
-      - name: twitter
+      - name: x
         uses: nearform-actions/github-action-notify-twitter@v1
         with:
           message: ${{ github.event.release.html_url }}
-          twitter-app-key: ${{ secrets.TWITTER_API_KEY }}
-          twitter-app-secret: ${{ secrets.TWITTER_API_SECRET }}
-          twitter-access-token: ${{ secrets.TWITTER_ACCESS_TOKEN }}
-          twitter-access-token-secret: ${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}
+          twitter-app-key: ${{ secrets.X_APP_KEY }}
+          twitter-app-secret: ${{ secrets.X_APP_SECRET }}
+          twitter-access-token: ${{ secrets.X_ACCESS_TOKEN }}
+          twitter-access-token-secret: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
