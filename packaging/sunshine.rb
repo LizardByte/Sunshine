@@ -145,10 +145,10 @@ class @PROJECT_NAME@ < Formula
 
   test do
     # test that the binary runs at all
-    system "#{bin}/sunshine", "--version"
+    system bin/"sunshine", "--version"
 
     # run the test suite
     # cannot build tests with python tests because homebrew destroys the source directory
-    system "#{bin}/test_sunshine", "--gtest_color=yes"
+    system bin/"test_sunshine", "--gtest_color=yes"
   end
 end
