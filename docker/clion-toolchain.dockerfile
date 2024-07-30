@@ -53,8 +53,6 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
-  python3.10 \
-  python3.10-venv \
   udev \
   wget \
   x11-xserver-utils \

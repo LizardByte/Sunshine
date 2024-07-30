@@ -46,7 +46,6 @@ makedepends=(
   'make'
   'nodejs'
   'npm'
-  'python'
 )
 
 optdepends=(
