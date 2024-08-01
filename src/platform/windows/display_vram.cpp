@@ -612,6 +612,32 @@ namespace platf::dxgi {
 
     int
     init(std::shared_ptr<platf::display_t> display, adapter_t::pointer adapter_p, pix_fmt_e pix_fmt) {
+      switch (pix_fmt) {
+        case pix_fmt_e::nv12:
+          format = DXGI_FORMAT_NV12;
+          break;
+
+        case pix_fmt_e::p010:
+          format = DXGI_FORMAT_P010;
+          break;
+
+        case pix_fmt_e::ayuv:
+          format = DXGI_FORMAT_AYUV;
+          break;
+
+        case pix_fmt_e::yuv444p16:
+          format = DXGI_FORMAT_R16_UINT;
+          break;
+
+        case pix_fmt_e::y410:
+          format = DXGI_FORMAT_Y410;
+          break;
+
+        default:
+          BOOST_LOG(error) << "D3D11 backend doesn't support pixel format: " << from_pix_fmt(pix_fmt);
+          return -1;
+      }
+
       D3D_FEATURE_LEVEL featureLevels[] {
         D3D_FEATURE_LEVEL_11_1,
         D3D_FEATURE_LEVEL_11_0,
@@ -648,32 +674,6 @@ namespace platf::dxgi {
       status = dxgi->SetGPUThreadPriority(7);
       if (FAILED(status)) {
         BOOST_LOG(warning) << "Failed to increase encoding GPU thread priority. Please run application as administrator for optimal performance.";
-      }
-
-      switch (pix_fmt) {
-        case pix_fmt_e::nv12:
-          format = DXGI_FORMAT_NV12;
-          break;
-
-        case pix_fmt_e::p010:
-          format = DXGI_FORMAT_P010;
-          break;
-
-        case pix_fmt_e::ayuv:
-          format = DXGI_FORMAT_AYUV;
-          break;
-
-        case pix_fmt_e::yuv444p16:
-          format = DXGI_FORMAT_R16_UINT;
-          break;
-
-        case pix_fmt_e::y410:
-          format = DXGI_FORMAT_Y410;
-          break;
-
-        default:
-          BOOST_LOG(error) << "DXGI backend doesn't support requested pixel format";
-          return -1;
       }
 
 #define create_vertex_shader_helper(x, y)                                                                    \
@@ -1887,20 +1887,10 @@ namespace platf::dxgi {
 
   std::unique_ptr<avcodec_encode_device_t>
   display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
-    if (pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
-      BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
-
-      return nullptr;
-    }
-
     auto device = std::make_unique<d3d_avcodec_encode_device_t>();
-
-    auto ret = device->init(shared_from_this(), adapter.get(), pix_fmt);
-
-    if (ret) {
+    if (device->init(shared_from_this(), adapter.get(), pix_fmt) != 0) {
       return nullptr;
     }
-
     return device;
   }
 
