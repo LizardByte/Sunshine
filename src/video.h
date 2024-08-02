@@ -140,6 +140,8 @@ namespace video {
       std::vector<option_t> common_options;
       std::vector<option_t> sdr_options;
       std::vector<option_t> hdr_options;
+      std::vector<option_t> sdr444_options;
+      std::vector<option_t> hdr444_options;
       std::vector<option_t> fallback_options;
 
       // QP option to set in the case that CBR/VBR is not supported

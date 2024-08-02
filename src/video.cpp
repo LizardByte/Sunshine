@@ -68,16 +68,12 @@ namespace video {
 
   namespace qsv {
 
-    enum class profile_h264_e : int {
-      baseline = 66,  ///< Baseline profile
-      main = 77,  ///< Main profile
-      high = 100,  ///< High profile
+    enum class profile_av1_e : int {
+      main = 1,  ///< Main profile
+      high = 2,  ///< High profile
+      pro = 3,  ///< Professional profile
     };
 
-    enum class profile_hevc_e : int {
-      main = 1,  ///< Main profile
-      main_10 = 2,  ///< Main 10 profile
-    };
   }  // namespace qsv
 
   util::Either<avcodec_buffer_t, int>
@@ -451,38 +447,32 @@ namespace video {
       platf::pix_fmt_e::nv12, platf::pix_fmt_e::p010,
       platf::pix_fmt_e::ayuv, platf::pix_fmt_e::yuv444p16),
     {
-      // Common options
-      {},
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
-      {},
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
     {
-      // Common options
-      {},
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
-      {},
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
     },
     {
-      // Common options
-      {},
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
-      {},
+      {},  // Common options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
     },
@@ -519,12 +509,11 @@ namespace video {
         { "multipass"s, &config::video.nv_legacy.multipass },
         { "aq"s, &config::video.nv_legacy.aq },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
-      {},
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
@@ -548,6 +537,8 @@ namespace video {
       {
         { "profile"s, (int) nv::profile_hevc_e::main_10 },
       },
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
@@ -569,6 +560,8 @@ namespace video {
         { "profile"s, (int) nv::profile_h264_e::high },
       },
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
@@ -594,13 +587,19 @@ namespace video {
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
         { "low_power"s, 1 },
+        { "profile"s, (int) qsv::profile_av1_e::main },  // intel doesn't follow ffmpeg profile constants for av1
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
-      {},
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {
+        // YUV444 SDR-specific options
+        { "profile"s, (int) qsv::profile_av1_e::high },
+      },
+      {
+        // YUV444 HDR-specific options
+        { "profile"s, (int) qsv::profile_av1_e::high },
+      },
+      {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "av1_qsv"s,
     },
@@ -615,12 +614,12 @@ namespace video {
         { "recovery_point_sei"s, 0 },
         { "pic_timing_sei"s, 0 },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "low_power"s, []() { return config::video.qsv.qsv_slow_hevc ? 0 : 1; } },
       },
       std::nullopt,  // QP rate control fallback
@@ -640,12 +639,12 @@ namespace video {
         { "pic_timing_sei"s, 0 },
         { "max_dec_frame_buffering"s, 1 },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "low_power"s, 0 },  // Some old/low-end Intel GPUs don't support low power encoding
       },
       std::nullopt,  // QP rate control fallback
@@ -675,6 +674,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "av1_amf"s,
@@ -697,6 +698,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "hevc_amf"s,
@@ -715,12 +718,12 @@ namespace video {
         { "vbaq"s, &config::video.amd.amd_vbaq },
         { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "usage"s, 2 /* AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY */ },  // Workaround for https://github.com/GPUOpen-LibrariesAndSDKs/AMF/issues/410
       },
       std::nullopt,  // QP rate control fallback
@@ -749,6 +752,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
 
       // QP rate control fallback
@@ -776,6 +781,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "libx265"s,
@@ -788,6 +795,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,  // QP rate control fallback
       "libx264"s,
@@ -811,12 +820,12 @@ namespace video {
         { "async_depth"s, 1 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
       },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
@@ -830,12 +839,12 @@ namespace video {
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
       },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
@@ -849,12 +858,12 @@ namespace video {
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
-      // SDR-specific options
-      {},
-      // HDR-specific options
-      {},
-      // Fallback options
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
       },
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
@@ -884,6 +893,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,
       "av1_videotoolbox"s,
@@ -898,6 +909,8 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {},  // Fallback options
       std::nullopt,
       "hevc_videotoolbox"s,
@@ -912,9 +925,12 @@ namespace video {
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
       {
+        // Fallback options
         { "flags"s, "-low_delay" },
-      },  // Fallback options
+      },
       std::nullopt,
       "h264_videotoolbox"s,
     },
@@ -1581,6 +1597,11 @@ namespace video {
       }
       for (auto &option : (config.dynamicRange ? video_format.hdr_options : video_format.sdr_options)) {
         handle_option(option);
+      }
+      if (config.chromaSamplingType == 1) {
+        for (auto &option : (config.dynamicRange ? video_format.hdr444_options : video_format.sdr444_options)) {
+          handle_option(option);
+        }
       }
       if (retries > 0) {
         for (auto &option : video_format.fallback_options) {
