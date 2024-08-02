@@ -257,7 +257,7 @@ jobs:
       matrix:
         include:  # package these differently
           - type: AppImage
-            EXTRA_ARGS: '-DSUNSHINE_BUILD_APPIMAGE=ON'
+            EXTRA_ARGS: '--appimage-build'
             dist: 22.04
 
     steps:
@@ -276,81 +276,23 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install wget
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            wget
-
-      - name: Install CUDA
-        env:
-          CUDA_VERSION: 11.8.0
-          CUDA_BUILD: 520.61.05
-        timeout-minutes: 4
-        run: |
-          url_base="https://developer.download.nvidia.com/compute/cuda/${CUDA_VERSION}/local_installers"
-          url="${url_base}/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux.run"
-          sudo wget -q -O /root/cuda.run ${url}
-          sudo chmod a+x /root/cuda.run
-          sudo /root/cuda.run --silent --toolkit --toolkitpath=/usr/local/cuda --no-opengl-libs --no-man-page --no-drm
-          sudo rm /root/cuda.run
-
       - name: Setup Dependencies Linux
         timeout-minutes: 5
         run: |
-          # allow newer gcc
-          sudo add-apt-repository ppa:ubuntu-toolchain-r/test -y
+          # create the artifacts directory
+          mkdir -p artifacts
 
-          # allow libfuse2 for appimage on 22.04
+          # allow libfuse2 for appimage on 22.04+
           sudo add-apt-repository universe
 
-          # libx11-xcb-dev and libxcb-dri3-dev are required for building libva
           sudo apt-get install -y \
-            build-essential \
-            cmake \
-            doxygen \
-            graphviz \
-            gcc-10 \
-            g++-10 \
-            libayatana-appindicator3-dev \
-            libavdevice-dev \
-            libcap-dev \
-            libcurl4-openssl-dev \
             libdrm-dev \
-            libevdev-dev \
             libfuse2 \
-            libminiupnpc-dev \
-            libnotify-dev \
-            libnuma-dev \
-            libopus-dev \
-            libpulse-dev \
-            libssl-dev \
-            libvdpau-dev \
+            libgl-dev \
             libwayland-dev \
-            libx11-dev \
             libx11-xcb-dev \
             libxcb-dri3-dev \
-            libxcb-shm0-dev \
-            libxcb-xfixes0-dev \
-            libxcb1-dev \
-            libxfixes-dev \
-            libxrandr-dev \
-            libxtst-dev \
-            python3 \
-            python3-venv
-
-          # clean apt cache
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-
-          # Update gcc alias
-          # https://stackoverflow.com/a/70653945/11214013
-          sudo update-alternatives --install \
-            /usr/bin/gcc gcc /usr/bin/gcc-10 100 \
-            --slave /usr/bin/g++ g++ /usr/bin/g++-10 \
-            --slave /usr/bin/gcov gcov /usr/bin/gcov-10 \
-            --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-10 \
-            --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-10
+            libxfixes-dev
 
       - name: Setup python
         id: python
@@ -371,7 +313,7 @@ jobs:
             --enable-x11 \
             --enable-glx \
             --enable-wayland \
-            --without-legacy # emgd, nvctrl, fglrx
+            --without-legacy  # emgd, nvctrl, fglrx
           make -j $(nproc)
           sudo make install
           cd .. && rm -rf libva-*
@@ -381,28 +323,9 @@ jobs:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
-        timeout-minutes: 10
         run: |
-          echo "nproc: $(nproc)"
-
-          mkdir -p build
-          mkdir -p artifacts
-
-          cd build
-          cmake \
-            -DBUILD_WERROR=ON \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CUDA_COMPILER:PATH=/usr/local/cuda/bin/nvcc \
-            -DCMAKE_INSTALL_PREFIX=/usr \
-            -DSUNSHINE_ASSETS_DIR=share/sunshine \
-            -DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-            -DSUNSHINE_ENABLE_WAYLAND=ON \
-            -DSUNSHINE_ENABLE_X11=ON \
-            -DSUNSHINE_ENABLE_DRM=ON \
-            -DSUNSHINE_ENABLE_CUDA=ON \
-            ${{ matrix.EXTRA_ARGS }} \
-            ..
-          make -j $(expr $(nproc) - 1)  # use all but one core
+          chmod +x ./scripts/linux_build.sh
+          ./scripts/linux_build.sh --skip-cleanup --skip-package --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
 
       - name: Set AppImage Version
         if: |
@@ -416,7 +339,7 @@ jobs:
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
-          make install DESTDIR=AppDir
+          DESTDIR=AppDir ninja install
 
           # custom AppRun file
           cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
@@ -454,7 +377,7 @@ jobs:
       - name: Delete CUDA
         # free up space on the runner
         run: |
-          sudo rm -rf /usr/local/cuda
+          rm -rf ./build/cuda
 
       - name: Verify AppImage
         if: ${{ matrix.type == 'AppImage' }}
