@@ -616,13 +616,9 @@ namespace video {
         { "pic_timing_sei"s, 0 },
       },
       // SDR-specific options
-      {
-        { "profile"s, (int) qsv::profile_hevc_e::main },
-      },
+      {},
       // HDR-specific options
-      {
-        { "profile"s, (int) qsv::profile_hevc_e::main_10 },
-      },
+      {},
       // Fallback options
       {
         { "low_power"s, []() { return config::video.qsv.qsv_slow_hevc ? 0 : 1; } },
@@ -645,9 +641,7 @@ namespace video {
         { "max_dec_frame_buffering"s, 1 },
       },
       // SDR-specific options
-      {
-        { "profile"s, (int) qsv::profile_h264_e::high },
-      },
+      {},
       // HDR-specific options
       {},
       // Fallback options
@@ -1441,7 +1435,7 @@ namespace video {
         case 0:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
-          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_H264_HIGH_444 : FF_PROFILE_H264_HIGH;
+          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_H264_HIGH_444_PREDICTIVE : FF_PROFILE_H264_HIGH;
           break;
 
         case 1:
