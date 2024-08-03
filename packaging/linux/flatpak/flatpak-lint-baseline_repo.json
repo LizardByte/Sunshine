@@ -1,10 +1,10 @@
 {
     "errors": [
-        "appstream-external-screenshot-url",
+        "appstream-missing-screenshots",
         "finish-args-flatpak-spawn-access"
     ],
     "info": [
-        "appstream-external-screenshot-url: Screenshots are not mirrored to https://dl.flathub.org/media",
+        "appstream-missing-screenshots: Catalogue file has no screenshots. Please check if screenshot URLs are reachable",
         "finish-args-flatpak-spawn-access: finish-args has a talk-name access for org.freedesktop.Flatpak"
     ],
     "message": "Please consult the documentation at https://docs.flathub.org/docs/for-app-authors/linter"
