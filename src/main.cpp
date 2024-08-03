@@ -71,6 +71,15 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
       return DefWindowProc(hwnd, uMsg, wParam, lParam);
   }
 }
+
+WINAPI BOOL
+ConsoleCtrlHandler(DWORD type) {
+  if (type == CTRL_CLOSE_EVENT) {
+    BOOST_LOG(info) << "Console closed handler called";
+    lifetime::exit_sunshine(0, false);
+  }
+  return FALSE;
+}
 #endif
 
 int
@@ -243,6 +252,11 @@ main(int argc, char *argv[]) {
 
     shutdown_event->raise(true);
   });
+
+#ifdef _WIN32
+  // Terminate gracefully on Windows when console window is closed
+  SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
+#endif
 
   proc::refresh(config::stream.file_apps);
 
