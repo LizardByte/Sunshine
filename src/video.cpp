@@ -53,29 +53,28 @@ namespace video {
   namespace nv {
 
     enum class profile_h264_e : int {
-      baseline,  ///< Baseline profile
-      main,  ///< Main profile
-      high,  ///< High profile
-      high_444p,  ///< High 4:4:4 Predictive profile
+      high = 2,  ///< High profile
+      high_444p = 3,  ///< High 4:4:4 Predictive profile
     };
 
     enum class profile_hevc_e : int {
-      main,  ///< Main profile
-      main_10,  ///< Main 10 profile
-      rext,  ///< Rext profile
+      main = 0,  ///< Main profile
+      main_10 = 1,  ///< Main 10 profile
+      rext = 2,  ///< Rext profile
     };
+
   }  // namespace nv
 
   namespace qsv {
 
     enum class profile_h264_e : int {
       high = 100,  ///< High profile
-      high444p = 244,  ///< High444 Predictive profile
+      high_444p = 244,  ///< High 4:4:4 Predictive profile
     };
 
     enum class profile_hevc_e : int {
       main = 1,  ///< Main profile
-      main10 = 2,  ///< Main 10 profile
+      main_10 = 2,  ///< Main 10 profile
       rext = 4,  ///< RExt profile
     };
 
@@ -539,12 +538,12 @@ namespace video {
         { "multipass"s, &config::video.nv_legacy.multipass },
         { "aq"s, &config::video.nv_legacy.aq },
       },
-      // SDR-specific options
       {
+        // SDR-specific options
         { "profile"s, (int) nv::profile_hevc_e::main },
       },
-      // HDR-specific options
       {
+        // HDR-specific options
         { "profile"s, (int) nv::profile_hevc_e::main_10 },
       },
       {},  // YUV444 SDR-specific options
@@ -565,8 +564,8 @@ namespace video {
         { "multipass"s, &config::video.nv_legacy.multipass },
         { "aq"s, &config::video.nv_legacy.aq },
       },
-      // SDR-specific options
       {
+        // SDR-specific options
         { "profile"s, (int) nv::profile_h264_e::high },
       },
       {},  // HDR-specific options
@@ -635,7 +634,7 @@ namespace video {
       },
       {
         // HDR-specific options
-        { "profile"s, (int) qsv::profile_hevc_e::main10 },
+        { "profile"s, (int) qsv::profile_hevc_e::main_10 },
       },
       {
         // YUV444 SDR-specific options
@@ -673,7 +672,7 @@ namespace video {
       {},  // HDR-specific options
       {
         // YUV444 SDR-specific options
-        { "profile"s, (int) qsv::profile_h264_e::high444p },
+        { "profile"s, (int) qsv::profile_h264_e::high_444p },
       },
       {},  // YUV444 HDR-specific options
       {
