@@ -14,10 +14,14 @@ else()
     find_package(Systemd)
     find_package(Udev)
 
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
-            DESTINATION "${UDEV_RULES_INSTALL_DIR}")
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
-            DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+    if(UDEV_FOUND)
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+                DESTINATION "${UDEV_RULES_INSTALL_DIR}")
+    endif()
+    if(SYSTEMD_FOUND)
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+                DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+    endif()
 endif()
 
 # Post install
