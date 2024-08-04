@@ -142,7 +142,7 @@
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {
         if (!this.logs) return [];
-        let regex = /(\[\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}\]):\s/g;
+        let regex = /(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}]):\s/g;
         let rawLogLines = (this.logs.split(regex)).splice(1);
         let logLines = []
         for (let i = 0; i < rawLogLines.length; i += 2) {
