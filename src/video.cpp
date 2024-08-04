@@ -68,6 +68,17 @@ namespace video {
 
   namespace qsv {
 
+    enum class profile_h264_e : int {
+      high = 100,  ///< High profile
+      high444p = 244,  ///< High444 Predictive profile
+    };
+
+    enum class profile_hevc_e : int {
+      main = 1,  ///< Main profile
+      main10 = 2,  ///< Main 10 profile
+      rext = 4,  ///< RExt profile
+    };
+
     enum class profile_av1_e : int {
       main = 1,  ///< Main profile
       high = 2,  ///< High profile
@@ -587,10 +598,15 @@ namespace video {
         { "async_depth"s, 1 },
         { "low_delay_brc"s, 1 },
         { "low_power"s, 1 },
-        { "profile"s, (int) qsv::profile_av1_e::main },  // intel doesn't follow ffmpeg profile constants for av1
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
+      {
+        // SDR-specific options
+        { "profile"s, (int) qsv::profile_av1_e::main },
+      },
+      {
+        // HDR-specific options
+        { "profile"s, (int) qsv::profile_av1_e::main },
+      },
       {
         // YUV444 SDR-specific options
         { "profile"s, (int) qsv::profile_av1_e::high },
@@ -614,10 +630,22 @@ namespace video {
         { "recovery_point_sei"s, 0 },
         { "pic_timing_sei"s, 0 },
       },
-      {},  // SDR-specific options
-      {},  // HDR-specific options
-      {},  // YUV444 SDR-specific options
-      {},  // YUV444 HDR-specific options
+      {
+        // SDR-specific options
+        { "profile"s, (int) qsv::profile_hevc_e::main },
+      },
+      {
+        // HDR-specific options
+        { "profile"s, (int) qsv::profile_hevc_e::main10 },
+      },
+      {
+        // YUV444 SDR-specific options
+        { "profile"s, (int) qsv::profile_hevc_e::rext },
+      },
+      {
+        // YUV444 HDR-specific options
+        { "profile"s, (int) qsv::profile_hevc_e::rext },
+      },
       {
         // Fallback options
         { "low_power"s, []() { return config::video.qsv.qsv_slow_hevc ? 0 : 1; } },
@@ -639,9 +667,15 @@ namespace video {
         { "pic_timing_sei"s, 0 },
         { "max_dec_frame_buffering"s, 1 },
       },
-      {},  // SDR-specific options
+      {
+        // SDR-specific options
+        { "profile"s, (int) qsv::profile_h264_e::high },
+      },
       {},  // HDR-specific options
-      {},  // YUV444 SDR-specific options
+      {
+        // YUV444 SDR-specific options
+        { "profile"s, (int) qsv::profile_h264_e::high444p },
+      },
       {},  // YUV444 HDR-specific options
       {
         // Fallback options
