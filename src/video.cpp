@@ -82,7 +82,6 @@ namespace video {
     enum class profile_av1_e : int {
       main = 1,  ///< Main profile
       high = 2,  ///< High profile
-      pro = 3,  ///< Professional profile
     };
 
   }  // namespace qsv
