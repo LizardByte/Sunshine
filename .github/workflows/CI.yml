@@ -150,14 +150,14 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
-          cd build
           cmake -DGITHUB_CLONE_URL=${clone_url} \
+            -B build \
+            -S . \
             -DBUILD_VERSION=${build_version} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
             -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
-            -DSUNSHINE_CONFIGURE_ONLY=ON \
-            ..
+            -DSUNSHINE_CONFIGURE_ONLY=ON
 
       - name: Debug Manifest
         working-directory: build
@@ -520,9 +520,10 @@ jobs:
           echo "Clone URL: ${clone_url}"
           echo "Tag: ${tag}"
 
-          mkdir build
-          cd build
+          mkdir -p build
           cmake \
+            -B build \
+            -S . \
             -DBUILD_VERSION="${build_version}" \
             -DFORMULA_VERSION="${version}" \
             -DGITHUB_BRANCH="${branch}" \
@@ -531,9 +532,7 @@ jobs:
             -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
             -DGITHUB_TAG="${tag}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
-            -DSUNSHINE_CONFIGURE_ONLY=ON \
-            ..
-          cd ..
+            -DSUNSHINE_CONFIGURE_ONLY=ON
 
           # copy formula to artifacts
           mkdir -p homebrew
@@ -654,17 +653,16 @@ jobs:
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
 
-          mkdir build
-          cd build
+          mkdir -p build
           cmake \
+            -B build \
+            -S . \
             -DBUILD_VERSION=${build_version} \
             -DGITHUB_BRANCH=${branch} \
             -DGITHUB_COMMIT=${commit} \
             -DGITHUB_CLONE_URL=${clone_url} \
             -DSUNSHINE_CONFIGURE_PORTFILE=ON \
-            -DSUNSHINE_CONFIGURE_ONLY=ON \
-            ..
-          cd ..
+            -DSUNSHINE_CONFIGURE_ONLY=ON
 
           # copy Portfile to artifacts
           mkdir -p artifacts
@@ -1024,7 +1022,6 @@ jobs:
           Remove-Item -Path doxygen-setup.exe
 
       - name: Setup python
-        # use this instead of msys2 python due to known issues using wheels, https://www.msys2.org/docs/python/
         id: setup-python
         uses: actions/setup-python@v5
         with:
@@ -1048,17 +1045,16 @@ jobs:
           BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
-          mkdir build
-          cd build
+          mkdir -p build
           cmake \
+            -B build \
+            -G Ninja \
+            -S . \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DPython_EXECUTABLE='${{ steps.python-path.outputs.python-path }}' \
             -DSUNSHINE_ASSETS_DIR=assets \
-            -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip' \
-            -G "MinGW Makefiles" \
-            ..
-          mingw32-make -j$(nproc)
+            -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip'
+          ninja -C build
 
       - name: Package Windows
         shell: msys2 {0}

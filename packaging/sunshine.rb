@@ -148,7 +148,6 @@ class @PROJECT_NAME@ < Formula
     system bin/"sunshine", "--version"
 
     # run the test suite
-    # cannot build tests with python tests because homebrew destroys the source directory
     system bin/"test_sunshine", "--gtest_color=yes"
   end
 end

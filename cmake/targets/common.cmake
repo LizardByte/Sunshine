@@ -63,7 +63,7 @@ add_custom_target(web-ui ALL
 
 # docs
 if(BUILD_DOCS)
-    add_subdirectory(docs)
+    add_subdirectory(third-party/doxyconfig docs)
 endif()
 
 # tests

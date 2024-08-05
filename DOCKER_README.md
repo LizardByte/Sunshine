@@ -25,15 +25,15 @@ ENTRYPOINT steam && sunshine
 Sunshine images are available with the following tag suffixes, based on their respective base images.
 
 - `archlinux`
-- `debian-bullseye`
-- `fedora-36`
-- `fedora-37`
-- `ubuntu-20.04`
+- `debian-bookworm`
+- `fedora-39`
+- `fedora-40`
 - `ubuntu-22.04`
+- `ubuntu-24.04`
 
 ### Tags
 You must combine the `SUNSHINE_VERSION` and `SUNSHINE_OS` to determine the tag to pull. The format should be
-`<SUNSHINE_VERSION>-<SUNSHINE_OS>`. For example, `latest-ubuntu-22.04`.
+`<SUNSHINE_VERSION>-<SUNSHINE_OS>`. For example, `latest-ubuntu-24.04`.
 
 See all our available tags on [docker hub](https://hub.docker.com/r/lizardbyte/sunshine/tags) or
 [ghcr](https://github.com/LizardByte/Sunshine/pkgs/container/sunshine/versions) for more info.
@@ -152,8 +152,15 @@ The architectures supported by these images are shown in the table below.
 |-----------------|--------------|---------------|
 | archlinux       | ✅            | ❌             |
 | debian-bookworm | ✅            | ✅             |
-| debian-bullseye | ✅            | ✅             |
-| fedora-38       | ✅            | ✅             |
-| fedora-39       | ✅            | ✅             |
-| ubuntu-20.04    | ✅            | ✅             |
+| fedora-39       | ✅            | ❌             |
+| fedora-40       | ✅            | ❌             |
 | ubuntu-22.04    | ✅            | ✅             |
+| ubuntu-24.04    | ✅            | ✅             |
+
+<div class="section_buttons">
+
+| Previous                       |                                                 Next |
+|:-------------------------------|-----------------------------------------------------:|
+| [Changelog](docs/changelog.md) | [Third-Party Packages](docs/third_party_packages.md) |
+
+</div>

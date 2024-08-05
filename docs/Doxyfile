@@ -21,82 +21,39 @@
 # replacement variables:
 # doxygen -x_noenv [configFile]
 
-# must be first
-DOXYFILE_ENCODING = UTF-8
-
-ALIASES = ""
-ALIASES += "examples=^^**Examples**^^@code{.cpp}"
-ALIASES += "examples_end=@endcode^^"
-ALIASES += "rst=^^\verbatim embed:rst:leading-asterisk^^"
-ALIASES += "rst_end=\endverbatim"
-
-CASE_SENSE_NAMES = YES
-DISABLE_INDEX = NO
-DOCBOOK_OUTPUT = doxydocbook
+# project metadata
 DOCSET_BUNDLE_ID = dev.lizardbyte.Sunshine
 DOCSET_PUBLISHER_ID = dev.lizardbyte.Sunshine.documentation
-DOCSET_PUBLISHER_NAME = LizardByte
-DOT_GRAPH_MAX_NODES = 60
-DOT_IMAGE_FORMAT = svg
-
-# TODO: On Windows, Doxygen hangs when creating dot graphs if this is set to 0
-DOT_NUM_THREADS = 1
-
-EXTRACT_ALL = NO
-FULL_SIDEBAR = NO
-GENERATE_HTML = YES
-GENERATE_LATEX = NO
-GENERATE_TREEVIEW = YES
-
-# TODO: Sphinx/Breathe does not support Objective-C right now, so disable XML
-# https://github.com/breathe-doc/breathe/issues/129
-GENERATE_XML = NO
-
-HAVE_DOT = YES
-HTML_COLORSTYLE = LIGHT  # required with Doxygen >= 1.9.5
-HTML_COPY_CLIPBOARD = NO  # required for Doxygen >= 1.10.0
-HTML_EXTRA_FILES = ../third-party/doxygen-awesome-css/doxygen-awesome-darkmode-toggle.js
-HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-fragment-copy-button.js
-HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-paragraph-link.js
-HTML_EXTRA_FILES += ../third-party/doxygen-awesome-css/doxygen-awesome-interactive-toc.js
-HTML_EXTRA_STYLESHEET = ../third-party/doxygen-awesome-css/doxygen-awesome.css
-HTML_HEADER = doxygen/header.html
-HTML_OUTPUT = doxyhtml
-INCLUDE_PATH = ../third-party/build-deps/ffmpeg/Linux-x86_64/include/
-INPUT = ../src
-INTERACTIVE_SVG = YES
-LATEX_OUTPUT = doxylatex
-MACRO_EXPANSION = YES
-MAN_OUTPUT = doxyman
-NUM_PROC_THREADS = 1
-PREDEFINED = DOXYGEN
-PREDEFINED += __APPLE__
-PREDEFINED += linux
-PREDEFINED += __linux
-PREDEFINED += __linux__
-PREDEFINED += __MACH__
-PREDEFINED += _WIN32
-PREDEFINED += SUNSHINE_BUILD_WAYLAND
-PREDEFINED += SUNSHINE_TRAY=1
 PROJECT_BRIEF = "Self-hosted game stream host for Moonlight."
 PROJECT_ICON = ../sunshine.ico
 PROJECT_LOGO = ../sunshine.png
 PROJECT_NAME = Sunshine
-OUTPUT_DIRECTORY = build/doxygen
-RECURSIVE = YES
-RTF_OUTPUT = doxyrtf
-SORT_BRIEF_DOCS = YES
-STRIP_FROM_INC_PATH = ../
-STRIP_FROM_PATH = ../
-WARN_AS_ERROR = FAIL_ON_WARNINGS
+
+# project specific settings
+DOT_GRAPH_MAX_NODES = 60
+IMAGE_PATH = ../docs/images
+INCLUDE_PATH = ../third-party/build-deps/ffmpeg/Linux-x86_64/include/
+PREDEFINED += SUNSHINE_BUILD_WAYLAND
+PREDEFINED += SUNSHINE_TRAY=1
 
 # TODO: Enable this when we have complete documentation
 WARN_IF_UNDOCUMENTED = NO
 
-WARN_IF_DOC_ERROR = YES
-WARN_IF_INCOMPLETE_DOC = YES
-WARN_IF_UNDOC_ENUM_VAL = YES
-WARN_NO_PARAMDOC = YES
-WARNINGS = YES
-
-XML_OUTPUT = doxyxml
+# files and directories to process
+USE_MDFILE_AS_MAINPAGE = ../README.md
+INPUT = ../README.md \
+        getting_started.md \
+        changelog.md \
+        ../DOCKER_README.md \
+        third_party_packages.md \
+        gamestream_migration.md \
+        legal.md \
+        configuration.md \
+        app_examples.md \
+        guides.md \
+        performance_tuning.md \
+        troubleshooting.md \
+        building.md \
+        contributing.md \
+        ../third-party/doxyconfig/docs/source_code.md \
+        ../src
