@@ -124,6 +124,7 @@ body:
         - AMD
         - Intel
         - Nvidia
+        - Apple Silicon
         - none (software encoding)
         - n/a
     validations:
