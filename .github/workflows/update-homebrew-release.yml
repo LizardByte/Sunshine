@@ -69,3 +69,68 @@ jobs:
           publish: true
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: false
+
+  update-homebrew-prerelease:
+    if: >-
+      github.repository_owner == 'LizardByte' &&
+      !github.event.release.draft && github.event.release.prerelease
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check if Homebrew repo
+        env:
+          TOPIC: homebrew-pkg
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const topic = process.env.TOPIC;
+            console.log(`Checking if repo has topic: ${topic}`);
+
+            const repoTopics = await github.rest.repos.getAllTopics({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            console.log(`Repo topics: ${repoTopics.data.names}`);
+
+            const hasTopic = repoTopics.data.names.includes(topic);
+            console.log(`Has topic: ${hasTopic}`);
+
+            core.setOutput('hasTopic', hasTopic);
+
+      - name: Download release asset
+        id: download
+        if: >-
+          steps.check.outputs.hasTopic == 'true'
+        uses: robinraju/release-downloader@v1.11
+        with:
+          repository: "${{ github.repository }}"
+          latest: true
+          preRelease: true
+          fileName: "*.rb"
+          tarBall: false
+          zipBall: false
+          out-file-path: "release_downloads"
+          extract: false
+
+      - name: Prepare Formula as Prerelease
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        run: |
+          cp ${{ fromJson(steps.download.outputs.downloaded_files)[0] }} ${{ github.workspace }}/homebrew/sunshine-prerelease.rb
+          sed -i 's/class Sunshine < Formula/class SunshinePrerelease < Formula/' ${{ github.workspace }}/homebrew/sunshine-prerelease.rb
+
+          cat ${{ github.workspace }}/homebrew/sunshine-prerelease.rb
+
+      - name: Publish Homebrew Formula
+        if: >-
+          steps.check.outputs.hasTopic == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        uses: LizardByte/homebrew-release-action@v2024.612.21058
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine-prerelease.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: false
