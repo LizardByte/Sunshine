@@ -7,8 +7,44 @@ const props = defineProps({
   platform: String,
   config: Object
 })
-
 const config = ref(props.config)
+
+const REFRESH_RATE_ONLY = "refresh_rate_only"
+const RESOLUTION_ONLY = "resolution_only"
+const MIXED = "mixed"
+
+function canBeRemapped() {
+  return (config.value.dd_resolution_option === "auto" || config.value.dd_refresh_rate_option === "auto")
+    && config.value.dd_configuration_option !== "disabled";
+}
+
+function getRemappingType() {
+  // Assuming here that at least one setting is set to "auto" if other is not
+  if (config.value.dd_resolution_option !== "auto") {
+    return REFRESH_RATE_ONLY;
+  }
+  if (config.value.dd_refresh_rate_option !== "auto") {
+    return RESOLUTION_ONLY;
+  }
+  return MIXED;
+}
+
+function addRemappingEntry() {
+  const type = getRemappingType();
+  let template = {};
+
+  if (type !== RESOLUTION_ONLY) {
+    template["requested_fps"] = "";
+    template["final_refresh_rate"] = "";
+  }
+
+  if (type !== REFRESH_RATE_ONLY) {
+    template["requested_resolution"] = "";
+    template["final_resolution"] = "";
+  }
+
+  config.value.dd_mode_remapping[type].push(template);
+}
 </script>
 
 <template>
@@ -113,6 +149,76 @@ const config = ref(props.config)
                 <div class="form-text">
                   {{ $t('config.dd_config_revert_delay_desc') }}
                 </div>
+              </div>
+
+              <!-- Display mode remapping -->
+              <div class="mb-3" v-if="canBeRemapped()">
+                <label for="dd_mode_remapping" class="form-label">
+                  {{ $t('config.dd_mode_remapping') }}
+                </label>
+                <div id="dd_mode_remapping" class="d-flex flex-column">
+                  <div class="form-text">
+                    {{ $t('config.dd_mode_remapping_desc_1') }}<br>
+                    {{ $t('config.dd_mode_remapping_desc_2') }}<br>
+                    {{ $t('config.dd_mode_remapping_desc_3') }}<br>
+                    {{ $t(getRemappingType() === MIXED ? 'config.dd_mode_remapping_desc_4_final_values_mixed' : 'config.dd_mode_remapping_desc_4_final_values_non_mixed') }}<br>
+                    <template v-if="getRemappingType() === MIXED">
+                      {{ $t('config.dd_mode_remapping_desc_5_sops_mixed_only') }}<br>
+                    </template>
+                    <template v-if="getRemappingType() === RESOLUTION_ONLY">
+                      {{ $t('config.dd_mode_remapping_desc_5_sops_resolution_only') }}<br>
+                    </template>
+                  </div>
+                </div>
+
+                <table class="table" v-if="config.dd_mode_remapping[getRemappingType()].length > 0">
+                  <thead>
+                    <tr>
+                      <th scope="col" v-if="getRemappingType() !== REFRESH_RATE_ONLY">
+                        {{ $t('config.dd_mode_remapping_requested_resolution') }}
+                      </th>
+                      <th scope="col" v-if="getRemappingType() !== RESOLUTION_ONLY">
+                        {{ $t('config.dd_mode_remapping_requested_fps') }}
+                      </th>
+                      <th scope="col" v-if="getRemappingType() !== REFRESH_RATE_ONLY">
+                        {{ $t('config.dd_mode_remapping_final_resolution') }}
+                      </th>
+                      <th scope="col" v-if="getRemappingType() !== RESOLUTION_ONLY">
+                        {{ $t('config.dd_mode_remapping_final_refresh_rate') }}
+                      </th>
+                      <!-- Additional columns for buttons-->
+                      <th scope="col"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(value, idx) in config.dd_mode_remapping[getRemappingType()]">
+                      <td v-if="getRemappingType() !== REFRESH_RATE_ONLY">
+                        <input type="text" class="form-control monospace" v-model="value.requested_resolution"
+                               :placeholder="'1920x1080'" />
+                      </td>
+                      <td v-if="getRemappingType() !== RESOLUTION_ONLY">
+                        <input type="text" class="form-control monospace" v-model="value.requested_fps"
+                               :placeholder="'60'" />
+                      </td>
+                      <td v-if="getRemappingType() !== REFRESH_RATE_ONLY">
+                        <input type="text" class="form-control monospace" v-model="value.final_resolution"
+                               :placeholder="'2560x1440'" />
+                      </td>
+                      <td v-if="getRemappingType() !== RESOLUTION_ONLY">
+                        <input type="text" class="form-control monospace" v-model="value.final_refresh_rate"
+                               :placeholder="'119.95'" />
+                      </td>
+                      <td>
+                        <button class="btn btn-danger" @click="config.dd_mode_remapping[getRemappingType()].splice(idx, 1)">
+                          <i class="fas fa-trash"></i>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addRemappingEntry()">
+                  &plus; {{ $t('config.dd_mode_remapping_add') }}
+                </button>
               </div>
             </div>
           </div>

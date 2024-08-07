@@ -188,6 +188,7 @@ namespace display_device {
      * @brief Parse refresh rate value from the string.
      * @param input String to be parsed.
      * @param output Reference to output variable to fill in.
+     * @param allow_decimal_point Specify whether the decimal point is allowed or not.
      * @returns True on successful parsing (empty string allowed), false otherwise.
      *
      * @examples
@@ -203,10 +204,10 @@ namespace display_device {
      * @examples_end
      */
     bool
-    parse_refresh_rate_string(const std::string &input, std::optional<FloatingPoint> &output) {
+    parse_refresh_rate_string(const std::string &input, std::optional<FloatingPoint> &output, const bool allow_decimal_point = true) {
       static const auto is_zero { [](const auto &character) { return character == '0'; } };
       const std::string trimmed_input { boost::algorithm::trim_copy(input) };
-      const std::regex refresh_rate_regex { R"(^(\d+)(?:\.(\d+))?$)" };
+      const std::regex refresh_rate_regex { allow_decimal_point ? R"(^(\d+)(?:\.(\d+))?$)" : R"(^(\d+)$)" };
 
       if (std::smatch match; std::regex_match(trimmed_input, match, refresh_rate_regex)) {
         try {
@@ -217,7 +218,7 @@ namespace display_device {
           }
 
           std::string trimmed_match_2;
-          if (match[2].matched) {
+          if (allow_decimal_point && match[2].matched) {
             trimmed_match_2 = boost::algorithm::trim_right_copy_if(match[2].str(), is_zero);
           }
 
@@ -261,7 +262,7 @@ namespace display_device {
           return true;
         }
 
-        BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << R"(. Must have a pattern of "123" or "123.456"!)";
+        BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << ". Must have a pattern of " << (allow_decimal_point ? R"("123" or "123.456")" : R"("123")") << "!";
       }
 
       return false;
@@ -433,6 +434,198 @@ namespace display_device {
       }
 
       return std::nullopt;
+    }
+
+    /**
+     * @brief Indicates which remapping fields and config structure shall be used.
+     */
+    enum class remapping_type_e {
+      mixed,  ///! Both reseolution and refresh rate may be remapped
+      resolution_only,  ///! Only resolution will be remapped
+      refresh_rate_only  ///! Only refresh rate will be remapped
+    };
+
+    /**
+     * @brief Determine the ramapping type from the user config.
+     * @param video_config User's video related configuration.
+     * @returns Enum value if remapping can be performed, null optional if remapping shall be skipped.
+     */
+    std::optional<remapping_type_e>
+    determine_remapping_type(const config::video_t &video_config) {
+      using dd_t = config::video_t::dd_t;
+      const bool auto_resolution { video_config.dd.resolution_option == dd_t::resolution_option_e::automatic };
+      const bool auto_refresh_rate { video_config.dd.refresh_rate_option == dd_t::refresh_rate_option_e::automatic };
+
+      if (auto_resolution && auto_refresh_rate) {
+        return remapping_type_e::mixed;
+      }
+
+      if (auto_resolution) {
+        return remapping_type_e::resolution_only;
+      }
+
+      if (auto_refresh_rate) {
+        return remapping_type_e::refresh_rate_only;
+      }
+
+      return std::nullopt;
+    }
+
+    /**
+     * @brief Contains remapping data parsed from the string values.
+     */
+    struct parsed_remapping_entry_t {
+      std::optional<Resolution> requested_resolution;
+      std::optional<FloatingPoint> requested_fps;
+      std::optional<Resolution> final_resolution;
+      std::optional<FloatingPoint> final_refresh_rate;
+    };
+
+    /**
+     * @brief Check if resolution is to be mapped based on remmaping type.
+     * @param type Remapping type to check.
+     * @returns True if resolution is to be mapped, false otherwise.
+     */
+    bool
+    is_resolution_mapped(const remapping_type_e type) {
+      return type == remapping_type_e::resolution_only || type == remapping_type_e::mixed;
+    }
+
+    /**
+     * @brief Check if FPS is to be mapped based on remmaping type.
+     * @param type Remapping type to check.
+     * @returns True if FPS is to be mapped, false otherwise.
+     */
+    bool
+    is_fps_mapped(const remapping_type_e type) {
+      return type == remapping_type_e::refresh_rate_only || type == remapping_type_e::mixed;
+    }
+
+    /**
+     * @brief Parse the remapping entry from the config into an internal structure.
+     * @param entry Entry to parse.
+     * @param type Specify which entry fields should be parsed.
+     * @returns Parsed structure or null optional if a necessary field could not be parsed.
+     */
+    std::optional<parsed_remapping_entry_t>
+    parse_remapping_entry(const config::video_t::dd_t::mode_remapping_entry_t &entry, const remapping_type_e type) {
+      parsed_remapping_entry_t result {};
+
+      if (is_resolution_mapped(type)) {
+        if (!parse_resolution_string(entry.requested_resolution, result.requested_resolution) ||
+            !parse_resolution_string(entry.final_resolution, result.final_resolution)) {
+          return std::nullopt;
+        }
+      }
+
+      if (is_fps_mapped(type)) {
+        if (!parse_refresh_rate_string(entry.requested_fps, result.requested_fps, false) ||
+            !parse_refresh_rate_string(entry.final_refresh_rate, result.final_refresh_rate)) {
+          return std::nullopt;
+        }
+      }
+
+      return result;
+    }
+
+    /**
+     * @brief Remap the the requested display mode based on the config.
+     * @param video_config User's video related configuration.
+     * @param session Session information.
+     * @param config A reference to a config object that will be modified on success.
+     * @returns True if the remapping was performed or skipped, false if remapping has failed due to invalid config.
+     *
+     * @examples
+     * const std::shared_ptr<rtsp_stream::launch_session_t> launch_session; // Assuming ptr is properly initialized
+     * const config::video_t &video_config { config::video };
+     *
+     * SingleDisplayConfiguration config;
+     * const bool success = remap_display_mode_if_needed(video_config, *launch_session, config);
+     * @examples_end
+     */
+    bool
+    remap_display_mode_if_needed(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
+      const auto remapping_type { determine_remapping_type(video_config) };
+      if (!remapping_type) {
+        return true;
+      }
+
+      const auto &remapping_list { [&]() {
+        switch (*remapping_type) {
+          case remapping_type_e::resolution_only:
+            return video_config.dd.mode_remapping.resolution_only;
+          case remapping_type_e::refresh_rate_only:
+            return video_config.dd.mode_remapping.refresh_rate_only;
+          case remapping_type_e::mixed:
+          default:
+            return video_config.dd.mode_remapping.mixed;
+        }
+      }() };
+
+      if (remapping_list.empty()) {
+        BOOST_LOG(debug) << "No values are available for display mode remapping.";
+        return true;
+      }
+      BOOST_LOG(debug) << "Trying to remap display modes...";
+
+      const auto entry_to_string { [type = *remapping_type](const config::video_t::dd_t::mode_remapping_entry_t &entry) {
+        const bool mapping_resolution { is_resolution_mapped(type) };
+        const bool mapping_fps { is_fps_mapped(type) };
+
+        // clang-format off
+        return (mapping_resolution ? "  - requested resolution: "s + entry.requested_resolution + "\n" : "") +
+               (mapping_fps ?        "  - requested FPS: "s + entry.requested_fps + "\n" : "") +
+               (mapping_resolution ? "  - final resolution: "s + entry.final_resolution + "\n" : "") +
+               (mapping_fps ?        "  - final refresh rate: "s + entry.final_refresh_rate : "");
+        // clang-format on
+      } };
+
+      for (const auto &entry : remapping_list) {
+        const auto parsed_entry { parse_remapping_entry(entry, *remapping_type) };
+        if (!parsed_entry) {
+          BOOST_LOG(error) << "Failed to parse remapping entry from:\n"
+                           << entry_to_string(entry);
+          return false;
+        }
+
+        if (!parsed_entry->final_resolution && !parsed_entry->final_refresh_rate) {
+          BOOST_LOG(error) << "At least one final value must be set for remapping display modes! Entry:\n"
+                           << entry_to_string(entry);
+          return false;
+        }
+
+        if (!session.enable_sops && (parsed_entry->requested_resolution || parsed_entry->final_resolution)) {
+          BOOST_LOG(warning) << R"(Skipping remapping entry, because the "Optimize game settings" is not set in the client! Entry:\n)"
+                             << entry_to_string(entry);
+          continue;
+        }
+
+        // Note: at this point config should already have parsed resolution set.
+        if (parsed_entry->requested_resolution && parsed_entry->requested_resolution != config.m_resolution) {
+          BOOST_LOG(verbose) << "Skipping remapping because requested resolutions do not match! Entry:\n"
+                             << entry_to_string(entry);
+          continue;
+        }
+
+        // Note: at this point config should already have parsed refresh rate set.
+        if (parsed_entry->requested_fps && parsed_entry->requested_fps != config.m_refresh_rate) {
+          BOOST_LOG(verbose) << "Skipping remapping because requested FPS do not match! Entry:\n"
+                             << entry_to_string(entry);
+          continue;
+        }
+
+        BOOST_LOG(info) << "Remapping requested display mode. Entry:\n"
+                        << entry_to_string(entry);
+        if (parsed_entry->final_resolution) {
+          config.m_resolution = parsed_entry->final_resolution;
+        }
+        if (parsed_entry->final_refresh_rate) {
+          config.m_refresh_rate = parsed_entry->final_refresh_rate;
+        }
+        break;
+      }
+
+      return true;
     }
 
     /**
@@ -622,6 +815,11 @@ namespace display_device {
     }
 
     if (!parse_refresh_rate_option(video_config, session, config)) {
+      // Error already logged
+      return failed_to_parse_tag_t {};
+    }
+
+    if (!remap_display_mode_if_needed(video_config, session, config)) {
       // Error already logged
       return failed_to_parse_tag_t {};
     }

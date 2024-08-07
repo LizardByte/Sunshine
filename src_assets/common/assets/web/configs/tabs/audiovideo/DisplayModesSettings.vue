@@ -6,13 +6,8 @@ import PlatformLayout from '../../../PlatformLayout.vue'
 const props = defineProps([
   'platform',
   'config',
-  'min_fps_factor',
 ])
-
 const config = ref(props.config)
-
-const resIn = ref("")
-const fpsIn = ref("")
 </script>
 
 <template>
