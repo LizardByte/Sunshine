@@ -2,19 +2,20 @@
 
 # Ensure Sunshine can grab images from KMS
 if grep -q "OSTREE" /etc/os-release; then
-  echo "WARNING: Atomic desktop operating system detected. Skipping post-install steps. They may need to be run manually if you run into issues. See RPM install documentation for more info."
-else
-  path_to_setcap=$(which setcap)
-  path_to_sunshine=$(readlink -f $(which sunshine))
-  if [ -x "$path_to_setcap" ] ; then
-    echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
-          $path_to_setcap cap_sys_admin+p $path_to_sunshine
-  fi
+  echo "WARNING: Atomic desktop operating system detected. Skipping post-install steps."
+  exit 0
+fi
 
-  # Trigger udev rule reload for /dev/uinput
-  path_to_udevadm=$(which udevadm)
-  if [ -x "$path_to_udevadm" ] ; then
-    $path_to_udevadm control --reload-rules
-    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
-  fi
+path_to_setcap=$(which setcap)
+path_to_sunshine=$(readlink -f $(which sunshine))
+if [ -x "$path_to_setcap" ] ; then
+  echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
+        $path_to_setcap cap_sys_admin+p $path_to_sunshine
+fi
+
+# Trigger udev rule reload for /dev/uinput
+path_to_udevadm=$(which udevadm)
+if [ -x "$path_to_udevadm" ] ; then
+  $path_to_udevadm control --reload-rules
+  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
 fi
