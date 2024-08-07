@@ -10,25 +10,15 @@ build:
   tools:
     python: "miniconda-latest"
   commands:
-    # because we are overriding the build commands, we need to setup the environment ourselves
-    - cat third-party/doxyconfig/environment.yml
-    - conda env create --quiet --name ${READTHEDOCS_VERSION} --file third-party/doxyconfig/environment.yml
-    - npm install "@fortawesome/fontawesome-free"
-    - mkdir -p ${READTHEDOCS_OUTPUT}html/assets/fontawesome/css
-    - mkdir -p ${READTHEDOCS_OUTPUT}html/assets/fontawesome/js
-    - cp node_modules/@fortawesome/fontawesome-free/css/all.min.css ${READTHEDOCS_OUTPUT}html/assets/fontawesome/css
-    - cp node_modules/@fortawesome/fontawesome-free/js/all.min.js ${READTHEDOCS_OUTPUT}html/assets/fontawesome/js
-    - cp -r node_modules/@fortawesome/fontawesome-free/webfonts ${READTHEDOCS_OUTPUT}html/assets/fontawesome/
     - |
-      wget "https://raw.githubusercontent.com/LizardByte/.github/master/branding/logos/favicon.ico" \
-        -O ${READTHEDOCS_OUTPUT}lizardbyte.ico
-    - |
-      wget "https://raw.githubusercontent.com/LizardByte/.github/master/branding/logos/logo-128x128.png" \
-        -O ${READTHEDOCS_OUTPUT}lizardbyte.png
-    - cp ./third-party/doxyconfig/Doxyfile ./docs/Doxyfile-doxyconfig
-    - cp ./third-party/doxyconfig/header.html ./docs/header-doxyconfig.html
-    - cat ./docs/Doxyfile >> ./docs/Doxyfile-doxyconfig
-    - cd docs && doxygen Doxyfile-doxyconfig
+      if [ -f readthedocs_build.sh ]; then
+        doxyconfig_dir="."
+      else
+        doxyconfig_dir="./third-party/doxyconfig"
+      fi
+      chmod +x "${doxyconfig_dir}/readthedocs_build.sh"
+      export DOXYCONFIG_DIR="${doxyconfig_dir}"
+      "${doxyconfig_dir}/readthedocs_build.sh"
 
 # using conda, we can get newer doxygen and graphviz than ubuntu provide
 # https://github.com/readthedocs/readthedocs.org/issues/8151#issuecomment-890359661
