@@ -1,11 +1,12 @@
 #!/bin/sh
 
-# Ensure Sunshine can grab images from KMS
+# rpm-ostree based images have a read-only system, so the following commands will fail
 if grep -q "OSTREE" /etc/os-release; then
   echo "WARNING: Atomic desktop operating system detected. Skipping post-install steps."
   exit 0
 fi
 
+# Ensure Sunshine can grab images from KMS
 path_to_setcap=$(which setcap)
 path_to_sunshine=$(readlink -f $(which sunshine))
 if [ -x "$path_to_setcap" ] ; then
