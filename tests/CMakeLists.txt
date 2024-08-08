@@ -72,7 +72,7 @@ target_link_options(${PROJECT_NAME} PRIVATE)
 
 if (WIN32)
     # prefer static libraries since we're linking statically
-    # this fixes gtest_main and libcurl linking errors
+    # this fixes gtest_main and libcurl linking errors, when using non MSYS2 version of CMake
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_SEARCH_START_STATIC 1)
 endif ()
 
