@@ -4,10 +4,12 @@
  */
 // standard includes
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 
 // lib includes
 #include <boost/core/null_deleter.hpp>
+#include <boost/format.hpp>
 #include <boost/log/attributes/clock.hpp>
 #include <boost/log/common.hpp>
 #include <boost/log/expressions.hpp>
@@ -67,7 +69,6 @@ namespace logging {
     sink->set_formatter([](const bl::record_view &view, bl::formatting_ostream &os) {
       constexpr const char *message = "Message";
       constexpr const char *severity = "Severity";
-      constexpr int DATE_BUFFER_SIZE = 21 + 2 + 1;  // Full string plus ": \0"
 
       auto log_level = view.attribute_values()[severity].extract<int>().get();
 
@@ -93,11 +94,15 @@ namespace logging {
           break;
       };
 
-      char _date[DATE_BUFFER_SIZE];
-      std::time_t t = std::time(nullptr);
-      strftime(_date, DATE_BUFFER_SIZE, "[%Y:%m:%d:%H:%M:%S]: ", std::localtime(&t));
+      auto now = std::chrono::system_clock::now();
+      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        now - std::chrono::time_point_cast<std::chrono::seconds>(now));
 
-      os << _date << log_type << view.attribute_values()[message].extract<std::string>();
+      auto t = std::chrono::system_clock::to_time_t(now);
+      auto lt = *std::localtime(&t);
+
+      os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
+         << log_type << view.attribute_values()[message].extract<std::string>();
     });
 
     // Flush after each log record to ensure log file contents on disk isn't stale.
