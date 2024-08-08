@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 
 // lib includes
