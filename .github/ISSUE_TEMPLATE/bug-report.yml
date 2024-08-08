@@ -122,6 +122,7 @@ body:
       description: The type of the installed graphics card.
       options:
         - AMD
+        - Apple Silicon
         - Intel
         - Nvidia
         - none (software encoding)
