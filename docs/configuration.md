@@ -931,7 +931,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
               }
             ]
             @endcode
-            You need to use the ``device_id`` value.
+            You need to use the `device_id` value.
             }
         </td>
     </tr>
@@ -954,7 +954,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
-            output_name  = {daeac860-f4db-5208-b1f5-cf59444fb768}
+            output_name = {daeac860-f4db-5208-b1f5-cf59444fb768}
             @endcode</td>
     </tr>
 </table>
