@@ -590,6 +590,39 @@ jobs:
           tag: ${{ needs.setup_release.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}
 
+      - name: Patch homebrew formula
+        # create beta version of the formula
+        # don't run this on macOS, as the sed command fails
+        if: >-
+          matrix.release
+        run: |
+          # variables
+          formula_file="homebrew/sunshine-beta.rb"
+
+          # rename the file
+          mv homebrew/sunshine.rb $formula_file
+
+          # update the formula
+          sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
+          sed -i 's/# conflicts_with/conflicts_with/' $formula_file
+
+          # print new file
+          echo "New formula:"
+          cat $formula_file
+
+      - name: Upload Homebrew Beta Formula
+        if: >-
+          matrix.release &&
+          needs.setup_release.outputs.publish_release == 'true'
+        uses: LizardByte/homebrew-release-action@v2024.612.21058
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: false
+
   build_mac_port:
     needs: [setup_release]
     strategy:

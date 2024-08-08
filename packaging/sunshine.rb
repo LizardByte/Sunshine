@@ -1,6 +1,7 @@
 require "language/node"
 
 class @PROJECT_NAME@ < Formula
+  # conflicts_with "sunshine", because: "sunshine and sunshine-beta cannot be installed at the same time"
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
   url "@GITHUB_CLONE_URL@",
