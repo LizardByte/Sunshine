@@ -81,9 +81,13 @@ namespace platf {
       channel = position_mapping[*mapping++];
     });
 
-    pa_buffer_attr pa_attr = {};
-    pa_attr.fragsize = frame_size * channels * sizeof(float);
-    pa_attr.maxlength = pa_attr.fragsize * 2;
+    pa_buffer_attr pa_attr = {
+      .maxlength = uint32_t(-1),
+      .tlength = uint32_t(-1),
+      .prebuf = uint32_t(-1),
+      .minreq = uint32_t(-1),
+      .fragsize = uint32_t(frame_size * channels * sizeof(float))
+    };
 
     int status;
 
