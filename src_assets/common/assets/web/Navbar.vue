@@ -81,25 +81,12 @@ export default {
     if (!this.isLoggedIn) {
       return
     }
-    // Discord Widget
-    /*let el = document.querySelector("a[href='" + document.location.pathname + "']");
-    if (el) el.classList.add("active")
-    let discordWidget = document.createElement('script')
-    discordWidget.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
-    document.head.appendChild(discordWidget)
-     */
     this.setupDiscordWidget()
 
-    // User Session
-    /*window.addEventListener("sunshine:session_expire", () => {
-      this.modal.toggle();
-    })
-    this.modal = new Modal(document.getElementById('loginModal'), {});
-     */
-    this.setupSession()
+    this.setupUserSession()
   },
   methods: {
-    setupSession() {
+    setupUserSession() {
       // TODO: Migrate this to a Pinia state?
       window.addEventListener("sunshine:session_expire", () => {
         this.modal.toggle();
