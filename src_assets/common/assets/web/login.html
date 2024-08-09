@@ -44,12 +44,23 @@
           let newPath = '/';
           if (searchParams.has('redirect')) {
               const redirect = searchParams.get('redirect');
-              if (redirect.startsWith('/')) {
-                  newPath = redirect;
-              } else {
-                  newPath = newPath + redirect;
+              const encodePath = (path) => {
+                  return path.split('').map(char => {
+                      if (char === '/') return char; // Keep '/' unencoded
+                      return encodeURIComponent(char);
+                  }).join('');
+              };
+
+              try {
+                  const redirectUrl = new URL(redirect);
+                  newPath = redirectUrl.pathname;
+              } catch (error) {
+                  if (redirect.startsWith('/')) {
+                      newPath = encodePath(redirect);
+                  }
               }
           }
+
           document.location.href = newPath;
       }
     }
