@@ -262,6 +262,8 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
+@tip{For beta you can replace `sunshine` with `sunshine-beta` in the above commands.}
+
 #### Portfile
 This package requires that you have [MacPorts](https://www.macports.org/install.php) installed.
 
