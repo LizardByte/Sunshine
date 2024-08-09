@@ -32,7 +32,7 @@
             <ThemeToggle/>
           </li>
         </ul>
-        <ul  class="navbar-nav mb-2 mb-lg-0">
+        <ul  class="navbar-nav mb-2 mb-lg-0" v-if="isLoggedIn">
           <li class="nav-item">
             <a class="nav-link" href="#" @click="logout"><i class="fas fa-fw fa-right-from-bracket"></i> Logout</a>
           </li>
@@ -65,6 +65,12 @@ export default {
     ThemeToggle,
     LoginForm
   },
+  props: {
+    isLoggedIn: {
+      type: Boolean,
+      default: true
+    }
+  },
   data() {
     modal: null
   },
@@ -72,6 +78,9 @@ export default {
     console.log("Header mounted!")
   },
   mounted() {
+    if (!this.isLoggedIn) {
+      return
+    }
     // Discord Widget
     /*let el = document.querySelector("a[href='" + document.location.pathname + "']");
     if (el) el.classList.add("active")
@@ -104,7 +113,7 @@ export default {
       discordWidget.setAttribute('src', 'https://app.lizardbyte.dev/js/discord.js')
       document.head.appendChild(discordWidget)
     },
-    onLogin(){
+    onLogin() {
       this.modal.toggle();
     },
     logout() {
