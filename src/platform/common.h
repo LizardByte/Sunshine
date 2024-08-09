@@ -209,6 +209,9 @@ namespace platf {
     yuv420p10,  ///< YUV 4:2:0 10-bit
     nv12,  ///< NV12
     p010,  ///< P010
+    ayuv,  ///< AYUV
+    yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
+    y410,  ///< Y410
     unknown  ///< Unknown
   };
 
@@ -223,6 +226,9 @@ namespace platf {
       _CONVERT(yuv420p10);
       _CONVERT(nv12);
       _CONVERT(p010);
+      _CONVERT(ayuv);
+      _CONVERT(yuv444p16);
+      _CONVERT(y410);
       _CONVERT(unknown);
     }
 #undef _CONVERT
@@ -477,13 +483,25 @@ namespace platf {
     virtual int
     dummy_img(img_t *img) = 0;
 
+    /**
+     * @brief Create AVCodec encode device.
+     * @param pix_fmt_e Surface format of the encoder.
+     * @param yuv444in420 Whether YUV 4:4:4 recombination into YUV 4:2:0 must be performed.
+     * @return `unique_ptr` with `avcodec_encode_device_t` implementation on success, `nullptr` on failure.
+     */
     virtual std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
       return nullptr;
     }
 
+    /**
+     * @brief Create NVENC encode device.
+     * @param pix_fmt_e Surface format of the encoder.
+     * @param yuv444in420 Whether YUV 4:4:4 recombination into YUV 4:2:0 must be performed.
+     * @return `unique_ptr` with `nvenc_encode_device_t` implementation on success, `nullptr` on failure.
+     */
     virtual std::unique_ptr<nvenc_encode_device_t>
-    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+    make_nvenc_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
       return nullptr;
     }
 
@@ -507,6 +525,15 @@ namespace platf {
     virtual bool
     is_codec_supported(std::string_view name, const ::video::config_t &config) {
       return true;
+    }
+
+    /**
+     * @brief Check if YUV 4:4:4 recombination into YUV 4:2:0 is supported by the display device.
+     * @return `true` if supported, `false` otherwise.
+     */
+    virtual bool
+    is_yuv444in420_supported() {
+      return false;
     }
 
     virtual ~display_t() = default;

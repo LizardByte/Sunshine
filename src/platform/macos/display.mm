@@ -79,7 +79,12 @@ namespace platf {
     }
 
     std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+    make_avcodec_encode_device(pix_fmt_e pix_fmt, bool yuv444in420) {
+      if (yuv444in420) {
+        BOOST_LOG(error) << "Recombined YUV 4:4:4 is not supported";
+        return nullptr;
+      }
+
       if (pix_fmt == pix_fmt_e::yuv420p) {
         av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
 
