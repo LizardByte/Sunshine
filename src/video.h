@@ -39,6 +39,7 @@ namespace video {
     virtual ~encoder_platform_formats_t() = default;
     platf::mem_type_e dev_type;
     platf::pix_fmt_e pix_fmt_8bit, pix_fmt_10bit;
+    platf::pix_fmt_e pix_fmt_yuv444_8bit, pix_fmt_yuv444_10bit;
   };
 
   struct encoder_platform_formats_avcodec: encoder_platform_formats_t {
@@ -50,21 +51,28 @@ namespace video {
       const AVPixelFormat &avcodec_dev_pix_fmt,
       const AVPixelFormat &avcodec_pix_fmt_8bit,
       const AVPixelFormat &avcodec_pix_fmt_10bit,
+      const AVPixelFormat &avcodec_pix_fmt_yuv444_8bit,
+      const AVPixelFormat &avcodec_pix_fmt_yuv444_10bit,
       const init_buffer_function_t &init_avcodec_hardware_input_buffer_function):
         avcodec_base_dev_type { avcodec_base_dev_type },
         avcodec_derived_dev_type { avcodec_derived_dev_type },
         avcodec_dev_pix_fmt { avcodec_dev_pix_fmt },
         avcodec_pix_fmt_8bit { avcodec_pix_fmt_8bit },
         avcodec_pix_fmt_10bit { avcodec_pix_fmt_10bit },
+        avcodec_pix_fmt_yuv444_8bit { avcodec_pix_fmt_yuv444_8bit },
+        avcodec_pix_fmt_yuv444_10bit { avcodec_pix_fmt_yuv444_10bit },
         init_avcodec_hardware_input_buffer { init_avcodec_hardware_input_buffer_function } {
       dev_type = map_base_dev_type(avcodec_base_dev_type);
       pix_fmt_8bit = map_pix_fmt(avcodec_pix_fmt_8bit);
       pix_fmt_10bit = map_pix_fmt(avcodec_pix_fmt_10bit);
+      pix_fmt_yuv444_8bit = map_pix_fmt(avcodec_pix_fmt_yuv444_8bit);
+      pix_fmt_yuv444_10bit = map_pix_fmt(avcodec_pix_fmt_yuv444_10bit);
     }
 
     AVHWDeviceType avcodec_base_dev_type, avcodec_derived_dev_type;
     AVPixelFormat avcodec_dev_pix_fmt;
     AVPixelFormat avcodec_pix_fmt_8bit, avcodec_pix_fmt_10bit;
+    AVPixelFormat avcodec_pix_fmt_yuv444_8bit, avcodec_pix_fmt_yuv444_10bit;
 
     init_buffer_function_t init_avcodec_hardware_input_buffer;
   };
@@ -73,10 +81,14 @@ namespace video {
     encoder_platform_formats_nvenc(
       const platf::mem_type_e &dev_type,
       const platf::pix_fmt_e &pix_fmt_8bit,
-      const platf::pix_fmt_e &pix_fmt_10bit) {
+      const platf::pix_fmt_e &pix_fmt_10bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_8bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_10bit) {
       encoder_platform_formats_t::dev_type = dev_type;
       encoder_platform_formats_t::pix_fmt_8bit = pix_fmt_8bit;
       encoder_platform_formats_t::pix_fmt_10bit = pix_fmt_10bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_8bit = pix_fmt_yuv444_8bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_10bit = pix_fmt_yuv444_10bit;
     }
   };
 
@@ -87,6 +99,7 @@ namespace video {
       REF_FRAMES_RESTRICT,  ///< Set maximum reference frames.
       CBR,  ///< Some encoders don't support CBR, if not supported attempt constant quantization parameter instead.
       DYNAMIC_RANGE,  ///< HDR support.
+      YUV444,  ///< YUV 4:4:4 support.
       VUI_PARAMETERS,  ///< AMD encoder with VAAPI doesn't add VUI parameters to SPS.
       MAX_FLAGS  ///< Maximum number of flags.
     };
@@ -101,6 +114,7 @@ namespace video {
         _CONVERT(REF_FRAMES_RESTRICT);
         _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
+        _CONVERT(YUV444);
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }
@@ -126,6 +140,8 @@ namespace video {
       std::vector<option_t> common_options;
       std::vector<option_t> sdr_options;
       std::vector<option_t> hdr_options;
+      std::vector<option_t> sdr444_options;
+      std::vector<option_t> hdr444_options;
       std::vector<option_t> fallback_options;
 
       // QP option to set in the case that CBR/VBR is not supported
@@ -312,11 +328,14 @@ namespace video {
     /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
     int dynamicRange;
+
+    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
   };
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
+  extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
   void
   capture(
