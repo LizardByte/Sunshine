@@ -120,8 +120,8 @@ namespace confighttp {
         send_unauthorized(response, request);
       }
       // Redirect to login, but only once
-      else if (request->path.compare("/login") != 0) {
-        send_redirect(response, request, "/login");
+      else if (!request->path.starts_with("/login")) {
+        send_redirect(response, request, ("/login?redirect=" + request->path).c_str());
       }
     });
 

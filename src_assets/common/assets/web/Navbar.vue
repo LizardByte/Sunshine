@@ -22,7 +22,7 @@
           <li class="nav-item">
             <a class="nav-link" href="/config"><i class="fas fa-fw fa-cog"></i> {{ $t('navbar.configuration') }}</a>
           </li>
-          <li class="nav-item">
+          <li class="nav-item" v-if="isLoggedIn">
             <a class="nav-link" href="/password"><i class="fas fa-fw fa-user-shield"></i> {{ $t('navbar.password') }}</a>
           </li>
           <li class="nav-item">
@@ -41,7 +41,7 @@
     </div>
   </nav>
     <!-- Modal that is shown when the user gets a 401 error -->
-    <div class="modal fade" id="loginModal" tabindex="-1">
+    <div class="modal fade" id="loginModal" tabindex="-1" v-if="isLoggedIn">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">

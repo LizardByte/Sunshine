@@ -40,7 +40,17 @@
     },
     methods: {
       onLogin() {
-        document.location.href = '/';
+          const searchParams = new URLSearchParams(window.location.search);
+          let newPath = '/';
+          if (searchParams.has('redirect')) {
+              const redirect = searchParams.get('redirect');
+              if (redirect.startsWith('/')) {
+                  newPath = redirect;
+              } else {
+                  newPath = newPath + redirect;
+              }
+          }
+          document.location.href = newPath;
       }
     }
   });
