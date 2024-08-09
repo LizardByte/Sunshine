@@ -55,7 +55,7 @@ jobs:
 
       - name: Clang format lint
         if: ${{ steps.find_files.outputs.found_files }}
-        uses: DoozyX/clang-format-lint-action@v0.17
+        uses: DoozyX/clang-format-lint-action@v0.18
         with:
           source: ${{ steps.find_files.outputs.found_files }}
           extensions: 'cpp,h,m,mm'
