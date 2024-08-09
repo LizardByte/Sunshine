@@ -38,7 +38,8 @@ namespace display_device {
       return std::make_unique<SettingsManager>(
         std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>()),
         nullptr,
-        std::make_unique<PersistentState>(nullptr));
+        std::make_unique<PersistentState>(nullptr),
+        WinWorkarounds {});
 #else
       return nullptr;
 #endif
