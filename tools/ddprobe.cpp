@@ -69,12 +69,11 @@ syncThreadDesktop() {
   CloseDesktop(hDesk);
 }
 
-
 /**
  * @brief Determines whether a given frame is entirely black by checking every pixel.
- * 
+ *
  * This function checks if the provided frame is entirely black by inspecting each pixel in both the x and y dimensions. It inspects the RGB channels of each pixel and compares them against a specified black threshold. If any pixel's RGB values exceed this threshold, the frame is considered not black, and the function returns `false`. Otherwise, if all pixels are below the threshold, the function returns `true`.
- * 
+ *
  * @param mappedResource A reference to a `D3D11_MAPPED_SUBRESOURCE` structure that contains the mapped subresource data of the frame to be analyzed.
  * @param frameDesc A reference to a `D3D11_TEXTURE2D_DESC` structure that describes the texture properties, including width and height.
  * @param blackThreshold A floating-point value representing the threshold above which a pixel's RGB channels are considered non-black. The value ranges from 0.0f to 1.0f, with a default value of 0.1f.
@@ -103,7 +102,6 @@ isFrameBlack(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE
   }
   return true;
 }
-
 
 /**
  * @brief Attempts to capture and verify the contents of up to 10 consecutive frames from a DXGI output duplication.
