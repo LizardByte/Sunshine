@@ -89,6 +89,8 @@ const config = ref(props.config)
     <DisplayModesSettings
         :platform="platform"
         :config="config"
+        :resolutions="resolutions"
+        :fps="fps"
         :min_fps_factor="min_fps_factor"
     />
 

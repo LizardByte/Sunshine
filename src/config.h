@@ -131,6 +131,8 @@ namespace config {
     std::string file_state;
 
     std::string external_ip;
+    std::vector<std::string> resolutions;
+    std::vector<int> fps;
   };
 
   struct input_t {

@@ -181,6 +181,7 @@
     "file_apps_desc": "The file where current apps of Sunshine are stored.",
     "file_state": "State File",
     "file_state_desc": "The file where current state of Sunshine is stored",
+    "fps": "Advertised FPS",
     "gamepad": "Emulated Gamepad Type",
     "gamepad_auto": "Automatic selection options",
     "gamepad_desc": "Choose which type of gamepad to emulate on the host",
