@@ -14,14 +14,26 @@ const config = ref(props.config)
 <template>
   <div class="mb-3" v-if="platform !== 'macos'">
     <label for="adapter_name" class="form-label">{{ $t('config.adapter_name') }}</label>
-    <input type="text" class="form-control" id="adapter_name"
+    <PlatformLayout :platform="platform">
+      <template #windows>
+        <select id="adapter_name" class="form-select" v-model="config.adapter_name">
+          <option value="">{{ $t("_common.autodetect") }}</option>
+          <option v-for="(adapter, index) in config.adapters" :value="adapter.name" :key="index">
+            {{ adapter.name }}
+          </option>
+        </select>
+      </template>
+      <template #linux>
+        <input type="text" class="form-control" id="adapter_name"
            :placeholder="$tp('config.adapter_name_placeholder', '/dev/dri/renderD128')"
            v-model="config.adapter_name" />
+      </template>
+    </PlatformLayout>
     <div class="form-text">
       <PlatformLayout :platform="platform">
         <template #windows>
-          {{ $t('config.adapter_name_desc_win') }}<br>
-          <pre>tools\dxgi-info.exe</pre>
+          {{ $t('config.adapter_name_desc_windows') }}<br>
+          <pre>如有安装最新版IDD虚拟显示器，可自动关联IDD的GPU指定</pre>
         </template>
         <template #linux>
           {{ $t('config.adapter_name_desc_linux_1') }}<br>

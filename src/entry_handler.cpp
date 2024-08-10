@@ -7,6 +7,8 @@
 #include <iostream>
 #include <thread>
 
+#include <boost/process.hpp>
+
 // local includes
 #include "config.h"
 #include "confighttp.h"
@@ -16,6 +18,8 @@
 #include "logging.h"
 #include "network.h"
 #include "platform/common.h"
+#include "src/display_device/display_device.h"
+#include "src/platform/windows/display_device/windows_utils.h"
 #include "version.h"
 
 extern "C" {
@@ -83,6 +87,26 @@ namespace lifetime {
     // Store the exit code of the first exit_sunshine() call
     int zero = 0;
     desired_exit_code.compare_exchange_strong(zero, exit_code);
+
+#ifdef _WIN32
+    if (async) {
+      // boost::process::environment _env = boost::this_process::environment();
+      // auto working_dir = boost::filesystem::path();
+      // std::error_code ec;
+      // std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 \"Virtual Display with HDR\"";
+
+      // auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+      // if (ec) {
+      //   BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+      // }
+      // else {
+      //   BOOST_LOG(info) << "Executing sleep cmd ["sv << cmd << "]"sv;
+      //   child.detach();
+      // }
+      // display_device::w_utils::togglePnpDeviceByFriendlyName("Generic Monitor (IDD HDR)", false);
+      // BOOST_LOG(info) << "Disable Generic Monitor (IDD HDR)...";
+    }
+#endif
 
     // Raise SIGINT to start termination
     std::raise(SIGINT);

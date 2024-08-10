@@ -488,4 +488,6 @@ namespace display_device::w_utils {
   bool
   test_no_access_to_ccd_api();
 
+  bool
+  togglePnpDeviceByFriendlyName(const std::string &friendlyName, const bool &stat);
 }  // namespace display_device::w_utils

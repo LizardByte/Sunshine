@@ -980,6 +980,14 @@ namespace config {
   }
 
   void
+  sync_idd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+    std::string idd_adapter_path = "c:\\IddSampleDriver\\adapter.txt";  // "C:\IddSampleDriver\adapter.txt"
+    if (fs::exists(idd_adapter_path) && !input.empty()) {
+      file_handler::write_file(idd_adapter_path.c_str(), input.c_str());
+    }
+  }
+
+  void
   apply_config(std::unordered_map<std::string, std::string> &&vars) {
     if (!fs::exists(stream.file_apps.c_str())) {
       fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
@@ -1059,6 +1067,7 @@ namespace config {
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
+    sync_idd_f(vars, "adapter_name", video.adapter_name);
 
     string_f(vars, "output_name", video.output_name);
     int_f(vars, "display_device_prep", video.display_device_prep, display_device::parsed_config_t::device_prep_from_view);

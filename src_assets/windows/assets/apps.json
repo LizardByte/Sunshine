@@ -3,7 +3,32 @@
   "apps": [
     {
       "name": "Desktop",
-      "image-path": "desktop.png"
+      "image-path": "desktop.png",
+      "exclude-global-prep-cmd": "false",
+      "elevated": "",
+      "auto-detach": "true",
+      "wait-all": "true",
+      "exit-timeout": "5",
+      "menu-cmd": [
+        {
+          "id": "kcENAT5r9P",
+          "name": "打开触摸键盘",
+          "cmd": "C:\\Program Files\\Sunshine\\tools\\qiin-tabtip.exe",
+          "elevated": "false"
+        },
+        {
+          "id": "rjeOKHmcdL",
+          "name": "DPI 250",
+          "cmd": "C:\\Program Files\\Sunshine\\tools\\SetDpi.exe 250",
+          "elevated": "false"
+        },
+        {
+          "id": "C_vunhdQwA",
+          "name": "DPI 100",
+          "cmd": "C:\\Program Files\\Sunshine\\tools\\SetDpi.exe 100",
+          "elevated": "false"
+        }
+      ]
     },
     {
       "name": "Steam Big Picture",
@@ -11,6 +36,15 @@
       "auto-detach": "true",
       "wait-all": "true",
       "image-path": "steam.png"
+    },
+    {
+      "name": "禁用虚拟显示器",
+      "cmd": "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 \"Virtual Display with HDR\"",
+      "elevated": "true"
+    },
+    {
+      "name": "安全模式重启Sunshine",
+      "cmd": "C:\\Program Files\\Sunshine\\Sunshine.exe -1"
     }
   ]
 }

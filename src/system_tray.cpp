@@ -91,7 +91,7 @@ namespace system_tray {
     int msgboxID = MessageBoxW(
       NULL,
       L"你不能退出!\n那么想退吗? 真拿你没办法呢, 继续点一下吧~",
-      L"退你妹",
+      L"真的要退出吗",
       MB_ICONWARNING | MB_OKCANCEL);
 
     if (msgboxID == IDOK) {

@@ -651,4 +651,50 @@ namespace display_device::w_utils {
     return result == ERROR_ACCESS_DENIED;
   }
 
+  bool
+  togglePnpDeviceByFriendlyName(const std::string &friendlyName, const bool &stat) {
+    HDEVINFO deviceInfoSet = SetupDiGetClassDevs(NULL, NULL, NULL, DIGCF_PRESENT | DIGCF_ALLCLASSES);
+    if (deviceInfoSet == INVALID_HANDLE_VALUE) {
+      std::cerr << "Failed to get device information set." << std::endl;
+      return false;
+    }
+
+    SP_DEVINFO_DATA deviceInfoData;
+    deviceInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+    bool deviceFound = false;
+    for (DWORD i = 0; SetupDiEnumDeviceInfo(deviceInfoSet, i, &deviceInfoData); ++i) {
+      TCHAR deviceFriendlyName[256];
+      if (SetupDiGetDeviceRegistryProperty(deviceInfoSet, &deviceInfoData, SPDRP_FRIENDLYNAME, NULL, (PBYTE) deviceFriendlyName, sizeof(deviceFriendlyName), NULL)) {
+        if (friendlyName == deviceFriendlyName) {
+          deviceFound = true;
+          break;
+        }
+      }
+    }
+
+    if (!deviceFound) {
+      std::cerr << "Device not found." << std::endl;
+      SetupDiDestroyDeviceInfoList(deviceInfoSet);
+      return false;
+    }
+
+    SP_PROPCHANGE_PARAMS propChangeParams;
+    propChangeParams.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
+    propChangeParams.ClassInstallHeader.InstallFunction = DIF_PROPERTYCHANGE;
+    propChangeParams.StateChange = stat ? DICS_ENABLE : DICS_DISABLE;
+    propChangeParams.Scope = DICS_FLAG_GLOBAL;
+    propChangeParams.HwProfile = 0;
+
+    if (!SetupDiSetClassInstallParams(deviceInfoSet, &deviceInfoData, &propChangeParams.ClassInstallHeader, sizeof(propChangeParams)) ||
+        !SetupDiCallClassInstaller(DIF_PROPERTYCHANGE, deviceInfoSet, &deviceInfoData)) {
+      std::cerr << "Failed to toggle device." << std::endl;
+      SetupDiDestroyDeviceInfoList(deviceInfoSet);
+      return false;
+    }
+
+    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+    return true;
+  }
+
 }  // namespace display_device::w_utils

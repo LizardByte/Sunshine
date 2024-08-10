@@ -1,9 +1,11 @@
 // standard includes
 #include <thread>
+#include <boost/process.hpp>
 
 // local includes
 #include "session.h"
 #include "src/platform/common.h"
+#include "src/platform/windows/display_device/windows_utils.h"
 #include "to_string.h"
 
 namespace display_device {
@@ -204,6 +206,21 @@ namespace display_device {
     }
     else {
       if (settings.is_changing_settings_going_to_fail()) {
+        // display_device::w_utils::togglePnpDeviceByFriendlyName("Virtual Display with HDR", false);
+        // BOOST_LOG(info) << "Disable IDD...";
+        boost::process::environment _env = boost::this_process::environment();
+        auto working_dir = boost::filesystem::path();
+        std::error_code ec;
+        std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Virtual Display with HDR\"";
+
+        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+        if (ec) {
+          BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+        }
+        else {
+          BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
+          child.detach();
+        }
         BOOST_LOG(warning) << "Reverting display settings will fail - retrying later...";
       }
 
@@ -213,6 +230,23 @@ namespace display_device {
           return false;
         }
 
+        boost::process::environment _env = boost::this_process::environment();
+        auto working_dir = boost::filesystem::path();
+        std::error_code ec;
+        std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 1 2 \"Virtual Display with HDR\"";
+
+        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+        if (ec) {
+          BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+        }
+        else {
+          BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
+          child.detach();
+        }
+
+        // display_device::w_utils::togglePnpDeviceByFriendlyName("Generic Monitor (IDD HDR)", true);
+        // BOOST_LOG(info) << "Enable IDD...";
+        Sleep(1000);
         return settings.revert_settings();
       });
     }

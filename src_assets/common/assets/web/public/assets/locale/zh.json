@@ -84,7 +84,7 @@
     "adapter_name_desc_linux_1": "手动指定用于捕获的 GPU。",
     "adapter_name_desc_linux_2": "找到所有能够使用 VAAPI 的设备",
     "adapter_name_desc_linux_3": "用上面的设备替换``renderD129``，列出设备的名称和功能。要获得 Sunshine 的支持，设备至少需要具备以下功能：",
-    "adapter_name_desc_windows": "手动指定用于捕获的 GPU 。如果未设置，GPU 将被自动选择。 我们强烈建议将此字段留空以使用自动的 GPU 选择！注意：此GPU 必须连接并开启显示器。 可以使用以下命令找到适当的值：",
+    "adapter_name_desc_windows": "手动指定用于捕获的 GPU 。如果未设置，GPU 将被自动选择。 我们强烈建议将此字段留空以使用自动的 GPU 选择！注意：此GPU 必须连接并开启显示器。",
     "adapter_name_placeholder_windows": "Radeon RX 580系列",
     "add": "添加",
     "address_family": "IP 地址族",

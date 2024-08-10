@@ -550,7 +550,6 @@ namespace confighttp {
     });
 
     auto devices { display_device::enum_available_devices() };
-
     pt::ptree devices_nodes;
     for (const auto &[device_id, data] : devices) {
       pt::ptree devices_node;
@@ -559,7 +558,16 @@ namespace confighttp {
       devices_nodes.push_back(std::make_pair(""s, devices_node));
     }
 
+    auto adapters { platf::adapter_names() };
+    pt::ptree adapters_nodes;
+    for (const auto &adapter_name : adapters) {
+      pt::ptree adapters_node;
+      adapters_node.put("name"s, adapter_name);
+      adapters_nodes.push_back(std::make_pair(""s, adapters_node));
+    }
+
     outputTree.add_child("display_devices", devices_nodes);
+    outputTree.add_child("adapters", adapters_nodes);
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);

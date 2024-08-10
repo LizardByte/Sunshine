@@ -1146,6 +1146,33 @@ namespace platf {
     return display_names;
   }
 
+
+  std::vector<std::string>
+  adapter_names() {
+    std::vector<std::string> adapter_names;
+
+    HRESULT status;
+
+    dxgi::factory1_t factory;
+    status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory);
+    if (FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']';
+      return {};
+    }
+
+    dxgi::adapter_t adapter;
+    for (int x = 0; factory->EnumAdapters1(x, &adapter) != DXGI_ERROR_NOT_FOUND; ++x) {
+      DXGI_ADAPTER_DESC1 adapter_desc;
+      adapter->GetDesc1(&adapter_desc);
+
+      auto adapter_name = to_utf8(adapter_desc.Description);
+      adapter_names.emplace_back(std::move(adapter_name));
+    }
+
+    return adapter_names;
+  }
+
+
   /**
    * @brief Returns if GPUs/drivers have changed since the last call to this function.
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.

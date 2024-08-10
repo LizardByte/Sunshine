@@ -37,6 +37,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vdd/"
         DESTINATION "scripts"
         COMPONENT vdd)
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd/"
+        DESTINATION "tools"
+        COMPONENT superCmds)
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
