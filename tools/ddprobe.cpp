@@ -71,9 +71,9 @@ syncThreadDesktop() {
 
 
 /**
- * @brief Determines whether a given frame is entirely black by sampling pixels.
+ * @brief Determines whether a given frame is entirely black by checking every pixel.
  * 
- * This function checks if the provided frame is predominantly black by sampling every 10th pixel in both the x and y dimensions. It inspects the RGB channels of each sampled pixel and compares them against a specified black threshold. If any sampled pixel's RGB values exceed this threshold, the frame is considered not black, and the function returns `false`. Otherwise, if all sampled pixels are below the threshold, the function returns `true`.
+ * This function checks if the provided frame is entirely black by inspecting each pixel in both the x and y dimensions. It inspects the RGB channels of each pixel and compares them against a specified black threshold. If any pixel's RGB values exceed this threshold, the frame is considered not black, and the function returns `false`. Otherwise, if all pixels are below the threshold, the function returns `true`.
  * 
  * @param mappedResource A reference to a `D3D11_MAPPED_SUBRESOURCE` structure that contains the mapped subresource data of the frame to be analyzed.
  * @param frameDesc A reference to a `D3D11_TEXTURE2D_DESC` structure that describes the texture properties, including width and height.
@@ -88,12 +88,12 @@ isFrameBlack(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE
   const int width = frameDesc.Width;
   const int height = frameDesc.Height;
 
-  // Sample every 10th pixel in both dimensions
-  const int sampleStep = 10;
+  // Convert the threshold to an integer value for comparison
   const int threshold = static_cast<int>(blackThreshold * 255);
 
-  for (int y = 0; y < height; y += sampleStep) {
-    for (int x = 0; x < width; x += sampleStep) {
+  // Loop through every pixel
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
       const uint8_t *pixel = pixels + y * stride + x * bytesPerPixel;
       // Check if any channel (R, G, B) is significantly above black
       if (pixel[0] > threshold || pixel[1] > threshold || pixel[2] > threshold) {
@@ -103,6 +103,7 @@ isFrameBlack(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE
   }
   return true;
 }
+
 
 /**
  * @brief Attempts to capture and verify the contents of up to 10 consecutive frames from a DXGI output duplication.
