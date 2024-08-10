@@ -1016,7 +1016,7 @@ namespace config {
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
-    int_between_f(vars, "min_fps_factor", video.min_fps_factor, { 1, 3 });
+    int_between_f(vars, "min_fps_factor", video.min_fps_factor, { 1, 300000 });
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
