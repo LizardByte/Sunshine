@@ -4,6 +4,7 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMI
         # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
         MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
         set(PROJECT_VERSION $ENV{BUILD_VERSION})
+        set(CMAKE_PROJECT_VERSION ${PROJECT_VERSION})  # cpack will use this to set the binary versions
     elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
         # If BRANCH is set but not BUILD_VERSION we are building a PR, we gather only the commit hash
         MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")

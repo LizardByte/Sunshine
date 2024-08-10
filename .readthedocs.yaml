@@ -3,41 +3,28 @@
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
-# Required
 version: 2
 
-# Set the version of Python
 build:
   os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
-  apt_packages:
-    - libboost-locale-dev  # required for rstcheck in cpp code block
-  jobs:
-    post_build:
-      - find ./third-party -iname "*.rst" -type f -delete  # find and delete rst files in third-party
-      - rstcheck -r .  # lint rst files
-      # - rstfmt --check --diff -w 120 .  # check rst formatting
+  commands:
+    - |
+      if [ -f readthedocs_build.sh ]; then
+        doxyconfig_dir="."
+      else
+        doxyconfig_dir="./third-party/doxyconfig"
+      fi
+      chmod +x "${doxyconfig_dir}/readthedocs_build.sh"
+      export DOXYCONFIG_DIR="${doxyconfig_dir}"
+      "${doxyconfig_dir}/readthedocs_build.sh"
 
 # using conda, we can get newer doxygen and graphviz than ubuntu provide
 # https://github.com/readthedocs/readthedocs.org/issues/8151#issuecomment-890359661
 conda:
-  environment: docs/environment.yml
+  environment: third-party/doxyconfig/environment.yml
 
-# submodules required for include statements
 submodules:
   include: all
   recursive: true
-
-# Build documentation in the docs/ directory with Sphinx
-sphinx:
-  builder: html
-  configuration: docs/source/conf.py
-  fail_on_warning: true
-
-# Using Sphinx, build docs in additional formats
-formats: all
-
-python:
-  install:
-    - requirements: ./docs/requirements.txt

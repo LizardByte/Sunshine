@@ -569,6 +569,8 @@ namespace platf::dxgi {
             // Ensure offset starts at 0x0
             offset_x -= GetSystemMetrics(SM_XVIRTUALSCREEN);
             offset_y -= GetSystemMetrics(SM_YVIRTUALSCREEN);
+
+            break;
           }
         }
 

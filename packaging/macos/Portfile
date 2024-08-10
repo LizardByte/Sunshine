@@ -34,9 +34,7 @@ post-fetch {
 depends_build-append     port:doxygen \
                          port:graphviz \
                          port:npm9 \
-                         port:pkgconfig \
-                         port:python311 \
-                         port:py311-pip
+                         port:pkgconfig
 
 depends_lib              port:curl \
                          port:libopus \

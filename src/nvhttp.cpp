@@ -734,31 +734,6 @@ namespace nvhttp {
     }
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
-    pt::ptree display_nodes;
-    for (auto &resolution : config::nvhttp.resolutions) {
-      auto pred = [](auto ch) { return ch == ' ' || ch == '\t' || ch == 'x'; };
-
-      auto middle = std::find_if(std::begin(resolution), std::end(resolution), pred);
-      if (middle == std::end(resolution)) {
-        BOOST_LOG(warning) << resolution << " is not in the proper format for a resolution: WIDTHxHEIGHT"sv;
-        continue;
-      }
-
-      auto width = util::from_chars(&*std::begin(resolution), &*middle);
-      auto height = util::from_chars(&*(middle + 1), &*std::end(resolution));
-      for (auto fps : config::nvhttp.fps) {
-        pt::ptree display_node;
-        display_node.put("Width", width);
-        display_node.put("Height", height);
-        display_node.put("RefreshRate", fps);
-
-        display_nodes.add_child("DisplayMode", display_node);
-      }
-    }
-
-    if (!config::nvhttp.resolutions.empty()) {
-      tree.add_child("root.SupportedDisplayMode", display_nodes);
-    }
     auto current_appid = proc::proc.running();
     tree.put("root.PairStatus", pair_status);
     tree.put("root.currentgame", current_appid);

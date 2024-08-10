@@ -49,8 +49,6 @@
         v-if="currentTab === 'av'"
         :config="config"
         :platform="platform"
-        :resolutions="resolutions"
-        :fps="fps"
       >
       </audio-video>
 
@@ -128,8 +126,6 @@
         saved: false,
         restarted: false,
         config: null,
-        fps: [],
-        resolutions: [],
         currentTab: "general",
         global_prep_cmd: [],
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
@@ -174,8 +170,6 @@
               "install_steam_audio_drivers": "enabled",
               "adapter_name": "",
               "output_name": "",
-              "resolutions": "[352x240,480x360,858x480,1280x720,1920x1080,2560x1080,2560x1440,3440x1440,1920x1200,3840x2160,3840x1600]",
-              "fps": "[10,30,60,90,120]",
               "min_fps_factor": 1,
             },
           },
@@ -320,16 +314,6 @@
             });
           });
 
-          this.fps = JSON.parse(this.config.fps);
-          //Resolutions should be fixed because are not valid JSON
-          let res = this.config.resolutions.substring(
-            1,
-            this.config.resolutions.length - 1
-          );
-          let resolutions = [];
-          res.split(",").forEach((r) => resolutions.push(r.trim()));
-          this.resolutions = resolutions;
-
           this.config.global_prep_cmd = this.config.global_prep_cmd || [];
           this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
         });
@@ -339,16 +323,6 @@
         this.$forceUpdate()
       },
       serialize() {
-        let nl = this.config === "windows" ? "\r\n" : "\n";
-        this.config.resolutions =
-          "[" +
-          nl +
-          "    " +
-          this.resolutions.join("," + nl + "    ") +
-          nl +
-          "]";
-        // remove quotes from values in fps
-        this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
         this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
       },
       save() {
@@ -364,19 +338,11 @@
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            if (["resolutions", "fps", "global_prep_cmd"].includes(optionKey)) {
+            if (["global_prep_cmd"].includes(optionKey)) {
               let config_value, default_value
 
-              if (optionKey === "resolutions") {
-                let regex = /([\d]+x[\d]+)/g
-
-                // Use a regular expression to find each value and replace it with a quoted version
-                config_value = JSON.parse(config[optionKey].replace(regex, '"$1"')).toString()
-                default_value = JSON.parse(tab.options[optionKey].replace(regex, '"$1"')).toString()
-              } else {
-                config_value = JSON.parse(config[optionKey])
-                default_value = JSON.parse(tab.options[optionKey])
-              }
+              config_value = JSON.parse(config[optionKey])
+              default_value = JSON.parse(tab.options[optionKey])
 
               if (config_value === default_value) {
                 delete_value = true

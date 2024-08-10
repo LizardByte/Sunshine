@@ -19,23 +19,23 @@ namespace platf {
     }
 
     capture_e
-    sample(std::vector<std::int16_t> &sample_in) override {
+    sample(std::vector<float> &sample_in) override {
       auto sample_size = sample_in.size();
 
       uint32_t length = 0;
       void *byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
 
-      while (length < sample_size * sizeof(std::int16_t)) {
+      while (length < sample_size * sizeof(float)) {
         [av_audio_capture.samplesArrivedSignal wait];
         byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
       }
 
-      const int16_t *sampleBuffer = (int16_t *) byteSampleBuffer;
-      std::vector<int16_t> vectorBuffer(sampleBuffer, sampleBuffer + sample_size);
+      const float *sampleBuffer = (float *) byteSampleBuffer;
+      std::vector<float> vectorBuffer(sampleBuffer, sampleBuffer + sample_size);
 
       std::copy_n(std::begin(vectorBuffer), sample_size, std::begin(sample_in));
 
-      TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, sample_size * sizeof(std::int16_t));
+      TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, sample_size * sizeof(float));
 
       return capture_e::ok;
     }
