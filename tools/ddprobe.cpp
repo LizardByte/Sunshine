@@ -213,14 +213,14 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
     nullptr);
 
   if (FAILED(status)) {
-    std::cout << "Failed to create D3D11 device for DD test [0x" << std::hex << status << "]" << std::endl;
+    std::cout << "Failed to create D3D11 device for DD test [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
     return status;
   }
 
   dxgi::output1_t output1;
   status = output->QueryInterface(IID_IDXGIOutput1, (void **) &output1);
   if (FAILED(status)) {
-    std::cout << "Failed to query IDXGIOutput1 from the output [0x" << std::hex << status << "]" << std::endl;
+    std::cout << "Failed to query IDXGIOutput1 from the output [0x"sv << util::hex(status).to_string_view() << "]" << std::endl;
     return status;
   }
 
@@ -239,12 +239,12 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
       return S_OK;
     }
     else {
-      std::cout << "Frame capture test failed [0x" << std::hex << captureResult << "]" << std::endl;
+      std::cout << "Frame capture test failed [0x"sv << util::hex(captureResult).to_string_view() << "]" << std::endl;
       return captureResult;
     }
   }
   else {
-    std::cout << "Failed to duplicate output [0x" << std::hex << result << "]" << std::endl;
+    std::cout << "Failed to duplicate output [0x"sv << util::hex(result).to_string_view() << "]" << std::endl;
     return result;
   }
 }
