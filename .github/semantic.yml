@@ -1,0 +1,14 @@
+---
+# This file is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# This is the configuration file for https://github.com/Ezard/semantic-prs
+
+enabled: true
+titleOnly: true  # We only use the PR title as we squash and merge
+commitsOnly: false
+titleAndCommits: false
+anyCommit: false
+allowMergeCommits: false
+allowRevertCommits: false
