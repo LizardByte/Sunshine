@@ -13,9 +13,8 @@
 
 #include "src/utility.h"
 
-using namespace std::literals;
 using Microsoft::WRL::ComPtr;
-
+using namespace std::literals;
 namespace dxgi {
   template <class T>
   void
@@ -191,7 +190,7 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
 
 HRESULT
 test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
-  D3D_FEATURE_LEVEL featureLevels[] = {
+  D3D_FEATURE_LEVEL featureLevels[] {
     D3D_FEATURE_LEVEL_11_1,
     D3D_FEATURE_LEVEL_11_0,
     D3D_FEATURE_LEVEL_10_1,
@@ -202,7 +201,7 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   };
 
   dxgi::device_t device;
-  HRESULT status = D3D11CreateDevice(
+  auto status = D3D11CreateDevice(
     adapter.get(),
     D3D_DRIVER_TYPE_UNKNOWN,
     nullptr,
@@ -212,7 +211,6 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
     &device,
     nullptr,
     nullptr);
-
   if (FAILED(status)) {
     std::cout << "Failed to create D3D11 device for DD test [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
     return status;
@@ -221,7 +219,7 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   dxgi::output1_t output1;
   status = output->QueryInterface(IID_IDXGIOutput1, (void **) &output1);
   if (FAILED(status)) {
-    std::cout << "Failed to query IDXGIOutput1 from the output [0x"sv << util::hex(status).to_string_view() << "]" << std::endl;
+    std::cout << "Failed to query IDXGIOutput1 from the output"sv << std::endl;
     return status;
   }
 
