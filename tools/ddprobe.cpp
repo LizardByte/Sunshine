@@ -188,6 +188,7 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
   // All frames were empty, indicating potential capture issues.
   return S_FALSE;
 }
+
 HRESULT
 test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   D3D_FEATURE_LEVEL featureLevels[] = {
@@ -232,21 +233,19 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
   ComPtr<ID3D11Device> device_ptr(device.get());
   HRESULT result = output1->DuplicateOutput(device_ptr.Get(), &dup);
 
-  if (SUCCEEDED(result)) {
-    // If duplication is successful, test frame capture
-    HRESULT captureResult = test_frame_capture(dup, device_ptr.Get());
-    if (SUCCEEDED(captureResult)) {
-      return S_OK;
-    }
-    else {
-      std::cout << "Frame capture test failed [0x"sv << util::hex(captureResult).to_string_view() << "]" << std::endl;
-      return captureResult;
-    }
-  }
-  else {
+  if (FAILED(result)) {
     std::cout << "Failed to duplicate output [0x"sv << util::hex(result).to_string_view() << "]" << std::endl;
     return result;
   }
+
+  // If duplication is successful, test frame capture
+  HRESULT captureResult = test_frame_capture(dup, device_ptr.Get());
+  if (FAILED(captureResult)) {
+    std::cout << "Frame capture test failed [0x"sv << util::hex(captureResult).to_string_view() << "]" << std::endl;
+    return captureResult;
+  }
+
+  return S_OK;
 }
 
 int
