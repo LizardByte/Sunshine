@@ -248,19 +248,16 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
-    tray.icon = TRAY_ICON_PLAYING;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON_PLAYING;
-    tray.notification_title = "Stream Started";
     char msg[256];
     snprintf(msg, std::size(msg), "Streaming started for %s", app_name.c_str());
-    tray.notification_text = msg;
+
+    tray.icon = TRAY_ICON_PLAYING;
     tray.tooltip = msg;
     tray.notification_icon = TRAY_ICON_PLAYING;
+    tray.notification_title = "Stream Started";
+    tray.notification_text = msg;
+    tray.notification_cb = NULL;
+
     tray_update(&tray);
   }
 
@@ -270,19 +267,16 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
-    tray.icon = TRAY_ICON_PAUSING;
-    tray_update(&tray);
     char msg[256];
     snprintf(msg, std::size(msg), "Streaming paused for %s", app_name.c_str());
+
     tray.icon = TRAY_ICON_PAUSING;
-    tray.notification_title = "Stream Paused";
-    tray.notification_text = msg;
     tray.tooltip = msg;
     tray.notification_icon = TRAY_ICON_PAUSING;
+    tray.notification_title = "Stream Paused";
+    tray.notification_text = msg;
+    tray.notification_cb = NULL;
+
     tray_update(&tray);
   }
 
@@ -292,19 +286,16 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
-    tray.icon = TRAY_ICON;
-    tray_update(&tray);
     char msg[256];
     snprintf(msg, std::size(msg), "Application %s successfully stopped", app_name.c_str());
+
     tray.icon = TRAY_ICON;
+    tray.tooltip = PROJECT_NAME;
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
     tray.notification_text = msg;
-    tray.tooltip = PROJECT_NAME;
+    tray.notification_cb = NULL;
+
     tray_update(&tray);
   }
 
@@ -314,20 +305,13 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
     tray.icon = TRAY_ICON;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON;
+    tray.tooltip = PROJECT_NAME;
+    tray.notification_icon = TRAY_ICON_LOCKED;
     tray.notification_title = "Incoming Pairing Request";
     tray.notification_text = "Click here to complete the pairing process";
-    tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = PROJECT_NAME;
-    tray.notification_cb = []() {
-      launch_ui_with_path("/pin");
-    };
+    tray.notification_cb = [] { launch_ui_with_path("/pin"); };
+
     tray_update(&tray);
   }
 
