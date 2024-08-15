@@ -14,10 +14,8 @@ IF (NOT WIN32)
     if (UDEV_FOUND)
         execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
             --variable=udevdir udev
+            OUTPUT_STRIP_TRAILING_WHITESPACE
             OUTPUT_VARIABLE UDEV_RULES_INSTALL_DIR)
-
-        string(REGEX REPLACE "[ \t\n]+" "" UDEV_RULES_INSTALL_DIR
-            "${UDEV_RULES_INSTALL_DIR}")
 
         set(UDEV_RULES_INSTALL_DIR "${UDEV_RULES_INSTALL_DIR}/rules.d")
 
