@@ -43,7 +43,7 @@ CUDA is used for NVFBC capture.
     <tr>
         <td rowspan="3">11.8.0</td>
         <td rowspan="3">450.80.02</td>
-        <td rowspan="3">35;50;52;60;61;62;70;75;80;86;90</td>
+        <td rowspan="3">35;50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
@@ -55,7 +55,7 @@ CUDA is used for NVFBC capture.
     <tr>
         <td rowspan="2">12.0.0</td>
         <td rowspan="4">525.60.13</td>
-        <td rowspan="4">50;52;60;61;62;70;75;80;86;90</td>
+        <td rowspan="4">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
