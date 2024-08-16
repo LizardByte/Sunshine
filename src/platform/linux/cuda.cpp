@@ -574,7 +574,6 @@ namespace cuda {
         if (func.nvFBCBindContext(handle, &params)) {
           BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(handle);
         }
-        
 
         this->handle = handle;
       }
@@ -584,7 +583,6 @@ namespace cuda {
         if (func.nvFBCReleaseContext(handle, &params)) {
           BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << func.nvFBCGetLastErrorStr(handle);
         }
-        
       }
 
       NVFBC_SESSION_HANDLE handle;
