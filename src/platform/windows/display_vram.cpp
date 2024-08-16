@@ -1871,6 +1871,13 @@ namespace platf::dxgi {
       if (!boost::algorithm::ends_with(name, "_qsv")) {
         return false;
       }
+      if (config.chromaSamplingType == 1) {
+        if (config.videoFormat == 0 || config.videoFormat == 2) {
+          // QSV doesn't support 4:4:4 in H.264 or AV1
+          return false;
+        }
+        // TODO: Blacklist HEVC 4:4:4 based on adapter model
+      }
     }
     else if (adapter_desc.VendorId == 0x10de) {  // Nvidia
       // If it's not an NVENC encoder, it's not compatible with an Nvidia GPU

@@ -2536,17 +2536,33 @@ namespace video {
 
         if (!flag_map[encoder_t::PASSED]) return;
 
+        auto encoder_codec_name = (video_format == 0) ? encoder.h264.name :
+                                  (video_format == 1) ? encoder.hevc.name :
+                                  (video_format == 2) ? encoder.av1.name :
+                                                        "unknown"s;
+
         // Test 4:4:4 HDR first. If 4:4:4 is supported, 4:2:0 should also be supported.
         config.chromaSamplingType = 1;
-        if ((encoder.flags & YUV444_SUPPORT) && validate_config(disp, encoder, config) >= 0) {
+        if ((encoder.flags & YUV444_SUPPORT) &&
+            disp->is_codec_supported(encoder_codec_name, config) &&
+            validate_config(disp, encoder, config) >= 0) {
           flag_map[encoder_t::DYNAMIC_RANGE] = true;
           flag_map[encoder_t::YUV444] = true;
           return;
         }
+        else {
+          flag_map[encoder_t::YUV444] = false;
+        }
 
         // Test 4:2:0 HDR
         config.chromaSamplingType = 0;
-        flag_map[encoder_t::DYNAMIC_RANGE] = validate_config(disp, encoder, config) >= 0;
+        if (disp->is_codec_supported(encoder_codec_name, config) &&
+            validate_config(disp, encoder, config) >= 0) {
+          flag_map[encoder_t::DYNAMIC_RANGE] = true;
+        }
+        else {
+          flag_map[encoder_t::DYNAMIC_RANGE] = false;
+        }
       };
 
       // HDR is not supported with H.264. Don't bother even trying it.
