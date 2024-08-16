@@ -397,7 +397,7 @@
   "welcome": {
     "confirm_password": "Conferma password",
     "create_creds": "Prima di iniziare, è necessario creare un nuovo nome utente e una nuova password per accedere all'interfaccia web.",
-    "create_creds_alert": "Le credenziali in basso sono necesarie per accadere alla Web UI di Sunshine. Mantienile al sicuro, poichè non potrai più visualizzarle!",
+    "create_creds_alert": "Le credenziali in basso sono necessarie per accadere all'interfaccia web di Sunshine. Tienile al sicuro, poichè non potrai più visualizzarle!",
     "greeting": "Benvenuto in Sunshine!",
     "login": "Login",
     "welcome_success": "Questa pagina verrà ricaricata, il tuo browser ti richiederà le nuove credenziali"
