@@ -484,6 +484,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Fix python
+        if: matrix.os_name == 'macos' && matrix.os_version == '13'
+        run: |
+          rm '/usr/local/bin/2to3'
+          rm '/usr/local/bin/2to3-3.12'
+          rm '/usr/local/bin/idle3'
+          rm '/usr/local/bin/idle3.12'
+          rm '/usr/local/bin/pydoc3'
+          rm '/usr/local/bin/pydoc3.12'
+          rm '/usr/local/bin/python3'
+          rm '/usr/local/bin/python3-config'
+          rm '/usr/local/bin/python3.12'
+          rm '/usr/local/bin/python3.12-config'
+          brew install python
+
       - name: Configure formula
         run: |
           # variables for formula
