@@ -23,10 +23,10 @@ namespace nvenc {
    */
   class nvenc_d3d11: public nvenc_base {
   public:
-    nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
+    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
         nvenc_base(device_type) {}
 
-    virtual ~nvenc_d3d11();
+    ~nvenc_d3d11();
 
     /**
      * @brief Get input surface texture.
@@ -39,6 +39,7 @@ namespace nvenc {
     bool
     init_library() override;
 
+  private:
     HMODULE dll = NULL;
   };
 

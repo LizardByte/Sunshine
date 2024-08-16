@@ -20,7 +20,7 @@ namespace nvenc {
     /**
      * @param d3d_device Direct3D11 device used for encoding.
      */
-    nvenc_d3d11_native(ID3D11Device *d3d_device);
+    explicit nvenc_d3d11_native(ID3D11Device *d3d_device);
     ~nvenc_d3d11_native();
 
     ID3D11Texture2D *

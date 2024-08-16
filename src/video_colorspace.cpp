@@ -201,7 +201,7 @@ namespace video {
           Kr = 0.2627;
           Kb = 0.0593;
           break;
-      };
+      }
       double Kg = 1.0 - Kr - Kb;
 
       double y_mult, y_add;
@@ -280,7 +280,7 @@ namespace video {
       case colorspace_e::bt2020sdr:
         result = &colors[8];
         break;
-    };
+    }
 
     if (colorspace.bit_depth == 10) result += 2;
     if (colorspace.full_range) result += 1;

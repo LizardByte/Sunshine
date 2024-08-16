@@ -21,7 +21,7 @@ namespace nvenc {
      * @param d3d_device Direct3D11 device that will create input surface texture.
      *                   CUDA encoding device will be derived from it.
      */
-    nvenc_d3d11_on_cuda(ID3D11Device *d3d_device);
+    explicit nvenc_d3d11_on_cuda(ID3D11Device *d3d_device);
     ~nvenc_d3d11_on_cuda();
 
     ID3D11Texture2D *
@@ -51,6 +51,7 @@ namespace nvenc {
 
       ~autopop_context();
 
+      explicit
       operator bool() const {
         return pushed_context != nullptr;
       }

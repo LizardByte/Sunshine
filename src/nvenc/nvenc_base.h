@@ -27,7 +27,7 @@ namespace nvenc {
     /**
      * @param device_type Underlying device type used by derived class.
      */
-    nvenc_base(NV_ENC_DEVICE_TYPE device_type);
+    explicit nvenc_base(NV_ENC_DEVICE_TYPE device_type);
     virtual ~nvenc_base();
 
     nvenc_base(const nvenc_base &) = delete;
