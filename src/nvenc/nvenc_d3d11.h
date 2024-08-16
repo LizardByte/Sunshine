@@ -1,6 +1,6 @@
 /**
  * @file src/nvenc/nvenc_d3d11.h
- * @brief Declarations for base NVENC d3d11.
+ * @brief Declarations for abstract Direct3D11 NVENC encoder.
  */
 #pragma once
 #ifdef _WIN32
@@ -14,25 +14,33 @@ namespace nvenc {
 
   _COM_SMARTPTR_TYPEDEF(ID3D11Device, IID_ID3D11Device);
   _COM_SMARTPTR_TYPEDEF(ID3D11Texture2D, IID_ID3D11Texture2D);
+  _COM_SMARTPTR_TYPEDEF(IDXGIDevice, IID_IDXGIDevice);
+  _COM_SMARTPTR_TYPEDEF(IDXGIAdapter, IID_IDXGIAdapter);
 
-  class nvenc_d3d11 final: public nvenc_base {
+  /**
+   * @brief Abstract Direct3D11 NVENC encoder.
+   *        Encapsulates common code used by native and interop implementations.
+   */
+  class nvenc_d3d11: public nvenc_base {
   public:
-    nvenc_d3d11(ID3D11Device *d3d_device);
+    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
+        nvenc_base(device_type) {}
+
     ~nvenc_d3d11();
 
-    ID3D11Texture2D *
-    get_input_texture();
+    /**
+     * @brief Get input surface texture.
+     * @return Input surface texture.
+     */
+    virtual ID3D11Texture2D *
+    get_input_texture() = 0;
 
-  private:
+  protected:
     bool
     init_library() override;
 
-    bool
-    create_and_register_input_buffer() override;
-
+  private:
     HMODULE dll = NULL;
-    const ID3D11DevicePtr d3d_device;
-    ID3D11Texture2DPtr d3d_input_texture;
   };
 
 }  // namespace nvenc
