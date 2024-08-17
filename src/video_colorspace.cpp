@@ -182,4 +182,109 @@ namespace video {
     return result;
   }
 
+  const color_t *
+  new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace) {
+    constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace) -> color_t {
+      double Kr, Kb;
+      switch (colorspace.colorspace) {
+        case colorspace_e::rec601:
+          Kr = 0.299;
+          Kb = 0.114;
+          break;
+        case colorspace_e::rec709:
+        default:
+          Kr = 0.2126;
+          Kb = 0.0722;
+          break;
+        case colorspace_e::bt2020:
+        case colorspace_e::bt2020sdr:
+          Kr = 0.2627;
+          Kb = 0.0593;
+          break;
+      }
+      double Kg = 1.0 - Kr - Kb;
+
+      double y_mult, y_add;
+      double uv_mult, uv_add;
+
+      // "Matrix coefficients" section of ITU-T H.273
+      if (colorspace.full_range) {
+        y_mult = (1 << colorspace.bit_depth) - 1;
+        y_add = 0;
+        uv_mult = (1 << colorspace.bit_depth) - 1;
+        uv_add = (1 << (colorspace.bit_depth - 1));
+      }
+      else {
+        y_mult = (1 << (colorspace.bit_depth - 8)) * 219;
+        y_add = (1 << (colorspace.bit_depth - 8)) * 16;
+        uv_mult = (1 << (colorspace.bit_depth - 8)) * 224;
+        uv_add = (1 << (colorspace.bit_depth - 8)) * 128;
+      }
+
+      // For rounding
+      y_add += 0.5;
+      uv_add += 0.5;
+
+      color_t color_vectors;
+
+      color_vectors.color_vec_y[0] = Kr * y_mult;
+      color_vectors.color_vec_y[1] = Kg * y_mult;
+      color_vectors.color_vec_y[2] = Kb * y_mult;
+      color_vectors.color_vec_y[3] = y_add;
+
+      color_vectors.color_vec_u[0] = -0.5 * Kr / (1.0 - Kb) * uv_mult;
+      color_vectors.color_vec_u[1] = -0.5 * Kg / (1.0 - Kb) * uv_mult;
+      color_vectors.color_vec_u[2] = 0.5 * uv_mult;
+      color_vectors.color_vec_u[3] = uv_add;
+
+      color_vectors.color_vec_v[0] = 0.5 * uv_mult;
+      color_vectors.color_vec_v[1] = -0.5 * Kg / (1.0 - Kr) * uv_mult;
+      color_vectors.color_vec_v[2] = -0.5 * Kb / (1.0 - Kr) * uv_mult;
+      color_vectors.color_vec_v[3] = uv_add;
+
+      // Unused
+      color_vectors.range_y[0] = 1;
+      color_vectors.range_y[1] = 0;
+      color_vectors.range_uv[0] = 1;
+      color_vectors.range_uv[1] = 0;
+
+      return color_vectors;
+    };
+
+    static constexpr color_t colors[] = {
+      generate_color_vectors({ colorspace_e::rec601, false, 8 }),
+      generate_color_vectors({ colorspace_e::rec601, true, 8 }),
+      generate_color_vectors({ colorspace_e::rec601, false, 10 }),
+      generate_color_vectors({ colorspace_e::rec601, true, 10 }),
+      generate_color_vectors({ colorspace_e::rec709, false, 8 }),
+      generate_color_vectors({ colorspace_e::rec709, true, 8 }),
+      generate_color_vectors({ colorspace_e::rec709, false, 10 }),
+      generate_color_vectors({ colorspace_e::rec709, true, 10 }),
+      generate_color_vectors({ colorspace_e::bt2020, false, 8 }),
+      generate_color_vectors({ colorspace_e::bt2020, true, 8 }),
+      generate_color_vectors({ colorspace_e::bt2020, false, 10 }),
+      generate_color_vectors({ colorspace_e::bt2020, true, 10 }),
+    };
+
+    const color_t *result = nullptr;
+
+    switch (colorspace.colorspace) {
+      case colorspace_e::rec601:
+        result = &colors[0];
+        break;
+      case colorspace_e::rec709:
+      default:
+        result = &colors[4];
+        break;
+      case colorspace_e::bt2020:
+      case colorspace_e::bt2020sdr:
+        result = &colors[8];
+        break;
+    }
+
+    if (colorspace.bit_depth == 10) result += 2;
+    if (colorspace.full_range) result += 1;
+
+    return result;
+  }
 }  // namespace video
