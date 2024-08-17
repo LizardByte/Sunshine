@@ -248,7 +248,6 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output, bool ver
     }
   }
 
-
   return S_OK;
 }
 
