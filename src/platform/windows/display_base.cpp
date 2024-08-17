@@ -6,6 +6,7 @@
 #include <initguid.h>
 #include <thread>
 
+#include <boost/algorithm/string/join.hpp>
 #include <boost/process.hpp>
 
 // We have to include boost/process.hpp before display.h due to WinSock.h,
@@ -363,8 +364,10 @@ namespace platf::dxgi {
   // we spawn a helper tool to probe for us before we set our own GPU preference.
   bool
   probe_for_gpu_preference(const std::string &display_name) {
-    // If we've already been through here, there's nothing to do this time.
     static bool set_gpu_preference = false;
+    static bool verify_frame_capture = true;
+
+    // If we've already been through here, there's nothing to do this time.
     if (set_gpu_preference) {
       return true;
     }
@@ -378,17 +381,22 @@ namespace platf::dxgi {
     for (int i = 1; i < 5; i++) {
       // Run the probe tool. It returns the status of DuplicateOutput().
       //
-      // Arg format: [GPU preference] [Display name]
+      // Arg format: [GPU preference] [Display name] [--verify--frame-capture]
       HRESULT result;
+      std::vector<std::string> args = { std::to_string(i), display_name };
       try {
-        result = bp::system(cmd, std::to_string(i), display_name, bp::std_out > bp::null, bp::std_err > bp::null);
+        if (verify_frame_capture) {
+          args.push_back("--verify-frame-capture");
+        }
+        result = bp::system(cmd, bp::args(args), bp::std_out > bp::null, bp::std_err > bp::null);
       }
       catch (bp::process_error &e) {
         BOOST_LOG(error) << "Failed to start ddprobe.exe: "sv << e.what();
         return false;
       }
 
-      BOOST_LOG(info) << "ddprobe.exe ["sv << i << "] ["sv << display_name << "] returned: 0x"sv << util::hex(result).to_string_view();
+      BOOST_LOG(info) << "ddprobe.exe " << boost::algorithm::join(args, " ") << "returned 0x"
+                      << util::hex(result).to_string_view();
 
       // E_ACCESSDENIED can happen at the login screen. If we get this error,
       // we know capture would have been supported, because DXGI_ERROR_UNSUPPORTED
@@ -410,6 +418,8 @@ namespace platf::dxgi {
     }
 
     // If none of the manual options worked, leave the GPU preference alone
+    // And set the verify frame capture option to false, just in case there is a chance for a false negative.
+    verify_frame_capture = false;
     return false;
   }
 
