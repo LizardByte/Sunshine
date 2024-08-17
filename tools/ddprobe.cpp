@@ -121,7 +121,7 @@ is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTU
  *
  * @param dup A reference to the DXGI output duplication object (`dxgi::dup_t&`) used to acquire frames.
  * @param device A ComPtr to the ID3D11Device interface representing the device associated with the Direct3D context.
- * @return HRESULT Returns `S_OK` if a non-empty frame is captured successfully, `S_FALSE` if all frames are empty, or an error code if any failure occurs during the process.
+ * @return HRESULT Returns `S_OK` if a non-empty frame is captured successfully, `E_FAIL` if all frames are empty, or an error code if any failure occurs during the process.
  */
 HRESULT
 test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
@@ -188,11 +188,11 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
   }
 
   // All frames were empty, indicating potential capture issues.
-  return S_FALSE;
+  return E_FAIL;
 }
 
 HRESULT
-test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
+test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output, bool verify_frame_capture) {
   D3D_FEATURE_LEVEL featureLevels[] {
     D3D_FEATURE_LEVEL_11_1,
     D3D_FEATURE_LEVEL_11_0,
@@ -239,12 +239,15 @@ test_dxgi_duplication(dxgi::adapter_t &adapter, dxgi::output_t &output) {
     return result;
   }
 
-  // If duplication is successful, test frame capture
-  HRESULT captureResult = test_frame_capture(dup, device_ptr.Get());
-  if (FAILED(captureResult)) {
-    std::cout << "Frame capture test failed [0x"sv << util::hex(captureResult).to_string_view() << "]" << std::endl;
-    return captureResult;
+  // To prevent false negatives, we'll make it optional to test for frame capture.
+  if (verify_frame_capture) {
+    HRESULT captureResult = test_frame_capture(dup, device_ptr.Get());
+    if (FAILED(captureResult)) {
+      std::cout << "Frame capture test failed [0x"sv << util::hex(captureResult).to_string_view() << "]" << std::endl;
+      return captureResult;
+    }
   }
+
 
   return S_OK;
 }
@@ -253,20 +256,34 @@ int
 main(int argc, char *argv[]) {
   HRESULT status;
 
-  // Display name may be omitted
-  if (argc != 2 && argc != 3) {
-    std::cout << "ddprobe.exe [GPU preference value] [display name]"sv << std::endl;
+  // Usage message
+  if (argc < 2 || argc > 4) {
+    std::cout << "Usage: ddprobe.exe [GPU preference value] [display name] [--verify-frame-capture]"sv << std::endl;
     return -1;
   }
 
   std::wstring display_name;
-  if (argc == 3) {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
-    display_name = converter.from_bytes(argv[2]);
+  bool verify_frame_capture = false;
+
+  // Parse GPU preference value (required)
+  int gpu_preference = atoi(argv[1]);
+
+  // Parse optional arguments
+  for (int i = 2; i < argc; ++i) {
+    std::string arg = argv[i];
+
+    if (arg == "--verify-frame-capture") {
+      verify_frame_capture = true;
+    }
+    else {
+      // Assume any other argument is the display name
+      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
+      display_name = converter.from_bytes(arg);
+    }
   }
 
   // We must set the GPU preference before making any DXGI/D3D calls
-  status = set_gpu_preference(atoi(argv[1]));
+  status = set_gpu_preference(gpu_preference);
   if (status != ERROR_SUCCESS) {
     return status;
   }
@@ -310,7 +327,7 @@ main(int argc, char *argv[]) {
       }
 
       // We found the matching output. Test it and return the result.
-      return test_dxgi_duplication(adapter, output);
+      return test_dxgi_duplication(adapter, output, verify_frame_capture);
     }
   }
 
