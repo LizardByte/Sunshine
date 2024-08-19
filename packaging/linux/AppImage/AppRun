@@ -49,6 +49,7 @@ function install() {
   cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sunshine.rules" | sudo tee /etc/udev/rules.d/60-sunshine.rules
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
+  sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
 
   # sunshine service
   mkdir -p ~/.config/systemd/user
