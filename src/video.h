@@ -17,6 +17,29 @@ extern "C" {
 struct AVPacket;
 namespace video {
 
+  /* Encoding configuration requested by remote client */
+  struct config_t {
+    int width;  // Video width in pixels
+    int height;  // Video height in pixels
+    int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
+    int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
+    int slicesPerFrame;  // Number of slices per frame
+    int numRefFrames;  // Max number of reference frames
+
+    /* Requested color range and SDR encoding colorspace, HDR encoding colorspace is always BT.2020+ST2084
+       Color range (encoderCscMode & 0x1) : 0 - limited, 1 - full
+       SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
+    int encoderCscMode;
+
+    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
+
+    /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
+       HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
+    int dynamicRange;
+
+    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+  };
+
   platf::mem_type_e
   map_base_dev_type(AVHWDeviceType type);
   platf::pix_fmt_e
@@ -163,6 +186,21 @@ namespace video {
       }
     } av1, hevc, h264;
 
+    const codec_t &
+    codec_from_config(const config_t &config) const {
+      switch (config.videoFormat) {
+        default:
+          BOOST_LOG(error) << "Unknown video format " << config.videoFormat << ", falling back to H.264";
+          // fallthrough
+        case 0:
+          return h264;
+        case 1:
+          return hevc;
+        case 2:
+          return av1;
+      }
+    }
+
     uint32_t flags;
   };
 
@@ -308,29 +346,6 @@ namespace video {
   };
 
   using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
-
-  /* Encoding configuration requested by remote client */
-  struct config_t {
-    int width;  // Video width in pixels
-    int height;  // Video height in pixels
-    int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
-    int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
-    int slicesPerFrame;  // Number of slices per frame
-    int numRefFrames;  // Max number of reference frames
-
-    /* Requested color range and SDR encoding colorspace, HDR encoding colorspace is always BT.2020+ST2084
-       Color range (encoderCscMode & 0x1) : 0 - limited, 1 - full
-       SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
-    int encoderCscMode;
-
-    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
-
-    /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
-       HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
-    int dynamicRange;
-
-    int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
-  };
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
