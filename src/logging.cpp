@@ -35,6 +35,9 @@ bl::sources::severity_logger<int> info(2);  // Should be informed about
 bl::sources::severity_logger<int> warning(3);  // Strange events
 bl::sources::severity_logger<int> error(4);  // Recoverable errors
 bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
+#ifdef SUNSHINE_TESTS
+bl::sources::severity_logger<int> tests(10);  // Automatic tests output
+#endif
 
 BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
@@ -50,6 +53,51 @@ namespace logging {
     sink.reset();
   }
 
+  void
+  formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
+    constexpr const char *message = "Message";
+    constexpr const char *severity = "Severity";
+
+    auto log_level = view.attribute_values()[severity].extract<int>().get();
+
+    std::string_view log_type;
+    switch (log_level) {
+      case 0:
+        log_type = "Verbose: "sv;
+        break;
+      case 1:
+        log_type = "Debug: "sv;
+        break;
+      case 2:
+        log_type = "Info: "sv;
+        break;
+      case 3:
+        log_type = "Warning: "sv;
+        break;
+      case 4:
+        log_type = "Error: "sv;
+        break;
+      case 5:
+        log_type = "Fatal: "sv;
+        break;
+#ifdef SUNSHINE_TESTS
+      case 10:
+        log_type = "Tests: "sv;
+        break;
+#endif
+    };
+
+    auto now = std::chrono::system_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      now - std::chrono::time_point_cast<std::chrono::seconds>(now));
+
+    auto t = std::chrono::system_clock::to_time_t(now);
+    auto lt = *std::localtime(&t);
+
+    os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
+       << log_type << view.attribute_values()[message].extract<std::string>();
+  }
+
   [[nodiscard]] std::unique_ptr<deinit_t>
   init(int min_log_level, const std::string &log_file) {
     if (sink) {
@@ -61,49 +109,13 @@ namespace logging {
 
     sink = boost::make_shared<text_sink>();
 
+#ifndef SUNSHINE_TESTS
     boost::shared_ptr<std::ostream> stream { &std::cout, boost::null_deleter() };
     sink->locked_backend()->add_stream(stream);
+#endif
     sink->locked_backend()->add_stream(boost::make_shared<std::ofstream>(log_file));
     sink->set_filter(severity >= min_log_level);
-
-    sink->set_formatter([](const bl::record_view &view, bl::formatting_ostream &os) {
-      constexpr const char *message = "Message";
-      constexpr const char *severity = "Severity";
-
-      auto log_level = view.attribute_values()[severity].extract<int>().get();
-
-      std::string_view log_type;
-      switch (log_level) {
-        case 0:
-          log_type = "Verbose: "sv;
-          break;
-        case 1:
-          log_type = "Debug: "sv;
-          break;
-        case 2:
-          log_type = "Info: "sv;
-          break;
-        case 3:
-          log_type = "Warning: "sv;
-          break;
-        case 4:
-          log_type = "Error: "sv;
-          break;
-        case 5:
-          log_type = "Fatal: "sv;
-          break;
-      };
-
-      auto now = std::chrono::system_clock::now();
-      auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now - std::chrono::time_point_cast<std::chrono::seconds>(now));
-
-      auto t = std::chrono::system_clock::to_time_t(now);
-      auto lt = *std::localtime(&t);
-
-      os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
-         << log_type << view.attribute_values()[message].extract<std::string>();
-    });
+    sink->set_formatter(&formatter);
 
     // Flush after each log record to ensure log file contents on disk isn't stale.
     // This is particularly important when running from a Windows service.
