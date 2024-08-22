@@ -6,7 +6,7 @@
 
 #include "../tests_common.h"
 
-struct EncoderTest: PlatformTestSuite<EncoderTest>, testing::WithParamInterface<video::encoder_t *> {
+struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void
   SetUp() override {
     auto &encoder = *GetParam();

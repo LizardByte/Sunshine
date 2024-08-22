@@ -9,26 +9,22 @@
 #include <src/logging.h>
 #include <src/platform/common.h>
 
-template <class T>
 struct PlatformTestSuite: testing::Test {
-  static std::unique_ptr<platf::deinit_t> &
-  get_platform_deinit() {
-    static std::unique_ptr<platf::deinit_t> deinit;
-    return deinit;
-  }
-
   static void
   SetUpTestSuite() {
-    auto &deinit = get_platform_deinit();
+    ASSERT_FALSE(platf_deinit);
     BOOST_LOG(tests) << "Setting up platform test suite";
-    deinit = platf::init();
-    ASSERT_TRUE(deinit);
+    platf_deinit = platf::init();
+    ASSERT_TRUE(platf_deinit);
   }
 
   static void
   TearDownTestSuite() {
-    auto &deinit = get_platform_deinit();
-    deinit = {};
+    ASSERT_TRUE(platf_deinit);
+    platf_deinit = {};
     BOOST_LOG(tests) << "Tore down platform test suite";
   }
+
+private:
+  inline static std::unique_ptr<platf::deinit_t> platf_deinit;
 };

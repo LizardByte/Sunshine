@@ -8,7 +8,7 @@
 
 using namespace audio;
 
-struct AudioTest: PlatformTestSuite<AudioTest>, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
+struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
   void
   SetUp() override {
     m_config = std::get<1>(GetParam());

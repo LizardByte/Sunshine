@@ -6,7 +6,7 @@
 
 #include "../tests_common.h"
 
-struct MouseHIDTest: PlatformTestSuite<MouseHIDTest>, testing::WithParamInterface<util::point_t> {
+struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
   void
   SetUp() override {
 #ifdef _WIN32
