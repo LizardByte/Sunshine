@@ -2,39 +2,24 @@
  * @file tests/unit/test_audio.cpp
  * @brief Test src/audio.*.
  */
-#include <bitset>
 #include <src/audio.h>
 
-#include <tests/conftest.cpp>
+#include "../tests_common.h"
 
 using namespace audio;
 
-class AudioTest: public virtual BaseTest, public PlatformInitBase, public ::testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
-protected:
+struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std::basic_string_view<char>, config_t>> {
   void
   SetUp() override {
-    BaseTest::SetUp();
-    PlatformInitBase::SetUp();
-
-    std::string_view p_name = std::get<0>(GetParam());
-    std::cout << "AudioTest(" << p_name << "):: starting Fixture SetUp" << std::endl;
-
     m_config = std::get<1>(GetParam());
     m_mail = std::make_shared<safe::mail_raw_t>();
   }
 
-  void
-  TearDown() override {
-    PlatformInitBase::TearDown();
-    BaseTest::TearDown();
-  }
-
-protected:
   config_t m_config;
   safe::mail_t m_mail;
 };
 
-static std::bitset<config_t::MAX_FLAGS>
+constexpr std::bitset<config_t::MAX_FLAGS>
 config_flags(int flag = -1) {
   std::bitset<3> result = std::bitset<config_t::MAX_FLAGS>();
   if (flag >= 0) {
@@ -46,11 +31,12 @@ config_flags(int flag = -1) {
 INSTANTIATE_TEST_SUITE_P(
   Configurations,
   AudioTest,
-  ::testing::Values(
+  testing::Values(
     std::make_tuple("HIGH_STEREO", config_t { 5, 2, 0x3, { 0 }, config_flags(config_t::HIGH_QUALITY) }),
     std::make_tuple("SURROUND51", config_t { 5, 6, 0x3F, { 0 }, config_flags() }),
     std::make_tuple("SURROUND71", config_t { 5, 8, 0x63F, { 0 }, config_flags() }),
-    std::make_tuple("SURROUND51_CUSTOM", config_t { 5, 6, 0x3F, { 6, 4, 2, { 0, 1, 4, 5, 2, 3 } }, config_flags(config_t::CUSTOM_SURROUND_PARAMS) })));
+    std::make_tuple("SURROUND51_CUSTOM", config_t { 5, 6, 0x3F, { 6, 4, 2, { 0, 1, 4, 5, 2, 3 } }, config_flags(config_t::CUSTOM_SURROUND_PARAMS) })),
+  [](const auto &info) { return std::string(std::get<0>(info.param)); });
 
 TEST_P(AudioTest, TestEncode) {
   std::thread timer([&] {
