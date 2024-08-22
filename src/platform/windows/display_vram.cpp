@@ -3,7 +3,6 @@
  * @brief Definitions for handling video ram.
  */
 #include <cmath>
-
 #include <d3dcompiler.h>
 #include <directxmath.h>
 
@@ -22,6 +21,10 @@ extern "C" {
 #include "src/video.h"
 
 #include <AMF/core/Factory.h>
+#include <AMF/components/DisplayCapture.h>
+#include <AMF/components/VideoConverter.h>
+#include <AMF/components/CursorCapture.h>
+#include <AMF/components/FRC.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 
@@ -1414,6 +1417,394 @@ namespace platf::dxgi {
     return 0;
   }
 
+  bool
+  test_direct_capture(amf::AMFFactory *amf_factory, adapter_t &adapter, int output_index) {
+    BOOST_LOG(error) << "Testing direct capture *******";
+    D3D_FEATURE_LEVEL featureLevels[] {
+      D3D_FEATURE_LEVEL_11_1,
+      D3D_FEATURE_LEVEL_11_0,
+      D3D_FEATURE_LEVEL_10_1,
+      D3D_FEATURE_LEVEL_10_0,
+      D3D_FEATURE_LEVEL_9_3,
+      D3D_FEATURE_LEVEL_9_2,
+      D3D_FEATURE_LEVEL_9_1
+    };
+
+    DXGI_ADAPTER_DESC adapter_desc;
+    adapter->GetDesc(&adapter_desc);
+
+    // Bail if this is not an AMD GPU
+    if (adapter_desc.VendorId != 0x1002) {
+      return false;
+    }
+
+    device_t device;
+    auto status = D3D11CreateDevice(
+      adapter.get(),
+      D3D_DRIVER_TYPE_UNKNOWN,
+      nullptr,
+      D3D11_CREATE_DEVICE_FLAGS,
+      featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
+      D3D11_SDK_VERSION,
+      &device,
+      nullptr,
+      nullptr);
+    if (FAILED(status)) {
+      BOOST_LOG(error) << "Failed to create D3D11 device for AMD Direct Capture test [0x"sv << util::hex(status).to_string_view() << ']';
+      return false;
+    }
+
+    // Initialize the capture context
+    amf::AMFContextPtr context;
+    auto result = amf_factory->CreateContext(&context);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "CreateContext() failed: "sv << result;
+      return false;
+    }
+
+    // Associate the context with our ID3D11Device
+    result = context->InitDX11(device.get());
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "InitDX11() failed: "sv << result;
+      return false;
+    }
+
+    // Create the DisplayCapture component
+    amf::AMFComponentPtr captureComp;
+    result = amf_factory->CreateComponent(context, AMFDisplayCapture, &captureComp);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "AMFCreateComponentDisplayCapture(AMFDisplayCapture) failed: "sv << result;
+      return false;
+    }
+
+    // Capture the specified output
+    captureComp->SetProperty(AMF_DISPLAYCAPTURE_MONITOR_INDEX, 0);
+    captureComp->SetProperty(AMF_DISPLAYCAPTURE_FRAMERATE, AMFConstructRate(120/2, 1));
+    captureComp->SetProperty(AMF_DISPLAYCAPTURE_MODE, AMF_DISPLAYCAPTURE_MODE_WAIT_FOR_PRESENT);
+
+    // Initialize captureComp
+    result = captureComp->Init(amf::AMF_SURFACE_UNKNOWN, 0, 0);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "DisplayCapture::Init() failed: "sv << result;
+      return false;
+    }
+
+    amf::AMFDataPtr output;
+    result = captureComp->QueryOutput(&output);
+    BOOST_LOG(error) << "##### DisplayCapture::QueryOutput() result: "sv << result;
+
+    // // Create the FRC component
+    // amf::AMFComponentPtr frcComp;
+    // result = amf_factory->CreateComponent(context, AMFFRC, &(frcComp));
+    // if (result != AMF_OK) {
+    //   BOOST_LOG(error) << "CreateComponent(AMFFRC) failed: "sv << result;
+    //   return -1;
+    // }
+
+    // frcComp->SetProperty(AMF_FRC_ENGINE_TYPE, FRC_ENGINE_DX11);
+    // frcComp->SetProperty(AMF_FRC_MODE, FRC_ON);
+    // frcComp->SetProperty(AMF_FRC_INDICATOR, true);
+    // frcComp->SetProperty(AMF_FRC_PROFILE, FRC_PROFILE_HIGH);
+    // frcComp->SetProperty(AMF_FRC_MV_SEARCH_MODE, FRC_MV_SEARCH_NATIVE);
+
+    // // Initialize capture
+    // result = frcComp->Init(amf::AMF_SURFACE_P010, 0, 0);
+    // if (result != AMF_OK) {
+    //   BOOST_LOG(error) << "FRCComp::Init() failed: "sv << result;
+    //   return -1;
+    // }
+
+    return true;
+  }
+
+  int
+  display_amd_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+    // We have to load AMF before calling the base init() because we will need it loaded
+    // when our test_capture() function is called.
+    dup.amfrt_lib.reset(LoadLibraryW(AMF_DLL_NAME));
+    if (!dup.amfrt_lib) {
+      // Probably not an AMD GPU system
+      return -1;
+    }
+
+    auto fn_AMFQueryVersion = (AMFQueryVersion_Fn) GetProcAddress((HMODULE) dup.amfrt_lib.get(), AMF_QUERY_VERSION_FUNCTION_NAME);
+    auto fn_AMFInit = (AMFInit_Fn) GetProcAddress((HMODULE) dup.amfrt_lib.get(), AMF_INIT_FUNCTION_NAME);
+
+    if (!fn_AMFQueryVersion || !fn_AMFInit) {
+      BOOST_LOG(error) << "Missing required AMF function!"sv;
+      return -1;
+    }
+
+    auto result = fn_AMFQueryVersion(&dup.amf_version);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "AMFQueryVersion() failed: "sv << result;
+      return -1;
+    }
+
+    // We don't support anything older than AMF 1.4.30. We'll gracefully fall back to DDAPI.
+    if (dup.amf_version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
+      BOOST_LOG(warning) << "AMD Direct Capture is not supported on AMF version"sv
+                         << AMF_GET_MAJOR_VERSION(dup.amf_version) << '.'
+                         << AMF_GET_MINOR_VERSION(dup.amf_version) << '.'
+                         << AMF_GET_SUBMINOR_VERSION(dup.amf_version) << '.'
+                         << AMF_GET_BUILD_VERSION(dup.amf_version);
+      BOOST_LOG(warning) << "Consider updating your AMD graphics driver for better capture performance!"sv;
+      return -1;
+    }
+
+    // Initialize AMF library
+    result = fn_AMFInit(AMF_FULL_VERSION, &dup.amf_factory);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "AMFInit() failed: "sv << result;
+      return -1;
+    }
+
+    if (display_base_t::init(config, display_name) || dup.init(this, config, output_index))
+      return -1;
+
+    return 0;
+  }
+
+
+  bool
+  display_amd_vram_t::test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output) {
+    return test_direct_capture(dup.amf_factory, adapter, output_index);
+  }
+
+  amf::AMF_SURFACE_FORMAT
+  pix_fmt_to_amf_fmt(pix_fmt_e pix_fmt) {
+    switch (pix_fmt) {
+      case pix_fmt_e::yuv420p:
+        return amf::AMF_SURFACE_YUV420P;
+      case pix_fmt_e::nv12:
+        return amf::AMF_SURFACE_NV12;
+      case pix_fmt_e::p010:
+        return amf::AMF_SURFACE_P010;
+      default:
+        BOOST_LOG(error) << "Unsupported pixel format: "sv << (int) pix_fmt;
+        return amf::AMF_SURFACE_UNKNOWN;
+    }
+  }
+
+  class amf_d3d_avcodec_encode_device_t: public avcodec_encode_device_t, public amf::AMFSurfaceObserver {
+  public:
+    int
+    init(std::shared_ptr<platf::display_t> display, pix_fmt_e pix_fmt) {
+      this->display = std::static_pointer_cast<display_amd_vram_t>(display);
+
+      // Share the ID3D11Device object with the capture pipeline
+      this->data = this->display->device.get();
+
+      // Create the VideoConverter component
+      auto result = this->display->dup.amf_factory->CreateComponent(this->display->dup.context, AMFVideoConverter, &converter);
+      if (result != AMF_OK) {
+        BOOST_LOG(error) << "CreateComponent(VideoConverter) failed: "sv << result;
+        return -1;
+      }
+
+      converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_FORMAT, pix_fmt_to_amf_fmt(pix_fmt));
+      converter->SetProperty(AMF_VIDEO_CONVERTER_COMPUTE_DEVICE, amf::AMF_MEMORY_DX11);
+      converter->SetProperty(AMF_VIDEO_CONVERTER_MEMORY_TYPE, amf::AMF_MEMORY_DX11);
+      converter->SetProperty(AMF_VIDEO_CONVERTER_SCALE, AMF_VIDEO_CONVERTER_SCALE_BICUBIC);
+      converter->SetProperty(AMF_VIDEO_CONVERTER_KEEP_ASPECT_RATIO, true);
+      converter->SetProperty(AMF_VIDEO_CONVERTER_FILL, true);
+      converter->SetProperty(AMF_VIDEO_CONVERTER_FILL_COLOR, AMFConstructColor(0x00, 0x00, 0x00, 0xFF));
+
+      return 0;
+    }
+
+    int
+    convert(platf::img_t &img_base) override {
+      auto &img = (img_amd_t &) img_base;
+
+      // If the input format changed, (re)initialize the converter
+      if (last_input_format != img.surface->GetFormat()) {
+        BOOST_LOG(info) << "AMF VideoConverter input format change: "sv << last_input_format << " -> "sv << img.surface->GetFormat();
+        display->dup.capture_format = last_input_format = img.surface->GetFormat();
+
+        converter->Terminate();
+        auto result = converter->Init(last_input_format, display->dup.resolution.width, display->dup.resolution.height);
+        if (result != AMF_OK) {
+          BOOST_LOG(error) << "VideoConverter::Init() failed: "sv << result;
+          return -1;
+        }
+      }
+
+      // Submit the RGB frame for YUV conversion
+      auto result = converter->SubmitInput(img.surface);
+      if (result != AMF_OK) {
+        BOOST_LOG(error) << "VideoConverter::SubmitInput() failed: "sv << result;
+        return -1;
+      }
+
+      // Get the converted output YUV frame. We expect this to block until the output is available.
+      amf::AMFSurfacePtr output;
+      result = converter->QueryOutput((amf::AMFData **) &output);
+      if (result != AMF_OK) {
+        BOOST_LOG(error) << "VideoConverter::QueryOutput() failed: "sv << result;
+        return -1;
+      }
+
+      // Copy the converted frame into our AVFrame-backed surface
+      result = output->CopySurfaceRegion(hwframe_surface, 0, 0, 0, 0, hwframe->width, hwframe->height);
+      if (result != AMF_OK) {
+        BOOST_LOG(error) << "CopySurfaceRegion() failed: "sv << result;
+        return -1;
+      }
+
+      return 0;
+    }
+
+    void
+    apply_colorspace() override {
+      switch (colorspace.colorspace) {
+        case ::video::colorspace_e::rec601:
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_COLOR_PRIMARIES, AMF_COLOR_PRIMARIES_SMPTE170M);
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_TRANSFER_CHARACTERISTIC, AMF_COLOR_TRANSFER_CHARACTERISTIC_SMPTE170M);
+          break;
+        case ::video::colorspace_e::rec709:
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_COLOR_PRIMARIES, AMF_COLOR_PRIMARIES_BT709);
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_TRANSFER_CHARACTERISTIC, AMF_COLOR_TRANSFER_CHARACTERISTIC_BT709);
+          break;
+        case ::video::colorspace_e::bt2020sdr:
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_COLOR_PRIMARIES, AMF_COLOR_PRIMARIES_BT2020);
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_TRANSFER_CHARACTERISTIC, AMF_COLOR_TRANSFER_CHARACTERISTIC_BT2020_10);
+          break;
+        case ::video::colorspace_e::bt2020:
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_COLOR_PRIMARIES, AMF_COLOR_PRIMARIES_BT2020);
+          converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_TRANSFER_CHARACTERISTIC, AMF_COLOR_TRANSFER_CHARACTERISTIC_SMPTE2084);
+          break;
+      }
+
+      converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_COLOR_RANGE, colorspace.full_range ? AMF_COLOR_RANGE_FULL : AMF_COLOR_RANGE_STUDIO);
+    }
+
+    void
+    init_hwframes(AVHWFramesContext *frames) override {
+      if (frames->device_ctx->type == AV_HWDEVICE_TYPE_D3D11VA) {
+        auto d3d11_frames = (AVD3D11VAFramesContext *) frames->hwctx;
+
+        // The VideoConverter requires shared textures to use CopySurfaceRegion()
+        d3d11_frames->MiscFlags = D3D11_RESOURCE_MISC_SHARED;
+      }
+
+      // We require a single texture
+      frames->initial_pool_size = 1;
+    }
+
+    int
+    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+      this->hwframe.reset(frame);
+      this->frame = frame;
+
+      // Populate this frame with a hardware buffer if one isn't there already
+      if (!frame->buf[0]) {
+        auto err = av_hwframe_get_buffer(hw_frames_ctx, frame, 0);
+        if (err) {
+          char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+          BOOST_LOG(error) << "Failed to get hwframe buffer: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
+          return -1;
+        }
+      }
+
+      // Wrap the frame's ID3D11Texture2D in an AMFSurface object
+      auto result = display->dup.context->CreateSurfaceFromDX11Native(frame->data[0], &hwframe_surface, this);
+      if (result != AMF_OK) {
+        BOOST_LOG(error) << "CreateSurfaceFromDX11Native() failed: "sv << result;
+        return -1;
+      }
+
+      converter->SetProperty(AMF_VIDEO_CONVERTER_OUTPUT_SIZE, AMFConstructSize(frame->width, frame->height));
+      return 0;
+    }
+
+    void AMF_STD_CALL
+    OnSurfaceDataRelease(amf::AMFSurface *pSurface) override {
+      // Nothing
+    }
+
+  private:
+    std::shared_ptr<display_amd_vram_t> display;
+    amf::AMFComponentPtr converter;
+    frame_t hwframe;
+    amf::AMFSurfacePtr hwframe_surface;
+    amf::AMF_SURFACE_FORMAT last_input_format = amf::AMF_SURFACE_UNKNOWN;
+  };
+
+
+  std::unique_ptr<avcodec_encode_device_t>
+  display_amd_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    if (pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
+      BOOST_LOG(error) << "amd_capture_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
+      return nullptr;
+    }
+
+    auto device = std::make_unique<amf_d3d_avcodec_encode_device_t>();
+    if (device->init(shared_from_this(), pix_fmt)) {
+      return nullptr;
+    }
+
+    return device;
+  }
+
+/**
+   * @brief Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
+   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
+   * @param img_out the captured frame is returned here
+   * @param timeout how long to wait for the next frame
+   * @param cursor_visible whether to capture the cursor
+   */
+  capture_e
+  display_amd_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    amf::AMFSurfacePtr output;
+    // Check for display configuration change
+    if (!factory->IsCurrent()) {
+      return platf::capture_e::reinit;
+    }
+
+    auto capture_status = dup.next_frame(timeout, (amf::AMFData **) &output);
+    if (capture_status != capture_e::ok) {
+      return capture_status;
+    }
+
+    if (!pull_free_image_cb(img_out)) {
+      return capture_e::interrupted;
+    }
+
+    auto amd_img = (img_amd_t *) img_out.get();
+
+    // Since AMF doesn't wait for flip, the flip time on the surface isn't accurate
+    // to compute the host processing time. We'll just use the time we got the frame.
+    amd_img->frame_timestamp = std::chrono::steady_clock::now();
+
+    amd_img->surface = std::move(output);
+    return capture_e::ok;
+  }
+
+  std::shared_ptr<platf::img_t>
+  display_amd_vram_t::alloc_img() {
+    auto img = std::make_shared<img_amd_t>();
+    img->display = shared_from_this();
+    return img;
+  }
+
+  int
+  display_amd_vram_t::dummy_img(platf::img_t *img_base) {
+    auto img = (img_amd_t *) img_base;
+
+    auto result = dup.context->AllocSurface(amf::AMF_MEMORY_DX11, (amf::AMF_SURFACE_FORMAT) dup.capture_format, dup.resolution.width, dup.resolution.height, &img->surface);
+    if (result != AMF_OK) {
+      BOOST_LOG(error) << "AllocSurface() failed: "sv << result;
+      return -1;
+    }
+    return 0;
+  }
+
+  capture_e
+  display_amd_vram_t::release_snapshot() {
+    return dup.release_frame();
+  }
+
   /**
    * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
    * @param pull_free_image_cb call this to get a new free image from the video subsystem.
@@ -1705,7 +2096,6 @@ namespace platf::dxgi {
   display_vram_t::make_avcodec_encode_device(pix_fmt_e pix_fmt) {
     if (pix_fmt != platf::pix_fmt_e::nv12 && pix_fmt != platf::pix_fmt_e::p010) {
       BOOST_LOG(error) << "display_vram_t doesn't support pixel format ["sv << from_pix_fmt(pix_fmt) << ']';
-
       return nullptr;
     }
 

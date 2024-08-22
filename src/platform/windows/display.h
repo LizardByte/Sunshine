@@ -13,6 +13,8 @@
 
 #include <Unknwn.h>
 #include <winrt/Windows.Graphics.Capture.h>
+#include <AMF/core/Factory.h>
+#include <AMF/core/CurrentTime.h>
 
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -31,6 +33,13 @@ namespace platf::dxgi {
     dxgi->Release();
   }
 
+  inline
+  void
+  FreeLibraryHelper(void *item) {
+    FreeLibrary((HMODULE) item);
+  }
+
+  using hmodule_t = util::safe_ptr<void, FreeLibraryHelper>;
   using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
   using dxgi_t = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
   using dxgi1_t = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
@@ -177,6 +186,8 @@ namespace platf::dxgi {
     int height_before_rotation;
 
     int client_frame_rate;
+    int adapter_index;
+    int output_index;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
@@ -255,6 +266,9 @@ namespace platf::dxgi {
     release_snapshot() = 0;
     virtual int
     complete_img(img_t *img, bool dummy) = 0;
+
+    virtual bool
+    test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output);
   };
 
   /**
@@ -323,6 +337,9 @@ namespace platf::dxgi {
     release_frame();
 
     ~duplication_t();
+  protected:
+    bool
+    test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output);
   };
 
   /**
@@ -398,6 +415,10 @@ namespace platf::dxgi {
     release_frame();
     int
     set_cursor_visible(bool);
+
+  protected:
+    bool
+    test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output);
   };
 
   /**
@@ -429,4 +450,66 @@ namespace platf::dxgi {
     capture_e
     release_snapshot() override;
   };
+
+  class amd_capture_t {
+
+  public:
+    amd_capture_t();
+    ~amd_capture_t();
+
+    int
+    init(display_base_t *display, const ::video::config_t &config, int output_index);
+    capture_e
+    next_frame(std::chrono::milliseconds timeout, amf::AMFData** out);
+    capture_e
+    release_frame();
+
+    hmodule_t amfrt_lib;
+    amf_uint64 amf_version;
+    amf::AMFFactory *amf_factory;
+
+    amf::AMFContextPtr context;
+    amf::AMFComponentPtr captureComp;
+    amf::AMFComponentPtr frcComp;
+
+    amf_int64 capture_format;
+    AMFSize resolution;
+  };
+
+
+  /**
+   * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   */
+  class display_amd_vram_t: public display_vram_t {
+    friend class amf_d3d_avcodec_encode_device_t;
+    amd_capture_t dup;
+
+  public:
+    int
+    init(const ::video::config_t &config, const std::string &display_name);
+    capture_e
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    std::shared_ptr<img_t>
+    alloc_img() override;
+    int
+    dummy_img(platf::img_t *img_base) override;
+    capture_e
+    release_snapshot() override;
+    std::unique_ptr<avcodec_encode_device_t>
+    make_avcodec_encode_device(pix_fmt_e pix_fmt) override;
+
+  protected:
+    bool
+    test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output);
+  };
+
+
+  struct img_amd_t: public platf::img_t {
+    // We require the display to keep the AMF library and context
+    // around for as long as img_amd_t objects exist.
+    std::shared_ptr<platf::display_t> display;
+
+    amf::AMFSurfacePtr surface;
+  };
+
 }  // namespace platf::dxgi

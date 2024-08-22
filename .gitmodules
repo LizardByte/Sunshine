@@ -1,3 +1,7 @@
+[submodule "third-party/AMF"]
+	path = third-party/AMF
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/AMF.git
+	branch = master
 [submodule "packaging/linux/flatpak/deps/shared-modules"]
 	path = packaging/linux/flatpak/deps/shared-modules
 	url = https://github.com/flathub/shared-modules

@@ -685,6 +685,7 @@ namespace video {
       {
         { "filler_data"s, false },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
+        // { "smart_access_video", 1},
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
         { "preencode"s, &config::video.amd.amd_preanalysis },
@@ -1815,6 +1816,8 @@ namespace video {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
+
+      // BOOST_LOG(debug) << "Frame nr: " << frame_nr << " Timestamp: " << (frame_timestamp ? std::to_string(frame_timestamp->time_since_epoch().count()) : "n/a");
 
       session->request_normal_frame();
     }

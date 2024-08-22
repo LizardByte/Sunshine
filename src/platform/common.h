@@ -199,6 +199,7 @@ namespace platf {
     system,  ///< System memory
     vaapi,  ///< VAAPI
     dxgi,  ///< DXGI
+    dxgi_amf,  ///< DXGI
     cuda,  ///< CUDA
     videotoolbox,  ///< VideoToolbox
     unknown  ///< Unknown

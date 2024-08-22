@@ -485,6 +485,18 @@ namespace platf::dxgi {
     return false;
   }
 
+
+  bool
+  display_base_t::test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output) {
+    BOOST_LOG(error) << "TESTING display_base_t ############################################";
+    return dxgi::test_dxgi_duplication(adapter, output, false);
+  }
+
+  bool
+  duplication_t::test_capture(int adapter_index, adapter_t &adapter, int output_index, output_t &output) {
+    return dxgi::test_dxgi_duplication(adapter, output, false);
+  }
+
   int
   display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
     std::once_flag windows_cpp_once_flag;
@@ -546,7 +558,8 @@ namespace platf::dxgi {
             continue;
           }
 
-          if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp, false)) {
+          if (desc.AttachedToDesktop && test_capture(x, adapter_tmp, y, output_tmp)) {
+            output_index = y;
             output = std::move(output_tmp);
 
             offset_x = desc.DesktopCoordinates.left;
@@ -575,6 +588,7 @@ namespace platf::dxgi {
         }
 
         if (output) {
+          adapter_index = x;
           adapter = std::move(adapter_tmp);
           break;
         }
@@ -753,7 +767,7 @@ namespace platf::dxgi {
         return -1;
       }
 
-      status = dxgi->SetMaximumFrameLatency(1);
+      status = dxgi->SetMaximumFrameLatency(3);
       if (FAILED(status)) {
         BOOST_LOG(warning) << "Failed to set maximum frame latency [0x"sv << util::hex(status).to_string_view() << ']';
       }
@@ -1044,6 +1058,16 @@ namespace platf {
       }
       else if (hwdevice_type == mem_type_e::system) {
         auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
+
+        if (!disp->init(config, display_name)) {
+          return disp;
+        }
+      }
+    }
+
+    if (config::video.capture == "amd") {
+      if (hwdevice_type == mem_type_e::dxgi) {
+        auto disp = std::make_shared<dxgi::display_amd_vram_t>();
 
         if (!disp->init(config, display_name)) {
           return disp;
