@@ -223,6 +223,15 @@ namespace nvenc {
     init_params.frameRateNum = client_config.framerate;
     init_params.frameRateDen = 1;
 
+#if NVENC_INT_VERSION >= 1202
+    {
+      using enum nvenc_split_frame_encoding;
+      init_params.splitEncodeMode = config.split_frame_encoding == disabled      ? NV_ENC_SPLIT_DISABLE_MODE :
+                                    config.split_frame_encoding == force_enabled ? NV_ENC_SPLIT_AUTO_FORCED_MODE :
+                                                                                   NV_ENC_SPLIT_AUTO_MODE;
+    }
+#endif
+
     NV_ENC_PRESET_CONFIG preset_config = {
       .version = NV_ENC_PRESET_CONFIG_VER,
       .presetCfg = { .version = NV_ENC_CONFIG_VER },
@@ -257,8 +266,12 @@ namespace nvenc {
     auto set_h264_hevc_common_format_config = [&](auto &format_config) {
       format_config.repeatSPSPPS = 1;
       format_config.idrPeriod = NVENC_INFINITE_GOPLENGTH;
-      format_config.sliceMode = 3;
-      format_config.sliceModeData = client_config.slicesPerFrame;
+      if (client_config.slicesPerFrame > 1 ||
+          NVENC_INT_VERSION < 1202 ||
+          config.split_frame_encoding == nvenc_split_frame_encoding::disabled) {
+        format_config.sliceMode = 3;
+        format_config.sliceModeData = client_config.slicesPerFrame;
+      }
       if (buffer_is_yuv444()) {
         format_config.chromaFormatIDC = 3;
       }
