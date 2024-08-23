@@ -72,18 +72,18 @@ syncThreadDesktop() {
 }
 
 /**
- * @brief Checks whether a given frame is entirely dark by evaluating the RGB values of each pixel.
- *
- * This function determines if the provided frame is completely dark by analyzing the RGB values of every pixel.
- * It iterates over all pixels in the frame and compares each pixel's RGB channels to a defined darkness threshold.
- * If any pixel's RGB values exceed this threshold, the function concludes that the frame is not entirely dark and returns `false`.
- * If all pixels are below the threshold, indicating a completely dark frame, the function returns `true`.
- *
- * @param mappedResource A reference to a `D3D11_MAPPED_SUBRESOURCE` structure containing the mapped subresource data of the frame to be analyzed.
- * @param frameDesc A reference to a `D3D11_TEXTURE2D_DESC` structure describing the texture properties, including width and height.
- * @param darknessThreshold A floating-point value representing the threshold above which a pixel's RGB values are considered non-dark. The value ranges from 0.0f to 1.0f, with a default value of 0.1f.
- * @return bool Returns `true` if the frame is determined to be entirely dark, otherwise returns `false`.
- */
+  * @brief Determines if a given frame is valid by checking if it contains any non-dark pixels.
+  *
+  * This function analyzes the provided frame to determine if it contains any pixels that exceed a specified darkness threshold.
+  * It iterates over all pixels in the frame, comparing each pixel's RGB values to the defined darkness threshold.
+  * If any pixel's RGB values exceed this threshold, the function concludes that the frame is valid (i.e., not entirely dark) and returns `true`.
+  * If all pixels are below or equal to the threshold, indicating a completely dark frame, the function returns `false`.
+
+  * @param mappedResource A reference to a `D3D11_MAPPED_SUBRESOURCE` structure containing the mapped subresource data of the frame to be analyzed.
+  * @param frameDesc A reference to a `D3D11_TEXTURE2D_DESC` structure describing the texture properties, including width and height.
+  * @param darknessThreshold A floating-point value representing the threshold above which a pixel's RGB values are considered dark. The value ranges from 0.0f to 1.0f, with a default value of 0.1f.
+  * @return bool Returns `true` if the frame contains any non-dark pixels, indicating it is valid; otherwise, returns `false`.
+  */
 bool
 is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE2D_DESC &frameDesc, float darknessThreshold = 0.1f) {
   const uint8_t *pixels = static_cast<const uint8_t *>(mappedResource.pData);
