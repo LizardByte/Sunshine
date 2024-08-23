@@ -1037,7 +1037,6 @@ jobs:
             mingw-w64-ucrt-x86_64-graphviz \
             mingw-w64-ucrt-x86_64-miniupnpc \
             mingw-w64-ucrt-x86_64-nlohmann-json \
-            mingw-w64-ucrt-x86_64-nodejs \
             mingw-w64-ucrt-x86_64-nsis \
             mingw-w64-ucrt-x86_64-onevpl \
             mingw-w64-ucrt-x86_64-openssl \
@@ -1068,6 +1067,17 @@ jobs:
 
           # Clean up
           Remove-Item -Path doxygen-setup.exe
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+
+      - name: npm Path
+        shell: msys2 {0}
+        run: |
+          echo 'export PATH=$PATH:/c/Program\ Files/nodejs' >> /home/runneradmin/.bashrc
+          cat /home/runneradmin/.bashrc
 
       - name: Setup python
         id: setup-python
@@ -1100,6 +1110,7 @@ jobs:
             -S . \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DNPM_EXECUTABLE="C:\\Program Files\\nodejs\\npm" \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip'
           ninja -C build

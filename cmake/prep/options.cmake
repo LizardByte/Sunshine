@@ -2,6 +2,9 @@ option(BUILD_DOCS "Build documentation" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(TESTS_ENABLE_PYTHON_TESTS "Enable Python tests" ON)
 
+# provide the NPM executable to use instead of searching for it
+set(NPM_EXECUTABLE "" CACHE FILEPATH "Path to the NPM executable")
+
 # DirectX11 is not available in GitHub runners, so even software encoding fails
 set(TESTS_SOFTWARE_ENCODER_UNAVAILABLE "fail"
         CACHE STRING "How to handle unavailable software encoders in tests. 'fail/skip'")

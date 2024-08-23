@@ -52,7 +52,11 @@ else()
 endif()
 
 #WebUI build
-find_program(NPM npm REQUIRED)
+if(NPM_EXECUTABLE STREQUAL "")
+    find_program(NPM npm REQUIRED)
+else()
+    set(NPM ${NPM_EXECUTABLE})
+endif()
 add_custom_target(web-ui ALL
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Installing NPM Dependencies and Building the Web UI"
