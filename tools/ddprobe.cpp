@@ -82,7 +82,7 @@ syncThreadDesktop() {
   * @param mappedResource A reference to a `D3D11_MAPPED_SUBRESOURCE` structure containing the mapped subresource data of the frame to be analyzed.
   * @param frameDesc A reference to a `D3D11_TEXTURE2D_DESC` structure describing the texture properties, including width and height.
   * @param darknessThreshold A floating-point value representing the threshold above which a pixel's RGB values are considered dark. The value ranges from 0.0f to 1.0f, with a default value of 0.1f.
-  * @return bool Returns `true` if the frame contains any non-dark pixels, indicating it is valid; otherwise, returns `false`.
+  * @return Returns `true` if the frame contains any non-dark pixels, indicating it is valid; otherwise, returns `false`.
   */
 bool
 is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE2D_DESC &frameDesc, float darknessThreshold = 0.1f) {
