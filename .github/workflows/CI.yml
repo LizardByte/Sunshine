@@ -1037,7 +1037,6 @@ jobs:
             mingw-w64-ucrt-x86_64-graphviz \
             mingw-w64-ucrt-x86_64-miniupnpc \
             mingw-w64-ucrt-x86_64-nlohmann-json \
-            mingw-w64-ucrt-x86_64-nodejs \
             mingw-w64-ucrt-x86_64-nsis \
             mingw-w64-ucrt-x86_64-onevpl \
             mingw-w64-ucrt-x86_64-openssl \
@@ -1068,6 +1067,27 @@ jobs:
 
           # Clean up
           Remove-Item -Path doxygen-setup.exe
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+
+      - name: npm Path
+        id: npm-path
+        shell: powershell
+        run: |
+          # get the path to npm
+          $npm_path_sources = $(Get-Command npm -CommandType Application).Source
+
+          # get the last source that ends in .cmd and is in Program Files
+          $npm_path = $npm_path_sources | `
+            Where-Object { $_ -like '*Program Files*' -and $_ -like '*.cmd' } | `
+            Select-Object -Last 1
+
+          # step output
+          Write-Host "npm-path=$npm_path"
+          echo "npm-path=$npm_path" >> $GITHUB_OUTPUT
 
       - name: Setup python
         id: setup-python
@@ -1100,6 +1120,7 @@ jobs:
             -S . \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DNPM_EXECUTABLE="${{ steps.npm-path.outputs.npm-path }}" \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip'
           ninja -C build
