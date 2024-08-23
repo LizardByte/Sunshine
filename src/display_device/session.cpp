@@ -246,7 +246,7 @@ namespace display_device {
 
         // display_device::w_utils::togglePnpDeviceByFriendlyName("Generic Monitor (IDD HDR)", true);
         // BOOST_LOG(info) << "Enable IDD...";
-        Sleep(1000);
+        Sleep(1500);
         return settings.revert_settings();
       });
     }

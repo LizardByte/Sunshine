@@ -302,7 +302,7 @@
     "qsv_preset_veryfast": "veryfast - 最快 (最低质量)",
     "qsv_slow_hevc": "允许慢速 HEVC 编码",
     "qsv_slow_hevc_desc": "这可以让英特尔旧的 GPU 上的 HEVC 编码，代价是GPU 使用率更高和性能更差。",
-    "res_fps_desc": "由 Sunshine 通告的显示模式。 某些版本的 Moonlight，如 Moonlight-nx (Switch)，依靠这些清单来确保支持所请求的分辨率和 fps。 此设置不会改变屏幕串流送至 Moonlight 的方式。",
+    "res_fps_desc": "由 Sunshine 通告的显示模式，更改后需要禁用再启用VDD适配器或者重启主机使虚拟显示器应用设置生效。",
     "resolution_change_automatic_windows": "使用客户端要求的分辨率",
     "resolution_change_manual_desc_windows": "\"优化游戏设置\" 必须在 Moonlight 客户端上启用选项才能生效。",
     "resolution_change_manual_windows": "手动指定分辨率",

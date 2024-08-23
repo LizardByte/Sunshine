@@ -28,8 +28,6 @@
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
-#include "src/display_device/display_device.h"
-#include "src/display_device/to_string.h"
 #include "display_device/session.h"
 #include "file_handler.h"
 #include "globals.h"
@@ -39,6 +37,8 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "rtsp.h"
+#include "src/display_device/display_device.h"
+#include "src/display_device/to_string.h"
 #include "utility.h"
 #include "uuid.h"
 #include "version.h"
@@ -597,6 +597,18 @@ namespace confighttp {
     outputTree.put("locale", config::sunshine.locale);
   }
 
+  std::vector<std::string>
+  split(const std::string &str, char delimiter) {
+    std::vector<std::string> tokens;
+    size_t start = 0, end = 0;
+    while ((end = str.find(delimiter, start)) != std::string::npos) {
+      tokens.push_back(str.substr(start, end - start));
+      start = end + 1;
+    }
+    tokens.push_back(str.substr(start));
+    return tokens;
+  }
+
   void
   saveConfig(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -613,17 +625,58 @@ namespace confighttp {
       pt::write_json(data, outputTree);
       response->write(data.str());
     });
+
+    std::string idd_option_path = "c:\\IddSampleDriver\\vdd_settings.xml";
+    pt::ptree iddOptionTree;
+    pt::ptree resolutions_nodes;
+
     pt::ptree inputTree;
+
     try {
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
+      std::string fpsArray = inputTree.get<std::string>("fps", "[]");
+
       for (const auto &kv : inputTree) {
         std::string value = inputTree.get<std::string>(kv.first);
         if (value.length() == 0 || value.compare("null") == 0) continue;
-
+        // prepare resolutions setting for vdd
+        if (kv.first.compare("resolutions") == 0) {
+          boost::regex pattern("\\[|\\]|\\s+");
+          char delimiter = ',';
+          std::string str = boost::regex_replace(value, pattern, "");
+          boost::algorithm::trim(str);
+          for (const auto &resolution : split(str, delimiter)) {
+            auto index = resolution.find("x", 0);
+            pt::ptree res_node;
+            res_node.put("width", resolution.substr(0, index));
+            res_node.put("height", resolution.substr(index + 1));
+            for (const auto &fps : split(boost::regex_replace(fpsArray, pattern, ""), delimiter)) {
+              res_node.add("refresh_rate", fps);
+            }
+            resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
+          }
+        }
         configStream << kv.first << " = " << value << std::endl;
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), configStream.str());
+
+      if (fs::exists(idd_option_path)) {
+        pt::ptree monitor_node;
+        monitor_node.put("count", 1);
+
+        pt::ptree gpu_node;
+        gpu_node.put("friendlyname", inputTree.get<std::string>("adapter_name", ""));
+
+        iddOptionTree.add_child("monitors", monitor_node);
+        iddOptionTree.add_child("gpu", gpu_node);
+        iddOptionTree.add_child("resolutions", resolutions_nodes);
+
+        pt::ptree root;
+        root.add_child("vdd_settings", iddOptionTree);
+        auto setting = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
+        write_xml(idd_option_path, root, std::locale(), setting);
+      }
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();

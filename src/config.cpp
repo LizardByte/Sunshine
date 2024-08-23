@@ -417,20 +417,28 @@ namespace config {
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
     {
-      "352x240"s,
-      "480x360"s,
-      "858x480"s,
       "1280x720"s,
       "1920x1080"s,
       "2560x1080"s,
       "2560x1440"s,
+      "2560x1600"s,
       "3440x1440"s,
       "1920x1200"s,
       "3840x2160"s,
       "3840x1600"s,
+      "2316x1080"s,
+      "2340x1080"s,
+      "2388x1668"s,
+      "2480x1116"s,
+      "2670x1200"s,
+      "2800x1260"s,
+      "2880x1920"s,
+      "3200x1440"s,
+      "5120x2880"s,
+      "7680x4320"s,
     },  // supported resolutions
 
-    { 10, 30, 60, 90, 120 },  // supported fps
+    { 30, 60, 90, 120, 165, 240 },  // supported fps
   };
 
   input_t input {

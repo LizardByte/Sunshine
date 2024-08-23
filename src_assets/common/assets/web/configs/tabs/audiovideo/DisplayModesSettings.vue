@@ -51,7 +51,7 @@ const fpsIn = ref("")
           <span style="cursor: pointer" @click="fps.splice(i,1)">&times;</span>
         </div>
       </div>
-      <form @submit.prevent="fps.push(fpsIn);fpsIn = '';" class="d-flex align-items-center">
+      <form @submit.prevent="+fpsIn >= 30 && fps.push(fpsIn); fpsIn = '';" class="d-flex align-items-center">
         <input type="text" v-model="fpsIn" required pattern="[0-9]+" style="
                   width: 6ch;
                   border-top-right-radius: 0;
