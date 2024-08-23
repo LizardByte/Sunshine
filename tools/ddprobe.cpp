@@ -116,12 +116,12 @@ is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTU
  * This function attempts to acquire and analyze up to 10 frames from a DXGI output duplication object (`dup`).
  * It checks if each frame is non-empty (not entirely dark) by using the `is_valid_frame` function.
  * If any non-empty frame is found, the function returns `S_OK`.
- * If all 10 frames are empty, it returns `S_FALSE`, suggesting potential issues with the capture process.
+ * If all 10 frames are empty, it returns `E_FAIL`, suggesting potential issues with the capture process.
  * If any error occurs during the frame acquisition or analysis process, the corresponding `HRESULT` error code is returned.
  *
  * @param dup A reference to the DXGI output duplication object (`dxgi::dup_t&`) used to acquire frames.
  * @param device A ComPtr to the ID3D11Device interface representing the device associated with the Direct3D context.
- * @return HRESULT Returns `S_OK` if a non-empty frame is captured successfully, `E_FAIL` if all frames are empty, or an error code if any failure occurs during the process.
+ * @return Returns `S_OK` if a non-empty frame is captured successfully, `E_FAIL` if all frames are empty, or an error code if any failure occurs during the process.
  */
 HRESULT
 test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
