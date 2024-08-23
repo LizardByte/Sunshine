@@ -667,14 +667,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: macports/macports-ports
-          fetch-depth: 64
+          fetch-depth: 1
           path: ports
+          show-progress: false
 
       - name: Checkout mpbb
         uses: actions/checkout@v4
         with:
           repository: macports/mpbb
           path: mpbb
+          show-progress: false
 
       - name: Setup Dependencies Macports
         run: |
@@ -731,7 +733,7 @@ jobs:
 
       - name: Bootstrap MacPorts
         run: |
-          . ports/.github/workflows/bootstrap.sh
+          ./ports/.github/workflows/bootstrap.sh
 
           # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
           echo "/opt/mports/bin" >> $GITHUB_PATH
