@@ -5,8 +5,8 @@
 #include <src/logging.h>
 
 #include "../tests_common.h"
+#include "../tests_log_checker.h"
 
-#include <fstream>
 #include <random>
 
 namespace {
@@ -40,25 +40,5 @@ TEST_P(LogLevelsTest, PutMessage) {
   auto test_message = std::to_string(rand_gen()) + std::to_string(rand_gen());
   BOOST_LOG(logger) << test_message;
 
-  // Flush logger and search for the message in the log file
-
-  logging::log_flush();
-
-  std::ifstream input(log_file);
-  ASSERT_TRUE(input.is_open());
-
-  bool found = false;
-  for (std::string line; std::getline(input, line);) {
-    if (line.find(test_message) != std::string::npos) {
-      // Assume that logger may change the case of log level label
-      std::transform(line.begin(), line.end(), line.begin(),
-        [](char c) { return std::tolower(c); });
-
-      if (line.find(label) != std::string::npos) {
-        found = true;
-        break;
-      }
-    }
-  }
-  ASSERT_TRUE(found);
+  ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
 }

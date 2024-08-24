@@ -31,7 +31,11 @@ RUN <<_BUILD
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
-./scripts/linux_build.sh --sudo-off
+./scripts/linux_build.sh \
+  --publisher-name='LizardByte' \
+  --publisher-website='https://app.lizardbyte.dev' \
+  --publisher-issue-url='https://app.lizardbyte.dev/support' \
+  --sudo-off
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _BUILD

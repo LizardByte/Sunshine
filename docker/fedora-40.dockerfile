@@ -29,7 +29,11 @@ RUN <<_BUILD
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
-./scripts/linux_build.sh --sudo-off
+./scripts/linux_build.sh \
+  --publisher-name='LizardByte' \
+  --publisher-website='https://app.lizardbyte.dev' \
+  --publisher-issue-url='https://app.lizardbyte.dev/support' \
+  --sudo-off
 dnf clean all
 rm -rf /var/cache/yum
 _BUILD

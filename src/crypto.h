@@ -34,6 +34,11 @@ namespace crypto {
   using pkey_ctx_t = util::safe_ptr<EVP_PKEY_CTX, EVP_PKEY_CTX_free>;
   using bignum_t = util::safe_ptr<BIGNUM, BN_free>;
 
+  /**
+   * @brief Hashes the given plaintext using SHA-256.
+   * @param plaintext
+   * @return The SHA-256 hash of the plaintext.
+   */
   sha256_t
   hash(const std::string_view &plaintext);
 

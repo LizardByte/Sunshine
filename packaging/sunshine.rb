@@ -71,6 +71,9 @@ class @PROJECT_NAME@ < Formula
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
       -DSUNSHINE_BUILD_HOMEBREW=ON
       -DSUNSHINE_ENABLE_TRAY=OFF
+      -DSUNSHINE_PUBLSIHER_NAME='LizardByte'
+      -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
+      -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
 
     if build.with? "docs-off"

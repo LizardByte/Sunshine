@@ -325,7 +325,13 @@ jobs:
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           chmod +x ./scripts/linux_build.sh
-          ./scripts/linux_build.sh --skip-cleanup --skip-package --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
+          ./scripts/linux_build.sh \
+            --publisher-name='${{ github.repository_owner }}' \
+            --publisher-website='https://app.lizardbyte.dev' \
+            --publisher-issue-url='https://app.lizardbyte.dev/support' \
+            --skip-cleanup \
+            --skip-package \
+            --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
 
       - name: Set AppImage Version
         if: |
@@ -1101,6 +1107,9 @@ jobs:
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLSIHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support' \
             -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip'
           ninja -C build
 
