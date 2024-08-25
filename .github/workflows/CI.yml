@@ -732,7 +732,7 @@ jobs:
 
       - name: Bootstrap MacPorts
         run: |
-          ./ports/.github/workflows/bootstrap.sh
+          . ports/.github/workflows/bootstrap.sh
 
           # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
           echo "/opt/mports/bin" >> $GITHUB_PATH
