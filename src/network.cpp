@@ -206,4 +206,34 @@ namespace net {
 
     return mapped_port;
   }
+
+  /**
+   * @brief Returns a string for use as the instance name for mDNS.
+   * @param hostname The hostname to use for instance name generation.
+   * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
+   */
+  std::string
+  mdns_instance_name(const std::string_view &hostname) {
+    // Start with the unmodified hostname
+    std::string instancename { hostname.data(), hostname.size() };
+
+    // Truncate to 63 characters per RFC 6763 section 7.2.
+    if (instancename.size() > 63) {
+      instancename.resize(63);
+    }
+
+    for (auto i = 0; i < instancename.size(); i++) {
+      // Replace any spaces with dashes
+      if (instancename[i] == ' ') {
+        instancename[i] = '-';
+      }
+      else if (!std::isalnum(instancename[i]) && instancename[i] != '-') {
+        // Stop at the first invalid character
+        instancename.resize(i);
+        break;
+      }
+    }
+
+    return !instancename.empty() ? instancename : "Sunshine";
+  }
 }  // namespace net
