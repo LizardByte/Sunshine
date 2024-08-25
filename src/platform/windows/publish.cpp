@@ -107,9 +107,10 @@ namespace platf::publish {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
     std::wstring domain { SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size() };
-    std::wstring name = from_utf8(net::mdns_instance_name() + '.') + domain;
 
-    auto host = from_utf8(boost::asio::ip::host_name() + ".local");
+    auto hostname = boost::asio::ip::host_name();
+    auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
+    auto host = from_utf8(hostname + ".local");
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();

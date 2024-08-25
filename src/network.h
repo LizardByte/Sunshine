@@ -108,8 +108,9 @@ namespace net {
 
   /**
    * @brief Returns a string for use as the instance name for mDNS.
+   * @param hostname The hostname to use for instance name generation.
    * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
    */
   std::string
-  mdns_instance_name();
+  mdns_instance_name(const std::string_view &hostname);
 }  // namespace net

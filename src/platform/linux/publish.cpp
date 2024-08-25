@@ -426,7 +426,7 @@ namespace platf::publish {
       return nullptr;
     }
 
-    auto instance_name = net::mdns_instance_name();
+    auto instance_name = net::mdns_instance_name(boost::asio::ip::host_name());
     name.reset(avahi::strdup(instance_name.c_str()));
 
     client.reset(

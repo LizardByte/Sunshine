@@ -6,18 +6,21 @@
 
 #include "../tests_common.h"
 
-TEST(MdnsInstanceNameTests, ValidLength) {
-  auto name = net::mdns_instance_name();
+struct MdnsInstanceNameTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
-  // The instance name must be 63 characters or less
-  EXPECT_LT(name.size(), 64);
+TEST_P(MdnsInstanceNameTest, Run) {
+  auto [input, expected] = GetParam();
+  ASSERT_EQ(net::mdns_instance_name(input), expected);
 }
 
-TEST(MdnsInstanceNameTests, ValidCharacters) {
-  auto name = net::mdns_instance_name();
-
-  // The string must not contain invalid hostname characters
-  for (const char& c : name) {
-    EXPECT_TRUE(std::isalnum(c) || c == '-');
-  }
-}
+INSTANTIATE_TEST_SUITE_P(
+  MdnsInstanceNameTests,
+  MdnsInstanceNameTest,
+  testing::Values(
+    std::make_tuple("shortname-123", "shortname-123"),
+    std::make_tuple("space 123", "space-123"),
+    std::make_tuple("hostname.domain.test", "hostname"),
+    std::make_tuple("&", "Sunshine"),
+    std::make_tuple("", "Sunshine"),
+    std::make_tuple("😁", "Sunshine"),
+    std::make_tuple(std::string(128, 'a'), std::string(63, 'a'))));

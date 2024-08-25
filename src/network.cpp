@@ -209,29 +209,31 @@ namespace net {
 
   /**
    * @brief Returns a string for use as the instance name for mDNS.
+   * @param hostname The hostname to use for instance name generation.
    * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
    */
   std::string
-  mdns_instance_name() {
-    std::string hostname = boost::asio::ip::host_name();
+  mdns_instance_name(const std::string_view &hostname) {
+    // Start with the unmodified hostname
+    std::string instancename { hostname.data(), hostname.size() };
 
     // Truncate to 63 characters per RFC 6763 section 7.2.
-    if (hostname.size() > 63) {
-      hostname.resize(63);
+    if (instancename.size() > 63) {
+      instancename.resize(63);
     }
 
-    for (auto i = 0; i < hostname.size(); i++) {
+    for (auto i = 0; i < instancename.size(); i++) {
       // Replace any spaces with dashes
-      if (hostname[i] == ' ') {
-        hostname[i] = '-';
+      if (instancename[i] == ' ') {
+        instancename[i] = '-';
       }
-      else if (!std::isalnum(hostname[i]) && hostname[i] != '-') {
+      else if (!std::isalnum(instancename[i]) && instancename[i] != '-') {
         // Stop at the first invalid character
-        hostname.resize(i);
+        instancename.resize(i);
         break;
       }
     }
 
-    return !hostname.empty() ? hostname : "Sunshine";
+    return !instancename.empty() ? instancename : "Sunshine";
   }
 }  // namespace net
