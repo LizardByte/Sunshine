@@ -114,6 +114,9 @@ main(int argc, char *argv[]) {
   // the version should be printed to the log before anything else
   BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
 
+  // Log publisher metadata
+  log_publisher_data();
+
   if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);
     if (fn == std::end(cmd_to_func)) {

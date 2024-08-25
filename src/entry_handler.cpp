@@ -109,6 +109,13 @@ namespace lifetime {
   }
 }  // namespace lifetime
 
+void
+log_publisher_data() {
+  BOOST_LOG(info) << "Package Publisher: "sv << SUNSHINE_PUBLISHER_NAME;
+  BOOST_LOG(info) << "Publisher Website: "sv << SUNSHINE_PUBLISHER_WEBSITE;
+  BOOST_LOG(info) << "Get support: "sv << SUNSHINE_PUBLISHER_ISSUE_URL;
+}
+
 #ifdef _WIN32
 bool
 is_gamestream_enabled() {

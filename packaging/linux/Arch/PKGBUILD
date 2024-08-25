@@ -83,7 +83,10 @@ build() {
         -D BUILD_WERROR=ON \
         -D CMAKE_INSTALL_PREFIX=/usr \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-        -D SUNSHINE_ASSETS_DIR="share/sunshine"
+        -D SUNSHINE_ASSETS_DIR="share/sunshine" \
+        -D SUNSHINE_PUBLSIHER_NAME='LizardByte' \
+        -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+        -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
 
     make -C build
 }

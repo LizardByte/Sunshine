@@ -52,3 +52,7 @@ package-lock.json
 
 # Dummy macOS files
 .DS_Store
+
+# Python
+*.pyc
+venv/
