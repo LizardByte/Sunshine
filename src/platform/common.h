@@ -612,6 +612,23 @@ namespace platf {
   void
   restart();
 
+  /**
+   * @brief Set an environment variable.
+   * @param name The name of the environment variable.
+   * @param value The value to set the environment variable to.
+   * @return 0 on success, non-zero on failure.
+   */
+  int
+  set_env(const std::string &name, const std::string &value);
+
+  /**
+   * @brief Unset an environment variable.
+   * @param name The name of the environment variable.
+   * @return 0 on success, non-zero on failure.
+   */
+  int
+  unset_env(const std::string &name);
+
   struct buffer_descriptor_t {
     const char *buffer;
     size_t size;
