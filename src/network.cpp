@@ -206,4 +206,32 @@ namespace net {
 
     return mapped_port;
   }
+
+  /**
+   * @brief Returns a string for use as the instance name for mDNS.
+   * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
+   */
+  std::string
+  mdns_instance_name() {
+    std::string hostname = boost::asio::ip::host_name();
+
+    // Truncate to 63 characters per RFC 6763 section 7.2.
+    if (hostname.size() > 63) {
+      hostname.resize(63);
+    }
+
+    for (auto i = 0; i < hostname.size(); i++) {
+      // Replace any spaces with dashes
+      if (hostname[i] == ' ') {
+        hostname[i] = '-';
+      }
+      else if (!std::isalnum(hostname[i]) && hostname[i] != '-') {
+        // Stop at the first invalid character
+        hostname.resize(i);
+        break;
+      }
+    }
+
+    return !hostname.empty() ? hostname : "Sunshine";
+  }
 }  // namespace net

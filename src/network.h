@@ -105,4 +105,11 @@ namespace net {
    */
   int
   encryption_mode_for_address(boost::asio::ip::address address);
+
+  /**
+   * @brief Returns a string for use as the instance name for mDNS.
+   * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
+   */
+  std::string
+  mdns_instance_name();
 }  // namespace net
