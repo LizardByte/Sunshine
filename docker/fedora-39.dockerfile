@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64
 # platforms_pr: linux/amd64
@@ -7,7 +7,7 @@ ARG BASE=fedora
 ARG TAG=39
 FROM ${BASE}:${TAG} AS sunshine-base
 
-FROM sunshine-base as sunshine-build
+FROM sunshine-base AS sunshine-build
 
 ARG BRANCH
 ARG BUILD_VERSION
@@ -55,7 +55,7 @@ ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.rpm /sunshine-${BASE}-${TAG}-${TARGETARCH}.rpm
 
-FROM sunshine-base as sunshine
+FROM sunshine-base AS sunshine
 
 # copy deb from builder
 COPY --link --from=artifacts /sunshine*.rpm /sunshine.rpm

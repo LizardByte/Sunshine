@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 # artifacts: false
 # platforms: linux/amd64
 # platforms_pr: linux/amd64
@@ -9,7 +9,7 @@ FROM ${BASE}:${TAG} AS toolchain-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM toolchain-base as toolchain
+FROM toolchain-base AS toolchain
 
 ARG TARGETPLATFORM
 RUN echo "target_platform: ${TARGETPLATFORM}"
@@ -17,7 +17,9 @@ RUN echo "target_platform: ${TARGETPLATFORM}"
 ENV DISPLAY=:0
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # install dependencies
+# hadolint ignore=SC1091
 RUN <<_DEPS
 #!/bin/bash
 set -e
@@ -59,20 +61,14 @@ apt-get install -y --no-install-recommends \
   xvfb
 apt-get clean
 rm -rf /var/lib/apt/lists/*
-_DEPS
 
-#Install Node
-# hadolint ignore=SC1091
-RUN <<_INSTALL_NODE
-#!/bin/bash
-set -e
-node_version="20.9.0"
-wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+# Install Node
+wget --max-redirect=0 -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
 source "$HOME/.nvm/nvm.sh"
-nvm install "$node_version"
-nvm use "$node_version"
-nvm alias default "$node_version"
-_INSTALL_NODE
+nvm install node
+nvm use node
+nvm alias default node
+_DEPS
 
 # install cuda
 WORKDIR /build/cuda
@@ -110,13 +106,13 @@ else
   exec "\$@"
 fi
 EOF
-_ENTRYPOINT
 
 # Make the script executable
-RUN chmod +x /entrypoint.sh
+chmod +x /entrypoint.sh
 
 # Note about CLion
-RUN echo "ATTENTION: CLion will override the entrypoint, you can disable this in the toolchain settings"
+echo "ATTENTION: CLion will override the entrypoint, you can disable this in the toolchain settings"
+_ENTRYPOINT
 
 # Use the shell script as the entrypoint
 ENTRYPOINT ["/entrypoint.sh"]
