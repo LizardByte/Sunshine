@@ -667,7 +667,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: macports/macports-ports
-          fetch-depth: 1
           path: ports
           show-progress: false
 
