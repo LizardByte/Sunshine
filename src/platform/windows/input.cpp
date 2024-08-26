@@ -1728,15 +1728,18 @@ namespace platf {
 
   std::vector<supported_gamepad_t> &
   supported_gamepads(input_t *input) {
-    bool enabled;
-    if (input) {
-      auto vigem = ((input_raw_t *) input)->vigem;
-      enabled = vigem != nullptr;
-    }
-    else {
-      enabled = false;
+    if (!input) {
+      static std::vector gps {
+        supported_gamepad_t { "auto", true, "" },
+        supported_gamepad_t { "x360", false, "" },
+        supported_gamepad_t { "ds4", false, "" },
+      };
+
+      return gps;
     }
 
+    auto vigem = ((input_raw_t *) input)->vigem;
+    auto enabled = vigem != nullptr;
     auto reason = enabled ? "" : "gamepads.vigem-not-available";
 
     // ds4 == ps4
