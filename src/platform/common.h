@@ -12,8 +12,8 @@
 
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
-#include <boost/process.hpp>
-#include <boost/asio.hpp>
+  #include <boost/asio.hpp>
+  #include <boost/process.hpp>
 #endif
 
 #include "src/config.h"
