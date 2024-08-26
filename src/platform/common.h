@@ -860,6 +860,8 @@ namespace platf {
 
   /**
    * @brief Gets the supported gamepads for this platform backend.
+   * @details This may be called prior to `platf::input()`!
+   * @param input Pointer to the platform's `input_t` or `nullptr`.
    * @return Vector of gamepad options and status.
    */
   std::vector<supported_gamepad_t> &
