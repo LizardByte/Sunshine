@@ -11,6 +11,10 @@
 #include <string>
 
 #include <boost/core/noncopyable.hpp>
+#ifndef _WIN32
+  #include <boost/asio.hpp>
+  #include <boost/process.hpp>
+#endif
 
 #include "src/config.h"
 #include "src/logging.h"
@@ -31,6 +35,7 @@ struct AVHWFramesContext;
 struct AVCodecContext;
 struct AVDictionary;
 
+#ifdef _WIN32
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
@@ -50,6 +55,7 @@ namespace boost {
     typedef basic_environment<char> environment;
   }  // namespace process
 }  // namespace boost
+#endif
 namespace video {
   struct config_t;
 }  // namespace video
