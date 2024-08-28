@@ -2,12 +2,11 @@
  * @file tests/unit/test_rswrapper.cpp
  * @brief Test src/rswrapper.*
  */
-
 extern "C" {
 #include <src/rswrapper.h>
 }
 
-#include <tests/conftest.cpp>
+#include "../tests_common.h"
 
 TEST(ReedSolomonWrapperTests, InitTest) {
   reed_solomon_init();

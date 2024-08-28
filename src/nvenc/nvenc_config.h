@@ -1,6 +1,6 @@
 /**
  * @file src/nvenc/nvenc_config.h
- * @brief Declarations for base NVENC configuration.
+ * @brief Declarations for NVENC encoder configuration.
  */
 #pragma once
 
@@ -12,6 +12,9 @@ namespace nvenc {
     full_resolution,  ///< Better overall statistics, slower and uses more extra vram
   };
 
+  /**
+   * @brief NVENC encoder configuration.
+   */
   struct nvenc_config {
     // Quality preset from 1 to 7, higher is slower
     int quality_preset = 1;

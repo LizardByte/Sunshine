@@ -702,6 +702,7 @@ namespace cuda {
 
         NVFBC_DESTROY_HANDLE_PARAMS params { NVFBC_DESTROY_HANDLE_PARAMS_VER };
 
+        ctx_t ctx { handle };
         if (func.nvFBCDestroyHandle(handle, &params)) {
           BOOST_LOG(error) << "Couldn't destroy session handle: "sv << func.nvFBCGetLastErrorStr(handle);
         }

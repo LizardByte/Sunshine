@@ -16,6 +16,9 @@ extern boost::log::sources::severity_logger<int> info;
 extern boost::log::sources::severity_logger<int> warning;
 extern boost::log::sources::severity_logger<int> error;
 extern boost::log::sources::severity_logger<int> fatal;
+#ifdef SUNSHINE_TESTS
+extern boost::log::sources::severity_logger<int> tests;
+#endif
 
 #include "config.h"
 #include "stat_trackers.h"
@@ -40,6 +43,9 @@ namespace logging {
    */
   void
   deinit();
+
+  void
+  formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os);
 
   /**
    * @brief Initialize the logging system.

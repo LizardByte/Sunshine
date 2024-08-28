@@ -11,6 +11,10 @@
 #include <string>
 
 #include <boost/core/noncopyable.hpp>
+#ifndef _WIN32
+  #include <boost/asio.hpp>
+  #include <boost/process.hpp>
+#endif
 
 #include "src/config.h"
 #include "src/logging.h"
@@ -31,6 +35,7 @@ struct AVHWFramesContext;
 struct AVCodecContext;
 struct AVDictionary;
 
+#ifdef _WIN32
 // Forward declarations of boost classes to avoid having to include boost headers
 // here, which results in issues with Windows.h and WinSock2.h include order.
 namespace boost {
@@ -50,6 +55,7 @@ namespace boost {
     typedef basic_environment<char> environment;
   }  // namespace process
 }  // namespace boost
+#endif
 namespace video {
   struct config_t;
 }  // namespace video
@@ -209,6 +215,9 @@ namespace platf {
     yuv420p10,  ///< YUV 4:2:0 10-bit
     nv12,  ///< NV12
     p010,  ///< P010
+    ayuv,  ///< AYUV
+    yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
+    y410,  ///< Y410
     unknown  ///< Unknown
   };
 
@@ -223,6 +232,9 @@ namespace platf {
       _CONVERT(yuv420p10);
       _CONVERT(nv12);
       _CONVERT(p010);
+      _CONVERT(ayuv);
+      _CONVERT(yuv444p16);
+      _CONVERT(y410);
       _CONVERT(unknown);
     }
 #undef _CONVERT
@@ -609,6 +621,23 @@ namespace platf {
   void
   restart();
 
+  /**
+   * @brief Set an environment variable.
+   * @param name The name of the environment variable.
+   * @param value The value to set the environment variable to.
+   * @return 0 on success, non-zero on failure.
+   */
+  int
+  set_env(const std::string &name, const std::string &value);
+
+  /**
+   * @brief Unset an environment variable.
+   * @param name The name of the environment variable.
+   * @return 0 on success, non-zero on failure.
+   */
+  int
+  unset_env(const std::string &name);
+
   struct buffer_descriptor_t {
     const char *buffer;
     size_t size;
@@ -834,6 +863,8 @@ namespace platf {
 
   /**
    * @brief Gets the supported gamepads for this platform backend.
+   * @details This may be called prior to `platf::input()`!
+   * @param input Pointer to the platform's `input_t` or `nullptr`.
    * @return Vector of gamepad options and status.
    */
   std::vector<supported_gamepad_t> &

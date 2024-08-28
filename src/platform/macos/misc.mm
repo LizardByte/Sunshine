@@ -253,6 +253,16 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
+  int
+  set_env(const std::string &name, const std::string &value) {
+    return setenv(name.c_str(), value.c_str(), 1);
+  }
+
+  int
+  unset_env(const std::string &name) {
+    return unsetenv(name.c_str());
+  }
+
   bool
   request_process_group_exit(std::uintptr_t native_handle) {
     if (killpg((pid_t) native_handle, SIGTERM) == 0 || errno == ESRCH) {

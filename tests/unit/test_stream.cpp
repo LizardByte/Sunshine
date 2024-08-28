@@ -13,7 +13,7 @@ namespace stream {
   concat_and_insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data1, const std::string_view &data2);
 }
 
-#include <tests/conftest.cpp>
+#include "../tests_common.h"
 
 TEST(ConcatAndInsertTests, ConcatNoInsertionTest) {
   char b1[] = { 'a', 'b' };

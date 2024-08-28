@@ -9,4 +9,8 @@ struct vertex_t
 #else
     float2 tex_coord : TEXCOORD;
 #endif
+#ifdef PLANAR_VIEWPORTS
+    uint viewport : SV_ViewportArrayIndex;
+    nointerpolation float4 color_vec : COLOR0;
+#endif
 };

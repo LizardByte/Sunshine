@@ -981,6 +981,7 @@ namespace rtsp_stream {
     args.try_emplace("x-nv-aqos.qosTrafficType"sv, "4"sv);
     args.try_emplace("x-ml-video.configuredBitrateKbps"sv, "0"sv);
     args.try_emplace("x-ss-general.encryptionEnabled"sv, "0"sv);
+    args.try_emplace("x-ss-video[0].chromaSamplingType"sv, "0"sv);
 
     stream::config_t config;
 
@@ -1016,6 +1017,7 @@ namespace rtsp_stream {
       config.monitor.encoderCscMode = util::from_view(args.at("x-nv-video[0].encoderCscMode"sv));
       config.monitor.videoFormat = util::from_view(args.at("x-nv-vqos[0].bitStreamFormat"sv));
       config.monitor.dynamicRange = util::from_view(args.at("x-nv-video[0].dynamicRangeMode"sv));
+      config.monitor.chromaSamplingType = util::from_view(args.at("x-ss-video[0].chromaSamplingType"sv));
 
       configuredBitrateKbps = util::from_view(args.at("x-ml-video.configuredBitrateKbps"sv));
     }

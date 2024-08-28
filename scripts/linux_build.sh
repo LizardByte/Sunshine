@@ -3,6 +3,9 @@ set -e
 
 # Default value for arguments
 appimage_build=0
+publisher_name="Third Party Publisher"
+publisher_website=""
+publisher_issue_url="https://app.lizardbyte.dev/support"
 skip_cleanup=0
 skip_cuda=0
 skip_libva=0
@@ -21,14 +24,18 @@ Usage:
   $0 [options]
 
 Options:
-  -h, --help           Display this help message.
-  -s, --sudo-off       Disable sudo command.
-  --appimage-build     Compile for AppImage, this will not create the AppImage, just the executable.
-  --skip-cleanup       Do not restore the original gcc alternatives, or the math-vector.h file.
-  --skip-cuda          Skip CUDA installation.
-  --skip-libva         Skip libva installation. This will automatically be enabled if passing --appimage-build.
-  --skip-package       Skip creating DEB, or RPM package.
-  --ubuntu-test-repo   Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
+  -h, --help               Display this help message.
+  -s, --sudo-off           Disable sudo command.
+  --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --publisher-name         The name of the publisher (not developer) of the application.
+  --publisher-website      The URL of the publisher's website.
+  --publisher-issue-url    The URL of the publisher's support site or issue tracker.
+                           If you provide a modified version of Sunshine, we kindly request that you use your own url.
+  --skip-cleanup           Do not restore the original gcc alternatives, or the math-vector.h file.
+  --skip-cuda              Skip CUDA installation.
+  --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
+  --skip-package           Skip creating DEB, or RPM package.
+  --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
 EOF
 
   exit "$exit_code"
@@ -45,6 +52,15 @@ while getopts ":hs-:" opt; do
         appimage-build)
           appimage_build=1
           skip_libva=1
+          ;;
+        publisher-name=*)
+          publisher_name="${OPTARG#*=}"
+          ;;
+        publisher-website=*)
+          publisher_website="${OPTARG#*=}"
+          ;;
+        publisher-issue-url=*)
+          publisher_issue_url="${OPTARG#*=}"
           ;;
         skip-cleanup) skip_cleanup=1 ;;
         skip-cuda) skip_cuda=1 ;;
@@ -266,6 +282,17 @@ function run_install() {
 
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
+  fi
+
+  # Publisher metadata
+  if [ -n "$publisher_name" ]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_NAME='${publisher_name}'")
+  fi
+  if [ -n "$publisher_website" ]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_WEBSITE='${publisher_website}'")
+  fi
+  if [ -n "$publisher_issue_url" ]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_ISSUE_URL='${publisher_issue_url}'")
   fi
 
   # Update the package list

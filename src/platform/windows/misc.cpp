@@ -1313,6 +1313,16 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
+  int
+  set_env(const std::string &name, const std::string &value) {
+    return _putenv_s(name.c_str(), value.c_str());
+  }
+
+  int
+  unset_env(const std::string &name) {
+    return _putenv_s(name.c_str(), "");
+  }
+
   struct enum_wnd_context_t {
     std::set<DWORD> process_ids;
     bool requested_exit;

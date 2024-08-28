@@ -105,7 +105,8 @@ namespace platf::publish {
       &serviceRef,
       0,  // flags
       0,  // interfaceIndex
-      SERVICE_NAME, SERVICE_TYPE,
+      nullptr,  // name
+      SERVICE_TYPE,
       nullptr,  // domain
       nullptr,  // host
       htons(net::map_port(nvhttp::PORT_HTTP)),

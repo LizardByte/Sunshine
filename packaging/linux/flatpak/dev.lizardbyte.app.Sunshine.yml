@@ -71,12 +71,15 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
+      - -DSUNSHINE_BUILD_FLATPAK=ON
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
-      - -DSUNSHINE_BUILD_FLATPAK=ON
+      - -DSUNSHINE_PUBLSIHER_NAME='LizardByte'
+        -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
+        -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     sources:
       - type: git
         url: "@GITHUB_CLONE_URL@"
