@@ -2,74 +2,43 @@
  * @file tests/unit/test_logging.cpp
  * @brief Test src/logging.*.
  */
-#include <fstream>
-
 #include <src/logging.h>
 
-#include <tests/conftest.cpp>
+#include "../tests_common.h"
+#include "../tests_log_checker.h"
 
-class LoggerInitTest: public virtual BaseTest, public ::testing::WithParamInterface<int> {
-protected:
-  void
-  SetUp() override {
-    BaseTest::SetUp();
-  }
+#include <random>
 
-  void
-  TearDown() override {
-    BaseTest::TearDown();
-  }
-};
+namespace {
+  std::array log_levels = {
+    std::tuple("verbose", &verbose),
+    std::tuple("debug", &debug),
+    std::tuple("info", &info),
+    std::tuple("warning", &warning),
+    std::tuple("error", &error),
+    std::tuple("fatal", &fatal),
+  };
+
+  constexpr auto log_file = "test_sunshine.log";
+}  // namespace
+
+struct LogLevelsTest: testing::TestWithParam<decltype(log_levels)::value_type> {};
+
 INSTANTIATE_TEST_SUITE_P(
-  LogLevel,
-  LoggerInitTest,
-  ::testing::Values(
-    0,
-    1,
-    2,
-    3,
-    4,
-    5));
-TEST_P(LoggerInitTest, InitLogging) {
-  int logLevel = GetParam();
-  std::string logFilePath = "test_log_" + std::to_string(logLevel) + ".log";
+  Logging,
+  LogLevelsTest,
+  testing::ValuesIn(log_levels),
+  [](const auto &info) { return std::string(std::get<0>(info.param)); });
 
-  // deinit the BaseTest logger
-  BaseTest::deinit_guard.reset();
+TEST_P(LogLevelsTest, PutMessage) {
+  auto [label, plogger] = GetParam();
+  ASSERT_TRUE(plogger);
+  auto &logger = *plogger;
 
-  auto log_deinit = logging::init(logLevel, logFilePath);
-  if (!log_deinit) {
-    FAIL() << "Failed to initialize logging";
-  }
-}
+  std::random_device rand_dev;
+  std::mt19937_64 rand_gen(rand_dev());
+  auto test_message = std::to_string(rand_gen()) + std::to_string(rand_gen());
+  BOOST_LOG(logger) << test_message;
 
-TEST(LogFlushTest, CheckLogFile) {
-  // Write a log message
-  BOOST_LOG(info) << "Test message";
-
-  // Call log_flush
-  logging::log_flush();
-
-  // Check the contents of the log file
-  std::ifstream log_file("test.log");
-  std::string line;
-  bool found = false;
-  while (std::getline(log_file, line)) {
-    if (line.find("Test message") != std::string::npos) {
-      found = true;
-      break;
-    }
-  }
-
-  EXPECT_TRUE(found);
-}
-
-TEST(PrintHelpTest, CheckOutput) {
-  std::string name = "test";
-  logging::print_help(name.c_str());
-
-  std::string output = cout_buffer.str();
-
-  EXPECT_NE(output.find("Usage: " + name), std::string::npos);
-  EXPECT_NE(output.find("--help"), std::string::npos);
+  ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
 }

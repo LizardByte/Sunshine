@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64
@@ -9,7 +9,7 @@ FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base as sunshine-build
+FROM sunshine-base AS sunshine-build
 
 ARG BRANCH
 ARG BUILD_VERSION
@@ -31,7 +31,11 @@ RUN <<_BUILD
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
-./scripts/linux_build.sh --sudo-off
+./scripts/linux_build.sh \
+  --publisher-name='LizardByte' \
+  --publisher-website='https://app.lizardbyte.dev' \
+  --publisher-issue-url='https://app.lizardbyte.dev/support' \
+  --sudo-off
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _BUILD
@@ -53,7 +57,7 @@ ARG TAG
 ARG TARGETARCH
 COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
-FROM sunshine-base as sunshine
+FROM sunshine-base AS sunshine
 
 # copy deb from builder
 COPY --link --from=artifacts /sunshine*.deb /sunshine.deb
