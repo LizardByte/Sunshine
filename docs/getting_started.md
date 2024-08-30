@@ -570,4 +570,9 @@ Tutorials and Guides are community generated. Want to contribute? Reach out to u
 
 </div>
 
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
+
 [latest-release]: https://github.com/LizardByte/Sunshine/releases/latest

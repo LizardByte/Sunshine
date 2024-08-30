@@ -323,3 +323,8 @@ values in most JSON.}
 | [Configuration](configuration.md) | [Guides](guides.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
