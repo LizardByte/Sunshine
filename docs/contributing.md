@@ -193,3 +193,8 @@ maintainers to run the tests locally.
 | [Building](building.md) | [Source Code](../third-party/doxyconfig/docs/source_code.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

@@ -29,3 +29,8 @@ Sunshine does have some limitations, as compared to Nvidia GameStream.
 | [Third-party Packages](third_party_packages.md) | [Legal](legal.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

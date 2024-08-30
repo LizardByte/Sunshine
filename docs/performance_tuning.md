@@ -18,3 +18,8 @@ Enabling *Fast Sync* in Nvidia settings may help reduce latency.
 | [Guides](guides.md) | [Troubleshooting](troubleshooting.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

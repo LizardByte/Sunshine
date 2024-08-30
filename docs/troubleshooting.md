@@ -198,3 +198,8 @@ permissions on the disk.
 | [Performance Tuning](performance_tuning.md) | [Building](building.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

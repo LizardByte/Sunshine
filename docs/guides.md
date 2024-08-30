@@ -532,3 +532,8 @@ going up and down. This device will be referred to as Voicemeeter Input.}
 | [App Examples](app_examples.md) | [Performance Tuning](performance_tuning.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

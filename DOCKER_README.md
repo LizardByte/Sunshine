@@ -169,3 +169,8 @@ The architectures supported by these images are shown in the table below.
 | [Changelog](docs/changelog.md) | [Third-Party Packages](docs/third_party_packages.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

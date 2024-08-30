@@ -160,3 +160,8 @@ It may be beneficial to build remotely in some cases. This will enable easier bu
 | [Troubleshooting](troubleshooting.md) | [Contributing](contributing.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
