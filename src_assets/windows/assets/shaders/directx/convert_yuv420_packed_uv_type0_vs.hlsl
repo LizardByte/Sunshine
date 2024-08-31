@@ -11,5 +11,5 @@ cbuffer rotate_texture_steps_cbuffer : register(b1) {
 
 vertex_t main_vs(uint vertex_id : SV_VertexID)
 {
-    return generate_fullscreen_triangle_vertex(vertex_id, subsample_offset.x, rotate_texture_steps);
+    return generate_fullscreen_triangle_vertex(vertex_id, subsample_offset, rotate_texture_steps);
 }
