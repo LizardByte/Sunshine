@@ -505,7 +505,7 @@ namespace platf::dxgi {
     return -1;                                                                                              \
   }
 
-      const bool downscaling = display->width != width || display->height != height;
+      const bool downscaling = display->width > width || display->height > height;
 
       switch (format) {
         case DXGI_FORMAT_NV12:
