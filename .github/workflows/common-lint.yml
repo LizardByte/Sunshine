@@ -1,0 +1,245 @@
+---
+# This action is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# Common linting.
+
+name: common lint
+
+on:
+  pull_request:
+    branches: [master]
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Common Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade \
+            pip \
+            setuptools \
+            wheel \
+            cmakelang \
+            flake8 \
+            nb-clean \
+            nbqa[toolchain]
+
+      - name: C++ - find files
+        id: cpp_files
+        run: |
+          # find files
+          found_files=$(find . -type f \
+            -iname "*.c" -o \
+            -iname "*.cpp" -o \
+            -iname "*.h" -o \
+            -iname "*.hpp" -o \
+            -iname "*.m" -o \
+            -iname "*.mm" \
+          )
+          ignore_files=$(find . -type f -iname ".clang-format-ignore")
+
+          # Loop through each C++ file
+          for file in $found_files; do
+            for ignore_file in $ignore_files; do
+              ignore_directory=$(dirname "$ignore_file")
+              # if directory of ignore_file is beginning of file
+              if [[ "$file" == "$ignore_directory"* ]]; then
+                echo "ignoring file: ${file}"
+                found_files="${found_files//${file}/}"
+                break 1
+              fi
+            done
+          done
+
+          # remove empty lines
+          found_files=$(echo "$found_files" | sed '/^\s*$/d')
+
+          echo "found cpp files: ${found_files}"
+
+          # do not quote to keep this as a single line
+          echo found_files=${found_files} >> $GITHUB_OUTPUT
+
+      - name: C++ - Clang format lint
+        if: always() && steps.cpp_files.outputs.found_files
+        uses: DoozyX/clang-format-lint-action@v0.18
+        with:
+          source: ${{ steps.cpp_files.outputs.found_files }}
+          extensions: 'c,cpp,h,hpp,m,mm'
+          style: file
+          inplace: false
+
+      - name: CMake - find files
+        id: cmake_files
+        if: always()
+        run: |
+          # find files
+          found_files=$(find . -type f -iname "CMakeLists.txt" -o -iname "*.cmake")
+          ignore_files=$(find . -type f -iname ".cmake-lint-ignore")
+
+          # Loop through each C++ file
+          for file in $found_files; do
+            for ignore_file in $ignore_files; do
+              ignore_directory=$(dirname "$ignore_file")
+              # if directory of ignore_file is beginning of file
+              if [[ "$file" == "$ignore_directory"* ]]; then
+                echo "ignoring file: ${file}"
+                found_files="${found_files//${file}/}"
+                break 1
+              fi
+            done
+          done
+
+          # remove empty lines
+          found_files=$(echo "$found_files" | sed '/^\s*$/d')
+
+          echo "found cmake files: ${found_files}"
+
+          # do not quote to keep this as a single line
+          echo found_files=${found_files} >> $GITHUB_OUTPUT
+
+      - name: CMake - cmake-lint
+        if: always() && steps.cmake_files.outputs.found_files
+        run: |
+          cmake-lint --line-width 120 --tab-size 4 ${{ steps.cmake_files.outputs.found_files }}
+
+      - name: Docker - find files
+        id: dokcer_files
+        if: always()
+        run: |
+          found_files=$(find . -type f -iname "Dockerfile" -o -iname "*.dockerfile")
+
+          echo "found_files: ${found_files}"
+
+          # do not quote to keep this as a single line
+          echo found_files=${found_files} >> $GITHUB_OUTPUT
+
+      - name: Docker - hadolint
+        if: always() && steps.dokcer_files.outputs.found_files
+        run: |
+          docker pull hadolint/hadolint
+
+          # create hadolint config file
+          cat <<EOF > .hadolint.yaml
+          ---
+          ignored:
+            - DL3008
+            - DL3013
+            - DL3016
+            - DL3018
+            - DL3028
+            - DL3059
+          EOF
+
+          failed=0
+          failed_files=""
+
+          for file in ${{ steps.dokcer_files.outputs.found_files }}; do
+            echo "::group::${file}"
+            docker run --rm -i \
+              -e "NO_COLOR=0" \
+              -e "HADOLINT_VERBOSE=1" \
+              -v $(pwd)/.hadolint.yaml:/.config/hadolint.yaml \
+              hadolint/hadolint < $file || {
+                failed=1
+                failed_files="$failed_files $file"
+              }
+            echo "::endgroup::"
+          done
+
+          if [ $failed -ne 0 ]; then
+            echo "::error:: hadolint failed for the following files: $failed_files"
+            exit 1
+          fi
+
+      - name: Python - flake8
+        if: always()
+        run: |
+          python -m flake8 \
+            --color=always \
+            --verbose
+
+      - name: Python - nbqa flake8
+        if: always()
+        run: |
+          python -m nbqa flake8 \
+            --color=always \
+            --verbose \
+            .
+
+      - name: Python - nb-clean
+        if: always()
+        run: |
+          output=$(find . -name '*.ipynb' -exec nb-clean check {} \;)
+
+          # fail if there are any issues
+          if [ -n "$output" ]; then
+            echo "$output"
+            exit 1
+          fi
+
+      - name: YAML - find files
+        id: yaml_files
+        if: always()
+        run: |
+          # space separated list of files
+          FILES=.clang-format
+
+          # empty placeholder
+          found_files=""
+
+          for FILE in ${FILES}; do
+            if [ -f "$FILE" ]
+            then
+              found_files="$found_files $FILE"
+            fi
+          done
+
+          echo "found_files=${found_files}" >> $GITHUB_OUTPUT
+
+      - name: YAML - yamllint
+        id: yamllint
+        if: always()
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          # https://yamllint.readthedocs.io/en/stable/configuration.html#default-configuration
+          config_data: |
+            extends: default
+            rules:
+              comments:
+                level: error
+              document-start:
+                level: error
+              line-length:
+                max: 120
+              new-line-at-end-of-file:
+                level: error
+              new-lines:
+                type: unix
+              truthy:
+                # GitHub uses "on" for workflow event triggers
+                # .clang-format file has options of "Yes" "No" that will be caught by this, so changed to "warning"
+                allowed-values: ['true', 'false', 'on']
+                check-keys: true
+                level: warning
+          file_or_dir: . ${{ steps.yaml_files.outputs.found_files }}
+
+      - name: YAML - log
+        if: always() && steps.yamllint.outcome == 'failure'
+        run: |
+          cat "${{ steps.yamllint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY

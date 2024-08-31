@@ -19,7 +19,7 @@ extern "C" {
 // They aren't likely to change any time soon.
 #define fourcc_code(a, b, c, d) ((std::uint32_t)(a) | ((std::uint32_t)(b) << 8) | \
                                  ((std::uint32_t)(c) << 16) | ((std::uint32_t)(d) << 24))
-#define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) &0x00ffffffffffffffULL))
+#define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) & 0x00ffffffffffffffULL))
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
