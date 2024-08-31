@@ -25,7 +25,7 @@ float2 main_ps(vertex_t input) : SV_Target
     rgb += image.Sample(def_sampler, input.tex_right_center_left_top.zw).rgb; // top-left
     rgb += image.Sample(def_sampler, input.tex_right_center_left_bottom.xw).rgb; // bottom-right
     rgb += image.Sample(def_sampler, input.tex_right_center_left_bottom.zw).rgb; // bottom-left
-    rgb = CONVERT_FUNCTION(rgb * (1./12));
+    rgb = CONVERT_FUNCTION(rgb * (1./8));
 #elif defined(TOPLEFT_SUBSAMPLING)
     float3 rgb_top_left = image.Sample(def_sampler, input.tex_right_left_top.xz).rgb;
     float3 rgb_top_right = image.Sample(def_sampler, input.tex_right_left_top.yz).rgb;
