@@ -28,7 +28,7 @@ jobs:
         id: output
         run: |
           echo "${RELEASE_BODY}" > ./release_body.md
-          modified_body=$(sed '/^---$/d; /^## Contributors$/,/<\/a>/d' ./release_body.md)
+          modified_body=$(sed '/^---/,$d' ./release_body.md)
           echo "modified_body: ${modified_body}"
 
           # use a heredoc to ensure the output is multiline
