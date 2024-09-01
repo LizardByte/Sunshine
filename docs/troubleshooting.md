@@ -143,25 +143,24 @@ often grub is used to load the kernel and set its command line.)
 
 ### AMD encoding latency issues
 If you notice unexpectedly high encoding latencies (e.g. in Moonlight's
-performance overlay) or strong fluctuations thereof, this is due to
-[missing support](https://gitlab.freedesktop.org/drm/amd/-/issues/3336)
-in Mesa/libva for AMD's low latency encoder mode. This is particularly
-problematic at higher resolutions (4K).
+performance overlay) or strong fluctuations thereof, your system's Mesa
+libraries are outdated (<24.2). This is particularly problematic at higher
+resolutions (4K).
 
-Only the most recent development versions of mesa include support for this
-low-latency mode. It will be included in Mesa-24.2.
-
-In order to enable it, Sunshine has to be started with a special environment
-variable:
-
+Starting with Mesa-24.2 applications can request a
+[low-latency mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039)
+by running them with a special
+[environment variable](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG):
 ```bash
-AMD_DEBUG=lowlatencyenc sunshine
+export AMD_DEBUG=lowlatencyenc
 ```
+Sunshine sets this variable automatically, no manual
+configuration is needed.
 
-To check whether low-latency mode is being used, one can watch the `VCLK` and
-`DCLK` frequencies in `amdgpu_top`. Without this encoder tuning both clock
-frequencies will fluctuate strongly, whereas with active low-latency encoding
-they will stay high as long as the encoder is used.
+To check whether low-latency mode is being used, one can watch the VCLK and DCLK
+frequencies in amdgpu_top. Without this encoder tuning both clock frequencies
+will fluctuate strongly, whereas with active low-latency encoding they will stay
+high as long as the encoder is used.
 
 ### Gamescope compatibility
 Some users have reported stuttering issues when streaming games running within Gamescope.
