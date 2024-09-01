@@ -147,10 +147,10 @@ performance overlay) or strong fluctuations thereof, your system's Mesa
 libraries are outdated (<24.2). This is particularly problematic at higher
 resolutions (4K).
 
-Starting with Mesa-24.2 applications can request a [low-latency
-mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039) by
-running them with a special [environment
-variable](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG):
+Starting with Mesa-24.2 applications can request a
+[low-latency mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039)
+by running them with a special
+[environment variable](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG):
 ```bash
 export AMD_DEBUG=lowlatencyenc
 ```
