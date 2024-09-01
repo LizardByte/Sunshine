@@ -5,13 +5,13 @@
     "dev": "vite build --watch"
   },
   "dependencies": {
-    "@fortawesome/fontawesome-free": "6.6.0",
-    "@popperjs/core": "2.11.8",
-    "@vitejs/plugin-vue": "4.6.2",
-    "bootstrap": "5.3.3",
-    "vite": "4.5.2",
-    "vite-plugin-ejs": "1.6.4",
+    "@lizardbyte/shared-web": "2024.901.195233",
     "vue": "3.5.2",
     "vue-i18n": "9.14.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "4.6.2",
+    "vite": "4.5.2",
+    "vite-plugin-ejs": "1.6.4"
   }
 }
