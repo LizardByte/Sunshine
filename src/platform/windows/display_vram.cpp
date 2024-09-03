@@ -107,6 +107,10 @@ namespace platf::dxgi {
   blob_t convert_yuv420_packed_uv_type0_ps_linear_hlsl;
   blob_t convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl;
   blob_t convert_yuv420_packed_uv_type0_vs_hlsl;
+  blob_t convert_yuv420_packed_uv_type0s_ps_hlsl;
+  blob_t convert_yuv420_packed_uv_type0s_ps_linear_hlsl;
+  blob_t convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl;
+  blob_t convert_yuv420_packed_uv_type0s_vs_hlsl;
   blob_t convert_yuv420_planar_y_ps_hlsl;
   blob_t convert_yuv420_planar_y_ps_linear_hlsl;
   blob_t convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl;
@@ -488,6 +492,110 @@ namespace platf::dxgi {
       frame_texture->AddRef();
       output_texture.reset(frame_texture);
 
+      HRESULT status = S_OK;
+
+#define create_vertex_shader_helper(x, y)                                                                    \
+  if (FAILED(status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+    BOOST_LOG(error) << "Failed to create vertex shader " << #x << ": " << util::log_hex(status);            \
+    return -1;                                                                                               \
+  }
+#define create_pixel_shader_helper(x, y)                                                                    \
+  if (FAILED(status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
+    BOOST_LOG(error) << "Failed to create pixel shader " << #x << ": " << util::log_hex(status);            \
+    return -1;                                                                                              \
+  }
+
+      const bool downscaling = display->width > width || display->height > height;
+
+      switch (format) {
+        case DXGI_FORMAT_NV12:
+          // Semi-planar 8-bit YUV 4:2:0
+          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          if (downscaling) {
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
+          }
+          else {
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+          }
+          break;
+
+        case DXGI_FORMAT_P010:
+          // Semi-planar 16-bit YUV 4:2:0, 10 most significant bits store the value
+          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          if (downscaling) {
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_hlsl, convert_UV_ps);
+            if (display->is_hdr()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            }
+            else {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
+          }
+          else {
+            create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
+            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
+            if (display->is_hdr()) {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
+            }
+            else {
+              create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
+            }
+          }
+          break;
+
+        case DXGI_FORMAT_R16_UINT:
+          // Planar 16-bit YUV 4:4:4, 10 most significant bits store the value
+          create_vertex_shader_helper(convert_yuv444_planar_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          break;
+
+        case DXGI_FORMAT_AYUV:
+          // Packed 8-bit YUV 4:4:4
+          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_ps);
+          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          break;
+
+        case DXGI_FORMAT_Y410:
+          // Packed 10-bit YUV 4:4:4
+          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
+          create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_ps);
+          if (display->is_hdr()) {
+            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          else {
+            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
+          }
+          break;
+
+        default:
+          BOOST_LOG(error) << "Unable to create shaders because of the unrecognized surface format";
+          return -1;
+      }
+
+#undef create_vertex_shader_helper
+#undef create_pixel_shader_helper
+
       auto out_width = width;
       auto out_height = height;
 
@@ -675,83 +783,6 @@ namespace platf::dxgi {
       if (FAILED(status)) {
         BOOST_LOG(warning) << "Failed to increase encoding GPU thread priority. Please run application as administrator for optimal performance.";
       }
-
-#define create_vertex_shader_helper(x, y)                                                                    \
-  if (FAILED(status = device->CreateVertexShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
-    BOOST_LOG(error) << "Failed to create vertex shader " << #x << ": " << util::log_hex(status);            \
-    return -1;                                                                                               \
-  }
-#define create_pixel_shader_helper(x, y)                                                                    \
-  if (FAILED(status = device->CreatePixelShader(x->GetBufferPointer(), x->GetBufferSize(), nullptr, &y))) { \
-    BOOST_LOG(error) << "Failed to create pixel shader " << #x << ": " << util::log_hex(status);            \
-    return -1;                                                                                              \
-  }
-
-      switch (format) {
-        case DXGI_FORMAT_NV12:
-          // Semi-planar 8-bit YUV 4:2:0
-          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
-          break;
-
-        case DXGI_FORMAT_P010:
-          // Semi-planar 16-bit YUV 4:2:0, 10 most significant bits store the value
-          create_vertex_shader_helper(convert_yuv420_planar_y_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv420_planar_y_ps_hlsl, convert_Y_or_YUV_ps);
-          create_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs_hlsl, convert_UV_vs);
-          create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_hlsl, convert_UV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer_hlsl, convert_UV_fp16_ps);
-          }
-          else {
-            create_pixel_shader_helper(convert_yuv420_planar_y_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-            create_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear_hlsl, convert_UV_fp16_ps);
-          }
-          break;
-
-        case DXGI_FORMAT_R16_UINT:
-          // Planar 16-bit YUV 4:4:4, 10 most significant bits store the value
-          create_vertex_shader_helper(convert_yuv444_planar_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv444_planar_ps_hlsl, convert_Y_or_YUV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv444_planar_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
-          else {
-            create_pixel_shader_helper(convert_yuv444_planar_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
-          break;
-
-        case DXGI_FORMAT_AYUV:
-          // Packed 8-bit YUV 4:4:4
-          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_hlsl, convert_Y_or_YUV_ps);
-          create_pixel_shader_helper(convert_yuv444_packed_ayuv_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          break;
-
-        case DXGI_FORMAT_Y410:
-          // Packed 10-bit YUV 4:4:4
-          create_vertex_shader_helper(convert_yuv444_packed_vs_hlsl, convert_Y_or_YUV_vs);
-          create_pixel_shader_helper(convert_yuv444_packed_y410_ps_hlsl, convert_Y_or_YUV_ps);
-          if (display->is_hdr()) {
-            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_perceptual_quantizer_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
-          else {
-            create_pixel_shader_helper(convert_yuv444_packed_y410_ps_linear_hlsl, convert_Y_or_YUV_fp16_ps);
-          }
-          break;
-
-        default:
-          BOOST_LOG(error) << "Unable to create shaders because of the unrecognized surface format";
-          return -1;
-      }
-
-#undef create_vertex_shader_helper
-#undef create_pixel_shader_helper
 
       auto default_color_vectors = ::video::color_vectors_from_colorspace(::video::colorspace_e::rec601, false);
       if (!default_color_vectors) {
@@ -1923,6 +1954,10 @@ namespace platf::dxgi {
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_linear);
     compile_pixel_shader_helper(convert_yuv420_packed_uv_type0_ps_perceptual_quantizer);
     compile_vertex_shader_helper(convert_yuv420_packed_uv_type0_vs);
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps);
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_linear);
+    compile_pixel_shader_helper(convert_yuv420_packed_uv_type0s_ps_perceptual_quantizer);
+    compile_vertex_shader_helper(convert_yuv420_packed_uv_type0s_vs);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_linear);
     compile_pixel_shader_helper(convert_yuv420_planar_y_ps_perceptual_quantizer);

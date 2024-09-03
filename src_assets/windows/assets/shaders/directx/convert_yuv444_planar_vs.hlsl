@@ -15,7 +15,7 @@ cbuffer color_matrix_cbuffer : register(b3) {
 
 vertex_t main_vs(uint vertex_id : SV_VertexID)
 {
-    vertex_t output = generate_fullscreen_triangle_vertex(vertex_id % 3, rotate_texture_steps);
+    vertex_t output = generate_fullscreen_triangle_vertex(vertex_id % 3, float2(0, 0), rotate_texture_steps);
 
     output.viewport = vertex_id / 3;
 
