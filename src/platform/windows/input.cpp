@@ -618,11 +618,15 @@ namespace platf {
     auto &ki = i.ki;
 
     // If the client did not normalize this VK code to a US English layout, we can't accurately convert it to a scancode.
-    bool send_scancode = !(flags & SS_KBE_FLAG_NON_NORMALIZED) || config::input.always_send_scancodes;
-
-    if (send_scancode) {
+    // If we're set to always send scancodes, we will use the current keyboard layout to convert to a scancode. This will
+    // assume the client and host have the same keyboard layout, but it's probably better than always using US English.
+    if (!(flags & SS_KBE_FLAG_NON_NORMALIZED)) {
       // Mask off the extended key byte
       ki.wScan = VK_TO_SCANCODE_MAP[modcode & 0xFF];
+    }
+    else if (config::input.always_send_scancodes && modcode != VK_LWIN && modcode != VK_RWIN && modcode != VK_PAUSE) {
+      // For some reason, MapVirtualKey(VK_LWIN, MAPVK_VK_TO_VSC) doesn't seem to work :/
+      ki.wScan = MapVirtualKey(modcode, MAPVK_VK_TO_VSC);
     }
 
     // If we can map this to a scancode, send it as a scancode for maximum game compatibility.
