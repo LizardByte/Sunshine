@@ -532,7 +532,10 @@ namespace platf::dxgi {
     }
 
     auto adapter_name = from_utf8(config::video.adapter_name);
-    auto output_name = from_utf8(display_name);
+    auto output_display_name = from_utf8(display_device::get_display_name(config::video.output_name));
+
+    BOOST_LOG(info) << "config::video.adapter_name: " << adapter_name << "!";
+    BOOST_LOG(info) << "output_display_name: " << output_display_name << "!";
 
     adapter_t::pointer adapter_p;
     for (int tries = 0; tries < 2; ++tries) {
@@ -553,7 +556,7 @@ namespace platf::dxgi {
           DXGI_OUTPUT_DESC desc;
           output_tmp->GetDesc(&desc);
 
-          if (!output_name.empty() && desc.DeviceName != output_name) {
+          if (!output_display_name.empty() && desc.DeviceName != output_display_name) {
             continue;
           }
 
@@ -1156,7 +1159,6 @@ namespace platf {
     return display_names;
   }
 
-
   std::vector<std::string>
   adapter_names() {
     std::vector<std::string> adapter_names;
@@ -1181,7 +1183,6 @@ namespace platf {
 
     return adapter_names;
   }
-
 
   /**
    * @brief Returns if GPUs/drivers have changed since the last call to this function.

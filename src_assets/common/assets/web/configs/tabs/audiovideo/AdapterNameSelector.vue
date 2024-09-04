@@ -33,7 +33,7 @@ const config = ref(props.config)
       <PlatformLayout :platform="platform">
         <template #windows>
           {{ $t('config.adapter_name_desc_windows') }}<br>
-          <pre>如有安装最新版IDD虚拟显示器，可自动关联IDD的GPU指定</pre>
+          <pre>如有安装最新版虚拟显示器，可自动关联GPU绑定</pre>
         </template>
         <template #linux>
           {{ $t('config.adapter_name_desc_linux_1') }}<br>

@@ -1,6 +1,6 @@
 // standard includes
-#include <thread>
 #include <boost/process.hpp>
+#include <thread>
 
 // local includes
 #include "session.h"
@@ -139,7 +139,25 @@ namespace display_device {
     }
 
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
-    session_t::get().restore_state();
+
+    // Disable the display device manually if it has more than one device
+    if (devices.size() > 1) {
+      boost::process::environment _env = boost::this_process::environment();
+      auto working_dir = boost::filesystem::path();
+      std::error_code ec;
+      std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Virtual Display with HDR\"";
+
+      auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+      if (ec) {
+        BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+      }
+      else {
+        BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
+        child.detach();
+      }
+
+      session_t::get().restore_state();
+    }
     return std::make_unique<deinit_t>();
   }
 
@@ -199,28 +217,32 @@ namespace display_device {
   }
 
   void
+  session_t::enable_vdd() {
+    boost::process::environment _env = boost::this_process::environment();
+    auto working_dir = boost::filesystem::path();
+    std::error_code ec;
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 1 2 \"Virtual Display with HDR\"";
+
+    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
+      child.detach();
+    }
+  }
+
+  void
   session_t::restore_state_impl() {
-    const auto result { !settings.is_changing_settings_going_to_fail() && settings.revert_settings() };
-    if (result) {
+    if (!settings.is_changing_settings_going_to_fail() && settings.revert_settings()) {
+      Sleep(1000);
+      BOOST_LOG(info) << "enable vdd...";
+      enable_vdd();  // Enable VDD to restore the display settings. This is a workaround for the issue with the display settings not being restored correctly.
       timer->setup_timer(nullptr);
     }
     else {
       if (settings.is_changing_settings_going_to_fail()) {
-        // display_device::w_utils::togglePnpDeviceByFriendlyName("Virtual Display with HDR", false);
-        // BOOST_LOG(info) << "Disable IDD...";
-        boost::process::environment _env = boost::this_process::environment();
-        auto working_dir = boost::filesystem::path();
-        std::error_code ec;
-        std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Virtual Display with HDR\"";
-
-        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-        if (ec) {
-          BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
-        }
-        else {
-          BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
-          child.detach();
-        }
         BOOST_LOG(warning) << "Reverting display settings will fail - retrying later...";
       }
 
@@ -230,22 +252,9 @@ namespace display_device {
           return false;
         }
 
-        boost::process::environment _env = boost::this_process::environment();
-        auto working_dir = boost::filesystem::path();
-        std::error_code ec;
-        std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 1 2 \"Virtual Display with HDR\"";
-
-        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-        if (ec) {
-          BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
-        }
-        else {
-          BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
-          child.detach();
-        }
-
         // display_device::w_utils::togglePnpDeviceByFriendlyName("Generic Monitor (IDD HDR)", true);
         // BOOST_LOG(info) << "Enable IDD...";
+        enable_vdd();
         Sleep(1500);
         return settings.revert_settings();
       });

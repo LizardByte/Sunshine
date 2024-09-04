@@ -138,6 +138,9 @@ namespace display_device {
     void
     reset_persistence();
 
+    void
+    enable_vdd();
+
     /**
      * @brief A deleted copy constructor for singleton pattern.
      * @note Public to ensure better error message.
