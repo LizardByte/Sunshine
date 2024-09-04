@@ -925,7 +925,7 @@ namespace platf {
   init() {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
-    set_env("AMD_DEBUG", "lowlatency");
+    set_env("AMD_DEBUG", "lowlatencyenc");
 
     // These are allowed to fail.
     gbm::init();

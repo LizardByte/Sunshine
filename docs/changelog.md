@@ -15,3 +15,8 @@
 | [Getting Started](getting_started.md) | [Docker](../DOCKER_README.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

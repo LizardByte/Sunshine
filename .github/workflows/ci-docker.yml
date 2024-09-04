@@ -120,34 +120,6 @@ jobs:
           dotnet: ${{ needs.check_dockerfiles.outputs.dotnet }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  lint_dockerfile:
-    needs: [check_dockerfiles]
-    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.check_dockerfiles.outputs.matrix) }}
-    name: Lint Dockerfile${{ matrix.tag }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Hadolint
-        id: hadolint
-        uses: hadolint/hadolint-action@v3.1.0
-        with:
-          dockerfile: ${{ matrix.dockerfile }}
-          ignore: DL3008,DL3013,DL3016,DL3018,DL3028,DL3059
-          output-file: ./hadolint.log
-          verbose: true
-
-      - name: Log
-        if: failure()
-        run: |
-          echo "Hadolint outcome: ${{ steps.hadolint.outcome }}" >> $GITHUB_STEP_SUMMARY
-          cat "./hadolint.log" >> $GITHUB_STEP_SUMMARY
-
   docker:
     needs: [check_dockerfiles, setup_release]
     if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}

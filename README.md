@@ -146,8 +146,13 @@ Our support methods are listed in our [LizardByte Docs](https://lizardbyte.readt
 
 <div class="section_buttons">
 
-| Previous |                                Next |
-|:---------|------------------------------------:|
-|          | [Overview](docs/getting_started.md) |
+| Previous |                                       Next |
+|:---------|-------------------------------------------:|
+|          | [Getting Started](docs/getting_started.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

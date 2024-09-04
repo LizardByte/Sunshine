@@ -618,8 +618,7 @@ namespace platf {
     }
 
     ~shm_attr_t() override {
-      while (!task_pool.cancel(refresh_task_id))
-        ;
+      while (!task_pool.cancel(refresh_task_id));
     }
 
     capture_e

@@ -2454,3 +2454,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 | [Legal](legal.md) | [App Examples](app_examples.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

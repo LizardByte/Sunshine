@@ -24,3 +24,8 @@
 | [Docker](../DOCKER_README.md) | [Gamestream Migration](gamestream_migration.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

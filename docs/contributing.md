@@ -28,7 +28,7 @@ Read our contribution guide in our organization level
 Sunshine and related LizardByte projects are being localized into various languages.
 The default language is `en` (English).
 
-![](https://app.lizardbyte.dev/uno/crowdin/LizardByte_graph.svg)
+![](https://app.lizardbyte.dev/dashboard/crowdin/LizardByte_graph.svg)
 
 @admonition{Community | We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
@@ -193,3 +193,8 @@ maintainers to run the tests locally.
 | [Building](building.md) | [Source Code](../third-party/doxyconfig/docs/source_code.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>
