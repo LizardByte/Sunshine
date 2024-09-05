@@ -127,7 +127,6 @@ HRESULT
 test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
   for (int i = 0; i < 10; ++i) {
     std::cout << "Attempting to acquire frame " << (i + 1) << " of 10..." << std::endl;
-
     ComPtr<IDXGIResource> frameResource;
     DXGI_OUTDUPL_FRAME_INFO frameInfo;
     ComPtr<ID3D11DeviceContext> context;
@@ -136,22 +135,19 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
     HRESULT status = dup->AcquireNextFrame(500, &frameInfo, &frameResource);
     device->GetImmediateContext(&context);
 
-    auto cleanup = util::fail_guard([&dup, &context, &stagingTexture]() {
-      if (stagingTexture) {
-        context->Unmap(stagingTexture.Get(), 0);
-      }
-      dup->ReleaseFrame();
-    });
-
     if (FAILED(status)) {
       std::cout << "Error: Failed to acquire next frame [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
       return status;
     }
 
+    auto cleanup = util::fail_guard([&dup]() {
+      dup->ReleaseFrame();
+    });
+
     std::cout << "Frame acquired successfully." << std::endl;
 
     ComPtr<ID3D11Texture2D> frameTexture;
-    status = frameResource->QueryInterface(IID_PPV_ARGS(&frameTexture));
+    HRESULT status = frameResource->QueryInterface(IID_PPV_ARGS(&frameTexture));
     if (FAILED(status)) {
       std::cout << "Error: Failed to query texture interface from frame resource [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
       return status;
@@ -178,6 +174,10 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
       std::cout << "Error: Failed to map the staging texture for inspection [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
       return status;
     }
+
+    auto contextCleanup = util::fail_guard([&context, &stagingTexture]() {
+      context->Unmap(stagingTexture.Get());
+    });
 
     if (is_valid_frame(mappedResource, frameDesc)) {
       std::cout << "Frame " << (i + 1) << " is non-empty (contains visible content)." << std::endl;

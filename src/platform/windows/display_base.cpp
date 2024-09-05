@@ -352,26 +352,8 @@ namespace platf::dxgi {
     return true;
   }
 
-  // On hybrid graphics systems, Windows will change the order of GPUs reported by
-  // DXGI in accordance with the user's GPU preference. If the selected GPU is a
-  // render-only device with no displays, DXGI will add virtual outputs to the
-  // that device to avoid confusing applications. While this works properly for most
-  // applications, it breaks the Desktop Duplication API because DXGI doesn't proxy
-  // the virtual DXGIOutput to the real GPU it is attached to. When trying to call
-  // DuplicateOutput() on one of these virtual outputs, it fails with DXGI_ERROR_UNSUPPORTED
-  // (even if you try sneaky stuff like passing the ID3D11Device for the iGPU and the
-  // virtual DXGIOutput from the dGPU). Because the GPU preference is once-per-process,
-  // we spawn a helper tool to probe for us before we set our own GPU preference.
   bool
-  probe_for_gpu_preference(const std::string &display_name) {
-    static bool set_gpu_preference = false;
-    static bool verify_frame_capture = true;
-
-    // If we've already been through here, there's nothing to do this time.
-    if (set_gpu_preference) {
-      return true;
-    }
-
+  validate_and_test_gpu_preference(const std::string &display_name, bool verify_frame_capture) {
     std::string cmd = "tools\\ddprobe.exe";
 
     // We start at 1 because 0 is automatic selection which can be overridden by
@@ -381,7 +363,7 @@ namespace platf::dxgi {
     for (int i = 1; i < 5; i++) {
       // Run the probe tool. It returns the status of DuplicateOutput().
       //
-      // Arg format: [GPU preference] [Display name] [--verify--frame-capture]
+      // Arg format: [GPU preference] [Display name] [--verify-frame-capture]
       HRESULT result;
       std::vector<std::string> args = { std::to_string(i), display_name };
       try {
@@ -404,22 +386,48 @@ namespace platf::dxgi {
       if (result == S_OK || result == E_ACCESSDENIED) {
         // We found a working GPU preference, so set ourselves to use that.
         if (set_gpu_preference_on_self(i)) {
-          set_gpu_preference = true;
           return true;
         }
         else {
           return false;
         }
       }
-      else {
-        // This configuration didn't work, so continue testing others
-        continue;
-      }
     }
 
-    // If none of the manual options worked, leave the GPU preference alone
-    // And set the verify frame capture option to false, just in case there is a chance for a false negative.
-    verify_frame_capture = false;
+    // If no valid configuration was found, return false
+    return false;
+  }
+
+  // On hybrid graphics systems, Windows will change the order of GPUs reported by
+  // DXGI in accordance with the user's GPU preference. If the selected GPU is a
+  // render-only device with no displays, DXGI will add virtual outputs to the
+  // that device to avoid confusing applications. While this works properly for most
+  // applications, it breaks the Desktop Duplication API because DXGI doesn't proxy
+  // the virtual DXGIOutput to the real GPU it is attached to. When trying to call
+  // DuplicateOutput() on one of these virtual outputs, it fails with DXGI_ERROR_UNSUPPORTED
+  // (even if you try sneaky stuff like passing the ID3D11Device for the iGPU and the
+  // virtual DXGIOutput from the dGPU). Because the GPU preference is once-per-process,
+  // we spawn a helper tool to probe for us before we set our own GPU preference.
+  bool
+  probe_for_gpu_preference(const std::string &display_name) {
+    static bool set_gpu_preference = false;
+
+    // If we've already been through here, there's nothing to do this time.
+    if (set_gpu_preference) {
+      return true;
+    }
+
+    // Try probing with different GPU preferences and verify_frame_capture flag
+    if (validate_and_test_gpu_preference(display_name, true)) {
+      return true;
+    }
+
+    // If no valid configuration was found, try again with verify_frame_capture == false
+    if (validate_and_test_gpu_preference(display_name, false)) {
+      return true;
+    }
+
+    // If neither worked, return false
     return false;
   }
 
