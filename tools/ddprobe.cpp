@@ -151,7 +151,7 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
     std::cout << "Frame acquired successfully." << std::endl;
 
     ComPtr<ID3D11Texture2D> frameTexture;
-    status = frameResource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void **>(frameTexture.GetAddressOf()));
+    status = frameResource->QueryInterface(IID_PPV_ARGS(&frameTexture));
     if (FAILED(status)) {
       std::cout << "Error: Failed to query texture interface from frame resource [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
       return status;
