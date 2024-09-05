@@ -377,7 +377,7 @@ namespace platf::dxgi {
         return false;
       }
 
-      BOOST_LOG(info) << "ddprobe.exe " << boost::algorithm::join(args, " ") << "returned 0x"
+      BOOST_LOG(info) << "ddprobe.exe " << boost::algorithm::join(args, " ") << " returned 0x"
                       << util::hex(result).to_string_view();
 
       // E_ACCESSDENIED can happen at the login screen. If we get this error,
