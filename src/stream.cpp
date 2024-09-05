@@ -950,6 +950,7 @@ namespace stream {
       session->video.idr_events->raise(true);
     });
 
+
     server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
       auto frames = (std::int64_t *) payload.data();
       auto firstFrame = frames[0];
@@ -962,6 +963,7 @@ namespace stream {
 
       session->video.invalidate_ref_frames_events->raise(std::make_pair(firstFrame, lastFrame));
     });
+
 
     server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
@@ -988,6 +990,7 @@ namespace stream {
 
       input::passthrough(session->input, std::move(plaintext));
     });
+
 
     server->map(packetTypes[IDX_ENCRYPTED], [server](session_t *session, const std::string_view &payload) {
       BOOST_LOG(verbose) << "type [IDX_ENCRYPTED]"sv;
