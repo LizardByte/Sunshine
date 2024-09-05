@@ -481,14 +481,17 @@
             return Promise.resolve([]);
           }
           let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
+
+          // Use raw.githubusercontent.com to avoid CORS issues as we migrate the CNAME
+          let dbUrl = "https://raw.githubusercontent.com/LizardByte/GameDB/gh-pages";
           let bucket = getSearchBucket(name);
-          return fetch("https://db.lizardbyte.dev/buckets/" + bucket + ".json").then(function (r) {
+          return fetch(`${dbUrl}/buckets/${bucket}.json`).then(function (r) {
             if (!r.ok) throw new Error("Failed to search covers");
             return r.json();
           }).then(maps => Promise.all(Object.keys(maps).map(id => {
             let item = maps[id];
             if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
-              return fetch("https://db.lizardbyte.dev/games/" + id + ".json").then(function (r) {
+              return fetch(`${dbUrl}/games/${id}.json`).then(function (r) {
                 return r.json();
               }).catch(() => null);
             }
