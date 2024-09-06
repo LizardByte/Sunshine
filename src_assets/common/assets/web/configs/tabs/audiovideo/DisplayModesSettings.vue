@@ -36,7 +36,7 @@ const fpsIn = ref("")
                   border-top-right-radius: 0;
                   border-bottom-right-radius: 0;
                 " class="form-control" />
-        <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+        <button v-if="resolutions.length < 25" style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
           +
         </button>
       </form>
@@ -57,7 +57,7 @@ const fpsIn = ref("")
                   border-top-right-radius: 0;
                   border-bottom-right-radius: 0;
                 " class="form-control" />
-        <button style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
+        <button v-if="fps.length < 5" style="border-top-left-radius: 0; border-bottom-left-radius: 0" class="btn btn-success">
           +
         </button>
       </form>

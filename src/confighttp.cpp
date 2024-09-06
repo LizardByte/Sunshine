@@ -610,6 +610,46 @@ namespace confighttp {
   }
 
   void
+  saveVddSettings(std::string resArray, std::string fpsArray, std::string gpu_name) {
+    pt::ptree iddOptionTree;
+    pt::ptree resolutions_nodes;
+
+    // prepare resolutions setting for vdd
+    boost::regex pattern("\\[|\\]|\\s+");
+    char delimiter = ',';
+    std::string str = boost::regex_replace(resArray, pattern, "");
+    boost::algorithm::trim(str);
+    for (const auto &resolution : split(str, delimiter)) {
+      auto index = resolution.find("x", 0);
+      pt::ptree res_node;
+      res_node.put("width", resolution.substr(0, index));
+      res_node.put("height", resolution.substr(index + 1));
+      for (const auto &fps : split(boost::regex_replace(fpsArray, pattern, ""), delimiter)) {
+        res_node.add("refresh_rate", fps);
+      }
+      resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
+    }
+
+    std::string idd_option_path = "c:\\IddSampleDriver\\vdd_settings.xml";
+    if (fs::exists(idd_option_path)) {
+      pt::ptree monitor_node;
+      monitor_node.put("count", 1);
+
+      pt::ptree gpu_node;
+      gpu_node.put("friendlyname", gpu_name);
+
+      iddOptionTree.add_child("monitors", monitor_node);
+      iddOptionTree.add_child("gpu", gpu_node);
+      iddOptionTree.add_child("resolutions", resolutions_nodes);
+
+      pt::ptree root;
+      root.add_child("vdd_settings", iddOptionTree);
+      auto setting = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
+      write_xml(idd_option_path, root, std::locale(), setting);
+    }
+  }
+
+  void
   saveConfig(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
 
@@ -626,57 +666,23 @@ namespace confighttp {
       response->write(data.str());
     });
 
-    std::string idd_option_path = "c:\\IddSampleDriver\\vdd_settings.xml";
-    pt::ptree iddOptionTree;
-    pt::ptree resolutions_nodes;
-
     pt::ptree inputTree;
 
     try {
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
+      std::string resArray = inputTree.get<std::string>("resolutions", "[]");
       std::string fpsArray = inputTree.get<std::string>("fps", "[]");
+      std::string gpu_name = inputTree.get<std::string>("adapter_name", "");
+
+      saveVddSettings(resArray, fpsArray, gpu_name);
 
       for (const auto &kv : inputTree) {
         std::string value = inputTree.get<std::string>(kv.first);
         if (value.length() == 0 || value.compare("null") == 0) continue;
-        // prepare resolutions setting for vdd
-        if (kv.first.compare("resolutions") == 0) {
-          boost::regex pattern("\\[|\\]|\\s+");
-          char delimiter = ',';
-          std::string str = boost::regex_replace(value, pattern, "");
-          boost::algorithm::trim(str);
-          for (const auto &resolution : split(str, delimiter)) {
-            auto index = resolution.find("x", 0);
-            pt::ptree res_node;
-            res_node.put("width", resolution.substr(0, index));
-            res_node.put("height", resolution.substr(index + 1));
-            for (const auto &fps : split(boost::regex_replace(fpsArray, pattern, ""), delimiter)) {
-              res_node.add("refresh_rate", fps);
-            }
-            resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
-          }
-        }
         configStream << kv.first << " = " << value << std::endl;
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), configStream.str());
-
-      if (fs::exists(idd_option_path)) {
-        pt::ptree monitor_node;
-        monitor_node.put("count", 1);
-
-        pt::ptree gpu_node;
-        gpu_node.put("friendlyname", inputTree.get<std::string>("adapter_name", ""));
-
-        iddOptionTree.add_child("monitors", monitor_node);
-        iddOptionTree.add_child("gpu", gpu_node);
-        iddOptionTree.add_child("resolutions", resolutions_nodes);
-
-        pt::ptree root;
-        root.add_child("vdd_settings", iddOptionTree);
-        auto setting = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
-        write_xml(idd_option_path, root, std::locale(), setting);
-      }
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();

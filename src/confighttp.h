@@ -15,6 +15,9 @@ namespace confighttp {
   constexpr auto PORT_HTTPS = 1;
   void
   start();
+
+  void
+  saveVddSettings(std::string resArray, std::string fpsArray, std::string gpu_name);
 }  // namespace confighttp
 
 // mime types map

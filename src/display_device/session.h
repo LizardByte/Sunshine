@@ -141,6 +141,9 @@ namespace display_device {
     void
     enable_vdd();
 
+    void
+    disable_vdd();
+
     /**
      * @brief A deleted copy constructor for singleton pattern.
      * @note Public to ensure better error message.

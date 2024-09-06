@@ -30,6 +30,7 @@
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
+#include "confighttp.h"
 #include "platform/common.h"
 #include "process.h"
 #include "rtsp.h"
@@ -943,6 +944,20 @@ namespace nvhttp {
     const auto launch_session = make_launch_session(host_audio, args);
 
     if (rtsp_stream::session_count() == 0) {
+      // Enable Vistual Displays on Windows
+#ifdef _WIN32
+      if (config::video.output_name == "ZakoHDR") {
+        std::stringstream resolutions;
+        std::stringstream fps;
+        resolutions << "[1920x1080," << launch_session->width << "x" << launch_session->height << "]";
+        fps << "[60," << launch_session->fps << "]";
+        BOOST_LOG(info) << "Set Client request res to VDD: "sv << resolutions.str() << " ."sv;
+
+        confighttp::saveVddSettings(resolutions.str(), fps.str(), config::video.adapter_name);
+        display_device::session_t::get().enable_vdd();
+        Sleep(4567);
+      }
+#endif
       // We want to prepare display only if there are no active sessions at
       // the moment. This should to be done before probing encoders as it could
       // change display device's state.
@@ -1100,6 +1115,13 @@ namespace nvhttp {
       response->write(data.str());
       response->close_connection_after_response = true;
     });
+
+    // disbale Vistual Displays on Windows
+#ifdef _WIN32
+    if (config::video.output_name == "ZakoHDR") {
+      display_device::session_t::get().disable_vdd();
+    }
+#endif
 
     // It is possible that due a race condition that this if-statement gives a false positive,
     // the client should try again
