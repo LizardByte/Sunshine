@@ -946,7 +946,7 @@ namespace nvhttp {
     if (rtsp_stream::session_count() == 0) {
       // Enable Vistual Displays on Windows
 #ifdef _WIN32
-      if (config::video.output_name == "ZakoHDR") {
+      if (config::video.preferUseVdd) {
         std::stringstream resolutions;
         std::stringstream fps;
         resolutions << "[1920x1080," << launch_session->width << "x" << launch_session->height << "]";
@@ -1118,7 +1118,7 @@ namespace nvhttp {
 
     // disbale Vistual Displays on Windows
 #ifdef _WIN32
-    if (config::video.output_name == "ZakoHDR") {
+    if (config::video.preferUseVdd) {
       display_device::session_t::get().disable_vdd();
     }
 #endif

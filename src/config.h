@@ -33,6 +33,7 @@ namespace config {
     bool nv_realtime_hags;
     bool nv_opengl_vulkan_on_dxgi;
     bool nv_sunshine_high_power_mode;
+    bool preferUseVdd;
 
     struct {
       int preset;

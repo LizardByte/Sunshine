@@ -29,8 +29,7 @@ namespace display_device {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
 
       const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&device_id](const auto &entry) {
-        return device_id.empty() ? entry.second.device_state == device_state_e::primary : device_id == "ZakoHDR" ? entry.second.friendly_name == "VDD by MTT" :
-                                                                                                                   entry.first == device_id;
+        return device_id.empty() ? entry.second.device_state == device_state_e::primary : entry.first == device_id;
       }) };
       if (device_it == std::end(devices)) {
         BOOST_LOG(error) << "Device " << (device_id.empty() ? "PRIMARY" : device_id) << " not found in the list of available devices!";

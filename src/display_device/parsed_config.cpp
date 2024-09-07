@@ -533,6 +533,17 @@ namespace display_device {
     parsed_config.device_prep = static_cast<parsed_config_t::device_prep_e>(config.display_device_prep);
     parsed_config.change_hdr_state = parse_hdr_option(config, session);
 
+    // Just wanna use virtual display device
+    if (config.preferUseVdd) {
+      auto devices { display_device::enum_available_devices() };
+      const auto device_zako { std::find_if(std::begin(devices), std::end(devices), [&](const auto &entry) {
+        return entry.second.friendly_name == "VDD by MTT";
+      }) };
+      BOOST_LOG(info) << "Found display devices: " << device_zako->first;
+      parsed_config.device_id = device_zako->first;
+      config::video.output_name = device_zako->first;
+    }
+
     if (!parse_resolution_option(config, session, parsed_config)) {
       // Error already logged
       return boost::none;
