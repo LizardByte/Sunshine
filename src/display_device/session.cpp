@@ -1,11 +1,12 @@
 // standard includes
+#include <boost/optional/optional_io.hpp>
 #include <boost/process.hpp>
 #include <thread>
 
 // local includes
 #include "session.h"
+#include "src/confighttp.h"
 #include "src/platform/common.h"
-#include "src/platform/windows/display_device/windows_utils.h"
 #include "to_string.h"
 
 namespace display_device {
@@ -141,7 +142,7 @@ namespace display_device {
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
 
     // Disable the display device manually if it has more than one device
-    if (devices.size() > 1) {
+    if (config::video.preferUseVdd && devices.size() > 1) {
       session_t::get().disable_vdd();
     }
 
@@ -157,6 +158,10 @@ namespace display_device {
     if (!parsed_config) {
       BOOST_LOG(error) << "Failed to parse configuration for the the display device settings!";
       return;
+    }
+
+    if (config.preferUseVdd || display_device::get_display_name(config::video.output_name) == "VDD by MTT") {
+      session_t::get().prepare_vdd(*parsed_config);
     }
 
     if (settings.is_changing_settings_going_to_fail()) {
@@ -240,12 +245,55 @@ namespace display_device {
     }
   }
 
+  // void
+  // session_t::prepare_vdd(const config::video_t &config, int width, int height, int refresh_rate) {
+  //   std::stringstream new_setting;
+  //   new_setting << width << "x" << height << "x" << refresh_rate;
+  //   if (display_device::session_t::get().last_vdd_setting != new_setting.str()) {
+  //     std::stringstream resolutions;
+  //     std::stringstream fps;
+  //     resolutions << "[1920x1080," << width << "x" << height << "]";
+  //     fps << "[60," << refresh_rate << "]";
+
+  //     if (display_device::is_primary_device(config.output_name)) {
+  //       display_device::session_t::get().disable_vdd();
+  //       Sleep(1500);
+  //     }
+
+  //     confighttp::saveVddSettings(resolutions.str(), fps.str(), config.adapter_name);
+  //     BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str() << " ."sv;
+  //     display_device::session_t::get().last_vdd_setting = new_setting.str();
+  //     display_device::session_t::get().enable_vdd();
+  //     Sleep(4567);
+  //   }
+  // }
+
+  void
+  session_t::prepare_vdd(const parsed_config_t &config) {
+    std::stringstream new_setting;
+    new_setting << to_string(*config.resolution) << "x" << to_string(*config.refresh_rate);
+    if (display_device::session_t::get().last_vdd_setting != new_setting.str()) {
+      std::stringstream resolutions;
+      std::stringstream fps;
+      resolutions << "[1920x1080," << to_string(*config.resolution) << "]";
+      fps << "[60," << to_string(*config.refresh_rate) << "]";
+
+      if (display_device::is_primary_device(config.device_id)) {
+        display_device::session_t::get().disable_vdd();
+        // std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+      }
+
+      confighttp::saveVddSettings(resolutions.str(), fps.str(), config::video.adapter_name);
+      BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str() << " ."sv;
+      display_device::session_t::get().last_vdd_setting = new_setting.str();
+      display_device::session_t::get().disable_vdd();
+      // std::this_thread::sleep_for(std::chrono::milliseconds(4500));
+    }
+  }
+
   void
   session_t::restore_state_impl() {
     if (!settings.is_changing_settings_going_to_fail() && settings.revert_settings()) {
-      // Sleep(1000);
-      // BOOST_LOG(info) << "enable vdd...";
-      // enable_vdd();  // Enable VDD to restore the display settings. This is a workaround for the issue with the display settings not being restored correctly.
       timer->setup_timer(nullptr);
     }
     else {
@@ -258,11 +306,6 @@ namespace display_device {
           BOOST_LOG(warning) << "Reverting display settings will still fail - retrying later...";
           return false;
         }
-
-        // display_device::w_utils::togglePnpDeviceByFriendlyName("Generic Monitor (IDD HDR)", true);
-        // BOOST_LOG(info) << "Enable IDD...";
-        // enable_vdd();
-        // Sleep(1500);
         return settings.revert_settings();
       });
     }

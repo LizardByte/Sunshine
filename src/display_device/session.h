@@ -144,6 +144,9 @@ namespace display_device {
     void
     disable_vdd();
 
+    void
+    prepare_vdd(const parsed_config_t &config);
+
     /**
      * @brief A deleted copy constructor for singleton pattern.
      * @note Public to ensure better error message.
@@ -185,6 +188,7 @@ namespace display_device {
 
     settings_t settings; /**< A class for managing display device settings. */
     std::mutex mutex; /**< A mutex for ensuring thread-safety. */
+    std::string last_vdd_setting;
 
     /**
      * @brief An instance of StateRetryTimer.
