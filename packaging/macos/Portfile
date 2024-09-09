@@ -44,7 +44,7 @@ configure.args           -DBOOST_USE_STATIC=ON \
                          -DBUILD_WERROR=ON \
                          -DCMAKE_INSTALL_PREFIX=${prefix} \
                          -DSUNSHINE_ASSETS_DIR=etc/sunshine/assets \
-                         -DSUNSHINE_PUBLSIHER_NAME='LizardByte' \
+                         -DSUNSHINE_PUBLISHER_NAME='LizardByte' \
                          -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
                          -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
 
