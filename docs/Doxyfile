@@ -57,3 +57,9 @@ INPUT = ../README.md \
         contributing.md \
         ../third-party/doxyconfig/docs/source_code.md \
         ../src
+
+# extra css
+HTML_EXTRA_STYLESHEET += doc-styles.css
+
+# extra js
+HTML_EXTRA_FILES += configuration.js

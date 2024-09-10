@@ -1,4 +1,13 @@
 # Configuration
+
+@admonition{ Host authority | @htmlonly
+By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
+<br>
+<script src="configuration.js"></script>
+<strong>Host authority: </strong> <input type="text" id="host-authority" value="localhost:47990">
+@endhtmlonly
+}
+
 Sunshine will work with the default settings for most users. In some cases you may want to configure Sunshine further.
 
 The default location for the configuration file is listed below. You can use another location if you
@@ -24,9 +33,9 @@ location by modifying the configuration file.
 Although it is recommended to use the configuration UI, it is possible manually configure Sunshine by
 editing the `conf` file in a text editor. Use the examples as reference.
 
-## [General](https://localhost:47990/config/#general)
+## General
 
-### [locale](https://localhost:47990/config/#locale)
+### locale
 
 <table>
     <tr>
@@ -102,7 +111,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [sunshine_name](https://localhost:47990/config/#sunshine_name)
+### sunshine_name
 
 <table>
     <tr>
@@ -123,7 +132,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [min_log_level](https://localhost:47990/config/#min_log_level)
+### min_log_level
 
 <table>
     <tr>
@@ -177,7 +186,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [channels](https://localhost:47990/config/#channels)
+### channels
 
 <table>
     <tr>
@@ -203,7 +212,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [global_prep_cmd](https://localhost:47990/config/#global_prep_cmd)
+### global_prep_cmd
 
 <table>
     <tr>
@@ -227,7 +236,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [notify_pre_releases](https://localhost:47990/config/#notify_pre_releases)
+### notify_pre_releases
 
 <table>
     <tr>
@@ -250,9 +259,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Input](https://localhost:47990/config/#input)
+## Input
 
-### [controller](https://localhost:47990/config/#controller)
+### controller
 
 <table>
     <tr>
@@ -275,7 +284,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [gamepad](https://localhost:47990/config/#gamepad)
+### gamepad
 
 <table>
     <tr>
@@ -324,7 +333,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [ds4_back_as_touchpad_click](https://localhost:47990/config/#ds4_back_as_touchpad_click)
+### ds4_back_as_touchpad_click
 
 <table>
     <tr>
@@ -349,7 +358,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [motion_as_ds4](https://localhost:47990/config/#motion_as_ds4)
+### motion_as_ds4
 
 <table>
     <tr>
@@ -377,7 +386,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [touchpad_as_ds4](https://localhost:47990/config/#touchpad_as_ds4)
+### touchpad_as_ds4
 
 <table>
     <tr>
@@ -405,7 +414,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [back_button_timeout](https://localhost:47990/config/#back_button_timeout)
+### back_button_timeout
 
 <table>
     <tr>
@@ -430,7 +439,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [keyboard](https://localhost:47990/config/#keyboard)
+### keyboard
 
 <table>
     <tr>
@@ -453,7 +462,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_repeat_delay](https://localhost:47990/config/#key_repeat_delay)
+### key_repeat_delay
 
 <table>
     <tr>
@@ -477,7 +486,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_repeat_frequency](https://localhost:47990/config/#key_repeat_frequency)
+### key_repeat_frequency
 
 <table>
     <tr>
@@ -501,7 +510,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [always_send_scancodes](https://localhost:47990/config/#always_send_scancodes)
+### always_send_scancodes
 
 <table>
     <tr>
@@ -532,7 +541,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_rightalt_to_key_win](https://localhost:47990/config/#key_rightalt_to_key_win)
+### key_rightalt_to_key_win
 
 <table>
     <tr>
@@ -555,7 +564,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [mouse](https://localhost:47990/config/#mouse)
+### mouse
 
 <table>
     <tr>
@@ -578,7 +587,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [high_resolution_scrolling](https://localhost:47990/config/#high_resolution_scrolling)
+### high_resolution_scrolling
 
 <table>
     <tr>
@@ -604,7 +613,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [native_pen_touch](https://localhost:47990/config/#native_pen_touch)
+### native_pen_touch
 
 <table>
     <tr>
@@ -629,7 +638,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [native_pen_touch](https://localhost:47990/config/#native_pen_touch)
+### keybindings
 
 <table>
     <tr>
@@ -665,9 +674,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Audio/Video](https://localhost:47990/config/#audio-video)
+## Audio/Video
 
-### [audio_sink](https://localhost:47990/config/#audio_sink)
+### audio_sink
 
 <table>
     <tr>
@@ -710,7 +719,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             If you have multiple audio devices with identical names, use the Device ID instead.
             }
             @attention{If you want to mute the host speakers, use
-            [virtual_sink](#virtual_sinkhttpslocalhost47990configvirtual_sink) instead.}
+            [virtual_sink](#virtual_sink) instead.}
         </td>
     </tr>
     <tr>
@@ -737,7 +746,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [virtual_sink](https://localhost:47990/config/#virtual_sink)
+### virtual_sink
 
 <table>
     <tr>
@@ -745,11 +754,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio,
             while muting the speakers.
-            @tip{See [audio_sink](#audio_sinkhttpslocalhost47990configaudio_sink)!}
+            @tip{See [audio_sink](#audio_sink)!}
             @tip{These are some options for virtual sound devices.
             * Stream Streaming Speakers (Linux, macOS, Windows)
               * Steam must be installed.
-              * Enable [install_steam_audio_drivers](#install_steam_audio_drivershttpslocalhost47990configinstall_steam_audio_drivers)
+              * Enable [install_steam_audio_drivers](#install_steam_audio_drivers)
                 or use Steam Remote Play at least once to install the drivers.
             * [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
             }
@@ -767,7 +776,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [install_steam_audio_drivers](https://localhost:47990/config/#install_steam_audio_drivers)
+### install_steam_audio_drivers
 
 <table>
     <tr>
@@ -792,7 +801,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [adapter_name](https://localhost:47990/config/#adapter_name)
+### adapter_name
 
 <table>
     <tr>
@@ -845,7 +854,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [output_name](https://localhost:47990/config/#output_name)
+### output_name
 
 <table>
     <tr>
@@ -913,7 +922,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [min_fps_factor](https://localhost:47990/config/#min_fps_factor)
+### min_fps_factor
 
 <table>
     <tr>
@@ -942,9 +951,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Network](https://localhost:47990/config/#network)
+## Network
 
-### [upnp](https://localhost:47990/config/#upnp)
+### upnp
 
 <table>
     <tr>
@@ -967,7 +976,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [address_family](https://localhost:47990/config/#address_family)
+### address_family
 
 <table>
     <tr>
@@ -999,7 +1008,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [port](https://localhost:47990/config/#port)
+### port
 
 <table>
     <tr>
@@ -1027,7 +1036,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [origin_web_ui_allowed](https://localhost:47990/config/#origin_web_ui_allowed)
+### origin_web_ui_allowed
 
 <table>
     <tr>
@@ -1063,7 +1072,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [external_ip](https://localhost:47990/config/#external_ip)
+### external_ip
 
 <table>
     <tr>
@@ -1084,7 +1093,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [lan_encryption_mode](https://localhost:47990/config/#lan_encryption_mode)
+### lan_encryption_mode
 
 <table>
     <tr>
@@ -1121,7 +1130,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [wan_encryption_mode](https://localhost:47990/config/#wan_encryption_mode)
+### wan_encryption_mode
 
 <table>
     <tr>
@@ -1158,7 +1167,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [ping_timeout](https://localhost:47990/config/#ping_timeout)
+### ping_timeout
 
 <table>
     <tr>
@@ -1181,9 +1190,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Config Files](https://localhost:47990/config/#files)
+## Config Files
 
-### [file_apps](https://localhost:47990/config/#file_apps)
+### file_apps
 
 <table>
     <tr>
@@ -1207,7 +1216,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [credentials_file](https://localhost:47990/config/#credentials_file)
+### credentials_file
 
 <table>
     <tr>
@@ -1230,7 +1239,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [log_path](https://localhost:47990/config/#log_path)
+### log_path
 
 <table>
     <tr>
@@ -1253,7 +1262,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [pkey](https://localhost:47990/config/#pkey)
+### pkey
 
 <table>
     <tr>
@@ -1278,7 +1287,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [cert](https://localhost:47990/config/#cert)
+### cert
 
 <table>
     <tr>
@@ -1303,7 +1312,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [file_state](https://localhost:47990/config/#file_state)
+### file_state
 
 <table>
     <tr>
@@ -1326,9 +1335,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Advanced](https://localhost:47990/config/#advanced)
+## Advanced
 
-### [fec_percentage](https://localhost:47990/config/#fec_percentage)
+### fec_percentage
 
 <table>
     <tr>
@@ -1357,7 +1366,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qp](https://localhost:47990/config/#qp)
+### qp
 
 <table>
     <tr>
@@ -1381,7 +1390,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [min_threads](https://localhost:47990/config/#min_threads)
+### min_threads
 
 <table>
     <tr>
@@ -1407,7 +1416,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [hevc_mode](https://localhost:47990/config/#hevc_mode)
+### hevc_mode
 
 <table>
     <tr>
@@ -1449,7 +1458,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [av1_mode](https://localhost:47990/config/#av1_mode)
+### av1_mode
 
 <table>
     <tr>
@@ -1491,7 +1500,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [capture](https://localhost:47990/config/#capture)
+### capture
 
 <table>
     <tr>
@@ -1546,7 +1555,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [encoder](https://localhost:47990/config/#encoder)
+### encoder
 
 <table>
     <tr>
@@ -1588,9 +1597,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [NVIDIA NVENC Encoder](https://localhost:47990/config/#nvidia-nvenc-encoder)
+## NVIDIA NVENC Encoder
 
-### [nvenc_preset](https://localhost:47990/config/#nvenc_preset)
+### nvenc_preset
 
 <table>
     <tr>
@@ -1600,7 +1609,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
             Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished
             by increasing bitrate.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1646,7 +1655,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_twopass](https://localhost:47990/config/#nvenc_twopass)
+### nvenc_twopass
 
 <table>
     <tr>
@@ -1656,7 +1665,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
             adhere to bitrate limits. Disabling it is not recommended since this can lead to occasional bitrate
             overshoot and subsequent packet loss.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1686,7 +1695,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_spatial_aq](https://localhost:47990/config/#nvenc_spatial_aq)
+### nvenc_spatial_aq
 
 <table>
     <tr>
@@ -1694,7 +1703,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Assign higher QP values to flat regions of the video.
             Recommended to enable when streaming at lower bitrates.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Enabling this option may reduce performance.}
         </td>
     </tr>
@@ -1712,7 +1721,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_vbv_increase](https://localhost:47990/config/#nvenc_vbv_increase)
+### nvenc_vbv_increase
 
 <table>
     <tr>
@@ -1724,7 +1733,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             act as low-latency variable bitrate, but may also lead to packet loss if the network doesn't have buffer
             headroom to handle bitrate spikes. Maximum accepted value is 400, which corresponds to 5x increased
             encoded video frame upper size limit.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Can lead to network packet loss.}
         </td>
     </tr>
@@ -1746,7 +1755,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_realtime_hags](https://localhost:47990/config/#nvenc_realtime_hags)
+### nvenc_realtime_hags
 
 <table>
     <tr>
@@ -1756,7 +1765,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             in Windows. Currently, NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used
             and VRAM utilization is close to maximum. Disabling this option lowers the priority to high, sidestepping
             the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1774,7 +1783,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_latency_over_power](https://localhost:47990/config/#nvenc_latency_over_power)
+### nvenc_latency_over_power
 
 <table>
     <tr>
@@ -1782,7 +1791,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming,
             so Sunshine requests high power mode explicitly.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Disabling this is not recommended since this can lead to significantly increased encoding latency.}
             @note{Applies to Windows only.}
         </td>
@@ -1801,7 +1810,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_opengl_vulkan_on_dxgi](https://localhost:47990/config/#nvenc_opengl_vulkan_on_dxgi)
+### nvenc_opengl_vulkan_on_dxgi
 
 <table>
     <tr>
@@ -1810,7 +1819,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on
             top of DXGI. With this option enabled Sunshine changes global Vulkan/OpenGL present method to
             "Prefer layered on DXGI Swapchain". This is system-wide setting that is reverted on Sunshine program exit.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1828,7 +1837,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_h264_cavlc](https://localhost:47990/config/#nvenc_h264_cavlc)
+### nvenc_h264_cavlc
 
 <table>
     <tr>
@@ -1838,7 +1847,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             CAVLC is outdated and needs around 10% more bitrate for same quality, but provides slightly faster
             decoding when using software decoder.
             @note{This option only applies when using H.264 format with the
-            NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1855,16 +1864,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Intel QuickSync Encoder](https://localhost:47990/config/#intel-quicksync-encoder)
+## Intel QuickSync Encoder
 
-### [qsv_preset](https://localhost:47990/config/#qsv_preset)
+### qsv_preset
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder preset to use.
-            @note{This option only applies when using quicksync [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using quicksync [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1910,7 +1919,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qsv_coder](https://localhost:47990/config/#qsv_coder)
+### qsv_coder
 
 <table>
     <tr>
@@ -1918,7 +1927,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The entropy encoding to use.
             @note{This option only applies when using H.264 with the quicksync
-            [encoder](#encoderhttpslocalhost47990configencoder).}
+            [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1948,14 +1957,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qsv_slow_hevc](https://localhost:47990/config/#qsv_slow_hevc)
+### qsv_slow_hevc
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             This options enables use of HEVC on older Intel GPUs that only support low power encoding for H.264.
-            @note{This option only applies when using quicksync [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using quicksync [encoder](#encoder).}
             @caution{Streaming performance may be significantly reduced when this option is enabled.}
         </td>
     </tr>
@@ -1973,16 +1982,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [AMD AMF Encoder](https://localhost:47990/config/#amd-amf-encoder)
+## AMD AMF Encoder
 
-### [amd_usage](https://localhost:47990/config/#amd_usage)
+### amd_usage
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder usage profile is used to set the base set of encoding parameters.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @note{The other AMF options that follow will override a subset of the settings applied by your usage
             profile, but there are hidden parameters set in usage profiles that cannot be overridden elsewhere.}
         </td>
@@ -2022,14 +2031,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_rc](https://localhost:47990/config/#amd_rc)
+### amd_rc
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder rate control.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @warning{The `vbr_latency` option generally works best, but some bitrate overshoots may still occur.
             Enabling HRD allows all bitrate based rate controls to better constrain peak bitrate, but may result in
             encoding artifacts depending on your card.}
@@ -2066,14 +2075,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_enforce_hrd](https://localhost:47990/config/#amd_enforce_hrd)
+### amd_enforce_hrd
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @warning{HRD is known to cause encoding artifacts or negatively affect encoding quality on certain cards.}
         </td>
     </tr>
@@ -2091,14 +2100,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_quality](https://localhost:47990/config/#amd_quality)
+### amd_quality
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The quality profile controls the tradeoff between speed and quality of encoding.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2128,14 +2137,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_preanalysis](https://localhost:47990/config/#amd_preanalysis)
+### amd_preanalysis
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             Preanalysis can increase encoding quality at the cost of latency.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2152,7 +2161,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_vbaq](https://localhost:47990/config/#amd_vbaq)
+### amd_vbaq
 
 <table>
     <tr>
@@ -2160,7 +2169,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality by prioritizing
             allocation of more bits to smooth areas compared to more textured areas.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2177,7 +2186,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_coder](https://localhost:47990/config/#amd_coder)
+### amd_coder
 
 <table>
     <tr>
@@ -2185,7 +2194,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The entropy encoding to use.
             @note{This option only applies when using H.264 with the amdvce
-            [encoder](#encoderhttpslocalhost47990configencoder).}
+            [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2215,9 +2224,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [VideoToolbox Encoder](https://localhost:47990/config/#videotoolbox-encoder)
+## VideoToolbox Encoder
 
-### [vt_coder](https://localhost:47990/config/#vt_coder)
+### vt_coder
 
 <table>
     <tr>
@@ -2254,7 +2263,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [vt_software](https://localhost:47990/config/#vt_software)
+### vt_software
 
 <table>
     <tr>
@@ -2295,7 +2304,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [vt_realtime](https://localhost:47990/config/#vt_realtime)
+### vt_realtime
 
 <table>
     <tr>
@@ -2320,16 +2329,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Software Encoder](https://localhost:47990/config/#software-encoder)
+## Software Encoder
 
-### [sw_preset](https://localhost:47990/config/#sw_preset)
+### sw_preset
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder preset to use.
-            @note{This option only applies when using software [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using software [encoder](#encoder).}
             @note{From [FFmpeg](https://trac.ffmpeg.org/wiki/Encode/H.264#preset).
             <br>
             <br>
@@ -2393,14 +2402,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [sw_tune](https://localhost:47990/config/#sw_tune)
+### sw_tune
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The tuning preset to use.
-            @note{This option only applies when using software [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using software [encoder](#encoder).}
             @note{From [FFmpeg](https://trac.ffmpeg.org/wiki/Encode/H.264#preset).
             <br>
             <br>
