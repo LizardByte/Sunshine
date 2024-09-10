@@ -47,6 +47,7 @@ namespace nvhttp {
   namespace pt = boost::property_tree;
 
   crypto::cert_chain_t cert_chain;
+  std::string last_vdd_setting;
 
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
@@ -1067,7 +1068,6 @@ namespace nvhttp {
         return;
       }
     }
-
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
     if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
       BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
@@ -1125,7 +1125,7 @@ namespace nvhttp {
 #ifdef _WIN32
     auto devices { display_device::enum_available_devices() };
     if (config::video.preferUseVdd && devices.size() > 1) {
-      Sleep(1000);
+      Sleep(2500);
       display_device::session_t::get().disable_vdd();
     }
 #endif

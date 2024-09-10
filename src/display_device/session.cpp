@@ -160,7 +160,7 @@ namespace display_device {
       return;
     }
 
-    if (config.preferUseVdd || display_device::get_display_name(config::video.output_name) == "VDD by MTT") {
+    if (config.preferUseVdd || display_device::get_display_friendly_name(config::video.output_name) == "VDD by MTT") {
       session_t::get().prepare_vdd(*parsed_config);
     }
 
@@ -270,24 +270,40 @@ namespace display_device {
 
   void
   session_t::prepare_vdd(const parsed_config_t &config) {
+    auto devices { display_device::enum_available_devices() };
+    bool isVddAvailable { false };
+    if (!devices.empty()) {
+      const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&](const auto &entry) {
+        return entry.first == config.device_id;
+      }) };
+      if (device_it != std::end(devices)) {
+        isVddAvailable = true;
+      }
+    }
+
     std::stringstream new_setting;
     new_setting << to_string(*config.resolution) << "x" << to_string(*config.refresh_rate);
+    BOOST_LOG(info) << "last_vdd_setting/new_setting: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
     if (display_device::session_t::get().last_vdd_setting != new_setting.str()) {
       std::stringstream resolutions;
       std::stringstream fps;
       resolutions << "[1920x1080," << to_string(*config.resolution) << "]";
       fps << "[60," << to_string(*config.refresh_rate) << "]";
 
-      if (display_device::is_primary_device(config.device_id)) {
-        display_device::session_t::get().disable_vdd();
-        // std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-      }
-
       confighttp::saveVddSettings(resolutions.str(), fps.str(), config::video.adapter_name);
       BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str() << " ."sv;
       display_device::session_t::get().last_vdd_setting = new_setting.str();
-      display_device::session_t::get().disable_vdd();
-      // std::this_thread::sleep_for(std::chrono::milliseconds(4500));
+
+      if (isVddAvailable) {
+        display_device::session_t::get().disable_vdd();
+        Sleep(3000);
+      }
+      display_device::session_t::get().enable_vdd();
+      Sleep(3000);
+    }
+    else if (!isVddAvailable) {
+      display_device::session_t::get().enable_vdd();
+      Sleep(3000);
     }
   }
 

@@ -144,6 +144,9 @@ namespace display_device {
   std::string
   get_display_name(const std::string &device_id);
 
+  std::string
+  get_display_friendly_name(const std::string &device_id);
+
   /**
    * @brief Get current display modes for the devices.
    * @param device_ids A list of devices to get the modes for.

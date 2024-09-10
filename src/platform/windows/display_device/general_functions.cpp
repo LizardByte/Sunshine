@@ -35,6 +35,36 @@ namespace display_device {
     return display_name;
   }
 
+  std::string
+  get_display_friendly_name(const std::string &device_id) {
+    if (device_id.empty()) {
+      // Valid return, no error
+      return {};
+    }
+
+    const auto display_data { w_utils::query_display_config(w_utils::ALL_DEVICES) };
+    if (!display_data) {
+      // Error already logged
+      return {};
+    }
+
+    const auto path { std::find_if(std::begin(display_data->paths), std::end(display_data->paths), [&](const auto &entry) {
+      return w_utils::get_device_info_for_valid_path(entry, w_utils::ALL_DEVICES)->device_id == device_id;
+    }) };
+    if (path == std::end(display_data->paths)) {
+      // Debug level, because inactive device is valid case for this function
+      BOOST_LOG(debug) << "Failed to find device for " << device_id << "!";
+      return {};
+    }
+
+    const auto display_friendly_name { w_utils::get_friendly_name(*path) };
+    if (display_friendly_name.empty()) {
+      BOOST_LOG(error) << "Device " << device_id << " has no display name assigned.";
+    }
+
+    return display_friendly_name;
+  }
+
   bool
   is_primary_device(const std::string &device_id) {
     if (device_id.empty()) {
