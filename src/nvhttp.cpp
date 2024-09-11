@@ -356,6 +356,7 @@ namespace nvhttp {
     launch_session->surround_params = (get_arg(args, "surroundParams", ""));
     launch_session->gcmap = util::from_view(get_arg(args, "gcmap", "0"));
     launch_session->enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
+    launch_session->use_vdd = util::from_view(get_arg(args, "useVdd", "0"));
 
     // Encrypted RTSP is enabled with client reported corever >= 1
     auto corever = util::from_view(get_arg(args, "corever", "0"));
@@ -387,6 +388,7 @@ namespace nvhttp {
     launch_session->env["SUNSHINE_CLIENT_GCMAP"] = std::to_string(launch_session->gcmap);
     launch_session->env["SUNSHINE_CLIENT_HOST_AUDIO"] = launch_session->host_audio ? "true" : "false";
     launch_session->env["SUNSHINE_CLIENT_ENABLE_SOPS"] = launch_session->enable_sops ? "true" : "false";
+    launch_session->env["SUNSHINE_CLIENT_USE_VDD"] = launch_session->use_vdd ? "true" : "false";
     int channelCount = launch_session->surround_info & (65535);
     switch (channelCount) {
       case 2:
@@ -947,7 +949,7 @@ namespace nvhttp {
       // We want to prepare display only if there are no active sessions at
       // the moment. This should to be done before probing encoders as it could
       // change display device's state.
-      display_device::session_t::get().configure_display(config::video, *launch_session);
+      display_device::session_t::get().configure_display(config::video, *launch_session, true);
 
       // The display should be restored by the fail guard in case something happens.
       need_to_restore_display_state = true;
@@ -1054,7 +1056,7 @@ namespace nvhttp {
       // We want to prepare display only if there are no active sessions at
       // the moment. This should to be done before probing encoders as it could
       // change display device's state.
-      display_device::session_t::get().configure_display(config::video, *launch_session);
+      display_device::session_t::get().configure_display(config::video, *launch_session, false);
 
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed
@@ -1120,15 +1122,6 @@ namespace nvhttp {
 
     // The state needs to be restored regardless of whether "proc::proc.terminate()" was called or not.
     display_device::session_t::get().restore_state();
-
-    // disbale Vistual Displays on Windows
-#ifdef _WIN32
-    auto devices { display_device::enum_available_devices() };
-    if (config::video.preferUseVdd && devices.size() > 1) {
-      Sleep(2500);
-      display_device::session_t::get().disable_vdd();
-    }
-#endif
   }
 
   void

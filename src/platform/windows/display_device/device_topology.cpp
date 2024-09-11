@@ -326,6 +326,24 @@ namespace display_device {
     return available_devices;
   }
 
+  std::string
+  find_device_by_friendlyname(const std::string &friendly_name) {
+    const auto devices { enum_available_devices() };
+    if (devices.empty()) {
+      BOOST_LOG(error) << "Display device list is empty!";
+      return {};
+    }
+
+    const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&friendly_name](const auto &entry) {
+      return entry.second.friendly_name == friendly_name;
+    }) };
+    if (device_it == std::end(devices)) {
+      return {};
+    }
+
+    return device_it->first;
+  }
+
   active_topology_t
   get_current_topology() {
     const auto display_data { w_utils::query_display_config(w_utils::ACTIVE_ONLY_DEVICES) };

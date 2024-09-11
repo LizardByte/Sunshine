@@ -7,6 +7,7 @@
 #include "session.h"
 #include "src/confighttp.h"
 #include "src/platform/common.h"
+#include "src/rtsp.h"
 #include "to_string.h"
 
 namespace display_device {
@@ -141,27 +142,18 @@ namespace display_device {
 
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
 
-    // Disable the display device manually if it has more than one device
-    if (config::video.preferUseVdd && devices.size() > 1) {
-      session_t::get().disable_vdd();
-    }
-
     session_t::get().restore_state();
     return std::make_unique<deinit_t>();
   }
 
   void
-  session_t::configure_display(const config::video_t &config, const rtsp_stream::launch_session_t &session) {
+  session_t::configure_display(const config::video_t &config, const rtsp_stream::launch_session_t &session, bool is_reconfigure) {
     std::lock_guard lock { mutex };
 
-    const auto parsed_config { make_parsed_config(config, session) };
+    const auto parsed_config { make_parsed_config(config, session, is_reconfigure) };
     if (!parsed_config) {
       BOOST_LOG(error) << "Failed to parse configuration for the the display device settings!";
       return;
-    }
-
-    if (config.preferUseVdd || display_device::get_display_friendly_name(config::video.output_name) == "VDD by MTT") {
-      session_t::get().prepare_vdd(*parsed_config);
     }
 
     if (settings.is_changing_settings_going_to_fail()) {
@@ -193,20 +185,6 @@ namespace display_device {
     else {
       restore_state_impl();
     }
-  }
-
-  void
-  session_t::restore_state() {
-    std::lock_guard lock { mutex };
-    restore_state_impl();
-  }
-
-  void
-  session_t::reset_persistence() {
-    std::lock_guard lock { mutex };
-
-    settings.reset_persistence();
-    timer->setup_timer(nullptr);
   }
 
   void
@@ -245,66 +223,60 @@ namespace display_device {
     }
   }
 
-  // void
-  // session_t::prepare_vdd(const config::video_t &config, int width, int height, int refresh_rate) {
-  //   std::stringstream new_setting;
-  //   new_setting << width << "x" << height << "x" << refresh_rate;
-  //   if (display_device::session_t::get().last_vdd_setting != new_setting.str()) {
-  //     std::stringstream resolutions;
-  //     std::stringstream fps;
-  //     resolutions << "[1920x1080," << width << "x" << height << "]";
-  //     fps << "[60," << refresh_rate << "]";
-
-  //     if (display_device::is_primary_device(config.output_name)) {
-  //       display_device::session_t::get().disable_vdd();
-  //       Sleep(1500);
-  //     }
-
-  //     confighttp::saveVddSettings(resolutions.str(), fps.str(), config.adapter_name);
-  //     BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str() << " ."sv;
-  //     display_device::session_t::get().last_vdd_setting = new_setting.str();
-  //     display_device::session_t::get().enable_vdd();
-  //     Sleep(4567);
-  //   }
-  // }
-
   void
-  session_t::prepare_vdd(const parsed_config_t &config) {
-    auto devices { display_device::enum_available_devices() };
-    bool isVddAvailable { false };
-    if (!devices.empty()) {
-      const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&](const auto &entry) {
-        return entry.first == config.device_id;
-      }) };
-      if (device_it != std::end(devices)) {
-        isVddAvailable = true;
-      }
-    }
-
+  session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
+    // resolutions and fps from parsed
     std::stringstream new_setting;
-    new_setting << to_string(*config.resolution) << "x" << to_string(*config.refresh_rate);
-    BOOST_LOG(info) << "last_vdd_setting/new_setting: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
-    if (display_device::session_t::get().last_vdd_setting != new_setting.str()) {
+    new_setting << to_string(*config.resolution) << "@" << to_string(*config.refresh_rate);
+    bool need_reset_vdd = display_device::session_t::get().last_vdd_setting != new_setting.str();
+    BOOST_LOG(info) << "last_vdd_setting/new_setting from parsed: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
+
+    if (need_reset_vdd) {
       std::stringstream resolutions;
       std::stringstream fps;
       resolutions << "[1920x1080," << to_string(*config.resolution) << "]";
       fps << "[60," << to_string(*config.refresh_rate) << "]";
 
       confighttp::saveVddSettings(resolutions.str(), fps.str(), config::video.adapter_name);
-      BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str() << " ."sv;
+      BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str();
       display_device::session_t::get().last_vdd_setting = new_setting.str();
+    }
 
-      if (isVddAvailable) {
-        display_device::session_t::get().disable_vdd();
-        Sleep(3000);
-      }
-      display_device::session_t::get().enable_vdd();
-      Sleep(3000);
+    const std::string zako_name = "VDD by MTT";
+    auto device_zako = display_device::find_device_by_friendlyname(zako_name);
+    if (device_zako.empty()) {
+      session_t::get().enable_vdd();
     }
-    else if (!isVddAvailable) {
-      display_device::session_t::get().enable_vdd();
+    else if (need_reset_vdd) {
+      session_t::get().disable_vdd();
       Sleep(3000);
+      session_t::get().enable_vdd();
     }
+
+    device_zako = display_device::find_device_by_friendlyname(zako_name);
+    while (device_zako.empty()) {
+      device_zako = display_device::find_device_by_friendlyname(zako_name);
+      Sleep(233);
+    }
+
+    if (!device_zako.empty()) {
+      config.device_id = device_zako;
+      config::video.output_name = device_zako;
+    }
+  }
+
+  void
+  session_t::restore_state() {
+    std::lock_guard lock { mutex };
+    restore_state_impl();
+  }
+
+  void
+  session_t::reset_persistence() {
+    std::lock_guard lock { mutex };
+
+    settings.reset_persistence();
+    timer->setup_timer(nullptr);
   }
 
   void

@@ -5,6 +5,7 @@
 // local includes
 #include "settings_topology.h"
 #include "src/audio.h"
+#include "src/display_device/session.h"
 #include "src/display_device/to_string.h"
 #include "src/logging.h"
 #include "windows_utils.h"
@@ -732,6 +733,16 @@ namespace display_device {
       }
 
       BOOST_LOG(info) << "Display device configuration reverted.";
+    }
+
+    auto devices { display_device::enum_available_devices() };
+    if (config::video.preferUseVdd && devices.size() > 1) {
+      Sleep(2500);
+      display_device::session_t::get().disable_vdd();
+      BOOST_LOG(info) << "VDD stat revert to disable.";
+    }
+    else if (display_device::find_device_by_friendlyname("VDD by MTT").empty()) {
+      display_device::session_t::get().enable_vdd();
     }
 
     return true;

@@ -128,6 +128,9 @@ namespace display_device {
   device_info_map_t
   enum_available_devices();
 
+  std::string
+  find_device_by_friendlyname(const std::string &friendly_name);
+
   /**
    * @brief Get display name associated with the device.
    * @param device_id A device to get display name for.

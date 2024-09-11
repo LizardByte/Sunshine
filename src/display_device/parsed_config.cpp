@@ -4,7 +4,9 @@
 #include <cmath>
 
 // local includes
+#include "display_device.h"
 #include "parsed_config.h"
+#include "session.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/rtsp.h"
@@ -527,22 +529,11 @@ namespace display_device {
   }
 
   boost::optional<parsed_config_t>
-  make_parsed_config(const config::video_t &config, const rtsp_stream::launch_session_t &session) {
+  make_parsed_config(const config::video_t &config, const rtsp_stream::launch_session_t &session, bool is_reconfigure) {
     parsed_config_t parsed_config;
     parsed_config.device_id = config.output_name;
     parsed_config.device_prep = static_cast<parsed_config_t::device_prep_e>(config.display_device_prep);
     parsed_config.change_hdr_state = parse_hdr_option(config, session);
-
-    // Just wanna use virtual display device
-    if (config.preferUseVdd) {
-      auto devices { display_device::enum_available_devices() };
-      const auto device_zako { std::find_if(std::begin(devices), std::end(devices), [&](const auto &entry) {
-        return entry.second.friendly_name == "VDD by MTT";
-      }) };
-      BOOST_LOG(info) << "Found display devices: " << device_zako->first;
-      parsed_config.device_id = device_zako->first;
-      config::video.output_name = device_zako->first;
-    }
 
     if (!parse_resolution_option(config, session, parsed_config)) {
       // Error already logged
@@ -557,6 +548,10 @@ namespace display_device {
     if (!remap_display_modes_if_needed(config, session, parsed_config)) {
       // Error already logged
       return boost::none;
+    }
+
+    if (config.preferUseVdd || session.use_vdd || display_device::get_display_friendly_name(config.output_name) == "VDD by MTT") {
+      display_device::session_t::get().prepare_vdd(parsed_config, session);
     }
 
     BOOST_LOG(debug) << "Parsed display device config:\n"

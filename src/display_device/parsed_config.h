@@ -119,6 +119,7 @@ namespace display_device {
     boost::optional<resolution_t> resolution; /**< Parsed resolution value we need to switch to. Empty optional if no action is required. */
     boost::optional<refresh_rate_t> refresh_rate; /**< Parsed refresh rate value we need to switch to. Empty optional if no action is required. */
     boost::optional<bool> change_hdr_state; /**< Parsed HDR state value we need to switch to (true == ON, false == OFF). Empty optional if no action is required. */
+    boost::optional<bool> use_vdd; /**< Parsed VDD state value we need to switch to (true == ON, false == OFF). */
   };
 
   /**
@@ -135,6 +136,6 @@ namespace display_device {
    * ```
    */
   boost::optional<parsed_config_t>
-  make_parsed_config(const config::video_t &config, const rtsp_stream::launch_session_t &session);
+  make_parsed_config(const config::video_t &config, const rtsp_stream::launch_session_t &session, bool is_reconfigure);
 
 }  // namespace display_device
