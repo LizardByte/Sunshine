@@ -704,6 +704,7 @@ namespace video {
         { "rc"s, &config::video.amd.amd_rc_av1 },
         { "usage"s, &config::video.amd.amd_usage_av1 },
         { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "loglevel"s, "debug"s},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -728,6 +729,7 @@ namespace video {
         { "usage"s, &config::video.amd.amd_usage_hevc },
         { "vbaq"s, &config::video.amd.amd_vbaq },
         { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "loglevel"s, "debug"s},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -750,6 +752,7 @@ namespace video {
         { "usage"s, &config::video.amd.amd_usage_h264 },
         { "vbaq"s, &config::video.amd.amd_vbaq },
         { "enforce_hrd"s, &config::video.amd.amd_enforce_hrd },
+        { "loglevel"s, "debug"s},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -1240,6 +1243,7 @@ namespace video {
       };
 
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
+
 
       if (artificial_reinit && status != platf::capture_e::error) {
         status = platf::capture_e::reinit;

@@ -13,6 +13,8 @@
 
 #include <Unknwn.h>
 #include <winrt/Windows.Graphics.Capture.h>
+#include <AMF/core/Factory.h>
+#include <AMF/core/CurrentTime.h>
 
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -31,6 +33,13 @@ namespace platf::dxgi {
     dxgi->Release();
   }
 
+  inline
+  void
+  FreeLibraryHelper(void *item) {
+    FreeLibrary((HMODULE) item);
+  }
+
+  using hmodule_t = util::safe_ptr<void, FreeLibraryHelper>;
   using factory1_t = util::safe_ptr<IDXGIFactory1, Release<IDXGIFactory1>>;
   using dxgi_t = util::safe_ptr<IDXGIDevice, Release<IDXGIDevice>>;
   using dxgi1_t = util::safe_ptr<IDXGIDevice1, Release<IDXGIDevice1>>;
@@ -177,6 +186,8 @@ namespace platf::dxgi {
     int height_before_rotation;
 
     int client_frame_rate;
+    int adapter_index;
+    int output_index;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
@@ -429,4 +440,45 @@ namespace platf::dxgi {
     capture_e
     release_snapshot() override;
   };
+
+  class amd_capture_t {
+
+  public:
+    amd_capture_t();
+    ~amd_capture_t();
+
+    int
+    init(display_base_t *display, const ::video::config_t &config, int output_index);
+    capture_e
+    next_frame(std::chrono::milliseconds timeout, amf::AMFData** out);
+    capture_e
+    release_frame();
+
+    hmodule_t amfrt_lib;
+    amf_uint64 amf_version;
+    amf::AMFFactory *amf_factory;
+
+    amf::AMFContextPtr context;
+    amf::AMFComponentPtr captureComp;
+    amf::AMFSurfacePtr capturedSurface;
+    amf_int64 capture_format;
+    AMFSize resolution;
+  };
+
+
+  /**
+   * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   */
+  class display_amd_vram_t: public display_vram_t {
+    amd_capture_t dup;
+
+  public:
+    int
+    init(const ::video::config_t &config, const std::string &display_name);
+    capture_e
+    snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    capture_e
+    release_snapshot() override;
+  };
+
 }  // namespace platf::dxgi
