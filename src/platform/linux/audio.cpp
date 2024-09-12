@@ -298,6 +298,8 @@ namespace platf {
 
       std::optional<sink_t>
       sink_info() override {
+        return std::nullopt;
+        /*
         constexpr auto stereo = "sink-sunshine-stereo";
         constexpr auto surround51 = "sink-sunshine-surround51";
         constexpr auto surround71 = "sink-sunshine-surround71";
@@ -512,6 +514,7 @@ namespace platf {
         }
       }
     };
+    */
   }  // namespace pa
 
   std::unique_ptr<audio_control_t>
