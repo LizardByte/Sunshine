@@ -17,6 +17,7 @@ typedef long NTSTATUS;
 #include "misc.h"
 #include "src/config.h"
 #include "src/display_device/display_device.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -531,8 +532,9 @@ namespace platf::dxgi {
       return -1;
     }
 
+    const auto device_name = config::video.preferUseVdd ? display_device::find_device_by_friendlyname(zako_name) : config::video.output_name;
     auto adapter_name = from_utf8(config::video.adapter_name);
-    auto output_display_name = from_utf8(display_device::get_display_name(config::video.output_name));
+    auto output_display_name = from_utf8(display_device::get_display_name(device_name));
 
     BOOST_LOG(info) << "config::video.adapter_name: " << adapter_name << "!";
     BOOST_LOG(info) << "output_display_name: " << output_display_name << "!";

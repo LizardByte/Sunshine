@@ -25,6 +25,8 @@ extern bool display_cursor;
  * @brief A global singleton used for NVIDIA control panel modifications.
  */
 extern nvprefs::nvprefs_interface nvprefs_instance;
+
+extern std::string zako_name;
 #endif
 
 /**

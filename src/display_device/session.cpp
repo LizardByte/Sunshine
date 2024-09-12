@@ -4,6 +4,7 @@
 #include <thread>
 
 // local includes
+#include "src/globals.h"
 #include "session.h"
 #include "src/confighttp.h"
 #include "src/platform/common.h"
@@ -136,8 +137,14 @@ namespace display_device {
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
     const auto devices { enum_available_devices() };
+    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
     if (!devices.empty()) {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+      // 大多数哔叽本开机默认虚拟屏优先导致黑屏 
+      if (!vdd_devices.empty() && devices.size() > 1) {
+        session_t::get().disable_vdd();
+        Sleep(2333);
+      }
     }
 
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
@@ -242,14 +249,13 @@ namespace display_device {
       display_device::session_t::get().last_vdd_setting = new_setting.str();
     }
 
-    const std::string zako_name = "VDD by MTT";
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
       session_t::get().enable_vdd();
     }
     else if (need_reset_vdd) {
       session_t::get().disable_vdd();
-      Sleep(3000);
+      Sleep(2333);
       session_t::get().enable_vdd();
     }
 

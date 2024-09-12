@@ -134,14 +134,6 @@ main(int argc, char *argv[]) {
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
-  // Adding this guard here first as it also performs recovery after crash,
-  // otherwise people could theoretically end up without display output.
-  // It also should be run be destroyed before forced shutdown.
-  auto display_device_deinit_guard = display_device::session_t::init();
-  if (!display_device_deinit_guard) {
-    BOOST_LOG(error) << "Display device session failed to initialize"sv;
-  }
-
 #ifdef WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
@@ -237,36 +229,6 @@ main(int argc, char *argv[]) {
   system_tray::run_tray();
 #endif
 
-  // Create signal handler after logging has been initialized
-  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
-    BOOST_LOG(info) << "Interrupt handler called"sv;
-
-    auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
-      logging::log_flush();
-      lifetime::debug_trap();
-    };
-    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
-
-    shutdown_event->raise(true);
-    display_device_deinit_guard.reset();
-  });
-
-  on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
-    BOOST_LOG(info) << "Terminate handler called"sv;
-
-    auto task = []() {
-      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
-      logging::log_flush();
-      lifetime::debug_trap();
-    };
-    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
-
-    shutdown_event->raise(true);
-    display_device_deinit_guard.reset();
-  });
-
 #ifdef _WIN32
   // Terminate gracefully on Windows when console window is closed
   SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
@@ -317,6 +279,44 @@ main(int argc, char *argv[]) {
   std::unique_ptr<platf::deinit_t> upnp_unmap;
   auto sync_upnp = std::async(std::launch::async, [&upnp_unmap]() {
     upnp_unmap = upnp::start();
+  });
+
+  // Adding this guard here first as it also performs recovery after crash,
+  // otherwise people could theoretically end up without display output.
+  // It also should be run be destroyed before forced shutdown.
+  auto display_device_deinit_guard = display_device::session_t::init();
+  if (!display_device_deinit_guard) {
+    BOOST_LOG(error) << "Display device session failed to initialize"sv;
+  }
+
+  // Create signal handler after logging has been initialized
+  auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+  on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
+    BOOST_LOG(info) << "Interrupt handler called"sv;
+
+    auto task = []() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::log_flush();
+      lifetime::debug_trap();
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
+
+    shutdown_event->raise(true);
+    display_device_deinit_guard.reset();
+  });
+
+  on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
+    BOOST_LOG(info) << "Terminate handler called"sv;
+
+    auto task = []() {
+      BOOST_LOG(fatal) << "10 seconds passed, yet Sunshine's still running: Forcing shutdown"sv;
+      logging::log_flush();
+      lifetime::debug_trap();
+    };
+    force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
+
+    shutdown_event->raise(true);
+    display_device_deinit_guard.reset();
   });
 
   // FIXME: Temporary workaround: Simple-Web_server needs to be updated or replaced

@@ -4,6 +4,7 @@
 #include <cmath>
 
 // local includes
+#include "src/globals.h"
 #include "display_device.h"
 #include "parsed_config.h"
 #include "session.h"
@@ -184,8 +185,8 @@ namespace display_device {
           }
           else if (session.width >= 0 && session.height >= 0) {
             parsed_config.resolution = resolution_t {
-              static_cast<unsigned int>(session.width),
-              static_cast<unsigned int>(session.height)
+              static_cast<unsigned int>(session.width & 1 ? session.width + 1 : session.width),
+              static_cast<unsigned int>(session.height & 1 ? session.height + 1 : session.height)
             };
           }
           else {
@@ -550,7 +551,7 @@ namespace display_device {
       return boost::none;
     }
 
-    if (config.preferUseVdd || session.use_vdd || display_device::get_display_friendly_name(config.output_name) == "VDD by MTT") {
+    if (config.preferUseVdd || session.use_vdd || display_device::get_display_friendly_name(config.output_name) == zako_name) {
       display_device::session_t::get().prepare_vdd(parsed_config, session);
     }
 
