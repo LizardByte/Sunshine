@@ -48,12 +48,12 @@ elseif(UNIX)
     endif()
 endif()
 
-include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include")
+include_directories(BEFORE SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include")
 file(GLOB NVENC_SOURCES CONFIGURE_DEPENDS "src/nvenc/*.cpp" "src/nvenc/*.h")
 list(APPEND PLATFORM_TARGET_FILES ${NVENC_SOURCES})
 
 configure_file("${CMAKE_SOURCE_DIR}/src/version.h.in" version.h @ONLY)
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")  # required for importing version.h
+include_directories(BEFORE "${CMAKE_CURRENT_BINARY_DIR}")  # required for importing version.h
 
 set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Input.h"
@@ -129,9 +129,10 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_NAME="${SUNSHINE_PUBLISHER_N
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_WEBSITE="${SUNSHINE_PUBLISHER_WEBSITE}")
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_ISSUE_URL="${SUNSHINE_PUBLISHER_ISSUE_URL}")
 
-include_directories("${CMAKE_SOURCE_DIR}")
+include_directories(BEFORE "${CMAKE_SOURCE_DIR}")
 
 include_directories(
+        BEFORE
         SYSTEM
         "${CMAKE_SOURCE_DIR}/third-party"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
