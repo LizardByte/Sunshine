@@ -368,7 +368,7 @@ namespace platf::dxgi {
       std::vector<std::string> args = { std::to_string(i), display_name };
       try {
         if (verify_frame_capture) {
-          args.push_back("--verify-frame-capture");
+          args.emplace_back("--verify-frame-capture");
         }
         result = bp::system(cmd, bp::args(args), bp::std_out > bp::null, bp::std_err > bp::null);
       }

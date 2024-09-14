@@ -86,14 +86,14 @@ syncThreadDesktop() {
   */
 bool
 is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTURE2D_DESC &frameDesc, float darknessThreshold = 0.1f) {
-  const uint8_t *pixels = static_cast<const uint8_t *>(mappedResource.pData);
+  const auto *pixels = static_cast<const uint8_t *>(mappedResource.pData);
   const int bytesPerPixel = 4;  // (8 bits per channel, excluding alpha). Factoring HDR is not needed because it doesn't cause black levels to raise enough to be a concern.
   const int stride = mappedResource.RowPitch;
   const int width = frameDesc.Width;
   const int height = frameDesc.Height;
 
   // Convert the darkness threshold to an integer value for comparison
-  const int threshold = static_cast<int>(darknessThreshold * 255);
+  const auto threshold = static_cast<int>(darknessThreshold * 255);
 
   // Iterate over each pixel in the frame
   for (int y = 0; y < height; ++y) {
