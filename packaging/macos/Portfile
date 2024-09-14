@@ -53,7 +53,7 @@ configure.env-append     BUILD_VERSION=@BUILD_VERSION@
 configure.env-append     COMMIT=@GITHUB_COMMIT@
 
 startupitem.create       yes
-startupitem.executable   "${prefix}/bin/{$name}"
+startupitem.executable   "${prefix}/bin/sunshine"
 startupitem.location     LaunchDaemons
 startupitem.name         ${name}
 startupitem.netchange    yes
