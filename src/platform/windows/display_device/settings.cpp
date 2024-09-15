@@ -247,7 +247,7 @@ namespace display_device {
      */
     bool
     blank_hdr_states(const hdr_state_map_t &states, const std::unordered_set<std::string> &newly_enabled_devices) {
-      const std::chrono::milliseconds delay { 1500 };
+      const std::chrono::milliseconds delay { 2333 };
       if (delay > std::chrono::milliseconds::zero()) {
         bool state_changed { false };
         auto toggled_states { states };

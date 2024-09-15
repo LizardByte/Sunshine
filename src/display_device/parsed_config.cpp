@@ -185,8 +185,8 @@ namespace display_device {
           }
           else if (session.width >= 0 && session.height >= 0) {
             parsed_config.resolution = resolution_t {
-              static_cast<unsigned int>(session.width & 1 ? session.width + 1 : session.width),
-              static_cast<unsigned int>(session.height & 1 ? session.height + 1 : session.height)
+              static_cast<unsigned int>(session.width),
+              static_cast<unsigned int>(session.height)
             };
           }
           else {

@@ -4,9 +4,9 @@
 #include <thread>
 
 // local includes
-#include "src/globals.h"
 #include "session.h"
 #include "src/confighttp.h"
+#include "src/globals.h"
 #include "src/platform/common.h"
 #include "src/rtsp.h"
 #include "to_string.h"
@@ -140,7 +140,7 @@ namespace display_device {
     const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
     if (!devices.empty()) {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-      // 大多数哔叽本开机默认虚拟屏优先导致黑屏 
+      // 大多数哔叽本开机默认虚拟屏优先导致黑屏
       if (!vdd_devices.empty() && devices.size() > 1) {
         session_t::get().disable_vdd();
         Sleep(2333);
@@ -233,30 +233,64 @@ namespace display_device {
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
     // resolutions and fps from parsed
-    std::stringstream new_setting;
-    new_setting << to_string(*config.resolution) << "@" << to_string(*config.refresh_rate);
-    bool need_reset_vdd = display_device::session_t::get().last_vdd_setting != new_setting.str();
-    BOOST_LOG(info) << "last_vdd_setting/new_setting from parsed: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
+    bool is_cached_res { false };
+    bool is_cached_fps { false };
+    std::stringstream write_resolutions;
+    std::stringstream write_fps;
+    write_resolutions << "[";
+    write_fps << "[";
 
-    if (need_reset_vdd) {
-      std::stringstream resolutions;
-      std::stringstream fps;
-      resolutions << "[1920x1080," << to_string(*config.resolution) << "]";
-      fps << "[60," << to_string(*config.refresh_rate) << "]";
+    BOOST_LOG(info) << "config.resolution.size" << "," << config::nvhttp.resolutions.size();
 
-      confighttp::saveVddSettings(resolutions.str(), fps.str(), config::video.adapter_name);
-      BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str();
-      display_device::session_t::get().last_vdd_setting = new_setting.str();
+    for (auto &res : config::nvhttp.resolutions) {
+      write_resolutions << res << ",";
+      BOOST_LOG(info) << "res == to_string(*config.resolution)" << res << "," << to_string(*config.resolution);
+      if (res == to_string(*config.resolution)) {
+        is_cached_res = true;
+      }
     }
 
+    for (auto &fps : config::nvhttp.fps) {
+      write_fps << fps << ",";
+      BOOST_LOG(info) << "fps == to_string(*config.refresh_rate)" << fps << "," << to_string(*config.refresh_rate);
+      if (std::to_string(fps) == to_string(*config.refresh_rate)) {
+        is_cached_fps = true;
+      }
+    }
+
+    bool should_toggle_vdd = false;
+    if (!is_cached_res || !is_cached_fps) {
+      std::stringstream new_setting;
+      new_setting << to_string(*config.resolution) << "@" << to_string(*config.refresh_rate);
+
+      BOOST_LOG(info) << "last_vdd_setting/new_setting from parsed: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
+
+      should_toggle_vdd = display_device::session_t::get().last_vdd_setting != new_setting.str();
+
+      if (should_toggle_vdd) {
+        write_resolutions << to_string(*config.resolution) << "]";
+        write_fps << to_string(*config.refresh_rate) << "]";
+
+        confighttp::saveVddSettings(write_resolutions.str(), write_fps.str(), config::video.adapter_name);
+        BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str();
+        display_device::session_t::get().last_vdd_setting = new_setting.str();
+      }
+    }
+
+    while (settings.is_changing_settings_going_to_fail()) {
+      std::this_thread::sleep_for(5s);
+    }
+
+    bool should_reset_zako_hdr = false;
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
       session_t::get().enable_vdd();
     }
-    else if (need_reset_vdd) {
+    else if (should_toggle_vdd) {
       session_t::get().disable_vdd();
       Sleep(2333);
       session_t::get().enable_vdd();
+      should_reset_zako_hdr = true;
     }
 
     device_zako = display_device::find_device_by_friendlyname(zako_name);
@@ -268,6 +302,17 @@ namespace display_device {
     if (!device_zako.empty()) {
       config.device_id = device_zako;
       config::video.output_name = device_zako;
+
+      // 解决热切换可能造成的HDR映射异常
+      if (should_reset_zako_hdr && session.enable_hdr) {
+        std::thread { [this, device_zako]() {
+          display_device::set_hdr_states({ { device_zako, hdr_state_e::disabled } });
+          BOOST_LOG(info) << "Reset HDR stat for: "sv << device_zako;
+          std::this_thread::sleep_for(1s);
+          display_device::set_hdr_states({ { device_zako, hdr_state_e::enabled } });
+        } }
+          .detach();
+      }
     }
   }
 
