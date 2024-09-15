@@ -232,6 +232,7 @@ namespace display_device {
 
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
+    // std::lock_guard lock { mutex };
     // resolutions and fps from parsed
     bool is_cached_res { false };
     bool is_cached_fps { false };
@@ -244,7 +245,6 @@ namespace display_device {
 
     for (auto &res : config::nvhttp.resolutions) {
       write_resolutions << res << ",";
-      BOOST_LOG(info) << "res == to_string(*config.resolution)" << res << "," << to_string(*config.resolution);
       if (res == to_string(*config.resolution)) {
         is_cached_res = true;
       }
@@ -252,7 +252,6 @@ namespace display_device {
 
     for (auto &fps : config::nvhttp.fps) {
       write_fps << fps << ",";
-      BOOST_LOG(info) << "fps == to_string(*config.refresh_rate)" << fps << "," << to_string(*config.refresh_rate);
       if (std::to_string(fps) == to_string(*config.refresh_rate)) {
         is_cached_fps = true;
       }
@@ -282,21 +281,24 @@ namespace display_device {
     }
 
     bool should_reset_zako_hdr = false;
+    int retry_count = 0;
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
       session_t::get().enable_vdd();
     }
     else if (should_toggle_vdd) {
       session_t::get().disable_vdd();
-      Sleep(2333);
+      std::this_thread::sleep_for(2333ms);
       session_t::get().enable_vdd();
       should_reset_zako_hdr = true;
     }
 
     device_zako = display_device::find_device_by_friendlyname(zako_name);
-    while (device_zako.empty()) {
+    while (device_zako.empty() && retry_count < 30) {
+      BOOST_LOG(info) << "Find zako retry_count : "sv << retry_count;
+      retry_count += 1;
       device_zako = display_device::find_device_by_friendlyname(zako_name);
-      Sleep(233);
+      std::this_thread::sleep_for(233ms);
     }
 
     if (!device_zako.empty()) {

@@ -717,7 +717,7 @@ namespace display_device {
         display_device::session_t::get().disable_vdd();
       }
     }
-    else {
+    else if (vdd_devices.empty()) {
       BOOST_LOG(info) << "Vdd resident so turning on it";
       display_device::session_t::get().enable_vdd();
     }
