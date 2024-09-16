@@ -426,7 +426,7 @@ jobs:
         id: test_report
         working-directory: build
         run: |
-          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m pip install -r ${{ github.workspace }}/requirements-ci.txt
           ${{ steps.python.outputs.python-path }} -m gcovr -r .. \
             --exclude-noncode-lines \
             --exclude-throw-branches \
@@ -863,7 +863,7 @@ jobs:
           dir=$(ls -d Sunshine-*)
 
           cd ${build_dir}
-          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m pip install -r ${{ github.workspace }}/requirements-ci.txt
           sudo ${{ steps.python.outputs.python-path }} -m gcovr -r ../${dir} \
             --exclude-noncode-lines \
             --exclude-throw-branches \
@@ -1141,7 +1141,7 @@ jobs:
         shell: msys2 {0}
         working-directory: build
         run: |
-          ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python-path.outputs.python-path }} -m pip install -r ${{ github.workspace }}/requirements-ci.txt
           ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
             --exclude-noncode-lines \
             --exclude-throw-branches \
