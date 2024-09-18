@@ -489,7 +489,7 @@ for more information.}
 |------------|----------------------------------------------------------|
 | Difficulty | Advanced                                                 |
 
-This is a guide for how to start sunshine automatically at boot without enabling autologin for the desktop. I have tested this guide on Debian 12 with KDE Plasma and Wayland, and running the .deb version of Sunshine version 0.23.1.
+This is a guide for how to start sunshine automatically at boot without enabling autologin for the desktop. I have tested this guide on Debian 12 with KDE Plasma and Wayland, and running the .deb version of Sunshine version 0.23.1. Special thanks to [this user on unix stackexchange](https://unix.stackexchange.com/a/669476) for giving a good run down of how to enable the ssh connection on boot.
 
 #### Expected Behavior after following this guide
 Any time you boot your computer (wake on lan is highly recommended for this setup), sunshine will start automatically and you can remote into your machine from moonlight without performing any additional steps.
