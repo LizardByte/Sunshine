@@ -484,6 +484,105 @@ and refresh rate prior to connecting to an app. See
 [Changing Resolution and Refresh Rate](md_docs_2app__examples#changing-resolution-and-refresh-rate)
 for more information.}
 
+### Start sunshine on boot for Plasma with Wayland without autologin
+| Author     | [MidwesternRodent](https://github.com/midwesternrodent/) |
+|------------|----------------------------------------------------------|
+| Difficulty | Advanced                                                 |
+
+This is a guide for how to start sunshine automatically at boot without enabling autologin for the desktop. I have tested this guide on Debian 12 with KDE Plasma and Wayland, and running the .deb version of Sunshine version 0.23.1.
+
+#### Expected Behavior after following this guide
+Any time you boot your computer (wake on lan is highly recommended for this setup), sunshine will start automatically and you can remote into your machine from moonlight without performing any additional steps.
+
+#### Caveats
+1. This does not work with a multi-monitor setup at this time. If you have multiple monitors you will be able to phsyically log into the machine, but logging in to Wayland via Moonlight will result in all of your physical displys turning off and moonlight displaying a black screen. Restarting SDDM brings the login screen back, but logging in physically or remotely will result in the same behavior after that point until you reboot the machine.
+2. You cannot modify the display sizes via a prep command in sunshine if you are using this setup. Doing so will result in a failure to launch the application from Moonlight. You can still use kscreen-doctor or modify the displays manually via the system settigns after you've logged into wayland. This is because we are botting to wayland and plasma is not initialized yet, so kscreen-doctor cannot access the display to modify them and will fail outright until you log in.
+
+#### Prerequisites and scope
+1. You are running Debian 12 with KDE Plasma and Wayland (the standard setup for KDE Plasma on Debian 12)
+2. You have followed [Eric Dong's Guide for a Remote SSH Headless Setup](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html) and can already manually start a session by SSHing into your machine and running the sunshine.sh script. For our purposes, you do not need to the headless portion, and this guide does not do so as I'm using an AMD GPU.
+3. If not already obvious from prerequisite 2, you must have an SSH server already running on the machine you intend to remote into. We will be SSHing into the localhost as part of this guide.
+4. This doc is only about enabling you to turn an already functioning manual-start sunshine instalation, into an auto-start sunshine client. If sunshine is not working for you, fix it first, and then come back to this guide.
+5. You have disabled any auto-start of sunshine on login through systemd or the plasma settings.
+
+#### Allow the sunshine host to SSH to itself
+
+Skip this step if you already have an SSH identity file for the sunshine host. Sign into the user you plan to use sunshine with and run the following command to generate an SSH identity file.
+```
+ssh-keygen
+```
+
+Copy the contents of your newly generated SSH public key to your authorized keys file.
+
+```
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+```
+
+Ensure that the following lines exist in /etc/ssh/sshd_config and are uncommented.
+
+```
+PubkeyAuthentication yes
+PasswordAuthentication no
+```
+
+Reboot the computer, log in, and ensure you can run the following command (replace username with your user's name) to confirm you did everything correctly. It should not prompt you for a password. If it works you will start a new shell for your user in the ssh session.
+```
+ssh username@localhost
+```
+
+#### Create the auto start script
+Create the following file and copy the below contents into it. Replace username with your username.
+
+/usr/local/bin/autossh-sunshine-start
+
+```
+#!/bin/bash
+# establish an SSH connection, and run the script described in the remote headless documentation for sunshine
+ssh -i /home/username/.ssh/id_rsa username@localhost "/home/username/scripts/sunshine.sh"
+```
+
+Once the script is created be sure to run the following to enable execution
+
+```
+sudo chmod +x /usr/local/bin/autossh-sunshine-start
+```
+
+#### Create the autostart service
+Create the following file with the below contents at /etc/systemd/system/autossh-sunshine-start.service.
+```
+[Unit]
+Description=Start and SSH tunnel on boot and run the sunshine.sh script.
+# obviously, this can't run without sshd running so wait for that to start.
+Requires=sshd.service  
+After=sshd.service  
+
+[Service]
+# Sometimes it starts before the wayland screens have really initialized and moonlight fails to connect.
+# waiting a few seconds seems to fix this. 
+ExecStartPre=/bin/sleep 5  
+ExecStart=/usr/local/bin/autossh-sunshine-start  
+Restart=on-failure  
+RestartSec=5s  
+  
+[Install]  
+WantedBy=multi-user.target
+```
+
+If you have still have it enabled to start on boot, stop and disable the sunshine service by running the following:
+```
+sudo systemctl stop sunshine
+sudo systemctl disable susnhine
+```
+
+And finally, enable and start your new service
+
+```
+sudo systemctl enable autossh-sunshine-start
+sudo systemctl start autossh-sunshine-start
+```
+
+Sunshine should now start automatically anytime you boot, and await your login on the wayland screen.
+
 
 ## macOS
 @todo{It's looking lonely here.}
