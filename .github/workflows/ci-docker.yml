@@ -339,7 +339,6 @@ jobs:
           allowUpdates: true
           artifacts: "*artifacts/*"
           body: ${{ needs.setup_release.outputs.release_body }}
-          discussionCategory: announcements
           generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
           name: ${{ needs.setup_release.outputs.release_tag }}
           prerelease: true
