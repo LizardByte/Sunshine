@@ -5,7 +5,7 @@
     "dev": "vite build --watch"
   },
   "dependencies": {
-    "@lizardbyte/shared-web": "2024.901.195233",
+    "@lizardbyte/shared-web": "2024.921.41053",
     "vue": "3.5.3",
     "vue-i18n": "9.14.0"
   },
