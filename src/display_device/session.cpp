@@ -140,6 +140,7 @@ namespace display_device {
     const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
     if (!devices.empty()) {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+      zako_device_id = vdd_devices;
       // 大多数哔叽本开机默认虚拟屏优先导致黑屏
       if (!vdd_devices.empty() && devices.size() > 1) {
         session_t::get().disable_vdd();
@@ -268,7 +269,15 @@ namespace display_device {
 
       if (should_toggle_vdd) {
         write_resolutions << to_string(*config.resolution) << "]";
-        write_fps << to_string(*config.refresh_rate) << "]";
+        if (is_cached_fps) {
+          std::string str = write_fps.str();
+          str.pop_back();
+          write_fps.str("");
+          write_fps << str << "]";
+        }
+        else {
+          write_fps << to_string(*config.refresh_rate) << "]";
+        }
 
         confighttp::saveVddSettings(write_resolutions.str(), write_fps.str(), config::video.adapter_name);
         BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str();
@@ -276,14 +285,24 @@ namespace display_device {
       }
     }
 
-    while (settings.is_changing_settings_going_to_fail()) {
-      std::this_thread::sleep_for(5s);
-    }
-
     bool should_reset_zako_hdr = false;
     int retry_count = 0;
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
+      // 解锁后启动vdd，避免捕获不到流串流黑屏
+      if (settings.is_changing_settings_going_to_fail()) {
+        std::thread { [this]() {
+          while (settings.is_changing_settings_going_to_fail()) {
+            std::this_thread::sleep_for(777ms);
+            BOOST_LOG(warning) << "Fisrt time Enable vdd will fail - retrying later...";
+          }
+          session_t::get().enable_vdd();
+          config::video.output_name = zako_device_id;
+        } }
+          .detach();
+        config.device_id = zako_device_id;
+        return;
+      }
       session_t::get().enable_vdd();
     }
     else if (should_toggle_vdd) {
@@ -294,7 +313,7 @@ namespace display_device {
     }
 
     device_zako = display_device::find_device_by_friendlyname(zako_name);
-    while (device_zako.empty() && retry_count < 30) {
+    while (device_zako.empty() && retry_count < 50) {
       BOOST_LOG(info) << "Find zako retry_count : "sv << retry_count;
       retry_count += 1;
       device_zako = display_device::find_device_by_friendlyname(zako_name);

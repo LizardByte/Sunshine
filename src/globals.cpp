@@ -11,4 +11,5 @@ bool display_cursor = true;
 #ifdef _WIN32
 nvprefs::nvprefs_interface nvprefs_instance;
 std::string zako_name = "VDD by MTT";
+std::string zako_device_id;
 #endif

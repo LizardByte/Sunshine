@@ -4,10 +4,10 @@
 
 // local includes
 #include "settings_topology.h"
-#include "src/globals.h"
 #include "src/audio.h"
 #include "src/display_device/session.h"
 #include "src/display_device/to_string.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "windows_utils.h"
 
@@ -707,21 +707,6 @@ namespace display_device {
 
   bool
   settings_t::revert_settings() {
-    const auto devices { display_device::enum_available_devices() };
-    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
-
-    if (config::video.preferUseVdd) {
-      if (!vdd_devices.empty() && devices.size() > 1) {
-        Sleep(777);
-        BOOST_LOG(info) << "preferUseVdd && devices.size() > 1, turning off vdd";
-        display_device::session_t::get().disable_vdd();
-      }
-    }
-    else if (vdd_devices.empty()) {
-      BOOST_LOG(info) << "Vdd resident so turning on it";
-      display_device::session_t::get().enable_vdd();
-    }
-
     if (!persistent_data) {
       BOOST_LOG(info) << "Loading persistent display device settings.";
       persistent_data = load_settings(filepath);
@@ -749,6 +734,21 @@ namespace display_device {
       }
 
       BOOST_LOG(info) << "Display device configuration reverted.";
+    }
+
+    const auto devices { display_device::enum_available_devices() };
+    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
+
+    if (config::video.preferUseVdd) {
+      if (!vdd_devices.empty() && devices.size() > 1) {
+        Sleep(777);
+        BOOST_LOG(info) << "preferUseVdd && devices.size() > 1, turning off vdd";
+        display_device::session_t::get().disable_vdd();
+      }
+    }
+    else if (vdd_devices.empty()) {
+      BOOST_LOG(info) << "Vdd resident so turning on it";
+      display_device::session_t::get().enable_vdd();
     }
 
     return true;
