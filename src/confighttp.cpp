@@ -393,18 +393,35 @@ namespace confighttp {
         // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
         pt::ptree newApps;
         int i = 0;
-        for (const auto &kv : apps_node) {
+        for (const auto &[k, v] : apps_node) {
           if (i == index) {
             newApps.push_back(std::make_pair("", inputTree));
           }
           else {
-            newApps.push_back(std::make_pair("", kv.second));
+            newApps.push_back(std::make_pair("", v));
           }
           i++;
         }
         fileTree.erase("apps");
         fileTree.push_back(std::make_pair("apps", newApps));
       }
+
+      // Sort the apps array by name
+      std::vector<pt::ptree> apps_vector;
+      for (const auto &[k, v] : fileTree.get_child("apps")) {
+        apps_vector.push_back(v);
+      }
+      std::ranges::sort(apps_vector, [](const pt::ptree &a, const pt::ptree &b) {
+        return a.get<std::string>("name") < b.get<std::string>("name");
+      });
+
+      pt::ptree sorted_apps;
+      for (const auto &app : apps_vector) {
+        sorted_apps.push_back(std::make_pair("", app));
+      }
+      fileTree.erase("apps");
+      fileTree.add_child("apps", sorted_apps);
+
       pt::write_json(config::stream.file_apps, fileTree);
     }
     catch (std::exception &e) {
@@ -447,9 +464,9 @@ namespace confighttp {
         // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
         pt::ptree newApps;
         int i = 0;
-        for (const auto &kv : apps_node) {
+        for (const auto &[k, v] : apps_node) {
           if (i++ != index) {
-            newApps.push_back(std::make_pair("", kv.second));
+            newApps.push_back(std::make_pair("", v));
           }
         }
         fileTree.erase("apps");
@@ -591,11 +608,11 @@ namespace confighttp {
     try {
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
-      for (const auto &kv : inputTree) {
-        std::string value = inputTree.get<std::string>(kv.first);
+      for (const auto &[k, v] : inputTree) {
+        std::string value = inputTree.get<std::string>(k);
         if (value.length() == 0 || value.compare("null") == 0) continue;
 
-        configStream << kv.first << " = " << value << std::endl;
+        configStream << k << " = " << value << std::endl;
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), configStream.str());
     }
