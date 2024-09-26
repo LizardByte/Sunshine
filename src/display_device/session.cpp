@@ -136,15 +136,17 @@ namespace display_device {
 
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
-    const auto devices { enum_available_devices() };
-    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
-    if (!devices.empty()) {
-      BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-      zako_device_id = vdd_devices;
-      // 大多数哔叽本开机默认虚拟屏优先导致黑屏
-      if (!vdd_devices.empty() && devices.size() > 1) {
-        session_t::get().disable_vdd();
-        Sleep(2333);
+    if (session_t::get().settings.is_changing_settings_going_to_fail()) {
+      const auto devices { enum_available_devices() };
+      const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
+      if (!devices.empty()) {
+        BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+        zako_device_id = vdd_devices;
+        // 大多数哔叽本开机默认虚拟屏优先导致黑屏
+        if (!vdd_devices.empty() && devices.size() > 1) {
+          session_t::get().disable_vdd();
+          std::this_thread::sleep_for(2333ms);
+        }
       }
     }
 
@@ -201,7 +203,7 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 1 2 \"Virtual Display with HDR\"";
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /enable \"Virtual Display with HDR\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
@@ -219,7 +221,25 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Virtual Display with HDR\"";
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable \"Virtual Display with HDR\"";
+
+    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
+      child.detach();
+    }
+  }
+
+  void
+  session_t::disable_enable_vdd() {
+    boost::process::environment _env = boost::this_process::environment();
+    auto working_dir = boost::filesystem::path();
+
+    std::error_code ec;
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable_enable \"Virtual Display with HDR\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
@@ -233,7 +253,6 @@ namespace display_device {
 
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
-    // std::lock_guard lock { mutex };
     // resolutions and fps from parsed
     bool is_cached_res { false };
     bool is_cached_fps { false };
@@ -306,9 +325,8 @@ namespace display_device {
       session_t::get().enable_vdd();
     }
     else if (should_toggle_vdd) {
-      session_t::get().disable_vdd();
+      session_t::get().disable_enable_vdd();
       std::this_thread::sleep_for(2333ms);
-      session_t::get().enable_vdd();
       should_reset_zako_hdr = true;
     }
 

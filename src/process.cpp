@@ -35,6 +35,11 @@
 
   // _SH constants for _wfsopen()
   #include <share.h>
+
+  #define STB_IMAGE_IMPLEMENTATION
+  #include "stb_image.h"
+  #define STB_IMAGE_WRITE_IMPLEMENTATION
+  #include "stb_image_write.h"
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
@@ -495,8 +500,22 @@ namespace proc {
     auto image_extension = std::filesystem::path(app_image_path).extension().string();
     boost::to_lower(image_extension);
 
+    if (app_image_path == "desktop") {
+      char wallpaperPath[MAX_PATH];
+      SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, wallpaperPath, 0);
+      BOOST_LOG(info) << "Use desktop image ["sv << wallpaperPath << ']';
+
+      // int width, height, channels;
+      // unsigned char *data = stbi_load((LPCSTR) wallpaperPath, &width, &height, &channels, 0);
+      // if (data) {
+      //   stbi_write_png(SUNSHINE_ASSETS_DIR "desktop.png", width, height, channels, data, width * channels);
+      //   stbi_image_free(data);
+      // }
+      return wallpaperPath;
+    }
+
     // return the default box image if extension is not "png"
-    if (image_extension != ".png") {
+    if (image_extension != ".png" && image_extension != ".jpg") {
       return DEFAULT_APP_IMAGE_PATH;
     }
 

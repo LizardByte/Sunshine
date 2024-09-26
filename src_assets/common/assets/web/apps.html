@@ -2,72 +2,72 @@
 <html lang="en" data-bs-theme="auto">
 
 <head>
-      <%- header %>
-      <style>
-        .precmd-head {
-          width: 200px;
-        }
+  <%- header %>
+    <style>
+      .precmd-head {
+        width: 200px;
+      }
 
-        .monospace {
-          font-family: monospace;
-        }
+      .monospace {
+        font-family: monospace;
+      }
 
-        .cover-finder {}
+      .cover-finder {}
 
-        .cover-finder .cover-results {
-          max-height: 400px;
-          overflow-x: hidden;
-          overflow-y: auto;
-        }
+      .cover-finder .cover-results {
+        max-height: 400px;
+        overflow-x: hidden;
+        overflow-y: auto;
+      }
 
-        .cover-finder .cover-results.busy * {
-          cursor: wait !important;
-          pointer-events: none;
-        }
+      .cover-finder .cover-results.busy * {
+        cursor: wait !important;
+        pointer-events: none;
+      }
 
-        .cover-container {
-          padding-top: 133.33%;
-          position: relative;
-        }
+      .cover-container {
+        padding-top: 133.33%;
+        position: relative;
+      }
 
-        .cover-container.result {
-          cursor: pointer;
-        }
+      .cover-container.result {
+        cursor: pointer;
+      }
 
-        .spinner-border {
-          position: absolute;
-          left: 0;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          margin: auto;
-        }
+      .spinner-border {
+        position: absolute;
+        left: 0;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        margin: auto;
+      }
 
-        .cover-container img {
-          display: block;
-          position: absolute;
-          top: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+      .cover-container img {
+        display: block;
+        position: absolute;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
 
-        .config-page {
-          padding: 1em;
-          border: 1px solid #dee2e6;
-          border-top: none;
-        }
+      .config-page {
+        padding: 1em;
+        border: 1px solid #dee2e6;
+        border-top: none;
+      }
 
-        td {
-          padding: 0 0.5em;
-        }
+      td {
+        padding: 0 0.5em;
+      }
 
-        .env-table td {
-          padding: 0.25em;
-          border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
-          vertical-align: top;
-        }
-      </style>
+      .env-table td {
+        padding: 0.25em;
+        border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
+        vertical-align: top;
+      }
+    </style>
 </head>
 
 <body id="app" v-cloak>
@@ -274,8 +274,8 @@
         <!-- wait for all processes -->
         <div class="mb-3 form-check">
           <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}</label>
-          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
-            true-value="true" false-value="false" />
+          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']" true-value="true"
+            false-value="false" />
           <div class="form-text">{{ $t('apps.wait_all_desc') }}</div>
         </div>
         <!-- exit timeout -->
@@ -287,11 +287,19 @@
         </div>
         <div class="mb-3">
           <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
-          <div class="input-group dropup">
+          <div class="mb-2 form-check">
+            <label for="useDesktopImage" class="form-check-label">{{ $t('apps.use_desktop_image')}}</label>
+            <input type="checkbox" class="form-check-input" id="useDesktopImage" v-model="editForm['image-path']"
+              true-value="desktop" false-value="" />
+          </div>
+          <div class="input-group dropup" v-if="editForm['image-path']!== 'desktop'">
+            <input type="file" class="form-control" @change="handleSelectImg" accept="image/png"
+              style="width: 88px; flex: none;">
             <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
-              v-model="editForm['image-path']" />
-            <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle"
-              aria-expanded="false" @click="showCoverFinder" ref="coverFinderDropdown">
+              v-model="editForm['image-path']" @dragenter="appImageError = '杂鱼~快放进来呀~'"
+              @dragleave="appImageError = '其他地方不可以！'" @dragover.prevent="" @drop.prevent.stop="handleDropImg" />
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle" aria-expanded="false"
+              @click="showCoverFinder" ref="coverFinderDropdown">
               {{ $t('apps.find_cover') }}
             </button>
             <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
@@ -322,7 +330,10 @@
               </div>
             </div>
           </div>
-          <div id="appImagePathHelp" class="form-text">{{ $t('apps.image_desc') }}</div>
+          <div class="alert alert-warning" v-if="appImageError">
+            <div class="d-flex justify-content-between">{{ appImageError }}</div>
+          </div>
+          <div id="appImagePathHelp" class="form-text" ref="appImagePathHelp">{{ $t('apps.image_desc') }}</div>
         </div>
         <div class="env-hint alert alert-info">
           <div class="form-text">
@@ -405,11 +416,11 @@
   </div>
 </body>
 <script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
+  import {createApp} from 'vue'
+  import {initApp} from './init'
   import Navbar from './Navbar.vue'
-  import { Dropdown } from 'bootstrap/dist/js/bootstrap'
-  import { nanoid } from 'nanoid'
+  import {Dropdown} from 'bootstrap/dist/js/bootstrap'
+  import {nanoid} from 'nanoid'
 
   const app = createApp({
     components: {
@@ -421,6 +432,7 @@
         showEditForm: false,
         editForm: null,
         detachedCmd: "",
+        appImageError: '',
         coverSearching: false,
         coverFinderBusy: false,
         coverCandidates: [],
@@ -485,7 +497,7 @@
           "Are you sure to delete " + this.apps[id].name + "?"
         );
         if (resp) {
-          fetch("/api/apps/" + id, { method: "DELETE" }).then((r) => {
+          fetch("/api/apps/" + id, {method: "DELETE"}).then((r) => {
             if (r.status == 200) document.location.reload();
           });
         }
@@ -497,7 +509,7 @@
         };
 
         if (this.platform === 'windows') {
-          template = { ...template, elevated: false };
+          template = {...template, elevated: false};
         }
 
         this.editForm["prep-cmd"].push(template);
@@ -510,7 +522,7 @@
         };
 
         if (this.platform === 'windows') {
-          template = { ...template, elevated: false };
+          template = {...template, elevated: false};
         }
 
         this.editForm["menu-cmd"].push(template);
@@ -532,7 +544,7 @@
         }
         this.coverFinderDropdown.show();
         function getSearchBucket(name) {
-          let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
+          let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d\u4e00-\u9fa5\u3400-\u4DBF\u20000-\u2A6DF]/g, '');
           if (!bucket) {
             return '@';
           }
@@ -614,6 +626,33 @@
         }).then((r) => {
           if (r.status == 200) document.location.reload();
         });
+      },
+      handleSelectImg(e) {
+        const file = e.target.files[0];
+        if (this.validateFile(file)) {
+          this.editForm["image-path"] = electron?.webUtils?.getPathForFile(file);
+        }
+      },
+      handleDropImg(e) {
+        e.preventDefault();
+        const file = e.dataTransfer.files[0];
+        if (this.validateFile(file)) {
+          this.editForm["image-path"] = electron?.webUtils?.getPathForFile(file);
+        }
+      },
+      validateFile(file) {
+        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
+        const allowedMaxSize = 1024 * 1024 * 5;
+        if (!allowedMimeTypes.includes(file.type)) {
+          this.appImageError = 'Invalid file type. Please upload a PNG image.';
+          return false;
+        }
+        if (file.size > allowedMaxSize) {
+          this.appImageError = 'Zako ~ U are too big! Please upload an image less than 5MB.';
+          return false;
+        }
+        this.appImageError = '';
+        return true;
       },
     },
   });

@@ -145,6 +145,9 @@ namespace display_device {
     disable_vdd();
 
     void
+    disable_enable_vdd();
+
+    void
     prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session);
 
     /**

@@ -54,6 +54,7 @@
     "exit_timeout_desc": "Number of seconds to wait for all app processes to gracefully exit when requested to quit. If unset, the default is to wait up to 5 seconds. If set to zero or a negative value, the app will be immediately terminated.",
     "image": "Image",
     "image_desc": "Application icon/picture/image path that will be sent to client. Image must be a PNG file. If not set, Sunshine will send default box image.",
+    "use_desktop_image": "Use system desktop image",
     "find_cover": "Find Cover",
     "covers_found": "Covers Found",
     "loading": "Loading...",

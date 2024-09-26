@@ -1846,6 +1846,31 @@ namespace platf {
     return output;
   }
 
+  std::wstring
+  GetRegistryStringValue(HKEY hKey, LPCWSTR lpSubKey, LPCWSTR lpValueName) {
+    DWORD dwType, dwSize, dwLength;
+    HKEY hKeyResult;
+    LONG lResult;
+    std::wstring strValue;
+
+    // 打开子键
+    lResult = RegOpenKeyExW(hKey, lpSubKey, 0, KEY_READ, &hKeyResult);
+    if (lResult == ERROR_SUCCESS) {
+      dwType = REG_SZ;
+      dwSize = MAX_PATH;
+      strValue.resize(dwSize);
+
+      lResult = RegQueryValueExW(hKeyResult, lpValueName, NULL, &dwType, (LPBYTE) strValue.c_str(), &dwSize);
+      if (lResult == ERROR_SUCCESS) {
+        // 获取字符串长度并调整字符串
+        dwLength = lstrlenW(strValue.c_str());
+        strValue.resize(dwLength);
+      }
+      RegCloseKey(hKeyResult);
+    }
+    return strValue;
+  }
+
   class win32_high_precision_timer: public high_precision_timer {
   public:
     win32_high_precision_timer() {

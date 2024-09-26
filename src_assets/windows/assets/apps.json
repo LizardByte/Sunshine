@@ -3,7 +3,7 @@
   "apps": [
     {
       "name": "Desktop",
-      "image-path": "desktop.png",
+      "image-path": "desktop-alt.png",
       "exclude-global-prep-cmd": "false",
       "elevated": "",
       "auto-detach": "true",

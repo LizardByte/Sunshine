@@ -69,6 +69,7 @@
     "global_prep_name": "全局预处理命令",
     "image": "图片",
     "image_desc": "发送到客户端的应用程序图标/图片/图像的路径。图片必须是 PNG 文件。如果未设置，Sunshine 将发送默认图片。",
+    "use_desktop_image": "跟随当前主机桌面壁纸",
     "loading": "加载中...",
     "name": "名称",
     "output_desc": "存储命令输出的文件，如果未指定，输出将被忽略",
