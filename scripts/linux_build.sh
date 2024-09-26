@@ -304,7 +304,7 @@ function run_install() {
     add_ubuntu_deps
   elif [ "$distro" == "fedora" ]; then
     add_fedora_deps
-    dnf group install "Development Tools" -y
+    ${sudo_cmd} dnf group install "Development Tools" -y
   fi
 
   # Install the dependencies
