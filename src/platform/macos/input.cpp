@@ -362,6 +362,9 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventSetDoubleValueField(event, kCGMouseEventDeltaY, deltaY);
 
     CGEventPost(kCGHIDEventTap, event);
+    // For why this is here, see:
+    // https://stackoverflow.com/questions/15194409/simulated-mouseevent-not-working-properly-osx
+    CGWarpMouseCursorPosition(location);
   }
 
   inline CGEventType
