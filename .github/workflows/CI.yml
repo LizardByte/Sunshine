@@ -1033,7 +1033,6 @@ jobs:
           pacman -Syu --noconfirm \
             --ignore=mingw-w64-ucrt-x86_64-curl \
             git \
-            mingw-w64-ucrt-x86_64-boost \
             mingw-w64-ucrt-x86_64-cmake \
             mingw-w64-ucrt-x86_64-cppwinrt \
             mingw-w64-ucrt-x86_64-graphviz \
@@ -1144,6 +1143,7 @@ jobs:
             --exclude-unreachable-branches \
             --exclude '.*tests/.*' \
             --exclude '.*third-party/.*' \
+            --exclude '.*_deps/.*' \
             --xml-pretty \
             -o coverage.xml
 
