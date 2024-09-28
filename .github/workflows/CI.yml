@@ -430,6 +430,7 @@ jobs:
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
+            --exclude '.*_deps/.*' \
             --exclude '.*tests/.*' \
             --exclude '.*third-party/.*' \
             --xml-pretty \
@@ -865,6 +866,7 @@ jobs:
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
+            --exclude '.*${dir}/_deps/.*' \
             --exclude '.*${dir}/tests/.*' \
             --exclude '.*${dir}/third-party/.*' \
             --gcov-object-directory $(pwd) \
@@ -1141,9 +1143,9 @@ jobs:
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
+            --exclude '.*_deps/.*' \
             --exclude '.*tests/.*' \
             --exclude '.*third-party/.*' \
-            --exclude '.*_deps/.*' \
             --xml-pretty \
             -o coverage.xml
 
