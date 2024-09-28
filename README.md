@@ -56,7 +56,7 @@ the local server or any mobile device.
         <td>Windows: 10+ (Windows Server does not support virtual gamepads)</td>
     </tr>
     <tr>
-        <td>macOS: 12+</td>
+        <td>macOS: 13+</td>
     </tr>
     <tr>
         <td>Linux/Debian: 12+ (bookworm)</td>

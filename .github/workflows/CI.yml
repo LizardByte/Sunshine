@@ -471,8 +471,6 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "12"
-            os_name: "macos"
           - os_version: "13"
             os_name: "macos"
           - os_version: "14"
@@ -650,9 +648,8 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "12"
-            release: true
           - os_version: "13"
+            release: true
           - os_version: "14"
     name: Macports (macOS-${{ matrix.os_version }})
     runs-on: macos-${{ matrix.os_version }}
