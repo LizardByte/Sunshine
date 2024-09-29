@@ -1,0 +1,56 @@
+---
+name: CI Copr
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  release:
+    types:
+      - prereleased
+      - released
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Copr build
+    if: github.repository_owner == 'LizardByte'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get properties
+        run: |
+          # package name = repository name
+          package=${{ github.event.repository.name }}
+          copr_base="https://copr.fedorainfracloud.org/webhooks/custom-dir/lizardbyte"
+
+          # release and released type
+          if [ "${{ github.event_name }}" = "release" ]; then
+            if [ "${{ github.event.action }}" = "prereleased" ]; then
+              COPR_PUSH_WEBHOOK="${copr_base}/beta/${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}/${package}/"
+            elif [ "${{ github.event.action }}" = "released" ]; then
+              COPR_PUSH_WEBHOOK="${copr_base}/stable/${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}/${package}/"
+            fi
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            COPR_PR_WEBHOOK="${copr_base}/pulls:pr:${{github.event.number}}/${{vars.COPR_PR_WEBHOOK_TOKEN}}/${package}/"
+          fi
+
+          echo "COPR_PUSH_WEBHOOK=${COPR_PUSH_WEBHOOK}" >> $GITHUB_ENV
+          echo "COPR_PR_WEBHOOK=${COPR_PR_WEBHOOK}" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          curl https://raw.githubusercontent.com/praiskup/copr-ci-tooling/main/copr-gh-actions-submit > submit
+
+          # if a PR number is added the script will use the PR webhook, otherwise it will use the push webhook
+          bash submit ${{ github.event.pull_request.number }}
