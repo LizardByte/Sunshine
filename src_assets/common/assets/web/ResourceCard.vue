@@ -9,7 +9,7 @@
                     {{ $t('resource_card.lizardbyte_website') }}</a>
                 <a class="btn btn-primary m-1" href="https://app.lizardbyte.dev/discord" target="_blank">
                     <i class="fab fa-fw fa-discord"></i> Discord</a>
-                <a class="btn btn-secondary m-1" href="https://github.com/LizardByte/Sunshine/discussions" target="_blank">
+                <a class="btn btn-secondary m-1" href="https://github.com/orgs/LizardByte/discussions" target="_blank">
                     <i class="fab fa-fw fa-github"></i> {{ $t('resource_card.github_discussions') }}</a>
             </div>
         </div>
