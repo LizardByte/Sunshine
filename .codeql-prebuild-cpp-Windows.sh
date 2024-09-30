@@ -2,18 +2,10 @@
 set -e
 
 # update pacman
-pacman --noconfirm -Suy
-
-# install wget
-pacman --noconfirm -S \
-  wget
-
-# download working curl
-wget https://repo.msys2.org/mingw/ucrt64/mingw-w64-ucrt-x86_64-curl-8.8.0-1-any.pkg.tar.zst
+pacman --noconfirm -Syu
 
 # install dependencies
-pacman -U --noconfirm mingw-w64-ucrt-x86_64-curl-8.8.0-1-any.pkg.tar.zst
-pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
+pacman -S --noconfirm \
   base-devel \
   diffutils \
   gcc \
@@ -21,6 +13,7 @@ pacman -Syu --noconfirm --ignore=mingw-w64-ucrt-x86_64-curl \
   make \
   mingw-w64-ucrt-x86_64-cmake \
   mingw-w64-ucrt-x86_64-cppwinrt \
+  mingw-w64-ucrt-x86_64-curl-winssl \
   mingw-w64-ucrt-x86_64-graphviz \
   mingw-w64-ucrt-x86_64-miniupnpc \
   mingw-w64-ucrt-x86_64-nlohmann-json \
