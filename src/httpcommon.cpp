@@ -196,7 +196,12 @@ namespace http {
   bool
   download_file(const std::string &url, const std::string &file) {
     CURL *curl = curl_easy_init();
-    if (!curl) {
+    if (curl) {
+      // sonar complains about weak ssl and tls versions
+      // ideally, the setopts should go after the early returns; however sonar cannot detect the fix
+      curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+    }
+    else {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
@@ -214,17 +219,16 @@ namespace http {
       curl_easy_cleanup(curl);
       return false;
     }
+
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-#ifdef _WIN32
-    curl_easy_setopt(curl, CURLOPT_SSL_OPTIONS, CURLSSLOPT_NATIVE_CA);
-#endif
+
     CURLcode result = curl_easy_perform(curl);
     if (result != CURLE_OK) {
       BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
     }
+
     curl_easy_cleanup(curl);
     fclose(fp);
     return result == CURLE_OK;
