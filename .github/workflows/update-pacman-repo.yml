@@ -9,7 +9,7 @@ name: Update pacman repo
 
 on:
   release:
-    types: [created, edited]
+    types: [released]
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -18,14 +18,13 @@ concurrency:
 jobs:
   update-homebrew-release:
     if: >-
-      github.repository_owner == 'LizardByte' &&
-      !github.event.release.draft && !github.event.release.prerelease
+      github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
       - name: Check if pacman repo
         env:
           TOPIC: pacman-pkg
-        id: check
+        id: check-label
         uses: actions/github-script@v7
         with:
           script: |
@@ -43,11 +42,10 @@ jobs:
 
             core.setOutput('hasTopic', hasTopic);
 
-      - name: Check if edited release is latest GitHub release
-        id: check
+      - name: Check if latest GitHub release
+        id: check-release
         if: >-
-          github.event_name == 'release' &&
-          github.event.action == 'edited'
+          steps.check-label.outputs.hasTopic == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -60,8 +58,8 @@ jobs:
 
       - name: Checkout pacman-repo
         if: >-
-          steps.check.outputs.hasTopic == 'true' &&
-          steps.check.outputs.isLatestRelease == 'true'
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
         uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/pacman-repo
@@ -69,16 +67,16 @@ jobs:
       - name: Prep
         id: prep
         if: >-
-          steps.check.outputs.hasTopic == 'true' &&
-          steps.check.outputs.isLatestRelease == 'true'
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
         run: |
           echo "pkg_name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Download release asset
         id: download
         if: >-
-          steps.check.outputs.hasTopic == 'true' &&
-          steps.check.outputs.isLatestRelease == 'true'
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
         uses: robinraju/release-downloader@v1.11
         with:
           repository: "${{ github.repository }}"
@@ -91,8 +89,8 @@ jobs:
 
       - name: Create/Update Pull Request
         if: >-
-          steps.check.outputs.hasTopic == 'true'&&
-          steps.check.outputs.isLatestRelease == 'true' &&
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true' &&
           fromJson(steps.download.outputs.downloaded_files)[0]
         uses: peter-evans/create-pull-request@v7
         with:
@@ -102,8 +100,7 @@ jobs:
           commit-message: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}
           branch: bot/bump-${{ github.repository }}-${{ github.event.release.tag_name }}
           delete-branch: true
-          base: master
-          title: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}
+          title: "chore: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}"
           body: ${{ github.event.release.body }}
           labels: |
             auto-approve

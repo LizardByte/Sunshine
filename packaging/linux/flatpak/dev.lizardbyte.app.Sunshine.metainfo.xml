@@ -28,26 +28,15 @@
       @PROJECT_LONG_DESCRIPTION@
     </p>
 
-    <p>NOTE: Allow Sunshine Virtual Input (Required)</p>
-    <p>sudo chown $USER /dev/uinput &amp;&amp; echo 'KERNEL=="uinput", SUBSYSTEM=="misc",
-      OPTIONS+="static_node=uinput", TAG+="uaccess"' | sudo tee
-      /etc/udev/rules.d/60-sunshine-input.rules</p>
-    <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure,
-      but it is safe.</p>
+    <p>NOTE: Sunshine requires additional installation steps.</p>
+    <p>flatpak run --command=additional-install.sh @PROJECT_FQDN@</p>
+    <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure, but it is safe.</p>
     <p>NOTE: KMS Grab (Optional)</p>
-    <p>sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}')
-      flatpak run @PROJECT_FQDN@</p>
+    <p>sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run @PROJECT_FQDN@</p>
   </description>
 
   <releases>
-    <release version="0.23.1" date="2024-04-21"/>
-    <release version="0.23.0" date="2024-04-06"/>
-    <release version="0.22.2" date="2024-03-15"/>
-    <release version="0.22.1" date="2024-03-13"/>
-    <release version="0.22.0" date="2024-03-04"/>
-    <release version="0.21.0" date="2023-10-15"/>
-    <release version="0.20.0" date="2023-05-29"/>
-    <release version="0.19.1" date="2023-03-30"/>
+    <release version="@PROJECT_VERSION@" date="1970-01-01"></release>
   </releases>
 
   <developer_name>LizardByte</developer_name>
