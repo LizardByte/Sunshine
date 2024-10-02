@@ -53,21 +53,23 @@ CUDA is used for NVFBC capture.
         <td>sunshine-ubuntu-24.04-{arch}.deb</td>
     </tr>
     <tr>
-        <td rowspan="2">12.0.0</td>
-        <td rowspan="4">525.60.13</td>
+        <td rowspan="1">12.0.0</td>
+        <td rowspan="3">525.60.13</td>
         <td rowspan="4">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
-        <td>sunshine_{arch}.flatpak</td>
-    </tr>
-    <tr>
         <td>sunshine-debian-bookworm-{arch}.deb</td>
     </tr>
     <tr>
-        <td>12.4.0</td>
+        <td rowspan="1">12.4.0</td>
         <td>sunshine-fedora-39-{arch}.rpm</td>
     </tr>
     <tr>
-        <td>12.5.1</td>
+        <td rowspan="1">12.5.1</td>
         <td>sunshine.pkg.tar.zst</td>
+    </tr>
+    <tr>
+        <td rowspan="1">12.6.2</td>
+        <td rowspan="1">560.35.03</td>
+        <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
         <td>n/a</td>

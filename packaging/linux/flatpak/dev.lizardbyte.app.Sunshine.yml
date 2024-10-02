@@ -1,11 +1,10 @@
 ---
 app-id: "@PROJECT_FQDN@"
 runtime: org.freedesktop.Platform
-runtime-version: "22.08"
+runtime-version: "23.08"  # requires CUDA >= 12.2
 sdk: org.freedesktop.Sdk
 sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node18
-  - org.freedesktop.Sdk.Extension.vala
+  - org.freedesktop.Sdk.Extension.node20
 command: sunshine
 separate-locales: false
 finish-args:
@@ -29,10 +28,6 @@ cleanup:
   - /lib/*.a
   - /share/man
 
-build-options:
-  append-path: /usr/lib/sdk/vala/bin
-  prepend-ld-library-path: /usr/lib/sdk/vala/lib
-
 modules:
   # Test dependencies
   - "modules/xvfb/xvfb.json"
@@ -40,6 +35,7 @@ modules:
   # Runtime dependencies
   - shared-modules/libappindicator/libappindicator-gtk3-12.10.json
   - "modules/avahi.json"
+  - "modules/boost.json"
   - "modules/libevdev.json"
   - "modules/libnotify.json"
   - "modules/miniupnpc.json"
@@ -49,23 +45,21 @@ modules:
   - "modules/cuda.json"
 
   - name: sunshine
-    disabled: false
-    buildsystem: cmake-ninja
-    no-make-install: false
     builddir: true
     build-options:
-      append-path: /usr/lib/sdk/node18/bin
-      build-args:
-        - --share=network
-      test-args:
-        - --share=network
+      append-path: /usr/lib/sdk/node20/bin
       env:
         BUILD_VERSION: "@BUILD_VERSION@"
         BRANCH: "@GITHUB_BRANCH@"
         COMMIT: "@GITHUB_COMMIT@"
-        npm_config_nodedir: /usr/lib/sdk/node18
+        XDG_CACHE_HOME: /run/build/sunshine/flatpak-node/cache
+        npm_config_cache: /run/build/sunshine/flatpak-node/npm-cache
+        npm_config_nodedir: /usr/lib/sdk/node20
+        npm_config_offline: 'true'
         NPM_CONFIG_LOGLEVEL: info
+    buildsystem: cmake-ninja
     config-opts:
+      - -DBOOST_USE_STATIC=OFF
       - -DBUILD_DOCS=OFF
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
@@ -78,16 +72,20 @@ modules:
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_PUBLISHER_NAME='LizardByte'
-        -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
-        -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
-    sources:
-      - type: git
-        url: "@GITHUB_CLONE_URL@"
-        commit: "@GITHUB_COMMIT@"
+      - -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
+      - -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+    no-make-install: false
     post-install:
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/scripts/* /app/bin
       - install -D $FLATPAK_BUILDER_BUILDDIR/packaging/linux/flatpak/apps.json /app/share/sunshine/apps.json
     run-tests: true
     test-rule: ""  # empty to disable
     test-commands:
-      - xvfb-run tests/test_sunshine --gtest_color=yes
+      - npm run serve & xvfb-run tests/test_sunshine --gtest_color=yes
+    sources:
+      - generated-sources.json
+      - type: git
+        url: "@GITHUB_CLONE_URL@"
+        commit: "@GITHUB_COMMIT@"
+      - type: file
+        path: package-lock.json

@@ -1,0 +1,16 @@
+{
+  "name": "boost",
+  "buildsystem": "simple",
+  "build-commands": [
+    "cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y",
+    "./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=filesystem,locale,log,program_options,system",
+    "./b2 install variant=release link=shared runtime-link=shared cxxflags=\"$CXXFLAGS\""
+  ],
+  "sources": [
+    {
+      "type": "archive",
+      "url": "https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz",
+      "sha256": "2c5ec5edcdff47ff55e27ed9560b0a0b94b07bd07ed9928b476150e16b0efc57"
+    }
+  ]
+}

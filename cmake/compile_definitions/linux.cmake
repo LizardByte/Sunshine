@@ -227,6 +227,14 @@ else()
     endif()
 endif()
 
+# AppImage and Flatpak
+if (${SUNSHINE_BUILD_APPIMAGE})
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_APPIMAGE=1)
+endif ()
+if (${SUNSHINE_BUILD_FLATPAK})
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_FLATPAK=1)
+endif ()
+
 list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/graphics.h"
