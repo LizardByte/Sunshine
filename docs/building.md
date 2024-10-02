@@ -34,12 +34,13 @@ dependencies=(
   "graphviz"  # Optional, for docs
   "icu4c"  # Optional, if boost is not installed
   "miniupnpc"
+  "ninja"
   "node"
   "openssl@3"
   "opus"
   "pkg-config"
 )
-brew install ${dependencies[@]}
+brew install "${dependencies[@]}"
 ```
 
 If there are issues with an SSL header that is not found:
@@ -63,10 +64,11 @@ dependencies=(
   "graphviz"  # Optional, for docs
   "libopus"
   "miniupnpc"
+  "ninja"
   "npm9"
   "pkgconfig"
 )
-sudo port install ${dependencies[@]}
+sudo port install "${dependencies[@]}"
 ```
 
 #### Windows
@@ -97,7 +99,7 @@ dependencies=(
   "mingw-w64-ucrt-x86_64-opus"
   "mingw-w64-ucrt-x86_64-toolchain"
 )
-pacman -S ${dependencies[@]}
+pacman -S "${dependencies[@]}"
 ```
 
 ### Clone
