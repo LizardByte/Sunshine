@@ -7,9 +7,9 @@
 #include <thread>
 
 #include <boost/algorithm/string/join.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v1.hpp>
 
-// We have to include boost/process.hpp before display.h due to WinSock.h,
+// We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
 typedef long NTSTATUS;
 

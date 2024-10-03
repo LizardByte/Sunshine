@@ -15,7 +15,7 @@
 // lib includes
 #include <arpa/inet.h>
 #include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v1.hpp>
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <ifaddrs.h>
@@ -269,7 +269,7 @@ namespace platf {
     auto working_dir = boost::filesystem::path(std::getenv("HOME"));
     std::string cmd = R"(xdg-open ")" + url + R"(")";
 
-    boost::process::environment _env = boost::this_process::environment();
+    boost::process::v1::environment _env = boost::this_process::environment();
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {

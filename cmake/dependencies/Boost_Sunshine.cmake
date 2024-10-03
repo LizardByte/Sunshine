@@ -3,7 +3,7 @@
 #
 include_guard(GLOBAL)
 
-set(BOOST_VERSION 1.85)
+set(BOOST_VERSION 1.86)
 set(BOOST_COMPONENTS
         filesystem
         locale
@@ -15,7 +15,7 @@ if(BOOST_USE_STATIC)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
+find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
 if(NOT Boost_FOUND)
     message(STATUS "Boost v${BOOST_VERSION}.x package not found in the system. Falling back to FetchContent.")
     include(FetchContent)
@@ -39,9 +39,9 @@ if(NOT Boost_FOUND)
     set(BOOST_INCLUDE_LIBRARIES
             ${BOOST_COMPONENTS})
     set(BOOST_URL
-            "https://github.com/boostorg/boost/releases/download/boost-1.85.0/boost-1.85.0-cmake.tar.xz")
+            "https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz")
     set(BOOST_HASH
-            "MD5=BADEA970931766604D4D5F8F4090B176")
+            "MD5=D02759931CEDC02ADED80402906C5EB6")
 
     if(CMAKE_VERSION VERSION_LESS "3.24.0")
         FetchContent_Declare(
