@@ -7,6 +7,7 @@ pacman --noconfirm -Syu
 # install dependencies
 dependencies=(
   "git"
+  "mingw-w64-ucrt-x86_64-boost"
   "mingw-w64-ucrt-x86_64-cmake"
   "mingw-w64-ucrt-x86_64-cppwinrt"
   "mingw-w64-ucrt-x86_64-curl-winssl"
