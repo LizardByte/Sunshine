@@ -629,6 +629,7 @@ jobs:
 
       - name: Upload Homebrew Beta Formula
         if: >-
+          github.repository_owner == 'LizardByte' &&
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/homebrew-release-action@v2024.919.145818
