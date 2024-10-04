@@ -47,13 +47,13 @@ namespace boost {
   namespace filesystem {
     class path;
   }
-  namespace process {
+  namespace process::inline v1 {
     class child;
     class group;
     template <typename Char>
     class basic_environment;
     typedef basic_environment<char> environment;
-  }  // namespace process
+  }  // namespace process::inline v1
 }  // namespace boost
 #endif
 namespace video {
@@ -597,8 +597,8 @@ namespace platf {
   bool
   needs_encoder_reenumeration();
 
-  boost::process::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::environment &env, FILE *file, std::error_code &ec, boost::process::group *group);
+  boost::process::v1::child
+  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
 
   enum class thread_priority_e : int {
     low,  ///< Low priority
