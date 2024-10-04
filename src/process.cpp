@@ -63,7 +63,7 @@ namespace proc {
   }
 
   void
-  terminate_process_group(boost::process::child &proc, boost::process::group &group, std::chrono::seconds exit_timeout) {
+  terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
     if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
       if (exit_timeout.count() > 0) {
         // Request processes in the group to exit gracefully
@@ -104,7 +104,7 @@ namespace proc {
   }
 
   boost::filesystem::path
-  find_working_directory(const std::string &cmd) {
+  find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
     auto parts = boost::program_options::split_winmain(cmd);
@@ -126,7 +126,7 @@ namespace proc {
     // If the cmd path is not an absolute path, resolve it using our PATH variable
     boost::filesystem::path cmd_path(parts.at(0));
     if (!cmd_path.is_absolute()) {
-      cmd_path = boost::process::search_path(parts.at(0));
+      cmd_path = boost::process::v1::search_path(parts.at(0));
       if (cmd_path.empty()) {
         BOOST_LOG(error) << "Unable to find executable ["sv << parts.at(0) << "]. Is it in your PATH?"sv;
         return boost::filesystem::path();
@@ -158,8 +158,7 @@ namespace proc {
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
-    // Add Process-specific environment variables
-    _env = launch_session->env;
+    // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
     _env["SUNSHINE_APP_NAME"] = _app.name;
     _env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
@@ -213,7 +212,7 @@ namespace proc {
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.do_cmd) :
+                                              find_working_directory(cmd.do_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
       auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -238,7 +237,7 @@ namespace proc {
 
     for (auto &cmd : _app.detached) {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd) :
+                                              find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Spawning ["sv << cmd << "] in ["sv << working_dir << ']';
       auto child = platf::run_command(_app.elevated, true, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -256,7 +255,7 @@ namespace proc {
     }
     else {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(_app.cmd) :
+                                              find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing: ["sv << _app.cmd << "] in ["sv << working_dir << ']';
       _process = platf::run_command(_app.elevated, true, _app.cmd, working_dir, _env, _pipe.get(), ec, &_process_group);
@@ -308,8 +307,8 @@ namespace proc {
     std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);
-    _process = boost::process::child();
-    _process_group = boost::process::group();
+    _process = boost::process::v1::child();
+    _process_group = boost::process::v1::group();
 
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
@@ -319,7 +318,7 @@ namespace proc {
       }
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.undo_cmd) :
+                                              find_working_directory(cmd.undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
       auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
@@ -391,7 +390,7 @@ namespace proc {
       std::error_code ec;
 
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd) :
+                                              find_working_directory(cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
       auto child = platf::run_command(iter->elevated, true, cmd, working_dir, _env, nullptr, ec, nullptr);
       if (ec) {
@@ -436,7 +435,7 @@ namespace proc {
   }
 
   std::string
-  parse_env_val(boost::process::native_environment &env, const std::string_view &val_raw) {
+  parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw) {
     auto pos = std::begin(val_raw);
     auto dollar = std::find(pos, std::end(val_raw), '$');
 
@@ -656,10 +655,6 @@ namespace proc {
         if (!exclude_global_prep.value_or(false)) {
           prep_cmds.reserve(config::sunshine.prep_cmds.size());
           for (auto &prep_cmd : config::sunshine.prep_cmds) {
-            if (prep_cmd.on_session) {
-              continue;
-            }
-
             auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
             auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
 

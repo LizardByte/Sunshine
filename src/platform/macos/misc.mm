@@ -23,7 +23,7 @@
 #include "src/platform/common.h"
 
 #include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v1.hpp>
 
 using namespace std::literals;
 namespace fs = std::filesystem;
@@ -197,7 +197,7 @@ namespace platf {
     boost::filesystem::path working_dir;
     std::string cmd = R"(open ")" + url + R"(")";
 
-    boost::process::environment _env = boost::this_process::environment();
+    boost::process::v1::environment _env = boost::this_process::environment();
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {

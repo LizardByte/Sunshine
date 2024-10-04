@@ -9,6 +9,9 @@
 #include "misc.h"
 #include "src/logging.h"
 
+// Gross hack to work around MINGW-packages#22160
+#define ____FIReference_1_boolean_INTERFACE_DEFINED__
+
 #include <windows.graphics.capture.interop.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.metadata.h>
@@ -37,7 +40,7 @@ namespace winrt {
 #if WINRT_IMPL_HAS_DECLSPEC_UUID
     __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
 #endif
-      IDirect3DDxgiInterfaceAccess: ::IUnknown {
+    IDirect3DDxgiInterfaceAccess: ::IUnknown {
     virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
   };
 }  // namespace winrt

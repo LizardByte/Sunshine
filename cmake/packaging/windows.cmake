@@ -68,6 +68,8 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
 SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
         IfSilent +2 0
+        CreateShortCut '\\\"$DESKTOP\\\\SunshineGUI.lnk\\\"' '\\\"$INSTDIR\\\\assets\\\\gui\\\\sunshine-gui.exe\\\"'
+        ExecShell 'startpin' '\\\"$DESKTOP\\\\SunshineGUI.lnk\\\"'
         ExecShell 'open' 'https://docs.qq.com/aio/DSGdQc3htbFJjSFdO'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
@@ -83,6 +85,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
 # Uninstall service
 set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
+        ExecShell 'startunpin' '\\\"$DESKTOP\\\\SunshineGUI.lnk\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-vdd.bat\\\"'

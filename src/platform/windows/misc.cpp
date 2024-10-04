@@ -10,7 +10,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
-#include <boost/process.hpp>
+#include <boost/process/v1.hpp>
 #include <boost/program_options/parsers.hpp>
 
 // prevent clang format from "optimizing" the header include order
@@ -1071,7 +1071,7 @@ namespace platf {
    */
   void
   open_url(const std::string &url) {
-    boost::process::environment _env = boost::this_process::environment();
+    boost::process::v1::environment _env = boost::this_process::environment();
     auto working_dir = boost::filesystem::path();
     std::error_code ec;
 
