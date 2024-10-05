@@ -5,9 +5,6 @@
 ## Chocolatey
 [![Chocolatey](https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=chocolatey&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27chocolatey%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=chocolatey)](https://community.chocolatey.org/packages/sunshine)
 
-## Flathub
-[![Flathub](https://img.shields.io/flathub/v/dev.lizardbyte.app.Sunshine?style=for-the-badge&logo=Flathub)](https://flathub.org/apps/dev.lizardbyte.app.Sunshine)
-
 ## nixpkgs
 [![nixpkgs](https://img.shields.io/badge/dynamic/xml.svg?color=orange&label=nixpkgs&style=for-the-badge&prefix=v&query=%2F%2Ftr%5B%40id%3D%27nix_unstable%27%5D%2Ftd%5B3%5D%2Fspan%2Fa&url=https%3A%2F%2Frepology.org%2Fproject%2Fsunshine%2Fversions&logo=nixos)](https://github.com/NixOS/nixpkgs/blob/nixos-unstable/pkgs/servers/sunshine/default.nix)
 

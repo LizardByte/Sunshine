@@ -74,6 +74,8 @@ jobs:
   build_linux_flatpak:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      NODE_VERSION: "20"
+      PLATFORM_VERSION: "23.08"
     name: Linux Flatpak
     runs-on: ubuntu-22.04
     needs: [setup_release, setup_flatpak_matrix]
@@ -97,10 +99,30 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Setup Dependencies Linux Flatpak
-        env:
-          PLATFORM_VERSION: "22.08"
+      - name: Setup node
+        id: node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install npm dependencies
         run: |
+          npm install --package-lock-only
+
+      - name: Debug package-lock.json
+        run: |
+          cat package-lock.json
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Dependencies Linux Flatpak
+        run: |
+          python -m pip install ./packaging/linux/flatpak/deps/flatpak-builder-tools/node
+
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
@@ -114,9 +136,19 @@ jobs:
             org.flatpak.Builder \
             org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk.Extension.node18/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk.Extension.vala/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${{ matrix.arch }}/${PLATFORM_VERSION} \
             "
+
+          flatpak run org.flatpak.Builder --version
+
+      - name: flatpak node generator
+        # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
+        run: |
+          flatpak-node-generator npm package-lock.json
+
+      - name: Debug generated-sources.json
+        run: |
+          cat generated-sources.json
 
       - name: Cache Flatpak build
         uses: actions/cache@v4
@@ -167,16 +199,29 @@ jobs:
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c "flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+          sudo su $(whoami) -c "flatpak run org.flatpak.Builder \
+            --arch=${{ matrix.arch }} \
+            --force-clean \
+            --repo=repo \
+            --sandbox \
             --stop-at=cuda build-sunshine ${APP_ID}.yml"
           cp -r .flatpak-builder copy-of-flatpak-builder
-          sudo su $(whoami) -c "flatpak run org.flatpak.Builder --arch=${{ matrix.arch }} --repo=repo --force-clean \
+          sudo su $(whoami) -c "flatpak run org.flatpak.Builder \
+            --arch=${{ matrix.arch }} \
+            --force-clean \
+            --repo=repo \
+            --sandbox \
             build-sunshine ${APP_ID}.yml"
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
-          sudo su $(whoami) -c "flatpak build-bundle --arch=${{ matrix.arch }} ./repo \
+          sudo su $(whoami) -c "flatpak build-bundle \
+            --arch=${{ matrix.arch }} \
+            ./repo \
             ../artifacts/sunshine_${{ matrix.arch }}.flatpak ${APP_ID}"
-          sudo su $(whoami) -c "flatpak build-bundle --runtime --arch=${{ matrix.arch }} ./repo \
+          sudo su $(whoami) -c "flatpak build-bundle \
+            --runtime \
+            --arch=${{ matrix.arch }} \
+            ./repo \
             ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak ${APP_ID}.Debug"
 
       - name: Lint Flatpak
@@ -228,6 +273,23 @@ jobs:
 
           # exit with the correct code
           exit $exit_code
+
+      - name: Package Flathub repo archive
+        # copy files required to generate the Flathub repo
+        if: ${{ matrix.arch == 'x86_64' }}
+        run: |
+          mkdir -p flathub/modules
+          cp ./build/generated-sources.json ./flathub/
+          cp ./build/package-lock.json ./flathub/
+          cp ./build/${APP_ID}.yml ./flathub/
+          cp ./build/${APP_ID}.metainfo.xml ./flathub/
+          cp ./packaging/linux/flatpak/README.md ./flathub/
+          cp ./packaging/linux/flatpak/flathub.json ./flathub/
+          cp -r ./packaging/linux/flatpak/modules/. ./flathub/modules/
+          # submodules will need to be handled in the workflow that creates the PR
+
+          # create the archive
+          tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

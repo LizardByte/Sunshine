@@ -9,7 +9,7 @@ name: Update Winget release
 
 on:
   release:
-    types: [created, edited]
+    types: [released]
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -18,14 +18,13 @@ concurrency:
 jobs:
   update-winget-release:
     if: >-
-      github.repository_owner == 'LizardByte' &&
-      !github.event.release.draft && !github.event.release.prerelease
+      github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
       - name: Check if Winget repo
         env:
           TOPIC: winget-pkg
-        id: check
+        id: check-label
         uses: actions/github-script@v7
         with:
           script: |
@@ -46,7 +45,7 @@ jobs:
       - name: Download release asset
         id: download
         if: >-
-          steps.check.outputs.hasTopic == 'true'
+          steps.check-label.outputs.hasTopic == 'true'
         uses: robinraju/release-downloader@v1.11
         with:
           repository: "${{ github.repository }}"
@@ -59,7 +58,7 @@ jobs:
 
       - name: Release to WinGet
         if: >-
-          steps.check.outputs.hasTopic == 'true' &&
+          steps.check-label.outputs.hasTopic == 'true' &&
           fromJson(steps.download.outputs.downloaded_files)[0]
         uses: vedantmgoyal2009/winget-releaser@v2
         with:
