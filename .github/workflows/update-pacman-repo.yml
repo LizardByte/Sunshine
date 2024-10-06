@@ -70,7 +70,7 @@ jobs:
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true'
         run: |
-          echo "pkg_name=$(echo ${{ github.repository }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+          echo "pkg_name=$(echo ${{ github.event.repository.name }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Download release asset
         id: download
@@ -97,7 +97,7 @@ jobs:
           add-paths: |
             pkgbuilds/*
           token: ${{ secrets.GH_BOT_TOKEN }}
-          commit-message: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}
+          commit-message: "chore: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}"
           branch: bot/bump-${{ github.repository }}-${{ github.event.release.tag_name }}
           delete-branch: true
           title: "chore: Update ${{ github.repository }} to ${{ github.event.release.tag_name }}"

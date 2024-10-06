@@ -54,28 +54,21 @@ CUDA is used for NVFBC capture.
     </tr>
     <tr>
         <td rowspan="1">12.0.0</td>
-        <td rowspan="3">525.60.13</td>
+        <td rowspan="2">525.60.13</td>
         <td rowspan="4">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine-debian-bookworm-{arch}.deb</td>
-    </tr>
-    <tr>
-        <td rowspan="1">12.4.0</td>
-        <td>sunshine-fedora-39-{arch}.rpm</td>
     </tr>
     <tr>
         <td rowspan="1">12.5.1</td>
         <td>sunshine.pkg.tar.zst</td>
     </tr>
     <tr>
-        <td rowspan="1">12.6.2</td>
-        <td rowspan="1">560.35.03</td>
+        <td rowspan="2">12.6.2</td>
+        <td rowspan="2">560.35.03</td>
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>n/a</td>
-        <td>n/a</td>
-        <td>n/a</td>
-        <td>sunshine-fedora-40-{arch}.rpm</td>
+        <td>Sunshine (copr)</td>
     </tr>
 </table>
 
@@ -165,26 +158,27 @@ sudo apt remove sunshine
 ```
 
 #### Fedora
+@tip{The package name is case-sensitive.}
+
 ##### Install
-1. Add `rpmfusion` repositories.
+1. Enable copr repository.
    ```bash
-   sudo dnf install \
-     https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
-     https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-   ```
-2. Download `sunshine-{distro}-{distro-version}-{arch}.rpm` and run the following command.
-   ```bash
-   sudo dnf install ./sunshine-{distro}-{distro-version}-{arch}.rpm
+   sudo dnf copr enable lizardbyte/stable
    ```
 
-@note{The `{distro-version}` is the version of the distro we built the package on. The `{arch}` is the
-architecture of your operating system.}
+   or
+   ```bash
+   sudo dnf copr enable lizardbyte/beta
+   ```
 
-@tip{You can double-click the rpm file to see details about the package and begin installation.}
+2. Install the package.
+   ```bash
+   sudo dnf install Sunshine
+   ```
 
 ##### Uninstall
 ```bash
-sudo dnf remove sunshine
+sudo dnf remove Sunshine
 ```
 
 #### Flatpak

@@ -26,8 +26,6 @@ Sunshine images are available with the following tag suffixes, based on their re
 
 - `archlinux`
 - `debian-bookworm`
-- `fedora-39`
-- `fedora-40`
 - `ubuntu-22.04`
 - `ubuntu-24.04`
 
@@ -157,8 +155,6 @@ The architectures supported by these images are shown in the table below.
 |-----------------|--------------|---------------|
 | archlinux       | ✅            | ❌             |
 | debian-bookworm | ✅            | ✅             |
-| fedora-39       | ✅            | ❌             |
-| fedora-40       | ✅            | ❌             |
 | ubuntu-22.04    | ✅            | ✅             |
 | ubuntu-24.04    | ✅            | ✅             |
 

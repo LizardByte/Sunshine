@@ -180,7 +180,7 @@ jobs:
         with:
           path: "flathub/${{ env.FLATHUB_PKG }}"
           token: ${{ secrets.GH_BOT_TOKEN }}
-          commit-message: Update ${{ env.FLATHUB_PKG }} to ${{ github.event.release.tag_name }}
+          commit-message: "chore: Update ${{ env.FLATHUB_PKG }} to ${{ github.event.release.tag_name }}"
           branch: bot/bump-${{ env.FLATHUB_PKG }}-${{ github.event.release.tag_name }}
           delete-branch: true
           title: "chore: Update ${{ env.FLATHUB_PKG }} to ${{ github.event.release.tag_name }}"
