@@ -29,6 +29,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Get properties
+        env:
+          COPR_PR_WH_KEY: "05fc9b07-a19b-4f83-89b2-ae1e7e0b5282"
         run: |
           # package name = repository name
           package=${{ github.event.repository.name }}
@@ -42,11 +44,14 @@ jobs:
               COPR_PUSH_WEBHOOK="${copr_base}/stable/${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}/${package}/"
             fi
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            COPR_PR_WEBHOOK="${copr_base}/pulls:pr:${{github.event.number}}/${{vars.COPR_PR_WEBHOOK_TOKEN}}/${package}/"
+            COPR_PR_WEBHOOK="${copr_base}/pulls:pr:${{github.event.number}}/${{env.COPR_PR_WH_KEY}}/${package}/"
           fi
 
           echo "COPR_PUSH_WEBHOOK=${COPR_PUSH_WEBHOOK}" >> $GITHUB_ENV
           echo "COPR_PR_WEBHOOK=${COPR_PR_WEBHOOK}" >> $GITHUB_ENV
+
+          echo "COPR_PUSH_WEBHOOK=${COPR_PUSH_WEBHOOK}"
+          echo "COPR_PR_WEBHOOK=${COPR_PR_WEBHOOK}"
 
       - name: Build
         run: |
