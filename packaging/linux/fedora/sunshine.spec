@@ -147,7 +147,12 @@ function install_cuda() {
 
   local url="${cuda_prefix}${cuda_version}/local_installers/cuda_${cuda_version}_${cuda_build}_linux${cuda_suffix}.run"
   echo "cuda url: ${url}"
-  wget "$url" --progress=bar:force:noscroll -q -O "%{_builddir}/cuda.run"
+  wget \
+    "$url" \
+    --progress=bar:force:noscroll \
+    --retry-connrefused \
+    --tries=3 \
+    -q -O "%{_builddir}/cuda.run"
   chmod a+x "%{_builddir}/cuda.run"
   "%{_builddir}/cuda.run" \
     --no-drm \
@@ -172,6 +177,11 @@ if [ -n "$cuda_version" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${ar
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
   cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{_builddir}/cuda/bin/nvcc")
 fi
+
+# setup the version
+export BRANCH=%{branch}
+export BUILD_VERSION=v%{build_version}
+export COMMIT=%{commit}
 
 # cmake
 cd %{_builddir}/Sunshine
@@ -198,12 +208,23 @@ EOF
 
 %post
 # Note: this is copied from the postinst script
-# Trigger udev rule reload for /dev/uinput and /dev/uhid
-path_to_udevadm=$(which udevadm)
-if [ -x "$path_to_udevadm" ] ; then
-  $path_to_udevadm control --reload-rules
-  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
-  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+# Check if we're in an rpm-ostree environment
+if [ ! -x "$(command -v rpm-ostree)" ]; then
+  echo "Not in an rpm-ostree environment, proceeding with post install steps."
+
+  # Trigger udev rule reload for /dev/uinput and /dev/uhid
+  path_to_udevadm=$(which udevadm)
+  if [ -x "$path_to_udevadm" ]; then
+    echo "Reloading udev rules."
+    $path_to_udevadm control --reload-rules
+    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
+    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+    echo "Udev rules reloaded successfully."
+  else
+    echo "error: udevadm not found or not executable."
+  fi
+else
+  echo "rpm-ostree environment detected, skipping post install steps. Restart to apply the changes."
 fi
 
 %preun

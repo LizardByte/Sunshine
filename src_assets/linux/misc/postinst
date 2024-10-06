@@ -1,17 +1,32 @@
 #!/bin/sh
 
-# Ensure Sunshine can grab images from KMS
-path_to_setcap=$(which setcap)
-path_to_sunshine=$(readlink -f $(which sunshine))
-if [ -x "$path_to_setcap" ] ; then
-  echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
-        $path_to_setcap cap_sys_admin+p $path_to_sunshine
-fi
+# Check if we're in an rpm-ostree environment
+if [ ! -x "$(command -v rpm-ostree)" ]; then
+  echo "Not in an rpm-ostree environment, proceeding with post install steps."
 
-# Trigger udev rule reload for /dev/uinput and /dev/uhid
-path_to_udevadm=$(which udevadm)
-if [ -x "$path_to_udevadm" ] ; then
-  $path_to_udevadm control --reload-rules
-  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
-  $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+  # Ensure Sunshine can grab images from KMS
+  path_to_setcap=$(which setcap)
+  path_to_sunshine=$(readlink -f "$(which sunshine)")
+  if [ -x "$path_to_setcap" ] ; then
+    echo "Setting CAP_SYS_ADMIN capability on Sunshine binary."
+    echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
+    $path_to_setcap cap_sys_admin+p $path_to_sunshine
+    echo "CAP_SYS_ADMIN capability set on Sunshine binary."
+  else
+    echo "error: setcap not found or not executable."
+  fi
+
+  # Trigger udev rule reload for /dev/uinput and /dev/uhid
+  path_to_udevadm=$(which udevadm)
+  if [ -x "$path_to_udevadm" ] ; then
+    echo "Reloading udev rules."
+    $path_to_udevadm control --reload-rules
+    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
+    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
+    echo "Udev rules reloaded successfully."
+  else
+    echo "error: udevadm not found or not executable."
+  fi
+else
+  echo "rpm-ostree environment detected, skipping post install steps. Restart to apply the changes."
 fi
