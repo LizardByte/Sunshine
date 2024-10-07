@@ -96,10 +96,9 @@ body:
         - Linux - Docker
         - Linux - flathub/flatpak
         - Linux - Homebrew
-        - Linux - nixpkgs (Third Party)
         - Linux - LizardByte/pacman-repo
+        - Linux - nixpkgs (Third Party)
         - Linux - pkg.tar.zst
-        - Linux - rpm
         - Linux - Fedora Copr
         - Linux - solus (Third Party)
         - macOS - Homebrew
