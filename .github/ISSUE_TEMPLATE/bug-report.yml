@@ -70,9 +70,8 @@ body:
     attributes:
       label: Architecture
       options:
-        - 32 bit
-        - 64 bit
-        - arm
+        - amd64/x86_64
+        - arm64/aarch64
         - other, n/a
     validations:
       required: true
@@ -95,18 +94,18 @@ body:
         - Linux - AUR (Third Party)
         - Linux - deb
         - Linux - Docker
-        - Linux - flathub (Third Party)
-        - Linux - flatpak
+        - Linux - flathub/flatpak
         - Linux - Homebrew
+        - Linux - LizardByte/pacman-repo
         - Linux - nixpkgs (Third Party)
         - Linux - pkg.tar.zst
-        - Linux - rpm
+        - Linux - Fedora Copr
         - Linux - solus (Third Party)
         - macOS - Homebrew
         - macOS - Portfile
         - Windows - Chocolatey (Third Party)
-        - Windows - installer
-        - Windows - portable
+        - Windows - installer (recommended)
+        - Windows - portable (not recommended)
         - Windows - Scoop (Third Party)
         - Windows - Winget
         - other (not listed)
@@ -166,7 +165,7 @@ body:
         Please copy and paste your config (`sunshine.conf`) file.
       render: Shell
     validations:
-      required: true
+      required: false
   - type: textarea
     id: apps
     attributes:
