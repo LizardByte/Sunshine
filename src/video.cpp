@@ -512,6 +512,7 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
+        { "surfaces"s, 1 },
         { "preset"s, &config::video.nv_legacy.preset },
         { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
@@ -532,6 +533,7 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
+        { "surfaces"s, 1 },
         { "preset"s, &config::video.nv_legacy.preset },
         { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
@@ -557,6 +559,7 @@ namespace video {
         { "delay"s, 0 },
         { "forced-idr"s, 1 },
         { "zerolatency"s, 1 },
+        { "surfaces"s, 1 },
         { "preset"s, &config::video.nv_legacy.preset },
         { "tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY },
         { "rc"s, NV_ENC_PARAMS_RC_CBR },
@@ -697,6 +700,9 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
+        { "forced_idr"s, 1 },
+        { "latency"s, "lowest_latency"s },
+        { "skip_frame"s, 0 },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "preencode"s, &config::video.amd.amd_preanalysis },
         { "quality"s, &config::video.amd.amd_quality_av1 },
@@ -716,12 +722,13 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
+        { "forced_idr"s, 1 },
+        { "latency"s, 1 },
+        { "skip_frame"s, 0 },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "gops_per_idr"s, 1 },
         { "header_insertion_mode"s, "idr"s },
         { "preencode"s, &config::video.amd.amd_preanalysis },
-        { "qmax"s, 51 },
-        { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_hevc },
         { "rc"s, &config::video.amd.amd_rc_hevc },
         { "usage"s, &config::video.amd.amd_usage_hevc },
@@ -740,10 +747,11 @@ namespace video {
       // Common options
       {
         { "filler_data"s, false },
+        { "forced_idr"s, 1 },
+        { "latency"s, 1 },
+        { "frame_skipping"s, 0 },
         { "log_to_dbg"s, []() { return config::sunshine.min_log_level < 2 ? 1 : 0; } },
         { "preencode"s, &config::video.amd.amd_preanalysis },
-        { "qmax"s, 51 },
-        { "qmin"s, 0 },
         { "quality"s, &config::video.amd.amd_quality_h264 },
         { "rc"s, &config::video.amd.amd_rc_h264 },
         { "usage"s, &config::video.amd.amd_usage_h264 },
@@ -922,6 +930,7 @@ namespace video {
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
         { "prio_speed"s, 1 },
+        { "max_ref_frames"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -938,6 +947,7 @@ namespace video {
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
         { "prio_speed"s, 1 },
+        { "max_ref_frames"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -954,6 +964,7 @@ namespace video {
         { "require_sw"s, &config::video.vt.vt_require_sw },
         { "realtime"s, &config::video.vt.vt_realtime },
         { "prio_speed"s, 1 },
+        { "max_ref_frames"s, 1 },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
