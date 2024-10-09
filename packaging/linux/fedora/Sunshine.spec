@@ -9,8 +9,8 @@
 
 Name: Sunshine
 Version: %{build_version}
-Summary: Self-hosted game stream host for Moonlight.
 Release: 1%{?dist}
+Summary: Self-hosted game stream host for Moonlight.
 License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
