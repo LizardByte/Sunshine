@@ -8,6 +8,8 @@
   #define __APPLE_USE_RFC_3542 1
 #endif
 
+#include <Carbon/Carbon.h>
+
 #include <Foundation/Foundation.h>
 #include <arpa/inet.h>
 #include <dlfcn.h>
@@ -540,6 +542,22 @@ namespace platf {
   create_high_precision_timer() {
     return std::make_unique<macos_high_precision_timer>();
   }
+
+  bool
+  request_accessibility_permission() {
+    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @YES};
+    return !AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
+  }
+
+  bool
+  has_accessibility_permission() {
+    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @NO};
+    // We use kAXTrustedCheckOptionPrompt == NO here,
+    // instead of using XIsProcessTrusted(),
+    // because this will update the accessibility list with sunshine current path
+    return AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
+  }
+
 }  // namespace platf
 
 namespace dyn {
