@@ -27,25 +27,30 @@ namespace platf::dxgi {
   }
 
   amd_capture_t::~amd_capture_t() {
-    captureComp->Flush();
+    AMF_RESULT result;
+
+    // Before terminating the Display Capture component, we need to drain the remaining frames
+    result = captureComp->Drain();
+    if (result == AMF_OK) {
+      do {
+        result = captureComp->QueryOutput((amf::AMFData**) &capturedSurface);
+        Sleep(1);
+      } while (result != AMF_EOF);
+    }
     captureComp->Terminate();
+
     context->Terminate();
-    // capturedSurface = nullptr;
-    // free(context);
-    // free(captureComp);
-    // capturedSurface.Release();
-    // free(capturedSurface);
+    captureComp = nullptr;
+    context = nullptr;
+    capturedSurface = nullptr;
   }
 
   capture_e
   amd_capture_t::release_frame() {
-    // BOOST_LOG(error) << "### R.G. release_frame, null pointer?: " << (capturedSurface == nullptr);
-    // if (capturedSurface != nullptr)
-    // {
-    //   BOOST_LOG(error) << "### R.G. Releasing frame";
-    //   Sleep(10);
-    //   capturedSurface->Release();
-    // }
+    if (capturedSurface != nullptr)
+    {
+        capturedSurface = nullptr;
+    }
 
     return capture_e::ok;
   }
@@ -179,8 +184,8 @@ namespace platf::dxgi {
 
     // Set parameters for non-blocking capture
     captureComp->SetProperty(AMF_DISPLAYCAPTURE_MONITOR_INDEX, output_index);
-    captureComp->SetProperty(AMF_DISPLAYCAPTURE_FRAMERATE, AMFConstructRate(0, 1));
-    captureComp->SetProperty(AMF_DISPLAYCAPTURE_MODE, AMF_DISPLAYCAPTURE_MODE_GET_CURRENT_SURFACE);
+    captureComp->SetProperty(AMF_DISPLAYCAPTURE_FRAMERATE, AMFConstructRate(config.framerate, 1));
+    captureComp->SetProperty(AMF_DISPLAYCAPTURE_MODE, AMF_DISPLAYCAPTURE_MODE_WAIT_FOR_PRESENT);
     captureComp->SetProperty(AMF_DISPLAYCAPTURE_DUPLICATEOUTPUT, true);
 
     // Initialize capture

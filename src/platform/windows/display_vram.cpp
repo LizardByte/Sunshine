@@ -1662,9 +1662,6 @@ namespace platf::dxgi {
     }
     dup.capturedSurface = output;
 
-    // // Line below breaks reinit
-    // dup.capturedSurface->Acquire();
-
     texture2d_t src = (ID3D11Texture2D*) dup.capturedSurface->GetPlaneAt(0)->GetNative();
     src->GetDesc(&desc);
 
