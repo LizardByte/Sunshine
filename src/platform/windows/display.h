@@ -4,6 +4,8 @@
  */
 #pragma once
 
+#include <AMF/core/CurrentTime.h>
+#include <AMF/core/Factory.h>
 #include <d3d11.h>
 #include <d3d11_4.h>
 #include <d3dcommon.h>
@@ -13,8 +15,6 @@
 
 #include <Unknwn.h>
 #include <winrt/Windows.Graphics.Capture.h>
-#include <AMF/core/Factory.h>
-#include <AMF/core/CurrentTime.h>
 
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -33,6 +33,10 @@ namespace platf::dxgi {
     dxgi->Release();
   }
 
+  /**
+   * Windows DLL loader function helper for AMD Display Capture
+   * @param item library dll
+   */
   inline
   void
   FreeLibraryHelper(void *item) {
@@ -467,7 +471,8 @@ namespace platf::dxgi {
 
 
   /**
-   * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   * Display backend that uses AMD Display Capture with a hardware encoder.
+   * Main purpose is to capture AMD Fluid Motion Frames (AFMF)
    */
   class display_amd_vram_t: public display_vram_t {
     amd_capture_t dup;

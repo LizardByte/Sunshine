@@ -55,24 +55,21 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-   /**
+  /**
    * @brief Get the next frame from the producer thread.
    * If not available, the capture thread blocks until one is, or the wait times out.
    * @param timeout how long to wait for the next frame
-   * @param out a texture containing the frame just captured
-   * @param out_time the timestamp of the frame just captured
+   * @param out pointer to AMFSurfacePtr
    */
   capture_e
   amd_capture_t::next_frame(std::chrono::milliseconds timeout, amf::AMFData** out) {
     release_frame();
-    // this CONSUMER runs in the capture thread
-    // Poll for the next frame
+
     AMF_RESULT result;
     auto capture_start = std::chrono::steady_clock::now();
     do {
       result = captureComp->QueryOutput(out);
       if (result == AMF_REPEAT) {
-        // Check for capture timeout expiration
         if (std::chrono::steady_clock::now() - capture_start >= timeout) {
           return platf::capture_e::timeout;
         }
@@ -81,7 +78,6 @@ namespace platf::dxgi {
     } while (result == AMF_REPEAT);
 
     if (result != AMF_OK) {
-      BOOST_LOG(error) << "DisplayCapture::QueryOutput() failed: "sv << result;
       return capture_e::timeout;
     }
     return capture_e::ok;
@@ -133,30 +129,10 @@ namespace platf::dxgi {
     DXGI_ADAPTER_DESC adapter_desc;
     display->adapter->GetDesc(&adapter_desc);
 
-    amf::AMFTrace* traceAMF;
-    amf_factory->GetTrace(&traceAMF);
-    traceAMF->SetGlobalLevel(AMF_TRACE_DEBUG);
-    traceAMF->EnableWriter(AMF_TRACE_WRITER_FILE, true);
-    traceAMF->SetWriterLevel(AMF_TRACE_WRITER_FILE, AMF_TRACE_DEBUG);
-    traceAMF->SetPath(L"D:/amflog.txt");
-
-    amf::AMFDebug* debugAMF;
-    amf_factory->GetDebug(&debugAMF);
-    debugAMF->AssertsEnable(false);
-
     // Bail if this is not an AMD GPU
     if (adapter_desc.VendorId != 0x1002) {
       return -1;
     }
-
-    // BOOST_LOG(info) << "### framerate " << config.framerate << " dynamicRange " << config.dynamicRange;
-
-    // // FIXME: Don't use Direct Capture for a SDR P010 stream. The output is very dim.
-    // // This seems like a possible bug in VideoConverter when upconverting 8-bit to 10-bit.
-    // if (config.dynamicRange && !display->is_hdr()) {
-    //   BOOST_LOG(info) << "AMD Direct Capture is disabled while 10-bit stream is in SDR mode"sv;
-    //   return -1;
-    // }
 
     // Create the capture context
     result = amf_factory->CreateContext(&context);

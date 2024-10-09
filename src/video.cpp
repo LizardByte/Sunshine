@@ -1252,7 +1252,6 @@ namespace video {
 
       auto status = disp->capture(push_captured_image_callback, pull_free_image_callback, &display_cursor);
 
-
       if (artificial_reinit && status != platf::capture_e::error) {
         status = platf::capture_e::reinit;
 

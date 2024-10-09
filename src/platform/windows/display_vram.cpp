@@ -1643,7 +1643,7 @@ namespace platf::dxgi {
   }
 
 
-/**
+  /**
    * @brief Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
    * @param pull_free_image_cb call this to get a new free image from the video subsystem.
    * @param img_out the captured frame is returned here
