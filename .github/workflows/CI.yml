@@ -1189,7 +1189,7 @@ jobs:
         shell: msys2 {0}
         working-directory: build
         run: |
-          ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python-path.outputs.python-path }} -m pip install "gcovr<8.0"
           ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
             --exclude-noncode-lines \
             --exclude-throw-branches \
