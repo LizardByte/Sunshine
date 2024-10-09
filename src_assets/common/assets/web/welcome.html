@@ -11,7 +11,7 @@
       <div class="card p-2">
         <header>
           <h1 class="mb-0">
-            <img src="/images/logo-sunshine-45.png" height="45" alt="">
+            <img src="./images/logo-sunshine-45.png" height="45" alt="">
             {{ $t('welcome.greeting') }}
           </h1>
         </header>
@@ -76,7 +76,7 @@
       save() {
         this.error = null;
         this.loading = true;
-        fetch("/api/password", {
+        fetch("./api/password", {
           method: "POST",
           body: JSON.stringify(this.passwordData),
         }).then((r) => {

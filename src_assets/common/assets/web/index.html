@@ -19,7 +19,7 @@
       <ul>
         <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
       </ul>
-      <a class="btn btn-danger" href="/troubleshooting/#logs">View Logs</a>
+      <a class="btn btn-danger" href="./troubleshooting/#logs">View Logs</a>
     </div>
     <!-- Version -->
     <div class="card p-2 my-4">
@@ -98,7 +98,7 @@
     },
     async created() {
       try {
-        let config = await fetch("/api/config").then((r) => r.json());
+        let config = await fetch("./api/config").then((r) => r.json());
         this.notifyPreReleases = config.notify_pre_releases;
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
@@ -110,7 +110,7 @@
         console.error(e);
       }
       try {
-        this.logs = (await fetch("/api/logs").then(r => r.text()))
+        this.logs = (await fetch("./api/logs").then(r => r.text()))
       } catch (e) {
         console.error(e);
       }
