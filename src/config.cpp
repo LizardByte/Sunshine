@@ -59,7 +59,7 @@ namespace config {
   }  // namespace nv
 
   namespace amd {
-#ifdef __APPLE__
+#ifndef _WIN32
   // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
@@ -101,6 +101,9 @@ namespace config {
   #define AMF_VIDEO_ENCODER_CABAC 1
   #define AMF_VIDEO_ENCODER_CALV 2
 #else
+  #ifdef _GLIBCXX_USE_C99_INTTYPES
+    #undef _GLIBCXX_USE_C99_INTTYPES
+  #endif
   #include <AMF/components/VideoEncoderAV1.h>
   #include <AMF/components/VideoEncoderHEVC.h>
   #include <AMF/components/VideoEncoderVCE.h>
