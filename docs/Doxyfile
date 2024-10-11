@@ -32,6 +32,7 @@ PROJECT_NAME = Sunshine
 # project specific settings
 DOT_GRAPH_MAX_NODES = 60
 IMAGE_PATH = ../docs/images
+INCLUDE_PATH = ../third-party/build-deps/ffmpeg/Linux-x86_64/include/
 PREDEFINED += SUNSHINE_BUILD_WAYLAND
 PREDEFINED += SUNSHINE_TRAY=1
 
