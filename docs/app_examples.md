@@ -237,6 +237,7 @@ This script is intended as a drop-in replacement with the same syntax. (It can b
 |-----------|--------------------------------------------------------------------------------------------------------------------------------------|
 | Do        | @code{}sh -c "kscreen-doctor output.HDMI-A-1.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}kscreen-doctor output.HDMI-A-1.mode.3840x2160@120@endcode                                                                     |
+
 @attention{The names of your displays will differ between X11 and Wayland.
 Be sure to use the correct name, depending on your session manager.
 
