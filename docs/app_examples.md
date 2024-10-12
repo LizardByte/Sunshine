@@ -244,7 +244,7 @@ e.g. On X11, the monitor may be called HDMI-A-0, but on Wayland, it may be calle
 }
 
 @hint{Replace "HDMI-A-1 with the display name of the monitor you would like to use for Moonlight.
-You can list the monitors available to you with `kscreen-doctor -o`
+You can list the monitors available to you with `kscreen-doctor -o`.
 These will also give you the supported display properties for each monitor. You can select them either by
 hard-coding them their corresponding number (e.g. `kscreen-doctor output.HDMI-A1.mode.0`) or using the above
 "do" command to fetch the resolution requested by your moonlight client (which has a chance of not being supported
