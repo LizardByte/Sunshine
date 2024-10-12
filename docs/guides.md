@@ -504,12 +504,12 @@ for more information.}
 
 | Author     | [MidwesternRodent](https://github.com/midwesternrodent) |
 | ---------- | ------------------------------------------------------- |
-| Difficulty | intermediate                                            |
+| Difficulty | Intermediate                                            |
 
 After following this guide you will be able to:
-1. Turn on the sunshine host via moonlight's wake on lan feature.
-2. Have sunshine initialize to the login screen ready for you to enter your credentials.
-3. Login to your desktop session remotely, and have your pipewire audio and sunshine tray icon work appropriately.
+1. Turn on the Sunshine host via Moonlight's Wake on LAN (WoL) feature.
+2. Have Sunshine initialize to the login screen ready for you to enter your credentials.
+3. Login to your desktop session remotely, and have your pipewire audio and Sunshine tray icon work appropriately.
 #### Specifications
 This guide was created with the following software on the host:
 1. OpenSSH server and client (both on the host machine)
@@ -523,25 +523,25 @@ The host hardware that was used in developing this guide:
 4. 4 displays in total. 2 1080p displays, 1 3440x1440 display, and 1 4k Roku TV which is used as the always-on display
 for streaming. (could be subbed with a dummy plug).
 
-If you have are able to use this guide on any alternative hardware or software (including non-debian based distros)
+If you have used this guide on any alternative hardware or software (including non-debian based distros)
 please, feel free to modify this guide and keep it growing!
 
 #### Caveats
 1. When you login the machine will close your connection and you will have to reconnect. This is necessary due to an
 issue similar to what Eric Dong found in their guide where SSH connections are not treated the same as graphical
-logins. This causes weirdness like sound not working through pipewire, and the tray icon for sunshine not appearing.
-To get around this, we need to close the SSH initiated sunshine service, and start a new sunshine service with the
+logins. This causes weirdness like sound not working through pipewire, and the tray icon for Sunshine not appearing.
+To get around this, we need to close the SSH initiated Sunshine service, and start a new Sunshine service with the
 permissions of the graphical desktop. Unfortunately, this closes the connection and forces you to reconnect through
-moonlight. There is no way around this to the best of my knowledge without enabling auto-login.
-2. This guide does not cover using virtual displays. If you are using Nvidia graphics, check out Eric Dong's guide on
-Remote SSH Headless setups. If you are using AMD hardware, let me know if you find something or feel free to add it to
-this guide.
+Moonlight. There is no way around this to the best of my knowledge without enabling auto-login.
+2. This guide does not cover using virtual displays. If you are using Nvidia graphics,
+see [Remote SSH Headless Setup](#remote-ssh-headless-setup). If you are using AMD hardware, let me know
+if you find something or feel free to add it to this guide.
 3. I haven't (yet) found a way to disable sleep on the login screen, so if you wait too long after starting your PC,
-the display may go to sleep and moonlight will have trouble connecting. Shutting down and using WOL works great
+the display may go to sleep and Moonlight will have trouble connecting. Shutting down and using WoL works great
 though.
 
 @attention{This is definitely safer than enabling auto-login directly, especially for a dual-use PC that is not only
-streamed via moonlight, but is also used as a standard desktop. *However* I do not know the implications of having an
+streamed via Moonlight, but is also used as a standard desktop. *However* I do not know the implications of having an
 always running SSH client to the localhost on the same machine. It may be possible for someone with significant
 knowledge and physical access to the machine to compromise your user account due to this always-running SSH session.
 However, that's better than just having the desktop always available, or opening up SSH even just your LAN since this
@@ -549,24 +549,23 @@ guide specifically disables non-localhost connections, so I believe this is safe
 users. As always, your [threat model](https://en.wikipedia.org/wiki/Threat_model) may vary.}
 
 #### Prerequisites
-Go follow Eric Dong's guide for Remote SSH Headless Setup. Specifically these sections need to be completed and
-they've written an excellent guide which I do not feel the need to rehash here.
+In [Remote SSH Headless Setup](#remote-ssh-headless-setup) complete the following sections.
 
-[Static IP Setup](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#static-ip-setup)
-[SSH Server Setup](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#ssh-server-setup)
-[Virtual Display Setup](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#virtual-display-setup) (if desired and running an Nvidia GPU)
-[Uinput Permissions Workaround](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#uinput-permissions-workaround) (needed for keyboard/mouse to work on the login screen)
-[Stream Launcher Script](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#stream-launcher-script) (Will be called by our SSH client to start sunshine)
+1. [Static IP Setup](#static-ip-setup)
+2. [SSH Server Setup](#ssh-server-setup)
+3. [Virtual Display Setup](#virtual-display-setup)
+4. [Uinput Permissions Workaround](#uinput-permissions-workaround)
+5. [Stream Launcher Script](#stream-launcher-script)
 
 @note{On a default Debian 12 install using KDE Plasma, you are using the Simple Desktop Display Manager (SDDM).
 Even if you are logging in to a wayland session, SDDM by default starts with an xorg session, so this script
-does not need to be modified if you primarily use a wayland session (the default) when you login}
+does not need to be modified if you primarily use a wayland session (the default) when you login.}
 
 #### Instructions
 
 ##### Enable Wake on LAN
 
-Wake on LAN (WOL) will allow you to send a magic packet to turn your PC on remotely. This is handled automatically by
+Wake on LAN (WoL) will allow you to send a magic packet to turn your PC on remotely. This is handled automatically by
 Moonlight's "send wake on lan" option in the app but you do need to enable it on your host machine first. The
 [instructions on the debian.org](https://wiki.debian.org/WakeOnLan#Enabling_WOL) site are a little hard to parse, so
 I've simplified them below.
@@ -582,7 +581,6 @@ ip link show
 
 When I run this command, these are the results I receive
 ```
-rodent@midwest:/etc/network/if-up.d$ ip link show  
 1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000  
    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00  
 2: enp117s0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000  
@@ -593,10 +591,10 @@ We can ignore the loopback interface, and I can see my ethernet interface is cal
 wireless interfaces here as well but they can also be ignored.
 
 @note{If your PC is only connected via wifi, it is still technically possible to get this working, but it is outside
-the scope of this guide and requires more networking knowledge and a wifi chip that supports WOL. If this is your
+the scope of this guide and requires more networking knowledge and a wifi chip that supports WoL. If this is your
 first foray into linux, I'd recommend just getting a cable.}
 
-Now I can install ethtool and modify my interface to allow wake on lan. For your use, replace enp117s0 with whatever
+Now I can install ethtool and modify my interface to allow Wake on LAN. For your use, replace `enp117s0` with whatever
 the name of your ethernet interface is from the command `ip link show`
 
 ``` bash
@@ -604,9 +602,10 @@ sudo apt update
 sudo apt install ethtool
 sudo ethtool -s enp117s0 wol g
 ```
+
 ##### SSH Client Setup
 To start, we need to install an SSH client on our machine if this not already done. Open a terminal and enter the
-following command.
+following commands.
 
 ```bash
 sudo apt update
@@ -620,10 +619,10 @@ following in a terminal:
 ssh-keygen
 ```
 
-and simply pressing enter through the default options. This will place a file called id_rsa and id_rsa.pub
-in the hidden folder ~/.ssh/. This is the default key used when this user initiates an SSH session.
+and simply pressing enter through the default options. This will place a file called `id_rsa` and `id_rsa.pub`
+in the hidden folder `~/.ssh/`. This is the default key used when this user initiates an SSH session.
 
-Next, we'll copy that public key to the authorized_users file in the ~/.ssh/ directory. These are the public keys
+Next, we'll copy that public key to the `~/.ssh/authorized_users` file. These are the public keys
 allowed to access this machine over SSH, and will allow us to establish an SSH connection with this user
 to the localhost.
 
@@ -631,13 +630,14 @@ to the localhost.
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys 
 ```
 
-@tip{If you also want any other machines (e.g. a laptop or steamdeck) to connect to your machine remotely over ssh,
-be sure to generate a pubkey on that machine and append it to the authorized_keys file like we did above.)}
+@tip{If you also want any other machines (e.g. a laptop or Steam Deck) to connect to your machine remotely over ssh,
+be sure to generate a pubkey on that machine and append it to the authorized_keys file like we did above.}
+
 ###### SSH Server Modifications
 
-We'll want to make a few modification to the SSH server on the sunshine host, both for convenience and security.
+We'll want to make a few modification to the SSH server on the Sunshine host, both for convenience and security.
 
-Modify /etc/ssh/sshd_config with the following changes
+Modify `/etc/ssh/sshd_config` with the following changes:
 
 @tabs{
   @tab{nano | ```bash
@@ -646,6 +646,7 @@ Modify /etc/ssh/sshd_config with the following changes
   @tab{vim | ```bash
     sudo vi /etc/ssh/sshd_config
     ```}
+}
 
 Find the line with `PasswordAuthentication` and make sure it is set to `no` (removed the `#` if present.
 Then find the line `PubkeyAuthentication` and make sure it is set to `yes` and remove the `#` from the beginning
@@ -677,14 +678,14 @@ ListenAddress ::1
 
 This will only allow SSH connections coming from your computer itself.
 
-@tip{on some distributions, the maintainers have added some files in /etc/ssh/sshd_config.d/ which is pulled into
+@tip{on some distributions, the maintainers have added some files in `/etc/ssh/sshd_config.d/` which is pulled into
 your sshd_config. These modifications can conflict with what we've just done. If you have any files in
-/etc/ssh/sshd_config.d/, make sure they do not include any of the changes we've just made or you will experience
+`/etc/ssh/sshd_config.d/`, make sure they do not include any of the changes we've just made or you will experience
 problems.}
 
 ###### Quick Test and Accept Host Authenticity.
 
-Now that that's over with, let's reboot the machine and try to connect! Accept any warnings about the unidentified
+Next, let's reboot the machine and try to connect! Accept any warnings about the unidentified
 host at this time, you'll never see those appear again unless something changes with your setup.
 
 ``` bash
@@ -713,7 +714,7 @@ sudo sytstemctl disable sunshine
 systemctl --user disable sunshine
 ```
 
-@note:{In order to disable the user service, you must be logged in to the graphical desktop environment and run the
+@note{In order to disable the user service, you must be logged in to the graphical desktop environment and run the
 command from a GUI terminal, and you'll also likely need to approve a polkit request (a graphical popup that asks
 for your password). Trying to disable the user service without being signed in to the graphical environment is a
 recipe for pain.}
@@ -727,6 +728,7 @@ recipe for pain.}
   @tab{vim | ```bash
     sudo vi /usr/local/bin/autossh-sunshine-start
     ```}
+}
 
 Copy the below script to that location and replace `{USERNAME}` wherever it occurs with the username you created
 the SSH public key for in the previous section.
@@ -737,10 +739,9 @@ ssh -i /home/{USERNAME}/.ssh/id_rsa {USERNAME}@localhost
 "/home/{USERNAME}/scripts/sunshine.sh"
 ```
 
-@attention{This script uses the location of the script in Eric Dong's guide. If you have not set this up already,
-follow the instructions [here](https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/linux/headless_ssh.html#stream-launcher-script)}
+@attention{This script uses the location of the script in [Stream Launcher Script](#stream-launcher-script). Please complete that section before continuing.}
 
-once you've created the script, be sure to make it executable by running:
+Once you've created the script, be sure to make it executable by running:
 
 ```bash
 sudo chmod +x /usr/local/bin/autossh-sunshine-start
@@ -755,6 +756,7 @@ sudo chmod +x /usr/local/bin/autossh-sunshine-start
   @tab{vim | ```bash
     sudo vi /etc/systemd/system/autossh-sunshine.service
     ```}
+}
 
 Copy and paste the below systemd file and save it to the location in the commands above.
 
@@ -774,7 +776,7 @@ RestartSec=5s
 WantedBy=multi-user.target
 ```
 
-make sure to make it executable, and enable the service when you're done.
+Make it executable, and enable the service when you're done.
 
 ```bash
 sudo chmod +x /etc/systemd/system/autossh-sunshine.service
@@ -782,10 +784,10 @@ sudo systemctl start autossh-sunshine
 sudo systemctl enable autossh-sunshine
 ```
 
-This point is a good time for a sanity check, so restart your PC and try to sign in to your desktop via moonlight.
+This point is a good time for a sanity check, so restart your PC and try to sign in to your desktop via Moonlight.
 You should be able to access the login screen, enter your credentials, and control the user session. At this point
 you'll notice the reason for the next section as your audio will be non-functional and you won't see any tray icon
-for sunshine. If you don't care about audio (and maybe a couple other bugs you might encounter from time to time due
+for Sunshine. If you don't care about audio (and maybe a couple other bugs you might encounter from time to time due
 to the permissions difference between an SSH session and the desktop session), you can consider yourself finished at
 this point!
 
@@ -808,6 +810,7 @@ lose the ability to log back in if we need to.
   @tab{vim | ```bash
     sudo vi /usr/lib/systemd/user/sunshine-after-login.service
     ```}
+}
 
 Once again, copy the below service file into your text editor at the location above.
 
@@ -831,11 +834,13 @@ RestartSec=5s
 WantedBy=xdg-desktop-autostart.target
 ```
 
-and be sure to make it executable, and enable it.
+Make it executable, and enable it.
+
 ``` bash
 sudo chmod +x /usr/lib/systemd/user/sunshine-after-login.service
 systemctl --user enable sunshine-after-login
 ```
+
 ###### Polkit Rules for Sunshine User Service
 
 Since this is being run with the permissions of the graphical session, we need to make a polkit modification to allow
@@ -848,6 +853,7 @@ it to call the system service autossh-sunshine when this user service is stopped
   @tab{vim | ```bash
     sudo vi /etc/polkit-1/rules.d/sunshine.rules
     ```}
+}
 
 Once again, copy the below to the .rules file in your text editor.
 
@@ -889,14 +895,14 @@ and {HOSTNAME} with the name of your computer.
 
 Once again, restart your computer and do a quick test. Make sure you can connect to the PC to login and enter your
 credentials. You should be booted out of the system, and then can reconnect a few seconds later to the logged-in
-desktop session. You should see a tray icon for sunshine, and the sound should be working (or you may need to manually
+desktop session. You should see a tray icon for Sunshine, and the sound should be working (or you may need to manually
 select the sunshine-sink at least the first time).
 
 If you don't have multiple monitors, at this point you can consider yourself done!
 
 ##### Configuring the login screen layout for multiple monitors
 
-This is not sunshine-specific, but is a frequent problem I had setting up sunshine and thought it pertinent to add to
+This is not sunshine-specific, but is a frequent problem I had setting up Sunshine and thought it pertinent to add to
 the guide. If you are using multiple monitors (even a single monitor with a dummy plug may have this problem) you
 might notice the streamed login screen has one or more of the following problems:
 
@@ -912,7 +918,7 @@ logged into an x11 session, not wayland or the terminal. As the wayland session 
 and the terminal will give us no information since no graphical environment exists. SDDM initially starts an x11
 session to display the login screen so we need to use xorg commands to change the display configuration.
 
-To do this, log out of your desktop session on the sunshine host, and somewhere on the lower left of your screen
+To do this, log out of your desktop session on the Sunshine host, and somewhere on the lower left of your screen
 (depending on your SDDM theme) there will be some text that on Debian 12 KDE Plasma defaults to saying
 `Session: Plasma (Wayland)`. Select this and choose `Plasma (X11)` from the drop down menu and sign in.
 
@@ -930,7 +936,6 @@ need to modify all of the commands from here on out based on the output of the a
 receive below as the example for the rest of this guide.
 
 ```bash
-rodent@midwest:~$ xrandr | grep -w connected  
 DisplayPort-0 connected (normal left inverted right x axis y axis)  
 DisplayPort-1 connected (normal left inverted right x axis y axis)
 DisplayPort-2 connected (normal left inverted right x axis y axis)
@@ -940,7 +945,6 @@ HDMI-A-0 connected primary 1920x1080+0+0 (normal left inverted right x axis y ax
 @warning{If I instead run this command on wayland, I get the following useless output. Hence the need to sign in to
 x11 session.
 ```bash
-rodent@midwest:~$ xrandr | grep -w connected
 XWAYLAND0 connected 2592x1458+6031+0 (normal left inverted right x axis y axis) 600mm x 340mm
 XWAYLAND1 connected 2592x1458+0+0 (normal left inverted right x axis y axis) 480mm x 270mm
 XWAYLAND2 connected primary 3440x1440+2592+0 (normal left inverted right x axis y axis) 800mm x 330mm
@@ -948,6 +952,7 @@ XWAYLAND3 connected 2592x1458+0+0 (normal left inverted right x axis y axis) 144
 
 ```
 }
+
 From this, you can see that my monitors are named the following
 
 DisplayPort-0
@@ -982,6 +987,7 @@ To do this, we need to modify the SDDM startup script to shut off DisplayPort-2 
   @tab{vim | ```bash
     sudo vi /usr/share/sddm/scripts/Xsetup
     ```}
+}
 
 Which will open a script that looks like this. We will not be removing these lines.
 
