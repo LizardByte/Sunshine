@@ -953,6 +953,7 @@ XWAYLAND3 connected 2592x1458+0+0 (normal left inverted right x axis y axis) 144
 ```
 }
 
+
 From this, you can see that my monitors are named the following
 
 DisplayPort-0
@@ -987,6 +988,7 @@ To do this, we need to modify the SDDM startup script to shut off DisplayPort-2 
   @tab{vim | ```bash
     sudo vi /usr/share/sddm/scripts/Xsetup
     ```}
+}
 }
 
 Which will open a script that looks like this. We will not be removing these lines.
