@@ -312,7 +312,7 @@ Copy the below configuration into the text editor. Change `${USER}` wherever it 
 or modify the path if you placed sunshine-setup.sh in a different area.
 
 ```
-${USER} ALL=(ALL:ALL) ALL, NOPASSWD: /home/${USER]/scripts/sunshine-setup.sh
+${USER} ALL=(ALL:ALL) ALL, NOPASSWD: /home/${USER}/scripts/sunshine-setup.sh
 ```
 
 These changes allow the script to use sudo without being prompted with a password.
