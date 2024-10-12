@@ -9,6 +9,9 @@
 #include "misc.h"
 #include "src/logging.h"
 
+// Gross hack to work around MINGW-packages#22160
+#define ____FIReference_1_boolean_INTERFACE_DEFINED__
+
 #include <windows.graphics.capture.interop.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.metadata.h>
