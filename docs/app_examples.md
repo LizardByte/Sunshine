@@ -240,10 +240,10 @@ This script is intended as a drop-in replacement with the same syntax. (It can b
 
 @attention{The names of your displays will differ between X11 and Wayland.
 Be sure to use the correct name, depending on your session manager.
-
-(e.g. on X11, the monitor may be called HDMI-A-0, but on Wayland, it may be called "HDMI-A-1")
+e.g. On X11, the monitor may be called HDMI-A-0, but on Wayland, it may be called "HDMI-A-1".
 }
-@hint{Replace "HDMI-A-1 with the display name of the monitor you would like to use for moonlight.
+
+@hint{Replace "HDMI-A-1 with the display name of the monitor you would like to use for Moonlight.
 You can list the monitors available to you with `kscreen-doctor -o`
 These will also give you the supported display properties for each monitor. You can select them either by
 hard-coding them their corresponding number (e.g. `kscreen-doctor output.HDMI-A1.mode.0`) or using the above
