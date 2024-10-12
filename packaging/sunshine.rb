@@ -22,7 +22,7 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  option "with-docs-off", "Disable docs"
+  option "with-docs", "Enable docs"
   option "with-dynamic-boost", "Dynamically link Boost libraries"
   option "without-dynamic-boost", "Statically link Boost libraries" # default option
 
@@ -76,12 +76,12 @@ class @PROJECT_NAME@ < Formula
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
 
-    if build.with? "docs-off"
-      ohai "Building docs: disabled"
-      args << "-DBUILD_DOCS=OFF"
-    else
+    if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
+    else
+      ohai "Building docs: disabled"
+      args << "-DBUILD_DOCS=OFF"
     end
 
     if build.without? "dynamic-boost"

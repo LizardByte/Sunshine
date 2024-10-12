@@ -39,9 +39,7 @@ depends=(
 makedepends=(
   'cmake'
   'cuda'
-  'doxygen'
   "gcc${_gcc_version}"
-  'graphviz'
   'git'
   'make'
   'nodejs'
@@ -80,6 +78,7 @@ build() {
         -S "$pkgname" \
         -B build \
         -Wno-dev \
+        -D BUILD_DOCS=OFF \
         -D BUILD_WERROR=ON \
         -D CMAKE_INSTALL_PREFIX=/usr \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
