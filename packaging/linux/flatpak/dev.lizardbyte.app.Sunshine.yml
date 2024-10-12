@@ -33,13 +33,13 @@ modules:
   - "modules/xvfb/xvfb.json"
 
   # Runtime dependencies
-  - shared-modules/libappindicator/libappindicator-gtk3-12.10.json
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
   - "modules/avahi.json"
   - "modules/boost.json"
   - "modules/libevdev.json"
   - "modules/libnotify.json"
   - "modules/miniupnpc.json"
-  - "modules/numactl.json"  # TODO: is this still needed?
+  - "modules/numactl.json"
 
   # Caching is configured until here, not including CUDA, since it is too large for GitHub cache
   - "modules/cuda.json"
