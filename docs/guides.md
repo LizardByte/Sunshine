@@ -500,7 +500,7 @@ and refresh rate prior to connecting to an app. See
 [Changing Resolution and Refresh Rate](md_docs_2app__examples#changing-resolution-and-refresh-rate)
 for more information.}
 
-### Autostart sunshine on boot without auto-login
+### Autostart on boot without auto-login
 
 | Author     | [MidwesternRodent](https://github.com/midwesternrodent) |
 | ---------- | ------------------------------------------------------- |
