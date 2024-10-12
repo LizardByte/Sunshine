@@ -51,7 +51,7 @@ I also only tested this on an Artix runit init system on LAN.
 I didn't have to do anything special with pulseaudio (pipewire untested).
 
 Edit by MidwesternRodent on 10/10/2024: Pipewire does not seem to work when sunshine is started over an SSH session.
-A workaround to this problem is to kill the sunshine instance started via SSH, and start a new one
+A workaround to this problem is to kill the Sunshine instance started via SSH, and start a new one
 with the permissions of the desktop session. See my guide for more details.
 
 Keep your monitors plugged in until the [Checkpoint](#checkpoint) step.}
