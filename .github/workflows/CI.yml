@@ -488,13 +488,11 @@ jobs:
         working-directory: build
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
-          ${{ steps.python.outputs.python-path }} -m gcovr -r .. \
+          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
-            --exclude '.*_deps/.*' \
-            --exclude '.*tests/.*' \
-            --exclude '.*third-party/.*' \
+            --verbose \
             --xml-pretty \
             -o coverage.xml
 
@@ -922,13 +920,10 @@ jobs:
 
           cd ${build_dir}
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
-          sudo ${{ steps.python.outputs.python-path }} -m gcovr -r ../${dir} \
+          sudo ${{ steps.python.outputs.python-path }} -m gcovr . -r ../${dir}/src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
-            --exclude '.*${dir}/_deps/.*' \
-            --exclude '.*${dir}/tests/.*' \
-            --exclude '.*${dir}/third-party/.*' \
             --gcov-object-directory $(pwd) \
             --verbose \
             --xml-pretty \
@@ -1190,13 +1185,11 @@ jobs:
         working-directory: build
         run: |
           ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
-          ${{ steps.python-path.outputs.python-path }} -m gcovr -r .. \
+          ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
-            --exclude '.*_deps/.*' \
-            --exclude '.*tests/.*' \
-            --exclude '.*third-party/.*' \
+            --verbose \
             --xml-pretty \
             -o coverage.xml
 

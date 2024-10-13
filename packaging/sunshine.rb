@@ -22,9 +22,9 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  option "with-docs-off", "Disable docs"
-  option "with-dynamic-boost", "Dynamically link Boost libraries"
-  option "without-dynamic-boost", "Statically link Boost libraries" # default option
+  option "with-docs", "Enable docs"
+  option "with-static-boost", "Enable static link of Boost libraries"
+  option "without-static-boost", "Disable static link of Boost libraries" # default option
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build
@@ -35,6 +35,7 @@ class @PROJECT_NAME@ < Formula
   depends_on "miniupnpc"
   depends_on "openssl"
   depends_on "opus"
+  depends_on "boost" => :recommended
   depends_on "icu4c" => :recommended
 
   on_linux do
@@ -76,22 +77,25 @@ class @PROJECT_NAME@ < Formula
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
 
-    if build.with? "docs-off"
-      ohai "Building docs: disabled"
-      args << "-DBUILD_DOCS=OFF"
-    else
+    if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
+    else
+      ohai "Building docs: disabled"
+      args << "-DBUILD_DOCS=OFF"
     end
 
-    if build.without? "dynamic-boost"
+    if build.without? "static-boost"
+      args << "-DBOOST_USE_STATIC=OFF"
+      ohai "Disabled statically linking Boost libraries"
+    else
       args << "-DBOOST_USE_STATIC=ON"
-      ohai "Statically linking Boost libraries"
+      ohai "Enabled statically linking Boost libraries"
 
       unless Formula["icu4c"].any_version_installed?
         odie <<~EOS
           icu4c must be installed to link against static Boost libraries,
-          either install icu4c or use brew install sunshine --with-dynamic-boost instead
+          either install icu4c or use brew install sunshine --with-static-boost instead
         EOS
       end
       ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
@@ -99,9 +103,6 @@ class @PROJECT_NAME@ < Formula
       ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
       ENV["LIBRARY_PATH"] = icu4c_lib_path
       ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
-    else
-      args << "-DBOOST_USE_STATIC=OFF"
-      ohai "Dynamically linking Boost libraries"
     end
 
     system "cmake", "-S", ".", "-B", "build", *std_cmake_args, *args
