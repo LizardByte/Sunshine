@@ -124,9 +124,8 @@ namespace {
   create_virtual_sink_waveformats() {
     if constexpr (channel_count == 2) {
       auto channel_mask = waveformat_mask_stereo;
+      // only choose 24 or 16-bit formats to avoid clobbering existing Dolby/DTS spatial audio settings
       return {
-        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
-        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
         create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
         create_waveformat(sample_format_e::s24, channel_count, channel_mask),
         create_waveformat(sample_format_e::s16, channel_count, channel_mask),
