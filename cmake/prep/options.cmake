@@ -22,7 +22,6 @@ option(BUILD_WERROR "Enable -Werror flag." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 option(SUNSHINE_ENABLE_TRAY "Enable system tray icon. This option will be ignored on macOS." ON)
-option(SUNSHINE_REQUIRE_TRAY "Require system tray icon. Fail the build if tray requirements are not met." ON)
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
@@ -32,6 +31,7 @@ else()
     option(BOOST_USE_STATIC "Use static boost libraries." ON)
 endif()
 
+option(CUDA_FAIL_ON_MISSING "Fail the build if CUDA is not found." ON)
 option(CUDA_INHERIT_COMPILE_OPTIONS
         "When building CUDA code, inherit compile options from the the main project. You may want to disable this if
         your IDE throws errors about unknown flags after running cmake." ON)
