@@ -105,6 +105,8 @@ class @PROJECT_NAME@ < Formula
       ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
     end
 
+    args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
+
     system "cmake", "-S", ".", "-B", "build", *std_cmake_args, *args
 
     cd "build" do
