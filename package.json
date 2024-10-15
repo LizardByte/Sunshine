@@ -13,9 +13,9 @@
     "vue-i18n": "9.14.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "4.6.2",
+    "@vitejs/plugin-vue": "5.1.4",
     "serve": "14.2.3",
-    "vite": "4.5.2",
-    "vite-plugin-ejs": "1.6.4"
+    "vite": "5.3.6",
+    "vite-plugin-ejs": "1.7.0"
   }
 }
