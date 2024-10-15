@@ -30,6 +30,11 @@ file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
         "${CMAKE_SOURCE_DIR}/src/platform/windows/nvprefs/*.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/nvprefs/*.h")
 
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nvenc-headers")
+file(GLOB_RECURSE NVENC_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_SOURCE_DIR}/src/nvenc/*.h"
+        "${CMAKE_SOURCE_DIR}/src/nvenc/*.cpp")
+
 # vigem
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include")
 
@@ -39,6 +44,8 @@ if(NOT DEFINED SUNSHINE_ICON_PATH)
 endif()
 
 configure_file("${CMAKE_SOURCE_DIR}/src/platform/windows/windows.rs.in" windows.rc @ONLY)
+
+# set(SUNSHINE_TRAY 0)
 
 set(PLATFORM_TARGET_FILES
         "${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
@@ -67,7 +74,8 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Common.h"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Util.h"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/km/BusShared.h"
-        ${NVPREFS_FILES})
+        ${NVPREFS_FILES}
+        ${NVENC_SOURCES})
 
 set(OPENSSL_LIBRARIES
         libssl.a
