@@ -250,7 +250,7 @@ kscreen-doctor -o
 ```
 
 These will also give you the supported display properties for each monitor. You can select them either by
-hard-coding them their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mode.0``) or using the above
+hard-coding their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mode.0``) or using the above
 ``do`` command to fetch the resolution requested by your Moonlight client
 (which has a chance of not being supported by your monitor).
 }
