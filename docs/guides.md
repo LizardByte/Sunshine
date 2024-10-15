@@ -881,7 +881,7 @@ before saving the file, and if the resulting changes would break sudo on your sy
 Modifying the file with nano or vim directly does not give you this sanity check and introduces the possibility of
 losing sudo access to your machine. Tread carefully, and make a backup.}
 
-As always, copy and paste the below into your user's sudoers.d configuration. Replace {USERNAME} with your username,
+As always, copy and paste the below into your user's `sudoers.d` configuration. Replace {USERNAME} with your username,
 and {HOSTNAME} with the name of your computer.
 
 ```
