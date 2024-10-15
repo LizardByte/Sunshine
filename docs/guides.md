@@ -529,16 +529,16 @@ please, feel free to modify this guide and keep it growing!
 
 #### Caveats
 1. When you login the machine will close your connection and you will have to reconnect. This is necessary due to an
-issue similar to what why the [Uinput Permissions Workaround](#uinput-permissions-workaround) is needed since SSH 
+issue similar to why the [Uinput Permissions Workaround](#uinput-permissions-workaround) is needed since SSH 
 connections are not treated the same as graphical logins. This causes weirdness like sound not working through
 pipewire, and the tray icon for Sunshine not appearing. To get around this, we need to close the SSH initiated Sunshine
 service, and start a new Sunshine service with the permissions of the graphical desktop. Unfortunately, this closes the
 connection and forces you to reconnect through Moonlight. There is no way around this to the best of my knowledge
 without enabling auto-login.
-2. This guide does not cover using virtual displays. If you are using Nvidia graphics,
+3. This guide does not cover using virtual displays. If you are using Nvidia graphics,
 see [Remote SSH Headless Setup](#remote-ssh-headless-setup). If you are using AMD hardware, let me know
 if you find something or feel free to add it to this guide.
-3. I haven't (yet) found a way to disable sleep on the login screen, so if you wait too long after starting your PC,
+4. I haven't (yet) found a way to disable sleep on the login screen, so if you wait too long after starting your PC,
 the display may go to sleep and Moonlight will have trouble connecting. Shutting down and using WoL works great
 though.
 
@@ -606,8 +606,8 @@ sudo ethtool -s enp117s0 wol g
 ```
 
 ##### SSH Client Setup
-To start, we need to install an SSH client on our machine if this not already done. Open a terminal and enter the
-following commands.
+To start, we need to install an SSH client (which is different from the *server* in [Remote SSH Headless Setup](#remote-ssh-headless-setup))
+on our machine if this not already done. Open a terminal and enter the following commands.
 
 ```bash
 sudo apt update
@@ -626,7 +626,7 @@ in the hidden folder `~/.ssh/`. This is the default key used when this user init
 
 Next, we'll copy that public key to the `~/.ssh/authorized_users` file. These are the public keys
 allowed to access this machine over SSH, and will allow us to establish an SSH connection with this user
-to the localhost.
+to the SSH server running on the localhost.
 
 ```bash
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys 
@@ -718,7 +718,7 @@ systemctl --user disable sunshine
 ```
 
 @note{In order to disable the user service, you must be logged in to the graphical desktop environment and run the
-command from a GUI terminal, and you'll also likely need to approve a polkit request (a graphical popup that asks
+command from a GUI terminal. You'll also likely need to approve a polkit request (a graphical popup that asks
 for your password). Trying to disable the user service without being signed in to the graphical environment is a
 recipe for pain, and is why ``sudo`` is not invoked on the second line in the command above.}
 
@@ -985,7 +985,7 @@ For my purposes, I would prefer to have the Roku TV (which doubles as my always-
 1080p screen on login (this can be changed automatically after login). And I would like to retain the ability to use
 my leftmost monitor to login to my physical desktop, but I'd like to disable my primary and rightmost displays.
 
-To do this, we need to modify the SDDM startup script to shut off DisplayPort-2 and DisplayPort-3, set HDMI-A-0 to
+To do this, we need to modify the SDDM startup script to shut off DisplayPort-1 and DisplayPort-2, set HDMI-A-0 to
 1080p and mirror it with DisplayPort-1.
 
 @tabs{
