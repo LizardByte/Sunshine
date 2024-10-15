@@ -27,7 +27,6 @@ BuildRequires: libevdev-devel
 BuildRequires: libgudev
 BuildRequires: libnotify-devel
 BuildRequires: libva-devel
-BuildRequires: libvdpau-devel
 BuildRequires: libX11-devel
 BuildRequires: libxcb-devel
 BuildRequires: libXcursor-devel
@@ -66,7 +65,6 @@ Requires: libdrm > 2.4.97
 Requires: libevdev >= 1.5.6
 Requires: libopusenc >= 0.2.1
 Requires: libva >= 2.14.0
-Requires: libvdpau >= 1.5
 Requires: libwayland-client >= 1.20.0
 Requires: libX11 >= 1.7.3.1
 Requires: miniupnpc >= 2.2.4

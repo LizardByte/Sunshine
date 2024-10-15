@@ -51,7 +51,6 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libpulse0, \
             libva2, \
             libva-drm2, \
-            libvdpau1, \
             libwayland-client0, \
             libx11-6, \
             miniupnpc, \
@@ -64,7 +63,6 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             libevdev >= 1.5.6, \
             libopusenc >= 0.2.1, \
             libva >= 2.14.0, \
-            libvdpau >= 1.5, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
             miniupnpc >= 2.2.4, \
