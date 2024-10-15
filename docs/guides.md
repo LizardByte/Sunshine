@@ -309,7 +309,7 @@ sudo visudo /etc/sudoers.d/${USER}
 
 Copy the below configuration into the text editor. Change `${USER}` wherever it occurs to your username
 (e.g. if your username is `sunshineisaawesome` you should change `${USER}` to `sunshineisawesome`)
-or modify the path if you placed sunshine-setup.sh in a different area.
+or modify the path if you placed `sunshine-setup.sh` in a different area.
 
 ```
 ${USER} ALL=(ALL:ALL) ALL, NOPASSWD: /home/${USER}/scripts/sunshine-setup.sh
