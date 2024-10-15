@@ -298,7 +298,7 @@ To enable root login over SSH edit your SSHD config, and add `PermitRootLogin ye
 2. `cd` to the parent dir of the `sunshine-setup.sh` script and take note of the full filepath.
 3. Execute the following to edit your sudoer config file.
 
-@danger{NEVER modify a file in sudoers.d directly. Always use the visudo command. This command checks your changes
+@danger{NEVER modify a file in ``sudoers.d`` directly. Always use the ``visudo`` command. This command checks your changes
 before saving the file, and if the resulting changes would break sudo on your system, it will prompt you to fix
 them. Modifying the file with nano or vim directly does not give you this sanity check and introduces the
 possibility of losing sudo access to your machine. Tread carefully, and make a backup.}
@@ -866,6 +866,7 @@ polkit.addRule(function(action, subject) {
        return polkit.Result.YES;  
    }  
 })
+```
 
 ###### Modifications to Sudoers.d files
 
@@ -876,10 +877,10 @@ username. You will be prompted to select either vi or nano for your editor, choo
 sudo visudo /etc/sudoers.d/{USERNAME}
 ```
 
-@danger{NEVER modify a file in sudoers.d directly. Always use the visudo command. This command checks your changes
-before saving the file, and if the resulting changes would break sudo on your system, it will prompt you to fix them.
-Modifying the file with nano or vim directly does not give you this sanity check and introduces the possibility of
-losing sudo access to your machine. Tread carefully, and make a backup.}
+@danger{NEVER modify a file in ``sudoers.d`` directly. Always use the ``visudo`` command. This command checks your changes
+before saving the file, and if the resulting changes would break sudo on your system, it will prompt you to fix
+them. Modifying the file with nano or vim directly does not give you this sanity check and introduces the
+possibility of losing sudo access to your machine. Tread carefully, and make a backup.}
 
 As always, copy and paste the below into your user's `sudoers.d` configuration. Replace {USERNAME} with your username,
 and {HOSTNAME} with the name of your computer.
