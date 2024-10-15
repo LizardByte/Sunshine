@@ -250,6 +250,7 @@ hard-coding them their corresponding number (e.g. @code{kscreen-doctor output.HD
 "do" command to fetch the resolution requested by your Moonlight client
 (which has a chance of not being supported by your monitor).
 }
+
 ###### NVIDIA
 
 | Prep Step | Command                                                                                                     |

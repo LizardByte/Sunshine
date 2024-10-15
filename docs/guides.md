@@ -510,6 +510,7 @@ After following this guide you will be able to:
 1. Turn on the Sunshine host via Moonlight's Wake on LAN (WoL) feature.
 2. Have Sunshine initialize to the login screen ready for you to enter your credentials.
 3. Login to your desktop session remotely, and have your pipewire audio and Sunshine tray icon work appropriately.
+
 #### Specifications
 This guide was created with the following software on the host:
 1. OpenSSH server and client (both on the host machine)
@@ -590,14 +591,14 @@ When I run this command, these are the results I receive
 We can ignore the loopback interface, and I can see my ethernet interface is called `enp117s0`. You might see
 wireless interfaces here as well but they can also be ignored.
 
-@note{If your PC is only connected via wifi, it is still technically possible to get this working, but it is outside
-the scope of this guide and requires more networking knowledge and a wifi chip that supports WoL. If this is your
+@note{If your PC is only connected via Wi-Fi, it is still technically possible to get this working, but it is outside
+the scope of this guide and requires more networking knowledge and a Wi-Fi chip that supports WoL. If this is your
 first foray into linux, I'd recommend just getting a cable.}
 
 Now I can install ethtool and modify my interface to allow Wake on LAN. For your use, replace `enp117s0` with whatever
 the name of your ethernet interface is from the command `ip link show`
 
-``` bash
+```bash
 sudo apt update
 sudo apt install ethtool
 sudo ethtool -s enp117s0 wol g
@@ -688,7 +689,7 @@ problems.}
 Next, let's reboot the machine and try to connect! Accept any warnings about the unidentified
 host at this time, you'll never see those appear again unless something changes with your setup.
 
-``` bash
+```bash
 ssh $(whoami)@localhost
 ```
 
@@ -792,7 +793,7 @@ to the permissions difference between an SSH session and the desktop session), y
 this point!
 
 @note{You might also notice some issues if you have multiple monitors setup (including the dummy plug), like the mouse
-cursor not being on the right screen for you to login. We will address this in the last step of this guide it requires
+cursor not being on the right screen for you to login. We will address this in the last step of this guide. It requires
 messing with some configs for SDDM.}
 
 ##### Getting the audio working
@@ -836,7 +837,7 @@ WantedBy=xdg-desktop-autostart.target
 
 Make it executable, and enable it.
 
-``` bash
+```bash
 sudo chmod +x /usr/lib/systemd/user/sunshine-after-login.service
 systemctl --user enable sunshine-after-login
 ```
@@ -857,7 +858,7 @@ it to call the system service autossh-sunshine when this user service is stopped
 
 Once again, copy the below to the .rules file in your text editor.
 
-```
+```js
 polkit.addRule(function(action, subject) {  
    if (action.id == "org.freedesktop.systemd1.manage-units" &&  
        action.lookup("unit") == "autossh-tunnel.service")  
@@ -865,7 +866,6 @@ polkit.addRule(function(action, subject) {
        return polkit.Result.YES;  
    }  
 })
-```
 
 ###### Modifications to Sudoers.d files
 
@@ -902,13 +902,13 @@ If you don't have multiple monitors, at this point you can consider yourself don
 
 ##### Configuring the login screen layout for multiple monitors
 
-This is not sunshine-specific, but is a frequent problem I had setting up Sunshine and thought it pertinent to add to
+This is not Sunshine specific, but is a frequent problem I had setting up Sunshine and thought it pertinent to add to
 the guide. If you are using multiple monitors (even a single monitor with a dummy plug may have this problem) you
 might notice the streamed login screen has one or more of the following problems:
 
 1. The text is way too small to see (caused by a too-high resolution)
 2. The mouse cursor is off on some other screen (caused by not mirroring the displays)
-3. there are multiple login screens overlapping each other (caused by differing resolutions, and trying to mirror
+3. There are multiple login screens overlapping each other (caused by differing resolutions, and trying to mirror
 the display).
 
 ###### Log in to an X11 Session
@@ -944,6 +944,7 @@ HDMI-A-0 connected primary 1920x1080+0+0 (normal left inverted right x axis y ax
 
 @warning{If I instead run this command on wayland, I get the following useless output. Hence the need to sign in to
 x11 session.
+
 ```bash
 XWAYLAND0 connected 2592x1458+6031+0 (normal left inverted right x axis y axis) 600mm x 340mm
 XWAYLAND1 connected 2592x1458+0+0 (normal left inverted right x axis y axis) 480mm x 270mm
@@ -988,7 +989,6 @@ To do this, we need to modify the SDDM startup script to shut off DisplayPort-2 
   @tab{vim | ```bash
     sudo vi /usr/share/sddm/scripts/Xsetup
     ```}
-}
 }
 
 Which will open a script that looks like this. We will not be removing these lines.
@@ -1038,7 +1038,7 @@ back in, you select a Wayland session (if that is your preferred session manager
 
 #### Next Steps
 
-Congratulations! You now have sunshine starting on boot, you can login to your session remotely, you get all the
+Congratulations! You now have Sunshine starting on boot, you can login to your session remotely, you get all the
 benefits of the graphical session permissions, and you can safely shut down your PC with the confidence you can
 turn it back on when needed.
 
