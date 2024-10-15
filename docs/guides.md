@@ -529,11 +529,12 @@ please, feel free to modify this guide and keep it growing!
 
 #### Caveats
 1. When you login the machine will close your connection and you will have to reconnect. This is necessary due to an
-issue similar to what Eric Dong found in their guide where SSH connections are not treated the same as graphical
-logins. This causes weirdness like sound not working through pipewire, and the tray icon for Sunshine not appearing.
-To get around this, we need to close the SSH initiated Sunshine service, and start a new Sunshine service with the
-permissions of the graphical desktop. Unfortunately, this closes the connection and forces you to reconnect through
-Moonlight. There is no way around this to the best of my knowledge without enabling auto-login.
+issue similar to what why the [Uinput Permissions Workaround](#uinput-permissions-workaround) is needed since SSH 
+connections are not treated the same as graphical logins. This causes weirdness like sound not working through
+pipewire, and the tray icon for Sunshine not appearing. To get around this, we need to close the SSH initiated Sunshine
+service, and start a new Sunshine service with the permissions of the graphical desktop. Unfortunately, this closes the
+connection and forces you to reconnect through Moonlight. There is no way around this to the best of my knowledge
+without enabling auto-login.
 2. This guide does not cover using virtual displays. If you are using Nvidia graphics,
 see [Remote SSH Headless Setup](#remote-ssh-headless-setup). If you are using AMD hardware, let me know
 if you find something or feel free to add it to this guide.
@@ -663,7 +664,7 @@ attacks, and protects you against a rogue machine pretending to be your SSH serv
 
 The next step is optional, but if you do not plan on connecting to your computer remotely via ssh and only have
 installed SSH for the purposes of using Sunshine, it's a good idea to disable listening for remote SSH connections.
-Do this by changing the following lines near the top of your sshd config:
+Do this by changing the following lines near the top of your ``sshd_config``:
 
 ```
 #ListenAddress 0.0.0.0  
@@ -679,15 +680,16 @@ ListenAddress ::1
 
 This will only allow SSH connections coming from your computer itself.
 
-@tip{on some distributions, the maintainers have added some files in `/etc/ssh/sshd_config.d/` which is pulled into
-your sshd_config. These modifications can conflict with what we've just done. If you have any files in
-`/etc/ssh/sshd_config.d/`, make sure they do not include any of the changes we've just made or you will experience
-problems.}
+@tip{on some distributions, the maintainers have added some files in ``/etc/ssh/sshd_config.d/`` which are pulled into
+your ``sshd_config``. These modifications can conflict with what we've just done. If you have any files in
+``/etc/ssh/sshd_config.d/``, make sure they do not include any of the changes we've just made or you will experience
+problems. If they do, you can comment out those lines by placing a ``#`` at their beginning, or delete the files safely
+if you don't plan to use SSH for anything other than Sunshine.}
 
 ###### Quick Test and Accept Host Authenticity.
 
-Next, let's reboot the machine and try to connect! Accept any warnings about the unidentified
-host at this time, you'll never see those appear again unless something changes with your setup.
+Next, let's reboot the machine and try to connect! Accept any warnings about the unidentified host at this time,
+you'll never see those appear again unless something changes with your setup.
 
 ```bash
 ssh $(whoami)@localhost
@@ -718,7 +720,7 @@ systemctl --user disable sunshine
 @note{In order to disable the user service, you must be logged in to the graphical desktop environment and run the
 command from a GUI terminal, and you'll also likely need to approve a polkit request (a graphical popup that asks
 for your password). Trying to disable the user service without being signed in to the graphical environment is a
-recipe for pain.}
+recipe for pain, and is why ``sudo`` is not invoked on the second line in the command above.}
 
 ###### Create the autossh-sunshine-start script
 
@@ -740,7 +742,8 @@ ssh -i /home/{USERNAME}/.ssh/id_rsa {USERNAME}@localhost
 "/home/{USERNAME}/scripts/sunshine.sh"
 ```
 
-@attention{This script uses the location of the script in [Stream Launcher Script](#stream-launcher-script). Please complete that section before continuing.}
+@attention{This script uses the location of the script in [Stream Launcher Script](#stream-launcher-script).
+Please complete that section before continuing.}
 
 Once you've created the script, be sure to make it executable by running:
 
@@ -799,7 +802,7 @@ messing with some configs for SDDM.}
 ##### Getting the audio working
 
 To get the audio (and tray icon, etc...) working we will create a systemd user service, that will start on a graphical
-login, kill the autossh-sunshine system service, and start sunshine just like the standard sunshine service.
+login, kill the autossh-sunshine system service, and start Sunshine just like the standard Sunshine service.
 This service will also need to call the autossh-sunshine system service before it is stopped as the user service will
 be killed when we log out of the graphical session, so we want to make sure we restart that SSH service so we don't
 lose the ability to log back in if we need to.
@@ -861,7 +864,7 @@ Once again, copy the below to the .rules file in your text editor.
 ```js
 polkit.addRule(function(action, subject) {  
    if (action.id == "org.freedesktop.systemd1.manage-units" &&  
-       action.lookup("unit") == "autossh-tunnel.service")  
+       action.lookup("unit") == "autossh-sunshine.service")  
    {  
        return polkit.Result.YES;  
    }  
@@ -871,7 +874,8 @@ polkit.addRule(function(action, subject) {
 ###### Modifications to Sudoers.d files
 
 Lastly, we need to make a few modifications to the sudoers file for our users. Replace {USERNAME} below with your
-username. You will be prompted to select either vi or nano for your editor, choose whichever you prefer.
+username. You will be prompted to select either vi or nano for your editor if you've not used this command before,
+choose whichever you prefer.
 
 ```
 sudo visudo /etc/sudoers.d/{USERNAME}
@@ -943,7 +947,7 @@ DisplayPort-2 connected (normal left inverted right x axis y axis)
 HDMI-A-0 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 800mm x 450mm
 ```
 
-@warning{If I instead run this command on wayland, I get the following useless output. Hence the need to sign in to
+@note{If I instead run this command on wayland, I get the following useless output. Hence the need to sign in to an
 x11 session.
 
 ```bash
@@ -956,7 +960,7 @@ XWAYLAND3 connected 2592x1458+0+0 (normal left inverted right x axis y axis) 144
 }
 
 
-From this, you can see that my monitors are named the following
+From this, you can see that my monitors are named the following under an x11 session.
 
 DisplayPort-0
 DisplayPort-1
@@ -976,6 +980,7 @@ In my setup, after moving some inputs I changed my system so that these cables c
 | HDMI-A-0      | 4k Roku TV (and dummy plug) |
 
 ###### Modify the SDDM startup script
+
 For my purposes, I would prefer to have the Roku TV (which doubles as my always-on dummy plug) to always display a
 1080p screen on login (this can be changed automatically after login). And I would like to retain the ability to use
 my leftmost monitor to login to my physical desktop, but I'd like to disable my primary and rightmost displays.
@@ -1006,15 +1011,15 @@ fi
 
 At the bottom of this Xsetup script though, we can add some xrandr commands
 
-To shut a display off, we can use  `xrandr --output {DISPLAYNAME} --off`. To set a display as the primary and accept
-it's automatic (usually the maximum) resolution and refresh rate we can use:
-`xrandr --output {DISPLAYNAME} --auto --primary`. 
+To shut a display off, we can use:  `xrandr --output {DISPLAYNAME} --off`.
 
-To set a display to a specific resolution we can use:
-`xrandr --output {DISPLAYNAME} --mode {PIXELWIDTH}x{PIXELLENGTH}`. 
+To set a display as the primary and accept
+it's automatic (usually the maximum, but not always especially on TVs where the default refresh rate may be lower) 
+resolution and refresh rate we can use: `xrandr --output {DISPLAYNAME} --auto --primary`. 
 
-And lastly, to mirror a display we can use:
-`xrandr --output {DISPLAYNAME} --same-as {ANOTHER-DISPLAY}`
+To set a display to a specific resolution we can use: `xrandr --output {DISPLAYNAME} --mode {PIXELWIDTH}x{PIXELLENGTH}`. 
+
+And lastly, to mirror a display we can use: `xrandr --output {DISPLAYNAME} --same-as {ANOTHER-DISPLAY}`
 
 So with my desire to mirror my TV and left displays, my Xsetup script now looks like this:
 
