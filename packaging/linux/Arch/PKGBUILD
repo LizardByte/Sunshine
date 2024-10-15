@@ -23,7 +23,6 @@ depends=(
   'libnotify'
   'libpulse'
   'libva'
-  'libvdpau'
   'libx11'
   'libxcb'
   'libxfixes'

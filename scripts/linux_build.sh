@@ -106,7 +106,6 @@ function add_debain_based_deps() {
     "libopus-dev"
     "libpulse-dev"
     "libssl-dev"
-    "libvdpau-dev"
     "libwayland-dev"  # Wayland
     "libx11-dev"  # X11
     "libxcb-shm0-dev"  # X11
@@ -162,7 +161,6 @@ function add_fedora_deps() {
     "libdrm-devel"
     "libevdev-devel"
     "libnotify-devel"
-    "libvdpau-devel"
     "libX11-devel"  # X11
     "libxcb-devel"  # X11
     "libXcursor-devel"  # X11

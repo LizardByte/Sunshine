@@ -46,7 +46,6 @@ apt-get install -y --no-install-recommends \
   libpulse-dev \
   libssl-dev \
   libva-dev \
-  libvdpau-dev \
   libwayland-dev \
   libx11-dev \
   libxcb-shm0-dev \
