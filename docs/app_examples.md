@@ -238,6 +238,23 @@ This script is intended as a drop-in replacement with the same syntax. (It can b
 | Do        | @code{}sh -c "kscreen-doctor output.HDMI-A-1.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}kscreen-doctor output.HDMI-A-1.mode.3840x2160@120@endcode                                                                     |
 
+@attention{The names of your displays will differ between X11 and Wayland.
+Be sure to use the correct name, depending on your session manager.
+e.g. On X11, the monitor may be called ``HDMI-A-0``, but on Wayland, it may be called ``HDMI-A-1``.
+}
+
+@hint{Replace ``HDMI-A-1`` with the display name of the monitor you would like to use for Moonlight.
+You can list the monitors available to you with:
+```
+kscreen-doctor -o
+```
+
+These will also give you the supported display properties for each monitor. You can select them either by
+hard-coding their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mode.0``) or using the above
+``do`` command to fetch the resolution requested by your Moonlight client
+(which has a chance of not being supported by your monitor).
+}
+
 ###### NVIDIA
 
 | Prep Step | Command                                                                                                     |
