@@ -8,6 +8,22 @@
 
 #include <CoreGraphics/CoreGraphics.h>
 
+namespace platf {
+  /**
+   * Prompts the user for Accessibility permission
+   * @return returns true if requested permission, false if already has permission
+   */
+  bool
+  request_accessibility_permission();
+
+  /**
+   * Checks for Accessibility permission
+   * @return returns true if sunshine has Accessibility permission enabled
+   */
+  bool
+  has_accessibility_permission();
+}
+
 namespace dyn {
   typedef void (*apiproc)();
 
