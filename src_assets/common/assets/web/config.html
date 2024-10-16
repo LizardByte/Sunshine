@@ -275,7 +275,7 @@
        }
     },
     created() {
-      fetch("/api/config")
+      fetch("./api/config")
         .then((r) => r.json())
         .then((r) => {
           this.config = r;
@@ -360,7 +360,7 @@
           });
         });
 
-        return fetch("/api/config", {
+        return fetch("./api/config", {
           method: "POST",
           body: JSON.stringify(config),
         }).then((r) => {
@@ -383,7 +383,7 @@
             setTimeout(() => {
               this.saved = this.restarted = false;
             }, 5000);
-            fetch("/api/restart", {
+            fetch("./api/restart", {
               method: "POST"
             });
           }
