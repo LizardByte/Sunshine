@@ -560,8 +560,8 @@ In [Remote SSH Headless Setup](#remote-ssh-headless-setup) complete the followin
 5. [Stream Launcher Script](#stream-launcher-script)
 
 @note{On a default Debian 12 install using KDE Plasma, you are using the Simple Desktop Display Manager (SDDM).
-Even if you are logging in to a wayland session, SDDM by default starts with an xorg session, so this script
-does not need to be modified if you primarily use a wayland session (the default) when you login.}
+Even if you are logging in to a Wayland session, SDDM by default starts with an xorg session, so this script
+does not need to be modified if you primarily use a Wayland session (the default) when you login.}
 
 #### Instructions
 
@@ -572,7 +572,7 @@ Moonlight's "send wake on lan" option in the app but you do need to enable it on
 [instructions on the debian.org](https://wiki.debian.org/WakeOnLan#Enabling_WOL) site are a little hard to parse, so
 I've simplified them below.
 
-@note{this may not work on all deb based distributions. If you know of a better way for POP OS, Ubuntu, or another
+@note{This may not work on all deb based distributions. If you know of a better way for POP OS, Ubuntu, or another
 debian based distro please feel free to edit the guide yourself, or let me know.}
 
 First, find the name of your ethernet interface.
