@@ -707,9 +707,9 @@ Connection to localhost closed.
 Thanks to [this comment from Gavin Haynes on Unix Stack exchange](https://unix.stackexchange.com/questions/669389/how-do-i-get-an-ssh-command-to-run-on-boot/669476#669476),
 we can establish an SSH connection on boot to run the sunshine-setup script via a systemd service.
 
-###### Disable the sunshine services included from the default installation
+###### Disable default Sunshine services
 
-These service files are sometimes overwritten when updating sunshine with the .deb.
+These service files are sometimes overwritten when updating Sunshine with the .deb.
 So we'll be making new ones and disabling the included service files for our purposes.
 
 ```
@@ -820,7 +820,7 @@ Once again, copy the below service file into your text editor at the location ab
 
 ```
 [Unit]  
-Description=Start sunshine with the permissions of the graphical desktop session
+Description=Start Sunshine with the permissions of the graphical desktop session
 StartLimitIntervalSec=500
 StartLimitBurst=5
 
@@ -871,7 +871,7 @@ polkit.addRule(function(action, subject) {
 })
 ```
 
-###### Modifications to Sudoers.d files
+###### Modifications to sudoers.d files
 
 Lastly, we need to make a few modifications to the sudoers file for our users. Replace {USERNAME} below with your
 username. You will be prompted to select either vi or nano for your editor if you've not used this command before,
@@ -919,7 +919,7 @@ the display).
 ###### Log in to an X11 Session
 
 This can be fixed, by modifying some scripts called by SDDM on boot. To start though, we need to make sure we're
-logged into an x11 session, not wayland or the terminal. As the wayland session will give us incorrect information,
+logged into an x11 session, not Wayland or the terminal. As the Wayland session will give us incorrect information,
 and the terminal will give us no information since no graphical environment exists. SDDM initially starts an x11
 session to display the login screen so we need to use xorg commands to change the display configuration.
 
@@ -947,7 +947,7 @@ DisplayPort-2 connected (normal left inverted right x axis y axis)
 HDMI-A-0 connected primary 1920x1080+0+0 (normal left inverted right x axis y axis) 800mm x 450mm
 ```
 
-@note{If I instead run this command on wayland, I get the following useless output. Hence the need to sign in to an
+@note{If I instead run this command on Wayland, I get the following useless output. Hence the need to sign in to an
 x11 session.
 
 ```bash
