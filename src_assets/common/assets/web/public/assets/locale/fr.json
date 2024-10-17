@@ -26,7 +26,7 @@
   "apps": {
     "actions": "Actions",
     "add_cmds": "Ajouter des commandes",
-    "add_new": "Ajouter une autre",
+    "add_new": "Ajouter une application",
     "app_name": "Nom de l'application",
     "app_name_desc": "Nom de l'application, affiché dans Moonlight",
     "applications_desc": "Les applications ne sont actualisées qu'au redémarrage du client",
