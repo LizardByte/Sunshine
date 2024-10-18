@@ -67,6 +67,12 @@
         border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
         vertical-align: top;
       }
+      .table .item-app {
+        cursor: move;
+      }
+      .table .item-app:hover {
+        background-color: #d38d9d91;
+      }
     </style>
 </head>
 
@@ -85,18 +91,20 @@
             <th scope="col">{{ $t('apps.actions') }}</th>
           </tr>
         </thead>
-        <tbody>
-          <tr v-for="(app,i) in apps" :key="i">
-            <td>{{app.name}}</td>
-            <td>
-              <button class="btn btn-primary mx-1" @click="editApp(i)">
-                <i class="fas fa-edit"></i> {{ $t('apps.edit') }}
-              </button>
-              <button class="btn btn-danger mx-1" @click="showDeleteForm(i)">
-                <i class="fas fa-trash"></i> {{ $t('apps.delete') }}
-              </button>
-            </td>
-          </tr>
+        <tbody is="vue:draggable" v-model="apps" :item-key="key => 'tr-' + $index" tag="tbody">
+          <template #item="{element, index}">
+            <tr class="item-app">
+              <td>{{element.name}}</td>
+              <td>
+                <button class="btn btn-primary mx-1" @click="editApp(index)">
+                  <i class="fas fa-edit"></i> {{ $t('apps.edit') }}
+                </button>
+                <button class="btn btn-danger mx-1" @click="showDeleteForm(index)">
+                  <i class="fas fa-trash"></i> {{ $t('apps.delete') }}
+                </button>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -404,14 +412,14 @@
           <button @click="showEditForm = false" class="btn btn-secondary m-2">
             {{ $t('_common.cancel') }}
           </button>
-          <button class="btn btn-primary m-2" @click="save">{{ $t('_common.save') }}</button>
         </div>
       </div>
     </div>
-    <div class="mt-2" v-else>
-      <button class="btn btn-primary" @click="newApp">
+    <div class="mt-2">
+      <button class="btn btn-primary m-2" @click="newApp" :disabled="showEditForm">
         <i class="fas fa-plus"></i> {{ $t('apps.add_new') }}
       </button>
+      <button class="btn btn-primary m-2" @click="save">{{ $t('_common.save') }}</button>
     </div>
   </div>
 </body>
@@ -420,11 +428,13 @@
   import {initApp} from './init'
   import Navbar from './Navbar.vue'
   import {Dropdown} from 'bootstrap/dist/js/bootstrap'
+  import draggable from 'vuedraggable'
   import {nanoid} from 'nanoid'
 
   const app = createApp({
     components: {
-      Navbar
+      Navbar,
+      draggable,
     },
     data() {
       return {
@@ -471,9 +481,9 @@
         this.editForm.index = -1;
         this.showEditForm = true;
       },
-      editApp(id) {
-        this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
-        this.editForm.index = id;
+      editApp(index) {
+        this.editForm = JSON.parse(JSON.stringify(this.apps[index]));
+        this.editForm.index = index;
         if (!this.editForm["prep-cmd"]) this.editForm["prep-cmd"] = [];
         if (!this.editForm["menu-cmd"]) this.editForm["menu-cmd"] = [];
         if (!this.editForm["detached"]) this.editForm["detached"] = [];
@@ -492,12 +502,12 @@
         }
         this.showEditForm = true;
       },
-      showDeleteForm(id) {
+      showDeleteForm(index) {
         let resp = confirm(
-          "Are you sure to delete " + this.apps[id].name + "?"
+          "Are you sure to delete " + this.apps[index].name + "?"
         );
         if (resp) {
-          fetch("/api/apps/" + id, {method: "DELETE"}).then((r) => {
+          fetch("/api/apps/" + index, {method: "DELETE"}).then((r) => {
             if (r.status == 200) document.location.reload();
           });
         }
@@ -619,10 +629,15 @@
           .finally(() => this.coverFinderBusy = false);
       },
       save() {
-        this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
         fetch("/api/apps", {
           method: "POST",
-          body: JSON.stringify(this.editForm),
+          body: JSON.stringify({
+            apps: this.apps,
+            editApp: this.editForm? {
+              ...this.editForm,
+              "image-path": this.editForm["image-path"].toString().replace(/"/g, ''),
+            } : null,
+          }),
         }).then((r) => {
           if (r.status == 200) document.location.reload();
         });
@@ -642,13 +657,13 @@
       },
       validateFile(file) {
         const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-        const allowedMaxSize = 1024 * 1024 * 5;
+        const allowedMaxSize = 1024 * 1024 * 10;
         if (!allowedMimeTypes.includes(file.type)) {
           this.appImageError = 'Invalid file type. Please upload a PNG image.';
           return false;
         }
         if (file.size > allowedMaxSize) {
-          this.appImageError = 'Zako ~ U are too big! Please upload an image less than 5MB.';
+          this.appImageError = 'Zako ~ U are too big! Please upload an image less than 10MB.';
           return false;
         }
         this.appImageError = '';

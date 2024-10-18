@@ -380,38 +380,42 @@ namespace confighttp {
       pt::read_json(ss, inputTree);
       pt::read_json(config::stream.file_apps, fileTree);
 
-      if (inputTree.get_child("prep-cmd").empty()) {
-        inputTree.erase("prep-cmd");
-      }
-
-      if (inputTree.get_child("detached").empty()) {
-        inputTree.erase("detached");
-      }
-
       auto &apps_node = fileTree.get_child("apps"s);
-      int index = inputTree.get<int>("index");
-
-      inputTree.erase("index");
-
-      if (index == -1) {
-        apps_node.push_back(std::make_pair("", inputTree));
+      auto &input_apps_node = inputTree.get_child("apps"s);
+      auto &input_edit_node = inputTree.get_child("editApp"s);
+      
+      if (input_edit_node.empty()) {
+        fileTree.erase("apps");
+        fileTree.push_back(std::make_pair("apps", input_apps_node));
       }
       else {
-        // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
-        pt::ptree newApps;
-        int i = 0;
-        for (const auto &kv : apps_node) {
-          if (i == index) {
-            newApps.push_back(std::make_pair("", inputTree));
-          }
-          else {
-            newApps.push_back(std::make_pair("", kv.second));
-          }
-          i++;
+        if (input_edit_node.get_child("prep-cmd").empty()) {
+          input_edit_node.erase("prep-cmd");
         }
-        fileTree.erase("apps");
-        fileTree.push_back(std::make_pair("apps", newApps));
+
+        if (input_edit_node.get_child("detached").empty()) {
+          input_edit_node.erase("detached");
+        }
+
+        int index = input_edit_node.get<int>("index");
+        input_edit_node.erase("index");
+
+        if (index == -1) {
+          apps_node.push_back(std::make_pair("", input_edit_node));
+        }
+        else {
+          // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
+          pt::ptree newApps;
+          int i = 0;
+          for (auto &[_, app_node] : input_apps_node) {
+            newApps.push_back(std::make_pair("", i == index ? input_edit_node : app_node));
+            i++;
+          }
+          fileTree.erase("apps");
+          fileTree.push_back(std::make_pair("apps", newApps));
+        }
       }
+
       pt::write_json(config::stream.file_apps, fileTree);
     }
     catch (std::exception &e) {
