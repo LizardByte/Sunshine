@@ -39,6 +39,7 @@ export default defineConfig({
             vue: 'vue/dist/vue.esm-bundler.js'
         }
     },
+    base: './',
     plugins: [vue(), ViteEjsPlugin({ header })],
     root: resolve(assetsSrcPath),
     build: {

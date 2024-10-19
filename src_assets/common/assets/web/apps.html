@@ -377,14 +377,14 @@
       };
     },
     created() {
-      fetch("/api/apps")
+      fetch("./api/apps")
         .then((r) => r.json())
         .then((r) => {
           console.log(r);
           this.apps = r.apps;
         });
 
-      fetch("/api/config")
+      fetch("./api/config")
         .then(r => r.json())
         .then(r => this.platform = r.platform);
     },
@@ -435,7 +435,7 @@
           "Are you sure to delete " + this.apps[id].name + "?"
         );
         if (resp) {
-          fetch("/api/apps/" + id, { method: "DELETE" }).then((r) => {
+          fetch("./api/apps/" + id, { method: "DELETE" }).then((r) => {
             if (r.status == 200) document.location.reload();
           });
         }
@@ -533,7 +533,7 @@
       },
       useCover(cover) {
         this.coverFinderBusy = true;
-        fetch("/api/covers/upload", {
+        fetch("./api/covers/upload", {
           method: "POST",
           body: JSON.stringify({
             key: cover.key,
@@ -548,7 +548,7 @@
       },
       save() {
         this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
-        fetch("/api/apps", {
+        fetch("./api/apps", {
           method: "POST",
           body: JSON.stringify(this.editForm),
         }).then((r) => {

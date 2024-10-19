@@ -170,7 +170,7 @@
       },
       methods: {
         refreshLogs() {
-          fetch("/api/logs",)
+          fetch("./api/logs",)
             .then((r) => r.text())
             .then((r) => {
               this.logs = r;
@@ -178,7 +178,7 @@
         },
         closeApp() {
           this.closeAppPressed = true;
-          fetch("/api/apps/close", { method: "POST" })
+          fetch("./api/apps/close", { method: "POST" })
             .then((r) => r.json())
             .then((r) => {
               this.closeAppPressed = false;
@@ -190,7 +190,7 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("/api/clients/unpair-all", { method: "POST" })
+          fetch("./api/clients/unpair-all", { method: "POST" })
             .then((r) => r.json())
             .then((r) => {
               this.unpairAllPressed = false;
@@ -202,13 +202,13 @@
             });
         },
         unpairSingle(uuid) {
-          fetch("/api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
+          fetch("./api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
             this.showApplyMessage = true;
             this.refreshClients();
           });
         },
         refreshClients() {
-          fetch("/api/clients/list")
+          fetch("./api/clients/list")
             .then((response) => response.json())
             .then((response) => {
               const clientList = document.querySelector("#client-list");
@@ -232,7 +232,7 @@
           setTimeout(() => {
             this.restartPressed = false;
           }, 5000);
-          fetch("/api/restart", {
+          fetch("./api/restart", {
             method: "POST",
           });
         },
