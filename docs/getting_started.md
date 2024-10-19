@@ -224,7 +224,7 @@ flatpak run dev.lizardbyte.app.Sunshine
 
 ##### Run with KMS capture (Wayland & X11)
 ```bash
-sudo -i PULSE_SERVER=unix:$(pactl info | awk '/Server String/{print$3}') flatpak run dev.lizardbyte.app.Sunshine
+sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run dev.lizardbyte.app.Sunshine
 ```
 
 ##### Uninstall
