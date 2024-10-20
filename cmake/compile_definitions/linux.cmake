@@ -68,7 +68,10 @@ if(${SUNSHINE_ENABLE_CUDA})
         # message(STATUS "CUDA NVCC Flags: ${CUDA_NVCC_FLAGS}")
         message(STATUS "CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
     elseif(${CUDA_FAIL_ON_MISSING})
-        message(FATAL_ERROR "CUDA not found")
+        message(FATAL_ERROR
+                "CUDA not found.
+                If this is intentional, set '-DSUNSHINE_ENABLE_CUDA=OFF' or '-DCUDA_FAIL_ON_MISSING=OFF'"
+        )
     endif()
 endif()
 if(CUDA_FOUND)
