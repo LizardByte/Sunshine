@@ -912,6 +912,52 @@ namespace video {
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT
   };
+
+  static encoder_t v4l2m2m {
+    "V4L2M2M"sv,
+    std::make_unique<encoder_platform_formats_avcodec>(
+      AV_HWDEVICE_TYPE_NONE, AV_HWDEVICE_TYPE_NONE,
+      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10,
+      nullptr),
+    {
+      // Common options
+      {},
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {},
+      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      "av1_v4l2m2m"s,
+    },
+    {
+      // Common options
+      {},
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {},
+      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      "hevc_v4l2m2m"s,
+    },
+    {
+      // Common options
+      {},
+      // SDR-specific options
+      {},
+      // HDR-specific options
+      {},
+      // Fallback options
+      {},
+      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
+      "h264_v4l2m2m"s,
+    },
+    PARALLEL_ENCODING
+  };
 #endif
 
 #ifdef __APPLE__
@@ -991,6 +1037,7 @@ namespace video {
 #endif
 #ifdef __linux__
     &vaapi,
+    &v4l2m2m,
 #endif
 #ifdef __APPLE__
     &videotoolbox,
