@@ -12,6 +12,9 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 # web server
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/Simple-Web-Server")
 
+# libdisplaydevice
+add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libdisplaydevice")
+
 # common dependencies
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
