@@ -59,6 +59,8 @@ process is killed.}
   }
 }
 
+You can find a game's URI by creating a desktop shortcut for it, and then viewing that shortcut's properties.
+
 #### Binary (w/ working directory
 @tabs{
   @tab{Windows | <!-- -->
