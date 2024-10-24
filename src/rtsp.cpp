@@ -599,7 +599,7 @@ namespace rtsp_stream {
      * @param session The session to remove.
      */
     void
-    remove(std::shared_ptr<stream::session_t> &session) {
+    remove(const std::shared_ptr<stream::session_t> &session) {
       auto lg = _session_slots.lock();
       _session_slots->erase(session);
     }
@@ -609,9 +609,10 @@ namespace rtsp_stream {
      * @param session The session to insert.
      */
     void
-    insert(std::shared_ptr<stream::session_t> &session) {
+    insert(const std::shared_ptr<stream::session_t> &session) {
       auto lg = _session_slots.lock();
       _session_slots->emplace(session);
+      BOOST_LOG(info) << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
     }
 
   private:
@@ -639,10 +640,6 @@ namespace rtsp_stream {
     server.session_clear(launch_session_id);
   }
 
-  /**
-   * @brief Get the number of active sessions.
-   * @return Count of active sessions.
-   */
   int
   session_count() {
     // Ensure session_count is up-to-date
@@ -651,9 +648,6 @@ namespace rtsp_stream {
     return server.session_count();
   }
 
-  /**
-   * @brief Terminates all running streaming sessions.
-   */
   void
   terminate_sessions() {
     server.clear(true);
