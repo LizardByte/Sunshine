@@ -820,14 +820,6 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    if (rtsp_stream::session_count() == config::stream.channels) {
-      tree.put("root.resume", 0);
-      tree.put("root.<xmlattr>.status_code", 503);
-      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
-
-      return;
-    }
-
     auto args = request->parse_query_string();
     if (
       args.find("rikey"s) == std::end(args) ||
@@ -912,16 +904,6 @@ namespace nvhttp {
       response->write(data.str());
       response->close_connection_after_response = true;
     });
-
-    // It is possible that due a race condition that this if-statement gives a false negative,
-    // that is automatically resolved in rtsp_server_t
-    if (rtsp_stream::session_count() == config::stream.channels) {
-      tree.put("root.resume", 0);
-      tree.put("root.<xmlattr>.status_code", 503);
-      tree.put("root.<xmlattr>.status_message", "The host's concurrent stream limit has been reached. Stop an existing stream or increase the 'Channels' value in the Sunshine Web UI.");
-
-      return;
-    }
 
     auto current_appid = proc::proc.running();
     if (current_appid == 0) {

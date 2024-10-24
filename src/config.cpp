@@ -395,7 +395,6 @@ namespace config {
     APPS_JSON_PATH,
 
     20,  // fecPercentage
-    1,  // channels
 
     ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
     ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
@@ -1045,8 +1044,6 @@ namespace config {
     if (to != -1) {
       stream.ping_timeout = std::chrono::milliseconds(to);
     }
-
-    int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
 
     int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, { 0, 2 });
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, { 0, 2 });
