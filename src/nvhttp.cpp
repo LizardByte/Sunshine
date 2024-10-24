@@ -981,18 +981,10 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    // It is possible that due a race condition that this if-statement gives a false positive,
-    // the client should try again
-    if (rtsp_stream::session_count() != 0) {
-      tree.put("root.resume", 0);
-      tree.put("root.<xmlattr>.status_code", 503);
-      tree.put("root.<xmlattr>.status_message", "All sessions must be disconnected before quitting");
-
-      return;
-    }
-
     tree.put("root.cancel", 1);
     tree.put("root.<xmlattr>.status_code", 200);
+
+    rtsp_stream::terminate_sessions();
 
     if (proc::proc.running() > 0) {
       proc::proc.terminate();

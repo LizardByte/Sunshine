@@ -639,12 +639,24 @@ namespace rtsp_stream {
     server.session_clear(launch_session_id);
   }
 
+  /**
+   * @brief Get the number of active sessions.
+   * @return Count of active sessions.
+   */
   int
   session_count() {
     // Ensure session_count is up-to-date
     server.clear(false);
 
     return server.session_count();
+  }
+
+  /**
+   * @brief Terminates all running streaming sessions.
+   */
+  void
+  terminate_sessions() {
+    server.clear(true);
   }
 
   int
