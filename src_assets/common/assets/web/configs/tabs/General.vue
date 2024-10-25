@@ -73,16 +73,6 @@ function removeCmd(index) {
       <div class="form-text">{{ $t('config.log_level_desc') }}</div>
     </div>
 
-    <!-- Maximum Connected Clients -->
-    <div class="mb-3">
-      <label for="channels" class="form-label">{{ $t('config.channels') }}</label>
-      <input type="text" class="form-control" id="channels" placeholder="1" v-model="config.channels" />
-      <div class="form-text">
-        {{ $t('config.channels_desc_1') }}<br>
-        {{ $t('_common.note') }} {{ $t('config.channels_desc_2') }}
-      </div>
-    </div>
-
     <!-- Global Prep Commands -->
     <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
