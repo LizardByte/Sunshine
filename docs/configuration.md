@@ -2303,6 +2303,33 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+## VA-API Encoder
+
+### vaapi_strict_rc_buffer
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enabling this option can avoid dropped frames over the network during scene changes, but video quality may
+            be reduced during motion.
+            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_strict_rc_buffer = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset

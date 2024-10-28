@@ -857,7 +857,6 @@ namespace video {
     {
       // Common options
       {
-        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
       },
@@ -865,17 +864,13 @@ namespace video {
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
-      {
-        // Fallback options
-        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
-      },
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "av1_vaapi"s,
     },
     {
       // Common options
       {
-        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
@@ -884,17 +879,13 @@ namespace video {
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
-      {
-        // Fallback options
-        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
-      },
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "hevc_vaapi"s,
     },
     {
       // Common options
       {
-        { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
@@ -903,15 +894,12 @@ namespace video {
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
-      {
-        // Fallback options
-        { "low_power"s, 0 },  // Not all VAAPI drivers expose LP entrypoints
-      },
+      {},  // Fallback options
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
     // RC buffer size will be set in platform code if supported
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
 #endif
 
@@ -1696,7 +1684,7 @@ namespace video {
       }
 
       // Allow the encoding device a final opportunity to set/unset or override any options
-      encode_device->init_codec_options(ctx.get(), options);
+      encode_device->init_codec_options(ctx.get(), &options);
 
       if (auto status = avcodec_open2(ctx.get(), codec, &options)) {
         char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };

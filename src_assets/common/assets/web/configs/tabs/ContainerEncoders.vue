@@ -5,6 +5,7 @@ import IntelQuickSyncEncoder from './encoders/IntelQuickSyncEncoder.vue'
 import AmdAmfEncoder from './encoders/AmdAmfEncoder.vue'
 import VideotoolboxEncoder from './encoders/VideotoolboxEncoder.vue'
 import SoftwareEncoder from './encoders/SoftwareEncoder.vue'
+import VAAPIEncoder from './encoders/VAAPIEncoder.vue'
 
 const props = defineProps([
   'platform',
@@ -41,6 +42,13 @@ const config = ref(props.config)
   <!-- VideoToolbox Encoder Tab -->
   <VideotoolboxEncoder
       v-if="currentTab === 'vt'"
+      :platform="platform"
+      :config="config"
+  />
+
+  <!-- VAAPI Encoder Tab -->
+  <VAAPIEncoder
+      v-if="currentTab === 'vaapi'"
       :platform="platform"
       :config="config"
   />

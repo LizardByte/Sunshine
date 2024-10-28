@@ -377,6 +377,10 @@ namespace config {
       -1,
     },  // vt
 
+    {
+      false,  // strict_rc_buffer
+    },  // vaapi
+
     {},  // capture
     {},  // encoder
     {},  // adapter_name
@@ -1013,6 +1017,8 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
+
+    bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
