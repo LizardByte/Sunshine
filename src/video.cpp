@@ -860,6 +860,7 @@ namespace video {
         { "low_power"s, 1 },
         { "async_depth"s, 1 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
+        { "rc_mode"s, "VBR"s },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -879,6 +880,7 @@ namespace video {
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
+        { "rc_mode"s, "VBR"s },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -898,6 +900,7 @@ namespace video {
         { "async_depth"s, 1 },
         { "sei"s, 0 },
         { "idr_interval"s, std::numeric_limits<int>::max() },
+        { "rc_mode"s, "VBR"s },
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -910,8 +913,7 @@ namespace video {
       std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
-    // RC buffer size will be set in platform code if supported
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY | NO_RC_BUF_LIMIT
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | SINGLE_SLICE_ONLY
   };
 #endif
 
