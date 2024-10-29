@@ -1,6 +1,10 @@
+[submodule "packaging/linux/flatpak/deps/flatpak-builder-tools"]
+	path = packaging/linux/flatpak/deps/flatpak-builder-tools
+	url = https://github.com/flatpak/flatpak-builder-tools.git
+	branch = master
 [submodule "packaging/linux/flatpak/deps/shared-modules"]
 	path = packaging/linux/flatpak/deps/shared-modules
-	url = https://github.com/flathub/shared-modules
+	url = https://github.com/flathub/shared-modules.git
 	branch = master
 [submodule "third-party/build-deps"]
 	path = third-party/build-deps
@@ -12,8 +16,8 @@
 	branch = master
 [submodule "third-party/googletest"]
 	path = third-party/googletest
-	url = https://github.com/google/googletest/
-	branch = v1.14.x
+	url = https://github.com/google/googletest.git
+	branch = main
 [submodule "third-party/inputtino"]
 	path = third-party/inputtino
 	url = https://github.com/games-on-whales/inputtino.git
@@ -40,7 +44,7 @@
 	branch = master
 [submodule "third-party/nvapi-open-source-sdk"]
 	path = third-party/nvapi-open-source-sdk
-	url = https://github.com/LizardByte/nvapi-open-source-sdk
+	url = https://github.com/LizardByte/nvapi-open-source-sdk.git
 	branch = sdk
 [submodule "third-party/Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
@@ -48,11 +52,11 @@
 	branch = master
 [submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
-	url = https://github.com/michaeltyson/TPCircularBuffer
+	url = https://github.com/michaeltyson/TPCircularBuffer.git
 	branch = master
 [submodule "third-party/tray"]
 	path = third-party/tray
-	url = https://github.com/LizardByte/tray
+	url = https://github.com/LizardByte/tray.git
 	branch = master
 [submodule "third-party/ViGEmClient"]
 	path = third-party/ViGEmClient
