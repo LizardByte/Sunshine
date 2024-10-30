@@ -506,12 +506,12 @@
                 if (dotIndex < 0 || slashIndex < 0) {
                   return null;
                 }
-                const hash = thumb.substring(slashIndex + 1, dotIndex);
+                const slug = thumb.substring(slashIndex + 1, dotIndex);
                 return {
                   name: game.name,
-                  key: "igdb_" + game.id,
-                  url: "https://images.igdb.com/igdb/image/upload/t_cover_big/" + hash + ".jpg",
-                  saveUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/" + hash + ".png",
+                  key: `igdb_${game.id}`,
+                  url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${slug}.jpg`,
+                  saveUrl: `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${slug}.png`,
                 }
               }).filter(item => item));
         }

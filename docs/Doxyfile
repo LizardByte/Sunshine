@@ -52,6 +52,7 @@ INPUT = ../README.md \
         app_examples.md \
         guides.md \
         performance_tuning.md \
+        api.md \
         troubleshooting.md \
         building.md \
         contributing.md \
