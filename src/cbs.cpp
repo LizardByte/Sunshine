@@ -3,10 +3,10 @@
  * @brief Definitions for FFmpeg Coded Bitstream API.
  */
 extern "C" {
-#include <cbs/cbs_h264.h>
-#include <cbs/cbs_h265.h>
-#include <cbs/h264_levels.h>
 #include <libavcodec/avcodec.h>
+#include <libavcodec/cbs_h264.h>
+#include <libavcodec/cbs_h265.h>
+#include <libavcodec/h264_levels.h>
 #include <libavutil/pixdesc.h>
 }
 
