@@ -14,7 +14,7 @@ basic authentication with the admin username and password.
 ## POST /api/apps
 @copydoc confighttp::saveApp()
 
-## DELETE /api/apps{index}
+## DELETE /api/apps/{index}
 @copydoc confighttp::deleteApp()
 
 ## POST /api/covers/upload

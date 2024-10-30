@@ -1259,6 +1259,15 @@ namespace config {
       // the path is incorrect or inaccessible.
       apply_config(std::move(vars));
       config_loaded = true;
+
+      // Disable shortcut launch modes if capture mode is wgc
+#ifdef _WIN32
+      if (config::video.capture == "wgc" && (shortcut_launch || service_admin_launch)) {
+        BOOST_LOG(info) << "Disabling service launch because WGC capture mode is enabled"sv;
+        shortcut_launch = false;
+        service_admin_launch = false;
+      }
+#endif
     }
     catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
