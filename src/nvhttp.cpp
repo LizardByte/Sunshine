@@ -1188,7 +1188,13 @@ namespace nvhttp {
 
     // Verify certificates after establishing connection
     https_server.verify = [add_cert](SSL *ssl) {
-      crypto::x509_t x509 { SSL_get_peer_certificate(ssl) };
+      crypto::x509_t x509 {
+#if OPENSSL_VERSION_MAJOR >= 3
+        SSL_get1_peer_certificate(ssl)
+#else
+        SSL_get_peer_certificate(ssl)
+#endif
+      };
       if (!x509) {
         BOOST_LOG(info) << "unknown -- denied"sv;
         return 0;
