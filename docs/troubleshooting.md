@@ -200,9 +200,9 @@ permissions on the disk.
 
 <div class="section_buttons">
 
-| Previous                                    |                    Next |
-|:--------------------------------------------|------------------------:|
-| [Performance Tuning](performance_tuning.md) | [Building](building.md) |
+| Previous      |                    Next |
+|:--------------|------------------------:|
+| [API](api.md) | [Building](building.md) |
 
 </div>
 
