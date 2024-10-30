@@ -4,6 +4,7 @@
  */
 #include "crypto.h"
 #include <openssl/pem.h>
+#include <openssl/rsa.h>
 
 namespace crypto {
   using asn1_string_t = util::safe_ptr<ASN1_STRING, ASN1_STRING_free>;
