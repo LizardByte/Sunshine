@@ -61,11 +61,6 @@ namespace system_tray {
   }
 
   void
-  tray_donate_mee6_cb(struct tray_menu *item) {
-    platf::open_url("https://mee6.xyz/m/804382334370578482");
-  }
-
-  void
   tray_donate_patreon_cb(struct tray_menu *item) {
     platf::open_url("https://www.patreon.com/LizardByte");
   }
@@ -111,7 +106,6 @@ namespace system_tray {
           .submenu =
             (struct tray_menu[]) {
               { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-              { .text = "MEE6", .cb = tray_donate_mee6_cb },
               { .text = "Patreon", .cb = tray_donate_patreon_cb },
               { .text = "PayPal", .cb = tray_donate_paypal_cb },
               { .text = nullptr } } },
