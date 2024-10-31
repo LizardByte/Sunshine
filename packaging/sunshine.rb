@@ -113,13 +113,13 @@ class @PROJECT_NAME@ < Formula
       system "make", "install"
 
       # Move binary instead of symlinking it
-      bin.install "sunshine-#{ENV["BUILD_VERSION"]}" => "sunshine"
+      bin.install "sunshine-#{ENV["BUILD_VERSION"]}" => "sunshine" if OS.mac?
 
       bin.install "tests/test_sunshine"
     end
 
     # Codesign the installed binary
-    system "codesign", "-s", "-", "--force", "--deep", "#{bin}/sunshine"
+    system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac?
 
     bin.install "src_assets/linux/misc/postinst" if OS.linux?
   end
