@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "If disabled, touchpad presence will not be taken into account during gamepad type selection.",
     "upnp": "UPnP",
     "upnp_desc": "Automatically configure port forwarding for streaming over the Internet",
+    "vaapi_strict_rc_buffer": "Strictly enforce frame bitrate limits for H.264/HEVC on AMD GPUs",
+    "vaapi_strict_rc_buffer_desc": "Enabling this option can avoid dropped frames over the network during scene changes, but video quality may be reduced during motion.",
     "virtual_sink": "Virtual Sink",
     "virtual_sink_desc": "Manually specify a virtual audio device to use. If unset, the device is chosen automatically. We strongly recommend leaving this field blank to use automatic device selection!",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
