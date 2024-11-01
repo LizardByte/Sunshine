@@ -287,8 +287,13 @@ namespace va {
           av_dict_set(options, "rc_mode", "CBR", 0);
         }
         else {
-          BOOST_LOG(info) << "Using default rate control with single frame VBV size"sv;
+          BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
+          av_dict_set_int(options, "qp", config::video.qp, 0);
         }
+      }
+      else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
+        BOOST_LOG(warning) << "Using CQP rate control"sv;
+        av_dict_set_int(options, "qp", config::video.qp, 0);
       }
       else {
         BOOST_LOG(info) << "Using default rate control"sv;

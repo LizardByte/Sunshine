@@ -120,7 +120,6 @@ namespace video {
     enum flag_e {
       PASSED,  ///< Indicates the encoder is supported.
       REF_FRAMES_RESTRICT,  ///< Set maximum reference frames.
-      CBR,  ///< Some encoders don't support CBR, if not supported attempt constant quantization parameter instead.
       DYNAMIC_RANGE,  ///< HDR support.
       YUV444,  ///< YUV 4:4:4 support.
       VUI_PARAMETERS,  ///< AMD encoder with VAAPI doesn't add VUI parameters to SPS.
@@ -135,7 +134,6 @@ namespace video {
       switch (flag) {
         _CONVERT(PASSED);
         _CONVERT(REF_FRAMES_RESTRICT);
-        _CONVERT(CBR);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(YUV444);
         _CONVERT(VUI_PARAMETERS);
@@ -166,11 +164,6 @@ namespace video {
       std::vector<option_t> sdr444_options;
       std::vector<option_t> hdr444_options;
       std::vector<option_t> fallback_options;
-
-      // QP option to set in the case that CBR/VBR is not supported
-      // by the encoder. If CBR/VBR is guaranteed to be supported,
-      // don't specify this option to avoid wasteful encoder probing.
-      std::optional<option_t> qp;
 
       std::string name;
       std::bitset<MAX_FLAGS> capabilities;

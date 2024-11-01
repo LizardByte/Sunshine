@@ -462,7 +462,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
     {
@@ -472,7 +471,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
     },
     {
@@ -482,7 +480,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
     },
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT  // flags
@@ -525,7 +522,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "av1_nvenc"s,
     },
     {
@@ -552,7 +548,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "hevc_nvenc"s,
     },
     {
@@ -576,7 +571,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "h264_nvenc"s,
     },
     PARALLEL_ENCODING
@@ -618,7 +612,6 @@ namespace video {
         { "profile"s, (int) qsv::profile_av1_e::high },
       },
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "av1_qsv"s,
     },
     {
@@ -652,7 +645,6 @@ namespace video {
         // Fallback options
         { "low_power"s, []() { return config::video.qsv.qsv_slow_hevc ? 0 : 1; } },
       },
-      std::nullopt,  // QP rate control fallback
       "hevc_qsv"s,
     },
     {
@@ -683,7 +675,6 @@ namespace video {
         // Fallback options
         { "low_power"s, 0 },  // Some old/low-end Intel GPUs don't support low power encoding
       },
-      std::nullopt,  // QP rate control fallback
       "h264_qsv"s,
     },
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
@@ -716,7 +707,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "av1_amf"s,
     },
     {
@@ -741,7 +731,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "hevc_amf"s,
     },
     {
@@ -767,7 +756,6 @@ namespace video {
         // Fallback options
         { "usage"s, 2 /* AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY */ },  // Workaround for https://github.com/GPUOpen-LibrariesAndSDKs/AMF/issues/410
       },
-      std::nullopt,  // QP rate control fallback
       "h264_amf"s,
     },
     PARALLEL_ENCODING
@@ -797,13 +785,10 @@ namespace video {
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
 
-      // QP rate control fallback
-      std::nullopt,
-
 #ifdef ENABLE_BROKEN_AV1_ENCODER
-      // Due to bugs preventing on-demand IDR frames from working and very poor
-      // real-time encoding performance, we do not enable libsvtav1 by default.
-      // It is only suitable for testing AV1 until the IDR frame issue is fixed.
+           // Due to bugs preventing on-demand IDR frames from working and very poor
+           // real-time encoding performance, we do not enable libsvtav1 by default.
+           // It is only suitable for testing AV1 until the IDR frame issue is fixed.
       "libsvtav1"s,
 #else
       {},
@@ -825,7 +810,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "libx265"s,
     },
     {
@@ -839,7 +823,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,  // QP rate control fallback
       "libx264"s,
     },
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE | YUV444_SUPPORT
@@ -865,7 +848,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "av1_vaapi"s,
     },
     {
@@ -880,7 +862,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "hevc_vaapi"s,
     },
     {
@@ -895,7 +876,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::make_optional<encoder_t::option_t>("qp"s, &config::video.qp),
       "h264_vaapi"s,
     },
     // RC buffer size will be set in platform code if supported
@@ -926,7 +906,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,
       "av1_videotoolbox"s,
     },
     {
@@ -943,7 +922,6 @@ namespace video {
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
       {},  // Fallback options
-      std::nullopt,
       "hevc_videotoolbox"s,
     },
     {
@@ -963,7 +941,6 @@ namespace video {
         // Fallback options
         { "flags"s, "-low_delay" },
       },
-      std::nullopt,
       "h264_videotoolbox"s,
     },
     DEFAULT
@@ -1639,48 +1616,39 @@ namespace video {
         }
       }
 
-      if (video_format[encoder_t::CBR]) {
-        auto bitrate = config.bitrate * 1000;
-        ctx->rc_max_rate = bitrate;
-        ctx->bit_rate = bitrate;
+      auto bitrate = config.bitrate * 1000;
+      ctx->rc_max_rate = bitrate;
+      ctx->bit_rate = bitrate;
 
-        if (encoder.flags & CBR_WITH_VBR) {
-          // Ensure rc_max_bitrate != bit_rate to force VBR mode
-          ctx->bit_rate--;
-        }
-        else {
-          ctx->rc_min_rate = bitrate;
-        }
-
-        if (encoder.flags & RELAXED_COMPLIANCE) {
-          ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
-        }
-
-        if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
-          if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
-            // Use a larger rc_buffer_size for software encoding when slices are enabled,
-            // because libx264 can severely degrade quality if the buffer is too small.
-            // libx265 encounters this issue more frequently, so always scale the
-            // buffer by 1.5x for software HEVC encoding.
-            ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
-          }
-          else {
-            ctx->rc_buffer_size = bitrate / config.framerate;
-
-#ifndef __APPLE__
-            if (encoder.name == "nvenc" && config::video.nv_legacy.vbv_percentage_increase > 0) {
-              ctx->rc_buffer_size += ctx->rc_buffer_size * config::video.nv_legacy.vbv_percentage_increase / 100;
-            }
-#endif
-          }
-        }
-      }
-      else if (video_format.qp) {
-        handle_option(*video_format.qp);
+      if (encoder.flags & CBR_WITH_VBR) {
+        // Ensure rc_max_bitrate != bit_rate to force VBR mode
+        ctx->bit_rate--;
       }
       else {
-        BOOST_LOG(error) << "Couldn't set video quality: encoder "sv << encoder.name << " doesn't support qp"sv;
-        return nullptr;
+        ctx->rc_min_rate = bitrate;
+      }
+
+      if (encoder.flags & RELAXED_COMPLIANCE) {
+        ctx->strict_std_compliance = FF_COMPLIANCE_UNOFFICIAL;
+      }
+
+      if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
+        if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
+          // Use a larger rc_buffer_size for software encoding when slices are enabled,
+          // because libx264 can severely degrade quality if the buffer is too small.
+          // libx265 encounters this issue more frequently, so always scale the
+          // buffer by 1.5x for software HEVC encoding.
+          ctx->rc_buffer_size = bitrate / ((config.framerate * 10) / 15);
+        }
+        else {
+          ctx->rc_buffer_size = bitrate / config.framerate;
+
+#ifndef __APPLE__
+          if (encoder.name == "nvenc" && config::video.nv_legacy.vbv_percentage_increase > 0) {
+            ctx->rc_buffer_size += ctx->rc_buffer_size * config::video.nv_legacy.vbv_percentage_increase / 100;
+          }
+#endif
+        }
       }
 
       // Allow the encoding device a final opportunity to set/unset or override any options
@@ -2407,18 +2375,11 @@ namespace video {
       return false;
     }
 
-  retry:
     // If we're expecting failure, use the autoselect ref config first since that will always succeed
     // if the encoder is available.
     auto max_ref_frames_h264 = expect_failure ? -1 : validate_config(disp, encoder, config_max_ref_frames);
     auto autoselect_h264 = max_ref_frames_h264 >= 0 ? max_ref_frames_h264 : validate_config(disp, encoder, config_autoselect);
     if (autoselect_h264 < 0) {
-      if (encoder.h264.qp && encoder.h264[encoder_t::CBR]) {
-        // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
-        encoder.h264.capabilities.set();
-        encoder.h264[encoder_t::CBR] = false;
-        goto retry;
-      }
       return false;
     }
     else if (expect_failure) {
@@ -2442,7 +2403,6 @@ namespace video {
       config_autoselect.videoFormat = 1;
 
       if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
-      retry_hevc:
         auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
 
         // If H.264 succeeded with max ref frames specified, assume that we can count on
@@ -2450,13 +2410,6 @@ namespace video {
         auto autoselect_hevc = (max_ref_frames_hevc >= 0 || max_ref_frames_h264 >= 0) ?
                                  max_ref_frames_hevc :
                                  validate_config(disp, encoder, config_autoselect);
-
-        if (autoselect_hevc < 0 && encoder.hevc.qp && encoder.hevc[encoder_t::CBR]) {
-          // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
-          encoder.hevc.capabilities.set();
-          encoder.hevc[encoder_t::CBR] = false;
-          goto retry_hevc;
-        }
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
           encoder.hevc[encoder_flag] = (max_ref_frames_hevc & validate_flag && autoselect_hevc & validate_flag);
@@ -2480,7 +2433,6 @@ namespace video {
       config_autoselect.videoFormat = 2;
 
       if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
-      retry_av1:
         auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
 
         // If H.264 succeeded with max ref frames specified, assume that we can count on
@@ -2488,13 +2440,6 @@ namespace video {
         auto autoselect_av1 = (max_ref_frames_av1 >= 0 || max_ref_frames_h264 >= 0) ?
                                 max_ref_frames_av1 :
                                 validate_config(disp, encoder, config_autoselect);
-
-        if (autoselect_av1 < 0 && encoder.av1.qp && encoder.av1[encoder_t::CBR]) {
-          // It's possible the encoder isn't accepting Constant Bit Rate. Turn off CBR and make another attempt
-          encoder.av1.capabilities.set();
-          encoder.av1[encoder_t::CBR] = false;
-          goto retry_av1;
-        }
 
         for (auto [validate_flag, encoder_flag] : packet_deficiencies) {
           encoder.av1[encoder_flag] = (max_ref_frames_av1 & validate_flag && autoselect_av1 & validate_flag);
