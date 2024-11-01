@@ -20,7 +20,7 @@ No support will be provided for third party packages!}
 ### Docker
 @warning{The Docker images are not recommended for most users.}
 
-Docker images are available on [Dockerhub.io](https://hub.docker.com/repository/docker/lizardbyte/sunshin)
+Docker images are available on [Dockerhub.io](https://hub.docker.com/repository/docker/lizardbyte/sunshine)
 and [ghcr.io](https://github.com/orgs/LizardByte/packages?repo_name=sunshine).
 
 See [Docker](../DOCKER_README.md) for more information.
