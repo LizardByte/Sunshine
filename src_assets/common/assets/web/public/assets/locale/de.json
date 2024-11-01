@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "Wenn deaktiviert, wird das Touchpad-Vorhandensein bei der Auswahl des Gamepad-Typs nicht berücksichtigt.",
     "upnp": "UPnP",
     "upnp_desc": "Portweiterleitung für Streaming über das Internet automatisch konfigurieren",
+    "vaapi_strict_rc_buffer": "Bitratenlimit für H.264/HEVC auf AMD GPUs strikt durchsetzen",
+    "vaapi_strict_rc_buffer_desc": "Wenn Sie diese Option aktivieren, können während der Szenenänderung gelöschte Frames über das Netzwerk vermieden werden, aber die Videoqualität kann während der Bewegung reduziert werden.",
     "virtual_sink": "Virtueller Sink",
     "virtual_sink_desc": "Legen Sie ein virtuelles Audiogerät manuell fest. Wenn nicht gesetzt, wird das Gerät automatisch ausgewählt. Wir empfehlen dringend, dieses Feld leer zu lassen, um die automatische Geräteauswahl zu verwenden!",
     "virtual_sink_placeholder": "Steam Streaming Lautsprecher",
