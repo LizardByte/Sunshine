@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "Si désactivé, la présence du pavé tactile ne sera pas prise en compte lors de la sélection du type du pavé tactile.",
     "upnp": "UPnP",
     "upnp_desc": "Configurer automatiquement la redirection de port pour le streaming sur Internet",
+    "vaapi_strict_rc_buffer": "Appliquer strictement les limites de débit d'images pour H.264/HEVC sur les GPU AMD",
+    "vaapi_strict_rc_buffer_desc": "L'activation de cette option peut éviter de laisser tomber des images sur le réseau pendant les changements de scène, mais la qualité de la vidéo peut être réduite pendant le mouvement.",
     "virtual_sink": "Évier virtuel",
     "virtual_sink_desc": "Spécifiez manuellement un périphérique audio virtuel à utiliser. Si non défini, le périphérique est choisi automatiquement. Nous vous recommandons fortement de laisser ce champ vide pour utiliser la sélection automatique de l'appareil !",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
