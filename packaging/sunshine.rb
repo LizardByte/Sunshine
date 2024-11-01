@@ -115,6 +115,9 @@ class @PROJECT_NAME@ < Formula
       bin.install "tests/test_sunshine"
     end
 
+    # codesign the binary on intel macs
+    system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
+
     bin.install "src_assets/linux/misc/postinst" if OS.linux?
   end
 
