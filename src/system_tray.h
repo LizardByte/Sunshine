@@ -23,13 +23,6 @@ namespace system_tray {
   tray_donate_github_cb(struct tray_menu *item);
 
   /**
-   * @brief Callback for opening MEE6 donation from the system tray.
-   * @param item The tray menu item.
-   */
-  void
-  tray_donate_mee6_cb(struct tray_menu *item);
-
-  /**
    * @brief Callback for opening Patreon from the system tray.
    * @param item The tray menu item.
    */
