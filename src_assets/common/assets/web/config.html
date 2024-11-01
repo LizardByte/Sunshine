@@ -258,6 +258,13 @@
             },
           },
           {
+            id: "vaapi",
+            name: "VA-API Encoder",
+            options: {
+              "vaapi_strict_rc_buffer": "disabled",
+            },
+          },
+          {
             id: "sw",
             name: "Software Encoder",
             options: {
@@ -283,7 +290,7 @@
           var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "vt";
+              return el.id !== "vt" && el.id !== "vaapi";
             });
           }
           if (this.platform === "linux") {
@@ -293,7 +300,7 @@
           }
           if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "vaapi";
             });
           }
 

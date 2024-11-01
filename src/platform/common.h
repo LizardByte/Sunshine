@@ -418,7 +418,7 @@ namespace platf {
      * @note Implementations may set or modify codec options prior to codec initialization.
      */
     virtual void
-    init_codec_options(AVCodecContext *ctx, AVDictionary *options) {};
+    init_codec_options(AVCodecContext *ctx, AVDictionary **options) {};
 
     /**
      * @brief Prepare to derive a context.

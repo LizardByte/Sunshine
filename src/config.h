@@ -71,6 +71,10 @@ namespace config {
       int vt_coder;
     } vt;
 
+    struct {
+      bool strict_rc_buffer;
+    } vaapi;
+
     std::string capture;
     std::string encoder;
     std::string adapter_name;

@@ -9,6 +9,7 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libavutil/pixdesc.h>
 #include <va/va.h>
 #include <va/va_drm.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
@@ -129,13 +130,173 @@ namespace va {
       return 0;
     }
 
+    /**
+     * @brief Finds a supported VA entrypoint for the given VA profile.
+     * @param profile The profile to match.
+     * @return A valid encoding entrypoint or 0 on failure.
+     */
+    VAEntrypoint
+    select_va_entrypoint(VAProfile profile) {
+      std::vector<VAEntrypoint> entrypoints(vaMaxNumEntrypoints(va_display));
+      int num_eps;
+      auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps);
+      if (status != VA_STATUS_SUCCESS) {
+        BOOST_LOG(error) << "Failed to query VA entrypoints: "sv << vaErrorStr(status);
+        return (VAEntrypoint) 0;
+      }
+      entrypoints.resize(num_eps);
+
+      // Sorted in order of descending preference
+      VAEntrypoint ep_preferences[] = {
+        VAEntrypointEncSliceLP,
+        VAEntrypointEncSlice,
+        VAEntrypointEncPicture
+      };
+      for (auto ep_pref : ep_preferences) {
+        if (std::find(entrypoints.begin(), entrypoints.end(), ep_pref) != entrypoints.end()) {
+          return ep_pref;
+        }
+      }
+
+      return (VAEntrypoint) 0;
+    }
+
+    /**
+     * @brief Determines if a given VA profile is supported.
+     * @param profile The profile to match.
+     * @return Boolean value indicating if the profile is supported.
+     */
+    bool
+    is_va_profile_supported(VAProfile profile) {
+      std::vector<VAProfile> profiles(vaMaxNumProfiles(va_display));
+      int num_profs;
+      auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs);
+      if (status != VA_STATUS_SUCCESS) {
+        BOOST_LOG(error) << "Failed to query VA profiles: "sv << vaErrorStr(status);
+        return false;
+      }
+      profiles.resize(num_profs);
+
+      return std::find(profiles.begin(), profiles.end(), profile) != profiles.end();
+    }
+
+    /**
+     * @brief Determines the matching VA profile for the codec configuration.
+     * @param ctx The FFmpeg codec context.
+     * @return The matching VA profile or `VAProfileNone` on failure.
+     */
+    VAProfile
+    get_va_profile(AVCodecContext *ctx) {
+      if (ctx->codec_id == AV_CODEC_ID_H264) {
+        // There's no VAAPI profile for H.264 4:4:4
+        return VAProfileH264High;
+      }
+      else if (ctx->codec_id == AV_CODEC_ID_HEVC) {
+        switch (ctx->profile) {
+          case FF_PROFILE_HEVC_REXT:
+            switch (av_pix_fmt_desc_get(ctx->sw_pix_fmt)->comp[0].depth) {
+              case 10:
+                return VAProfileHEVCMain444_10;
+              case 8:
+                return VAProfileHEVCMain444;
+            }
+            break;
+          case FF_PROFILE_HEVC_MAIN_10:
+            return VAProfileHEVCMain10;
+          case FF_PROFILE_HEVC_MAIN:
+            return VAProfileHEVCMain;
+        }
+      }
+      else if (ctx->codec_id == AV_CODEC_ID_AV1) {
+        switch (ctx->profile) {
+          case FF_PROFILE_AV1_HIGH:
+            return VAProfileAV1Profile1;
+          case FF_PROFILE_AV1_MAIN:
+            return VAProfileAV1Profile0;
+        }
+      }
+
+      BOOST_LOG(error) << "Unknown encoder profile: "sv << ctx->profile;
+      return VAProfileNone;
+    }
+
     void
-    init_codec_options(AVCodecContext *ctx, AVDictionary *options) override {
-      // Don't set the RC buffer size when using H.264 on Intel GPUs. It causes
-      // major encoding quality degradation.
+    init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
+      auto va_profile = get_va_profile(ctx);
+      if (va_profile == VAProfileNone || !is_va_profile_supported(va_profile)) {
+        // Don't bother doing anything if the profile isn't supported
+        return;
+      }
+
+      auto va_entrypoint = select_va_entrypoint(va_profile);
+      if (va_entrypoint == 0) {
+        // It's possible that only decoding is supported for this profile
+        return;
+      }
+
       auto vendor = vaQueryVendorString(va_display);
-      if (ctx->codec_id != AV_CODEC_ID_H264 || (vendor && !strstr(vendor, "Intel"))) {
+
+      if (va_entrypoint == VAEntrypointEncSliceLP) {
+        BOOST_LOG(info) << "Using LP encoding mode"sv;
+        av_dict_set_int(options, "low_power", 1, 0);
+      }
+      else {
+        BOOST_LOG(info) << "Using normal encoding mode"sv;
+      }
+
+      VAConfigAttrib rc_attr = { VAConfigAttribRateControl };
+      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
+      if (status != VA_STATUS_SUCCESS) {
+        // Stick to the default rate control (CQP)
+        rc_attr.value = 0;
+      }
+
+      VAConfigAttrib slice_attr = { VAConfigAttribEncMaxSlices };
+      status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &slice_attr, 1);
+      if (status != VA_STATUS_SUCCESS) {
+        // Assume only a single slice is supported
+        slice_attr.value = 1;
+      }
+      if (ctx->slices > slice_attr.value) {
+        BOOST_LOG(info) << "Limiting slice count to encoder maximum: "sv << slice_attr.value;
+        ctx->slices = slice_attr.value;
+      }
+
+      // Use VBR with a single frame VBV when the user forces it and for known good cases:
+      // - Intel GPUs
+      // - AV1
+      //
+      // VBR ensures the bitstream isn't full of filler data for bitrate undershoots and
+      // single frame VBV ensures that we don't have large bitrate overshoots (at least
+      // as much as they can be avoided without pre-analysis).
+      //
+      // When we have to resort to the default 1 second VBV for encoding quality reasons,
+      // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
+      // leave headroom available in the RC window.
+      if (config::video.vaapi.strict_rc_buffer ||
+          (vendor && strstr(vendor, "Intel")) ||
+          ctx->codec_id == AV_CODEC_ID_AV1) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+
+        if (rc_attr.value & VA_RC_VBR) {
+          BOOST_LOG(info) << "Using VBR with single frame VBV size"sv;
+          av_dict_set(options, "rc_mode", "VBR", 0);
+        }
+        else if (rc_attr.value & VA_RC_CBR) {
+          BOOST_LOG(info) << "Using CBR with single frame VBV size"sv;
+          av_dict_set(options, "rc_mode", "CBR", 0);
+        }
+        else {
+          BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
+          av_dict_set_int(options, "qp", config::video.qp, 0);
+        }
+      }
+      else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
+        BOOST_LOG(warning) << "Using CQP rate control"sv;
+        av_dict_set_int(options, "qp", config::video.qp, 0);
+      }
+      else {
+        BOOST_LOG(info) << "Using default rate control"sv;
       }
     }
 
