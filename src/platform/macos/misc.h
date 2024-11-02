@@ -8,6 +8,11 @@
 
 #include <CoreGraphics/CoreGraphics.h>
 
+namespace platf {
+  bool
+  is_screen_capture_allowed();
+}
+
 namespace dyn {
   typedef void (*apiproc)();
 

@@ -42,6 +42,16 @@ namespace platf {
   CGRequestScreenCaptureAccess(void) __attribute__((weak_import));
 #endif
 
+  namespace {
+    auto screen_capture_allowed = std::atomic<bool> { false };
+  }  // namespace
+
+  // Return whether screen capture is allowed for this process.
+  bool
+  is_screen_capture_allowed() {
+    return screen_capture_allowed;
+  }
+
   std::unique_ptr<deinit_t>
   init() {
     // This will generate a warning about CGPreflightScreenCaptureAccess and
@@ -68,6 +78,8 @@ namespace platf {
       return nullptr;
     }
 #pragma clang diagnostic pop
+    // Record that we determined that we have the screen capture permission.
+    screen_capture_allowed = true;
     return std::make_unique<deinit_t>();
   }
 

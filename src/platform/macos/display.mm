@@ -5,6 +5,7 @@
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
 #include "src/platform/macos/av_video.h"
+#include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 
 #include "src/config.h"
@@ -100,6 +101,13 @@ namespace platf {
 
     int
     dummy_img(img_t *img) override {
+      if (!platf::is_screen_capture_allowed()) {
+        // If we don't have the screen capture permission, this function will hang
+        // indefinitely without doing anything useful. Exit instead to avoid this.
+        // A non-zero return value indicates failure to the calling function.
+        return 1;
+      }
+
       auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
         auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
         auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
