@@ -20,13 +20,22 @@ if (process.env.SUNSHINE_BUILD_HOMEBREW) {
     console.log("Building for homebrew, using default paths")
 }
 else {
+    // If the paths supplied in the environment variables contain any symbolic links
+    // at any point in the series of directories, the entire build will fail with
+    // a cryptic error message like this:
+    //     RollupError: The "fileName" or "name" properties of emitted chunks and assets
+    //     must be strings that are neither absolute nor relative paths.
+    // To avoid this, we resolve the potential symlinks using `fs.realpathSync` before
+    // doing anything else with the paths.
     if (process.env.SUNSHINE_SOURCE_ASSETS_DIR) {
-        console.log("Using srcdir from Cmake: " + resolve(process.env.SUNSHINE_SOURCE_ASSETS_DIR,"common/assets/web"));
-        assetsSrcPath = resolve(process.env.SUNSHINE_SOURCE_ASSETS_DIR,"common/assets/web")
+        let path = resolve(fs.realpathSync(process.env.SUNSHINE_SOURCE_ASSETS_DIR), "common/assets/web");
+        console.log("Using srcdir from Cmake: " + path);
+        assetsSrcPath = path;
     }
     if (process.env.SUNSHINE_ASSETS_DIR) {
-        console.log("Using destdir from Cmake: " + resolve(process.env.SUNSHINE_ASSETS_DIR,"assets/web"));
-        assetsDstPath = resolve(process.env.SUNSHINE_ASSETS_DIR,"assets/web")
+        let path = resolve(fs.realpathSync(process.env.SUNSHINE_ASSETS_DIR), "assets/web");
+        console.log("Using destdir from Cmake: " + path);
+        assetsDstPath = path;
     }
 }
 
