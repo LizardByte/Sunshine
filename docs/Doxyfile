@@ -30,6 +30,7 @@ PROJECT_LOGO = ../sunshine.png
 PROJECT_NAME = Sunshine
 
 # project specific settings
+DOT_NUM_THREADS = 0
 DOT_GRAPH_MAX_NODES = 60
 IMAGE_PATH = ../docs/images
 INCLUDE_PATH = ../third-party/build-deps/dist/Linux-x86_64/include/
