@@ -389,7 +389,7 @@
     "troubleshooting": "Dépannage",
     "unpair_all": "Dissocier tous les appareils",
     "unpair_all_error": "Erreur lors de la dissociation",
-    "unpair_all_success": "Désappairage réussi !",
+    "unpair_all_success": "Désappairage réussi.",
     "unpair_desc": "Retirer vos appareils appariés. Les appareils individuellement non appariés avec une session active resteront connectés, mais ne peuvent pas démarrer ou reprendre une session.",
     "unpair_single_no_devices": "Il n'y a aucun appareil associé.",
     "unpair_single_success": "Cependant, le(s) appareil(s) peuvent toujours être dans une session active. Utilisez le bouton 'Forcer la fermeture' ci-dessus pour mettre fin à toute session ouverte.",
