@@ -193,6 +193,28 @@ jobs:
             exit 1
           fi
 
+      - name: Rust - find Cargo.toml
+        id: run_cargo
+        if: always()
+        run: |
+          # check if Cargo.toml exists
+          if [ -f "Cargo.toml" ]; then
+              echo "found_cargo=true" >> $GITHUB_OUTPUT
+          else
+              echo "found_cargo=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rust - setup toolchain
+        if: always() && steps.run_cargo.outputs.found_cargo == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Rust - cargo fmt
+        if: always() && steps.run_cargo.outputs.found_cargo == 'true'
+        run: |
+          cargo fmt -- --check
+
       - name: YAML - find files
         id: yaml_files
         if: always()
