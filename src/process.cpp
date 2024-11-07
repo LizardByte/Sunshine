@@ -93,7 +93,8 @@ namespace proc {
 
       // We always call terminate() even if we waited successfully for all processes above.
       // This ensures the process group state is consistent with the OS in boost.
-      group.terminate();
+      std::error_code ec;
+      group.terminate(ec);
       group.detach();
     }
 
