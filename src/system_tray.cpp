@@ -312,7 +312,7 @@ namespace system_tray {
   }
 
   void
-  update_tray_require_pin() {
+  update_tray_require_pin(std::string pin_name) {
     if (!tray_initialized) {
       return;
     }
@@ -324,10 +324,11 @@ namespace system_tray {
     tray.icon = TRAY_ICON;
     tray_update(&tray);
     tray.icon = TRAY_ICON;
-    tray.notification_title = "Incoming Pairing Request";
+    std::string title = "Incoming Pairing Request From: " + pin_name;
+    tray.notification_title = title.c_str();
     tray.notification_text = "Click here to complete the pairing process";
     tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = PROJECT_NAME;
+    tray.tooltip = pin_name.c_str();
     tray.notification_cb = []() {
       launch_ui_with_path("/pin");
     };

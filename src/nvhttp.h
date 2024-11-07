@@ -89,4 +89,6 @@ namespace nvhttp {
    */
   void
   erase_all_clients();
+
+  extern std::string last_pair_name;
 }  // namespace nvhttp

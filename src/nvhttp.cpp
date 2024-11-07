@@ -47,7 +47,7 @@ namespace nvhttp {
   namespace pt = boost::property_tree;
 
   crypto::cert_chain_t cert_chain;
-  std::string last_vdd_setting;
+  std::string last_pair_name;
 
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
@@ -629,8 +629,9 @@ namespace nvhttp {
           getservercert(ptr->second, tree, pin);
         }
         else {
+          last_pair_name = std::move(get_arg(args, "clientname"));
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-          system_tray::update_tray_require_pin();
+          system_tray::update_tray_require_pin(last_pair_name);
 #endif
           ptr->second.async_insert_pin.response = std::move(response);
 

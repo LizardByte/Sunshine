@@ -97,5 +97,5 @@ namespace system_tray {
    * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
    */
   void
-  update_tray_require_pin();
+  update_tray_require_pin(std::string pin_name);
 }  // namespace system_tray

@@ -572,6 +572,7 @@ namespace confighttp {
 
     outputTree.add_child("display_devices", devices_nodes);
     outputTree.add_child("adapters", adapters_nodes);
+    outputTree.put("clientName", nvhttp::last_pair_name);
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);

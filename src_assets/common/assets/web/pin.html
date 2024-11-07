@@ -13,7 +13,7 @@
       <div class="card flex-column d-flex p-4 mb-4">
         <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input"
           class="form-control mt-2" required />
-        <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4"
+        <input type="text" v-model="pairingDeviceName" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4"
           required />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
@@ -114,6 +114,7 @@
     },
     data() {
       return {
+        pairingDeviceName: '',
         unpairAllPressed: false,
         unpairAllStatus: null,
         showApplyMessage: false,
@@ -128,6 +129,7 @@
         .then((r) => r.json())
         .then((r) => {
           this.config = r
+          this.pairingDeviceName = r.clientName;
         })
       this.refreshClients();
     },
