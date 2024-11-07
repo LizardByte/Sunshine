@@ -588,10 +588,6 @@ namespace rtsp_stream {
           i++;
         }
       }
-
-      if (all && !ios.stopped()) {
-        ios.stop();
-      }
     }
 
     /**
