@@ -276,6 +276,16 @@ namespace proc {
 
   int
   proc_t::running() {
+#ifndef _WIN32
+    // On POSIX OSes, we must periodically wait for our children to avoid
+    // them becoming zombies. This must be synchronized carefully with
+    // calls to bp::wait() and platf::process_group_running() which both
+    // invoke waitpid() under the hood.
+    auto reaper = util::fail_guard([]() {
+      while (waitpid(-1, nullptr, WNOHANG) > 0);
+    });
+#endif
+
     if (placebo) {
       return _app_id;
     }
