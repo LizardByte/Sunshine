@@ -54,6 +54,7 @@
     "env_client_hdr": "HDR is enabled by the client (true/false)",
     "env_client_height": "The Height requested by the client (int)",
     "env_client_host_audio": "The client has requested host audio (true/false)",
+    "env_client_name": "Client friendly name (string)",
     "env_client_width": "The Width requested by the client (int)",
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
     "env_qres_example": "Example - QRes for Resolution Automation:",

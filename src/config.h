@@ -125,6 +125,8 @@ namespace config {
     std::string cert;
 
     std::string sunshine_name;
+    
+    std::string clients;
 
     std::string file_state;
 

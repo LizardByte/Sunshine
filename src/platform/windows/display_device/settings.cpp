@@ -1,6 +1,14 @@
 // standard includes
+#include <codecvt>
 #include <fstream>
 #include <thread>
+#include <iostream>
+#include <windows.h>
+#include <icm.h>
+
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 
 // local includes
 #include "settings_topology.h"
@@ -12,6 +20,8 @@
 #include "windows_utils.h"
 
 namespace display_device {
+
+  namespace pt = boost::property_tree;
 
   struct settings_t::persistent_data_t {
     topology_pair_t topology; /**< Contains topology before the modification and the one we modified. */
@@ -555,6 +565,48 @@ namespace display_device {
   settings_t::settings_t() = default;
 
   settings_t::~settings_t() = default;
+
+  bool
+  apply_hdr_profile(const std::string &client_name) {
+    pt::ptree clientArray;
+    std::stringstream ss(config::nvhttp.clients);
+    read_json(ss, clientArray);
+
+    std::string profile_name;
+    for (const auto &client : clientArray) {
+      if (client.second.get<std::string>("name") == client_name) {
+        profile_name = client.second.get<std::string>("hdrProfile");
+        break;
+      }
+    }
+
+    auto display_data { w_utils::query_display_config(w_utils::ACTIVE_ONLY_DEVICES) };
+    if (!display_data) return false;
+
+    const auto path { w_utils::get_active_path(config::video.output_name, display_data->paths) };
+    if (!path) return false;
+
+    std::wstring_convert<std::codecvt_utf8<wchar_t>> converter;
+    std::wstring wsProfileName = converter.from_bytes(profile_name);
+
+    HRESULT hr;
+    WCS_PROFILE_MANAGEMENT_SCOPE scope = WCS_PROFILE_MANAGEMENT_SCOPE_CURRENT_USER;
+    PCWSTR profileName = wsProfileName.c_str();
+    LUID targetAdapterID = path->targetInfo.adapterId;
+    UINT32 sourceID = 0;
+    BOOL setAsDefault = TRUE;
+    BOOL associateAsAdvancedColor = TRUE;
+
+    hr = ColorProfileAddDisplayAssociation(scope, profileName, targetAdapterID, sourceID, setAsDefault, associateAsAdvancedColor);
+    if (hr == S_OK) {
+      wprintf(L"色彩配置文件与显示设备关联成功。\n");
+    }
+    else {
+      wprintf(L"关联失败，错误码: 0x%x\n", hr);
+      BOOST_LOG(error) << "Fail to apply hdr profile: ";
+    }
+    return 0;
+  }
 
   bool
   settings_t::is_changing_settings_going_to_fail() const {

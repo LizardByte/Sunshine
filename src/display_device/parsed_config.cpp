@@ -4,11 +4,11 @@
 #include <cmath>
 
 // local includes
-#include "src/globals.h"
 #include "display_device.h"
 #include "parsed_config.h"
 #include "session.h"
 #include "src/config.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/rtsp.h"
 #include "to_string.h"

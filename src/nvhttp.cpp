@@ -350,6 +350,7 @@ namespace nvhttp {
       x++;
     }
     launch_session->unique_id = (get_arg(args, "uniqueid", "unknown"));
+    launch_session->client_name = util::from_view(get_arg(args, "clientname", "unknown"));
     launch_session->appid = util::from_view(get_arg(args, "appid", "unknown"));
     launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));
     launch_session->surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
@@ -381,6 +382,7 @@ namespace nvhttp {
 
     launch_session->env["SUNSHINE_CLIENT_ID"] = std::to_string(launch_session->id);
     launch_session->env["SUNSHINE_CLIENT_UNIQUE_ID"] = launch_session->unique_id;
+    launch_session->env["SUNSHINE_CLIENT_NAME"] = launch_session->client_name;
     launch_session->env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
     launch_session->env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
     launch_session->env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);

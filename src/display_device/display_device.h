@@ -310,4 +310,13 @@ namespace display_device {
   bool
   set_topology(const active_topology_t &new_topology);
 
+  /**
+   * @brief Apply the HDR profile to the specified client.
+   * @param client_name Name of the client to apply the HDR profile to.
+   * @returns True if the HDR profile has been applied, false otherwise.
+   *
+   */
+  bool
+  apply_hdr_profile(const std::string &client_name);
+
 }  // namespace display_device

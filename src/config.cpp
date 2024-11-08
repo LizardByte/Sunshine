@@ -354,7 +354,7 @@ namespace config {
     true,  // nv_realtime_hags
     true,  // nv_opengl_vulkan_on_dxgi
     true,  // nv_sunshine_high_power_mode
-    false, // preferUseVdd
+    false,  // preferUseVdd
     {},  // nv_legacy
 
     {
@@ -424,6 +424,7 @@ namespace config {
     CERTIFICATE_FILE,
 
     boost::asio::ip::host_name(),  // sunshine_name,
+    "[]",
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
     {
@@ -1105,6 +1106,7 @@ namespace config {
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
+    string_f(vars, "clients", nvhttp.clients);
     path_f(vars, "log_path", config::sunshine.log_file);
     path_f(vars, "file_state", nvhttp.file_state);
 

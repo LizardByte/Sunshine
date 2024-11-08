@@ -27,6 +27,7 @@ namespace rtsp_stream {
 
     bool host_audio;
     std::string unique_id;
+    std::string client_name;
     int width;
     int height;
     int fps;

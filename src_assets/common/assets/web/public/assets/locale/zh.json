@@ -54,6 +54,7 @@
     "env_client_hdr": "HDR 已被客户端启用 (true/false)",
     "env_client_height": "客户端请求的分辨率的高度 (int)",
     "env_client_host_audio": "客户端请求在主机播放声音 (true/false)",
+    "env_client_name": "客户端个性名称 (string)",
     "env_client_width": "客户端请求的分辨率的宽度 (int)",
     "env_displayplacer_example": "示例 - 使用 displayplacer 自动更改分辨率：",
     "env_qres_example": "示例 - 使用 QRes 自动更改分辨率：",

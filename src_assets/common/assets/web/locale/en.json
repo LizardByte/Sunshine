@@ -63,6 +63,7 @@
     "env_var_name": "Var Name",
     "env_app_id": "App ID",
     "env_app_name": "App Name",
+    "env_client_name": "Client friendly name (string)",
     "env_client_width": "The Width requested by the client (int)",
     "env_client_height": "The Height requested by the client (int)",
     "env_client_fps": "The FPS requested by the client (int)",
