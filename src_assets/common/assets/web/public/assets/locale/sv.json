@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "Om inaktiverad, kommer närvaro av pekplatta inte att beaktas under val av speltyp.",
     "upnp": "UPPNP",
     "upnp_desc": "Konfigurera portvidarebefordran automatiskt för streaming över Internet",
+    "vaapi_strict_rc_buffer": "Strikt genomdriva rambitrate gränser för H.264/HEVC på AMD GPU",
+    "vaapi_strict_rc_buffer_desc": "Om du aktiverar det här alternativet kan du undvika tappade ramar över nätverket under scenändringar, men videokvaliteten kan minskas under rörelse.",
     "virtual_sink": "Virtuell sink",
     "virtual_sink_desc": "Ange manuellt en virtuell ljudenhet som ska användas. Om enheten inte är inställd väljs enheten automatiskt. Vi rekommenderar starkt att lämna detta fält tomt för att använda automatiskt val av enhet!",
     "virtual_sink_placeholder": "Steam-strömmande högtalare",
