@@ -23,6 +23,7 @@
 #include "src/platform/common.h"
 
 #include <boost/asio/ip/address.hpp>
+#include <boost/asio/ip/host_name.hpp>
 #include <boost/process/v1.hpp>
 
 using namespace std::literals;
@@ -536,6 +537,17 @@ namespace platf {
     }
 
     return std::make_unique<qos_t>(sockfd, reset_options);
+  }
+
+  std::string
+  get_host_name() {
+    try {
+      return boost::asio::ip::host_name();
+    }
+    catch (boost::system::system_error &err) {
+      BOOST_LOG(error) << "Failed to get hostname: "sv << err.what();
+      return "Sunshine"s;
+    }
   }
 
   class macos_high_precision_timer: public high_precision_timer {
