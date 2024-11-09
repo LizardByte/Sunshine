@@ -56,10 +56,10 @@
           <div class="alert alert-warning">
             <div class="d-flex justify-content-between">
               <div class="my-2">{{ $t('index.new_stable') }}</div>
-              <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
+              <a class="btn btn-success m-1" :href="`https://github.moeyy.xyz/${githubVersion.release.html_url}`" target="_blank">{{ $t('index.download') }}</a>
             </div>
             <h3>{{githubVersion.release.name}}</h3>
-            <pre>{{githubVersion.release.body}}</pre>
+            <pre v-html="githubVersion.release.body"></pre>
           </div>
         </div>
       </div>

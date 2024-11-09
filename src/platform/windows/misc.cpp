@@ -1846,6 +1846,16 @@ namespace platf {
     return output;
   }
 
+  std::string
+  get_host_name() {
+    WCHAR hostname[256];
+    if (GetHostNameW(hostname, ARRAYSIZE(hostname)) == SOCKET_ERROR) {
+      BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
+      return "Sunshine"s;
+    }
+    return to_utf8(hostname);
+  }
+
   class win32_high_precision_timer: public high_precision_timer {
   public:
     win32_high_precision_timer() {

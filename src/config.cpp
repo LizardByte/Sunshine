@@ -423,7 +423,7 @@ namespace config {
     PRIVATE_KEY_FILE,
     CERTIFICATE_FILE,
 
-    boost::asio::ip::host_name(),  // sunshine_name,
+    platf::get_host_name(),  // sunshine_name,
     "[]",
     "sunshine_state.json"s,  // file_state
     {},  // external_ip

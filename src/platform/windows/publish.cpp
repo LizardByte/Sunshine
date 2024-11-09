@@ -9,8 +9,6 @@
 #include <windns.h>
 #include <winerror.h>
 
-#include <boost/asio/ip/host_name.hpp>
-
 #include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
@@ -108,7 +106,7 @@ namespace platf::publish {
 
     std::wstring domain { SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size() };
 
-    auto hostname = boost::asio::ip::host_name();
+    auto hostname = platf::get_host_name();
     auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
     auto host = from_utf8(hostname + ".local");
 
