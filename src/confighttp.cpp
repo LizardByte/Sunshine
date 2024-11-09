@@ -58,6 +58,10 @@ namespace confighttp {
     REMOVE  ///< Remove client
   };
 
+  /**
+   * @brief Log the request details.
+   * @param request The HTTP request object.
+   */
   void
   print_req(const req_https_t &request) {
     BOOST_LOG(debug) << "METHOD :: "sv << request->method;
@@ -76,6 +80,11 @@ namespace confighttp {
     BOOST_LOG(debug) << " [--] "sv;
   }
 
+  /**
+   * @brief Send a 401 Unauthorized response.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   send_unauthorized(resp_https_t response, req_https_t request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
@@ -86,6 +95,12 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::client_error_unauthorized, headers);
   }
 
+  /**
+   * @brief Send a redirect response.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param path The path to redirect to.
+   */
   void
   send_redirect(resp_https_t response, req_https_t request, const char *path) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
@@ -96,6 +111,12 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
 
+  /**
+   * @brief Authenticate the user.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @return True if the user is authenticated, false otherwise.
+   */
   bool
   authenticate(resp_https_t response, req_https_t request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
@@ -142,21 +163,78 @@ namespace confighttp {
     return true;
   }
 
+  /**
+   * @brief Send a 404 Not Found response.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
-  not_found(resp_https_t response, req_https_t request) {
+  not_found(resp_https_t response, [[maybe_unused]] req_https_t request) {
+    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
+
     pt::ptree tree;
-    tree.put("root.<xmlattr>.status_code", 404);
+    tree.put("status_code", static_cast<int>(code));
+    tree.put("error", "Not Found");
 
     std::ostringstream data;
+    pt::write_json(data, tree);
 
-    pt::write_xml(data, tree);
-    response->write(data.str());
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
 
-    *response << "HTTP/1.1 404 NOT FOUND\r\n"
-              << data.str();
+    response->write(SimpleWeb::StatusCode::client_error_not_found, data.str(), headers);
   }
 
   /**
+   * @brief Send a 400 Bad Request response.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void
+  bad_request_default(resp_https_t response, [[maybe_unused]] req_https_t request) {
+    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
+
+    pt::ptree tree;
+    tree.put("status_code", static_cast<int>(code));
+    tree.put("error", "Invalid Request");
+
+    std::ostringstream data;
+    pt::write_json(data, tree);
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, data.str(), headers);
+  }
+
+  /**
+   * @brief Send a 400 Bad Request response.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param error_message The error message to include in the response.
+   */
+  void
+  bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message) {
+    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
+
+    pt::ptree tree;
+    tree.put("status_code", static_cast<int>(code));
+    tree.put("status", false);
+    tree.put("error", error_message);
+
+    std::ostringstream data;
+    pt::write_json(data, tree);
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+
+    response->write(SimpleWeb::StatusCode::client_error_bad_request, data.str(), headers);
+  }
+
+  /**
+   * @brief Get the index page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
    * @todo combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
    */
   void
@@ -171,6 +249,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the PIN page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getPinPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -183,6 +266,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the apps page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getAppsPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -196,6 +284,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the clients page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getClientsPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -208,6 +301,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the configuration page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getConfigPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -220,6 +318,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the password page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getPasswordPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -232,6 +335,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the welcome page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getWelcomePage(resp_https_t response, req_https_t request) {
     print_req(request);
@@ -245,6 +353,11 @@ namespace confighttp {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Get the troubleshooting page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getTroubleshootingPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
@@ -258,6 +371,9 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the favicon image.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
    * @todo combine function with getSunshineLogoImage and possibly getNodeModules
    * @todo use mime_types map
    */
@@ -272,6 +388,9 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the Sunshine logo image.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
    * @todo combine function with getFaviconImage and possibly getNodeModules
    * @todo use mime_types map
    */
@@ -285,12 +404,23 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
+  /**
+   * @brief Check if a path is a child of another path.
+   * @param base The base path.
+   * @param query The path to check.
+   * @return True if the path is a child of the base path, false otherwise.
+   */
   bool
   isChildPath(fs::path const &base, fs::path const &query) {
     auto relPath = fs::relative(base, query);
     return *(relPath.begin()) != fs::path("..");
   }
 
+  /**
+   * @brief Get an asset from the node_modules directory.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
   void
   getNodeModules(resp_https_t response, req_https_t request) {
     print_req(request);
@@ -329,6 +459,8 @@ namespace confighttp {
    * @brief Get the list of available applications.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/apps| GET| null}
    */
   void
   getApps(resp_https_t response, req_https_t request) {
@@ -346,6 +478,8 @@ namespace confighttp {
    * @brief Get the logs from the log file.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/logs| GET| null}
    */
   void
   getLogs(resp_https_t response, req_https_t request) {
@@ -360,7 +494,7 @@ namespace confighttp {
   }
 
   /**
-   * @brief Save an application. If the application already exists, it will be updated, otherwise it will be added.
+   * @brief Save an application. To save a new application the index must be `-1`. To update an existing application, you must provide the current index of the application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * The body for the post request should be JSON serialized in the following format:
@@ -385,9 +519,11 @@ namespace confighttp {
    *   "detached": [
    *     "Detached command"
    *   ],
-   *   "image-path": "Full path to the application image. Must be a png file.",
+   *   "image-path": "Full path to the application image. Must be a png file."
    * }
    * @endcode
+   *
+   * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
    */
   void
   saveApp(resp_https_t response, req_https_t request) {
@@ -467,9 +603,7 @@ namespace confighttp {
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveApp: "sv << e.what();
-
-      outputTree.put("status", "false");
-      outputTree.put("error", "Invalid Input JSON");
+      bad_request(response, request, e.what());
       return;
     }
 
@@ -481,12 +615,16 @@ namespace confighttp {
    * @brief Delete an application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/apps/9999| DELETE| null}
    */
   void
   deleteApp(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
 
     print_req(request);
+
+    int index;
 
     pt::ptree outputTree;
     auto g = util::fail_guard([&]() {
@@ -499,35 +637,34 @@ namespace confighttp {
     try {
       pt::read_json(config::stream.file_apps, fileTree);
       auto &apps_node = fileTree.get_child("apps"s);
-      int index = stoi(request->path_match[1]);
+      index = stoi(request->path_match[1]);
 
-      if (index < 0) {
-        outputTree.put("status", "false");
-        outputTree.put("error", "Invalid Index");
+      if (std::clamp(index, 0, static_cast<int>(apps_node.size()) - 1) != index) {
+        bad_request(response, request, "index out of range, max index is "s + std::to_string(apps_node.size() - 1));
         return;
       }
-      else {
-        // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
-        pt::ptree newApps;
-        int i = 0;
-        for (const auto &[k, v] : apps_node) {
-          if (i++ != index) {
-            newApps.push_back(std::make_pair("", v));
-          }
+
+      // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
+      pt::ptree newApps;
+      int i = 0;
+      for (const auto &[k, v] : apps_node) {
+        if (i++ != index) {
+          newApps.push_back(std::make_pair("", v));
         }
-        fileTree.erase("apps");
-        fileTree.push_back(std::make_pair("apps", newApps));
       }
+      fileTree.erase("apps");
+      fileTree.push_back(std::make_pair("apps", newApps));
+
       pt::write_json(config::stream.file_apps, fileTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
-      outputTree.put("status", "false");
-      outputTree.put("error", "Invalid File JSON");
+      bad_request(response, request, e.what());
       return;
     }
 
-    outputTree.put("status", "true");
+    outputTree.put("status", true);
+    outputTree.put("result", "application "s + std::to_string(index) + " deleted");
     proc::refresh(config::stream.file_apps);
   }
 
@@ -539,9 +676,11 @@ namespace confighttp {
    * @code{.json}
    * {
    *   "key": "igdb_<game_id>",
-   *   "url": "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/<slug>.png",
+   *   "url": "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/<slug>.png"
    * }
    * @endcode
+   *
+   * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
   void
   uploadCover(resp_https_t response, req_https_t request) {
@@ -568,8 +707,7 @@ namespace confighttp {
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "UploadCover: "sv << e.what();
-      outputTree.put("status", "false");
-      outputTree.put("error", e.what());
+      bad_request(response, request, e.what());
       return;
     }
 
@@ -607,6 +745,8 @@ namespace confighttp {
    * @brief Get the configuration settings.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/config| GET| null}
    */
   void
   getConfig(resp_https_t response, req_https_t request) {
@@ -637,6 +777,8 @@ namespace confighttp {
    * @brief Get the locale setting. This endpoint does not require authentication.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/configLocale| GET| null}
    */
   void
   getLocale(resp_https_t response, req_https_t request) {
@@ -668,6 +810,8 @@ namespace confighttp {
    * @endcode
    *
    * @attention{It is recommended to ONLY save the config settings that differ from the default behavior.}
+   *
+   * @api_examples{/api/config| POST| {"key":"value"}}
    */
   void
   saveConfig(resp_https_t response, req_https_t request) {
@@ -699,9 +843,7 @@ namespace confighttp {
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
-      outputTree.put("status", "false");
-      outputTree.put("error", e.what());
-      return;
+      bad_request(response, request, e.what());
     }
   }
 
@@ -709,6 +851,8 @@ namespace confighttp {
    * @brief Restart Sunshine.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/restart| POST| null}
    */
   void
   restart(resp_https_t response, req_https_t request) {
@@ -721,19 +865,11 @@ namespace confighttp {
   }
 
   /**
-   * @brief Update existing credentials.
+   * @brief Reset the display device persistence.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * The body for the post request should be JSON serialized in the following format:
-   * @code{.json}
-   * {
-   *   "currentUsername": "Current Username",
-   *   "currentPassword": "Current Password",
-   *   "newUsername": "New Username",
-   *   "newPassword": "New Password",
-   *   "confirmNewPassword": "Confirm New Password"
-   * }
-   * @endcode
+   *
+   * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void
   resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
@@ -751,12 +887,30 @@ namespace confighttp {
     outputTree.put("status", display_device::reset_persistence());
   }
 
+  /**
+   * @brief Update existing credentials.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the post request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *   "currentUsername": "Current Username",
+   *   "currentPassword": "Current Password",
+   *   "newUsername": "New Username",
+   *   "newPassword": "New Password",
+   *   "confirmNewPassword": "Confirm New Password"
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
+   */
   void
   savePassword(resp_https_t response, req_https_t request) {
     if (!config::sunshine.username.empty() && !authenticate(response, request)) return;
 
     print_req(request);
 
+    std::vector<std::string> errors = {};
     std::stringstream ss;
     std::stringstream configStream;
     ss << request->content.rdbuf();
@@ -779,15 +933,13 @@ namespace confighttp {
       auto confirmPassword = inputTree.count("confirmNewPassword") > 0 ? inputTree.get<std::string>("confirmNewPassword") : "";
       if (newUsername.length() == 0) newUsername = username;
       if (newUsername.length() == 0) {
-        outputTree.put("status", false);
-        outputTree.put("error", "Invalid Username");
+        errors.emplace_back("Invalid Username");
       }
       else {
         auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
         if (config::sunshine.username.empty() || (boost::iequals(username, config::sunshine.username) && hash == config::sunshine.password)) {
           if (newPassword.empty() || newPassword != confirmPassword) {
-            outputTree.put("status", false);
-            outputTree.put("error", "Password Mismatch");
+            errors.emplace_back("Password Mismatch");
           }
           else {
             http::save_user_creds(config::sunshine.credentials_file, newUsername, newPassword);
@@ -796,16 +948,22 @@ namespace confighttp {
           }
         }
         else {
-          outputTree.put("status", false);
-          outputTree.put("error", "Invalid Current Credentials");
+          errors.emplace_back("Invalid Current Credentials");
         }
+      }
+
+      if (!errors.empty()) {
+        // join the errors array
+        std::string error = std::accumulate(errors.begin(), errors.end(), std::string(),
+          [](const std::string &a, const std::string &b) {
+            return a.empty() ? b : a + ", " + b;
+          });
+        bad_request(response, request, error);
       }
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePassword: "sv << e.what();
-      outputTree.put("status", false);
-      outputTree.put("error", e.what());
-      return;
+      bad_request(response, request, e.what());
     }
   }
 
@@ -820,6 +978,8 @@ namespace confighttp {
    *   "name": "Friendly Client Name"
    * }
    * @endcode
+   *
+   * @api_examples{/api/pin| POST| {"pin":"1234","name":"My PC"}}
    */
   void
   savePin(resp_https_t response, req_https_t request) {
@@ -847,9 +1007,7 @@ namespace confighttp {
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
-      outputTree.put("status", false);
-      outputTree.put("error", e.what());
-      return;
+      bad_request(response, request, e.what());
     }
   }
 
@@ -857,6 +1015,8 @@ namespace confighttp {
    * @brief Unpair all clients.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void
   unpairAll(resp_https_t response, req_https_t request) {
@@ -886,6 +1046,8 @@ namespace confighttp {
    *  "uuid": "<uuid>"
    * }
    * @endcode
+   *
+   * @api_examples{/api/unpair| POST| {"uuid":"1234"}}
    */
   void
   unpair(resp_https_t response, req_https_t request) {
@@ -912,9 +1074,7 @@ namespace confighttp {
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "Unpair: "sv << e.what();
-      outputTree.put("status", false);
-      outputTree.put("error", e.what());
-      return;
+      bad_request(response, request, e.what());
     }
   }
 
@@ -922,6 +1082,8 @@ namespace confighttp {
    * @brief Get the list of paired clients.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/clients/list| GET| null}
    */
   void
   listClients(resp_https_t response, req_https_t request) {
@@ -949,6 +1111,8 @@ namespace confighttp {
    * @brief Close the currently running application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   *
+   * @api_examples{/api/apps/close| POST| null}
    */
   void
   closeApp(resp_https_t response, req_https_t request) {
@@ -976,7 +1140,11 @@ namespace confighttp {
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
+    server.default_resource["DELETE"] = bad_request_default;
     server.default_resource["GET"] = not_found;
+    server.default_resource["PATCH"] = bad_request_default;
+    server.default_resource["POST"] = bad_request_default;
+    server.default_resource["PUT"] = bad_request_default;
     server.resource["^/$"]["GET"] = getIndexPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
