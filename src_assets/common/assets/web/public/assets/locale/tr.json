@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "Devre dışı bırakılırsa, oyun kumandası türü seçimi sırasında dokunmatik yüzey varlığı dikkate alınmaz.",
     "upnp": "UPnP",
     "upnp_desc": "İnternet üzerinden akış için port yönlendirmeyi otomatik olarak yapılandırın",
+    "vaapi_strict_rc_buffer": "AMD GPU'larda H.264/HEVC için kare bit hızı sınırlarını kesin olarak uygulayın",
+    "vaapi_strict_rc_buffer_desc": "Bu seçeneğin etkinleştirilmesi, sahne değişiklikleri sırasında ağ üzerinden karelerin düşmesini önleyebilir, ancak hareket sırasında video kalitesi düşebilir.",
     "virtual_sink": "Sanal Lavabo",
     "virtual_sink_desc": "Kullanılacak sanal ses cihazını manuel olarak belirleyin. Ayarlanmamışsa, cihaz otomatik olarak seçilir. Otomatik cihaz seçimini kullanmak için bu alanı boş bırakmanızı şiddetle tavsiye ederiz!",
     "virtual_sink_placeholder": "Steam Akış Hoparlörleri",

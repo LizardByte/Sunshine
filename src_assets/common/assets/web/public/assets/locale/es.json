@@ -310,6 +310,8 @@
     "touchpad_as_ds4_desc": "Si está desactivado, la presencia del touchpad no se tendrá en cuenta durante la selección del tipo gamepad.",
     "upnp": "UPnP",
     "upnp_desc": "Configurar automáticamente el reenvío de puertos para transmitir a través de Internet",
+    "vaapi_strict_rc_buffer": "Aplicar estrictamente límites de bitrate de fotogramas para H.264/HEVC en AMD GPUs",
+    "vaapi_strict_rc_buffer_desc": "Activar esta opción puede evitar fotogramas soltados en la red durante los cambios de escena, pero la calidad del vídeo puede reducirse durante el movimiento.",
     "virtual_sink": "Enlace virtual",
     "virtual_sink_desc": "Especifique manualmente un dispositivo de audio virtual a utilizar. Si no está activado, el dispositivo se elige automáticamente. ¡Recomendamos encarecidamente dejar este campo en blanco para usar la selección automática de dispositivos!",
     "virtual_sink_placeholder": "Altavoces de Steam Streaming",
