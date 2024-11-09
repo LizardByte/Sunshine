@@ -859,6 +859,13 @@ namespace platf {
   init();
 
   /**
+   * @brief Returns the current computer name in UTF-8.
+   * @return Computer name or a placeholder upon failure.
+   */
+  std::string
+  get_host_name();
+
+  /**
    * @brief Gets the supported gamepads for this platform backend.
    * @details This may be called prior to `platf::input()`!
    * @param input Pointer to the platform's `input_t` or `nullptr`.

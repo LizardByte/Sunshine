@@ -4,6 +4,8 @@
  */
 #include <src/platform/common.h>
 
+#include <boost/asio/ip/host_name.hpp>
+
 #include "../../tests_common.h"
 
 struct SetEnvTest: ::testing::TestWithParam<std::tuple<std::string, std::string, int>> {
@@ -47,3 +49,8 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple("SUNSHINE_UNIT_TEST_ENV_VAR", "test_value_0", 0),
     std::make_tuple("SUNSHINE_UNIT_TEST_ENV_VAR", "test_value_1", 0),
     std::make_tuple("", "test_value", -1)));
+
+TEST(HostnameTests, TestAsioEquality) {
+  // These should be equivalent on all platforms for ASCII hostnames
+  ASSERT_EQ(platf::get_host_name(), boost::asio::ip::host_name());
+}
