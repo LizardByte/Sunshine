@@ -555,6 +555,10 @@ namespace display_device {
       display_device::session_t::get().prepare_vdd(parsed_config, session);
     }
 
+    if (session.enable_hdr) {
+      display_device::apply_hdr_profile(session.client_name);
+    }
+
     BOOST_LOG(debug) << "Parsed display device config:\n"
                      << "device_id: " << parsed_config.device_id << "\n"
                      << "device_prep: " << static_cast<int>(parsed_config.device_prep) << "\n"

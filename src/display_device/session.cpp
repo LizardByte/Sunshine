@@ -342,10 +342,6 @@ namespace display_device {
       config.device_id = device_zako;
       config::video.output_name = device_zako;
 
-      if (session.enable_hdr) {
-        display_device::apply_hdr_profile(session.client_name);
-      }
-
       // 解决热切换可能造成的HDR映射异常
       if (should_reset_zako_hdr && session.enable_hdr) {
         std::thread { [this, device_zako]() {

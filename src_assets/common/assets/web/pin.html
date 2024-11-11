@@ -74,7 +74,7 @@
               <thead>
                 <tr>
                   <th scope="col" width="25%">Name</th>
-                  <th scope="col">DPI</th>
+                  <!-- <th scope="col">DPI</th> -->
                   <th scope="col">HDR Profile</th>
                   <th scope="col" width="25%">Actions</th>
                 </tr>
@@ -97,7 +97,7 @@
                     <label :for="'client-hdrReq' + i" class="form-check-label"></label>
                   </div>
                 </td> -->
-                  <td>
+                  <!-- <td>
                     <input
                       type="text"
                       class="form-control monospace"
@@ -106,7 +106,7 @@
                       v-model="client.dpi"
                       :disabled="saved"
                     />
-                  </td>
+                  </td> -->
                   <td>
                     <select class="form-select" v-model="client.hdrProfile" :disabled="saved">
                       <option v-for="item in hdrProfileList" :value="item">{{ item }}</option>
@@ -170,7 +170,7 @@
       mounted() {
         this.initPinForm()
         electron?.getIccFileList((files = []) => {
-          this.hdrProfileList = files.map((file) => /.icc$/.test(file))
+          this.hdrProfileList = files.filter((file) => /.icc$/.test(file))
         })
       },
       beforeDestroy() {},

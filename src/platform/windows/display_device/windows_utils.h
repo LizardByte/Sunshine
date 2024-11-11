@@ -174,6 +174,9 @@ namespace display_device::w_utils {
   std::string
   get_device_id(const DISPLAYCONFIG_PATH_INFO &path);
 
+  std::string
+  get_device_driver_path(const DISPLAYCONFIG_PATH_INFO &path);
+
   /**
    * @brief Get a string that represents a path from the adapter to the display target.
    * @param path Path to get the string for.

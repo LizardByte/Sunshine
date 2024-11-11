@@ -1,11 +1,23 @@
 // lib includes
+#include <boost/process.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/xml_parser.hpp>
 #include <boost/variant.hpp>
+#include <codecvt>
+#include <icm.h>
+#include <iostream>
+#include <windows.h>
 
 // local includes
 #include "src/logging.h"
+#include "src/platform/common.h"
+#include "src/platform/windows/misc.h"
 #include "windows_utils.h"
 
 namespace display_device {
+
+  namespace pt = boost::property_tree;
 
   namespace {
 
@@ -492,6 +504,55 @@ namespace display_device {
 
       // Revert back to the original topology
       do_set_topology(current_topology);  // Return value does not matter
+    }
+
+    return false;
+  }
+
+  bool
+  apply_hdr_profile(const std::string &client_name) {
+    pt::ptree clientArray;
+    std::stringstream ss(config::nvhttp.clients);
+    read_json(ss, clientArray);
+
+    std::string profile_name;
+    for (const auto &client : clientArray) {
+      if (client.second.get<std::string>("name") == client_name) {
+        profile_name = client.second.get<std::string>("hdrProfile");
+        break;
+      }
+    }
+
+    if (profile_name.empty()) return false;
+
+    auto display_data { w_utils::query_display_config(w_utils::ACTIVE_ONLY_DEVICES) };
+
+    if (!display_data) return false;
+
+    auto dev_path { w_utils::get_active_path(config::video.output_name, display_data->paths) };
+    if (!dev_path) return false;
+
+    std::string driver_path { w_utils::get_device_driver_path(*dev_path) };
+    BOOST_LOG(info) << "Display Driver path: " << driver_path;
+
+    if (driver_path.empty()) return false;
+
+    BOOST_LOG(info) << "Applying hdr profile: " << profile_name << " for " << client_name;
+
+    // set hdr profile to registry
+    boost::process::environment _env = boost::this_process::environment();
+    auto working_dir = boost::filesystem::path();
+
+    std::error_code ec;
+    std::string cmd = "C:\\PROGRA~1\\Sunshine\\tools\\setreg.exe -registryPath \"HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ICM\\ProfileAssociations\\Display\\" + driver_path + "\" -valueName \"ICMProfileAC\" -valueData \"" + profile_name + "\"";
+
+    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+    if (ec) {
+      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+    }
+    else {
+      BOOST_LOG(info) << "Executing Set RegistryValue cmd ["sv << cmd << "]"sv;
+      child.detach();
     }
 
     return false;

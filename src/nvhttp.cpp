@@ -350,7 +350,7 @@ namespace nvhttp {
       x++;
     }
     launch_session->unique_id = (get_arg(args, "uniqueid", "unknown"));
-    launch_session->client_name = util::from_view(get_arg(args, "clientname", "unknown"));
+    launch_session->client_name = (get_arg(args, "clientname", "unknown"));
     launch_session->appid = util::from_view(get_arg(args, "appid", "unknown"));
     launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));
     launch_session->surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
@@ -631,7 +631,7 @@ namespace nvhttp {
           getservercert(ptr->second, tree, pin);
         }
         else {
-          last_pair_name = std::move(get_arg(args, "clientname"));
+          last_pair_name = std::move(get_arg(args, "clientname", "Named Zako"));
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_require_pin(last_pair_name);
 #endif

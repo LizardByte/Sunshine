@@ -144,6 +144,22 @@ namespace display_device::w_utils {
       return !edid.empty();
     }
 
+    std::string
+    get_driver_key(HDEVINFO dev_info_handle, SP_DEVINFO_DATA &dev_info_data) {
+      DWORD dataType;
+      BYTE buffer[256];
+      DWORD bufferSize = sizeof(buffer);
+      if (SetupDiGetDeviceRegistryPropertyW(dev_info_handle, &dev_info_data, SPDRP_DRIVER, &dataType, buffer, bufferSize, NULL)) {
+        if (dataType == REG_SZ) {
+          // Get the driver key from the device registry. Known that the driver key is 40 chars.
+          std::string driver_key = platf::to_utf8(reinterpret_cast<wchar_t*>(buffer));
+          BOOST_LOG(info) << "get driver_key: " << driver_key;
+          return driver_key;
+        }
+      }
+      return "";
+    }
+
   }  // namespace
 
   std::string
@@ -312,6 +328,59 @@ namespace display_device::w_utils {
     static constexpr boost::uuids::uuid ns_id {};  // null namespace = no salt
     const auto boost_uuid { boost::uuids::name_generator_sha1 { ns_id }(device_id_data.data(), device_id_data.size()) };
     return "{" + boost::uuids::to_string(boost_uuid) + "}";
+  }
+
+  std::string
+  get_device_driver_path(const DISPLAYCONFIG_PATH_INFO &path) {
+    const auto device_path { get_monitor_device_path_wstr(path) };
+    if (device_path.empty()) {
+      // Error already logged
+      return {};
+    }
+
+    static const GUID monitor_guid { 0xe6f07b5f, 0xee97, 0x4a90, { 0xb0, 0x76, 0x33, 0xf5, 0x7b, 0xf4, 0xea, 0xa7 } };
+    std::string driver_path;
+
+    HDEVINFO dev_info_handle { SetupDiGetClassDevsW(&monitor_guid, nullptr, nullptr, DIGCF_DEVICEINTERFACE) };
+    if (dev_info_handle) {
+      const auto dev_info_handle_cleanup {
+        util::fail_guard([&dev_info_handle]() {
+          if (!SetupDiDestroyDeviceInfoList(dev_info_handle)) {
+            BOOST_LOG(error) << get_error_string(static_cast<LONG>(GetLastError())) << " \"SetupDiDestroyDeviceInfoList\" failed.";
+          }
+        })
+      };
+
+      SP_DEVICE_INTERFACE_DATA dev_interface_data {};
+      dev_interface_data.cbSize = sizeof(dev_interface_data);
+      for (DWORD monitor_index = 0;; ++monitor_index) {
+        if (!SetupDiEnumDeviceInterfaces(dev_info_handle, nullptr, &monitor_guid, monitor_index, &dev_interface_data)) {
+          const DWORD error_code { GetLastError() };
+          if (error_code == ERROR_NO_MORE_ITEMS) {
+            break;
+          }
+
+          BOOST_LOG(warning) << get_error_string(static_cast<LONG>(error_code)) << " \"SetupDiEnumDeviceInterfaces\" failed.";
+          continue;
+        }
+
+        std::wstring dev_interface_path;
+        SP_DEVINFO_DATA dev_info_data {};
+        dev_info_data.cbSize = sizeof(dev_info_data);
+        if (!get_device_interface_detail(dev_info_handle, dev_interface_data, dev_interface_path, dev_info_data)) {
+          // Error already logged
+          continue;
+        }
+
+        if (!boost::iequals(dev_interface_path, device_path)) {
+          continue;
+        }
+
+        driver_path = get_driver_key(dev_info_handle, dev_info_data);
+      }
+    }
+
+    return driver_path;
   }
 
   std::string
