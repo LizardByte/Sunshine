@@ -47,7 +47,6 @@ namespace nvhttp {
   namespace pt = boost::property_tree;
 
   crypto::cert_chain_t cert_chain;
-  std::string last_pair_name;
 
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
@@ -176,6 +175,8 @@ namespace nvhttp {
   std::unordered_map<std::string, pair_session_t> map_id_sess;
   client_t client_root;
   std::atomic<uint32_t> session_id_counter;
+
+  static std::string last_pair_name;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Response>;
@@ -617,6 +618,7 @@ namespace nvhttp {
 
         sess.client.uniqueID = std::move(uniqID);
         sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
+        last_pair_name = get_arg(args, "clientname", "Named Zako");
 
         BOOST_LOG(debug) << sess.client.cert;
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
@@ -631,7 +633,6 @@ namespace nvhttp {
           getservercert(ptr->second, tree, pin);
         }
         else {
-          last_pair_name = std::move(get_arg(args, "clientname", "Named Zako"));
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_require_pin(last_pair_name);
 #endif
@@ -850,6 +851,11 @@ namespace nvhttp {
     }
 
     return named_cert_nodes;
+  }
+
+  std::string
+  get_pair_name() {
+    return last_pair_name;
   }
 
   void

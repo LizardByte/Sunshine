@@ -572,16 +572,16 @@ namespace confighttp {
 
     outputTree.add_child("display_devices", devices_nodes);
     outputTree.add_child("adapters", adapters_nodes);
-    outputTree.put("clientName", nvhttp::last_pair_name);
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
 
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
-
     for (auto &[name, value] : vars) {
       outputTree.put(std::move(name), std::move(value));
     }
+    
+    outputTree.put("pair_name", nvhttp::get_pair_name());
   }
 
   void

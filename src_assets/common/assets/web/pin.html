@@ -163,7 +163,7 @@
           .then((r) => r.json())
           .then((r) => {
             this.config = r
-            this.pairingDeviceName = r.clientName
+            this.pairingDeviceName = r.pair_name ?? ''
           })
         this.refreshClients()
       },

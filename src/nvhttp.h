@@ -81,6 +81,9 @@ namespace nvhttp {
   boost::property_tree::ptree
   get_all_clients();
 
+  std::string
+  get_pair_name();
+
   /**
    * @brief Remove all paired clients.
    * @examples
@@ -89,6 +92,4 @@ namespace nvhttp {
    */
   void
   erase_all_clients();
-
-  extern std::string last_pair_name;
 }  // namespace nvhttp
