@@ -125,7 +125,7 @@ the local server or any mobile device.
         <td>Intel: HD Graphics 730 or higher</td>
     </tr>
     <tr>
-        <td>Nvidia: Nvidia: Pascal-based GPU (GTX 10-series) or higher</td>
+        <td>Nvidia: Pascal-based GPU (GTX 10-series) or higher</td>
     </tr>
     <tr>
         <td rowspan="2">CPU</td>
