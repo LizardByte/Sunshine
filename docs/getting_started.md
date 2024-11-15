@@ -240,6 +240,8 @@ This package requires that you have [Homebrew](https://docs.brew.sh/Installation
 
 ##### Install
 ```bash
+brew update
+brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
 ```
