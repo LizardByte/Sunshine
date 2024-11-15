@@ -38,10 +38,6 @@ class @PROJECT_NAME@ < Formula
   depends_on "boost" => :recommended
   depends_on "icu4c" => :recommended
 
-  on_macos do
-    depends_on "openldap" # curl requires this
-  end
-
   on_linux do
     depends_on "avahi"
     depends_on "libcap"
