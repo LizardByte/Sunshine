@@ -125,6 +125,7 @@ is_valid_frame(const D3D11_MAPPED_SUBRESOURCE &mappedResource, const D3D11_TEXTU
  */
 HRESULT
 test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
+  HRESULT failStatus;
   for (int i = 0; i < 10; ++i) {
     std::cout << "Attempting to acquire frame " << (i + 1) << " of 10..." << std::endl;
     ComPtr<IDXGIResource> frameResource;
@@ -137,7 +138,8 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
 
     if (FAILED(status)) {
       std::cout << "Error: Failed to acquire next frame [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      return status;
+      failStatus = status;
+      continue;
     }
 
     auto cleanup = util::fail_guard([&dup]() {
@@ -150,7 +152,8 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
     status = frameResource->QueryInterface(IID_PPV_ARGS(&frameTexture));
     if (FAILED(status)) {
       std::cout << "Error: Failed to query texture interface from frame resource [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      return status;
+      failStatus = status;
+      continue;
     }
 
     D3D11_TEXTURE2D_DESC frameDesc;
@@ -163,7 +166,8 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
     status = device->CreateTexture2D(&frameDesc, nullptr, &stagingTexture);
     if (FAILED(status)) {
       std::cout << "Error: Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      return status;
+      failStatus = status;
+      continue;
     }
 
     context->CopyResource(stagingTexture.Get(), frameTexture.Get());
@@ -172,7 +176,8 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
     status = context->Map(stagingTexture.Get(), 0, D3D11_MAP_READ, 0, &mappedResource);
     if (FAILED(status)) {
       std::cout << "Error: Failed to map the staging texture for inspection [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
-      return status;
+      failStatus = status;
+      continue;
     }
 
     auto contextCleanup = util::fail_guard([&context, &stagingTexture]() {
@@ -181,14 +186,14 @@ test_frame_capture(dxgi::dup_t &dup, ComPtr<ID3D11Device> device) {
 
     if (is_valid_frame(mappedResource, frameDesc)) {
       std::cout << "Frame " << (i + 1) << " is non-empty (contains visible content)." << std::endl;
-      return S_OK;
+      return S_OK;  // We don't need to test anymore frames at this point.
     }
 
     std::cout << "Frame " << (i + 1) << " is empty (no visible content)." << std::endl;
   }
 
   // All frames were empty, indicating potential capture issues.
-  return E_FAIL;
+  return failStatus;
 }
 
 HRESULT
