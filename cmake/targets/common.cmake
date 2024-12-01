@@ -113,9 +113,15 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViG
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
     if(WIN32)
-        set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
-                DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
-                PROPERTIES COMPILE_FLAGS -O2)
+        if (NOT BUILD_TESTS)
+            set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
+                    DIRECTORY "${CMAKE_SOURCE_DIR}"
+                    PROPERTIES COMPILE_FLAGS -O2)
+        else()
+            set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
+                    DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
+                    PROPERTIES COMPILE_FLAGS -O2)
+        endif()
     endif()
 else()
     add_definitions(-DNDEBUG)
