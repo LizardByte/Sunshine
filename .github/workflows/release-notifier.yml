@@ -57,22 +57,6 @@ jobs:
           username: ${{ secrets.DISCORD_USERNAME }}
           webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
 
-  facebook_group:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    runs-on: ubuntu-latest
-    steps:
-      - name: facebook-post-action
-        uses: ReenigneArcher/facebook-post-action@v1
-        with:
-          page_id: ${{ secrets.FACEBOOK_GROUP_ID }}
-          access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-          message: |
-            ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          url: ${{ github.event.release.html_url }}
-
   facebook_page:
     if: >-
       startsWith(github.repository, 'LizardByte/') &&
@@ -81,7 +65,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: facebook-post-action
-        uses: ReenigneArcher/facebook-post-action@v1
+        uses: LizardByte/facebook-post-action@v2024.1207.15428
         with:
           page_id: ${{ secrets.FACEBOOK_PAGE_ID }}
           access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
