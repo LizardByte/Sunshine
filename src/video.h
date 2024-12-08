@@ -38,6 +38,8 @@ namespace video {
     int dynamicRange;
 
     int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+
+    int enableIntraRefresh;  // 0 - disabled, 1 - enabled
   };
 
   platf::mem_type_e
