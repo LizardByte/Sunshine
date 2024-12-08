@@ -359,7 +359,7 @@
   },
   "pin": {
     "device_name": "Nome do dispositivo",
-    "pair_failure": "Falha no pareamento: Verifique se o PIN é digitado corretamente",
+    "pair_failure": "Pareamento Falhou: Verifique se o PIN foi digitado corretamente",
     "pair_success": "Sucesso! Por favor, verifique a Lua Lunar para continuar",
     "pin_pairing": "PIN Pairing",
     "send": "Mandar",
