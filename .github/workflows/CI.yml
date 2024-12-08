@@ -502,7 +502,7 @@ jobs:
           always() &&
           (steps.test_report.outcome == 'success') &&
           startsWith(github.repository, 'LizardByte/')
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -935,7 +935,7 @@ jobs:
           always() &&
           (steps.test_report.outcome == 'success') &&
           startsWith(github.repository, 'LizardByte/')
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           disable_search: true
           fail_ci_if_error: false  # todo: re-enable this when action is fixed
@@ -1199,7 +1199,7 @@ jobs:
           always() &&
           (steps.test_report.outcome == 'success') &&
           startsWith(github.repository, 'LizardByte/')
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           disable_search: true
           fail_ci_if_error: true
