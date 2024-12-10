@@ -13,6 +13,8 @@
 #include "src/rtsp.h"
 #include "to_string.h"
 
+using namespace std::literals;
+
 namespace display_device {
 
   namespace {
@@ -556,7 +558,14 @@ namespace display_device {
     }
 
     if (session.enable_hdr) {
-      display_device::apply_hdr_profile(session.client_name);
+      std::thread { [&client_name = session.client_name]() {
+        if (!display_device::apply_hdr_profile(client_name)) {
+          BOOST_LOG(warning) << "Failed to apply HDR profile for client: " << client_name << "retrying later...";
+          std::this_thread::sleep_for(2s);
+          display_device::apply_hdr_profile(client_name);
+        }
+      } }
+        .detach();
     }
 
     BOOST_LOG(debug) << "Parsed display device config:\n"

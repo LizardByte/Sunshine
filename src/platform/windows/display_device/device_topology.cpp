@@ -555,7 +555,7 @@ namespace display_device {
       child.detach();
     }
 
-    return false;
+    return true;
   }
 
 }  // namespace display_device
