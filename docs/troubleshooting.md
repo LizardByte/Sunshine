@@ -23,6 +23,9 @@ If you forgot your credentials to the web UI, try this.
 @tip{Don't forget to replace `{new-username}` and `{new-password}` with your new credentials.
 Do not include the curly braces.}
 
+### Unusual Mouse Behavior
+If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
+
 ### Web UI Access
 Can't access the web UI?
 
@@ -189,6 +192,9 @@ has. You may get permission denied errors when attempting to launch a game or ap
 
 You will need to modify the security permissions on your disk. Ensure that user/principal SYSTEM has full
 permissions on the disk.
+
+### Stuttering
+If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
 
 <div class="section_buttons">
 

@@ -38,7 +38,11 @@ the local server or any mobile device.
         <td>AMD: VCE 1.0 or higher, see: <a href="https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support">obs-amd hardware support</a></td>
     </tr>
     <tr>
-        <td>Intel: VAAPI-compatible, see: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI hardware support</a></td>
+        <td>
+            Intel:<br>
+            &nbsp;&nbsp;Linux: VAAPI-compatible, see: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI hardware support</a><br>
+            &nbsp;&nbsp;Windows: Skylake or newer with QuickSync encoding support
+        </td>
     </tr>
     <tr>
         <td>Nvidia: NVENC enabled cards, see: <a href="https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new">nvenc support matrix</a></td>
@@ -90,7 +94,11 @@ the local server or any mobile device.
         <td>AMD: Video Coding Engine 3.1 or higher</td>
     </tr>
     <tr>
-        <td>Intel: HD Graphics 510 or higher</td>
+        <td>
+            Intel:<br>
+            &nbsp;&nbsp;Linux: HD Graphics 510 or higher<br>
+            &nbsp;&nbsp;Windows: Skylake or newer with QuickSync encoding support
+        </td>
     </tr>
     <tr>
         <td>Nvidia: GeForce GTX 1080 or higher</td>
@@ -125,7 +133,7 @@ the local server or any mobile device.
         <td>Intel: HD Graphics 730 or higher</td>
     </tr>
     <tr>
-        <td>Nvidia: Nvidia: Pascal-based GPU (GTX 10-series) or higher</td>
+        <td>Nvidia: Pascal-based GPU (GTX 10-series) or higher</td>
     </tr>
     <tr>
         <td rowspan="2">CPU</td>
