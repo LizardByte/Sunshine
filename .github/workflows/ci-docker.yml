@@ -259,16 +259,16 @@ jobs:
         if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASS }}
 
-      - name: Log in to the Container registry
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ secrets.GH_BOT_NAME }}
-          password: ${{ secrets.GH_BOT_TOKEN }}
+      # - name: Log in to the Container registry
+      #   if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ secrets.GH_BOT_NAME }}
+      #     password: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Build artifacts
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
@@ -332,25 +332,25 @@ jobs:
           name: Docker${{ matrix.tag }}
           path: artifacts/
 
-      - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
-        uses: LizardByte/create-release-action@v2024.919.143026
-        with:
-          allowUpdates: true
-          artifacts: "*artifacts/*"
-          body: ${{ needs.setup_release.outputs.release_body }}
-          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
-          name: ${{ needs.setup_release.outputs.release_tag }}
-          prerelease: true
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          token: ${{ secrets.GH_BOT_TOKEN }}
+      # - name: Create/Update GitHub Release
+      #   if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
+      #   uses: LizardByte/create-release-action@v2024.919.143026
+      #   with:
+      #     allowUpdates: true
+      #     artifacts: "*artifacts/*"
+      #     body: ${{ needs.setup_release.outputs.release_body }}
+      #     generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
+      #     name: ${{ needs.setup_release.outputs.release_tag }}
+      #     prerelease: true
+      #     tag: ${{ needs.setup_release.outputs.release_tag }}
+      #     token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Update Docker Hub Description
         if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
         uses: peter-evans/dockerhub-description@v4
         with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_PASSWORD }}  # token is not currently supported
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASS }}  # token is not currently supported
           repository: ${{ env.BASE_TAG }}
           short-description: ${{ github.event.repository.description }}
           readme-filepath: ./DOCKER_README.md
