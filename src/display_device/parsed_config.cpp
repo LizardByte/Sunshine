@@ -185,6 +185,10 @@ namespace display_device {
             BOOST_LOG(warning) << "Sunshine is configured to change resolution automatically, but the \"Optimize game settings\" is not set in the client! Resolution will not be changed.";
             parsed_config.resolution = boost::none;
           }
+          else if (session.width > 16384 || session.height > 16384) {
+            BOOST_LOG(warning) << "奇怪的分辨率增加了...";
+            parsed_config.resolution = boost::none;
+          }
           else if (session.width >= 0 && session.height >= 0) {
             parsed_config.resolution = resolution_t {
               static_cast<unsigned int>(session.width),
