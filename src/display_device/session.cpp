@@ -278,7 +278,7 @@ namespace display_device {
     }
 
     bool should_toggle_vdd = false;
-    if (!is_cached_res || !is_cached_fps) {
+    if ((!is_cached_res || !is_cached_fps) && config.resolution != boost::none) {
       std::stringstream new_setting;
       new_setting << to_string(*config.resolution) << "@" << to_string(*config.refresh_rate);
 
