@@ -18,6 +18,7 @@ extern "C" {
 
 #include "cbs.h"
 #include "config.h"
+#include "display_device.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -994,6 +995,8 @@ namespace video {
    */
   void
   refresh_displays(platf::mem_type_e dev_type, std::vector<std::string> &display_names, int &current_display_index) {
+    // It is possible that the output name may be empty even if it wasn't before (device disconnected) or vice-versa
+    const auto output_name { display_device::map_output_name(config::video.output_name) };
     std::string current_display_name;
 
     // If we have a current display index, let's start with that
@@ -1012,7 +1015,7 @@ namespace video {
       return;
     }
     else if (display_names.empty()) {
-      display_names.emplace_back(config::video.output_name);
+      display_names.emplace_back(output_name);
     }
 
     // We now have a new display name list, so reset the index back to 0
@@ -1032,7 +1035,7 @@ namespace video {
     }
     else {
       for (int x = 0; x < display_names.size(); ++x) {
-        if (display_names[x] == config::video.output_name) {
+        if (display_names[x] == output_name) {
           current_display_index = x;
           return;
         }
@@ -2346,6 +2349,7 @@ namespace video {
 
   bool
   validate_encoder(encoder_t &encoder, bool expect_failure) {
+    const auto output_name { display_device::map_output_name(config::video.output_name) };
     std::shared_ptr<platf::display_t> disp;
 
     BOOST_LOG(info) << "Trying encoder ["sv << encoder.name << ']';
@@ -2365,7 +2369,7 @@ namespace video {
     config_t config_autoselect { 1920, 1080, 60, 1000, 1, 0, 1, 0, 0, 0 };
 
     // If the encoder isn't supported at all (not even H.264), bail early
-    reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, config_autoselect);
+    reset_display(disp, encoder.platform_formats->dev_type, output_name, config_autoselect);
     if (!disp) {
       return false;
     }
@@ -2473,7 +2477,7 @@ namespace video {
       const config_t generic_hdr_config = { 1920, 1080, 60, 1000, 1, 0, 3, 1, 1, 0 };
 
       // Reset the display since we're switching from SDR to HDR
-      reset_display(disp, encoder.platform_formats->dev_type, config::video.output_name, generic_hdr_config);
+      reset_display(disp, encoder.platform_formats->dev_type, output_name, generic_hdr_config);
       if (!disp) {
         return false;
       }
@@ -2654,8 +2658,9 @@ namespace video {
     }
 
     if (chosen_encoder == nullptr) {
+      const auto output_name { display_device::map_output_name(config::video.output_name) };
       BOOST_LOG(fatal) << "Unable to find display or encoder during startup."sv;
-      if (!config::video.adapter_name.empty() || !config::video.output_name.empty()) {
+      if (!config::video.adapter_name.empty() || !output_name.empty()) {
         BOOST_LOG(fatal) << "Please ensure your manually chosen GPU and monitor are connected and powered on."sv;
       }
       else {

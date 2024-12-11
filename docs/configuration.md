@@ -865,10 +865,56 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **Windows:**
             <br>
-            Enter the following command in command prompt or PowerShell.
+            During Sunshine startup, you should see the list of detected displays:
             @code{}
-            %ProgramFiles%\Sunshine\tools\dxgi-info.exe
+            Info: Currently available display devices:
+            [
+              {
+                "device_id": "{64243705-4020-5895-b923-adc862c3457e}",
+                "display_name": "",
+                "friendly_name": "IDD HDR",
+                "info": null
+              },
+              {
+                "device_id": "{77f67f3e-754f-5d31-af64-ee037e18100a}",
+                "display_name": "",
+                "friendly_name": "SunshineHDR",
+                "info": null
+              },
+              {
+                "device_id": "{daeac860-f4db-5208-b1f5-cf59444fb768}",
+                "display_name": "\\\\.\\DISPLAY1",
+                "friendly_name": "ROG PG279Q",
+                "info": {
+                  "hdr_state": null,
+                  "origin_point": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "primary": true,
+                  "refresh_rate": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 1000,
+                      "numerator": 119998
+                    }
+                  },
+                  "resolution": {
+                    "height": 1440,
+                    "width": 2560
+                  },
+                  "resolution_scale": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 100,
+                      "numerator": 100
+                    }
+                  }
+                }
+              }
+            ]
             @endcode
+            You need to use the `device_id` value.
             }
         </td>
     </tr>
@@ -891,7 +937,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
-            output_name  = \\.\DISPLAY1
+            output_name = {daeac860-f4db-5208-b1f5-cf59444fb768}
             @endcode</td>
     </tr>
 </table>
