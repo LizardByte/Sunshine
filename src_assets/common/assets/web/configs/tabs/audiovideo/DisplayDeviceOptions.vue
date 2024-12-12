@@ -32,7 +32,7 @@ const config = ref(props.config)
                   {{ $t('config.dd_config_label') }}
                 </label>
                 <select id="dd_configuration_option" class="form-select" v-model="config.dd_configuration_option">
-                  <option value="disabled">{{ $t('config.dd_config_disabled') }}</option>
+                  <option value="disabled">{{ $t('_common.disabled') }}</option>
                   <option value="verify_only">{{ $t('config.dd_config_verify_only') }}</option>
                   <option value="ensure_active">{{ $t('config.dd_config_ensure_active') }}</option>
                   <option value="ensure_primary">{{ $t('config.dd_config_ensure_primary') }}</option>
@@ -108,7 +108,7 @@ const config = ref(props.config)
                 <label for="dd_config_revert_delay" class="form-label">
                   {{ $t('config.dd_config_revert_delay') }}
                 </label>
-                <input type="text" class="form-control" id="dd_config_revert_delay" placeholder="10000"
+                <input type="text" class="form-control" id="dd_config_revert_delay" placeholder="3000"
                        v-model="config.dd_config_revert_delay" />
                 <div class="form-text">
                   {{ $t('config.dd_config_revert_delay_desc') }}
