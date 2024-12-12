@@ -1148,12 +1148,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}false@endcode</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            dd_wa_hdr_toggle = true
+            dd_wa_hdr_toggle = enabled
             @endcode</td>
     </tr>
 </table>

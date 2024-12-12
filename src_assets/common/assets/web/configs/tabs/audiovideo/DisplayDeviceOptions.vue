@@ -98,7 +98,7 @@ const config = ref(props.config)
                 <div class="form-check">
                   <!-- HDR toggle -->
                   <label for="dd_wa_hdr_toggle" class="form-check-label">{{ $tp('config.dd_wa_hdr_toggle') }}</label>
-                  <input type="checkbox" class="form-check-input" id="dd_wa_hdr_toggle" true-value="true" false-value="false" v-model="config.dd_wa_hdr_toggle" />
+                  <input type="checkbox" class="form-check-input" id="dd_wa_hdr_toggle" true-value="enabled" false-value="disabled" v-model="config.dd_wa_hdr_toggle" />
                   <div class="form-text">{{ $tp('config.dd_wa_hdr_toggle_desc') }}</div>
                 </div>
               </div>

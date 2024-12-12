@@ -173,7 +173,7 @@
     "dd_resolution_option_manual_desc": "Enter the resolution to be used",
     "dd_resolution_option_ogs_desc": "\"Optimize game settings\" option must be enabled on the Moonlight client for this to work.",
     "dd_wa_hdr_toggle_desc_windows": "When using virtual display device as for streaming, it might display incorrect HDR color. With this option enabled, Sunshine will try to mitigate this issue.",
-    "dd_wa_hdr_toggle_windows": "Enable high-contrast workaround for HDR (default: off)",
+    "dd_wa_hdr_toggle_windows": "Enable high-contrast workaround for HDR (default: disabled)",
     "ds4_back_as_touchpad_click": "Map Back/Select to Touchpad Click",
     "ds4_back_as_touchpad_click_desc": "When forcing DS4 emulation, map Back/Select to Touchpad Click",
     "encoder": "Force a Specific Encoder",
