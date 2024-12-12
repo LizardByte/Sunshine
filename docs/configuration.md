@@ -948,15 +948,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            Perform additional configuration for the display device:
-            <ul>
-                <li>`disabled` - perform no additional configuration (disables all `dd_` configuration options).</li>
-                <li>`verify_only` - verify that display is active only (required for changing display mode and other options).</li>
-                <li>`ensure_active` - activate the display if it's currently inactive.</li>
-                <li>`ensure_primary` - activate the display if it's currently inactive and make it primary.</li>
-                <li>`ensure_only_display` - activate the display if it's currently inactive and disable all others.</li>
-            </ul>
+            Perform mandatory verification and additional configuration for the display device.
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
@@ -969,6 +962,27 @@ editing the `conf` file in a text editor. Use the examples as reference.
             dd_configuration_option = ensure_only_display
             @endcode</td>
     </tr>
+    <tr>
+        <td rowspan="5">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration (disables all `dd_` configuration options).</td>
+    </tr>
+    <tr>
+        <td>verify_only</td>
+        <td>Verify that display is active only (this is a mandatory step without any extra steps to verify display state).</td>
+    </tr>
+    <tr>
+        <td>ensure_active</td>
+        <td>Activate the display if it's currently inactive.</td>
+    </tr>
+    <tr>
+        <td>ensure_primary</td>
+        <td>Activate the display if it's currently inactive and make it primary.</td>
+    </tr>
+    <tr>
+        <td>ensure_only_display</td>
+        <td>Activate the display if it's currently inactive and disable all others.</td>
+    </tr>
 </table>
 
 ### dd_resolution_option
@@ -977,14 +991,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            @note{"Optimize game settings" must be enabled for this option to work.}
-            Perform additional resolution configuration for the display device:
-            <ul>
-                <li>`disabled` - perform no additional configuration.</li>
-                <li>`automatic` - change resolution to the requested resolution from the client.</li>
-                <li>`manual` - change resolution to the user specified one (set via `dd_manual_resolution`).</li>
-            </ul>
+            Perform additional resolution configuration for the display device.
+            @note{"Optimize game settings" must be enabled in Moonlight for this option to work.}
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
@@ -997,6 +1006,19 @@ editing the `conf` file in a text editor. Use the examples as reference.
             dd_resolution_option = manual
             @endcode</td>
     </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>automatic</td>
+        <td>Change resolution to the requested resolution from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change resolution to the user specified one (set via [dd_manual_resolution](#dd_manual_resolution)).</td>
+    </tr>
 </table>
 
 ### dd_manual_resolution
@@ -1005,14 +1027,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            @note{`dd_resolution_option` must be set to `manual`}
             Specify manual resolution to be used.
+            @note{[dd_resolution_option](#dd_resolution_option) must be set to `manual`}
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">No value</td>
+        <td colspan="2">n/a</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -1028,13 +1050,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            Perform additional refresh rate configuration for the display device:
-            <ul>
-                <li>`disabled` - perform no additional configuration.</li>
-                <li>`automatic` - change refresh rate to the requested FPS value from the client.</li>
-                <li>`manual` - change refresh rate to the user specified one (set via `dd_manual_refresh_rate`).</li>
-            </ul>
+            Perform additional refresh rate configuration for the display device.
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
@@ -1047,6 +1064,19 @@ editing the `conf` file in a text editor. Use the examples as reference.
             dd_refresh_rate_option = manual
             @endcode</td>
     </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>automatic</td>
+        <td>Change refresh rate to the requested FPS value from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change refresh rate to the user specified one (set via [dd_manual_refresh_rate](#dd_manual_refresh_rate)).</td>
+    </tr>
 </table>
 
 ### dd_manual_refresh_rate
@@ -1055,14 +1085,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            @note{`dd_refresh_rate_option` must be set to `manual`}
             Specify manual refresh rate to be used.
+            @note{[dd_refresh_rate_option](#dd_refresh_rate_option) must be set to `manual`}
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">No value</td>
+        <td colspan="2">n/a</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -1079,12 +1109,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            Perform additional HDR configuration for the display device:
-            <ul>
-                <li>`disabled` - perform no additional configuration.</li>
-                <li>`automatic` - change HDR to the requested state from the client if the display supports it.</li>
-            </ul>
+            Perform additional HDR configuration for the display device.
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
@@ -1097,6 +1123,15 @@ editing the `conf` file in a text editor. Use the examples as reference.
             dd_hdr_option = disabled
             @endcode</td>
     </tr>
+    <tr>
+        <td rowspan="2">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>automatic</td>
+        <td>Change HDR to the requested state from the client if the display supports it.</td>
+    </tr>
 </table>
 
 ### dd_wa_hdr_toggle
@@ -1105,10 +1140,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
-            @note{This option works independently of `dd_hdr_option`}
             When using virtual display device as for streaming, it might display incorrect (high-contrast) color.
             With this option enabled, Sunshine will try to mitigate this issue.
+            @note{This option works independently of [dd_hdr_option](#dd_hdr_option)}
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
@@ -1129,9 +1164,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
             Additional delay in milliseconds to wait before reverting configuration when the app has been closed or the last session terminated.
             Main purpose is to provide a smoother transition when quickly switching between apps.
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
