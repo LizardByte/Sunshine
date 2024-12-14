@@ -327,7 +327,7 @@
   },
   "index": {
     "description": "Sunshine è una piattaforma autonoma di game stream per Moonlight.",
-    "download": "Download",
+    "download": "Scarica",
     "installed_version_not_stable": "Stai eseguendo una versione in anteprima di Sunshine. Potresti riscontrare bug o altri problemi. Si prega di segnalare eventuali problemi incontrati. Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "loading_latest": "Caricamento dell'ultima versione...",
     "new_pre_release": "Una nuova versione pre-rilascio è disponibile!",
@@ -401,7 +401,7 @@
     "create_creds": "Prima di iniziare, è necessario creare un nuovo nome utente e una nuova password per accedere all'interfaccia web.",
     "create_creds_alert": "Le credenziali in basso sono necessarie per accedere all'interfaccia web di Sunshine. Tienile al sicuro, poichè non potrai più visualizzarle!",
     "greeting": "Benvenuto in Sunshine!",
-    "login": "Login",
+    "login": "Accedi",
     "welcome_success": "Questa pagina verrà ricaricata, il tuo browser ti richiederà le nuove credenziali"
   }
 }
