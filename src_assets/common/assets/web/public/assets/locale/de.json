@@ -285,7 +285,7 @@
     "qsv_slow_hevc": "Langsame HEVC Encodierung erlauben",
     "qsv_slow_hevc_desc": "Dies kann HEVC-Kodierung auf älteren Intel GPUs ermöglichen, auf Kosten einer höheren GPU-Nutzung und schlechteren Performance.",
     "restart_note": "Sunshine wird neu gestartet, um Änderungen anzuwenden.",
-    "sunshine_name": "Sunshine Name",
+    "sunshine_name": "Sonnenscheinname",
     "sunshine_name_desc": "Der von Mononlight angezeigte Name, falls nicht angegeben, wird der Hostname des PCs verwendet",
     "sw_preset": "SW-Voreinstellungen",
     "sw_preset_desc": "Optimieren Sie den Abgleich zwischen der Kodierungsgeschwindigkeit (kodierte Frames pro Sekunde) und der Komprimierungseffizienz (Qualität pro Bit im Bitstream). Standard ist überflüssig.",
