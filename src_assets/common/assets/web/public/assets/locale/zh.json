@@ -314,7 +314,7 @@
     "vaapi_strict_rc_buffer_desc": "启用此选项可以在场景更改时避免在网络上放置帧，但在移动时可能会降低视频质量。",
     "virtual_sink": "虚拟音频输出设备",
     "virtual_sink_desc": "手动指定要使用的虚拟音频设备。如果未设置，则会自动选择设备。我们强烈建议将此字段留空，以便使用自动设备选择！",
-    "virtual_sink_placeholder": "Steam Streaming Speakers",
+    "virtual_sink_placeholder": "Steam流扬声器",
     "vt_coder": "VideoToolbox 编码器",
     "vt_realtime": "VideoToolbox 实时编码",
     "vt_software": "VideoToolbox 软件编码",
