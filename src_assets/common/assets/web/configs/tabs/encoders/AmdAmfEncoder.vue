@@ -25,7 +25,7 @@ const config = ref(props.config)
     </div>
 
     <!-- AMD Rate Control group options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -49,12 +49,9 @@ const config = ref(props.config)
             </div>
 
             <!-- AMF HRD Enforcement -->
-            <div class="mb-3">
-              <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}</label>
-              <select id="amd_enforce_hrd" class="form-select" v-model="config.amd_enforce_hrd">
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-              </select>
+            <div class="form-check">
+              <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="amd_enforce_hrd" v-model="config.amd_enforce_hrd" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.amd_enforce_hrd_desc') }}</div>
             </div>
           </div>
@@ -86,27 +83,21 @@ const config = ref(props.config)
             </div>
 
             <!-- AMD Preanalysis -->
-            <div class="mb-3">
-              <label for="amd_preanalysis" class="form-label">{{ $t('config.amd_preanalysis') }}</label>
-              <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-              </select>
+            <div class="mb-3 form-check">
+              <label for="amd_preanalysis" class="form-label">{{ $t('config.amd_preanalysis') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="amd_preanalysis" v-model="config.amd_preanalysis" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.amd_preanalysis_desc') }}</div>
             </div>
 
             <!-- AMD VBAQ -->
-            <div class="mb-3">
-              <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}</label>
-              <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
+            <div class="mb-3 form-check">
+              <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="amd_vbaq" v-model="config.amd_vbaq" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.amd_vbaq_desc') }}</div>
             </div>
 
             <!-- AMF Coder (H264) -->
-            <div class="mb-3">
+            <div>
               <label for="amd_coder" class="form-label">{{ $t('config.amd_coder') }}</label>
               <select id="amd_coder" class="form-select" v-model="config.amd_coder">
                 <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>

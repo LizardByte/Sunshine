@@ -80,7 +80,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Encoder -->
-    <div class="mb-3">
+    <div>
       <label for="encoder" class="form-label">{{ $t('config.encoder') }}</label>
       <select id="encoder" class="form-select" v-model="config.encoder">
         <option value="">{{ $t('_common.autodetect') }}</option>

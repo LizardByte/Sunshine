@@ -116,13 +116,9 @@
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
         <!-- prep-cmd -->
-        <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">{{ $t('apps.global_prep_name') }}</label>
-          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-            <option v-for="val in [false, true]" :value="val">
-              {{ !val ? $t('_common.enabled') : $t('_common.disabled') }}
-            </option>
-          </select>
+        <div class="mb-3 form-check">
+          <label for="excludeGlobalPrep" class="form-label">{{ $t('apps.global_prep_name') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+          <input type="checkbox" class="form-check-input" id="excludeGlobalPrep" v-model="editForm['exclude-global-prep-cmd']" true-value="false" false-value="true" />
           <div class="form-text">{{ $t('apps.global_prep_desc') }}</div>
         </div>
         <div class="mb-3">
@@ -152,7 +148,7 @@
                 <td>
                   <input type="text" class="form-control monospace" v-model="c.undo" />
                 </td>
-                <td v-if="platform === 'windows'">
+                <td v-if="platform === 'windows'" class="align-middle">
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
                       true-value="true" false-value="false" />
@@ -209,21 +205,21 @@
         </div>
         <!-- elevation -->
         <div class="mb-3 form-check" v-if="platform === 'windows'">
-          <label for="appElevation" class="form-check-label">{{ $t('_common.run_as') }}</label>
+          <label for="appElevation" class="form-check-label">{{ $t('_common.run_as') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
           <input type="checkbox" class="form-check-input" id="appElevation" v-model="editForm.elevated"
             true-value="true" false-value="false" />
           <div class="form-text">{{ $t('apps.run_as_desc') }}</div>
         </div>
         <!-- auto-detach -->
         <div class="mb-3 form-check">
-          <label for="autoDetach" class="form-check-label">{{ $t('apps.auto_detach') }}</label>
+          <label for="autoDetach" class="form-check-label">{{ $t('apps.auto_detach') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
           <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
             true-value="true" false-value="false" />
           <div class="form-text">{{ $t('apps.auto_detach_desc') }}</div>
         </div>
         <!-- wait for all processes -->
         <div class="mb-3 form-check">
-          <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}</label>
+          <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
           <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
             true-value="true" false-value="false" />
           <div class="form-text">{{ $t('apps.wait_all_desc') }}</div>

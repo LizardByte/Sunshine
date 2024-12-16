@@ -47,7 +47,7 @@ const config = ref(props.config)
     </div>
 
     <!-- State File -->
-    <div class="mb-3">
+    <div>
       <label for="file_state" class="form-label">{{ $t('config.file_state') }}</label>
       <input type="text" class="form-control" id="file_state" placeholder="sunshine_state.json"
              v-model="config.file_state" />

@@ -72,12 +72,9 @@ const config = ref(props.config)
              aria-labelledby="panelsStayOpen-headingOne">
           <div class="accordion-body">
             <!-- NVENC Realtime HAGS priority -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_realtime_hags" class="form-label">{{ $t('config.nvenc_realtime_hags') }}</label>
-              <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
+            <div class="mb-3 form-check" v-if="platform === 'windows'">
+              <label for="nvenc_realtime_hags" class="form-label">{{ $t('config.nvenc_realtime_hags') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="nvenc_realtime_hags" v-model="config.nvenc_realtime_hags" true-value="enabled" false-value="disabled" />
               <div class="form-text">
                 {{ $t('config.nvenc_realtime_hags_desc') }}<br>
                 <br>
@@ -86,32 +83,23 @@ const config = ref(props.config)
             </div>
 
             <!-- Prefer lower encoding latency over power savings -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_latency_over_power" class="form-label">{{ $t('config.nvenc_latency_over_power') }}</label>
-              <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
+            <div class="mb-3 form-check" v-if="platform === 'windows'">
+              <label for="nvenc_latency_over_power" class="form-label">{{ $t('config.nvenc_latency_over_power') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="nvenc_latency_over_power" v-model="config.nvenc_latency_over_power" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
             </div>
 
             <!-- Present OpenGL/Vulkan on top of DXGI -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
-              <select id="nvenc_opengl_vulkan_on_dxgi" class="form-select" v-model="config.nvenc_opengl_vulkan_on_dxgi">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
+            <div class="mb-3 form-check" v-if="platform === 'windows'">
+              <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="nvenc_opengl_vulkan_on_dxgi" v-model="config.nvenc_opengl_vulkan_on_dxgi" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.nvenc_opengl_vulkan_on_dxgi_desc') }}</div>
             </div>
 
             <!-- NVENC H264 CAVLC -->
-            <div>
-              <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}</label>
-              <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-              </select>
+            <div class="form-check">
+              <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
+              <input type="checkbox" class="form-check-input" id="nvenc_h264_cavlc" v-model="config.nvenc_h264_cavlc" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.nvenc_h264_cavlc_desc') }}</div>
             </div>
           </div>
