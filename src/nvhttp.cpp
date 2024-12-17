@@ -46,8 +46,8 @@ namespace nvhttp {
 
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
-    SunshineHTTPS(boost::asio::io_service &io_service, boost::asio::ssl::context &ctx):
-        SimpleWeb::HTTPS(io_service, ctx) {}
+    SunshineHTTPS(boost::asio::io_context &io_context, boost::asio::ssl::context &ctx):
+        SimpleWeb::HTTPS(io_context, ctx) {}
 
     virtual ~SunshineHTTPS() {
       // Gracefully shutdown the TLS connection

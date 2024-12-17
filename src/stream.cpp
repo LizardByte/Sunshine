@@ -324,10 +324,10 @@ namespace stream {
     std::thread audio_thread;
     std::thread control_thread;
 
-    asio::io_service io;
+    asio::io_context io_context;
 
-    udp::socket video_sock { io };
-    udp::socket audio_sock { io };
+    udp::socket video_sock { io_context };
+    udp::socket audio_sock { io_context };
 
     control_server_t control_server;
   };
@@ -1183,7 +1183,7 @@ namespace stream {
     auto &message_queue_queue = ctx.message_queue_queue;
     auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
-    auto &io = ctx.io;
+    auto &io = ctx.io_context;
 
     udp::endpoint peer;
 
@@ -1777,7 +1777,7 @@ namespace stream {
     audio_packets->stop();
 
     ctx.message_queue_queue->stop();
-    ctx.io.stop();
+    ctx.io_context.stop();
 
     ctx.video_sock.close();
     ctx.audio_sock.close();
