@@ -27,7 +27,7 @@ const config = ref(props.config)
       <div class="form-text">{{ $t('config.sw_preset_desc') }}</div>
     </div>
 
-    <div>
+    <div class="mb-3">
       <label for="sw_tune" class="form-label">{{ $t('config.sw_tune') }}</label>
       <select id="sw_tune" class="form-select" v-model="config.sw_tune">
         <option value="film">{{ $t('config.sw_tune_film') }}</option>

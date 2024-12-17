@@ -120,7 +120,7 @@ function removeCmd(index) {
     </div>
 
     <!-- Notify Pre-Releases -->
-    <div class="form-check">
+    <div class="mb-3 form-check">
       <label for="notify_pre_releases" class="form-label">{{ $t('config.notify_pre_releases') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
       <input type="checkbox" class="form-check-input" id="notify_pre_releases" v-model="config.notify_pre_releases" true-value="enabled" false-value="disabled" />
       <div class="form-text">{{ $t('config.notify_pre_releases_desc') }}</div>

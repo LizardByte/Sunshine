@@ -60,7 +60,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Miscellaneous options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -97,7 +97,7 @@ const config = ref(props.config)
             </div>
 
             <!-- NVENC H264 CAVLC -->
-            <div class="form-check">
+            <div class="mb-3 form-check">
               <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
               <input type="checkbox" class="form-check-input" id="nvenc_h264_cavlc" v-model="config.nvenc_h264_cavlc" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.nvenc_h264_cavlc_desc') }}</div>

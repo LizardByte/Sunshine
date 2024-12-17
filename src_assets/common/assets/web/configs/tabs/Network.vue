@@ -144,7 +144,7 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
     </div>
 
     <!-- Ping Timeout -->
-    <div>
+    <div class="mb-3">
       <label for="ping_timeout" class="form-label">{{ $t('config.ping_timeout') }}</label>
       <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
       <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>

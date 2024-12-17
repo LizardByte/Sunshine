@@ -64,7 +64,7 @@ const config = ref(props.config)
                     <div class="form-text">{{ $t('config.motion_as_ds4_desc') }}</div>
                   </div>
                   <!-- DS4 touchpad -->
-                  <div class="form-check">
+                  <div class="mb-3 form-check">
                     <label for="touchpad_as_ds4" class="form-label">{{ $t('config.touchpad_as_ds4') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
                     <input type="checkbox" class="form-check-input" id="touchpad_as_ds4" v-model="config.touchpad_as_ds4" true-value="enabled" false-value="disabled" />
                     <div class="form-text">{{ $t('config.touchpad_as_ds4_desc') }}</div>
@@ -73,7 +73,7 @@ const config = ref(props.config)
                 <!-- DS4 options (all platforms) -->
                 <template v-if="config.gamepad === 'ds4'">
                   <!-- DS4 back button as touchpad click -->
-                  <div class="form-check">
+                  <div class="mb-3 form-check">
                     <label for="ds4_back_as_touchpad_click" class="form-label">{{ $t('config.ds4_back_as_touchpad_click') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
                     <input type="checkbox" class="form-check-input" id="ds4_back_as_touchpad_click" v-model="config.ds4_back_as_touchpad_click" true-value="enabled" false-value="disabled" />
                     <div class="form-text">{{ $t('config.ds4_back_as_touchpad_click_desc') }}</div>
@@ -148,7 +148,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Native pen/touch support -->
-    <div class="form-check" v-if="config.mouse === 'enabled'">
+    <div class="mb-3 form-check" v-if="config.mouse === 'enabled'">
       <label for="native_pen_touch" class="form-label">{{ $t('config.native_pen_touch') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
       <input type="checkbox" class="form-check-input" id="native_pen_touch" v-model="config.native_pen_touch" true-value="enabled" false-value="disabled" />
       <div class="form-text">{{ $t('config.native_pen_touch_desc') }}</div>

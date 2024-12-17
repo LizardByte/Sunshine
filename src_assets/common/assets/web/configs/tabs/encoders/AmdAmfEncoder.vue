@@ -49,7 +49,7 @@ const config = ref(props.config)
             </div>
 
             <!-- AMF HRD Enforcement -->
-            <div class="form-check">
+            <div class="mb-3 form-check">
               <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
               <input type="checkbox" class="form-check-input" id="amd_enforce_hrd" v-model="config.amd_enforce_hrd" true-value="enabled" false-value="disabled" />
               <div class="form-text">{{ $t('config.amd_enforce_hrd_desc') }}</div>
@@ -60,7 +60,7 @@ const config = ref(props.config)
     </div>
 
     <!-- AMF Quality group options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -97,7 +97,7 @@ const config = ref(props.config)
             </div>
 
             <!-- AMF Coder (H264) -->
-            <div>
+            <div class="mb-3">
               <label for="amd_coder" class="form-label">{{ $t('config.amd_coder') }}</label>
               <select id="amd_coder" class="form-select" v-model="config.amd_coder">
                 <option value="auto">{{ $t('config.ffmpeg_auto') }}</option>
