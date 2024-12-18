@@ -75,6 +75,25 @@
         </div>
       </div>
     </div>
+    <!-- Reset persistent display device settings -->
+    <div class="card p-2 my-4" v-if="platform === 'windows'">
+      <div class="card-body">
+        <h2 id="dd_reset">{{ $t('troubleshooting.dd_reset') }}</h2>
+        <br>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.dd_reset_desc') }}</p>
+        <div class="alert alert-success" v-if="ddResetStatus === true">
+          {{ $t('troubleshooting.dd_reset_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="ddResetStatus === false">
+          {{ $t('troubleshooting.dd_reset_error') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="ddResetPressed" @click="ddResetPersistence">
+            {{ $t('troubleshooting.dd_reset') }}
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Unpair Clients -->
     <div class="card my-4">
       <div class="card-body">
@@ -141,11 +160,14 @@
           clients: [],
           closeAppPressed: false,
           closeAppStatus: null,
+          ddResetPressed: false,
+          ddResetStatus: null,
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
           restartPressed: false,
           showApplyMessage: false,
+          platform: "",
           unpairAllPressed: false,
           unpairAllStatus: null,
         };
@@ -159,6 +181,12 @@
         }
       },
       created() {
+        fetch("/api/config")
+          .then((r) => r.json())
+          .then((r) => {
+            this.platform = r.platform;
+          });
+
         this.logInterval = setInterval(() => {
           this.refreshLogs();
         }, 5000);
@@ -235,6 +263,18 @@
           fetch("./api/restart", {
             method: "POST",
           });
+        },
+        ddResetPersistence() {
+          this.ddResetPressed = true;
+          fetch("/api/reset-display-device-persistence", { method: "POST" })
+            .then((r) => r.json())
+            .then((r) => {
+              this.ddResetPressed = false;
+              this.ddResetStatus = r.status.toString() === "true";
+              setTimeout(() => {
+                this.ddResetStatus = null;
+              }, 5000);
+            });
         },
       },
     });

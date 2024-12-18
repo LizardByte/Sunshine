@@ -75,6 +75,11 @@ const config = ref(props.config)
       :config="config"
     />
 
+    <DisplayDeviceOptions
+      :platform="platform"
+      :config="config"
+    />
+
     <!-- Display Modes -->
     <DisplayModesSettings
         :platform="platform"
