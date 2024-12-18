@@ -95,14 +95,12 @@ fedora_version=%{fedora}
 cuda_supported_architectures=("x86_64" "aarch64")
 
 # set cuda_version based on Fedora version
-# these are the same right now, but leave this structure to make it easier to set different versions
-if [ "$fedora_version" == 39 ]; then
-  cuda_version="12.6.2"
-  cuda_build="560.35.03"
-else
-  cuda_version="12.6.2"
-  cuda_build="560.35.03"
-fi
+case "$fedora_version" in
+  *)
+    cuda_version="12.6.3"
+    cuda_build="560.35.05"
+    ;;
+esac
 
 # prepare CMAKE args
 cmake_args=(
