@@ -568,6 +568,7 @@ namespace platf::dxgi {
           }
 
           if (desc.AttachedToDesktop && test_dxgi_duplication(adapter_tmp, output_tmp, false)) {
+            output_index = y;
             output = std::move(output_tmp);
 
             offset_x = desc.DesktopCoordinates.left;
@@ -596,6 +597,7 @@ namespace platf::dxgi {
         }
 
         if (output) {
+          adapter_index = x;
           adapter = std::move(adapter_tmp);
           break;
         }
@@ -1055,6 +1057,16 @@ namespace platf {
    */
   std::shared_ptr<display_t>
   display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+    if (config::video.capture == "amd" || config::video.capture.empty()) {
+      if (hwdevice_type == mem_type_e::dxgi) {
+        auto disp = std::make_shared<dxgi::display_amd_vram_t>();
+
+        if (!disp->init(config, display_name)) {
+          return disp;
+        }
+      }
+    }
+
     if (config::video.capture == "ddx" || config::video.capture.empty()) {
       if (hwdevice_type == mem_type_e::dxgi) {
         auto disp = std::make_shared<dxgi::display_ddup_vram_t>();
