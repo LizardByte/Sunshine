@@ -15,12 +15,9 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
 <template>
   <div id="network" class="config-page">
     <!-- UPnP -->
-    <div class="mb-3">
-      <label for="upnp" class="form-label">{{ $t('config.upnp') }}</label>
-      <select id="upnp" class="form-select" v-model="config.upnp">
-        <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-        <option value="enabled">{{ $t('_common.enabled') }}</option>
-      </select>
+    <div class="mb-3 form-check">
+      <label for="upnp" class="form-label">{{ $t('config.upnp') }}<div class="mt-0 form-text">{{ $t('_common.disabled_def_cbox') }}</div></label>
+      <input type="checkbox" class="form-check-input" id="upnp" v-model="config.upnp" true-value="enabled" false-value="disabled" />
       <div class="form-text">{{ $t('config.upnp_desc') }}</div>
     </div>
 
