@@ -321,6 +321,12 @@ namespace nvenc {
         set_ref_frames(format_config.maxNumRefFramesInDPB, format_config.numRefL0, 5);
         set_minqp_if_enabled(config.min_qp_hevc);
         fill_h264_hevc_vui(format_config.hevcVUIParameters);
+        if (client_config.enableIntraRefresh == 1) {
+          format_config.enableIntraRefresh = 1;
+          format_config.singleSliceIntraRefresh = 1;
+          format_config.intraRefreshPeriod = 300;
+          format_config.intraRefreshCnt = 299;
+        }
         break;
       }
 
