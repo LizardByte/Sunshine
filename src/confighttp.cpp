@@ -28,6 +28,7 @@
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
+#include "display_device.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -735,6 +736,22 @@ namespace confighttp {
    * @endcode
    */
   void
+  resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+
+    pt::ptree outputTree;
+    auto g = util::fail_guard([&outputTree, &response]() {
+      std::ostringstream data;
+      pt::write_json(data, outputTree);
+      response->write(data.str());
+    });
+
+    outputTree.put("status", display_device::reset_persistence());
+  }
+
+  void
   savePassword(resp_https_t response, req_https_t request) {
     if (!config::sunshine.username.empty() && !authenticate(response, request)) return;
 
@@ -976,6 +993,7 @@ namespace confighttp {
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
