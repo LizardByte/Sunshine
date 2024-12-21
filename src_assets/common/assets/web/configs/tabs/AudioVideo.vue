@@ -54,12 +54,9 @@ const config = ref(props.config)
         </div>
 
         <!-- Install Steam Audio Drivers -->
-        <div class="mb-3">
-          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}</label>
-          <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
+        <div class="mb-3 form-check">
+          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}<div class="mt-0 form-text">{{ $t('_common.enabled_def_cbox') }}</div></label>
+          <input type="checkbox" class="form-check-input" id="install_steam_audio_drivers" v-model="config.install_steam_audio_drivers" true-value="enabled" false-value="disabled" />
           <div class="form-text">{{ $t('config.install_steam_audio_drivers_desc') }}</div>
         </div>
       </template>
