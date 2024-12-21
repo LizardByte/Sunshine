@@ -317,10 +317,20 @@ jobs:
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         working-directory: artifacts
         run: |
+          # debug directory
+          echo "Current directory: $(pwd)"
+          echo "Directory contents: $(ls -Ra)"
+
           # artifacts will be in sub directories named after the docker target platform, e.g. `linux_amd64`
           # so move files to the artifacts directory
           # https://unix.stackexchange.com/a/52816
-          find ./ -type f -exec mv -t ./ -n '{}' +
+          find \
+            ./ \
+            -maxdepth 2 \
+            -mindepth 2 \
+            -type f \
+            -not -name 'provenance.json' \
+            -exec mv -t ./ -n '{}' +
 
           # remove provenance file
           rm -f ./provenance.json
