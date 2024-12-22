@@ -130,7 +130,7 @@ class @PROJECT_NAME@ < Formula
       Thanks for installing @PROJECT_NAME@!
 
       To get started, review the documentation at:
-        https://docs.lizardbyte.dev/projects/sunshine/en/latest/
+        https://docs.lizardbyte.dev/projects/sunshine
     EOS
 
     if OS.linux?

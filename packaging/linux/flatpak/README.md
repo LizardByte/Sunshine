@@ -3,7 +3,7 @@
 [![Flathub installs](https://img.shields.io/flathub/downloads/dev.lizardbyte.app.Sunshine?style=for-the-badge&logo=flathub)](https://flathub.org/apps/dev.lizardbyte.app.Sunshine)
 [![Flathub Version](https://img.shields.io/flathub/v/dev.lizardbyte.app.Sunshine?style=for-the-badge&logo=flathub)](https://flathub.org/apps/dev.lizardbyte.app.Sunshine)
 
-LizardByte has the full documentation hosted on [Read the Docs](https://sunshinestream.readthedocs.io).
+LizardByte has the full documentation hosted on [Read the Docs](https://docs.lizardbyte.dev/projects/sunshine).
 
 ## About
 
