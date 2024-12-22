@@ -1118,6 +1118,7 @@ namespace config {
     }
 
     string_restricted_f(vars, "locale", config::sunshine.locale, {
+                                                                   "bg"sv,  // Bulgarian
                                                                    "de"sv,  // German
                                                                    "en"sv,  // English
                                                                    "en_GB"sv,  // English (UK)
@@ -1126,10 +1127,13 @@ namespace config {
                                                                    "fr"sv,  // French
                                                                    "it"sv,  // Italian
                                                                    "ja"sv,  // Japanese
+                                                                   "pl"sv,  // Polish
                                                                    "pt"sv,  // Portuguese
+                                                                   "pt_BR"sv,  // Portuguese (Brazilian)
                                                                    "ru"sv,  // Russian
                                                                    "sv"sv,  // Swedish
                                                                    "tr"sv,  // Turkish
+                                                                   "uk"sv,  // Ukrainian
                                                                    "zh"sv,  // Chinese
                                                                  });
 
