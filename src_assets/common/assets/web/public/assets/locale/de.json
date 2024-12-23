@@ -28,7 +28,7 @@
     "add_cmds": "Befehle hinzufügen",
     "add_new": "Neu hinzufügen",
     "app_name": "Anwendungsname",
-    "app_name_desc": "Anwendungsname, wie auf Mondlicht gezeigt",
+    "app_name_desc": "Name der App, wie in Moonlight angezeigt",
     "applications_desc": "Anwendungen werden nur beim Neustart des Clients aktualisiert",
     "applications_title": "Anwendungen",
     "auto_detach": "Streaming fortsetzen, wenn die Anwendung schnell beendet wird",
@@ -256,7 +256,7 @@
     "output_name_unix": "Anzeigenummer",
     "output_name_windows": "Ausgabename",
     "ping_timeout": "Ping-Timeout",
-    "ping_timeout_desc": "Wie lange warten Sie in Millisekunden auf Daten von Mondlicht bevor Sie den Strom herunterfahren",
+    "ping_timeout_desc": "Verzögerung in Millisekunden beim Warten auf Daten von Moonlight bevor der Stream beendet wird",
     "pkey": "Privater Schlüssel",
     "pkey_desc": "Der private Schlüssel, der für das Web-UI- und Moonlight-Client-Paar verwendet wird. Für bestmögliche Kompatibilität sollte dies ein privater RSA-2048 Schlüssel sein.",
     "port": "Port",
@@ -360,7 +360,7 @@
   "pin": {
     "device_name": "Gerätename",
     "pair_failure": "Paarung fehlgeschlagen: Prüfen Sie, ob die PIN korrekt eingegeben wurde",
-    "pair_success": "Erfolgreich! Bitte überprüfe Mondlicht um fortzufahren",
+    "pair_success": "Erfolg! Weiter geht es in Moonlight",
     "pin_pairing": "PIN Pairing",
     "send": "Senden",
     "warning_msg": "Stellen Sie sicher, dass Sie Zugriff auf den Client haben, mit dem Sie sich verbinden. Diese Software kann Ihrem Computer die totale Kontrolle geben, also seien Sie vorsichtig!"
