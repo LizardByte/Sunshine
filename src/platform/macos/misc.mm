@@ -34,55 +34,11 @@ namespace bp = boost::process;
 
 namespace platf {
 
-// Even though the following two functions are available starting in macOS 10.15, they weren't
-// actually in the Mac SDK until Xcode 12.2, the first to include the SDK for macOS 11
-#if __MAC_OS_X_VERSION_MAX_ALLOWED < 110000  // __MAC_11_0
-  // If they're not in the SDK then we can use our own function definitions.
-  // Need to use weak import so that this will link in macOS 10.14 and earlier
-  extern "C" bool
-  CGPreflightScreenCaptureAccess(void) __attribute__((weak_import));
-  extern "C" bool
-  CGRequestScreenCaptureAccess(void) __attribute__((weak_import));
-#endif
-
-  namespace {
-    auto screen_capture_allowed = std::atomic<bool> { false };
-  }  // namespace
-
-  // Return whether screen capture is allowed for this process.
-  bool
-  is_screen_capture_allowed() {
-    return screen_capture_allowed;
-  }
-
   std::unique_ptr<deinit_t>
   init() {
-    // This will generate a warning about CGPreflightScreenCaptureAccess and
-    // CGRequestScreenCaptureAccess being unavailable before macOS 10.15, but
-    // we have a guard to prevent it from being called on those earlier systems.
-    // Unfortunately the supported way to silence this warning, using @available,
-    // produces linker errors for __isPlatformVersionAtLeast, so we have to use
-    // a different method.
-    // We also ignore "tautological-pointer-compare" because when compiling with
-    // Xcode 12.2 and later, these functions are not weakly linked and will never
-    // be null, and therefore generate this warning. Since we are weakly linking
-    // when compiling with earlier Xcode versions, the check for null is
-    // necessary, and so we ignore the warning.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wunguarded-availability-new"
-#pragma clang diagnostic ignored "-Wtautological-pointer-compare"
-    if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })] &&
-        // Double check that these weakly-linked symbols have been loaded:
-        CGPreflightScreenCaptureAccess != nullptr && CGRequestScreenCaptureAccess != nullptr &&
-        !CGPreflightScreenCaptureAccess()) {
-      BOOST_LOG(error) << "No screen capture permission!"sv;
-      BOOST_LOG(error) << "Please activate it in 'System Preferences' -> 'Privacy' -> 'Screen Recording'"sv;
-      CGRequestScreenCaptureAccess();
+    if (permissions_manager.request_screen_capture_permission()) {
       return nullptr;
     }
-#pragma clang diagnostic pop
-    // Record that we determined that we have the screen capture permission.
-    screen_capture_allowed = true;
     return std::make_unique<deinit_t>();
   }
 
@@ -567,21 +523,6 @@ namespace platf {
   std::unique_ptr<high_precision_timer>
   create_high_precision_timer() {
     return std::make_unique<macos_high_precision_timer>();
-  }
-
-  bool
-  request_accessibility_permission() {
-    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @YES};
-    return !AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
-  }
-
-  bool
-  has_accessibility_permission() {
-    NSDictionary* options = @{static_cast<id>(kAXTrustedCheckOptionPrompt): @NO};
-    // We use kAXTrustedCheckOptionPrompt == NO here,
-    // instead of using XIsProcessTrusted(),
-    // because this will update the accessibility list with sunshine current path
-    return AXIsProcessTrustedWithOptions(static_cast<CFDictionaryRef>(options));
   }
 
 }  // namespace platf

@@ -9,6 +9,7 @@
 #include <mach/mach.h>
 
 #include "misc.h"
+#include "permissions_manager.h"
 
 #include "src/display_device.h"
 #include "src/logging.h"
@@ -229,11 +230,6 @@ const KeyCodeMap kKeyCodesMap[] = {
 };
   // clang-format on
 
-  /**
-   * Used to avoid spamming permission requests when the user receives an input event
-   */
-  bool accessibility_permission_requested;
-
   int
   keysym(int keycode) {
     KeyCodeMap key_map {};
@@ -250,35 +246,13 @@ const KeyCodeMap kKeyCodesMap[] = {
     return temp_map->mac_keycode;
   }
 
-  std::string
-  default_accessibility_log_msg() {
-    return "Accessibility permission is not enabled,"
-           " please enable sunshine in "
-           "[System Settings > Privacy & Security > Privacy > Accessibility]"
-           ", then please restart Sunshine for it to take effect";
-  }
-
-  void
-  print_accessibility_status(const bool is_keyboard_event, const bool release) {
-    if (!release) return;
-
-    if (!has_accessibility_permission()) {
-      if (!accessibility_permission_requested) {
-        accessibility_permission_requested = true;
-        request_accessibility_permission();
-      }
-      BOOST_LOG(info) << "Received " << (is_keyboard_event ? "keyboard" : "mouse") << " event but "
-                      << default_accessibility_log_msg();
-    }
-  }
-
   void
   keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto key = keysym(modcode);
 
     BOOST_LOG(debug) << "got keycode: 0x"sv << std::hex << modcode << ", translated to: 0x" << std::hex << key << ", release:" << release;
 
-    print_accessibility_status(true, release);
+    permissions_manager.print_accessibility_status(true, release);
 
     if (key < 0) {
       return;
@@ -470,7 +444,7 @@ const KeyCodeMap kKeyCodesMap[] = {
         return;
     }
 
-    print_accessibility_status(false, release);
+    permissions_manager.print_accessibility_status(false, release);
 
     macos_input->mouse_down[mac_button] = !release;
 
@@ -572,9 +546,8 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     const auto macos_input = static_cast<macos_input_t *>(result.get());
 
-    accessibility_permission_requested = false;
-    if (request_accessibility_permission()) {
-      BOOST_LOG(info) << default_accessibility_log_msg() << ", to allow mouse clicks and keyboard inputs.";
+    if (permissions_manager.request_accessibility_permission()) {
+      BOOST_LOG(info) << PermissionsManager::default_accessibility_log_msg() << ", to allow mouse clicks and keyboard inputs.";
     }
 
     // Default to main display
