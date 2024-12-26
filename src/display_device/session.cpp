@@ -203,7 +203,7 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /enable \"Virtual Display with HDR\"";
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /enable \"Virtual Display Driver\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
@@ -221,7 +221,7 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable \"Virtual Display with HDR\"";
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable \"Virtual Display Driver\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
@@ -239,7 +239,7 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable_enable \"Virtual Display with HDR\"";
+    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable_enable \"Virtual Display Driver\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
