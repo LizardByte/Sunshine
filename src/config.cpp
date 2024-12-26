@@ -70,7 +70,7 @@ namespace config {
   }  // namespace nv
 
   namespace amd {
-#ifdef __APPLE__
+#if !defined(_WIN32) || defined(DOXYGEN)
   // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
@@ -112,6 +112,9 @@ namespace config {
   #define AMF_VIDEO_ENCODER_CABAC 1
   #define AMF_VIDEO_ENCODER_CALV 2
 #else
+  #ifdef _GLIBCXX_USE_C99_INTTYPES
+    #undef _GLIBCXX_USE_C99_INTTYPES
+  #endif
   #include <AMF/components/VideoEncoderAV1.h>
   #include <AMF/components/VideoEncoderHEVC.h>
   #include <AMF/components/VideoEncoderVCE.h>
@@ -386,10 +389,13 @@ namespace config {
       -1,
     },  // vt
 
+    {
+      false,  // strict_rc_buffer
+    },  // vaapi
+
     {},  // capture
     {},  // encoder
     {},  // adapter_name
-
     {},  // output_name
     (int) display_device::parsed_config_t::device_prep_e::no_operation,  // display_device_prep
     (int) display_device::parsed_config_t::resolution_change_e::automatic,  // resolution_change
@@ -903,9 +909,8 @@ namespace config {
       auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
       auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
       auto elevated = prep_cmd.get_optional<bool>("elevated"s);
-      auto on_session = prep_cmd.get_optional<bool>("on-session"s);
 
-      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false), on_session.value_or(false));
+      input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
     }
   }
 
@@ -1088,10 +1093,11 @@ namespace config {
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
+    bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
+
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
-
     string_f(vars, "output_name", video.output_name);
     sync_idd_f(vars, "output_name", video.output_name);
     int_f(vars, "display_device_prep", video.display_device_prep, display_device::parsed_config_t::device_prep_from_view);
