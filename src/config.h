@@ -72,10 +72,6 @@ namespace config {
       int vt_coder;
     } vt;
 
-    struct {
-      bool strict_rc_buffer;
-    } vaapi;
-
     std::string capture;
     std::string encoder;
     std::string adapter_name;
@@ -129,6 +125,7 @@ namespace config {
     std::string cert;
 
     std::string sunshine_name;
+    
     std::string clients;
 
     std::string file_state;
@@ -172,13 +169,17 @@ namespace config {
   }
 
   struct prep_cmd_t {
-    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
+    prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated, bool &&on_session):
+        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)),
+        on_session(std::move(on_session)) {}
+    explicit prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)) {}
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
         do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
     std::string do_cmd;
     std::string undo_cmd;
     bool elevated;
+    bool on_session;
   };
   struct sunshine_t {
     std::string locale;
