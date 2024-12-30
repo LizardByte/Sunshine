@@ -27,7 +27,6 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_of
 
         // Swap the xy offset coordinates if the texture is rotated an odd number of times.
         if (rotate_texture_steps & 1) {
-
             subsample_offset.xy = subsample_offset.yx;
         }
     }
