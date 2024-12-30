@@ -136,17 +136,15 @@ namespace display_device {
 
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
-    if (session_t::get().settings.is_changing_settings_going_to_fail()) {
-      const auto devices { enum_available_devices() };
-      const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
-      if (!devices.empty()) {
-        BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-        zako_device_id = vdd_devices;
-        // 大多数哔叽本开机默认虚拟屏优先导致黑屏
-        if (!vdd_devices.empty() && devices.size() > 1) {
-          session_t::get().disable_vdd();
-          std::this_thread::sleep_for(2333ms);
-        }
+    const auto devices { enum_available_devices() };
+    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
+    if (!devices.empty()) {
+      BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+      zako_device_id = vdd_devices;
+      // 大多数哔叽本开机默认虚拟屏优先导致黑屏
+      if (!vdd_devices.empty() && devices.size() > 1) {
+        session_t::get().disable_vdd();
+        std::this_thread::sleep_for(2333ms);
       }
     }
 
