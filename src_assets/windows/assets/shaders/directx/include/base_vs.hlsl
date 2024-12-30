@@ -24,7 +24,10 @@ vertex_t generate_fullscreen_triangle_vertex(uint vertex_id, float2 subsample_of
                                      sin(rotation_radians), cos(rotation_radians) };
         float2 rotation_center = { 0.5, 0.5 };
         tex_coord = round(rotation_center + mul(rotation_matrix, tex_coord - rotation_center));
-
+/* 
+bitwise operation used in place of modulus operation as mod operator on integer does not compile optimally generating warnings, 
+bitwise operation "& 1" is equivalent to "% 2" in a form that results in optimized lower level code.
+*/
         if (rotate_texture_steps & 1) {
             subsample_offset.xy = subsample_offset.yx;
         }
