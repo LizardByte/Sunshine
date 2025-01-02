@@ -344,7 +344,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
-        uses: LizardByte/create-release-action@v2024.919.143026
+        uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true
           artifacts: "*artifacts/*"
