@@ -20,7 +20,7 @@ long_description         @PROJECT_LONG_DESCRIPTION@
 homepage                 @PROJECT_HOMEPAGE_URL@
 master_sites             https://github.com/lizardbyte/sunshine/releases
 
-compiler.cxx_standard    2017
+compiler.cxx_standard    2020
 fetch.type               git
 
 git.url                  @GITHUB_CLONE_URL@
