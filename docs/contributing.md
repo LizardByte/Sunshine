@@ -1,6 +1,6 @@
 # Contributing
 Read our contribution guide in our organization level
-[docs](https://lizardbyte.readthedocs.io/en/latest/developers/contributing.html).
+[docs](https://docs.lizardbyte.dev/latest/developers/contributing.html).
 
 ## Project Patterns
 

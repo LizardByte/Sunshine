@@ -11,10 +11,10 @@
 
 [![GitHub Workflow Status (CI)](https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/CI.yml.svg?branch=master&label=CI%20build&logo=github&style=for-the-badge)](https://github.com/LizardByte/Sunshine/actions/workflows/CI.yml?query=branch%3Amaster)
 [![GitHub Workflow Status (localize)](https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=master&label=localize%20build&logo=github&style=for-the-badge)](https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Amaster)
-[![Read the Docs](https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs)](http://sunshinestream.readthedocs.io)
+[![Read the Docs](https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs)](https://docs.lizardbyte.dev/projects/sunshine)
 [![Codecov](https://img.shields.io/codecov/c/gh/LizardByte/Sunshine?token=SMGXQ5NVMJ&style=for-the-badge&logo=codecov&label=codecov)](https://codecov.io/gh/LizardByte/Sunshine)
 
-LizardByte has the full documentation hosted on [Read the Docs](https://sunshinestream.readthedocs.io).
+LizardByte has the full documentation hosted on [Read the Docs](https://docs.lizardbyte.dev/projects/sunshine).
 
 ## About
 
@@ -70,7 +70,7 @@ the local server or any mobile device.
         <td>Linux/Debian: 12+ (bookworm)</td>
     </tr>
     <tr>
-        <td>Linux/Fedora: 39+</td>
+        <td>Linux/Fedora: 40+</td>
     </tr>
     <tr>
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>
@@ -154,7 +154,7 @@ the local server or any mobile device.
 
 ## Support
 
-Our support methods are listed in our [LizardByte Docs](https://lizardbyte.readthedocs.io/en/latest/about/support.html).
+Our support methods are listed in our [LizardByte Docs](https://docs.lizardbyte.dev/latest/about/support.html).
 
 <div class="section_buttons">
 
