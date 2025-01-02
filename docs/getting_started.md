@@ -271,42 +271,6 @@ brew uninstall sunshine
 
 @tip{For beta you can replace `sunshine` with `sunshine-beta` in the above commands.}
 
-#### Portfile
-This package requires that you have [MacPorts](https://www.macports.org/install.php) installed.
-
-##### Install
-1. Update the Macports sources.
-   ```bash
-   sudo nano /opt/local/etc/macports/sources.conf
-   ```
-
-   Add this line, replacing your username, below the line that starts with `rsync`.
-   ```bash
-   file:///Users/<username>/ports
-   ```
-
-   `Ctrl+x`, then `Y` to exit and save changes.
-
-2. Download and install by running the following commands.
-   ```bash
-   mkdir -p ~/ports/multimedia/sunshine
-   cd ~/ports/multimedia/sunshine
-   curl -OL https://github.com/LizardByte/Sunshine/releases/latest/download/Portfile
-   cd ~/ports
-   portindex
-   sudo port install sunshine
-   ```
-
-##### Install service (optional)
-```bash
-sudo port load sunshine
-```
-
-##### Uninstall
-```bash
-sudo port uninstall sunshine
-```
-
 ### Windows
 
 #### Installer (recommended)
