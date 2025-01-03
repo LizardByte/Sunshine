@@ -32,8 +32,7 @@
 }
 
 + (NSString *)getDisplayName:(CGDirectDisplayID)displayID {
-  NSScreen *screens = [NSScreen screens];
-  for (NSScreen *screen in screens) {
+  for (NSScreen *screen in [NSScreen screens]) {
     if (screen.deviceDescription[@"NSScreenNumber"] == [NSNumber numberWithUnsignedInt:displayID]) {
       return screen.localizedName;
     }
