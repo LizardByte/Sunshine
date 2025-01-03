@@ -366,12 +366,12 @@ namespace stream {
 
     struct {
       crypto::cipher::cbc_t cipher;
-      std::string ping_payload;
 
-      std::uint16_t sequenceNumber;
+      std::string ping_payload;
       // avRiKeyId == util::endian::big(First (sizeof(avRiKeyId)) bytes of launch_session->iv)
       std::uint32_t avRiKeyId;
-      std::uint32_t timestamp;
+      std::uint16_t sequenceNumber;
+      std::chrono::steady_clock::time_point timestamp_epoch;
       udp::endpoint peer;
 
       util::buffer_t<char> shards;
@@ -1274,7 +1274,7 @@ namespace stream {
   videoBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
-    auto timebase = boost::posix_time::microsec_clock::universal_time();
+    auto timestamp_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1479,8 +1479,13 @@ namespace stream {
             auto *inspect = (video_packet_raw_t *) shards.data(x);
 
             // RTP video timestamps use a 90 KHz clock
-            auto now = boost::posix_time::microsec_clock::universal_time();
-            auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
+            auto timestamp = static_cast<std::uint32_t>(
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                packet->frame_timestamp
+                  ? *packet->frame_timestamp - timestamp_epoch
+                  : std::chrono::steady_clock::now() - timestamp_epoch // is this fallback needed?
+              ).count() / (1000.0 / 90)
+            );
 
             inspect->packet.fecInfo =
               (x << 12 |
@@ -1629,7 +1634,12 @@ namespace stream {
       auto session = (session_t *) channel_data;
 
       auto sequenceNumber = session->audio.sequenceNumber;
-      auto timestamp = session->audio.timestamp;
+      // Audio timestamps are in milliseconds and should be AudioPacketDuration (5ms or 10ms) apart
+      auto timestamp = static_cast<std::uint32_t>(
+        std::chrono::duration_cast<std::chrono::microseconds>(
+          std::chrono::steady_clock::now() - session->audio.timestamp_epoch
+        ).count() / 1000.0
+      );
 
       *(std::uint32_t *) iv.data() = util::endian::big<std::uint32_t>(session->audio.avRiKeyId + sequenceNumber);
 
@@ -1646,7 +1656,6 @@ namespace stream {
       audio_packet.rtp.timestamp = util::endian::big(timestamp);
 
       session->audio.sequenceNumber++;
-      session->audio.timestamp += session->config.audio.packetDuration;
 
       auto peer_address = session->audio.peer.address();
       try {
@@ -2067,7 +2076,7 @@ namespace stream {
       session->audio.ping_payload = launch_session.av_ping_payload;
       session->audio.avRiKeyId = util::endian::big(*(std::uint32_t *) launch_session.iv.data());
       session->audio.sequenceNumber = 0;
-      session->audio.timestamp = 0;
+      session->audio.timestamp_epoch = std::chrono::steady_clock::now();
 
       session->control.peer = nullptr;
       session->state.store(state_e::STOPPED, std::memory_order_relaxed);
