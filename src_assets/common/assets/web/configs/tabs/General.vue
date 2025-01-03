@@ -1,4 +1,5 @@
 <script setup>
+import Checkbox from '../../Checkbox.vue'
 import { ref } from 'vue'
 
 const props = defineProps({
@@ -100,12 +101,12 @@ function removeCmd(index) {
           <td>
             <input type="text" class="form-control monospace" v-model="c.undo" />
           </td>
-          <td v-if="platform === 'windows'">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                     true-value="true" false-value="false" />
-              <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('config.elevated') }}</label>
-            </div>
+          <td v-if="platform === 'windows'" class="align-middle">
+            <Checkbox :id="'prep-cmd-admin-' + i"
+                      label="_common.elevated"
+                      desc=""
+                      v-model="c.elevated"
+            ></Checkbox>
           </td>
           <td>
             <button class="btn btn-danger" @click="removeCmd(i)">
@@ -124,14 +125,12 @@ function removeCmd(index) {
     </div>
 
     <!-- Notify Pre-Releases -->
-    <div class="mb-3">
-        <label for="notify_pre_releases" class="form-label">{{ $t('config.notify_pre_releases') }}</label>
-        <select id="notify_pre_releases" class="form-select" v-model="config.notify_pre_releases">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-        </select>
-        <div class="form-text">{{ $t('config.notify_pre_releases_desc') }}</div>
-    </div>
+    <Checkbox class="mb-3"
+              id="notify_pre_releases"
+              locale-prefix="config"
+              v-model="config.notify_pre_releases"
+              unchecked-by-def
+    ></Checkbox>
   </div>
 </template>
 

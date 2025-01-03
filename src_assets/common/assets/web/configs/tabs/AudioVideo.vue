@@ -6,6 +6,7 @@ import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
 import DisplayOutputSelector from './audiovideo/DisplayOutputSelector.vue'
 import DisplayDeviceOptions from "./audiovideo/DisplayDeviceOptions.vue";
 import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
+import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
   'platform',
@@ -54,14 +55,12 @@ const config = ref(props.config)
         </div>
 
         <!-- Install Steam Audio Drivers -->
-        <div class="mb-3">
-          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}</label>
-          <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.install_steam_audio_drivers_desc') }}</div>
-        </div>
+        <Checkbox class="mb-3"
+                  id="install_steam_audio_drivers"
+                  locale-prefix="config"
+                  v-model="config.install_steam_audio_drivers"
+                  checked-by-def
+        ></Checkbox>
       </template>
     </PlatformLayout>
 
