@@ -63,6 +63,10 @@ class @PROJECT_NAME@ < Formula
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
 
+    # Remove Homebrew optimization flags
+    ["O0", "O1", "O2", "O3"].each { |flag| ENV.delete flag }
+    ENV.remove "CXXFLAGS", "-DNDEBUG"
+
     args = %W[
       -DBUILD_WERROR=ON
       -DCMAKE_INSTALL_PREFIX=#{prefix}
