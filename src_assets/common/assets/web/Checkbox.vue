@@ -23,8 +23,8 @@ const props = defineProps({
     default: "missing-prefix"
   },
   default: {
-    type: [Boolean, null],
-    default: null
+    type: undefined,
+    default: null,
   }
 });
 
@@ -37,48 +37,65 @@ const extendedClassStr = (() => {
   return values.join(" ");
 })();
 
+// Map the value to boolean representation if possible, otherwise return null.
+const mapToBoolRepresentation = (value) => {
+  // Try literal values first
+  if (value === true || value === false) {
+    return { possibleValues: [true, false], value: value };
+  }
+  if (value === 1 || value === 0) {
+    return { possibleValues: [1, 0], value: value };
+  }
+
+  const stringPairs = [
+    ["true", "false"],
+    ["1", "0"],
+    ["enabled", "disabled"],
+    ["enable", "disable"],
+    ["yes", "no"],
+    ["on", "off"]
+  ];
+
+  value = `${value}`.toLowerCase().trim();
+  for (const pair of stringPairs) {
+    if (value === pair[0] || value === pair[1]) {
+      return { possibleValues: pair, value: value };
+    }
+  }
+
+  return null;
+}
+
 // Determine the true/false values for the checkbox
 const checkboxValues = (() => {
   const mappedValues = (() => {
-    // Try literal values first
-    let value = model.value;
-    if (value === true || value === false) {
-      return [true, false];
-    }
-    if (value === 1 || value === 0) {
-      return [1, 0];
+    const boolValues = mapToBoolRepresentation(model.value);
+    if (boolValues !== null) {
+      return boolValues.possibleValues;
     }
 
-    // Try mapping strings next (first in the list will be used as fallback)
-    const stringPairs = [
-      ["true", "false"],
-      ["1", "0"],
-      ["enabled", "disabled"],
-      ["enable", "disable"],
-      ["yes", "no"],
-      ["on", "off"]
-    ];
-
-    value = `${value}`.toLowerCase().trim();
-    for (const pair of stringPairs) {
-      if (value === pair[0] || value === pair[1]) {
-        return pair;
-      }
-    }
-
-    // Return default if nothing matches
-    console.error(`Checkbox value ${model.value} (${value}) did not match any acceptable pattern!`);
-    return stringPairs[0];
+    // Return fallback if nothing matches
+    console.error(`Checkbox value ${model.value} did not match any acceptable pattern!`);
+    return ["true", "false"];
   })();
 
   return { truthy: mappedValues[0], falsy: mappedValues[1] };
+})();
+const parsedDefaultPropValue = (() => {
+  const boolValues = mapToBoolRepresentation(props.default);
+  if (boolValues !== null) {
+    // Convert truthy to true/false.
+    return boolValues.value === boolValues.possibleValues[0];
+  }
+
+  return null;
 })();
 
 const labelField = props.label ?? `${props.localePrefix}.${props.id}`;
 const descField = props.desc ?? `${props.localePrefix}.${props.id}_desc`;
 const showDesc = props.desc !== "" || Object.entries(slots).length > 0;
-const showDefValue = props.default !== null;
-const defValue = props.default ? "_common.enabled_def_cbox" : "_common.disabled_def_cbox";
+const showDefValue = parsedDefaultPropValue !== null;
+const defValue = parsedDefaultPropValue ? "_common.enabled_def_cbox" : "_common.disabled_def_cbox";
 </script>
 
 <template>
