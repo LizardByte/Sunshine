@@ -84,11 +84,11 @@ pacman -Syu
 ```bash
 dependencies=(
   "git"
-  "mingw-w64-ucrt-x86_64-doxygen"  # Optional, for docs
   "mingw-w64-ucrt-x86_64-boost"  # Optional
   "mingw-w64-ucrt-x86_64-cmake"
   "mingw-w64-ucrt-x86_64-cppwinrt"
   "mingw-w64-ucrt-x86_64-curl-winssl"
+  "mingw-w64-ucrt-x86_64-doxygen"  # Optional, for docs
   "mingw-w64-ucrt-x86_64-graphviz"  # Optional, for docs
   "mingw-w64-ucrt-x86_64-miniupnpc"
   "mingw-w64-ucrt-x86_64-nlohmann-json"
