@@ -35,7 +35,7 @@ const config = ref(props.config)
               desc=""
               locale-prefix="config"
               v-model="config.vt_realtime"
-              checked-by-def
+              default="true"
     ></Checkbox>
   </div>
 </template>

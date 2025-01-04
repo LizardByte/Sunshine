@@ -59,7 +59,7 @@ const config = ref(props.config)
                   id="install_steam_audio_drivers"
                   locale-prefix="config"
                   v-model="config.install_steam_audio_drivers"
-                  checked-by-def
+                  default="true"
         ></Checkbox>
       </template>
     </PlatformLayout>

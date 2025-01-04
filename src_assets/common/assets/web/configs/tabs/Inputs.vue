@@ -18,7 +18,7 @@ const config = ref(props.config)
               id="controller"
               locale-prefix="config"
               v-model="config.controller"
-              checked-by-def
+              default="true"
     ></Checkbox>
 
     <!-- Emulated Gamepad Type -->
@@ -64,14 +64,14 @@ const config = ref(props.config)
                             id="motion_as_ds4"
                             locale-prefix="config"
                             v-model="config.motion_as_ds4"
-                            checked-by-def
+                            default="true"
                   ></Checkbox>
                   <!-- DS4 touchpad -->
                   <Checkbox class="mb-3"
                             id="touchpad_as_ds4"
                             locale-prefix="config"
                             v-model="config.touchpad_as_ds4"
-                            checked-by-def
+                            default="true"
                   ></Checkbox>
                 </template>
                 <!-- DS4 options (all platforms) -->
@@ -81,7 +81,7 @@ const config = ref(props.config)
                             id="ds4_back_as_touchpad_click"
                             locale-prefix="config"
                             v-model="config.ds4_back_as_touchpad_click"
-                            checked-by-def
+                            default="true"
                   ></Checkbox>
                 </template>
               </div>
@@ -105,7 +105,7 @@ const config = ref(props.config)
               id="keyboard"
               locale-prefix="config"
               v-model="config.keyboard"
-              checked-by-def
+              default="true"
     ></Checkbox>
 
     <!-- Key Repeat Delay-->
@@ -130,7 +130,7 @@ const config = ref(props.config)
               id="always_send_scancodes"
               locale-prefix="config"
               v-model="config.always_send_scancodes"
-              checked-by-def
+              default="true"
     ></Checkbox>
 
     <!-- Mapping Key AltRight to Key Windows -->
@@ -139,7 +139,7 @@ const config = ref(props.config)
               id="key_rightalt_to_key_win"
               locale-prefix="config"
               v-model="config.key_rightalt_to_key_win"
-              unchecked-by-def
+              default="false"
     ></Checkbox>
 
     <!-- Enable Mouse Input -->
@@ -148,7 +148,7 @@ const config = ref(props.config)
               id="mouse"
               locale-prefix="config"
               v-model="config.mouse"
-              checked-by-def
+              default="true"
     ></Checkbox>
 
     <!-- High resolution scrolling support -->
@@ -157,7 +157,7 @@ const config = ref(props.config)
               id="high_resolution_scrolling"
               locale-prefix="config"
               v-model="config.high_resolution_scrolling"
-              checked-by-def
+              default="true"
     ></Checkbox>
 
     <!-- Native pen/touch support -->
@@ -166,7 +166,7 @@ const config = ref(props.config)
               id="native_pen_touch"
               locale-prefix="config"
               v-model="config.native_pen_touch"
-              checked-by-def
+              default="true"
     ></Checkbox>
   </div>
 </template>

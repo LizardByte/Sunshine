@@ -20,7 +20,7 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
               id="upnp"
               locale-prefix="config"
               v-model="config.upnp"
-              unchecked-by-def
+              default="false"
     ></Checkbox>
 
     <!-- Address family -->

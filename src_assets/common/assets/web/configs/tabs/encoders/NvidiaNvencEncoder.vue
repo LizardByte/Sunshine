@@ -78,7 +78,7 @@ const config = ref(props.config)
                       id="nvenc_realtime_hags"
                       locale-prefix="config"
                       v-model="config.nvenc_realtime_hags"
-                      checked-by-def
+                      default="true"
             >
               <br>
               <br>
@@ -91,7 +91,7 @@ const config = ref(props.config)
                       id="nvenc_latency_over_power"
                       locale-prefix="config"
                       v-model="config.nvenc_latency_over_power"
-                      checked-by-def
+                      default="true"
             ></Checkbox>
 
             <!-- Present OpenGL/Vulkan on top of DXGI -->
@@ -100,7 +100,7 @@ const config = ref(props.config)
                       id="nvenc_opengl_vulkan_on_dxgi"
                       locale-prefix="config"
                       v-model="config.nvenc_opengl_vulkan_on_dxgi"
-                      checked-by-def
+                      default="true"
             ></Checkbox>
 
             <!-- NVENC H264 CAVLC -->
@@ -108,7 +108,7 @@ const config = ref(props.config)
                       id="nvenc_h264_cavlc"
                       locale-prefix="config"
                       v-model="config.nvenc_h264_cavlc"
-                      unchecked-by-def
+                      default="false"
             ></Checkbox>
           </div>
         </div>

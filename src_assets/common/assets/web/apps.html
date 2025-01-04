@@ -121,7 +121,7 @@
                   label="apps.global_prep_name"
                   desc="apps.global_prep_desc"
                   v-model="editForm['exclude-global-prep-cmd']"
-                  checked-by-def
+                  default="true"
         ></Checkbox>
         <div class="mb-3">
           <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
@@ -212,7 +212,7 @@
                   label="_common.run_as"
                   desc="apps.run_as_desc"
                   v-model="editForm.elevated"
-                  unchecked-by-def
+                  default="false"
         ></Checkbox>
         <!-- auto-detach -->
         <Checkbox class="mb-3"
@@ -220,7 +220,7 @@
                   label="apps.auto_detach"
                   desc="apps.auto_detach_desc"
                   v-model="editForm['auto-detach']"
-                  checked-by-def
+                  default="true"
         ></Checkbox>
         <!-- wait for all processes -->
         <Checkbox class="mb-3"
@@ -228,7 +228,7 @@
                   label="apps.wait_all"
                   desc="apps.wait_all_desc"
                   v-model="editForm['wait-all']"
-                  checked-by-def
+                  default="true"
         ></Checkbox>
         <!-- exit timeout -->
         <div class="mb-3">

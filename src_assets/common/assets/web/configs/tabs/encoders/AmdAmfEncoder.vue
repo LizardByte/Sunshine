@@ -54,7 +54,7 @@ const config = ref(props.config)
                       id="amd_enforce_hrd"
                       locale-prefix="config"
                       v-model="config.amd_enforce_hrd"
-                      unchecked-by-def
+                      default="false"
             ></Checkbox>
           </div>
         </div>
@@ -89,7 +89,7 @@ const config = ref(props.config)
                       id="amd_preanalysis"
                       locale-prefix="config"
                       v-model="config.amd_preanalysis"
-                      unchecked-by-def
+                      default="false"
             ></Checkbox>
 
             <!-- AMD VBAQ -->
@@ -97,7 +97,7 @@ const config = ref(props.config)
                       id="amd_vbaq"
                       locale-prefix="config"
                       v-model="config.amd_vbaq"
-                      checked-by-def
+                      default="true"
             ></Checkbox>
 
             <!-- AMF Coder (H264) -->

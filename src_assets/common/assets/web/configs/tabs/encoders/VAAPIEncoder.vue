@@ -17,7 +17,7 @@ const config = ref(props.config)
               id="vaapi_strict_rc_buffer"
               locale-prefix="config"
               v-model="config.vaapi_strict_rc_buffer"
-              unchecked-by-def
+              default="false"
     ></Checkbox>
   </div>
 </template>

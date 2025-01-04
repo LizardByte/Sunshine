@@ -129,7 +129,7 @@ function removeCmd(index) {
               id="notify_pre_releases"
               locale-prefix="config"
               v-model="config.notify_pre_releases"
-              unchecked-by-def
+              default="false"
     ></Checkbox>
   </div>
 </template>

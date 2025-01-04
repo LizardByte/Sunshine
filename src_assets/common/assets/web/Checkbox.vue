@@ -22,13 +22,9 @@ const props = defineProps({
     type: String,
     default: "missing-prefix"
   },
-  checkedByDef: {
-    type: Boolean,
-    default: false
-  },
-  uncheckedByDef: {
-    type: Boolean,
-    default: false
+  default: {
+    type: [Boolean, null],
+    default: null
   }
 });
 
@@ -81,9 +77,8 @@ const checkboxValues = (() => {
 const labelField = props.label ?? `${props.localePrefix}.${props.id}`;
 const descField = props.desc ?? `${props.localePrefix}.${props.id}_desc`;
 const showDesc = props.desc !== "" || Object.entries(slots).length > 0;
-const showDefValue = props.checkedByDef || props.uncheckedByDef;
-const defValue = props.checkedByDef === props.uncheckedByDef ? "INVALID" :
-  props.checkedByDef ? "_common.enabled_def_cbox" : "_common.disabled_def_cbox";
+const showDefValue = props.default !== null;
+const defValue = props.default ? "_common.enabled_def_cbox" : "_common.disabled_def_cbox";
 </script>
 
 <template>

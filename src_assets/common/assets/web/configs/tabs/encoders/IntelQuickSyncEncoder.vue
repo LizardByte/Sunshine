@@ -41,7 +41,7 @@ const config = ref(props.config)
               id="qsv_slow_hevc"
               locale-prefix="config"
               v-model="config.qsv_slow_hevc"
-              unchecked-by-def
+              default="false"
     ></Checkbox>
   </div>
 </template>
