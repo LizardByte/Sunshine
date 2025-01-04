@@ -83,8 +83,8 @@ pacman -Syu
 ##### Install dependencies
 ```bash
 dependencies=(
-  "doxygen"  # Optional, for docs
   "git"
+  "mingw-w64-ucrt-x86_64-doxygen"  # Optional, for docs
   "mingw-w64-ucrt-x86_64-boost"  # Optional
   "mingw-w64-ucrt-x86_64-cmake"
   "mingw-w64-ucrt-x86_64-cppwinrt"
