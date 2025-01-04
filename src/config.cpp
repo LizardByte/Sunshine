@@ -1208,6 +1208,7 @@ namespace config {
                                                                    "fr"sv,  // French
                                                                    "it"sv,  // Italian
                                                                    "ja"sv,  // Japanese
+                                                                   "ko"sv,  // Korean
                                                                    "pl"sv,  // Polish
                                                                    "pt"sv,  // Portuguese
                                                                    "pt_BR"sv,  // Portuguese (Brazilian)

@@ -57,7 +57,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="17">Choices</td>
+        <td rowspan="18">Choices</td>
         <td>bg</td>
         <td>Bulgarian</td>
     </tr>
@@ -92,6 +92,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>ja</td>
         <td>Japanese</td>
+    </tr>
+    <tr>
+        <td>ko</td>
+        <td>Korean</td>
     </tr>
     <tr>
         <td>pl</td>
