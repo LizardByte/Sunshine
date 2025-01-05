@@ -116,15 +116,13 @@
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
         <!-- prep-cmd -->
-        <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">{{ $t('apps.global_prep_name') }}</label>
-          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-            <option v-for="val in [false, true]" :value="val">
-              {{ !val ? $t('_common.enabled') : $t('_common.disabled') }}
-            </option>
-          </select>
-          <div class="form-text">{{ $t('apps.global_prep_desc') }}</div>
-        </div>
+        <Checkbox class="mb-3"
+                  id="excludeGlobalPrep"
+                  label="apps.global_prep_name"
+                  desc="apps.global_prep_desc"
+                  v-model="editForm['exclude-global-prep-cmd']"
+                  default="true"
+        ></Checkbox>
         <div class="mb-3">
           <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
           <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
@@ -152,12 +150,12 @@
                 <td>
                   <input type="text" class="form-control monospace" v-model="c.undo" />
                 </td>
-                <td v-if="platform === 'windows'">
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                      true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('_common.elevated') }}</label>
-                  </div>
+                <td v-if="platform === 'windows'" class="align-middle">
+                  <Checkbox :id="'prep-cmd-admin-' + i"
+                            label="_common.elevated"
+                            desc=""
+                            v-model="c.elevated"
+                  ></Checkbox>
                 </td>
                 <td>
                   <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
@@ -208,26 +206,30 @@
           <div id="appWorkingDirHelp" class="form-text">{{ $t('apps.working_dir_desc') }}</div>
         </div>
         <!-- elevation -->
-        <div class="mb-3 form-check" v-if="platform === 'windows'">
-          <label for="appElevation" class="form-check-label">{{ $t('_common.run_as') }}</label>
-          <input type="checkbox" class="form-check-input" id="appElevation" v-model="editForm.elevated"
-            true-value="true" false-value="false" />
-          <div class="form-text">{{ $t('apps.run_as_desc') }}</div>
-        </div>
+        <Checkbox v-if="platform === 'windows'"
+                  class="mb-3"
+                  id="appElevation"
+                  label="_common.run_as"
+                  desc="apps.run_as_desc"
+                  v-model="editForm.elevated"
+                  default="false"
+        ></Checkbox>
         <!-- auto-detach -->
-        <div class="mb-3 form-check">
-          <label for="autoDetach" class="form-check-label">{{ $t('apps.auto_detach') }}</label>
-          <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
-            true-value="true" false-value="false" />
-          <div class="form-text">{{ $t('apps.auto_detach_desc') }}</div>
-        </div>
+        <Checkbox class="mb-3"
+                  id="autoDetach"
+                  label="apps.auto_detach"
+                  desc="apps.auto_detach_desc"
+                  v-model="editForm['auto-detach']"
+                  default="true"
+        ></Checkbox>
         <!-- wait for all processes -->
-        <div class="mb-3 form-check">
-          <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}</label>
-          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']"
-            true-value="true" false-value="false" />
-          <div class="form-text">{{ $t('apps.wait_all_desc') }}</div>
-        </div>
+        <Checkbox class="mb-3"
+                  id="waitAll"
+                  label="apps.wait_all"
+                  desc="apps.wait_all_desc"
+                  v-model="editForm['wait-all']"
+                  default="true"
+        ></Checkbox>
         <!-- exit timeout -->
         <div class="mb-3">
           <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
@@ -358,11 +360,13 @@
   import { createApp } from 'vue'
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
+  import Checkbox from './Checkbox.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
 
   const app = createApp({
     components: {
-      Navbar
+      Navbar,
+      Checkbox
     },
     data() {
       return {
@@ -415,9 +419,9 @@
         if (this.editForm["detached"] === undefined)
           this.editForm["detached"] = [];
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.editForm["exclude-global-prep-cmd"] = [];
+          this.editForm["exclude-global-prep-cmd"] = false;
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
-          this.editForm["elevated"] = [];
+          this.editForm["elevated"] = false;
         }
         if (this.editForm["auto-detach"] === undefined) {
           this.editForm["auto-detach"] = true;

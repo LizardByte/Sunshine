@@ -20,7 +20,7 @@ const config = ref(props.config)
     <div class="form-text">
       <PlatformLayout :platform="platform">
         <template #windows>
-          {{ $t('config.adapter_name_desc_win') }}<br>
+          {{ $t('config.adapter_name_desc_windows') }}<br>
           <pre>tools\dxgi-info.exe</pre>
         </template>
         <template #linux>
