@@ -1,0 +1,20 @@
+[ 
+ 
+ 
+{ 
+"title"    : "Sunshine", 
+"desc"     : "Sunshine", 
+"category" : "page", 
+"url"      : "/", 
+"date"     : "January 1, 1970" 
+}, 
+ 
+{ 
+"title"    : "Blog Index", 
+"desc"     : "Blog Index", 
+"category" : "page", 
+"url"      : "/tags/", 
+"date"     : "January 1, 1970" 
+} 
+ 
+]

@@ -1,0 +1,80 @@
+body {
+  font-family: 'Open Sans', sans-serif;
+}
+
+.box-error, .box-note, .box-warning {
+    color: #18191a;
+}
+
+.avatar-img {
+    background-color: var(--navbar-col);
+    border: .05rem;
+    border-color: var(--navbar-border-col);
+    border-style: solid;
+}
+
+.card-body, .card-custom, .card-footer, .card-img-top, .cr-picker-button, .cr-picker-submenu {
+    --bs-bg-opacity: 1;
+    background-color: var(--navbar-col) !important;
+}
+
+/* in line code */
+code {
+  color: #fb660a;
+  background-color: #111111;
+}
+
+.feature {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+  width: 3rem;
+  font-size: 1.5rem;
+}
+
+.widgetbot {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+}
+
+/* page navigation buttons */
+.pagination .page-item .page-link {
+  background-color: #111111;
+  color: #e4e4e4;
+}
+
+/* shrink logo when navbar shrinks, instead of hiding it */
+.navbar-custom.top-nav-short .avatar-container {
+  width: 3.125rem;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transition: none !important;
+  -webkit-transition: none !important;
+  -moz-transition: none !important;
+}
+
+/* hide search button */
+#nav-search-link {
+  display: none;
+}
+
+/*card image hover*/
+.hover-zoom {
+    overflow: hidden;
+}
+
+.hover-zoom img {
+    transition: all 1.5s ease;
+}
+
+.hover-zoom:hover img {
+    transform: scale(1.1);
+}
+
+.icon img {
+    /* remove max-width from beautiful-jekyll */
+    max-width: none;
+    height: 40px;
+}

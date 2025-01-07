@@ -1,0 +1,180 @@
+/* ==========================================================================
+ Forms
+ ========================================================================== */
+.staticman-comments form {
+  margin: 0 0 5px 0;
+  padding: 1em;
+  background-color: #f2f3f3;
+}
+.staticman-comments form p {
+  margin-bottom: 2.5px;
+}
+.staticman-comments form br {
+  display: none;
+}
+.staticman-comments label, .staticman-comments input, .staticman-comments button, .staticman-comments textarea {
+  vertical-align: baseline;
+  vertical-align: middle;
+}
+.staticman-comments input, .staticman-comments button, .staticman-comments textarea {
+  box-sizing: border-box;
+}
+.staticman-comments label {
+  display: block;
+  margin-bottom: 0.25em;
+  color: #494e52;
+  cursor: pointer;
+}
+.staticman-comments label small {
+  font-size: 0.75em;
+}
+.staticman-comments label input, .staticman-comments label textarea {
+  display: block;
+}
+.staticman-comments input, .staticman-comments textarea {
+  display: inline-block;
+  width: 100%;
+  padding: 0.25em;
+  margin-bottom: 0.5em;
+  color: #494e52;
+  background-color: #fff;
+  border: #f2f3f3;
+  border-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.125);
+}
+.staticman-comments .input-mini {
+  width: 60px;
+}
+.staticman-comments .input-small {
+  width: 90px;
+}
+.staticman-comments input[type="button"], .staticman-comments input[type="reset"], .staticman-comments input[type="submit"] {
+  width: auto;
+  height: auto;
+  cursor: pointer;
+  overflow: visible;
+}
+.staticman-comments textarea {
+  resize: vertical;
+  height: auto;
+  overflow: auto;
+  vertical-align: top;
+}
+.staticman-comments input[type="hidden"] {
+  display: none;
+}
+.staticman-comments .form {
+  position: relative;
+}
+/*
+ Focus & active state
+ ========================================================================== */
+.staticman-comments input:focus, .staticman-comments textarea:focus {
+  border-color: #7a8288;
+  outline: 0;
+  outline: thin dotted \9;
+  box-shadow: inset 0 1px 3px rgba(73, 78, 82, 0.06), 0 0 5px rgba(122, 130, 136, 0.7);
+}
+.staticman-comments input[type="file"]:focus, .staticman-comments input[type="radio"]:focus, .staticman-comments input[type="checkbox"]:focus:focus {
+  box-shadow: none;
+}
+/*
+ Help text
+ ========================================================================== */
+.staticman-comments .form-text {
+  color: #898c8e;
+}
+.staticman-comments .form-text {
+  display: block;
+  margin-bottom: 1em;
+  line-height: 1em;
+}
+/*
+ .form-group
+ ========================================================================== */
+.staticman-comments .form-group {
+  margin-bottom: 5px;
+  padding: 0;
+  border-width: 0;
+}
+/*
+ Comments
+ ========================================================================== */
+.staticman-comments .page__comments {
+  float: left;
+  margin-left: 0;
+  margin-right: 0;
+  width: 100%;
+  clear: both;
+}
+.staticman-comments .page__comments-title {
+  margin-top: 2rem;
+  margin-bottom: 10px;
+  padding-top: 2rem;
+  border-top: 1px solid #f2f3f3;
+}
+.staticman-comments .page__comments-form {
+  -webkit-transition: all 0.2s ease-in-out;
+  transition: all 0.2s ease-in-out;
+}
+.staticman-comments .page__comments-form.disabled input, .staticman-comments .page__comments-form.disabled button, .staticman-comments .page__comments-form.disabled textarea, .staticman-comments .page__comments-form.disabled label {
+  pointer-events: none;
+  cursor: not-allowed;
+  filter: alpha(opacity=65);
+  box-shadow: none;
+  opacity: 0.65;
+}
+.staticman-comments .comment {
+  margin: 1em 0;
+}
+.staticman-comments .comment:not(:last-child) {
+  border-bottom: 1px solid #f2f3f3;
+}
+.staticman-comments .comment__avatar-wrapper {
+  float: left;
+  width: 60px;
+  height: 60px;
+}
+.staticman-comments .comment__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+.staticman-comments .comment__content-wrapper {
+  width: calc(100% - 60px);
+}
+.staticman-comments .comment__author {
+  margin: 0;
+}
+.staticman-comments .comment__author a {
+  text-decoration: none;
+}
+.staticman-comments .comment__date {
+  margin: 0;
+}
+.staticman-comments .comment__date a {
+  text-decoration: none;
+}
+/* ==========================================================================
+ PRINT STYLES
+ ========================================================================== */
+.staticman-comments @media print {
+  /*
+   Hide the following elements on print
+   ========================================================================== */
+.staticman-comments [hidden] {
+    display: none;
+  }
+.staticman-comments .masthead, .staticman-comments .toc, .staticman-comments .page__share, .staticman-comments .page__related, .staticman-comments .pagination, .staticman-comments .ads, .staticman-comments .page__footer, .staticman-comments .page__comments-form, .staticman-comments .author__avatar, .staticman-comments .author__content, .staticman-comments .author__urls-wrapper, .staticman-comments .nav__list, .staticman-comments .sidebar, .staticman-comments .adsbygoogle {
+    display: none !important;
+    height: 1px !important;
+  }
+}
+/*
+ Post pagination navigation links
+ ========================================================================== */
+.staticman-comments .page__comments + .staticman-comments .pagination {
+  margin-top: 2em;
+  padding-top: 2em;
+  border-top: 1px solid #f2f3f3;
+}
