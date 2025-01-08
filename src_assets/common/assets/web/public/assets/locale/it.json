@@ -60,7 +60,7 @@
     "env_displayplacer_example": "Esempio - displayplacer per l'automazione della risoluzione:",
     "env_qres_example": "Esempio - QRes per l'automazione della risoluzione:",
     "env_qres_path": "percorso di QRes",
-    "env_var_name": "Nome Variable",
+    "env_var_name": "Nome Variabile",
     "env_vars_about": "Informazioni sulle variabili d'ambiente",
     "env_vars_desc": "Tutti i comandi ottengono queste variabili d'ambiente per impostazione predefinita:",
     "env_xrandr_example": "Esempio - Xrandr per l'automazione della risoluzione:",
@@ -125,7 +125,7 @@
     "amd_vbaq_desc": "Il sistema visivo umano è tipicamente meno sensibile agli artefatti in aree altamente strutturate. In modalità VBAQ, la varianza di pixel è utilizzata per indicare la complessità delle texture spaziali, consentendo al codificatore di allocare più bit ad aree più fluide. Abilitare questa funzione porta a migliorare la qualità visiva soggettiva con alcuni contenuti.",
     "apply_note": "Fare clic su 'Applica' per applicare le modifiche e riavviare Sunshine. Questo terminerà qualsiasi sessione in esecuzione.",
     "audio_sink": "Uscita Audio",
-    "audio_sink_desc_linux": "Il nome dell'uscita audio è utilizzato per il Loopback audio. Se non si specifica questa variabile, pulseaudio selezionerà il dispositivo predefinito. È possibile trovare il nome del'uscita audio utilizzando entrambi i comandi:",
+    "audio_sink_desc_linux": "Il nome dell'uscita audio è utilizzato per il Loopback audio. Se non si specifica questa variabile, pulseaudio selezionerà il dispositivo predefinito. È possibile trovare il nome dell'uscita audio utilizzando entrambi i comandi:",
     "audio_sink_desc_macos": "Il nome dell'uscita audio utilizzata per Audio Loopback. Sunshine può accedere solo ai microfoni su macOS a causa delle limitazioni di sistema. Puoi usare Soundflower o BlackHole per trasmettere l'audio di sistema.",
     "audio_sink_desc_windows": "Specifica manualmente un dispositivo audio specifico da catturare. Se disattivato, il dispositivo viene scelto automaticamente. Si consiglia vivamente di lasciare vuoto questo campo per utilizzare la selezione automatica del dispositivo! Se si dispone di più dispositivi audio con nomi identici, è possibile ottenere l'ID dispositivo utilizzando il seguente comando:",
     "audio_sink_placeholder_macos": "BlackHole 2ch",
@@ -359,7 +359,7 @@
     "loading_latest": "Caricamento dell'ultima versione...",
     "new_pre_release": "Una nuova versione pre-rilascio è disponibile!",
     "new_stable": "Una nuova versione Stabile è disponibile!",
-    "startup_errors": "<b>Attenzione!</b> Sunshine ha rilevato questi errori durante l'avvio. Ti <b>raccomandamo vivamente </b> di risolverli prima dello streaming.",
+    "startup_errors": "<b>Attenzione!</b> Sunshine ha rilevato questi errori durante l'avvio. Ti <b>raccomandiamo vivamente </b> di risolverli prima dello streaming.",
     "version_dirty": "Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "version_latest": "Stai eseguendo l'ultima versione di Sunshine",
     "welcome": "Ciao, Sunshine!"
@@ -430,7 +430,7 @@
   "welcome": {
     "confirm_password": "Conferma password",
     "create_creds": "Prima di iniziare, è necessario creare un nuovo nome utente e una nuova password per accedere all'interfaccia web.",
-    "create_creds_alert": "Le credenziali in basso sono necessarie per accedere all'interfaccia web di Sunshine. Tienile al sicuro, poichè non potrai più visualizzarle!",
+    "create_creds_alert": "Le credenziali in basso sono necessarie per accedere all'interfaccia web di Sunshine. Tienile al sicuro, poiché non potrai più visualizzarle!",
     "greeting": "Benvenuto in Sunshine!",
     "login": "Login",
     "welcome_success": "Questa pagina verrà ricaricata, il tuo browser ti richiederà le nuove credenziali"
