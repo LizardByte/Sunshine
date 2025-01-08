@@ -422,7 +422,7 @@ namespace platf::dxgi {
     }
     else {
       // Try probing with different GPU preferences and verify_frame_capture flag
-      if (const auto pref = validate_and_test_gpu_preference(display_name, true); pref) {
+      if (validate_and_test_gpu_preference(display_name, true)) {
         set_gpu_preference = true;
         return true;
       }
