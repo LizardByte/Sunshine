@@ -547,7 +547,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Fix python
+      - name: Fix homebrew python
         if: matrix.os_name == 'macos' && matrix.os_version == '13'
         run: |
           rm '/usr/local/bin/2to3'
@@ -561,6 +561,12 @@ jobs:
           rm '/usr/local/bin/python3.12'
           rm '/usr/local/bin/python3.12-config'
           brew install python
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Configure formula
         run: |
@@ -641,6 +647,7 @@ jobs:
           echo "DISPLAY=${DISPLAY}" >> $GITHUB_ENV
 
       - name: Validate Homebrew Formula
+        id: test
         if: |
           matrix.release != true
         uses: LizardByte/homebrew-release-action@v2024.1115.14934
@@ -651,6 +658,56 @@ jobs:
           publish: false
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: true
+
+      - name: Generate gcov report
+        # any except canceled or skipped
+        # TODO: fix coverage, no .gcno files are being created
+        # TODO: .gcno files are supposed to be created next to .o files
+        if: false
+        # if: >-
+        #   always() &&
+        #   matrix.release != true &&
+        #   (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        id: test_report
+        run: |
+          # if linux
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            prefix="/tmp"
+          else
+            prefix="/private/tmp"
+          fi
+
+          brew_dir=$(find ${prefix} -type d -name "sunshine-*" -maxdepth 1 2>/dev/null)
+          cp -rf $brew_dir/build/ ./build/
+          cd build
+          ls -Ra
+
+          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --verbose \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Upload coverage
+        # any except canceled or skipped
+        # TODO: enable this once coverage report is fixed
+        if: false
+        # if: >-
+        #   always() &&
+        #   matrix.release != true &&
+        #   (steps.test_report.outcome == 'success') &&
+        #   startsWith(github.repository, 'LizardByte/')
+        uses: codecov/codecov-action@v5
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./build/coverage.xml
+          flags: ${{ matrix.os_name }}-${{ matrix.os_version }} (Homebrew)
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Create/Update GitHub Release
         if: >-
@@ -700,261 +757,6 @@ jobs:
           publish: true
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: false
-
-  build_mac_port:
-    needs: [setup_release]
-    strategy:
-      fail-fast: false  # false to test all, true to fail entire job if any fail
-      matrix:
-        include:
-          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
-          # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "13"
-            release: true
-          - os_version: "14"
-    name: Macports (macOS-${{ matrix.os_version }})
-    runs-on: macos-${{ matrix.os_version }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Checkout ports
-        uses: actions/checkout@v4
-        with:
-          repository: macports/macports-ports
-          fetch-depth: 64
-          path: ports
-
-      - name: Checkout mpbb
-        uses: actions/checkout@v4
-        with:
-          repository: macports/mpbb
-          path: mpbb
-
-      - name: Setup Dependencies Macports
-        run: |
-          # install dependencies using homebrew
-          brew install cmake
-
-      - name: Setup python
-        id: python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Configure Portfile
-        run: |
-          # variables for Portfile
-          branch="${{ github.head_ref }}"
-          commit=${{ needs.setup_release.outputs.release_commit }}
-
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
-            echo "This is a PUSH event"
-            branch="${{ github.ref_name }}"
-            build_version=${{ needs.setup_release.outputs.release_tag }}
-            clone_url=${{ github.event.repository.clone_url }}
-          else
-            echo "This is a PR event"
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-          fi
-          echo "Commit: ${commit}"
-          echo "Clone URL: ${clone_url}"
-
-          mkdir -p build
-          cmake \
-            -B build \
-            -S . \
-            -DBUILD_VERSION=${build_version} \
-            -DGITHUB_BRANCH=${branch} \
-            -DGITHUB_COMMIT=${commit} \
-            -DGITHUB_CLONE_URL=${clone_url} \
-            -DSUNSHINE_CONFIGURE_PORTFILE=ON \
-            -DSUNSHINE_CONFIGURE_ONLY=ON
-
-          # copy Portfile to artifacts
-          mkdir -p artifacts
-          cp -f ./build/Portfile ./artifacts/
-
-          # copy Portfile to ports
-          mkdir -p ./ports/multimedia/Sunshine
-          cp -f ./build/Portfile ./ports/multimedia/Sunshine/Portfile
-
-          # testing
-          cat ./artifacts/Portfile
-
-      - name: Bootstrap MacPorts
-        run: |
-          . ports/.github/workflows/bootstrap.sh
-
-          # Add getopt, mpbb and the MacPorts paths to $PATH for the subsequent steps.
-          echo "/opt/mports/bin" >> $GITHUB_PATH
-          echo "${PWD}/mpbb" >> $GITHUB_PATH
-          echo "/opt/local/bin" >> $GITHUB_PATH
-          echo "/opt/local/sbin" >> $GITHUB_PATH
-
-      - name: Run port lint
-        run: |
-          port -q lint "Sunshine"
-
-      - name: Build port
-        env:
-          subportlist: ${{ steps.subportlist.outputs.subportlist }}
-        id: build
-        run: |
-          subport="Sunshine"
-
-          workdir="/tmp/mpbb/$subport"
-          mkdir -p "$workdir/logs"
-
-          echo "::group::Installing dependencies"
-          sudo mpbb \
-            --work-dir "$workdir" \
-            install-dependencies \
-            "$subport"
-          echo "::endgroup::"
-
-          echo "::group::Installing ${subport}"
-          sudo mpbb \
-            --work-dir "$workdir" \
-            install-port \
-            --source \
-            "$subport"
-          echo "::endgroup::"
-
-      - name: Build Logs
-        if: always()
-        run: |
-          logfile="/opt/local/var/macports/logs/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/main.log"
-          cat "$logfile"
-          sudo mv "${logfile}" "${logfile}.bak"
-
-      - name: Upload Artifacts
-        if: ${{ matrix.release }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: sunshine-macports
-          path: artifacts/
-
-      - name: Fix permissions
-        run: |
-          # https://apple.stackexchange.com/questions/362865/macos-list-apps-authorized-for-full-disk-access
-          # https://github.com/actions/runner-images/issues/9529
-          # https://github.com/actions/runner-images/pull/9530
-
-          # function to execute sql query for each value
-          function execute_sql_query {
-            local value=$1
-            local dbPath=$2
-
-            echo "Executing SQL query for value: $value"
-            sudo sqlite3 "$dbPath" "INSERT OR IGNORE INTO access VALUES($value);"
-          }
-
-          # Find all provisioner paths and store them in an array
-          readarray -t provisioner_paths < <(sudo find /opt /usr -name provisioner)
-          echo "Provisioner paths: ${provisioner_paths[@]}"
-
-          # Create an empty array
-          declare -a values=()
-
-          # Loop through the provisioner paths and add them to the values array
-          for p_path in "${provisioner_paths[@]}"; do
-            # Adjust the service name and other parameters as needed
-            values+=("'kTCCServiceAccessibility','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,NULL,1592919552")
-            values+=("'kTCCServiceScreenCapture','${p_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159")
-          done
-
-          echo "Values: ${values[@]}"
-
-          if [[ "${{ matrix.os_version }}" == "14" ]]; then
-            # TCC access table in Sonoma has extra 4 columns: pid, pid_version, boot_uuid, last_reminded
-            for i in "${!values[@]}"; do
-              values[$i]="${values[$i]},NULL,NULL,'UNUSED',${values[$i]##*,}"
-            done
-          fi
-
-          # system and user databases
-          dbPaths=(
-            "/Library/Application Support/com.apple.TCC/TCC.db"
-            "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
-          )
-
-          for value in "${values[@]}"; do
-            for dbPath in "${dbPaths[@]}"; do
-              echo "Column names for $dbPath"
-              echo "-------------------"
-              sudo sqlite3 "$dbPath" "PRAGMA table_info(access);"
-              echo "Current permissions for $dbPath"
-              echo "-------------------"
-              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
-              execute_sql_query "$value" "$dbPath"
-              echo "Updated permissions for $dbPath"
-              echo "-------------------"
-              sudo sqlite3 "$dbPath" "SELECT * FROM access WHERE service='kTCCServiceScreenCapture';"
-            done
-          done
-
-      - name: Run tests
-        id: test
-        timeout-minutes: 10
-        working-directory:
-          /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work/build/tests
-        run: |
-          sudo ./test_sunshine --gtest_color=yes
-
-      - name: Generate gcov report
-        # any except canceled or skipped
-        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        id: test_report
-        working-directory:
-          /opt/local/var/macports/build/_Users_runner_work_Sunshine_Sunshine_ports_multimedia_Sunshine/Sunshine/work
-        run: |
-          base_dir=$(pwd)
-          build_dir=${base_dir}/build
-
-          # get the directory name that starts with Sunshine-*
-          dir=$(ls -d Sunshine-*)
-
-          cd ${build_dir}
-          ${{ steps.python.outputs.python-path }} -m pip install gcovr
-          sudo ${{ steps.python.outputs.python-path }} -m gcovr . -r ../${dir}/src \
-            --exclude-noncode-lines \
-            --exclude-throw-branches \
-            --exclude-unreachable-branches \
-            --gcov-object-directory $(pwd) \
-            --verbose \
-            --xml-pretty \
-            -o ${{ github.workspace }}/build/coverage.xml
-
-      - name: Upload coverage
-        # any except canceled or skipped
-        if: >-
-          always() &&
-          (steps.test_report.outcome == 'success') &&
-          startsWith(github.repository, 'LizardByte/')
-        uses: codecov/codecov-action@v5
-        with:
-          disable_search: true
-          fail_ci_if_error: false  # todo: re-enable this when action is fixed
-          files: ./build/coverage.xml
-          flags: ${{ runner.os }}-${{ matrix.os_version }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
-
-      - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
-        uses: LizardByte/create-release-action@v2025.102.13208
-        with:
-          allowUpdates: true
-          body: ${{ needs.setup_release.outputs.release_body }}
-          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
-          name: ${{ needs.setup_release.outputs.release_tag }}
-          prerelease: true
-          tag: ${{ needs.setup_release.outputs.release_tag }}
-          token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_win:
     name: Windows
