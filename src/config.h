@@ -21,7 +21,6 @@ namespace config {
     int hevc_mode;
     int av1_mode;
 
-    int min_fps_factor;  // Minimum fps target, determines minimum frame time
     int min_threads;  // Minimum number of threads/slices for CPU encoding
     struct {
       std::string sw_preset;
@@ -79,6 +78,48 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
+
+    struct dd_t {
+      struct workarounds_t {
+        bool hdr_toggle;  ///< Specify whether to apply HDR high-contrast color workaround.
+      };
+
+      enum class config_option_e {
+        disabled,  ///< Disable the configuration for the device.
+        verify_only,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_active,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_primary,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_only_display  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+      };
+
+      enum class resolution_option_e {
+        disabled,  ///< Do not change resolution.
+        automatic,  ///< Change resolution and use the one received from Moonlight.
+        manual  ///< Change resolution and use the manually provided one.
+      };
+
+      enum class refresh_rate_option_e {
+        disabled,  ///< Do not change refresh rate.
+        automatic,  ///< Change refresh rate and use the one received from Moonlight.
+        manual  ///< Change refresh rate and use the manually provided one.
+      };
+
+      enum class hdr_option_e {
+        disabled,  ///< Do not change HDR settings.
+        automatic  ///< Change HDR settings and use the state requested by Moonlight.
+      };
+
+      config_option_e configuration_option;
+      resolution_option_e resolution_option;
+      std::string manual_resolution;  ///< Manual resolution in case `resolution_option == resolution_option_e::manual`.
+      refresh_rate_option_e refresh_rate_option;
+      std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
+      hdr_option_e hdr_option;
+      std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
+      workarounds_t wa;
+    } dd;
+
+    int min_fps_factor;  // Minimum fps target, determines minimum frame time
   };
 
   struct audio_t {

@@ -328,13 +328,65 @@ namespace config {
     }
   }  // namespace sw
 
+  namespace dd {
+    video_t::dd_t::config_option_e
+    config_option_from_view(const std::string_view value) {
+#define _CONVERT_(x) \
+  if (value == #x##sv) return video_t::dd_t::config_option_e::x
+      _CONVERT_(disabled);
+      _CONVERT_(verify_only);
+      _CONVERT_(ensure_active);
+      _CONVERT_(ensure_primary);
+      _CONVERT_(ensure_only_display);
+#undef _CONVERT_
+      return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::resolution_option_e
+    resolution_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) return video_t::dd_t::resolution_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::refresh_rate_option_e
+    refresh_rate_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) return video_t::dd_t::refresh_rate_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::hdr_option_e
+    hdr_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) return video_t::dd_t::hdr_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
+    }
+  }  // namespace dd
+
   video_t video {
     28,  // qp
 
     0,  // hevc_mode
     0,  // av1_mode
 
-    1,  // min_fps_factor
     2,  // min_threads
     {
       "superfast"s,  // preset
@@ -385,6 +437,19 @@ namespace config {
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
+
+    {
+      video_t::dd_t::config_option_e::verify_only,  // configuration_option
+      video_t::dd_t::resolution_option_e::automatic,  // resolution_option
+      {},  // manual_resolution
+      video_t::dd_t::refresh_rate_option_e::automatic,  // refresh_rate_option
+      {},  // manual_refresh_rate
+      video_t::dd_t::hdr_option_e::automatic,  // hdr_option
+      3s,  // config_revert_delay
+      {}  // wa
+    },  // display_device
+
+    1  // min_fps_factor
   };
 
   audio_t audio {
@@ -952,9 +1017,9 @@ namespace config {
     }
 
     int_f(vars, "qp", video.qp);
-    int_f(vars, "min_threads", video.min_threads);
     int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
     int_between_f(vars, "av1_mode", video.av1_mode, { 0, 3 });
+    int_f(vars, "min_threads", video.min_threads);
     string_f(vars, "sw_preset", video.sw.sw_preset);
     if (!video.sw.sw_preset.empty()) {
       video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
@@ -1024,6 +1089,22 @@ namespace config {
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
+
+    generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
+    generic_f(vars, "dd_resolution_option", video.dd.resolution_option, dd::resolution_option_from_view);
+    string_f(vars, "dd_manual_resolution", video.dd.manual_resolution);
+    generic_f(vars, "dd_refresh_rate_option", video.dd.refresh_rate_option, dd::refresh_rate_option_from_view);
+    string_f(vars, "dd_manual_refresh_rate", video.dd.manual_refresh_rate);
+    generic_f(vars, "dd_hdr_option", video.dd.hdr_option, dd::hdr_option_from_view);
+    {
+      int value = -1;
+      int_between_f(vars, "dd_config_revert_delay", value, { 0, std::numeric_limits<int>::max() });
+      if (value >= 0) {
+        video.dd.config_revert_delay = std::chrono::milliseconds { value };
+      }
+    }
+    bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
+
     int_between_f(vars, "min_fps_factor", video.min_fps_factor, { 1, 3 });
 
     path_f(vars, "pkey", nvhttp.pkey);

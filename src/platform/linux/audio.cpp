@@ -473,6 +473,12 @@ namespace platf {
         return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
       }
 
+      bool
+      is_sink_available(const std::string &sink) override {
+        BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+        return true;
+      }
+
       int
       set_sink(const std::string &sink) override {
         auto alarm = safe::make_alarm<int>();

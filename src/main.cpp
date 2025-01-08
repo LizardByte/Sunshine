@@ -137,7 +137,7 @@ main(int argc, char *argv[]) {
   // Adding guard here first as it also performs recovery after crash,
   // otherwise people could theoretically end up without display output.
   // It also should be destroyed before forced shutdown to expedite the cleanup.
-  auto display_device_deinit_guard = display_device::init();
+  auto display_device_deinit_guard = display_device::init(platf::appdata() / "display_device.state", config::video);
   if (!display_device_deinit_guard) {
     BOOST_LOG(error) << "Display device session failed to initialize"sv;
   }

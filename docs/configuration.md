@@ -958,6 +958,247 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### dd_configuration_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform mandatory verification and additional configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}verify_only@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_configuration_option = ensure_only_display
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="5">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration (disables all `dd_` configuration options).</td>
+    </tr>
+    <tr>
+        <td>verify_only</td>
+        <td>Verify that display is active only (this is a mandatory step without any extra steps to verify display state).</td>
+    </tr>
+    <tr>
+        <td>ensure_active</td>
+        <td>Activate the display if it's currently inactive.</td>
+    </tr>
+    <tr>
+        <td>ensure_primary</td>
+        <td>Activate the display if it's currently inactive and make it primary.</td>
+    </tr>
+    <tr>
+        <td>ensure_only_display</td>
+        <td>Activate the display if it's currently inactive and disable all others.</td>
+    </tr>
+</table>
+
+### dd_resolution_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional resolution configuration for the display device.
+            @note{"Optimize game settings" must be enabled in Moonlight for this option to work.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_resolution_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change resolution to the requested resolution from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change resolution to the user specified one (set via [dd_manual_resolution](#dd_manual_resolution)).</td>
+    </tr>
+</table>
+
+### dd_manual_resolution
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual resolution to be used.
+            @note{[dd_resolution_option](#dd_resolution_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 1920x1080
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_refresh_rate_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional refresh rate configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_refresh_rate_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change refresh rate to the requested FPS value from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change refresh rate to the user specified one (set via [dd_manual_refresh_rate](#dd_manual_refresh_rate)).</td>
+    </tr>
+</table>
+
+### dd_manual_refresh_rate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual refresh rate to be used.
+            @note{[dd_refresh_rate_option](#dd_refresh_rate_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 120
+            dd_manual_resolution = 59.95
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_hdr_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional HDR configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_hdr_option = disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change HDR to the requested state from the client if the display supports it.</td>
+    </tr>
+</table>
+
+### dd_wa_hdr_toggle
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When using virtual display device as for streaming, it might display incorrect (high-contrast) color.
+            With this option enabled, Sunshine will try to mitigate this issue.
+            @note{This option works independently of [dd_hdr_option](#dd_hdr_option)}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_wa_hdr_toggle = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_config_revert_delay
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Additional delay in milliseconds to wait before reverting configuration when the app has been closed or the last session terminated.
+            Main purpose is to provide a smoother transition when quickly switching between apps.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}3000@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_config_revert_delay = 1500
+            @endcode</td>
+    </tr>
+</table>
+
 ### min_fps_factor
 
 <table>

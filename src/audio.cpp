@@ -20,16 +20,6 @@ namespace audio {
   using opus_t = util::safe_ptr<OpusMSEncoder, opus_multistream_encoder_destroy>;
   using sample_queue_t = std::shared_ptr<safe::queue_t<std::vector<float>>>;
 
-  struct audio_ctx_t {
-    // We want to change the sink for the first stream only
-    std::unique_ptr<std::atomic_bool> sink_flag;
-
-    std::unique_ptr<platf::audio_control_t> control;
-
-    bool restore_sink;
-    platf::sink_t sink;
-  };
-
   static int
   start_audio_control(audio_ctx_t &ctx);
   static void
@@ -95,8 +85,6 @@ namespace audio {
     },
   };
 
-  auto control_shared = safe::make_shared<audio_ctx_t>(start_audio_control, stop_audio_control);
-
   void
   encodeThread(sample_queue_t samples, config_t config, void *channel_data) {
     auto packets = mail::man->queue<packet_t>(mail::audio_packets);
@@ -149,7 +137,7 @@ namespace audio {
       apply_surround_params(stream, config.customStreamParams);
     }
 
-    auto ref = control_shared.ref();
+    auto ref = get_audio_ctx_ref();
     if (!ref) {
       return;
     }
@@ -253,6 +241,26 @@ namespace audio {
 
       samples->raise(std::move(sample_buffer));
     }
+  }
+
+  audio_ctx_ref_t
+  get_audio_ctx_ref() {
+    static auto control_shared { safe::make_shared<audio_ctx_t>(start_audio_control, stop_audio_control) };
+    return control_shared.ref();
+  }
+
+  bool
+  is_audio_ctx_sink_available(const audio_ctx_t &ctx) {
+    if (!ctx.control) {
+      return false;
+    }
+
+    const std::string &sink = ctx.sink.host.empty() ? config::audio.sink : ctx.sink.host;
+    if (sink.empty()) {
+      return false;
+    }
+
+    return ctx.control->is_sink_available(sink);
   }
 
   int

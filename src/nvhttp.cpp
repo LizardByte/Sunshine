@@ -22,6 +22,7 @@
 // local includes
 #include "config.h"
 #include "crypto.h"
+#include "display_device.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -812,12 +813,17 @@ namespace nvhttp {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
+    bool revert_display_configuration { false };
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
       pt::write_xml(data, tree);
       response->write(data.str());
       response->close_connection_after_response = true;
+
+      if (revert_display_configuration) {
+        display_device::revert_configuration();
+      }
     });
 
     auto args = request->parse_query_string();
@@ -844,11 +850,22 @@ namespace nvhttp {
       return;
     }
 
-    // Probe encoders again before streaming to ensure our chosen
-    // encoder matches the active GPU (which could have changed
-    // due to hotplugging, driver crash, primary monitor change,
-    // or any number of other factors).
+    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    auto launch_session = make_launch_session(host_audio, args);
+
     if (rtsp_stream::session_count() == 0) {
+      // We want to prepare display only if there are no active sessions at
+      // the moment. This should be done before probing encoders as it could
+      // change the active displays.
+      display_device::configure_display(config::video, *launch_session);
+
+      // The display should be restored in case something fails as there are no other sessions.
+      revert_display_configuration = true;
+
+      // Probe encoders again before streaming to ensure our chosen
+      // encoder matches the active GPU (which could have changed
+      // due to hotplugging, driver crash, primary monitor change,
+      // or any number of other factors).
       if (video::probe_encoders()) {
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
@@ -857,9 +874,6 @@ namespace nvhttp {
         return;
       }
     }
-
-    host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-    auto launch_session = make_launch_session(host_audio, args);
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
     if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
@@ -890,6 +904,9 @@ namespace nvhttp {
     tree.put("root.gamesession", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
+
+    // Stream was started successfully, we will revert the config when the app or session terminates
+    revert_display_configuration = false;
   }
 
   void
@@ -925,7 +942,21 @@ namespace nvhttp {
       return;
     }
 
-    if (rtsp_stream::session_count() == 0) {
+    // Newer Moonlight clients send localAudioPlayMode on /resume too,
+    // so we should use it if it's present in the args and there are
+    // no active sessions we could be interfering with.
+    const bool no_active_sessions { rtsp_stream::session_count() == 0 };
+    if (no_active_sessions && args.find("localAudioPlayMode"s) != std::end(args)) {
+      host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
+    }
+    const auto launch_session = make_launch_session(host_audio, args);
+
+    if (no_active_sessions) {
+      // We want to prepare display only if there are no active sessions at
+      // the moment. This should be done before probing encoders as it could
+      // change the active displays.
+      display_device::configure_display(config::video, *launch_session);
+
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed
       // due to hotplugging, driver crash, primary monitor change,
@@ -937,16 +968,7 @@ namespace nvhttp {
 
         return;
       }
-
-      // Newer Moonlight clients send localAudioPlayMode on /resume too,
-      // so we should use it if it's present in the args and there are
-      // no active sessions we could be interfering with.
-      if (args.find("localAudioPlayMode"s) != std::end(args)) {
-        host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-      }
     }
-
-    auto launch_session = make_launch_session(host_audio, args);
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
     if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
@@ -989,6 +1011,9 @@ namespace nvhttp {
     if (proc::proc.running() > 0) {
       proc::proc.terminate();
     }
+
+    // The config needs to be reverted regardless of whether "proc::proc.terminate()" was called or not.
+    display_device::revert_configuration();
   }
 
   void

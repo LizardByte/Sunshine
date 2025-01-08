@@ -81,6 +81,12 @@ namespace platf {
       return mic;
     }
 
+    bool
+    is_sink_available(const std::string &sink) override {
+      BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+      return true;
+    }
+
     std::optional<sink_t>
     sink_info() override {
       sink_t sink;
