@@ -186,6 +186,8 @@
     "fec_percentage": "FEC (前向纠错) 参数",
     "fec_percentage_desc": "每个视频帧中的错误纠正数据包百分比。较高的值可纠正更多的网络数据包丢失，但代价是增加带宽使用量。",
     "ffmpeg_auto": "auto -- 由 ffmpeg 决定（默认）",
+    "gpu_preference": "GPU 首选项",
+    "gpu_preference_desc": "指定 Sunshine 进程的 GPU 首选项。 如果设置为负数 (默认为 -1 )，太阳能将尝试在流式显示器中检测到最佳GPU。 但如果失败，你将得到一个黑屏。 设置为 0 将允许Windows 尝试并选择最佳的 GPU。 设置为 1 及以上会优先考虑匹配此数字的 GPU (必须猜测数字) 但从1开始增加）。",
     "file_apps": "应用程序配置文件",
     "file_apps_desc": "Sunshine 保存应用程序配置的文件。",
     "file_state": "实时状态文件",
