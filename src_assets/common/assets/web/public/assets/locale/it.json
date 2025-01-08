@@ -186,6 +186,8 @@
     "fec_percentage": "Percentuale FEC",
     "fec_percentage_desc": "Percentuale di correzione errore per pacchetto dati in ogni fotogramma video. Valori più elevati possono correggere maggiori perdite di rete, ma al costo di un uso crescente della larghezza di banda.",
     "ffmpeg_auto": "auto -- lascia che decida ffmpeg (predefinito)",
+    "gpu_preference": "Preferenze GPU",
+    "gpu_preference_desc": "Specificare la preferenza GPU per il processo Sunshine. Se impostato su numero negativo (-1 per impostazione predefinita), Sunshine cercherà di rilevare la GPU migliore per il display in streaming, ma se fallisce si otterrà uno schermo nero. Impostandolo a 0 permetterà a Windows di provare e selezionare la migliore GPU . Impostarlo a 1 e sopra darà la priorità alla GPU che corrisponde a questo numero (il numero deve essere indovinato, ma inizia da 1 e aumenta).",
     "file_apps": "File Applicazioni",
     "file_apps_desc": "Il file in cui vengono memorizzate le attuali applicazioni di Sunshine.",
     "file_state": "File Stato",
