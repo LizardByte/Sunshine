@@ -43,6 +43,7 @@ function removeCmd(index) {
         <option value="fr">Français (French)</option>
         <option value="it">Italiano (Italian)</option>
         <option value="ja">日本語 (Japanese)</option>
+        <option value="ko">한국어 (Korean)</option>
         <option value="pl">Polski (Polish)</option>
         <option value="pt">Português (Portuguese)</option>
         <option value="pt_BR">Português, Brasileiro (Portuguese, Brazilian)</option>
