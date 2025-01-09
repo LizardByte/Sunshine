@@ -26,7 +26,7 @@
     "warning": "警告！"
   },
   "apps": {
-    "actions": "Clients",
+    "actions": "操作",
     "add_cmds": "添加命令",
     "add_new": "添加新应用",
     "app_name": "应用名称",
@@ -168,7 +168,7 @@
     "dd_refresh_rate_option_disabled": "不要改变刷新率",
     "dd_refresh_rate_option_manual": "使用手动输入的刷新率",
     "dd_refresh_rate_option_manual_desc": "输入要使用的刷新率",
-    "dd_resolution_option": "决 议",
+    "dd_resolution_option": "分辨率",
     "dd_resolution_option_auto": "使用客户端提供的分辨率(默认)",
     "dd_resolution_option_disabled": "不改变分辨率",
     "dd_resolution_option_manual": "使用手动输入的分辨率",
@@ -299,7 +299,7 @@
     "port_tcp": "TCP",
     "port_udp": "UDP",
     "port_warning": "暴露 Web UI 到公网存在安全风险！请自行承担风险！",
-    "port_web_ui": "Clients",
+    "port_web_ui": "网页设置界面",
     "qp": "量化参数 (QP)",
     "qp_desc": "某些设备可能不支持恒定码率。对于这些设备，则使用 QP 代替。数值越大，压缩率越高，但质量越差。",
     "qsv_coder": "QSV 编码器 (H264)",
