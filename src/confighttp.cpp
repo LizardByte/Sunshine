@@ -615,7 +615,7 @@ namespace confighttp {
       return;
     }
 
-    outputTree.put("status", "true");
+    outputTree.put("status", true);
     proc::refresh(config::stream.file_apps);
   }
 
@@ -759,7 +759,7 @@ namespace confighttp {
     print_req(request);
 
     pt::ptree outputTree;
-    outputTree.put("status", "true");
+    outputTree.put("status", true);
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
 
