@@ -81,6 +81,19 @@ namespace confighttp {
   }
 
   /**
+   * @brief Send a response.
+   * This is used when an endpoint returns early, such as when hitting bad_request.
+   * @param response The HTTP response object.
+   * @param output_tree The JSON tree to send.
+   */
+  void
+  send_response(resp_https_t response, const pt::ptree &output_tree) {
+    std::ostringstream data;
+    pt::write_json(data, output_tree);
+    response->write(data.str());
+  }
+
+  /**
    * @brief Send a 401 Unauthorized response.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -535,18 +548,13 @@ namespace confighttp {
     ss << request->content.rdbuf();
 
     pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
-    pt::ptree inputTree, fileTree;
+    send_response(response, outputTree);
 
     BOOST_LOG(info) << config::stream.file_apps;
     try {
       // TODO: Input Validation
+      pt::ptree fileTree;
+      pt::ptree inputTree;
       pt::read_json(ss, inputTree);
       pt::read_json(config::stream.file_apps, fileTree);
 
@@ -627,14 +635,9 @@ namespace confighttp {
     int index;
 
     pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-    pt::ptree fileTree;
     try {
+      pt::ptree fileTree;
+      pt::ptree newApps;
       pt::read_json(config::stream.file_apps, fileTree);
       auto &apps_node = fileTree.get_child("apps"s);
       index = stoi(request->path_match[1]);
@@ -645,7 +648,6 @@ namespace confighttp {
       }
 
       // Unfortunately Boost PT does not allow to directly edit the array, copy should do the trick
-      pt::ptree newApps;
       int i = 0;
       for (const auto &[k, v] : apps_node) {
         if (i++ != index) {
@@ -665,6 +667,7 @@ namespace confighttp {
 
     outputTree.put("status", true);
     outputTree.put("result", "application "s + std::to_string(index) + " deleted");
+    send_response(response, outputTree);
     proc::refresh(config::stream.file_apps);
   }
 
@@ -690,6 +693,16 @@ namespace confighttp {
     std::stringstream configStream;
     ss << request->content.rdbuf();
     pt::ptree outputTree;
+    pt::ptree inputTree;
+    try {
+      pt::read_json(ss, inputTree);
+    }
+    catch (std::exception &e) {
+      BOOST_LOG(warning) << "UploadCover: "sv << e.what();
+      bad_request(response, request, e.what());
+      return;
+    }
+
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
@@ -701,15 +714,6 @@ namespace confighttp {
       pt::write_json(data, outputTree);
       response->write(code, data.str());
     });
-    pt::ptree inputTree;
-    try {
-      pt::read_json(ss, inputTree);
-    }
-    catch (std::exception &e) {
-      BOOST_LOG(warning) << "UploadCover: "sv << e.what();
-      bad_request(response, request, e.what());
-      return;
-    }
 
     auto key = inputTree.get("key", "");
     if (key.empty()) {
@@ -755,13 +759,6 @@ namespace confighttp {
     print_req(request);
 
     pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
     outputTree.put("status", "true");
     outputTree.put("platform", SUNSHINE_PLATFORM);
     outputTree.put("version", PROJECT_VER);
@@ -771,6 +768,8 @@ namespace confighttp {
     for (auto &[name, value] : vars) {
       outputTree.put(std::move(name), std::move(value));
     }
+
+    send_response(response, outputTree);
   }
 
   /**
@@ -787,15 +786,9 @@ namespace confighttp {
     print_req(request);
 
     pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
-    outputTree.put("status", "true");
+    outputTree.put("status", true);
     outputTree.put("locale", config::sunshine.locale);
+    send_response(response, outputTree);
   }
 
   /**
@@ -823,14 +816,8 @@ namespace confighttp {
     std::stringstream configStream;
     ss << request->content.rdbuf();
     pt::ptree outputTree;
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-    pt::ptree inputTree;
     try {
+      pt::ptree inputTree;
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
       for (const auto &[k, v] : inputTree) {
@@ -844,7 +831,10 @@ namespace confighttp {
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
       bad_request(response, request, e.what());
+      return;
     }
+
+    send_response(response, outputTree);
   }
 
   /**
@@ -878,13 +868,8 @@ namespace confighttp {
     print_req(request);
 
     pt::ptree outputTree;
-    auto g = util::fail_guard([&outputTree, &response]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
     outputTree.put("status", display_device::reset_persistence());
+    send_response(response, outputTree);
   }
 
   /**
@@ -915,15 +900,9 @@ namespace confighttp {
     std::stringstream configStream;
     ss << request->content.rdbuf();
 
-    pt::ptree inputTree, outputTree;
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
+    pt::ptree outputTree;
     try {
+      pt::ptree inputTree;
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
       auto username = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
@@ -959,12 +938,16 @@ namespace confighttp {
             return a.empty() ? b : a + ", " + b;
           });
         bad_request(response, request, error);
+        return;
       }
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePassword: "sv << e.what();
       bad_request(response, request, e.what());
+      return;
     }
+
+    send_response(response, outputTree);
   }
 
   /**
@@ -990,15 +973,9 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
 
-    pt::ptree inputTree, outputTree;
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
+    pt::ptree outputTree;
     try {
+      pt::ptree inputTree;
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
       std::string pin = inputTree.get<std::string>("pin");
@@ -1008,7 +985,10 @@ namespace confighttp {
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
       bad_request(response, request, e.what());
+      return;
     }
+
+    send_response(response, outputTree);
   }
 
   /**
@@ -1024,16 +1004,12 @@ namespace confighttp {
 
     print_req(request);
 
-    pt::ptree outputTree;
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
     nvhttp::erase_all_clients();
     proc::proc.terminate();
+
+    pt::ptree outputTree;
     outputTree.put("status", true);
+    send_response(response, outputTree);
   }
 
   /**
@@ -1058,15 +1034,9 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
 
-    pt::ptree inputTree, outputTree;
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
+    pt::ptree outputTree;
     try {
+      pt::ptree inputTree;
       // TODO: Input Validation
       pt::read_json(ss, inputTree);
       std::string uuid = inputTree.get<std::string>("uuid");
@@ -1075,7 +1045,10 @@ namespace confighttp {
     catch (std::exception &e) {
       BOOST_LOG(warning) << "Unpair: "sv << e.what();
       bad_request(response, request, e.what());
+      return;
     }
+
+    send_response(response, outputTree);
   }
 
   /**
@@ -1091,20 +1064,13 @@ namespace confighttp {
 
     print_req(request);
 
-    pt::ptree named_certs = nvhttp::get_all_clients();
+    const pt::ptree named_certs = nvhttp::get_all_clients();
 
     pt::ptree outputTree;
-
     outputTree.put("status", false);
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
     outputTree.add_child("named_certs", named_certs);
     outputTree.put("status", true);
+    send_response(response, outputTree);
   }
 
   /**
@@ -1120,16 +1086,11 @@ namespace confighttp {
 
     print_req(request);
 
-    pt::ptree outputTree;
-
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-      pt::write_json(data, outputTree);
-      response->write(data.str());
-    });
-
     proc::proc.terminate();
+
+    pt::ptree outputTree;
     outputTree.put("status", true);
+    send_response(response, outputTree);
   }
 
   void
