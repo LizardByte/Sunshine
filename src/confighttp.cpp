@@ -610,18 +610,23 @@ namespace confighttp {
 
     print_req(request);
 
-    int index;
-
     pt::ptree outputTree;
     try {
       pt::ptree fileTree;
       pt::ptree newApps;
       pt::read_json(config::stream.file_apps, fileTree);
       auto &apps_node = fileTree.get_child("apps"s);
-      index = stoi(request->path_match[1]);
+      int index = stoi(request->path_match[1]);
 
-      if (index < 0 && index >= static_cast<int>(apps_node.size())) {
-        bad_request(response, request, "index out of range, max index is "s + std::to_string(apps_node.size() - 1));
+      std::string error;
+      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
+        int max_index = apps_node.size() - 1;
+        if (max_index < 0) {
+          error = "No applications to delete";
+        } else {
+          error = "index out of range, max index is "s + std::to_string(max_index);
+        }
+        bad_request(response, request, error);
         return;
       }
 
