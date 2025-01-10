@@ -281,10 +281,10 @@ nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=$
 This tool can be installed following instructions in their
 [GitHub repository](https://github.com/jakehilborn/displayplacer)}.
 
-| Prep Step | Command                                                                                            |
-|-----------|----------------------------------------------------------------------------------------------------|
-| Do        | @code{}displayplacer "id:<screenId> res:1920x1080 hz:60 scaling:on origin:(0,0) degree:0"@endcode  |
-| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode |
+| Prep Step | Command                                                                                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "displayplacer \"id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0\""@endcode |
+| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode                                                                       |
 
 ##### Windows
 Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
