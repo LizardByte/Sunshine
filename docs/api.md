@@ -5,6 +5,10 @@ Sunshine has a RESTful API which can be used to interact with the service.
 Unless otherwise specified, authentication is required for all API calls. You can authenticate using
 basic authentication with the admin username and password.
 
+@htmlonly
+<script src="api.js"></script>
+@endhtmlonly
+
 ## GET /api/apps
 @copydoc confighttp::getApps()
 
@@ -14,7 +18,7 @@ basic authentication with the admin username and password.
 ## POST /api/apps
 @copydoc confighttp::saveApp()
 
-## DELETE /api/apps{index}
+## DELETE /api/apps/{index}
 @copydoc confighttp::deleteApp()
 
 ## POST /api/covers/upload
@@ -32,6 +36,9 @@ basic authentication with the admin username and password.
 ## POST /api/restart
 @copydoc confighttp::restart()
 
+## POST /api/reset-display-device-persistence
+@copydoc confighttp::resetDisplayDevicePersistence()
+
 ## POST /api/password
 @copydoc confighttp::savePassword()
 
@@ -47,7 +54,7 @@ basic authentication with the admin username and password.
 ## GET /api/clients/list
 @copydoc confighttp::listClients()
 
-## GET /api/apps/close
+## POST /api/apps/close
 @copydoc confighttp::closeApp()
 
 <div class="section_buttons">
