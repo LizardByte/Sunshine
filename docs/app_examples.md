@@ -287,6 +287,8 @@ This tool can be installed following instructions in their
 | Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode |
 
 ##### Windows
+Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
+third-party tool, you can use [QRes](#qres) as an example.
 
 ###### QRes
 @note{This example uses the *QRes* tool to change the resolution and refresh rate.
