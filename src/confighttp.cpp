@@ -82,7 +82,6 @@ namespace confighttp {
 
   /**
    * @brief Send a response.
-   * This is used when an endpoint returns early, such as when hitting bad_request.
    * @param response The HTTP response object.
    * @param output_tree The JSON tree to send.
    */
@@ -437,16 +436,16 @@ namespace confighttp {
     // remove the leading period from the extension
     auto mimeType = mime_types.find(relPath.extension().string().substr(1));
     // check if the extension is in the map at the x position
-    if (mimeType != mime_types.end()) {
-      // if it is, set the content type to the mime type
-      SimpleWeb::CaseInsensitiveMultimap headers;
-      headers.emplace("Content-Type", mimeType->second);
-      std::ifstream in(filePath.string(), std::ios::binary);
-      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    if (mimeType == mime_types.end()) {
+      bad_request(response, request);
+      return;
     }
 
-    // do not return any file if the type is not in the map
-    bad_request(response, request);
+    // if it is, set the content type to the mime type
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", mimeType->second);
+    std::ifstream in(filePath.string(), std::ios::binary);
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
   /**
@@ -621,7 +620,7 @@ namespace confighttp {
       auto &apps_node = fileTree.get_child("apps"s);
       index = stoi(request->path_match[1]);
 
-      if (std::clamp(index, 0, static_cast<int>(apps_node.size()) - 1) != index) {
+      if (index < 0 && index >= static_cast<int>(apps_node.size())) {
         bad_request(response, request, "index out of range, max index is "s + std::to_string(apps_node.size() - 1));
         return;
       }
