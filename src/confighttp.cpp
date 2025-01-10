@@ -622,7 +622,8 @@ namespace confighttp {
         std::string error;
         if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
           error = "No applications to delete";
-        } else {
+        }
+        else {
           error = "'index' out of range, max index is "s + std::to_string(max_index);
         }
         bad_request(response, request, error);
