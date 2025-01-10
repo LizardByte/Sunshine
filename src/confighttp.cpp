@@ -195,29 +195,7 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
 
-    response->write(SimpleWeb::StatusCode::client_error_not_found, data.str(), headers);
-  }
-
-  /**
-   * @brief Send a 400 Bad Request response.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void
-  bad_request_default(resp_https_t response, [[maybe_unused]] req_https_t request) {
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
-
-    pt::ptree tree;
-    tree.put("status_code", static_cast<int>(code));
-    tree.put("error", "Invalid Request");
-
-    std::ostringstream data;
-    pt::write_json(data, tree);
-
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "application/json");
-
-    response->write(SimpleWeb::StatusCode::client_error_bad_request, data.str(), headers);
+    response->write(code, data.str(), headers);
   }
 
   /**
@@ -227,7 +205,7 @@ namespace confighttp {
    * @param error_message The error message to include in the response.
    */
   void
-  bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message) {
+  bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Bad Request") {
     constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
 
     pt::ptree tree;
@@ -241,7 +219,7 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
 
-    response->write(SimpleWeb::StatusCode::client_error_bad_request, data.str(), headers);
+    response->write(code, data.str(), headers);
   }
 
   /**
@@ -446,26 +424,29 @@ namespace confighttp {
     // Don't do anything if file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
       BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
-      response->write(SimpleWeb::StatusCode::client_error_bad_request, "Bad Request");
+      bad_request(response, request);
+      return;
     }
-    else if (!fs::exists(filePath)) {
-      response->write(SimpleWeb::StatusCode::client_error_not_found);
+    if (!fs::exists(filePath)) {
+      not_found(response, request);
+      return;
     }
-    else {
-      auto relPath = fs::relative(filePath, webDirPath);
-      // get the mime type from the file extension mime_types map
-      // remove the leading period from the extension
-      auto mimeType = mime_types.find(relPath.extension().string().substr(1));
-      // check if the extension is in the map at the x position
-      if (mimeType != mime_types.end()) {
-        // if it is, set the content type to the mime type
-        SimpleWeb::CaseInsensitiveMultimap headers;
-        headers.emplace("Content-Type", mimeType->second);
-        std::ifstream in(filePath.string(), std::ios::binary);
-        response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-      }
-      // do not return any file if the type is not in the map
+
+    auto relPath = fs::relative(filePath, webDirPath);
+    // get the mime type from the file extension mime_types map
+    // remove the leading period from the extension
+    auto mimeType = mime_types.find(relPath.extension().string().substr(1));
+    // check if the extension is in the map at the x position
+    if (mimeType != mime_types.end()) {
+      // if it is, set the content type to the mime type
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", mimeType->second);
+      std::ifstream in(filePath.string(), std::ios::binary);
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
     }
+
+    // do not return any file if the type is not in the map
+    bad_request(response, request);
   }
 
   /**
@@ -547,14 +528,12 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
 
-    pt::ptree outputTree;
-    send_response(response, outputTree);
-
     BOOST_LOG(info) << config::stream.file_apps;
     try {
       // TODO: Input Validation
       pt::ptree fileTree;
       pt::ptree inputTree;
+      pt::ptree outputTree;
       pt::read_json(ss, inputTree);
       pt::read_json(config::stream.file_apps, fileTree);
 
@@ -608,15 +587,15 @@ namespace confighttp {
       fileTree.add_child("apps", sorted_apps);
 
       pt::write_json(config::stream.file_apps, fileTree);
+      proc::refresh(config::stream.file_apps);
+
+      outputTree.put("status", true);
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveApp: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    outputTree.put("status", true);
-    proc::refresh(config::stream.file_apps);
   }
 
   /**
@@ -658,17 +637,16 @@ namespace confighttp {
       fileTree.push_back(std::make_pair("apps", newApps));
 
       pt::write_json(config::stream.file_apps, fileTree);
+      proc::refresh(config::stream.file_apps);
+
+      outputTree.put("status", true);
+      outputTree.put("result", "application "s + std::to_string(index) + " deleted");
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    outputTree.put("status", true);
-    outputTree.put("result", "application "s + std::to_string(index) + " deleted");
-    send_response(response, outputTree);
-    proc::refresh(config::stream.file_apps);
   }
 
   /**
@@ -703,21 +681,9 @@ namespace confighttp {
       return;
     }
 
-    auto g = util::fail_guard([&]() {
-      std::ostringstream data;
-
-      SimpleWeb::StatusCode code = SimpleWeb::StatusCode::success_ok;
-      if (outputTree.get_child_optional("error").has_value()) {
-        code = SimpleWeb::StatusCode::client_error_bad_request;
-      }
-
-      pt::write_json(data, outputTree);
-      response->write(code, data.str());
-    });
-
     auto key = inputTree.get("key", "");
     if (key.empty()) {
-      outputTree.put("error", "Cover key is required");
+      bad_request(response, request, "Cover key is required");
       return;
     }
     auto url = inputTree.get("url", "");
@@ -728,11 +694,11 @@ namespace confighttp {
     std::basic_string path = coverdir + http::url_escape(key) + ".png";
     if (!url.empty()) {
       if (http::url_get_host(url) != "images.igdb.com") {
-        outputTree.put("error", "Only images.igdb.com is allowed");
+        bad_request(response, request, "Only images.igdb.com is allowed");
         return;
       }
       if (!http::download_file(url, path)) {
-        outputTree.put("error", "Failed to download cover");
+        bad_request(response, request, "Failed to download cover");
         return;
       }
     }
@@ -742,7 +708,9 @@ namespace confighttp {
       std::ofstream imgfile(path);
       imgfile.write(data.data(), (int) data.size());
     }
+    outputTree.put("status", true);
     outputTree.put("path", path);
+    send_response(response, outputTree);
   }
 
   /**
@@ -815,10 +783,10 @@ namespace confighttp {
     std::stringstream ss;
     std::stringstream configStream;
     ss << request->content.rdbuf();
-    pt::ptree outputTree;
     try {
-      pt::ptree inputTree;
       // TODO: Input Validation
+      pt::ptree inputTree;
+      pt::ptree outputTree;
       pt::read_json(ss, inputTree);
       for (const auto &[k, v] : inputTree) {
         std::string value = inputTree.get<std::string>(k);
@@ -827,14 +795,13 @@ namespace confighttp {
         configStream << k << " = " << value << std::endl;
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), configStream.str());
+      outputTree.put("status", true);
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    send_response(response, outputTree);
   }
 
   /**
@@ -900,10 +867,10 @@ namespace confighttp {
     std::stringstream configStream;
     ss << request->content.rdbuf();
 
-    pt::ptree outputTree;
     try {
-      pt::ptree inputTree;
       // TODO: Input Validation
+      pt::ptree inputTree;
+      pt::ptree outputTree;
       pt::read_json(ss, inputTree);
       auto username = inputTree.count("currentUsername") > 0 ? inputTree.get<std::string>("currentUsername") : "";
       auto newUsername = inputTree.get<std::string>("newUsername");
@@ -940,14 +907,13 @@ namespace confighttp {
         bad_request(response, request, error);
         return;
       }
+
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePassword: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    send_response(response, outputTree);
   }
 
   /**
@@ -973,22 +939,20 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
 
-    pt::ptree outputTree;
     try {
-      pt::ptree inputTree;
       // TODO: Input Validation
+      pt::ptree inputTree;
+      pt::ptree outputTree;
       pt::read_json(ss, inputTree);
       std::string pin = inputTree.get<std::string>("pin");
       std::string name = inputTree.get<std::string>("name");
       outputTree.put("status", nvhttp::pin(pin, name));
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    send_response(response, outputTree);
   }
 
   /**
@@ -1034,21 +998,19 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
 
-    pt::ptree outputTree;
     try {
-      pt::ptree inputTree;
       // TODO: Input Validation
+      pt::ptree inputTree;
+      pt::ptree outputTree;
       pt::read_json(ss, inputTree);
       std::string uuid = inputTree.get<std::string>("uuid");
       outputTree.put("status", nvhttp::unpair_client(uuid));
+      send_response(response, outputTree);
     }
     catch (std::exception &e) {
       BOOST_LOG(warning) << "Unpair: "sv << e.what();
       bad_request(response, request, e.what());
-      return;
     }
-
-    send_response(response, outputTree);
   }
 
   /**
@@ -1101,11 +1063,19 @@ namespace confighttp {
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     https_server_t server { config::nvhttp.cert, config::nvhttp.pkey };
-    server.default_resource["DELETE"] = bad_request_default;
+    server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
+      bad_request(response, request);
+    };
+    server.default_resource["PATCH"] = [](resp_https_t response, req_https_t request) {
+      bad_request(response, request);
+    };
+    server.default_resource["POST"] = [](resp_https_t response, req_https_t request) {
+      bad_request(response, request);
+    };
+    server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
+      bad_request(response, request);
+    };
     server.default_resource["GET"] = not_found;
-    server.default_resource["PATCH"] = bad_request_default;
-    server.default_resource["POST"] = bad_request_default;
-    server.default_resource["PUT"] = bad_request_default;
     server.resource["^/$"]["GET"] = getIndexPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
