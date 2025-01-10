@@ -294,10 +294,10 @@ third-party tool, you can use [QRes](#qres) as an example.
 @note{This example uses the *QRes* tool to change the resolution and refresh rate.
 This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}.
 
-| Prep Step | Command                                                                                                                 |
-|-----------|-------------------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}cmd /C FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%@endcode |
-| Undo      | @code{}cmd /C FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                          |
+| Prep Step | Command                                                                                                                   |
+|-----------|---------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}cmd /C "FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%"@endcode |
+| Undo      | @code{}FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                                   |
 
 ### Additional Considerations
 
