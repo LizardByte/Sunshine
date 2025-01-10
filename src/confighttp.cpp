@@ -618,13 +618,12 @@ namespace confighttp {
       auto &apps_node = fileTree.get_child("apps"s);
       int index = stoi(request->path_match[1]);
 
-      std::string error;
       if (index < 0 || index >= static_cast<int>(apps_node.size())) {
-        int max_index = apps_node.size() - 1;
-        if (max_index < 0) {
+        std::string error;
+        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
           error = "No applications to delete";
         } else {
-          error = "index out of range, max index is "s + std::to_string(max_index);
+          error = "'index' out of range, max index is "s + std::to_string(max_index);
         }
         bad_request(response, request, error);
         return;
