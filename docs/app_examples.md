@@ -167,7 +167,7 @@ process is killed.}
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
 @hint{The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS
-and iOS devices, since they use non standard resolutions.
+and iOS devices, since they use non-standard resolutions.
 
 You can update the ``Do`` command to this:
 ```bash
@@ -257,22 +257,10 @@ hard-coding their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mod
 
 ###### NVIDIA
 
-| Prep Step | Command                                                                                                     |
-|-----------|-------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}sh -c "${HOME}/scripts/set-custom-res.sh ${SUNSHINE_CLIENT_WIDTH} ${SUNSHINE_CLIENT_HEIGHT}"@endcode |
-| Undo      | @code{}sh -c "${HOME}/scripts/set-custom-res.sh 3840 2160"@endcode                                          |
-
-The ``set-custom-res.sh`` will have this content:
-```bash
-#!/bin/bash
-set -e
-
-# Get params and set any defaults
-width=${1:-1920}
-height=${2:-1080}
-output=${3:-HDMI-1}
-nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
-```
+| Prep Step | Command                                                                                                                                                                                                                        |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}, ViewPortOut=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}+0+0 }\""@endcode |
+| Undo      | @code{}nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=3840x2160, ViewPortOut=3840x2160+0+0 }"@endcode                                                                                            |
 
 ##### macOS
 
