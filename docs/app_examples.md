@@ -288,11 +288,11 @@ This tool can be installed following instructions in their
 
 ##### Windows
 Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
-third-party tool, you can use [QRes](#qres) as an example.
+third-party tool, you can use *QRes* as an example.
 
 ###### QRes
 @note{This example uses the *QRes* tool to change the resolution and refresh rate.
-This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}.
+This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}
 
 | Prep Step | Command                                                                                                                   |
 |-----------|---------------------------------------------------------------------------------------------------------------------------|
