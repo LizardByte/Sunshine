@@ -1,4 +1,3 @@
-
 /**
  * @file tests/unit/test_display_device.cpp
  * @brief Test src/display_device.*.

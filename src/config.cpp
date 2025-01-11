@@ -382,7 +382,7 @@ namespace config {
 
     video_t::dd_t::mode_remapping_t
     mode_remapping_from_view(const std::string_view value) {
-      const auto parse_entry_list{[](const auto& entry_list, auto& output_field) {
+      const auto parse_entry_list { [](const auto &entry_list, auto &output_field) {
         for (auto &[_, entry] : entry_list) {
           auto requested_resolution = entry.template get_optional<std::string>("requested_resolution"s);
           auto requested_fps = entry.template get_optional<std::string>("requested_fps"s);
@@ -395,7 +395,7 @@ namespace config {
             final_resolution.value_or(""),
             final_refresh_rate.value_or("") });
         }
-      }};
+      } };
 
       // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
       std::stringstream json_stream;
