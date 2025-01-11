@@ -488,8 +488,8 @@ namespace {
       EXPECT_NO_THROW(std::get<display_device::failed_to_parse_tag_t>(result));
     }
     else {
-      const auto& [expected_resolution, expected_refresh_rate] = std::get<final_values_t>(expected_value);
-      const auto& parsed_config = std::get<display_device::SingleDisplayConfiguration>(result);
+      const auto &[expected_resolution, expected_refresh_rate] = std::get<final_values_t>(expected_value);
+      const auto &parsed_config = std::get<display_device::SingleDisplayConfiguration>(result);
 
       EXPECT_EQ(parsed_config.m_resolution, expected_resolution);
       EXPECT_EQ(parsed_config.m_refresh_rate, expected_refresh_rate ? std::make_optional(display_device::FloatingPoint { *expected_refresh_rate }) : std::nullopt);
