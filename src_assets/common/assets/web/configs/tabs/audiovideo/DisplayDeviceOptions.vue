@@ -144,7 +144,7 @@ function addRemappingEntry() {
                 <label for="dd_config_revert_delay" class="form-label">
                   {{ $t('config.dd_config_revert_delay') }}
                 </label>
-                <input type="text" class="form-control" id="dd_config_revert_delay" placeholder="3000"
+                <input type="number" class="form-control" id="dd_config_revert_delay" placeholder="3000" min="0"
                        v-model="config.dd_config_revert_delay" />
                 <div class="form-text">
                   {{ $t('config.dd_config_revert_delay_desc') }}
