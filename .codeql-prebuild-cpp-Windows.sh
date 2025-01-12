@@ -11,6 +11,7 @@ dependencies=(
   "mingw-w64-ucrt-x86_64-cmake"
   "mingw-w64-ucrt-x86_64-cppwinrt"
   "mingw-w64-ucrt-x86_64-curl-winssl"
+  "mingw-w64-ucrt-x86_64-MinHook"
   "mingw-w64-ucrt-x86_64-miniupnpc"
   "mingw-w64-ucrt-x86_64-nlohmann-json"
   "mingw-w64-ucrt-x86_64-nodejs"

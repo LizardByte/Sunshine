@@ -68,18 +68,6 @@ const config = ref(props.config)
         :config="config"
     />
 
-    <PlatformLayout :platform="platform">
-      <template #windows>
-        <!-- GPU Preference -->
-        <div class="mb-3">
-          <label for="gpu_preference" class="form-label">{{ $t('config.gpu_preference') }}</label>
-          <input type="number" class="form-control" id="gpu_preference" placeholder="-1" min="-1"
-                 v-model="config.gpu_preference" />
-          <div class="form-text">{{ $t('config.gpu_preference_desc') }}</div>
-        </div>
-      </template>
-    </PlatformLayout>
-
     <DisplayOutputSelector
       :platform="platform"
       :config="config"

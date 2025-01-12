@@ -77,7 +77,6 @@ namespace config {
     std::string capture;
     std::string encoder;
     std::string adapter_name;
-    int gpu_preference;
     std::string output_name;
 
     struct dd_t {

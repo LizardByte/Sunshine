@@ -848,37 +848,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### gpu_preference
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Specify the GPU preference for the Sunshine process.
-            <br>
-            <br>
-            If set to negative number (-1 by default), Sunshine will try to detect the best GPU for the streamed display, but if it fails you will get a black screen.
-            <br>
-            Setting it to 0 will allow Windows to try and select the best GPU.
-            <br>
-            Setting it to 1 and above will prioritize the GPU that matches this number (the number has to be guessed, but it starts at 1 and increases).
-            @note{Applies to Windows only.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            -1
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            2
-            @endcode</td>
-    </tr>
-</table>
-
 ### output_name
 
 <table>
