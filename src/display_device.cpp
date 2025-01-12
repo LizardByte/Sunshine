@@ -119,7 +119,7 @@ namespace display_device {
     };
 
     /**
-     * @breif Convert string to unsigned int.
+     * @brief Convert string to unsigned int.
      * @note For random reason there is std::stoi, but not std::stou...
      * @param value String to be converted
      * @return Parsed unsigned integer.
