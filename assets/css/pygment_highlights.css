@@ -22,7 +22,7 @@
 .highlight .gr { color: #ffffff } /* Generic.Error */
 .highlight .gh { color: #ffffff; font-weight: bold } /* Generic.Heading */
 .highlight .gi { color: #ffffff } /* Generic.Inserted */
-.highlight .go { color: #444444; background-color: #222222 } /* Generic.Output */
+.highlight .go { color: #444444; background-color: #888888 } /* Generic.Output */
 .highlight .gp { color: #ffffff } /* Generic.Prompt */
 .highlight .gs { color: #ffffff } /* Generic.Strong */
 .highlight .gu { color: #ffffff; font-weight: bold } /* Generic.Subheading */
