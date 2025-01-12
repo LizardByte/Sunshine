@@ -386,7 +386,12 @@ namespace platf::dxgi {
       // would have been raised first if it wasn't.
       if (result == S_OK || result == E_ACCESSDENIED) {
         // We found a working GPU preference, so set ourselves to use that.
-        return set_gpu_preference_on_self(i);
+        if (set_gpu_preference_on_self(i)) {
+          return true;
+        }
+        else {
+          return false;
+        }
       }
     }
 
@@ -413,25 +418,16 @@ namespace platf::dxgi {
       return true;
     }
 
-    // If the GPU preference was manually specified, we can skip the probe.
-    if (config::video.gpu_preference >= 0) {
-      if (set_gpu_preference_on_self(config::video.gpu_preference)) {
-        set_gpu_preference = true;
-        return true;
-      }
+    // Try probing with different GPU preferences and verify_frame_capture flag
+    if (validate_and_test_gpu_preference(display_name, true)) {
+      set_gpu_preference = true;
+      return true;
     }
-    else {
-      // Try probing with different GPU preferences and verify_frame_capture flag
-      if (validate_and_test_gpu_preference(display_name, true)) {
-        set_gpu_preference = true;
-        return true;
-      }
 
-      // If no valid configuration was found, try again with verify_frame_capture == false
-      if (validate_and_test_gpu_preference(display_name, false)) {
-        set_gpu_preference = true;
-        return true;
-      }
+    // If no valid configuration was found, try again with verify_frame_capture == false
+    if (validate_and_test_gpu_preference(display_name, false)) {
+      set_gpu_preference = true;
+      return true;
     }
 
     // If neither worked, return false

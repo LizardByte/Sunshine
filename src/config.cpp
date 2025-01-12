@@ -468,7 +468,6 @@ namespace config {
     {},  // capture
     {},  // encoder
     {},  // adapter_name
-    -1,  // gpu_preference
     {},  // output_name
 
     {
@@ -1122,7 +1121,6 @@ namespace config {
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
-    int_f(vars, "gpu_preference", video.gpu_preference);
     string_f(vars, "output_name", video.output_name);
 
     generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
