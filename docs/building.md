@@ -90,6 +90,7 @@ dependencies=(
   "mingw-w64-ucrt-x86_64-curl-winssl"
   "mingw-w64-ucrt-x86_64-doxygen"  # Optional, for docs... better to install official Doxygen
   "mingw-w64-ucrt-x86_64-graphviz"  # Optional, for docs
+  "mingw-w64-ucrt-x86_64-MinHook"
   "mingw-w64-ucrt-x86_64-miniupnpc"
   "mingw-w64-ucrt-x86_64-nlohmann-json"
   "mingw-w64-ucrt-x86_64-nodejs"

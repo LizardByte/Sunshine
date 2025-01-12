@@ -9,9 +9,21 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/process/v1.hpp>
 
+#include <MinHook.h>
+
 // We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
 typedef long NTSTATUS;
+
+// Definition from the WDK's d3dkmthk.h
+typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
+  D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
+  D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
+  D3DKMT_GPU_PREFERENCE_STATE_MINIMUM_POWER,  ///< The minimum-powered GPU is preferred.
+  D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED,  ///< A GPU preference isn't specified.
+  D3DKMT_GPU_PREFERENCE_STATE_NOT_FOUND,  ///< A GPU preference isn't found.
+  D3DKMT_GPU_PREFERENCE_STATE_USER_SPECIFIED_GPU  ///< A specific GPU is preferred.
+} D3DKMT_GPU_PREFERENCE_QUERY_STATE;
 
 #include "display.h"
 #include "misc.h"
@@ -329,111 +341,6 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-  bool
-  set_gpu_preference_on_self(int preference) {
-    // The GPU preferences key uses app path as the value name.
-    WCHAR sunshine_path[MAX_PATH];
-    GetModuleFileNameW(NULL, sunshine_path, ARRAYSIZE(sunshine_path));
-
-    WCHAR value_data[128];
-    swprintf_s(value_data, L"GpuPreference=%d;", preference);
-
-    auto status = RegSetKeyValueW(HKEY_CURRENT_USER,
-      L"Software\\Microsoft\\DirectX\\UserGpuPreferences",
-      sunshine_path,
-      REG_SZ,
-      value_data,
-      (wcslen(value_data) + 1) * sizeof(WCHAR));
-    if (status != ERROR_SUCCESS) {
-      BOOST_LOG(error) << "Failed to set GPU preference: "sv << status;
-      return false;
-    }
-
-    BOOST_LOG(info) << "Set GPU preference: "sv << preference;
-    return true;
-  }
-
-  bool
-  validate_and_test_gpu_preference(const std::string &display_name, bool verify_frame_capture) {
-    std::string cmd = "tools\\ddprobe.exe";
-
-    // We start at 1 because 0 is automatic selection which can be overridden by
-    // the GPU driver control panel options. Since ddprobe.exe can have different
-    // GPU driver overrides than Sunshine.exe, we want to avoid a scenario where
-    // autoselection might work for ddprobe.exe but not for us.
-    for (int i = 1; i < 5; i++) {
-      // Run the probe tool. It returns the status of DuplicateOutput().
-      //
-      // Arg format: [GPU preference] [Display name] [--verify-frame-capture]
-      HRESULT result;
-      std::vector<std::string> args = { std::to_string(i), display_name };
-      try {
-        if (verify_frame_capture) {
-          args.emplace_back("--verify-frame-capture");
-        }
-        result = bp::system(cmd, bp::args(args), bp::std_out > bp::null, bp::std_err > bp::null);
-      }
-      catch (bp::process_error &e) {
-        BOOST_LOG(error) << "Failed to start ddprobe.exe: "sv << e.what();
-        return false;
-      }
-
-      BOOST_LOG(info) << "ddprobe.exe " << boost::algorithm::join(args, " ") << " returned 0x"
-                      << util::hex(result).to_string_view();
-
-      // E_ACCESSDENIED can happen at the login screen. If we get this error,
-      // we know capture would have been supported, because DXGI_ERROR_UNSUPPORTED
-      // would have been raised first if it wasn't.
-      if (result == S_OK || result == E_ACCESSDENIED) {
-        // We found a working GPU preference, so set ourselves to use that.
-        if (set_gpu_preference_on_self(i)) {
-          return true;
-        }
-        else {
-          return false;
-        }
-      }
-    }
-
-    // If no valid configuration was found, return false
-    return false;
-  }
-
-  // On hybrid graphics systems, Windows will change the order of GPUs reported by
-  // DXGI in accordance with the user's GPU preference. If the selected GPU is a
-  // render-only device with no displays, DXGI will add virtual outputs to the
-  // that device to avoid confusing applications. While this works properly for most
-  // applications, it breaks the Desktop Duplication API because DXGI doesn't proxy
-  // the virtual DXGIOutput to the real GPU it is attached to. When trying to call
-  // DuplicateOutput() on one of these virtual outputs, it fails with DXGI_ERROR_UNSUPPORTED
-  // (even if you try sneaky stuff like passing the ID3D11Device for the iGPU and the
-  // virtual DXGIOutput from the dGPU). Because the GPU preference is once-per-process,
-  // we spawn a helper tool to probe for us before we set our own GPU preference.
-  bool
-  probe_for_gpu_preference(const std::string &display_name) {
-    static bool set_gpu_preference = false;
-
-    // If we've already been through here, there's nothing to do this time.
-    if (set_gpu_preference) {
-      return true;
-    }
-
-    // Try probing with different GPU preferences and verify_frame_capture flag
-    if (validate_and_test_gpu_preference(display_name, true)) {
-      set_gpu_preference = true;
-      return true;
-    }
-
-    // If no valid configuration was found, try again with verify_frame_capture == false
-    if (validate_and_test_gpu_preference(display_name, false)) {
-      set_gpu_preference = true;
-      return true;
-    }
-
-    // If neither worked, return false
-    return false;
-  }
-
   /**
    * @brief Tests to determine if the Desktop Duplication API can capture the given output.
    * @details When testing for enumeration only, we avoid resyncing the thread desktop.
@@ -506,6 +413,27 @@ namespace platf::dxgi {
     return false;
   }
 
+  /**
+   * @brief Hook for NtGdiDdDDIGetCachedHybridQueryValue() from win32u.dll.
+   * @param gpuPreference A pointer to the location where the preference will be written.
+   * @return Always STATUS_SUCCESS if valid arguments are provided.
+   */
+  NTSTATUS
+  __stdcall NtGdiDdDDIGetCachedHybridQueryValueHook(D3DKMT_GPU_PREFERENCE_QUERY_STATE *gpuPreference) {
+    // By faking a cached GPU preference state of D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED, this will
+    // prevent DXGI from performing the normal GPU preference resolution that looks at the registry,
+    // power settings, and the hybrid adapter DDI interface to pick a GPU. Instead, we will not be
+    // bound to any specific GPU. This will prevent DXGI from performing output reparenting (moving
+    // outputs from their true location to the render GPU), which breaks DDA.
+    if (gpuPreference) {
+      *gpuPreference = D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED;
+      return 0;  // STATUS_SUCCESS
+    }
+    else {
+      return STATUS_INVALID_PARAMETER;
+    }
+  }
+
   int
   display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
     std::once_flag windows_cpp_once_flag;
@@ -515,13 +443,22 @@ namespace platf::dxgi {
 
       typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
-      auto user32 = LoadLibraryA("user32.dll");
-      auto f = (User32_SetProcessDpiAwarenessContext) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
-      if (f) {
-        f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+      {
+        auto user32 = LoadLibraryA("user32.dll");
+        auto f = (User32_SetProcessDpiAwarenessContext) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        if (f) {
+          f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+
+        FreeLibrary(user32);
       }
 
-      FreeLibrary(user32);
+      {
+        // We aren't calling MH_Uninitialize(), but that's okay because this hook lasts for the life of the process
+        MH_Initialize();
+        MH_CreateHookApi(L"win32u.dll", "NtGdiDdDDIGetCachedHybridQueryValue", (void *) NtGdiDdDDIGetCachedHybridQueryValueHook, nullptr);
+        MH_EnableHook(MH_ALL_HOOKS);
+      }
     });
 
     // Get rectangle of full desktop for absolute mouse coordinates
@@ -529,11 +466,6 @@ namespace platf::dxgi {
     env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
     HRESULT status;
-
-    // We must set the GPU preference before calling any DXGI APIs!
-    if (!probe_for_gpu_preference(display_name)) {
-      BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
-    }
 
     status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory);
     if (FAILED(status)) {
@@ -1100,12 +1032,6 @@ namespace platf {
     HRESULT status;
 
     BOOST_LOG(debug) << "Detecting monitors..."sv;
-
-    // We must set the GPU preference before calling any DXGI APIs!
-    const auto output_name { display_device::map_output_name(config::video.output_name) };
-    if (!dxgi::probe_for_gpu_preference(output_name)) {
-      BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
-    }
 
     // We sync the thread desktop once before we start the enumeration process
     // to ensure test_dxgi_duplication() returns consistent results for all GPUs

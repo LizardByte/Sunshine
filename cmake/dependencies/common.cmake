@@ -28,7 +28,7 @@ include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 # ffmpeg pre-compiled binaries
 if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     if(WIN32)
-        set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl)
+        set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl MinHook)
     elseif(UNIX AND NOT APPLE)
         set(FFMPEG_PLATFORM_LIBRARIES numa va va-drm va-x11 X11)
     endif()
