@@ -30,11 +30,7 @@
         <!-- Header -->
         <ul class="nav nav-tabs">
           <li class="nav-item" v-for="tab in tabs" :key="tab.id">
-            <a
-              class="nav-link"
-              :class="{'active': tab.id === currentTab}"
-              href="#"
-              @click="currentTab = tab.id"
+            <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#" @click="currentTab = tab.id"
               >{{tab.name}}</a
             >
           </li>
@@ -50,12 +46,7 @@
         </general>
 
         <!-- Input Tab -->
-        <inputs
-          v-if="currentTab === 'input'"
-          :config="config"
-          :platform="platform"
-        >
-        </inputs>
+        <inputs v-if="currentTab === 'input'" :config="config" :platform="platform"> </inputs>
 
         <!-- Audio/Video Tab -->
         <audio-video
@@ -69,35 +60,15 @@
         </audio-video>
 
         <!-- Network Tab -->
-        <network
-          v-if="currentTab === 'network'"
-          :config="config"
-          :platform="platform"
-        >
-        </network>
+        <network v-if="currentTab === 'network'" :config="config" :platform="platform"> </network>
 
         <!-- Files Tab -->
-        <files
-          v-if="currentTab === 'files'"
-          :config="config"
-          :platform="platform"
-        >
-        </files>
+        <files v-if="currentTab === 'files'" :config="config" :platform="platform"> </files>
 
         <!-- Advanced Tab -->
-        <advanced
-          v-if="currentTab === 'advanced'"
-          :config="config"
-          :platform="platform"
-        >
-        </advanced>
+        <advanced v-if="currentTab === 'advanced'" :config="config" :platform="platform"> </advanced>
 
-        <container-encoders
-          :current-tab="currentTab"
-          :config="config"
-          :platform="platform"
-        >
-        </container-encoders>
+        <container-encoders :current-tab="currentTab" :config="config" :platform="platform"> </container-encoders>
       </div>
 
       <!-- Save and Apply buttons -->
@@ -108,32 +79,24 @@
         <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
       </div>
       <div class="mb-3 buttons">
-        <button class="btn btn-primary" @click="save">
-          {{ $t('_common.save') }}
-        </button>
-        <button
-          class="btn btn-success"
-          @click="apply"
-          v-if="saved && !restarted"
-        >
-          {{ $t('_common.apply') }}
-        </button>
+        <button class="btn btn-primary" @click="save">{{ $t('_common.save') }}</button>
+        <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
       </div>
     </div>
   </body>
 
   <script type="module">
-    import { computed, createApp } from "vue";
-    import { initApp } from "./init";
-    import Navbar from "./Navbar.vue";
-    import General from "./configs/tabs/General.vue";
-    import Inputs from "./configs/tabs/Inputs.vue";
-    import Network from "./configs/tabs/Network.vue";
-    import Files from "./configs/tabs/Files.vue";
-    import Advanced from "./configs/tabs/Advanced.vue";
-    import AudioVideo from "./configs/tabs/AudioVideo.vue";
-    import ContainerEncoders from "./configs/tabs/ContainerEncoders.vue";
-    import { $tp, usePlatformI18n } from "./platform-i18n";
+    import { computed, createApp } from 'vue'
+    import { initApp } from './init'
+    import Navbar from './Navbar.vue'
+    import General from './configs/tabs/General.vue'
+    import Inputs from './configs/tabs/Inputs.vue'
+    import Network from './configs/tabs/Network.vue'
+    import Files from './configs/tabs/Files.vue'
+    import Advanced from './configs/tabs/Advanced.vue'
+    import AudioVideo from './configs/tabs/AudioVideo.vue'
+    import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
+    import { $tp, usePlatformI18n } from './platform-i18n'
 
     const app = createApp({
       components: {
@@ -149,200 +112,199 @@
       },
       data() {
         return {
-          platform: "",
+          platform: '',
           saved: false,
           restarted: false,
           config: null,
           fps: [],
           resolutions: [],
-          currentTab: "general",
+          currentTab: 'general',
           global_prep_cmd: [],
           display_mode_remapping: [],
           tabs: [
             // TODO: Move the options to each Component instead, encapsulate.
             {
-              id: "general",
-              name: "General",
+              id: 'general',
+              name: 'General',
               options: {
-                locale: "en",
-                sunshine_name: "",
+                locale: 'en',
+                sunshine_name: '',
                 min_log_level: 2,
-                global_prep_cmd: "[]",
-                notify_pre_releases: "disabled",
+                global_prep_cmd: '[]',
+                notify_pre_releases: 'disabled',
               },
             },
             {
-              id: "input",
-              name: "Input",
+              id: 'input',
+              name: 'Input',
               options: {
-                controller: "enabled",
-                gamepad: "auto",
-                ds4_back_as_touchpad_click: "enabled",
-                motion_as_ds4: "enabled",
-                touchpad_as_ds4: "enabled",
+                controller: 'enabled',
+                gamepad: 'auto',
+                ds4_back_as_touchpad_click: 'enabled',
+                motion_as_ds4: 'enabled',
+                touchpad_as_ds4: 'enabled',
                 back_button_timeout: -1,
-                keyboard: "enabled",
+                keyboard: 'enabled',
                 key_repeat_delay: 500,
                 key_repeat_frequency: 24.9,
-                always_send_scancodes: "enabled",
-                key_rightalt_to_key_win: "disabled",
-                mouse: "enabled",
-                high_resolution_scrolling: "enabled",
-                native_pen_touch: "enabled",
-                keybindings: "[0x10,0xA0,0x11,0xA2,0x12,0xA4]", // todo: add this to UI
+                always_send_scancodes: 'enabled',
+                key_rightalt_to_key_win: 'disabled',
+                mouse: 'enabled',
+                high_resolution_scrolling: 'enabled',
+                native_pen_touch: 'enabled',
+                keybindings: '[0x10,0xA0,0x11,0xA2,0x12,0xA4]', // todo: add this to UI
               },
             },
             {
-              id: "av",
-              name: "Audio/Video",
+              id: 'av',
+              name: 'Audio/Video',
               options: {
-                audio_sink: "",
-                virtual_sink: "",
-                install_steam_audio_drivers: "enabled",
-                adapter_name: "",
-                output_name: "",
-                display_device_prep: "no_operation",
-                resolution_change: "automatic",
-                manual_resolution: "",
-                refresh_rate_change: "automatic",
-                manual_refresh_rate: "",
-                hdr_prep: "automatic",
-                display_mode_remapping: "[]",
-                resolutions:
-                  "[1280x720,1920x1080,2560x1080,2560x1440,2560x1600,3440x1440,3840x2160]",
-                fps: "[60,90,120,144]",
+                audio_sink: '',
+                virtual_sink: '',
+                install_steam_audio_drivers: 'enabled',
+                adapter_name: '',
+                output_name: '',
+                display_device_prep: 'no_operation',
+                resolution_change: 'automatic',
+                manual_resolution: '',
+                refresh_rate_change: 'automatic',
+                manual_refresh_rate: '',
+                hdr_prep: 'automatic',
+                display_mode_remapping: '[]',
+                resolutions: '[1280x720,1920x1080,2560x1080,2560x1440,2560x1600,3440x1440,3840x2160]',
+                fps: '[60,90,120,144]',
                 min_fps_factor: 1,
               },
             },
             {
-              id: "network",
-              name: "Network",
+              id: 'network',
+              name: 'Network',
               options: {
-                upnp: "disabled",
-                address_family: "ipv4",
+                upnp: 'disabled',
+                address_family: 'ipv4',
                 port: 47989,
-                origin_web_ui_allowed: "lan",
-                external_ip: "",
+                origin_web_ui_allowed: 'lan',
+                external_ip: '',
                 lan_encryption_mode: 0,
                 wan_encryption_mode: 1,
                 ping_timeout: 10000,
               },
             },
             {
-              id: "files",
-              name: "Config Files",
+              id: 'files',
+              name: 'Config Files',
               options: {
-                file_apps: "",
-                credentials_file: "",
-                log_path: "",
-                pkey: "",
-                cert: "",
-                file_state: "",
+                file_apps: '',
+                credentials_file: '',
+                log_path: '',
+                pkey: '',
+                cert: '',
+                file_state: '',
               },
             },
             {
-              id: "advanced",
-              name: "Advanced",
+              id: 'advanced',
+              name: 'Advanced',
               options: {
                 fec_percentage: 20,
                 qp: 28,
                 min_threads: 2,
                 hevc_mode: 0,
                 av1_mode: 0,
-                capture: "",
-                encoder: "",
+                capture: '',
+                encoder: '',
               },
             },
             {
-              id: "nv",
-              name: "NVIDIA NVENC Encoder",
+              id: 'nv',
+              name: 'NVIDIA NVENC Encoder',
               options: {
                 nvenc_preset: 1,
-                nvenc_twopass: "quarter_res",
-                nvenc_spatial_aq: "disabled",
+                nvenc_twopass: 'quarter_res',
+                nvenc_spatial_aq: 'disabled',
                 nvenc_vbv_increase: 0,
-                nvenc_realtime_hags: "enabled",
-                nvenc_split_encode: "driver_decides",
-                nvenc_latency_over_power: "enabled",
-                nvenc_opengl_vulkan_on_dxgi: "enabled",
-                nvenc_h264_cavlc: "disabled",
+                nvenc_realtime_hags: 'enabled',
+                nvenc_split_encode: 'driver_decides',
+                nvenc_latency_over_power: 'enabled',
+                nvenc_opengl_vulkan_on_dxgi: 'enabled',
+                nvenc_h264_cavlc: 'disabled',
               },
             },
             {
-              id: "qsv",
-              name: "Intel QuickSync Encoder",
+              id: 'qsv',
+              name: 'Intel QuickSync Encoder',
               options: {
-                qsv_preset: "medium",
-                qsv_coder: "auto",
-                qsv_slow_hevc: "disabled",
+                qsv_preset: 'medium',
+                qsv_coder: 'auto',
+                qsv_slow_hevc: 'disabled',
               },
             },
             {
-              id: "amd",
-              name: "AMD AMF Encoder",
+              id: 'amd',
+              name: 'AMD AMF Encoder',
               options: {
-                amd_usage: "ultralowlatency",
-                amd_rc: "vbr_latency",
-                amd_enforce_hrd: "disabled",
-                amd_quality: "balanced",
-                amd_preanalysis: "disabled",
-                amd_vbaq: "enabled",
-                amd_coder: "auto",
+                amd_usage: 'ultralowlatency',
+                amd_rc: 'vbr_latency',
+                amd_enforce_hrd: 'disabled',
+                amd_quality: 'balanced',
+                amd_preanalysis: 'disabled',
+                amd_vbaq: 'enabled',
+                amd_coder: 'auto',
               },
             },
             {
-              id: "vt",
-              name: "VideoToolbox Encoder",
+              id: 'vt',
+              name: 'VideoToolbox Encoder',
               options: {
-                vt_coder: "auto",
-                vt_software: "auto",
-                vt_realtime: "enabled",
+                vt_coder: 'auto',
+                vt_software: 'auto',
+                vt_realtime: 'enabled',
               },
             },
             {
-              id: "sw",
-              name: "Software Encoder",
+              id: 'sw',
+              name: 'Software Encoder',
               options: {
-                sw_preset: "superfast",
-                sw_tune: "zerolatency",
+                sw_preset: 'superfast',
+                sw_tune: 'zerolatency',
               },
             },
           ],
-        };
+        }
       },
       provide() {
         return {
           platform: computed(() => this.platform),
-        };
+        }
       },
       created() {
-        fetch("/api/config")
+        fetch('/api/config')
           .then((r) => r.json())
           .then((r) => {
-            this.config = r;
-            this.platform = this.config.platform;
+            this.config = r
+            this.platform = this.config.platform
 
-            var app = document.getElementById("app");
-            if (this.platform === "windows") {
+            var app = document.getElementById('app')
+            if (this.platform === 'windows') {
               this.tabs = this.tabs.filter((el) => {
-                return el.id !== "vt";
-              });
+                return el.id !== 'vt' && el.id !== 'vaapi'
+              })
             }
-            if (this.platform === "linux") {
+            if (this.platform === 'linux') {
               this.tabs = this.tabs.filter((el) => {
-                return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
-              });
+                return el.id !== 'amd' && el.id !== 'qsv' && el.id !== 'vt'
+              })
             }
-            if (this.platform === "macos") {
+            if (this.platform === 'macos') {
               this.tabs = this.tabs.filter((el) => {
-                return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv";
-              });
+                return el.id !== 'amd' && el.id !== 'nv' && el.id !== 'qsv' && el.id !== 'vaapi'
+              })
             }
 
             // remove values we don't want in the config file
-            delete this.config.platform;
-            delete this.config.status;
-            delete this.config.version;
+            delete this.config.platform
+            delete this.config.status
+            delete this.config.version
 
             // TODO: let each tab's Component handle it's own data instead of doing it here
 
@@ -350,164 +312,140 @@
             this.tabs.forEach((tab) => {
               Object.keys(tab.options).forEach((optionKey) => {
                 if (this.config[optionKey] === undefined) {
-                  this.config[optionKey] = tab.options[optionKey];
+                  this.config[optionKey] = tab.options[optionKey]
                 }
-              });
-            });
+              })
+            })
 
-            this.fps = JSON.parse(this.config.fps);
+            this.fps = JSON.parse(this.config.fps)
             //Resolutions should be fixed because are not valid JSON
-            let res = this.config.resolutions.substring(
-              1,
-              this.config.resolutions.length - 1
-            );
-            let resolutions = [];
-            res.split(",").forEach((r) => resolutions.push(r.trim()));
-            this.resolutions = resolutions;
+            let res = this.config.resolutions.substring(1, this.config.resolutions.length - 1)
+            let resolutions = []
+            res.split(',').forEach((r) => resolutions.push(r.trim()))
+            this.resolutions = resolutions
 
-            this.config.global_prep_cmd = this.config.global_prep_cmd || [];
-            this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
+            this.config.global_prep_cmd = this.config.global_prep_cmd || []
+            this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd)
 
-            this.config.display_mode_remapping =
-              this.config.display_mode_remapping || [];
-            this.display_mode_remapping = JSON.parse(
-              this.config.display_mode_remapping
-            );
-          });
+            this.config.display_mode_remapping = this.config.display_mode_remapping || []
+            this.display_mode_remapping = JSON.parse(this.config.display_mode_remapping)
+          })
       },
       methods: {
         forceUpdate() {
-          this.$forceUpdate();
+          this.$forceUpdate()
         },
         serialize() {
-          let nl = this.config === "windows" ? "\r\n" : "\n";
-          this.config.resolutions =
-            "[" +
-            nl +
-            "    " +
-            this.resolutions.join("," + nl + "    ") +
-            nl +
-            "]";
+          let nl = this.config === 'windows' ? '\r\n' : '\n'
+          this.config.resolutions = '[' + nl + '    ' + this.resolutions.join(',' + nl + '    ') + nl + ']'
           // remove values that don't supported in vdd
-          this.fps = this.fps.filter((item) => +item >= 30 && +item <= 500);
+          this.fps = this.fps.filter((item) => +item >= 30 && +item <= 500)
           // remove quotes from values in fps
-          this.config.fps = JSON.stringify(this.fps).replace(/"/g, "");
-          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
-          this.config.display_mode_remapping = JSON.stringify(
-            this.display_mode_remapping
-          );
+          this.config.fps = JSON.stringify(this.fps).replace(/"/g, '')
+          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd)
+          this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping)
         },
         save() {
-          this.saved = false;
-          this.restarted = false;
-          this.serialize();
+          this.saved = false
+          this.restarted = false
+          this.serialize()
 
           // create a temp copy of this.config to use for the post request
-          let config = JSON.parse(JSON.stringify(this.config));
+          let config = JSON.parse(JSON.stringify(this.config))
 
           // delete default values from this.config
           this.tabs.forEach((tab) => {
             Object.keys(tab.options).forEach((optionKey) => {
-              let delete_value = false;
+              let delete_value = false
 
-              if (["resolutions", "fps", "adapter_name"].includes(optionKey))
-                return false;
+              if (['resolutions', 'fps', 'adapter_name'].includes(optionKey)) return false
 
-              if (
-                ["global_prep_cmd", "display_mode_remapping"].includes(
-                  optionKey
-                )
-              ) {
-                if (
-                  JSON.parse(config[optionKey]) ===
-                  JSON.parse(tab.options[optionKey])
-                ) {
-                  delete_value = true;
+              if (['global_prep_cmd', 'display_mode_remapping'].includes(optionKey)) {
+                if (JSON.parse(config[optionKey]) === JSON.parse(tab.options[optionKey])) {
+                  delete_value = true
                 }
               }
 
               // todo: add proper type checking
-              if (
-                String(config[optionKey]) === String(tab.options[optionKey])
-              ) {
-                delete_value = true;
+              if (String(config[optionKey]) === String(tab.options[optionKey])) {
+                delete_value = true
               }
 
               if (delete_value) {
-                delete config[optionKey];
+                delete config[optionKey]
               }
-            });
-          });
+            })
+          })
 
-          return fetch("/api/config", {
-            method: "POST",
+          return fetch('/api/config', {
+            method: 'POST',
             body: JSON.stringify(config),
           }).then((r) => {
             if (r.status === 200) {
-              this.saved = true;
-              return this.saved;
+              this.saved = true
+              return this.saved
             } else {
-              return false;
+              return false
             }
-          });
+          })
         },
         apply() {
-          this.saved = this.restarted = false;
-          let saved = this.save();
+          this.saved = this.restarted = false
+          let saved = this.save()
 
           saved.then((result) => {
             if (result === true) {
-              this.restarted = true;
+              this.restarted = true
               setTimeout(() => {
-                this.saved = this.restarted = false;
-              }, 5000);
-              fetch("/api/restart", {
-                method: "POST",
-              });
+                this.saved = this.restarted = false
+              }, 5000)
+              fetch('/api/restart', {
+                method: 'POST',
+              })
             }
-          });
+          })
         },
       },
       mounted() {
         // Handle hashchange events
         const handleHash = () => {
-          let hash = window.location.hash;
+          let hash = window.location.hash
           if (hash) {
             // remove the # from the hash
-            let stripped_hash = hash.substring(1);
+            let stripped_hash = hash.substring(1)
 
             this.tabs.forEach((tab) => {
               Object.keys(tab.options).forEach((key) => {
                 if (tab.id === stripped_hash || key === stripped_hash) {
-                  this.currentTab = tab.id;
+                  this.currentTab = tab.id
                 }
                 if (key === stripped_hash) {
                   // sleep for 2 seconds to allow the page to load
                   setTimeout(() => {
-                    let element = document.getElementById(stripped_hash);
+                    let element = document.getElementById(stripped_hash)
                     if (element) {
-                      window.location.hash = hash;
+                      window.location.hash = hash
                     }
-                  }, 2000);
+                  }, 2000)
                 }
 
                 if (this.currentTab === tab.id) {
                   // stop looping
-                  return true;
+                  return true
                 }
-              });
-            });
+              })
+            })
           }
-        };
+        }
 
         // Call handleHash for the initial load
-        handleHash();
+        handleHash()
 
         // Add hashchange event listener
-        window.addEventListener("hashchange", handleHash);
+        window.addEventListener('hashchange', handleHash)
       },
-    });
+    })
 
-    initApp(app);
+    initApp(app)
   </script>
 </html>
