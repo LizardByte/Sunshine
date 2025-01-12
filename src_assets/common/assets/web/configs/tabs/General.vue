@@ -4,12 +4,9 @@ import { ref } from 'vue'
 
 const props = defineProps({
   platform: String,
-  config: Object,
-  globalPrepCmd: Array
+  config: Object
 })
-
 const config = ref(props.config)
-const globalPrepCmd = ref(props.globalPrepCmd)
 
 function addCmd() {
   let template = {
@@ -20,11 +17,11 @@ function addCmd() {
   if (props.platform === 'windows') {
     template = { ...template, elevated: false };
   }
-  globalPrepCmd.value.push(template);
+  config.value.global_prep_cmd.push(template);
 }
 
 function removeCmd(index) {
-  globalPrepCmd.value.splice(index,1)
+  config.value.global_prep_cmd.splice(index,1)
 }
 </script>
 
@@ -83,7 +80,7 @@ function removeCmd(index) {
     <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-      <table class="table" v-if="globalPrepCmd.length > 0">
+      <table class="table" v-if="config.global_prep_cmd.length > 0">
         <thead>
         <tr>
           <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
@@ -95,7 +92,7 @@ function removeCmd(index) {
         </tr>
         </thead>
         <tbody>
-        <tr v-for="(c, i) in globalPrepCmd">
+        <tr v-for="(c, i) in config.global_prep_cmd">
           <td>
             <input type="text" class="form-control monospace" v-model="c.do" />
           </td>

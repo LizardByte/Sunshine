@@ -110,6 +110,19 @@ namespace config {
         automatic  ///< Change HDR settings and use the state requested by Moonlight.
       };
 
+      struct mode_remapping_entry_t {
+        std::string requested_resolution;
+        std::string requested_fps;
+        std::string final_resolution;
+        std::string final_refresh_rate;
+      };
+
+      struct mode_remapping_t {
+        std::vector<mode_remapping_entry_t> mixed;  ///< To be used when `resolution_option` and `refresh_rate_option` is set to `automatic`.
+        std::vector<mode_remapping_entry_t> resolution_only;  ///< To be use when only `resolution_option` is set to `automatic`.
+        std::vector<mode_remapping_entry_t> refresh_rate_only;  ///< To be use when only `refresh_rate_option` is set to `automatic`.
+      };
+
       config_option_e configuration_option;
       resolution_option_e resolution_option;
       std::string manual_resolution;  ///< Manual resolution in case `resolution_option == resolution_option_e::manual`.
@@ -117,6 +130,7 @@ namespace config {
       std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
       hdr_option_e hdr_option;
       std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
+      mode_remapping_t mode_remapping;
       workarounds_t wa;
     } dd;
 
