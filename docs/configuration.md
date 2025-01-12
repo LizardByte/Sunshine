@@ -1240,18 +1240,24 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            @warning{Windows only!}
             Remap the requested resolution and FPS to another display mode.<br>
-            Depending on the `dd_resolution_option` and `dd_refresh_rate_option` values, the following mapping 
+            Depending on the [dd_resolution_option](#dd_resolution_option) and
+            [dd_refresh_rate_option](#dd_refresh_rate_option) values, the following mapping 
             groups are available:
             <ul>
-                <li>`mixed` - both options are set to `automatic`.</li>
-                <li>`resolution_only` - only `dd_resolution_option` is set to `automatic`.</li>
-                <li>`refresh_rate_only` - only `dd_refresh_rate_option` is set to `automatic`.</li>
+                <li>`mixed` - both options are set to `auto`.</li>
+                <li>
+                  `resolution_only` - only [dd_resolution_option](#dd_resolution_option) is set to `auto`.
+                </li>
+                <li>
+                  `refresh_rate_only` - only [dd_refresh_rate_option](#dd_refresh_rate_option) is set to `auto`.
+                </li>
             </ul>
             For each of those groups, a list of fields can be configured to perform remapping:  
             <ul>
-                <li>`requested_resolution` - resolution that needs to be matched in order to use this remapping entry.</li>
+                <li>
+                  `requested_resolution` - resolution that needs to be matched in order to use this remapping entry.
+                </li>
                 <li>`requested_fps` - FPS that needs to be matched in order to use this remapping entry.</li>
                 <li>`final_resolution` - resolution value to be used if the entry was matched.</li>
                 <li>`final_refresh_rate` - refresh rate value to be used if the entry was matched.</li>
@@ -1265,6 +1271,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{First entry to be matched in the list is the one that will be used.}
             @tip{`requested_resolution` and `final_resolution` can be omitted for `refresh_rate_only` group.}
             @tip{`requested_fps` and `final_refresh_rate` can be omitted for `resolution_only` group.}
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
