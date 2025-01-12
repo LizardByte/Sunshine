@@ -420,7 +420,7 @@ ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
 
 @tip{You could also utilize the `~/.bash_profile` or `~/.bashrc` files to set up the `DISPLAY` variable.}
 
-@seealso{ See [Remote SSH Headless Setup](md_docs_2guides.html#remote-ssh-headless-setup)
+@seealso{ See [Remote SSH Headless Setup](https://app.lizardbyte.dev/2023-09-14-remote-ssh-headless-sunshine-setup)
 on how to set up a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)}
 
 ### Configuration
