@@ -12,8 +12,8 @@ struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encode
     auto &encoder = *GetParam();
     if (!video::validate_encoder(encoder, false)) {
       // Encoder failed validation,
-      // if it's software - fail (unless overriden with compile definition), otherwise skip
-      if (encoder.name == "software" && std::string(TESTS_SOFTWARE_ENCODER_UNAVAILABLE) == "fail") {
+      // if it's software - fail, otherwise skip
+      if (encoder.name == "software") {
         FAIL() << "Software encoder not available";
       }
       else {
