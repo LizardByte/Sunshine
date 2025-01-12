@@ -760,7 +760,7 @@ namespace platf::dxgi {
         adapter_p,
         D3D_DRIVER_TYPE_UNKNOWN,
         nullptr,
-        D3D11_CREATE_DEVICE_FLAGS,
+        D3D11_CREATE_DEVICE_FLAGS | D3D11_CREATE_DEVICE_VIDEO_SUPPORT,
         featureLevels, sizeof(featureLevels) / sizeof(D3D_FEATURE_LEVEL),
         D3D11_SDK_VERSION,
         &device,

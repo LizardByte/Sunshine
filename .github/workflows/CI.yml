@@ -954,8 +954,7 @@ jobs:
             -DSUNSHINE_ASSETS_DIR=assets \
             -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
             -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
-            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support' \
-            -DTESTS_SOFTWARE_ENCODER_UNAVAILABLE='skip'
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
           ninja -C build
 
       - name: Package Windows
