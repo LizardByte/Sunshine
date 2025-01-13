@@ -199,8 +199,6 @@
     "fec_percentage": "FEC Procent",
     "fec_percentage_desc": "Procent av felkorrigering av paket per datapaket i varje videoram. Högre värden kan korrigera för mer förlust av nätverkspaket, men på bekostnad av ökad bandbreddsanvändning.",
     "ffmpeg_auto": "auto – låt ffmpeg bestämma (standard)",
-    "gpu_preference": "GPU Preferens",
-    "gpu_preference_desc": "Ange GPU preferens för Sunshine processen. Om satt till negativt tal (-1 som standard), kommer Sunshine att försöka upptäcka den bästa GPU för den strömmade displayen, men om det misslyckas får du en svart skärm. Ställa in den till 0 kommer att tillåta Windows att försöka och välja den bästa GPU. Ställa in den till 1 och högre kommer att prioritera GPU som matchar detta nummer (antalet måste gissats, men det börjar vid 1 och ökar).",
     "file_apps": "Appar Fil",
     "file_apps_desc": "Filen där aktuella appar från Sunshine lagras.",
     "file_state": "Status fil",
