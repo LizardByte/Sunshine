@@ -163,7 +163,7 @@
     "dd_hdr_option_auto": "Activer/désactiver le mode HDR tel que demandé par le client (par défaut)",
     "dd_hdr_option_disabled": "Ne pas modifier les paramètres HDR",
     "dd_mode_remapping": "Remplacer le mode d'affichage",
-    "dd_mode_remapping_add": "Ajouter entrée de remorquage",
+    "dd_mode_remapping_add": "Ajouter une entrée de remappage",
     "dd_mode_remapping_desc_1": "Spécifiez les entrées de redimensionnement pour modifier la résolution demandée et/ou le taux de rafraîchissement vers d'autres valeurs.",
     "dd_mode_remapping_desc_2": "La liste est itéré de haut en bas et la première recherche est utilisée.",
     "dd_mode_remapping_desc_3": "Les champs \"Demandés\" peuvent être laissés vides pour correspondre à n'importe quelle valeur demandée.",
