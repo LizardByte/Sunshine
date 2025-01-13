@@ -199,8 +199,6 @@
     "fec_percentage": "FEC Yüzdesi",
     "fec_percentage_desc": "Her video karesindeki veri paketi başına hata düzeltme paketlerinin yüzdesi. Daha yüksek değerler daha fazla ağ paketi kaybını düzeltebilir, ancak bant genişliği kullanımını artırma pahasına.",
     "ffmpeg_auto": "auto -- ffmpeg'in karar vermesine izin ver (varsayılan)",
-    "gpu_preference": "GPU Tercihi",
-    "gpu_preference_desc": "Sunshine işlemi için GPU tercihini belirtin. Negatif sayıya ayarlanırsa (varsayılan olarak -1), Sunshine akışlı ekran için en iyi GPU'yu algılamaya çalışır, ancak başarısız olursa siyah bir ekran alırsınız. 0 olarak ayarlamak Windows'un en iyi GPU'yu seçmeye çalışmasına izin verecektir. 1 ve üzerine ayarlamak, bu sayıya uyan GPU'ya öncelik verecektir (sayı tahmin edilmelidir, ancak 1'den başlar ve artar).",
     "file_apps": "Uygulamalar Dosyası",
     "file_apps_desc": "Sunshine'ın mevcut uygulamalarının depolandığı dosya.",
     "file_state": "Durum Dosyası",
