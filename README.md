@@ -35,7 +35,7 @@
   <a href="https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Amaster">
     <img src="https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=master&label=localize%20build&logo=github&style=for-the-badge" alt="GitHub Workflow Status (localize)">
   </a>
-  <a href="https://sunshinestream.readthedocs.io">
+  <a href="https://docs.lizardbyte.dev/projects/sunshine">
     <img src="https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs" alt="Read the Docs">
   </a>
   <a href="https://codecov.io/gh/LizardByte/Sunshine">
@@ -51,10 +51,10 @@ encoding. Software encoding is also available. You can connect to Sunshine from 
 devices. A web UI is provided to allow configuration, and client pairing, from your favorite web browser. Pair from
 the local server or any mobile device.
 
-LizardByte has the full documentation hosted on [Read the Docs](https://app.readthedocs.org)
+LizardByte has the full documentation hosted on [Read the Docs](https://docs.lizardbyte.dev/projects/sunshine)
 
-* [Stable](https://sunshinestream.readthedocs.io/en/latest/)
-* [Beta](https://sunshinestream.readthedocs.io/en/master/)
+* [Stable](https://docs.lizardbyte.dev/projects/sunshine/latest/)
+* [Beta](https://docs.lizardbyte.dev/projects/sunshine/master/)
 
 ## 🖥️ System Requirements
 
@@ -186,7 +186,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://app.read
 
 ## ❓ Support
 
-Our support methods are listed in our [LizardByte Docs](https://lizardbyte.readthedocs.io/en/latest/about/support.html).
+Our support methods are listed in our [LizardByte Docs](https://docs.lizardbyte.dev/latest/about/support.html).
 
 <div class="section_buttons">
 
