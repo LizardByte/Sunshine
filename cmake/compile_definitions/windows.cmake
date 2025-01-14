@@ -64,23 +64,27 @@ set(OPENSSL_LIBRARIES
         libcrypto.a)
 
 list(PREPEND PLATFORM_LIBRARIES
+        ${CURL_STATIC_LIBRARIES}
+        avrt
+        d3d11
+        D3DCompiler
+        dwmapi
+        dxgi
+        iphlpapi
+        ksuser
+        libssp.a
         libstdc++.a
         libwinpthread.a
-        libssp.a
+        minhook::minhook
+        nlohmann_json::nlohmann_json
         ntdll
-        ksuser
-        wsock32
-        ws2_32
-        d3d11 dxgi D3DCompiler
         setupapi
-        dwmapi
-        userenv
-        synchronization.lib
-        avrt
-        iphlpapi
         shlwapi
-        PkgConfig::NLOHMANN_JSON
-        ${CURL_STATIC_LIBRARIES})
+        synchronization.lib
+        userenv
+        ws2_32
+        wsock32
+)
 
 if(SUNSHINE_ENABLE_TRAY)
     list(APPEND PLATFORM_TARGET_FILES
