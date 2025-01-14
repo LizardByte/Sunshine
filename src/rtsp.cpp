@@ -92,8 +92,8 @@ namespace rtsp_stream {
 
   class socket_t: public std::enable_shared_from_this<socket_t> {
   public:
-    socket_t(boost::asio::io_service &ios, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
-        handle_data_fn { std::move(handle_data_fn) }, sock { ios } {}
+    socket_t(boost::asio::io_context &io_context, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
+        handle_data_fn { std::move(handle_data_fn) }, sock { io_context } {}
 
     /**
      * @brief Queue an asynchronous read to begin the next message.
@@ -435,7 +435,7 @@ namespace rtsp_stream {
         return -1;
       }
 
-      next_socket = std::make_shared<socket_t>(ios, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
+      next_socket = std::make_shared<socket_t>(io_context, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
         handle_msg(sock, session, std::move(msg));
       });
 
@@ -449,7 +449,7 @@ namespace rtsp_stream {
     template <class T, class X>
     void
     iterate(std::chrono::duration<T, X> timeout) {
-      ios.run_one_for(timeout);
+      io_context.run_one_for(timeout);
     }
 
     void
@@ -494,7 +494,7 @@ namespace rtsp_stream {
       }
 
       // Queue another asynchronous accept for the next incoming connection
-      next_socket = std::make_shared<socket_t>(ios, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
+      next_socket = std::make_shared<socket_t>(io_context, [this](tcp::socket &sock, launch_session_t &session, msg_t &&msg) {
         handle_msg(sock, session, std::move(msg));
       });
       acceptor.async_accept(next_socket->sock, [this](const auto &ec) {
@@ -618,8 +618,8 @@ namespace rtsp_stream {
 
     std::chrono::steady_clock::time_point raised_timeout;
 
-    boost::asio::io_service ios;
-    tcp::acceptor acceptor { ios };
+    boost::asio::io_context io_context;
+    tcp::acceptor acceptor { io_context };
 
     std::shared_ptr<socket_t> next_socket;
   };
