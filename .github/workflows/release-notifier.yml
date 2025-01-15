@@ -3,7 +3,7 @@
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# Send release notification to various platforms.
+# Create a blog post for a new release and open a PR to the blog repo
 
 name: Release Notifications
 
@@ -13,99 +13,115 @@ on:
       - released  # this triggers when a release is published, but does not include pre-releases or drafts
 
 jobs:
-  simplified_changelog:
+  update-blog:
     if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    outputs:
-      SIMPLIFIED_BODY: ${{ steps.output.outputs.SIMPLIFIED_BODY }}
+      github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
-      - name: remove contributors section
+      - name: Check topics
         env:
-          RELEASE_BODY: ${{ github.event.release.body }}
-        id: output
+          TOPIC: replicator-release-notifications
+        id: check-label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const topic = process.env.TOPIC;
+            console.log(`Checking if repo has topic: ${topic}`);
+
+            const repoTopics = await github.rest.repos.getAllTopics({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            console.log(`Repo topics: ${repoTopics.data.names}`);
+
+            const hasTopic = repoTopics.data.names.includes(topic);
+            console.log(`Has topic: ${hasTopic}`);
+
+            core.setOutput('hasTopic', hasTopic);
+
+      - name: Check if latest GitHub release
+        id: check-release
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const latestRelease = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            core.setOutput('isLatestRelease', latestRelease.data.tag_name === context.payload.release.tag_name);
+
+      - name: Checkout blog
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: "LizardByte/LizardByte.github.io"
+
+      - name: Create blog post
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
         run: |
-          echo "${RELEASE_BODY}" > ./release_body.md
-          modified_body=$(sed '/^---/,$d' ./release_body.md)
-          echo "modified_body: ${modified_body}"
+          # setup variables
+          tag_name="${{ github.event.release.tag_name }}"
+          semver="${tag_name#v}"
+          repo_lower="$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')"
+          file_name="_posts/releases/${repo_lower}/${semver//./-}.md"
+          mkdir -p "$(dirname "${file_name}")"
 
-          # use a heredoc to ensure the output is multiline
-          echo "SIMPLIFIED_BODY<<EOF" >> $GITHUB_OUTPUT
-          echo "${modified_body}" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # create jekyll blog post
+          echo "---" > "${file_name}"
+          echo "layout: release" >> "${file_name}"
+          echo "title: ${{ github.event.repository.name }} ${tag_name} Released" >> "${file_name}"
+          echo "gh-repo: ${{ github.repository }}" >> "${file_name}"
+          echo "gh-badge: [follow, fork, star]" >> "${file_name}"
+          echo "tags: [release, ${repo_lower}]" >> "${file_name}"
+          echo "comments: true" >> "${file_name}"
+          echo "author: LizardByte-bot" >> "${file_name}"
+          echo "---" >> "${file_name}"
+          echo "" >> "${file_name}"
 
-  discord:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    needs: simplified_changelog
-    runs-on: ubuntu-latest
-    steps:
-      - name: discord
-        uses: sarisia/actions-status-discord@v1
+          release_body=$(cat <<EOF
+          ${{ github.event.release.body }}
+          EOF
+          )
+
+          echo "${release_body}" >> "${file_name}"
+
+      - name: Create/Update Pull Request
+        id: create-pr
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
+        uses: peter-evans/create-pull-request@v7
         with:
-          avatar_url: ${{ secrets.ORG_LOGO_URL }}
-          color: 0x00ff00
-          description: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
-          nodetail: true
-          nofail: false
-          title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          url: ${{ github.event.release.html_url }}
-          username: ${{ secrets.DISCORD_USERNAME }}
-          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          commit-message: |
+            chore: Add blog post for ${{ github.event.repository.name }} release ${{ github.event.release.tag_name }}
+          branch: bot/add-${{ github.event.repository.name }}-${{ github.event.release.tag_name }}
+          delete-branch: true
+          title: |
+            chore: Add blog post for ${{ github.event.repository.name }} release ${{ github.event.release.tag_name }}
+          body: ${{ github.event.release.body }}
+          labels:
+            blog
 
-  facebook_page:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    runs-on: ubuntu-latest
-    steps:
-      - name: facebook-post-action
-        uses: LizardByte/facebook-post-action@v2024.1207.15428
-        with:
-          page_id: ${{ secrets.FACEBOOK_PAGE_ID }}
-          access_token: ${{ secrets.FACEBOOK_ACCESS_TOKEN }}
-          message: |
-            ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          url: ${{ github.event.release.html_url }}
-
-  reddit:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    needs: simplified_changelog
-    runs-on: ubuntu-latest
-    steps:
-      - name: reddit
-        uses: bluwy/release-for-reddit-action@v2
-        with:
-          username: ${{ secrets.REDDIT_USERNAME }}
-          password: ${{ secrets.REDDIT_PASSWORD }}
-          app-id: ${{ secrets.REDDIT_CLIENT_ID }}
-          app-secret: ${{ secrets.REDDIT_CLIENT_SECRET }}
-          subreddit: ${{ secrets.REDDIT_SUBREDDIT }}
-          title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          url: ${{ github.event.release.html_url }}
-          flair-id: ${{ secrets.REDDIT_FLAIR_ID }}  # https://www.reddit.com/r/<subreddit>>/api/link_flair.json
-          comment: ${{ needs.simplified_changelog.outputs.SIMPLIFIED_BODY }}
-
-  x:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
-    runs-on: ubuntu-latest
-    steps:
-      - name: x
-        uses: nearform-actions/github-action-notify-twitter@v1
-        with:
-          message: ${{ github.event.release.html_url }}
-          twitter-app-key: ${{ secrets.X_APP_KEY }}
-          twitter-app-secret: ${{ secrets.X_APP_SECRET }}
-          twitter-access-token: ${{ secrets.X_ACCESS_TOKEN }}
-          twitter-access-token-secret: ${{ secrets.X_ACCESS_TOKEN_SECRET }}
+      - name: Automerge PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true'
+        run: |
+          gh \
+            pr \
+            merge \
+            --auto \
+            --delete-branch \
+            --repo "LizardByte/LizardByte.github.io" \
+            --squash \
+            "${{ steps.create-pr.outputs.pull-request-number }}"
