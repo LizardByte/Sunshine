@@ -693,7 +693,7 @@ namespace display_device {
           return parsed_devices;
         }() };
         if (available_devices == tried_out_devices) {
-          BOOST_LOG(debug) << "Skipping reverting configuration, because the no newly added/removed devices were detected since last check. Currently available devices:\n"
+          BOOST_LOG(debug) << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
                            << toJson(available_devices);
           return;
         }
