@@ -676,21 +676,21 @@ namespace display_device {
 
       DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = std::set<std::string> {}](auto &settings_iface, auto &stop_token) mutable {
         if (try_once) {
-          settings_iface.revertSettings();
+          std::ignore = settings_iface.revertSettings();
           stop_token.requestStop();
           return;
         }
 
         auto available_devices { [&settings_iface]() {
           const auto devices { settings_iface.enumAvailableDevices() };
-          std::set<std::string> available_devices;
+          std::set<std::string> parsed_devices;
 
           std::transform(
             std::begin(devices), std::end(devices),
-            std::inserter(available_devices, std::end(available_devices)),
+            std::inserter(parsed_devices, std::end(parsed_devices)),
             [](const auto &device) { return device.m_device_id + " - " + device.m_friendly_name; });
 
-          return available_devices;
+          return parsed_devices;
         }() };
         if (available_devices == tried_out_devices) {
           BOOST_LOG(debug) << "Skipping reverting configuration, because the no newly added/removed devices were detected since last check. Currently available devices:\n"
@@ -698,11 +698,12 @@ namespace display_device {
           return;
         }
 
-        if (const auto result { settings_iface.revertSettings() }; result == SettingsManager::RevertResult::Ok) {
+        using enum SettingsManagerInterface::RevertResult;
+        if (const auto result { settings_iface.revertSettings() }; result == Ok) {
           stop_token.requestStop();
           return;
         }
-        else if (result == SettingsManager::RevertResult::ApiTemporarilyUnavailable) {
+        else if (result == ApiTemporarilyUnavailable) {
           // Do nothing and retry next time
           return;
         }
