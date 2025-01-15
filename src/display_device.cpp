@@ -674,11 +674,43 @@ namespace display_device {
         scheduler_option.m_execution = SchedulerOptions::Execution::ScheduledOnly;
       }
 
-      DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once)](auto &settings_iface, auto &stop_token) {
-        // Here we want to keep retrying indefinitely until we succeed.
-        if (settings_iface.revertSettings() || try_once) {
+      DD_DATA.sm_instance->schedule([try_once = (option == revert_option_e::try_once), tried_out_devices = std::set<std::string> {}](auto &settings_iface, auto &stop_token) mutable {
+        if (try_once) {
+          settings_iface.revertSettings();
           stop_token.requestStop();
+          return;
         }
+
+        auto available_devices { [&settings_iface]() {
+          const auto devices { settings_iface.enumAvailableDevices() };
+          std::set<std::string> available_devices;
+
+          std::transform(
+            std::begin(devices), std::end(devices),
+            std::inserter(available_devices, std::end(available_devices)),
+            [](const auto &device) { return device.m_device_id + " - " + device.m_friendly_name; });
+
+          return available_devices;
+        }() };
+        if (available_devices == tried_out_devices) {
+          BOOST_LOG(debug) << "Skipping reverting configuration, because the no newly added/removed devices were detected since last check. Currently available devices:\n"
+                           << toJson(available_devices);
+          return;
+        }
+
+        if (const auto result { settings_iface.revertSettings() }; result == SettingsManager::RevertResult::Ok) {
+          stop_token.requestStop();
+          return;
+        }
+        else if (result == SettingsManager::RevertResult::ApiTemporarilyUnavailable) {
+          // Do nothing and retry next time
+          return;
+        }
+
+        // If we have failed to revert settings then we will try to do it next time only if a device was added/removed
+        BOOST_LOG(warning) << "Failed to revert display device configuration (will retry once devices are added or removed). Enabling all of the available devices:\n"
+                           << toJson(available_devices);
+        tried_out_devices.swap(available_devices);
       },
         scheduler_option);
     }
