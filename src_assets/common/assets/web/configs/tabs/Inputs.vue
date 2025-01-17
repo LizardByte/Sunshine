@@ -22,7 +22,7 @@ const config = ref(props.config)
     ></Checkbox>
 
     <!-- Emulated Gamepad Type -->
-    <div class="mb-3" v-if="config.controller === 'enabled' && platform !== 'macos'">
+    <div class="mb-3" v-if="config.controller === true && platform !== 'macos'">
       <label for="gamepad" class="form-label">{{ $t('config.gamepad') }}</label>
       <select id="gamepad" class="form-select" v-model="config.gamepad">
         <option value="auto">{{ $t('_common.auto') }}</option>
@@ -33,7 +33,7 @@ const config = ref(props.config)
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
             <option value="xone">{{ $t("config.gamepad_xone") }}</option>
           </template>
-          
+
           <template #windows>
             <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
             <option value="x360">{{ $t('config.gamepad_x360') }}</option>
@@ -44,7 +44,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Additional options based on gamepad type -->
-    <template v-if="config.controller === 'enabled'">
+    <template v-if="config.controller === true">
       <template v-if="config.gamepad === 'ds4' || (config.gamepad === 'auto' && platform === 'windows')">
         <div class="mb-3 accordion">
           <div class="accordion-item">
@@ -92,7 +92,7 @@ const config = ref(props.config)
     </template>
 
     <!-- Home/Guide Button Emulation Timeout -->
-    <div class="mb-3" v-if="config.controller === 'enabled'">
+    <div class="mb-3" v-if="config.controller === true">
       <label for="back_button_timeout" class="form-label">{{ $t('config.back_button_timeout') }}</label>
       <input type="text" class="form-control" id="back_button_timeout" placeholder="-1"
              v-model="config.back_button_timeout" />
@@ -109,7 +109,7 @@ const config = ref(props.config)
     ></Checkbox>
 
     <!-- Key Repeat Delay-->
-    <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
+    <div class="mb-3" v-if="config.keyboard === true && platform === 'windows'">
       <label for="key_repeat_delay" class="form-label">{{ $t('config.key_repeat_delay') }}</label>
       <input type="text" class="form-control" id="key_repeat_delay" placeholder="500"
              v-model="config.key_repeat_delay" />
@@ -117,7 +117,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Key Repeat Frequency-->
-    <div class="mb-3" v-if="config.keyboard === 'enabled' && platform === 'windows'">
+    <div class="mb-3" v-if="config.keyboard === true && platform === 'windows'">
       <label for="key_repeat_frequency" class="form-label">{{ $t('config.key_repeat_frequency') }}</label>
       <input type="text" class="form-control" id="key_repeat_frequency" placeholder="24.9"
              v-model="config.key_repeat_frequency" />
@@ -125,7 +125,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Always send scancodes -->
-    <Checkbox v-if="config.keyboard === 'enabled' && platform === 'windows'"
+    <Checkbox v-if="config.keyboard === true && platform === 'windows'"
               class="mb-3"
               id="always_send_scancodes"
               locale-prefix="config"
@@ -134,7 +134,7 @@ const config = ref(props.config)
     ></Checkbox>
 
     <!-- Mapping Key AltRight to Key Windows -->
-    <Checkbox v-if="config.keyboard === 'enabled'"
+    <Checkbox v-if="config.keyboard === true"
               class="mb-3"
               id="key_rightalt_to_key_win"
               locale-prefix="config"
@@ -152,7 +152,7 @@ const config = ref(props.config)
     ></Checkbox>
 
     <!-- High resolution scrolling support -->
-    <Checkbox v-if="config.mouse === 'enabled'"
+    <Checkbox v-if="config.mouse === true"
               class="mb-3"
               id="high_resolution_scrolling"
               locale-prefix="config"
@@ -161,7 +161,7 @@ const config = ref(props.config)
     ></Checkbox>
 
     <!-- Native pen/touch support -->
-    <Checkbox v-if="config.mouse === 'enabled'"
+    <Checkbox v-if="config.mouse === true"
               class="mb-3"
               id="native_pen_touch"
               locale-prefix="config"
