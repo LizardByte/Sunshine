@@ -22,6 +22,10 @@ const props = defineProps({
     type: String,
     default: "missing-prefix"
   },
+  inverseValues: {
+    type: Boolean,
+    default: false,
+  },
   default: {
     type: undefined,
     default: null,
@@ -79,7 +83,9 @@ const checkboxValues = (() => {
     return ["true", "false"];
   })();
 
-  return { truthy: mappedValues[0], falsy: mappedValues[1] };
+  const truthyIndex = props.inverseValues ? 1 : 0;
+  const falsyIndex = props.inverseValues ? 0 : 1;
+  return { truthy: mappedValues[truthyIndex], falsy: mappedValues[falsyIndex] };
 })();
 const parsedDefaultPropValue = (() => {
   const boolValues = mapToBoolRepresentation(props.default);
