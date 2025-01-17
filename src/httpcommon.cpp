@@ -197,8 +197,6 @@ namespace http {
   download_file(const std::string &url, const std::string &file) {
     CURL *curl = curl_easy_init();
     if (curl) {
-      // sonar complains about weak ssl and tls versions
-      // ideally, the setopts should go after the early returns; however sonar cannot detect the fix
       curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
 
       std::string file_dir = file_handler::get_parent_directory(file);
