@@ -200,38 +200,38 @@ namespace http {
       // sonar complains about weak ssl and tls versions
       // ideally, the setopts should go after the early returns; however sonar cannot detect the fix
       curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
+
+      std::string file_dir = file_handler::get_parent_directory(file);
+      if (!file_handler::make_directory(file_dir)) {
+        BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
+        curl_easy_cleanup(curl);
+        return false;
+      }
+
+      FILE *fp = fopen(file.c_str(), "wb");
+      if (!fp) {
+        BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
+        curl_easy_cleanup(curl);
+        return false;
+      }
+
+      curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+      curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
+      curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
+
+      CURLcode result = curl_easy_perform(curl);
+      if (result != CURLE_OK) {
+        BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
+      }
+
+      curl_easy_cleanup(curl);
+      fclose(fp);
+      return result == CURLE_OK;
     }
     else {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
-
-    std::string file_dir = file_handler::get_parent_directory(file);
-    if (!file_handler::make_directory(file_dir)) {
-      BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
-      curl_easy_cleanup(curl);
-      return false;
-    }
-
-    FILE *fp = fopen(file.c_str(), "wb");
-    if (!fp) {
-      BOOST_LOG(error) << "Couldn't open ["sv << file << ']';
-      curl_easy_cleanup(curl);
-      return false;
-    }
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
-
-    CURLcode result = curl_easy_perform(curl);
-    if (result != CURLE_OK) {
-      BOOST_LOG(error) << "Couldn't download ["sv << url << ", code:" << result << ']';
-    }
-
-    curl_easy_cleanup(curl);
-    fclose(fp);
-    return result == CURLE_OK;
   }
 
   std::string
