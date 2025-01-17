@@ -234,8 +234,8 @@
         <!-- exit timeout -->
         <div class="mb-3">
           <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
-          <input type="text" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
-            v-model="editForm['exit-timeout']" />
+          <input type="number" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
+                 v-model="editForm['exit-timeout']" min="0" placeholder="5" />
           <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
         </div>
         <div class="mb-3">

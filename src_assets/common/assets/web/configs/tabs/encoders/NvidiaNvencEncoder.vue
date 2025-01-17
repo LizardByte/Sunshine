@@ -39,14 +39,12 @@ const config = ref(props.config)
     </div>
 
     <!-- Spatial AQ -->
-    <div class="mb-3">
-      <label for="nvenc_spatial_aq" class="form-label">{{ $t('config.nvenc_spatial_aq') }}</label>
-      <select id="nvenc_spatial_aq" class="form-select" v-model="config.nvenc_spatial_aq">
-        <option value="disabled">{{ $t('config.nvenc_spatial_aq_disabled') }}</option>
-        <option value="enabled">{{ $t('config.nvenc_spatial_aq_enabled') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.nvenc_spatial_aq_desc') }}</div>
-    </div>
+    <Checkbox class="mb-3"
+              id="nvenc_spatial_aq"
+              locale-prefix="config"
+              v-model="config.nvenc_spatial_aq"
+              default="false"
+    ></Checkbox>
 
     <!-- Single-frame VBV/HRD percentage increase -->
     <div class="mb-3">
