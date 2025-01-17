@@ -37,6 +37,13 @@ namespace system_tray {
   tray_donate_paypal_cb(struct tray_menu *item);
 
   /**
+   * @brief Callback for resetting display device configuration.
+   * @param item The tray menu item.
+   */
+  void
+  tray_reset_display_device_config_cb(struct tray_menu *item);
+
+  /**
    * @brief Callback for restarting Sunshine from the system tray.
    * @param item The tray menu item.
    */

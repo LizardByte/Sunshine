@@ -37,6 +37,7 @@
 
   // local includes
   #include "confighttp.h"
+  #include "display_device.h"
   #include "logging.h"
   #include "platform/common.h"
   #include "process.h"
@@ -68,6 +69,13 @@ namespace system_tray {
   void
   tray_donate_paypal_cb(struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
+  }
+
+  void
+  tray_reset_display_device_config_cb(struct tray_menu *item) {
+    BOOST_LOG(info) << "Resetting display device config from system tray"sv;
+
+    std::ignore = display_device::reset_persistence();
   }
 
   void
@@ -110,6 +118,10 @@ namespace system_tray {
               { .text = "PayPal", .cb = tray_donate_paypal_cb },
               { .text = nullptr } } },
         { .text = "-" },
+  // Currently display device settings are only supported on Windows
+  #ifdef _WIN32
+        { .text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb },
+  #endif
         { .text = "Restart", .cb = tray_restart_cb },
         { .text = "Quit", .cb = tray_quit_cb },
         { .text = nullptr } },
