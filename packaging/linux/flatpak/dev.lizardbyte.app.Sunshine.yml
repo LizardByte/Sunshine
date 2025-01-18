@@ -84,7 +84,7 @@ modules:
     run-tests: true
     test-rule: ""  # empty to disable
     test-commands:
-      - npm run serve & xvfb-run tests/test_sunshine --gtest_color=yes
+      - cd tests && npm run serve & xvfb-run ./test_sunshine --gtest_color=yes
     sources:
       - generated-sources.json
       - type: git

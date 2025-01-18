@@ -113,6 +113,7 @@ class @PROJECT_NAME@ < Formula
       system "make", "install"
 
       bin.install "tests/test_sunshine"
+      prefix.install "tests/fixtures"
     end
 
     # codesign the binary on intel macs
@@ -155,6 +156,9 @@ class @PROJECT_NAME@ < Formula
   test do
     # test that the binary runs at all
     system bin/"sunshine", "--version"
+
+    # copy files from prefix.install "sunshine/tests/fixtures" to testpath
+    cp_r prefix/"tests/fixtures", testpath
 
     # run the test suite
     system bin/"test_sunshine", "--gtest_color=yes"
