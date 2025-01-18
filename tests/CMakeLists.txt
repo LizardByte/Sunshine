@@ -45,6 +45,10 @@ file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
 set(SUNSHINE_SOURCES
         ${SUNSHINE_TARGET_FILES})
 
+# copy fixtures to build directory
+file(COPY ${CMAKE_SOURCE_DIR}/tests/fixtures/unit
+        DESTINATION ${CMAKE_BINARY_DIR}/tests/fixtures)
+
 # remove main.cpp from the list of sources
 list(REMOVE_ITEM SUNSHINE_SOURCES ${CMAKE_SOURCE_DIR}/src/main.cpp)
 
