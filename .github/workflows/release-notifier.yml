@@ -70,7 +70,17 @@ jobs:
           tag_name="${{ github.event.release.tag_name }}"
           semver="${tag_name#v}"
           repo_lower="$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')"
-          file_name="_posts/releases/${repo_lower}/${semver//./-}.md"
+
+          # extract year, month, and day
+          year="${semver%%.*}"
+          month_day="${semver#*.}"
+          month_day="${month_day%%.*}"
+
+          # ensure month_day is 4 digits
+          month_day=$(printf "%04d" "$month_day")
+
+          # create the filename
+          file_name="_posts/releases/${year}-${month_day:0:2}-${month_day:2:2}-v${semver}.md"
           mkdir -p "$(dirname "${file_name}")"
 
           # create jekyll blog post
