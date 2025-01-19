@@ -3,8 +3,10 @@
  * @brief Definitions for publishing services on Linux.
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
  */
+// standard includes
 #include <thread>
 
+// local includes
 #include "misc.h"
 #include "src/logging.h"
 #include "src/network.h"
@@ -84,6 +86,7 @@ namespace avahi {
   };
 
   constexpr auto IF_UNSPEC = -1;
+
   enum proto {
     PROTO_INET = 0,  ///< IPv4
     PROTO_INET6 = 1,  ///< IPv6
@@ -164,7 +167,8 @@ namespace avahi {
     const char *domain,
     const char *host,
     uint16_t port,
-    ...);
+    ...
+  );
 
   typedef int (*entry_group_is_empty_fn)(EntryGroup *);
   typedef int (*entry_group_reset_fn)(EntryGroup *);
@@ -199,30 +203,31 @@ namespace avahi {
   simple_poll_new_fn simple_poll_new;
   simple_poll_free_fn simple_poll_free;
 
-  int
-  init_common() {
-    static void *handle { nullptr };
+  int init_common() {
+    static void *handle {nullptr};
     static bool funcs_loaded = false;
 
-    if (funcs_loaded) return 0;
+    if (funcs_loaded) {
+      return 0;
+    }
 
     if (!handle) {
-      handle = dyn::handle({ "libavahi-common.so.3", "libavahi-common.so" });
+      handle = dyn::handle({"libavahi-common.so.3", "libavahi-common.so"});
       if (!handle) {
         return -1;
       }
     }
 
     std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name" },
-      { (dyn::apiproc *) &free, "avahi_free" },
-      { (dyn::apiproc *) &strdup, "avahi_strdup" },
-      { (dyn::apiproc *) &strerror, "avahi_strerror" },
-      { (dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get" },
-      { (dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop" },
-      { (dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit" },
-      { (dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new" },
-      { (dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free" },
+      {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
+      {(dyn::apiproc *) &free, "avahi_free"},
+      {(dyn::apiproc *) &strdup, "avahi_strdup"},
+      {(dyn::apiproc *) &strerror, "avahi_strerror"},
+      {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
+      {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
+      {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
+      {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
+      {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
     };
 
     if (dyn::load(handle, funcs)) {
@@ -233,34 +238,35 @@ namespace avahi {
     return 0;
   }
 
-  int
-  init_client() {
+  int init_client() {
     if (init_common()) {
       return -1;
     }
 
-    static void *handle { nullptr };
+    static void *handle {nullptr};
     static bool funcs_loaded = false;
 
-    if (funcs_loaded) return 0;
+    if (funcs_loaded) {
+      return 0;
+    }
 
     if (!handle) {
-      handle = dyn::handle({ "libavahi-client.so.3", "libavahi-client.so" });
+      handle = dyn::handle({"libavahi-client.so.3", "libavahi-client.so"});
       if (!handle) {
         return -1;
       }
     }
 
     std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &client_new, "avahi_client_new" },
-      { (dyn::apiproc *) &client_free, "avahi_client_free" },
-      { (dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client" },
-      { (dyn::apiproc *) &entry_group_new, "avahi_entry_group_new" },
-      { (dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service" },
-      { (dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty" },
-      { (dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset" },
-      { (dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit" },
-      { (dyn::apiproc *) &client_errno, "avahi_client_errno" },
+      {(dyn::apiproc *) &client_new, "avahi_client_new"},
+      {(dyn::apiproc *) &client_free, "avahi_client_free"},
+      {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
+      {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
+      {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
+      {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
+      {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
+      {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
+      {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
     };
 
     if (dyn::load(handle, funcs)) {
@@ -274,13 +280,12 @@ namespace avahi {
 
 namespace platf::publish {
 
-  template <class T>
-  void
-  free(T *p) {
+  template<class T>
+  void free(T *p) {
     avahi::free(p);
   }
 
-  template <class T>
+  template<class T>
   using ptr_t = util::safe_ptr<T, free<T>>;
   using client_t = util::dyn_safe_ptr<avahi::Client, &avahi::client_free>;
   using poll_t = util::dyn_safe_ptr<avahi::SimplePoll, &avahi::simple_poll_free>;
@@ -292,11 +297,9 @@ namespace platf::publish {
 
   ptr_t<char> name;
 
-  void
-  create_services(avahi::Client *c);
+  void create_services(avahi::Client *c);
 
-  void
-  entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
+  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
     group = g;
 
     switch (state) {
@@ -319,8 +322,7 @@ namespace platf::publish {
     }
   }
 
-  void
-  create_services(avahi::Client *c) {
+  void create_services(avahi::Client *c) {
     int ret;
 
     auto fg = util::fail_guard([]() {
@@ -339,13 +341,16 @@ namespace platf::publish {
 
       ret = avahi::entry_group_add_service(
         group,
-        avahi::IF_UNSPEC, avahi::PROTO_UNSPEC,
+        avahi::IF_UNSPEC,
+        avahi::PROTO_UNSPEC,
         avahi::PublishFlags(0),
         name.get(),
         SERVICE_TYPE,
-        nullptr, nullptr,
+        nullptr,
+        nullptr,
         net::map_port(nvhttp::PORT_HTTP),
-        nullptr);
+        nullptr
+      );
 
       if (ret < 0) {
         if (ret == avahi::ERR_COLLISION) {
@@ -375,8 +380,7 @@ namespace platf::publish {
     fg.disable();
   }
 
-  void
-  client_callback(avahi::Client *c, avahi::ClientState state, void *) {
+  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
         create_services(c);
@@ -387,8 +391,9 @@ namespace platf::publish {
         break;
       case avahi::CLIENT_S_COLLISION:
       case avahi::CLIENT_S_REGISTERING:
-        if (group)
+        if (group) {
           avahi::entry_group_reset(group);
+        }
         break;
       case avahi::CLIENT_CONNECTING:;
     }
@@ -399,7 +404,8 @@ namespace platf::publish {
     std::thread poll_thread;
 
     deinit_t(std::thread poll_thread):
-        poll_thread { std::move(poll_thread) } {}
+        poll_thread {std::move(poll_thread)} {
+    }
 
     ~deinit_t() override {
       if (avahi::simple_poll_quit && poll) {
@@ -412,8 +418,7 @@ namespace platf::publish {
     }
   };
 
-  [[nodiscard]] std::unique_ptr<::platf::deinit_t>
-  start() {
+  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start() {
     if (avahi::init_client()) {
       return nullptr;
     }
@@ -430,13 +435,14 @@ namespace platf::publish {
     name.reset(avahi::strdup(instance_name.c_str()));
 
     client.reset(
-      avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error));
+      avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error)
+    );
 
     if (!client) {
       BOOST_LOG(error) << "Failed to create client: "sv << avahi::strerror(avhi_error);
       return nullptr;
     }
 
-    return std::make_unique<deinit_t>(std::thread { avahi::simple_poll_loop, poll.get() });
+    return std::make_unique<deinit_t>(std::thread {avahi::simple_poll_loop, poll.get()});
   }
 }  // namespace platf::publish

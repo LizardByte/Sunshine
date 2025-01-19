@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 #include <random>
 
 /**
@@ -16,8 +17,7 @@ namespace uuid_util {
     std::uint32_t b32[4];
     std::uint64_t b64[2];
 
-    static uuid_t
-    generate(std::default_random_engine &engine) {
+    static uuid_t generate(std::default_random_engine &engine) {
       std::uniform_int_distribution<std::uint8_t> dist(0, std::numeric_limits<std::uint8_t>::max());
 
       uuid_t buf;
@@ -31,17 +31,15 @@ namespace uuid_util {
       return buf;
     }
 
-    static uuid_t
-    generate() {
+    static uuid_t generate() {
       std::random_device r;
 
-      std::default_random_engine engine { r() };
+      std::default_random_engine engine {r()};
 
       return generate(engine);
     }
 
-    [[nodiscard]] std::string
-    string() const {
+    [[nodiscard]] std::string string() const {
       std::string result;
 
       result.reserve(sizeof(uuid_t) * 2 + 4);
@@ -68,18 +66,15 @@ namespace uuid_util {
       return result;
     }
 
-    constexpr bool
-    operator==(const uuid_t &other) const {
+    constexpr bool operator==(const uuid_t &other) const {
       return b64[0] == other.b64[0] && b64[1] == other.b64[1];
     }
 
-    constexpr bool
-    operator<(const uuid_t &other) const {
+    constexpr bool operator<(const uuid_t &other) const {
       return (b64[0] < other.b64[0] || (b64[0] == other.b64[0] && b64[1] < other.b64[1]));
     }
 
-    constexpr bool
-    operator>(const uuid_t &other) const {
+    constexpr bool operator>(const uuid_t &other) const {
       return (b64[0] > other.b64[0] || (b64[0] == other.b64[0] && b64[1] > other.b64[1]));
     }
   };

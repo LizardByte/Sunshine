@@ -2,16 +2,14 @@
  * @file tests/unit/platform/test_common.cpp
  * @brief Test src/platform/common.*.
  */
-#include <src/platform/common.h>
+#include "../../tests_common.h"
 
 #include <boost/asio/ip/host_name.hpp>
-
-#include "../../tests_common.h"
+#include <src/platform/common.h>
 
 struct SetEnvTest: ::testing::TestWithParam<std::tuple<std::string, std::string, int>> {
 protected:
-  void
-  TearDown() override {
+  void TearDown() override {
     // Clean up environment variable after each test
     const auto &[name, value, expected] = GetParam();
     platf::unset_env(name);
@@ -26,8 +24,7 @@ TEST_P(SetEnvTest, SetEnvironmentVariableTests) {
   if (expected == 0 && !value.empty()) {
     ASSERT_NE(env_value, nullptr);
     ASSERT_EQ(std::string(env_value), value);
-  }
-  else {
+  } else {
     ASSERT_EQ(env_value, nullptr);
   }
 }
@@ -48,7 +45,9 @@ INSTANTIATE_TEST_SUITE_P(
   ::testing::Values(
     std::make_tuple("SUNSHINE_UNIT_TEST_ENV_VAR", "test_value_0", 0),
     std::make_tuple("SUNSHINE_UNIT_TEST_ENV_VAR", "test_value_1", 0),
-    std::make_tuple("", "test_value", -1)));
+    std::make_tuple("", "test_value", -1)
+  )
+);
 
 TEST(HostnameTests, TestAsioEquality) {
   // These should be equivalent on all platforms for ASCII hostnames

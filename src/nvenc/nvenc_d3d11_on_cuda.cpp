@@ -3,8 +3,10 @@
  * @brief Definitions for CUDA NVENC encoder with Direct3D11 input surfaces.
  */
 #ifdef _WIN32
+  // this include
   #include "nvenc_d3d11_on_cuda.h"
 
+  // local includes
   #include "nvenc_utils.h"
 
 namespace nvenc {
@@ -15,7 +17,9 @@ namespace nvenc {
   }
 
   nvenc_d3d11_on_cuda::~nvenc_d3d11_on_cuda() {
-    if (encoder) destroy_encoder();
+    if (encoder) {
+      destroy_encoder();
+    }
 
     if (cuda_context) {
       {
@@ -48,14 +52,14 @@ namespace nvenc {
     }
   }
 
-  ID3D11Texture2D *
-  nvenc_d3d11_on_cuda::get_input_texture() {
+  ID3D11Texture2D *nvenc_d3d11_on_cuda::get_input_texture() {
     return d3d_input_texture.GetInterfacePtr();
   }
 
-  bool
-  nvenc_d3d11_on_cuda::init_library() {
-    if (!nvenc_d3d11::init_library()) return false;
+  bool nvenc_d3d11_on_cuda::init_library() {
+    if (!nvenc_d3d11::init_library()) {
+      return false;
+    }
 
     constexpr auto dll_name = "nvcuda.dll";
 
@@ -82,8 +86,7 @@ namespace nvenc {
         FreeLibrary(cuda_functions.dll);
         cuda_functions = {};
       }
-    }
-    else {
+    } else {
       BOOST_LOG(debug) << "NvEnc: couldn't load CUDA dynamic library " << dll_name;
     }
 
@@ -99,12 +102,10 @@ namespace nvenc {
             cuda_succeeded(cuda_functions.cuCtxCreate(&cuda_context, CU_CTX_SCHED_BLOCKING_SYNC, cuda_device)) &&
             cuda_succeeded(cuda_functions.cuCtxPopCurrent(&cuda_context))) {
           device = cuda_context;
-        }
-        else {
+        } else {
           BOOST_LOG(error) << "NvEnc: couldn't create CUDA interop context: error " << last_cuda_error;
         }
-      }
-      else {
+      } else {
         BOOST_LOG(error) << "NvEnc: couldn't get DXGI adapter for CUDA interop";
       }
     }
@@ -112,8 +113,7 @@ namespace nvenc {
     return device != nullptr;
   }
 
-  bool
-  nvenc_d3d11_on_cuda::create_and_register_input_buffer() {
+  bool nvenc_d3d11_on_cuda::create_and_register_input_buffer() {
     if (encoder_params.buffer_format != NV_ENC_BUFFER_FORMAT_YUV444_10BIT) {
       BOOST_LOG(error) << "NvEnc: CUDA interop is expected to be used only for 10-bit 4:4:4 encoding";
       return false;
@@ -138,13 +138,16 @@ namespace nvenc {
 
     {
       auto autopop_context = push_context();
-      if (!autopop_context) return false;
+      if (!autopop_context) {
+        return false;
+      }
 
       if (!cuda_d3d_input_texture) {
         if (cuda_failed(cuda_functions.cuGraphicsD3D11RegisterResource(
               &cuda_d3d_input_texture,
               d3d_input_texture,
-              CU_GRAPHICS_REGISTER_FLAGS_NONE))) {
+              CU_GRAPHICS_REGISTER_FLAGS_NONE
+            ))) {
           BOOST_LOG(error) << "NvEnc: cuGraphicsD3D11RegisterResource() failed: error " << last_cuda_error;
           return false;
         }
@@ -156,7 +159,9 @@ namespace nvenc {
               &cuda_surface_pitch,
               // Planar 16-bit YUV
               encoder_params.width * 2,
-              encoder_params.height * 3, 16))) {
+              encoder_params.height * 3,
+              16
+            ))) {
           BOOST_LOG(error) << "NvEnc: cuMemAllocPitch() failed: error " << last_cuda_error;
           return false;
         }
@@ -164,7 +169,7 @@ namespace nvenc {
     }
 
     if (!registered_input_buffer) {
-      NV_ENC_REGISTER_RESOURCE register_resource = { min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4) };
+      NV_ENC_REGISTER_RESOURCE register_resource = {min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4)};
       register_resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
       register_resource.width = encoder_params.width;
       register_resource.height = encoder_params.height;
@@ -184,10 +189,11 @@ namespace nvenc {
     return true;
   }
 
-  bool
-  nvenc_d3d11_on_cuda::synchronize_input_buffer() {
+  bool nvenc_d3d11_on_cuda::synchronize_input_buffer() {
     auto autopop_context = push_context();
-    if (!autopop_context) return false;
+    if (!autopop_context) {
+      return false;
+    }
 
     if (cuda_failed(cuda_functions.cuGraphicsMapResources(1, &cuda_d3d_input_texture, 0))) {
       BOOST_LOG(error) << "NvEnc: cuGraphicsMapResources() failed: error " << last_cuda_error;
@@ -230,14 +236,12 @@ namespace nvenc {
     return unmap();
   }
 
-  bool
-  nvenc_d3d11_on_cuda::cuda_succeeded(CUresult result) {
+  bool nvenc_d3d11_on_cuda::cuda_succeeded(CUresult result) {
     last_cuda_error = result;
     return result == CUDA_SUCCESS;
   }
 
-  bool
-  nvenc_d3d11_on_cuda::cuda_failed(CUresult result) {
+  bool nvenc_d3d11_on_cuda::cuda_failed(CUresult result) {
     last_cuda_error = result;
     return result != CUDA_SUCCESS;
   }
@@ -251,15 +255,13 @@ namespace nvenc {
     }
   }
 
-  nvenc_d3d11_on_cuda::autopop_context
-  nvenc_d3d11_on_cuda::push_context() {
+  nvenc_d3d11_on_cuda::autopop_context nvenc_d3d11_on_cuda::push_context() {
     if (cuda_context &&
         cuda_succeeded(cuda_functions.cuCtxPushCurrent(cuda_context))) {
-      return { *this, cuda_context };
-    }
-    else {
+      return {*this, cuda_context};
+    } else {
       BOOST_LOG(error) << "NvEnc: cuCtxPushCurrent() failed: error " << last_cuda_error;
-      return { *this, nullptr };
+      return {*this, nullptr};
     }
   }
 

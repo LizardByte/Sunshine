@@ -4,8 +4,9 @@
  */
 #pragma once
 
-#import <AVFoundation/AVFoundation.h>
+// platform includes
 #import <AppKit/AppKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 struct CaptureSession {
   AVCaptureVideoDataOutput *output;

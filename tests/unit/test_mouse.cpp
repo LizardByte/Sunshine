@@ -2,13 +2,12 @@
  * @file tests/unit/test_mouse.cpp
  * @brief Test src/input.*.
  */
-#include <src/input.h>
-
 #include "../tests_common.h"
 
+#include <src/input.h>
+
 struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_t> {
-  void
-  SetUp() override {
+  void SetUp() override {
 #ifdef _WIN32
     // TODO: Windows tests are failing, `get_mouse_loc` seems broken and `platf::abs_mouse` too
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
@@ -20,8 +19,7 @@ struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_
 #endif
   }
 
-  void
-  TearDown() override {
+  void TearDown() override {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 };
@@ -30,8 +28,11 @@ INSTANTIATE_TEST_SUITE_P(
   MouseInputs,
   MouseHIDTest,
   testing::Values(
-    util::point_t { 40, 40 },
-    util::point_t { 70, 150 }));
+    util::point_t {40, 40},
+    util::point_t {70, 150}
+  )
+);
+
 // todo: add tests for hitting screen edges
 
 TEST_P(MouseHIDTest, MoveInputTest) {
@@ -58,8 +59,7 @@ TEST_P(MouseHIDTest, MoveInputTest) {
 
   if (!has_input_moved) {
     BOOST_LOG(tests) << "MoveInputTest:: haven't moved";
-  }
-  else {
+  } else {
     BOOST_LOG(tests) << "MoveInputTest:: moved";
   }
 
@@ -83,13 +83,17 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
 
 #ifdef _WIN32
   platf::touch_port_t abs_port {
-    0, 0,
-    65535, 65535
+    0,
+    0,
+    65535,
+    65535
   };
 #elif __linux__
   platf::touch_port_t abs_port {
-    0, 0,
-    19200, 12000
+    0,
+    0,
+    19200,
+    12000
   };
 #else
   platf::touch_port_t abs_port {};
@@ -107,8 +111,7 @@ TEST_P(MouseHIDTest, AbsMoveInputTest) {
 
   if (!has_input_moved) {
     BOOST_LOG(tests) << "AbsMoveInputTest:: haven't moved";
-  }
-  else {
+  } else {
     BOOST_LOG(tests) << "AbsMoveInputTest:: moved";
   }
 

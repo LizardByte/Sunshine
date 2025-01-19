@@ -9,8 +9,8 @@
 #include <string>
 
 // lib includes
-#include <Simple-Web-Server/server_https.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <Simple-Web-Server/server_https.hpp>
 
 // local includes
 #include "crypto.h"
@@ -49,21 +49,20 @@ namespace nvhttp {
    * nvhttp::start();
    * @examples_end
    */
-  void
-  start();
+  void start();
 
   /**
    * @brief Setup the nvhttp server.
    * @param pkey
    * @param cert
    */
-  void
-  setup(const std::string &pkey, const std::string &cert);
+  void setup(const std::string &pkey, const std::string &cert);
 
   class SunshineHTTPS: public SimpleWeb::HTTPS {
   public:
     SunshineHTTPS(boost::asio::io_context &io_context, boost::asio::ssl::context &ctx):
-        SimpleWeb::HTTPS(io_context, ctx) {}
+        SimpleWeb::HTTPS(io_context, ctx) {
+    }
 
     virtual ~SunshineHTTPS() {
       // Gracefully shutdown the TLS connection
@@ -111,8 +110,7 @@ namespace nvhttp {
    * @brief removes the temporary pairing session
    * @param sess
    */
-  void
-  remove_session(const pair_session_t &sess);
+  void remove_session(const pair_session_t &sess);
 
   /**
    * @brief Pair, phase 1
@@ -124,8 +122,7 @@ namespace nvhttp {
    *
    * At this stage we only have to send back our public certificate.
    */
-  void
-  getservercert(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &pin);
+  void getservercert(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &pin);
 
   /**
    * @brief Pair, phase 2
@@ -139,8 +136,7 @@ namespace nvhttp {
    *
    * The hash + server_challenge will then be AES encrypted and sent as the `challengeresponse` in the returned XML
    */
-  void
-  clientchallenge(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &challenge);
+  void clientchallenge(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &challenge);
 
   /**
    * @brief Pair, phase 3
@@ -149,8 +145,7 @@ namespace nvhttp {
    * we have to send back the `pairingsecret`:
    * using our private key we have to sign the certificate_signature + server_secret (generated in phase 2)
    */
-  void
-  serverchallengeresp(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &encrypted_response);
+  void serverchallengeresp(pair_session_t &sess, boost::property_tree::ptree &tree, const std::string &encrypted_response);
 
   /**
    * @brief Pair, phase 4 (final)
@@ -166,8 +161,7 @@ namespace nvhttp {
    * Then using the client certificate public key we should be able to verify that
    * the client secret has been signed by Moonlight
    */
-  void
-  clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
+  void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
 
   /**
    * @brief Compare the user supplied pin to the Moonlight pin.
@@ -178,8 +172,7 @@ namespace nvhttp {
    * bool pin_status = nvhttp::pin("1234", "laptop");
    * @examples_end
    */
-  bool
-  pin(std::string pin, std::string name);
+  bool pin(std::string pin, std::string name);
 
   /**
    * @brief Remove single client.
@@ -187,8 +180,7 @@ namespace nvhttp {
    * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
    * @examples_end
    */
-  int
-  unpair_client(std::string uniqueid);
+  int unpair_client(std::string uniqueid);
 
   /**
    * @brief Get all paired clients.
@@ -197,8 +189,7 @@ namespace nvhttp {
    * boost::property_tree::ptree clients = nvhttp::get_all_clients();
    * @examples_end
    */
-  boost::property_tree::ptree
-  get_all_clients();
+  boost::property_tree::ptree get_all_clients();
 
   /**
    * @brief Remove all paired clients.
@@ -206,6 +197,5 @@ namespace nvhttp {
    * nvhttp::erase_all_clients();
    * @examples_end
    */
-  void
-  erase_all_clients();
+  void erase_all_clients();
 }  // namespace nvhttp

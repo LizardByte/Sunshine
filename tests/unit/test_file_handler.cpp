@@ -2,9 +2,9 @@
  * @file tests/unit/test_file_handler.cpp
  * @brief Test src/file_handler.*.
  */
-#include <src/file_handler.h>
-
 #include "../tests_common.h"
+
+#include <src/file_handler.h>
 
 struct FileHandlerParentDirectoryTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
@@ -19,7 +19,9 @@ INSTANTIATE_TEST_SUITE_P(
   testing::Values(
     std::make_tuple("/path/to/file.txt", "/path/to"),
     std::make_tuple("/path/to/directory", "/path/to"),
-    std::make_tuple("/path/to/directory/", "/path/to")));
+    std::make_tuple("/path/to/directory/", "/path/to")
+  )
+);
 
 struct FileHandlerMakeDirectoryTest: testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
 
@@ -45,7 +47,9 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple("dir_123", true, false),
     std::make_tuple("dir_123", true, true),
     std::make_tuple("dir_123/abc", true, false),
-    std::make_tuple("dir_123/abc", true, true)));
+    std::make_tuple("dir_123/abc", true, true)
+  )
+);
 
 struct FileHandlerTests: testing::TestWithParam<std::tuple<int, std::string>> {};
 
@@ -70,7 +74,8 @@ All the streets where once was pity
 Mr. Blue Sky is living here today!
 Hey, hey, hey!
     )")  // multi-line
-    ));
+  )
+);
 
 TEST_P(FileHandlerTests, WriteFileTest) {
   auto [fileNum, content] = GetParam();

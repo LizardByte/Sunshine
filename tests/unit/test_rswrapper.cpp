@@ -28,7 +28,7 @@ TEST(ReedSolomonWrapperTests, EncodeTest) {
   uint8_t fecShard[16] = {};
 
   // If we picked the incorrect ISA in our wrapper, we should crash here
-  uint8_t *shardPtrs[2] = { dataShard, fecShard };
+  uint8_t *shardPtrs[2] = {dataShard, fecShard};
   auto ret = reed_solomon_encode(rs, shardPtrs, 2, sizeof(dataShard));
   ASSERT_EQ(ret, 0);
 

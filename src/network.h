@@ -4,18 +4,19 @@
  */
 #pragma once
 
+// standard includes
 #include <tuple>
 #include <utility>
 
+// lib includes
 #include <boost/asio.hpp>
-
 #include <enet/enet.h>
 
+// local includes
 #include "utility.h"
 
 namespace net {
-  void
-  free_host(ENetHost *host);
+  void free_host(ENetHost *host);
 
   /**
    * @brief Map a specified port based on the base port.
@@ -26,8 +27,7 @@ namespace net {
    * @examples_end
    * @todo Ensure port is not already in use by another application.
    */
-  std::uint16_t
-  map_port(int port);
+  std::uint16_t map_port(int port);
 
   using host_t = util::safe_ptr<ENetHost, free_host>;
   using peer_t = ENetPeer *;
@@ -44,32 +44,26 @@ namespace net {
     BOTH  ///< IPv4 and IPv6
   };
 
-  net_e
-  from_enum_string(const std::string_view &view);
-  std::string_view
-  to_enum_string(net_e net);
+  net_e from_enum_string(const std::string_view &view);
+  std::string_view to_enum_string(net_e net);
 
-  net_e
-  from_address(const std::string_view &view);
+  net_e from_address(const std::string_view &view);
 
-  host_t
-  host_create(af_e af, ENetAddress &addr, std::uint16_t port);
+  host_t host_create(af_e af, ENetAddress &addr, std::uint16_t port);
 
   /**
    * @brief Get the address family enum value from a string.
    * @param view The config option value.
    * @return The address family enum value.
    */
-  af_e
-  af_from_enum_string(const std::string_view &view);
+  af_e af_from_enum_string(const std::string_view &view);
 
   /**
    * @brief Get the wildcard binding address for a given address family.
    * @param af Address family.
    * @return Normalized address.
    */
-  std::string_view
-  af_to_any_address_string(af_e af);
+  std::string_view af_to_any_address_string(af_e af);
 
   /**
    * @brief Convert an address to a normalized form.
@@ -77,8 +71,7 @@ namespace net {
    * @param address The address to normalize.
    * @return Normalized address.
    */
-  boost::asio::ip::address
-  normalize_address(boost::asio::ip::address address);
+  boost::asio::ip::address normalize_address(boost::asio::ip::address address);
 
   /**
    * @brief Get the given address in normalized string form.
@@ -86,8 +79,7 @@ namespace net {
    * @param address The address to normalize.
    * @return Normalized address in string form.
    */
-  std::string
-  addr_to_normalized_string(boost::asio::ip::address address);
+  std::string addr_to_normalized_string(boost::asio::ip::address address);
 
   /**
    * @brief Get the given address in a normalized form for the host portion of a URL.
@@ -95,22 +87,19 @@ namespace net {
    * @param address The address to normalize and escape.
    * @return Normalized address in URL-escaped string.
    */
-  std::string
-  addr_to_url_escaped_string(boost::asio::ip::address address);
+  std::string addr_to_url_escaped_string(boost::asio::ip::address address);
 
   /**
    * @brief Get the encryption mode for the given remote endpoint address.
    * @param address The address used to look up the desired encryption mode.
    * @return The WAN or LAN encryption mode, based on the provided address.
    */
-  int
-  encryption_mode_for_address(boost::asio::ip::address address);
+  int encryption_mode_for_address(boost::asio::ip::address address);
 
   /**
    * @brief Returns a string for use as the instance name for mDNS.
    * @param hostname The hostname to use for instance name generation.
    * @return Hostname-based instance name or "Sunshine" if hostname is invalid.
    */
-  std::string
-  mdns_instance_name(const std::string_view &hostname);
+  std::string mdns_instance_name(const std::string_view &hostname);
 }  // namespace net

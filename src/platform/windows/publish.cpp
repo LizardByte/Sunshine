@@ -2,13 +2,16 @@
  * @file src/platform/windows/publish.cpp
  * @brief Definitions for Windows mDNS service registration.
  */
+// platform includes
+// winsock2.h must be included before windows.h
+// clang-format off
 #include <winsock2.h>
-
 #include <windows.h>
-
+// clang-format on
 #include <windns.h>
 #include <winerror.h>
 
+// local includes
 #include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
@@ -17,7 +20,7 @@
 #include "src/platform/common.h"
 #include "src/thread_safe.h"
 
-#define _FN(x, ret, args)    \
+#define _FN(x, ret, args) \
   typedef ret(*x##_fn) args; \
   static x##_fn x
 
@@ -28,69 +31,69 @@ using namespace std::literals;
 
 extern "C" {
 #ifndef __MINGW32__
-constexpr auto DNS_REQUEST_PENDING = 9506L;
-constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
-constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
+  constexpr auto DNS_REQUEST_PENDING = 9506L;
+  constexpr auto DNS_QUERY_REQUEST_VERSION1 = 0x1;
+  constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 #endif
 
 #define SERVICE_DOMAIN "local"
 
-constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
+  constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
 
 #ifndef __MINGW32__
-typedef struct _DNS_SERVICE_INSTANCE {
-  LPWSTR pszInstanceName;
-  LPWSTR pszHostName;
+  typedef struct _DNS_SERVICE_INSTANCE {
+    LPWSTR pszInstanceName;
+    LPWSTR pszHostName;
 
-  IP4_ADDRESS *ip4Address;
-  IP6_ADDRESS *ip6Address;
+    IP4_ADDRESS *ip4Address;
+    IP6_ADDRESS *ip6Address;
 
-  WORD wPort;
-  WORD wPriority;
-  WORD wWeight;
+    WORD wPort;
+    WORD wPriority;
+    WORD wWeight;
 
-  // Property list
-  DWORD dwPropertyCount;
+    // Property list
+    DWORD dwPropertyCount;
 
-  PWSTR *keys;
-  PWSTR *values;
+    PWSTR *keys;
+    PWSTR *values;
 
-  DWORD dwInterfaceIndex;
-} DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;
+    DWORD dwInterfaceIndex;
+  } DNS_SERVICE_INSTANCE, *PDNS_SERVICE_INSTANCE;
 #endif
 
-typedef VOID WINAPI
-DNS_SERVICE_REGISTER_COMPLETE(
-  _In_ DWORD Status,
-  _In_ PVOID pQueryContext,
-  _In_ PDNS_SERVICE_INSTANCE pInstance);
+  typedef VOID WINAPI
+    DNS_SERVICE_REGISTER_COMPLETE(
+      _In_ DWORD Status,
+      _In_ PVOID pQueryContext,
+      _In_ PDNS_SERVICE_INSTANCE pInstance
+    );
 
-typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
+  typedef DNS_SERVICE_REGISTER_COMPLETE *PDNS_SERVICE_REGISTER_COMPLETE;
 
 #ifndef __MINGW32__
-typedef struct _DNS_SERVICE_CANCEL {
-  PVOID reserved;
-} DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
+  typedef struct _DNS_SERVICE_CANCEL {
+    PVOID reserved;
+  } DNS_SERVICE_CANCEL, *PDNS_SERVICE_CANCEL;
 
-typedef struct _DNS_SERVICE_REGISTER_REQUEST {
-  ULONG Version;
-  ULONG InterfaceIndex;
-  PDNS_SERVICE_INSTANCE pServiceInstance;
-  PDNS_SERVICE_REGISTER_COMPLETE pRegisterCompletionCallback;
-  PVOID pQueryContext;
-  HANDLE hCredentials;
-  BOOL unicastEnabled;
-} DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
+  typedef struct _DNS_SERVICE_REGISTER_REQUEST {
+    ULONG Version;
+    ULONG InterfaceIndex;
+    PDNS_SERVICE_INSTANCE pServiceInstance;
+    PDNS_SERVICE_REGISTER_COMPLETE pRegisterCompletionCallback;
+    PVOID pQueryContext;
+    HANDLE hCredentials;
+    BOOL unicastEnabled;
+  } DNS_SERVICE_REGISTER_REQUEST, *PDNS_SERVICE_REGISTER_REQUEST;
 #endif
 
-_FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
-_FN(_DnsServiceDeRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
-_FN(_DnsServiceRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
+  _FN(_DnsServiceFreeInstance, VOID, (_In_ PDNS_SERVICE_INSTANCE pInstance));
+  _FN(_DnsServiceDeRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
+  _FN(_DnsServiceRegister, DWORD, (_In_ PDNS_SERVICE_REGISTER_REQUEST pRequest, _Inout_opt_ PDNS_SERVICE_CANCEL pCancel));
 } /* extern "C" */
 
 namespace platf::publish {
-  VOID WINAPI
-  register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
+  VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
     auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *) pQueryContext;
 
     if (status) {
@@ -100,11 +103,10 @@ namespace platf::publish {
     alarm->ring(pInstance);
   }
 
-  static int
-  service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
+  static int service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
-    std::wstring domain { SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size() };
+    std::wstring domain {SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size()};
 
     auto hostname = platf::get_host_name();
     auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
@@ -124,8 +126,8 @@ namespace platf::publish {
     // Most clients aren't strictly checking TXT record compliance with RFC 1035,
     // but Apple's mDNS resolver does and rejects the entire answer if an invalid
     // TXT record is present.
-    PWCHAR keys[] = { nullptr };
-    PWCHAR values[] = { nullptr };
+    PWCHAR keys[] = {nullptr};
+    PWCHAR values[] = {nullptr};
     instance.dwPropertyCount = 1;
     instance.keys = keys;
     instance.values = values;
@@ -144,8 +146,7 @@ namespace platf::publish {
         print_status("DnsServiceRegister()"sv, status);
         return -1;
       }
-    }
-    else {
+    } else {
       status = _DnsServiceDeRegister(&req, nullptr);
       if (status != DNS_REQUEST_PENDING) {
         print_status("DnsServiceDeRegister()"sv, status);
@@ -159,8 +160,7 @@ namespace platf::publish {
     if (enable) {
       // Store this instance for later deregistration
       existing_instance = registered_instance;
-    }
-    else if (registered_instance) {
+    } else if (registered_instance) {
       // Deregistration was successful
       _DnsServiceFreeInstance(registered_instance);
       existing_instance = nullptr;
@@ -196,8 +196,7 @@ namespace platf::publish {
     PDNS_SERVICE_INSTANCE existing_instance;
   };
 
-  int
-  load_funcs(HMODULE handle) {
+  int load_funcs(HMODULE handle) {
     auto fg = util::fail_guard([handle]() {
       FreeLibrary(handle);
     });
@@ -215,8 +214,7 @@ namespace platf::publish {
     return 0;
   }
 
-  std::unique_ptr<::platf::deinit_t>
-  start() {
+  std::unique_ptr<::platf::deinit_t> start() {
     HMODULE handle = LoadLibrary("dnsapi.dll");
 
     if (!handle || load_funcs(handle)) {

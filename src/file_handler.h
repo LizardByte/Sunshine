@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 #include <string>
 
 /**
@@ -18,8 +19,7 @@ namespace file_handler {
    * std::string parent_dir = get_parent_directory("path/to/file");
    * @examples_end
    */
-  std::string
-  get_parent_directory(const std::string &path);
+  std::string get_parent_directory(const std::string &path);
 
   /**
    * @brief Make a directory.
@@ -29,8 +29,7 @@ namespace file_handler {
    * bool dir_created = make_directory("path/to/directory");
    * @examples_end
    */
-  bool
-  make_directory(const std::string &path);
+  bool make_directory(const std::string &path);
 
   /**
    * @brief Read a file to string.
@@ -40,8 +39,7 @@ namespace file_handler {
    * std::string contents = read_file("path/to/file");
    * @examples_end
    */
-  std::string
-  read_file(const char *path);
+  std::string read_file(const char *path);
 
   /**
    * @brief Writes a file.
@@ -52,6 +50,5 @@ namespace file_handler {
    * int write_status = write_file("path/to/file", "file contents");
    * @examples_end
    */
-  int
-  write_file(const char *path, const std::string_view &contents);
+  int write_file(const char *path, const std::string_view &contents);
 }  // namespace file_handler

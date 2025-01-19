@@ -2,8 +2,10 @@
  * @file src/video_colorspace.cpp
  * @brief Definitions for colorspace functions.
  */
+// this include
 #include "video_colorspace.h"
 
+// local includes
 #include "logging.h"
 #include "video.h"
 
@@ -13,13 +15,11 @@ extern "C" {
 
 namespace video {
 
-  bool
-  colorspace_is_hdr(const sunshine_colorspace_t &colorspace) {
+  bool colorspace_is_hdr(const sunshine_colorspace_t &colorspace) {
     return colorspace.colorspace == colorspace_e::bt2020;
   }
 
-  sunshine_colorspace_t
-  colorspace_from_client_config(const config_t &config, bool hdr_display) {
+  sunshine_colorspace_t colorspace_from_client_config(const config_t &config, bool hdr_display) {
     sunshine_colorspace_t colorspace;
 
     /* See video::config_t declaration for details */
@@ -27,8 +27,7 @@ namespace video {
     if (config.dynamicRange > 0 && hdr_display) {
       // Rec. 2020 with ST 2084 perceptual quantizer
       colorspace.colorspace = colorspace_e::bt2020;
-    }
-    else {
+    } else {
       switch (config.encoderCscMode >> 1) {
         case 0:
           // Rec. 601
@@ -77,8 +76,7 @@ namespace video {
     return colorspace;
   }
 
-  avcodec_colorspace_t
-  avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace) {
+  avcodec_colorspace_t avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace) {
     avcodec_colorspace_t avcodec_colorspace;
 
     switch (sunshine_colorspace.colorspace) {
@@ -122,13 +120,11 @@ namespace video {
     return avcodec_colorspace;
   }
 
-  const color_t *
-  color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace) {
+  const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace) {
     return color_vectors_from_colorspace(colorspace.colorspace, colorspace.full_range);
   }
 
-  const color_t *
-  color_vectors_from_colorspace(colorspace_e colorspace, bool full_range) {
+  const color_t *color_vectors_from_colorspace(colorspace_e colorspace, bool full_range) {
     using float2 = float[2];
     auto make_color_matrix = [](float Cr, float Cb, const float2 &range_Y, const float2 &range_UV) -> color_t {
       float Cg = 1.0f - Cr - Cb;
@@ -142,21 +138,21 @@ namespace video {
       float scale_y = (range_Y[1] - range_Y[0]) / 255.0f;
       float scale_uv = (range_UV[1] - range_UV[0]) / 255.0f;
       return {
-        { Cr, Cg, Cb, 0.0f },
-        { -(Cr * 0.5f / Cb_i), -(Cg * 0.5f / Cb_i), 0.5f, 0.5f },
-        { 0.5f, -(Cg * 0.5f / Cr_i), -(Cb * 0.5f / Cr_i), 0.5f },
-        { scale_y, shift_y },
-        { scale_uv, shift_uv },
+        {Cr, Cg, Cb, 0.0f},
+        {-(Cr * 0.5f / Cb_i), -(Cg * 0.5f / Cb_i), 0.5f, 0.5f},
+        {0.5f, -(Cg * 0.5f / Cr_i), -(Cb * 0.5f / Cr_i), 0.5f},
+        {scale_y, shift_y},
+        {scale_uv, shift_uv},
       };
     };
 
     static const color_t colors[] {
-      make_color_matrix(0.299f, 0.114f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),  // BT601 MPEG
-      make_color_matrix(0.299f, 0.114f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),  // BT601 JPEG
-      make_color_matrix(0.2126f, 0.0722f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),  // BT709 MPEG
-      make_color_matrix(0.2126f, 0.0722f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),  // BT709 JPEG
-      make_color_matrix(0.2627f, 0.0593f, { 16.0f, 235.0f }, { 16.0f, 240.0f }),  // BT2020 MPEG
-      make_color_matrix(0.2627f, 0.0593f, { 0.0f, 255.0f }, { 0.0f, 255.0f }),  // BT2020 JPEG
+      make_color_matrix(0.299f, 0.114f, {16.0f, 235.0f}, {16.0f, 240.0f}),  // BT601 MPEG
+      make_color_matrix(0.299f, 0.114f, {0.0f, 255.0f}, {0.0f, 255.0f}),  // BT601 JPEG
+      make_color_matrix(0.2126f, 0.0722f, {16.0f, 235.0f}, {16.0f, 240.0f}),  // BT709 MPEG
+      make_color_matrix(0.2126f, 0.0722f, {0.0f, 255.0f}, {0.0f, 255.0f}),  // BT709 JPEG
+      make_color_matrix(0.2627f, 0.0593f, {16.0f, 235.0f}, {16.0f, 240.0f}),  // BT2020 MPEG
+      make_color_matrix(0.2627f, 0.0593f, {0.0f, 255.0f}, {0.0f, 255.0f}),  // BT2020 JPEG
     };
 
     const color_t *result = nullptr;
@@ -182,8 +178,7 @@ namespace video {
     return result;
   }
 
-  const color_t *
-  new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace) {
+  const color_t *new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace) {
     constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace) -> color_t {
       double Kr, Kb;
       switch (colorspace.colorspace) {
@@ -213,8 +208,7 @@ namespace video {
         y_add = 0;
         uv_mult = (1 << colorspace.bit_depth) - 1;
         uv_add = (1 << (colorspace.bit_depth - 1));
-      }
-      else {
+      } else {
         y_mult = (1 << (colorspace.bit_depth - 8)) * 219;
         y_add = (1 << (colorspace.bit_depth - 8)) * 16;
         uv_mult = (1 << (colorspace.bit_depth - 8)) * 224;
@@ -252,18 +246,18 @@ namespace video {
     };
 
     static constexpr color_t colors[] = {
-      generate_color_vectors({ colorspace_e::rec601, false, 8 }),
-      generate_color_vectors({ colorspace_e::rec601, true, 8 }),
-      generate_color_vectors({ colorspace_e::rec601, false, 10 }),
-      generate_color_vectors({ colorspace_e::rec601, true, 10 }),
-      generate_color_vectors({ colorspace_e::rec709, false, 8 }),
-      generate_color_vectors({ colorspace_e::rec709, true, 8 }),
-      generate_color_vectors({ colorspace_e::rec709, false, 10 }),
-      generate_color_vectors({ colorspace_e::rec709, true, 10 }),
-      generate_color_vectors({ colorspace_e::bt2020, false, 8 }),
-      generate_color_vectors({ colorspace_e::bt2020, true, 8 }),
-      generate_color_vectors({ colorspace_e::bt2020, false, 10 }),
-      generate_color_vectors({ colorspace_e::bt2020, true, 10 }),
+      generate_color_vectors({colorspace_e::rec601, false, 8}),
+      generate_color_vectors({colorspace_e::rec601, true, 8}),
+      generate_color_vectors({colorspace_e::rec601, false, 10}),
+      generate_color_vectors({colorspace_e::rec601, true, 10}),
+      generate_color_vectors({colorspace_e::rec709, false, 8}),
+      generate_color_vectors({colorspace_e::rec709, true, 8}),
+      generate_color_vectors({colorspace_e::rec709, false, 10}),
+      generate_color_vectors({colorspace_e::rec709, true, 10}),
+      generate_color_vectors({colorspace_e::bt2020, false, 8}),
+      generate_color_vectors({colorspace_e::bt2020, true, 8}),
+      generate_color_vectors({colorspace_e::bt2020, false, 10}),
+      generate_color_vectors({colorspace_e::bt2020, true, 10}),
     };
 
     const color_t *result = nullptr;
@@ -282,8 +276,12 @@ namespace video {
         break;
     }
 
-    if (colorspace.bit_depth == 10) result += 2;
-    if (colorspace.full_range) result += 1;
+    if (colorspace.bit_depth == 10) {
+      result += 2;
+    }
+    if (colorspace.full_range) {
+      result += 1;
+    }
 
     return result;
   }

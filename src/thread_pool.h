@@ -4,8 +4,11 @@
  */
 #pragma once
 
-#include "task_pool.h"
+// standard includes
 #include <thread>
+
+// local includes
+#include "task_pool.h"
 
 namespace thread_pool_util {
   /**
@@ -25,25 +28,28 @@ namespace thread_pool_util {
 
   public:
     ThreadPool():
-        _continue { false } {}
+        _continue {false} {
+    }
 
     explicit ThreadPool(int threads):
-        _thread(threads), _continue { true } {
+        _thread(threads),
+        _continue {true} {
       for (auto &t : _thread) {
         t = std::thread(&ThreadPool::_main, this);
       }
     }
 
     ~ThreadPool() noexcept {
-      if (!_continue) return;
+      if (!_continue) {
+        return;
+      }
 
       stop();
       join();
     }
 
-    template <class Function, class... Args>
-    auto
-    push(Function &&newTask, Args &&...args) {
+    template<class Function, class... Args>
+    auto push(Function &&newTask, Args &&...args) {
       std::lock_guard lg(_lock);
       auto future = TaskPool::push(std::forward<Function>(newTask), std::forward<Args>(args)...);
 
@@ -51,16 +57,14 @@ namespace thread_pool_util {
       return future;
     }
 
-    void
-    pushDelayed(std::pair<__time_point, __task> &&task) {
+    void pushDelayed(std::pair<__time_point, __task> &&task) {
       std::lock_guard lg(_lock);
 
       TaskPool::pushDelayed(std::move(task));
     }
 
-    template <class Function, class X, class Y, class... Args>
-    auto
-    pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
+    template<class Function, class X, class Y, class... Args>
+    auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
       std::lock_guard lg(_lock);
       auto future = TaskPool::pushDelayed(std::forward<Function>(newTask), duration, std::forward<Args>(args)...);
 
@@ -69,8 +73,7 @@ namespace thread_pool_util {
       return future;
     }
 
-    void
-    start(int threads) {
+    void start(int threads) {
       _continue = true;
 
       _thread.resize(threads);
@@ -80,29 +83,25 @@ namespace thread_pool_util {
       }
     }
 
-    void
-    stop() {
+    void stop() {
       std::lock_guard lg(_lock);
 
       _continue = false;
       _cv.notify_all();
     }
 
-    void
-    join() {
+    void join() {
       for (auto &t : _thread) {
         t.join();
       }
     }
 
   public:
-    void
-    _main() {
+    void _main() {
       while (_continue) {
         if (auto task = this->pop()) {
           (*task)->run();
-        }
-        else {
+        } else {
           std::unique_lock uniq_lock(_lock);
 
           if (ready()) {
@@ -115,8 +114,7 @@ namespace thread_pool_util {
 
           if (auto tp = next()) {
             _cv.wait_until(uniq_lock, *tp);
-          }
-          else {
+          } else {
             _cv.wait(uniq_lock);
           }
         }

@@ -2,11 +2,12 @@
  * @file src/platform/macos/nv12_zero_device.cpp
  * @brief Definitions for NV12 zero copy device on macOS.
  */
+// standard includes
 #include <utility>
 
+// local includes
 #include "src/platform/macos/av_img_t.h"
 #include "src/platform/macos/nv12_zero_device.h"
-
 #include "src/video.h"
 
 extern "C" {
@@ -15,20 +16,17 @@ extern "C" {
 
 namespace platf {
 
-  void
-  free_frame(AVFrame *frame) {
+  void free_frame(AVFrame *frame) {
     av_frame_free(&frame);
   }
 
-  void
-  free_buffer(void *opaque, uint8_t *data) {
+  void free_buffer(void *opaque, uint8_t *data) {
     CVPixelBufferRelease((CVPixelBufferRef) data);
   }
 
   util::safe_ptr<AVFrame, free_frame> av_frame;
 
-  int
-  nv12_zero_device::convert(platf::img_t &img) {
+  int nv12_zero_device::convert(platf::img_t &img) {
     auto *av_img = (av_img_t *) &img;
 
     // Release any existing CVPixelBuffer previously retained for encoding
@@ -47,8 +45,7 @@ namespace platf {
     return 0;
   }
 
-  int
-  nv12_zero_device::set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+  int nv12_zero_device::set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
     this->frame = frame;
 
     av_frame.reset(frame);
@@ -58,11 +55,8 @@ namespace platf {
     return 0;
   }
 
-  int
-  nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
-    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ?
-                               kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange :
-                               kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+  int nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
+    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
 
     this->display = display;
     this->resolution_fn = std::move(resolution_fn);

@@ -4,8 +4,10 @@
  */
 #pragma once
 
+// lib includes
 #include <miniupnpc/miniupnpc.h>
 
+// local includes
 #include "platform/common.h"
 
 /**
@@ -36,9 +38,7 @@ namespace upnp {
    * @retval 2 A valid IGD has been found but it reported as not connected.
    * @retval 3 An UPnP device has been found but was not recognized as an IGD.
    */
-  int
-  UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr);
+  int UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr);
 
-  [[nodiscard]] std::unique_ptr<platf::deinit_t>
-  start();
+  [[nodiscard]] std::unique_ptr<platf::deinit_t> start();
 }  // namespace upnp
