@@ -9,7 +9,8 @@ name: Update flathub repo
 
 on:
   release:
-    types: [released]
+    types:
+      - released
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -114,7 +115,7 @@ jobs:
           out-file-path: "flathub/${{ env.FLATHUB_PKG }}"
           extract: true
 
-      - name: Delete arhive
+      - name: Delete archive
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true'
@@ -172,6 +173,7 @@ jobs:
           git checkout $main_commit
 
       - name: Create/Update Pull Request
+        id: create-pr
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true' &&
@@ -185,3 +187,20 @@ jobs:
           delete-branch: true
           title: "chore: Update ${{ env.FLATHUB_PKG }} to ${{ github.event.release.tag_name }}"
           body: ${{ github.event.release.body }}
+
+      - name: Automerge PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        run: |
+          gh \
+            pr \
+            merge \
+            --auto \
+            --delete-branch \
+            --repo "flathub/${{ env.FLATHUB_PKG }}" \
+            --squash \
+            "${{ steps.create-pr.outputs.pull-request-number }}"

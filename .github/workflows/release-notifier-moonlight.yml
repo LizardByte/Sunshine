@@ -15,13 +15,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: discord
-        uses: sarisia/actions-status-discord@v1  # https://github.com/sarisia/actions-status-discord
+        uses: sarisia/actions-status-discord@v1
         with:
-          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}
+          avatar_url: ${{ vars.ORG_LOGO_URL }}256
+          color: 0x${{ vars.COLOR_HEX_GREEN }}
+          description: ${{ github.event.release.body }}
           nodetail: true
           nofail: false
-          username: ${{ secrets.DISCORD_USERNAME }}
-          avatar_url: ${{ secrets.ORG_LOGO_URL }}
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          description: ${{ github.event.release.body }}
-          color: 0xFF4500
+          username: ${{ secrets.DISCORD_USERNAME }}
+          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}
