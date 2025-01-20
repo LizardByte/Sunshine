@@ -10,7 +10,7 @@
     "disabled_def_cbox": "기본값: 선택 안 함",
     "dismiss": "해제",
     "do_cmd": "명령 수행",
-    "elevated": "상승",
+    "elevated": "관리자 권한으로 실행",
     "enabled": "활성화됨",
     "enabled_def": "활성화됨 (기본값)",
     "enabled_def_cbox": "기본값: 확인됨",
