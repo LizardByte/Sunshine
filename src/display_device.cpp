@@ -29,15 +29,15 @@
 
 namespace display_device {
   namespace {
-    constexpr std::chrono::milliseconds DEFAULT_RETRY_INTERVAL { 5000 };
+    constexpr std::chrono::milliseconds DEFAULT_RETRY_INTERVAL {5000};
 
     /**
      * @brief A global for the settings manager interface and other settings whose lifetime is managed by `display_device::init(...)`.
      */
     struct {
       std::mutex mutex {};
-      std::chrono::milliseconds config_revert_delay { 0 };
-      std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance { nullptr };
+      std::chrono::milliseconds config_revert_delay {0};
+      std::unique_ptr<RetryScheduler<SettingsManagerInterface>> sm_instance {nullptr};
     } DD_DATA;
 
     /**
@@ -49,8 +49,7 @@ namespace display_device {
      */
     class sunshine_audio_context_t: public AudioContextInterface {
     public:
-      [[nodiscard]] bool
-      capture() override {
+      [[nodiscard]] bool capture() override {
         return context_scheduler.execute([](auto &audio_context) {
           // Explicitly releasing the context first in case it was not release yet so that it can be potentially cleaned up.
           audio_context = boost::none;
@@ -61,8 +60,7 @@ namespace display_device {
         });
       }
 
-      [[nodiscard]] bool
-      isCaptured() const override {
+      [[nodiscard]] bool isCaptured() const override {
         return context_scheduler.execute([](const auto &audio_context) {
           if (audio_context) {
             // In case we still have context we need to check whether it was released or not.
@@ -74,8 +72,7 @@ namespace display_device {
         });
       }
 
-      void
-      release() override {
+      void release() override {
         context_scheduler.schedule([](auto &audio_context, auto &stop_token) {
           if (audio_context) {
             audio_context->released = true;
@@ -93,7 +90,7 @@ namespace display_device {
           audio_context = boost::none;
           stop_token.requestStop();
         },
-          SchedulerOptions { .m_sleep_durations = { 2s } });
+                                   SchedulerOptions {.m_sleep_durations = {2s}});
       }
 
     private:
@@ -102,20 +99,20 @@ namespace display_device {
          * @brief A reference to the audio context that will automatically extend the audio session.
          * @note It is auto-initialized here for convenience.
          */
-        decltype(audio::get_audio_ctx_ref()) audio_ctx_ref { audio::get_audio_ctx_ref() };
+        decltype(audio::get_audio_ctx_ref()) audio_ctx_ref {audio::get_audio_ctx_ref()};
 
         /**
          * @brief Will be set to true if the capture was released, but we still have to keep the context around, because the device is not available.
          */
-        bool released { false };
+        bool released {false};
 
         /**
          * @brief How many times to check if the audio sink is available before giving up.
          */
-        int retry_counter { 15 };
+        int retry_counter {15};
       };
 
-      RetryScheduler<boost::optional<audio_context_t>> context_scheduler { std::make_unique<boost::optional<audio_context_t>>(boost::none) };
+      RetryScheduler<boost::optional<audio_context_t>> context_scheduler {std::make_unique<boost::optional<audio_context_t>>(boost::none)};
     };
 
     /**
@@ -124,9 +121,8 @@ namespace display_device {
      * @param value String to be converted
      * @return Parsed unsigned integer.
      */
-    unsigned int
-    stou(const std::string &value) {
-      unsigned long result { std::stoul(value) };
+    unsigned int stou(const std::string &value) {
+      unsigned long result {std::stoul(value)};
       if (result > std::numeric_limits<unsigned int>::max()) {
         throw std::out_of_range("stou");
       }
@@ -151,10 +147,9 @@ namespace display_device {
      * }
      * @examples_end
      */
-    bool
-    parse_resolution_string(const std::string &input, std::optional<Resolution> &output) {
-      const std::string trimmed_input { boost::algorithm::trim_copy(input) };
-      const std::regex resolution_regex { R"(^(\d+)x(\d+)$)" };
+    bool parse_resolution_string(const std::string &input, std::optional<Resolution> &output) {
+      const std::string trimmed_input {boost::algorithm::trim_copy(input)};
+      const std::regex resolution_regex {R"(^(\d+)x(\d+)$)"};
 
       if (std::smatch match; std::regex_match(trimmed_input, match, resolution_regex)) {
         try {
@@ -163,16 +158,13 @@ namespace display_device {
             stou(match[2].str())
           };
           return true;
-        }
-        catch (const std::out_of_range &) {
+        } catch (const std::out_of_range &) {
           BOOST_LOG(error) << "Failed to parse resolution string " << trimmed_input << " (number out of range).";
-        }
-        catch (const std::exception &err) {
+        } catch (const std::exception &err) {
           BOOST_LOG(error) << "Failed to parse resolution string " << trimmed_input << ":\n"
                            << err.what();
         }
-      }
-      else {
+      } else {
         if (trimmed_input.empty()) {
           output = std::nullopt;
           return true;
@@ -203,16 +195,17 @@ namespace display_device {
      * }
      * @examples_end
      */
-    bool
-    parse_refresh_rate_string(const std::string &input, std::optional<FloatingPoint> &output, const bool allow_decimal_point = true) {
-      static const auto is_zero { [](const auto &character) { return character == '0'; } };
-      const std::string trimmed_input { boost::algorithm::trim_copy(input) };
-      const std::regex refresh_rate_regex { allow_decimal_point ? R"(^(\d+)(?:\.(\d+))?$)" : R"(^(\d+)$)" };
+    bool parse_refresh_rate_string(const std::string &input, std::optional<FloatingPoint> &output, const bool allow_decimal_point = true) {
+      static const auto is_zero {[](const auto &character) {
+        return character == '0';
+      }};
+      const std::string trimmed_input {boost::algorithm::trim_copy(input)};
+      const std::regex refresh_rate_regex {allow_decimal_point ? R"(^(\d+)(?:\.(\d+))?$)" : R"(^(\d+)$)"};
 
       if (std::smatch match; std::regex_match(trimmed_input, match, refresh_rate_regex)) {
         try {
           // Here we are trimming zeros from the string to possibly reduce out of bounds case
-          std::string trimmed_match_1 { boost::algorithm::trim_left_copy_if(match[1].str(), is_zero) };
+          std::string trimmed_match_1 {boost::algorithm::trim_left_copy_if(match[1].str(), is_zero)};
           if (trimmed_match_1.empty()) {
             trimmed_match_1 = "0"s;  // Just in case ALL the string is full of zeros, we want to leave one
           }
@@ -230,33 +223,29 @@ namespace display_device {
             //     denominator = 1000
 
             // We are essentially removing the decimal point here: 59.995 -> 59995
-            const std::string numerator_str { trimmed_match_1 + trimmed_match_2 };
-            const auto numerator { stou(numerator_str) };
+            const std::string numerator_str {trimmed_match_1 + trimmed_match_2};
+            const auto numerator {stou(numerator_str)};
 
             // Here we are counting decimal places and calculating denominator: 10^decimal_places
-            const auto denominator { static_cast<unsigned int>(std::pow(10, trimmed_match_2.size())) };
+            const auto denominator {static_cast<unsigned int>(std::pow(10, trimmed_match_2.size()))};
 
-            output = Rational { numerator, denominator };
-          }
-          else {
+            output = Rational {numerator, denominator};
+          } else {
             // We do not have a decimal point, just a valid number.
             // For example:
             //   60:
             //     numerator = 60
             //     denominator = 1
-            output = Rational { stou(trimmed_match_1), 1 };
+            output = Rational {stou(trimmed_match_1), 1};
           }
           return true;
-        }
-        catch (const std::out_of_range &) {
+        } catch (const std::out_of_range &) {
           BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << " (number out of range).";
-        }
-        catch (const std::exception &err) {
+        } catch (const std::exception &err) {
           BOOST_LOG(error) << "Failed to parse refresh rate string " << trimmed_input << ":\n"
                            << err.what();
         }
-      }
-      else {
+      } else {
         if (trimmed_input.empty()) {
           output = std::nullopt;
           return true;
@@ -279,8 +268,7 @@ namespace display_device {
      * const auto device_prep_option = parse_device_prep_option(video_config);
      * @examples_end
      */
-    std::optional<SingleDisplayConfiguration::DevicePreparation>
-    parse_device_prep_option(const config::video_t &video_config) {
+    std::optional<SingleDisplayConfiguration::DevicePreparation> parse_device_prep_option(const config::video_t &video_config) {
       using enum config::video_t::dd_t::config_option_e;
       using enum SingleDisplayConfiguration::DevicePreparation;
 
@@ -315,44 +303,42 @@ namespace display_device {
      * const bool success = parse_resolution_option(video_config, *launch_session, config);
      * @examples_end
      */
-    bool
-    parse_resolution_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
+    bool parse_resolution_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
       using resolution_option_e = config::video_t::dd_t::resolution_option_e;
 
       switch (video_config.dd.resolution_option) {
-        case resolution_option_e::automatic: {
-          if (!session.enable_sops) {
-            BOOST_LOG(warning) << R"(Sunshine is configured to change resolution automatically, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
-          }
-          else if (session.width >= 0 && session.height >= 0) {
-            config.m_resolution = Resolution {
-              static_cast<unsigned int>(session.width),
-              static_cast<unsigned int>(session.height)
-            };
-          }
-          else {
-            BOOST_LOG(error) << "Resolution provided by client session config is invalid: " << session.width << "x" << session.height;
-            return false;
-          }
-          break;
-        }
-        case resolution_option_e::manual: {
-          if (!session.enable_sops) {
-            BOOST_LOG(warning) << R"(Sunshine is configured to change resolution manually, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
-          }
-          else {
-            if (!parse_resolution_string(video_config.dd.manual_resolution, config.m_resolution)) {
-              BOOST_LOG(error) << "Failed to parse manual resolution string!";
+        case resolution_option_e::automatic:
+          {
+            if (!session.enable_sops) {
+              BOOST_LOG(warning) << R"(Sunshine is configured to change resolution automatically, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
+            } else if (session.width >= 0 && session.height >= 0) {
+              config.m_resolution = Resolution {
+                static_cast<unsigned int>(session.width),
+                static_cast<unsigned int>(session.height)
+              };
+            } else {
+              BOOST_LOG(error) << "Resolution provided by client session config is invalid: " << session.width << "x" << session.height;
               return false;
             }
+            break;
+          }
+        case resolution_option_e::manual:
+          {
+            if (!session.enable_sops) {
+              BOOST_LOG(warning) << R"(Sunshine is configured to change resolution manually, but the "Optimize game settings" is not set in the client! Resolution will not be changed.)";
+            } else {
+              if (!parse_resolution_string(video_config.dd.manual_resolution, config.m_resolution)) {
+                BOOST_LOG(error) << "Failed to parse manual resolution string!";
+                return false;
+              }
 
-            if (!config.m_resolution) {
-              BOOST_LOG(error) << "Manual resolution must be specified!";
-              return false;
+              if (!config.m_resolution) {
+                BOOST_LOG(error) << "Manual resolution must be specified!";
+                return false;
+              }
             }
+            break;
           }
-          break;
-        }
         case resolution_option_e::disabled:
           break;
       }
@@ -375,33 +361,33 @@ namespace display_device {
      * const bool success = parse_refresh_rate_option(video_config, *launch_session, config);
      * @examples_end
      */
-    bool
-    parse_refresh_rate_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
+    bool parse_refresh_rate_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
       using refresh_rate_option_e = config::video_t::dd_t::refresh_rate_option_e;
 
       switch (video_config.dd.refresh_rate_option) {
-        case refresh_rate_option_e::automatic: {
-          if (session.fps >= 0) {
-            config.m_refresh_rate = Rational { static_cast<unsigned int>(session.fps), 1 };
+        case refresh_rate_option_e::automatic:
+          {
+            if (session.fps >= 0) {
+              config.m_refresh_rate = Rational {static_cast<unsigned int>(session.fps), 1};
+            } else {
+              BOOST_LOG(error) << "FPS value provided by client session config is invalid: " << session.fps;
+              return false;
+            }
+            break;
           }
-          else {
-            BOOST_LOG(error) << "FPS value provided by client session config is invalid: " << session.fps;
-            return false;
-          }
-          break;
-        }
-        case refresh_rate_option_e::manual: {
-          if (!parse_refresh_rate_string(video_config.dd.manual_refresh_rate, config.m_refresh_rate)) {
-            BOOST_LOG(error) << "Failed to parse manual refresh rate string!";
-            return false;
-          }
+        case refresh_rate_option_e::manual:
+          {
+            if (!parse_refresh_rate_string(video_config.dd.manual_refresh_rate, config.m_refresh_rate)) {
+              BOOST_LOG(error) << "Failed to parse manual refresh rate string!";
+              return false;
+            }
 
-          if (!config.m_refresh_rate) {
-            BOOST_LOG(error) << "Manual refresh rate must be specified!";
-            return false;
+            if (!config.m_refresh_rate) {
+              BOOST_LOG(error) << "Manual refresh rate must be specified!";
+              return false;
+            }
+            break;
           }
-          break;
-        }
         case refresh_rate_option_e::disabled:
           break;
       }
@@ -422,8 +408,7 @@ namespace display_device {
      * const auto hdr_option = parse_hdr_option(video_config, *launch_session);
      * @examples_end
      */
-    std::optional<HdrState>
-    parse_hdr_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
+    std::optional<HdrState> parse_hdr_option(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
       using hdr_option_e = config::video_t::dd_t::hdr_option_e;
 
       switch (video_config.dd.hdr_option) {
@@ -450,11 +435,10 @@ namespace display_device {
      * @param video_config User's video related configuration.
      * @returns Enum value if remapping can be performed, null optional if remapping shall be skipped.
      */
-    std::optional<remapping_type_e>
-    determine_remapping_type(const config::video_t &video_config) {
+    std::optional<remapping_type_e> determine_remapping_type(const config::video_t &video_config) {
       using dd_t = config::video_t::dd_t;
-      const bool auto_resolution { video_config.dd.resolution_option == dd_t::resolution_option_e::automatic };
-      const bool auto_refresh_rate { video_config.dd.refresh_rate_option == dd_t::refresh_rate_option_e::automatic };
+      const bool auto_resolution {video_config.dd.resolution_option == dd_t::resolution_option_e::automatic};
+      const bool auto_refresh_rate {video_config.dd.refresh_rate_option == dd_t::refresh_rate_option_e::automatic};
 
       if (auto_resolution && auto_refresh_rate) {
         return remapping_type_e::mixed;
@@ -486,8 +470,7 @@ namespace display_device {
      * @param type Remapping type to check.
      * @returns True if resolution is to be mapped, false otherwise.
      */
-    bool
-    is_resolution_mapped(const remapping_type_e type) {
+    bool is_resolution_mapped(const remapping_type_e type) {
       return type == remapping_type_e::resolution_only || type == remapping_type_e::mixed;
     }
 
@@ -496,8 +479,7 @@ namespace display_device {
      * @param type Remapping type to check.
      * @returns True if FPS is to be mapped, false otherwise.
      */
-    bool
-    is_fps_mapped(const remapping_type_e type) {
+    bool is_fps_mapped(const remapping_type_e type) {
       return type == remapping_type_e::refresh_rate_only || type == remapping_type_e::mixed;
     }
 
@@ -507,17 +489,16 @@ namespace display_device {
      * @param type Specify which entry fields should be parsed.
      * @returns Parsed structure or null optional if a necessary field could not be parsed.
      */
-    std::optional<parsed_remapping_entry_t>
-    parse_remapping_entry(const config::video_t::dd_t::mode_remapping_entry_t &entry, const remapping_type_e type) {
+    std::optional<parsed_remapping_entry_t> parse_remapping_entry(const config::video_t::dd_t::mode_remapping_entry_t &entry, const remapping_type_e type) {
       parsed_remapping_entry_t result {};
 
       if (is_resolution_mapped(type) && (!parse_resolution_string(entry.requested_resolution, result.requested_resolution) ||
-                                          !parse_resolution_string(entry.final_resolution, result.final_resolution))) {
+                                         !parse_resolution_string(entry.final_resolution, result.final_resolution))) {
         return std::nullopt;
       }
 
       if (is_fps_mapped(type) && (!parse_refresh_rate_string(entry.requested_fps, result.requested_fps, false) ||
-                                   !parse_refresh_rate_string(entry.final_refresh_rate, result.final_refresh_rate))) {
+                                  !parse_refresh_rate_string(entry.final_refresh_rate, result.final_refresh_rate))) {
         return std::nullopt;
       }
 
@@ -539,14 +520,13 @@ namespace display_device {
      * const bool success = remap_display_mode_if_needed(video_config, *launch_session, config);
      * @examples_end
      */
-    bool
-    remap_display_mode_if_needed(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
-      const auto remapping_type { determine_remapping_type(video_config) };
+    bool remap_display_mode_if_needed(const config::video_t &video_config, const rtsp_stream::launch_session_t &session, SingleDisplayConfiguration &config) {
+      const auto remapping_type {determine_remapping_type(video_config)};
       if (!remapping_type) {
         return true;
       }
 
-      const auto &remapping_list { [&]() {
+      const auto &remapping_list {[&]() {
         using enum remapping_type_e;
 
         switch (*remapping_type) {
@@ -558,7 +538,7 @@ namespace display_device {
           default:
             return video_config.dd.mode_remapping.mixed;
         }
-      }() };
+      }()};
 
       if (remapping_list.empty()) {
         BOOST_LOG(debug) << "No values are available for display mode remapping.";
@@ -566,9 +546,9 @@ namespace display_device {
       }
       BOOST_LOG(debug) << "Trying to remap display modes...";
 
-      const auto entry_to_string { [type = *remapping_type](const config::video_t::dd_t::mode_remapping_entry_t &entry) {
-        const bool mapping_resolution { is_resolution_mapped(type) };
-        const bool mapping_fps { is_fps_mapped(type) };
+      const auto entry_to_string {[type = *remapping_type](const config::video_t::dd_t::mode_remapping_entry_t &entry) {
+        const bool mapping_resolution {is_resolution_mapped(type)};
+        const bool mapping_fps {is_fps_mapped(type)};
 
         // clang-format off
         return (mapping_resolution ? "  - requested resolution: "s + entry.requested_resolution + "\n" : "") +
@@ -576,10 +556,10 @@ namespace display_device {
                (mapping_resolution ? "  - final resolution: "s + entry.final_resolution + "\n" : "") +
                (mapping_fps ?        "  - final refresh rate: "s + entry.final_refresh_rate : "");
         // clang-format on
-      } };
+      }};
 
       for (const auto &entry : remapping_list) {
-        const auto parsed_entry { parse_remapping_entry(entry, *remapping_type) };
+        const auto parsed_entry {parse_remapping_entry(entry, *remapping_type)};
         if (!parsed_entry) {
           BOOST_LOG(error) << "Failed to parse remapping entry from:\n"
                            << entry_to_string(entry);
@@ -632,16 +612,18 @@ namespace display_device {
      * @param video_config User's video related configuration.
      * @return An interface or nullptr if the OS does not support the interface.
      */
-    std::unique_ptr<SettingsManagerInterface>
-    make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config) {
+    std::unique_ptr<SettingsManagerInterface> make_settings_manager([[maybe_unused]] const std::filesystem::path &persistence_filepath, [[maybe_unused]] const config::video_t &video_config) {
 #ifdef _WIN32
       return std::make_unique<SettingsManager>(
         std::make_shared<WinDisplayDevice>(std::make_shared<WinApiLayer>()),
         std::make_shared<sunshine_audio_context_t>(),
         std::make_unique<PersistentState>(
-          std::make_shared<FileSettingsPersistence>(persistence_filepath)),
+          std::make_shared<FileSettingsPersistence>(persistence_filepath)
+        ),
         WinWorkarounds {
-          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle ? std::make_optional(500ms) : std::nullopt });
+          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle ? std::make_optional(500ms) : std::nullopt
+        }
+      );
 #else
       return nullptr;
 #endif
@@ -660,17 +642,16 @@ namespace display_device {
      * @brief Reverts the configuration based on the provided option.
      * @note This is function does not lock mutex.
      */
-    void
-    revert_configuration_unlocked(const revert_option_e option) {
+    void revert_configuration_unlocked(const revert_option_e option) {
       if (!DD_DATA.sm_instance) {
         // Platform is not supported, nothing to do.
         return;
       }
 
       // Note: by default the executor function is immediately executed in the calling thread. With delay, we want to avoid that.
-      SchedulerOptions scheduler_option { .m_sleep_durations = { DEFAULT_RETRY_INTERVAL } };
+      SchedulerOptions scheduler_option {.m_sleep_durations = {DEFAULT_RETRY_INTERVAL}};
       if (option == revert_option_e::try_indefinitely_with_delay && DD_DATA.config_revert_delay > std::chrono::milliseconds::zero()) {
-        scheduler_option.m_sleep_durations = { DD_DATA.config_revert_delay, DEFAULT_RETRY_INTERVAL };
+        scheduler_option.m_sleep_durations = {DD_DATA.config_revert_delay, DEFAULT_RETRY_INTERVAL};
         scheduler_option.m_execution = SchedulerOptions::Execution::ScheduledOnly;
       }
 
@@ -681,17 +662,21 @@ namespace display_device {
           return;
         }
 
-        auto available_devices { [&settings_iface]() {
-          const auto devices { settings_iface.enumAvailableDevices() };
+        auto available_devices {[&settings_iface]() {
+          const auto devices {settings_iface.enumAvailableDevices()};
           std::set<std::string> parsed_devices;
 
           std::transform(
-            std::begin(devices), std::end(devices),
+            std::begin(devices),
+            std::end(devices),
             std::inserter(parsed_devices, std::end(parsed_devices)),
-            [](const auto &device) { return device.m_device_id + " - " + device.m_friendly_name; });
+            [](const auto &device) {
+              return device.m_device_id + " - " + device.m_friendly_name;
+            }
+          );
 
           return parsed_devices;
-        }() };
+        }()};
         if (available_devices == tried_out_devices) {
           BOOST_LOG(debug) << "Skipping reverting configuration, because no newly added/removed devices were detected since last check. Currently available devices:\n"
                            << toJson(available_devices);
@@ -699,11 +684,10 @@ namespace display_device {
         }
 
         using enum SettingsManagerInterface::RevertResult;
-        if (const auto result { settings_iface.revertSettings() }; result == Ok) {
+        if (const auto result {settings_iface.revertSettings()}; result == Ok) {
           stop_token.requestStop();
           return;
-        }
-        else if (result == ApiTemporarilyUnavailable) {
+        } else if (result == ApiTemporarilyUnavailable) {
           // Do nothing and retry next time
           return;
         }
@@ -713,13 +697,12 @@ namespace display_device {
                            << toJson(available_devices);
         tried_out_devices.swap(available_devices);
       },
-        scheduler_option);
+                                    scheduler_option);
     }
   }  // namespace
 
-  std::unique_ptr<platf::deinit_t>
-  init(const std::filesystem::path &persistence_filepath, const config::video_t &video_config) {
-    std::lock_guard lock { DD_DATA.mutex };
+  std::unique_ptr<platf::deinit_t> init(const std::filesystem::path &persistence_filepath, const config::video_t &video_config) {
+    std::lock_guard lock {DD_DATA.mutex};
     // We can support re-init without any issues, however we should make sure to clean up first!
     revert_configuration_unlocked(revert_option_e::try_once);
     DD_DATA.config_revert_delay = video_config.dd.config_revert_delay;
@@ -727,10 +710,12 @@ namespace display_device {
 
     // If we fail to create settings manager, this means platform is not supported, and
     // we will need to provided error-free pass-trough in other methods
-    if (auto settings_manager { make_settings_manager(persistence_filepath, video_config) }) {
+    if (auto settings_manager {make_settings_manager(persistence_filepath, video_config)}) {
       DD_DATA.sm_instance = std::make_unique<RetryScheduler<SettingsManagerInterface>>(std::move(settings_manager));
 
-      const auto available_devices { DD_DATA.sm_instance->execute([](auto &settings_iface) { return settings_iface.enumAvailableDevices(); }) };
+      const auto available_devices {DD_DATA.sm_instance->execute([](auto &settings_iface) {
+        return settings_iface.enumAvailableDevices();
+      })};
       BOOST_LOG(info) << "Currently available display devices:\n"
                       << toJson(available_devices);
 
@@ -742,44 +727,44 @@ namespace display_device {
     class deinit_t: public platf::deinit_t {
     public:
       ~deinit_t() override {
-        std::lock_guard lock { DD_DATA.mutex };
+        std::lock_guard lock {DD_DATA.mutex};
         try {
           // This may throw if used incorrectly. At the moment this will not happen, however
           // in case some unforeseen changes are made that could raise an exception,
           // we definitely don't want this to happen in destructor. Especially in the
           // deinit_t where the outcome does not really matter.
           revert_configuration_unlocked(revert_option_e::try_once);
-        }
-        catch (std::exception &err) {
+        } catch (std::exception &err) {
           BOOST_LOG(fatal) << err.what();
         }
 
         DD_DATA.sm_instance = nullptr;
       }
     };
+
     return std::make_unique<deinit_t>();
   }
 
-  std::string
-  map_output_name(const std::string &output_name) {
-    std::lock_guard lock { DD_DATA.mutex };
+  std::string map_output_name(const std::string &output_name) {
+    std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
       // Fallback to giving back the output name if the platform is not supported.
       return output_name;
     }
 
-    return DD_DATA.sm_instance->execute([&output_name](auto &settings_iface) { return settings_iface.getDisplayName(output_name); });
+    return DD_DATA.sm_instance->execute([&output_name](auto &settings_iface) {
+      return settings_iface.getDisplayName(output_name);
+    });
   }
 
-  void
-  configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
-    const auto result { parse_configuration(video_config, session) };
-    if (const auto *parsed_config { std::get_if<SingleDisplayConfiguration>(&result) }; parsed_config) {
+  void configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
+    const auto result {parse_configuration(video_config, session)};
+    if (const auto *parsed_config {std::get_if<SingleDisplayConfiguration>(&result)}; parsed_config) {
       configure_display(*parsed_config);
       return;
     }
 
-    if (const auto *disabled { std::get_if<configuration_disabled_tag_t>(&result) }; disabled) {
+    if (const auto *disabled {std::get_if<configuration_disabled_tag_t>(&result)}; disabled) {
       revert_configuration();
       return;
     }
@@ -788,9 +773,8 @@ namespace display_device {
     // want to revert active configuration in case we have any
   }
 
-  void
-  configure_display(const SingleDisplayConfiguration &config) {
-    std::lock_guard lock { DD_DATA.mutex };
+  void configure_display(const SingleDisplayConfiguration &config) {
+    std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
       // Platform is not supported, nothing to do.
       return;
@@ -803,18 +787,16 @@ namespace display_device {
         stop_token.requestStop();
       }
     },
-      { .m_sleep_durations = { DEFAULT_RETRY_INTERVAL } });
+                                  {.m_sleep_durations = {DEFAULT_RETRY_INTERVAL}});
   }
 
-  void
-  revert_configuration() {
-    std::lock_guard lock { DD_DATA.mutex };
+  void revert_configuration() {
+    std::lock_guard lock {DD_DATA.mutex};
     revert_configuration_unlocked(revert_option_e::try_indefinitely_with_delay);
   }
 
-  bool
-  reset_persistence() {
-    std::lock_guard lock { DD_DATA.mutex };
+  bool reset_persistence() {
+    std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
       // Platform is not supported, assume success.
       return true;
@@ -828,9 +810,8 @@ namespace display_device {
     });
   }
 
-  std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration>
-  parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
-    const auto device_prep { parse_device_prep_option(video_config) };
+  std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration> parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
+    const auto device_prep {parse_device_prep_option(video_config)};
     if (!device_prep) {
       return configuration_disabled_tag_t {};
     }

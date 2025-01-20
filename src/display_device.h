@@ -4,18 +4,22 @@
  */
 #pragma once
 
-// lib includes
-#include <display_device/types.h>
+// standard includes
 #include <filesystem>
 #include <memory>
+
+// lib includes
+#include <display_device/types.h>
 
 // forward declarations
 namespace platf {
   class deinit_t;
 }
+
 namespace config {
   struct video_t;
 }
+
 namespace rtsp_stream {
   struct launch_session_t;
 }
@@ -32,8 +36,7 @@ namespace display_device {
    * const auto init_guard { init("/my/persitence/file.state", video_config) };
    * @examples_end
    */
-  [[nodiscard]] std::unique_ptr<platf::deinit_t>
-  init(const std::filesystem::path &persistence_filepath, const config::video_t &video_config);
+  [[nodiscard]] std::unique_ptr<platf::deinit_t> init(const std::filesystem::path &persistence_filepath, const config::video_t &video_config);
 
   /**
    * @brief Map the output name to a specific display.
@@ -45,8 +48,7 @@ namespace display_device {
    * const auto mapped_name_custom { map_output_name("{some-device-id}") };
    * @examples_end
    */
-  [[nodiscard]] std::string
-  map_output_name(const std::string &output_name);
+  [[nodiscard]] std::string map_output_name(const std::string &output_name);
 
   /**
    * @brief Configure the display device based on the user configuration and the session information.
@@ -62,8 +64,7 @@ namespace display_device {
    * configure_display(video_config, *launch_session);
    * @examples_end
    */
-  void
-  configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
+  void configure_display(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
 
   /**
    * @brief Configure the display device using the provided configuration.
@@ -83,8 +84,7 @@ namespace display_device {
    * configure_display(valid_config);
    * @examples_end
    */
-  void
-  configure_display(const SingleDisplayConfiguration &config);
+  void configure_display(const SingleDisplayConfiguration &config);
 
   /**
    * @brief Revert the display configuration and restore the previous state.
@@ -96,8 +96,7 @@ namespace display_device {
    * revert_configuration();
    * @examples_end
    */
-  void
-  revert_configuration();
+  void revert_configuration();
 
   /**
    * @brief Reset the persistence and currently held initial display state.
@@ -119,8 +118,7 @@ namespace display_device {
    * const auto result = reset_persistence();
    * @examples_end
    */
-  [[nodiscard]] bool
-  reset_persistence();
+  [[nodiscard]] bool reset_persistence();
 
   /**
    * @brief A tag structure indicating that configuration parsing has failed.
@@ -150,6 +148,5 @@ namespace display_device {
    * }
    * @examples_end
    */
-  [[nodiscard]] std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration>
-  parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
+  [[nodiscard]] std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration> parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session);
 }  // namespace display_device

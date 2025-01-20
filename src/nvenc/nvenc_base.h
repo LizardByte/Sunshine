@@ -4,14 +4,15 @@
  */
 #pragma once
 
+// lib includes
+#include <ffnvcodec/nvEncodeAPI.h>
+
+// local includes
 #include "nvenc_colorspace.h"
 #include "nvenc_config.h"
 #include "nvenc_encoded_frame.h"
-
 #include "src/logging.h"
 #include "src/video.h"
-
-#include <ffnvcodec/nvEncodeAPI.h>
 
 /**
  * @brief Standalone NVENC encoder
@@ -31,8 +32,7 @@ namespace nvenc {
     virtual ~nvenc_base();
 
     nvenc_base(const nvenc_base &) = delete;
-    nvenc_base &
-    operator=(const nvenc_base &) = delete;
+    nvenc_base &operator=(const nvenc_base &) = delete;
 
     /**
      * @brief Create the encoder.
@@ -42,15 +42,13 @@ namespace nvenc {
      * @param buffer_format Platform-agnostic input surface format.
      * @return `true` on success, `false` on error
      */
-    bool
-    create_encoder(const nvenc_config &config, const video::config_t &client_config, const nvenc_colorspace_t &colorspace, NV_ENC_BUFFER_FORMAT buffer_format);
+    bool create_encoder(const nvenc_config &config, const video::config_t &client_config, const nvenc_colorspace_t &colorspace, NV_ENC_BUFFER_FORMAT buffer_format);
 
     /**
      * @brief Destroy the encoder.
      *        Derived classes classes call it in the destructor.
      */
-    void
-    destroy_encoder();
+    void destroy_encoder();
 
     /**
      * @brief Encode the next frame using platform-specific input surface.
@@ -60,8 +58,7 @@ namespace nvenc {
      * @param force_idr Whether to encode frame as forced IDR.
      * @return Encoded frame.
      */
-    nvenc_encoded_frame
-    encode_frame(uint64_t frame_index, bool force_idr);
+    nvenc_encoded_frame encode_frame(uint64_t frame_index, bool force_idr);
 
     /**
      * @brief Perform reference frame invalidation (RFI) procedure.
@@ -70,8 +67,7 @@ namespace nvenc {
      * @return `true` on success, `false` on error.
      *         After error next frame must be encoded with `force_idr = true`.
      */
-    bool
-    invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame);
+    bool invalidate_ref_frames(uint64_t first_frame, uint64_t last_frame);
 
   protected:
     /**
@@ -79,8 +75,7 @@ namespace nvenc {
      *        Called during `create_encoder()` if `nvenc` variable is not initialized.
      * @return `true` on success, `false` on error
      */
-    virtual bool
-    init_library() = 0;
+    virtual bool init_library() = 0;
 
     /**
      * @brief Required. Used for creating outside-facing input surface,
@@ -88,16 +83,16 @@ namespace nvenc {
      *        Called during `create_encoder()`.
      * @return `true` on success, `false` on error
      */
-    virtual bool
-    create_and_register_input_buffer() = 0;
+    virtual bool create_and_register_input_buffer() = 0;
 
     /**
      * @brief Optional. Override if you must perform additional operations on the registered input surface in the beginning of `encode_frame()`.
      *        Typically used for interop copy.
      * @return `true` on success, `false` on error
      */
-    virtual bool
-    synchronize_input_buffer() { return true; }
+    virtual bool synchronize_input_buffer() {
+      return true;
+    }
 
     /**
      * @brief Optional. Override if you want to create encoder in async mode.
@@ -105,11 +100,11 @@ namespace nvenc {
      * @param timeout_ms Wait timeout in milliseconds
      * @return `true` on success, `false` on timeout or error
      */
-    virtual bool
-    wait_for_async_event(uint32_t timeout_ms) { return false; }
+    virtual bool wait_for_async_event(uint32_t timeout_ms) {
+      return false;
+    }
 
-    bool
-    nvenc_failed(NVENCSTATUS status);
+    bool nvenc_failed(NVENCSTATUS status);
 
     /**
      * @brief This function returns the corresponding struct version for the minimum API required by the codec.
@@ -119,8 +114,7 @@ namespace nvenc {
      * @param v12_struct_version Optionally specifies the struct version to use with v12 SDK major versions.
      * @return A suitable struct version for the active codec.
      */
-    uint32_t
-    min_struct_version(uint32_t version, uint32_t v11_struct_version = 0, uint32_t v12_struct_version = 0);
+    uint32_t min_struct_version(uint32_t version, uint32_t v11_struct_version = 0, uint32_t v12_struct_version = 0);
 
     const NV_ENC_DEVICE_TYPE device_type;
 
@@ -154,7 +148,7 @@ namespace nvenc {
       uint64_t last_encoded_frame_index = 0;
       bool rfi_needs_confirmation = false;
       std::pair<uint64_t, uint64_t> last_rfi_range;
-      logging::min_max_avg_periodic_logger<double> frame_size_logger = { debug, "NvEnc: encoded frame sizes in kB", "" };
+      logging::min_max_avg_periodic_logger<double> frame_size_logger = {debug, "NvEnc: encoded frame sizes in kB", ""};
     } encoder_state;
   };
 

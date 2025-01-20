@@ -2,6 +2,7 @@
  * @file globals.cpp
  * @brief Definitions for globally accessible variables and functions.
  */
+// local includes
 #include "globals.h"
 
 safe::mail_t mail::man;

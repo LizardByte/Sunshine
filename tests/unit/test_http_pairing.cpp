@@ -3,9 +3,9 @@
  * @brief Test src/nvhttp.cpp HTTP pairing process
  */
 
-#include <src/nvhttp.h>
-
 #include "../tests_common.h"
+
+#include <src/nvhttp.h>
 
 using namespace nvhttp;
 
@@ -139,8 +139,11 @@ INSTANTIATE_TEST_SUITE_P(
             .client = {
               .uniqueID = "1234",
               .cert = PUBLIC_CERT,
-              .name = "test" },
-            .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }),
+              .name = "test"
+            },
+            .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}
+          }
+        ),
         .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true),
         .pin = "5338",
         /* AES("CLIENT CHALLENGE") */
@@ -151,30 +154,34 @@ INSTANTIATE_TEST_SUITE_P(
         /* secret + x509 signature */
         .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
                                                     "9BB74D8DE2FF006C3F47FC45EFDAA97D433783AFAB3ACD85CA7ED2330BB2A7BD18A5B044AF8CAC177116FAE8A6E8E44653A8944A0F8EA138B2E013756D847D2C4FC52F736E2E7E9B4154712B18F8307B2A161E010F0587744163E42ECA9EA548FC435756EDCF1FEB94037631ABB72B29DDAC0EA5E61F2DBFCC3B20AA021473CC85AC98D88052CA6618ED1701EFBF142C18D5E779A3155B84DF65057D4823EC194E6DF14006793E8D7A3DCCE20A911636C4E01ECA8B54B9DE9F256F15DE9A980EA024B30D77579140D45EC220C738164BDEEEBF7364AE94A5FF9B784B40F2E640CE8603017DEEAC7B2AD77B807C643B7B349C110FE15F94C7B3D37FF15FDFBE26",
-          true) },
-      pairing_output { true, true, true, true }),
+                                                    true)
+      },
+      pairing_output {true, true, true, true}
+    ),
     // Testing that when passing some empty values we aren't triggering any exception
     std::make_tuple(pairing_input {
-                      .session = std::make_shared<pair_session_t>(pair_session_t { .client = {}, .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }),
+                      .session = std::make_shared<pair_session_t>(pair_session_t {.client = {}, .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}}),
                       .override_server_challenge = {},
                       .pin = {},
                       .client_challenge = {},
                       .server_challenge_resp = {},
                       .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFFxDEADBEEF", true),
                     },
-      // Only phase 4 will fail, when we check what has been exchanged
-      pairing_output { true, true, true, false }),
+                    // Only phase 4 will fail, when we check what has been exchanged
+                    pairing_output {true, true, true, false}),
     // Testing that when passing some empty values we aren't triggering any exception
     std::make_tuple(pairing_input {
-                      .session = std::make_shared<pair_session_t>(pair_session_t { .client = { .cert = PUBLIC_CERT }, .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }),
+                      .session = std::make_shared<pair_session_t>(pair_session_t {.client = {.cert = PUBLIC_CERT}, .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}}),
                       .override_server_challenge = {},
                       .pin = {},
                       .client_challenge = {},
                       .server_challenge_resp = {},
                       .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFFxDEADBEEF", true),
                     },
-      // Only phase 4 will fail, when we check what has been exchanged
-      pairing_output { true, true, true, false })));
+                    // Only phase 4 will fail, when we check what has been exchanged
+                    pairing_output {true, true, true, false})
+  )
+);
 
 INSTANTIATE_TEST_SUITE_P(
   TestFailingPairing,
@@ -190,40 +197,47 @@ INSTANTIATE_TEST_SUITE_P(
             .client = {
               .uniqueID = "1234",
               .cert = PUBLIC_CERT,
-              .name = "test" },
-            .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }),
+              .name = "test"
+            },
+            .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}
+          }
+        ),
         .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true),
         .pin = "0000",
         .client_challenge = util::from_hex_vec("741CD3D6890C16DA39D53BCA0893AAF0", true),
         .server_challenge_resp = util::from_hex_vec("920BABAE9F7599AA1CA8EC87FB3454C91872A7D8D5127DDC176C2FDAE635CF7A", true),
         .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
                                                     "9BB74D8DE2FF006C3F47FC45EFDAA97D433783AFAB3ACD85CA7ED2330BB2A7BD18A5B044AF8CAC177116FAE8A6E8E44653A8944A0F8EA138B2E013756D847D2C4FC52F736E2E7E9B4154712B18F8307B2A161E010F0587744163E42ECA9EA548FC435756EDCF1FEB94037631ABB72B29DDAC0EA5E61F2DBFCC3B20AA021473CC85AC98D88052CA6618ED1701EFBF142C18D5E779A3155B84DF65057D4823EC194E6DF14006793E8D7A3DCCE20A911636C4E01ECA8B54B9DE9F256F15DE9A980EA024B30D77579140D45EC220C738164BDEEEBF7364AE94A5FF9B784B40F2E640CE8603017DEEAC7B2AD77B807C643B7B349C110FE15F94C7B3D37FF15FDFBE26",
-          true) },
-      pairing_output { true, true, true, false }),
+                                                    true)
+      },
+      pairing_output {true, true, true, false}
+    ),
     /**
      * Wrong client challenge
      */
-    std::make_tuple(pairing_input { .session = std::make_shared<pair_session_t>(pair_session_t { .client = { .uniqueID = "1234", .cert = PUBLIC_CERT, .name = "test" }, .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }), .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true), .pin = "5338", .client_challenge = util::from_hex_vec("741CD3D6890C16DA39D53BCA0893AAF0", true), .server_challenge_resp = util::from_hex_vec("WRONG", true),
-                      .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
-                                                                  "9BB74D8DE2FF006C3F47FC45EFDAA97D433783AFAB3ACD85CA7ED2330BB2A7BD18A5B044AF8CAC177116FAE8A6E8E44653A8944A0F8EA138B2E013756D847D2C4FC52F736E2E7E9B4154712B18F8307B2A161E010F0587744163E42ECA9EA548FC435756EDCF1FEB94037631ABB72B29DDAC0EA5E61F2DBFCC3B20AA021473CC85AC98D88052CA6618ED1701EFBF142C18D5E779A3155B84DF65057D4823EC194E6DF14006793E8D7A3DCCE20A911636C4E01ECA8B54B9DE9F256F15DE9A980EA024B30D77579140D45EC220C738164BDEEEBF7364AE94A5FF9B784B40F2E640CE8603017DEEAC7B2AD77B807C643B7B349C110FE15F94C7B3D37FF15FDFBE26",
-                        true) },
-      pairing_output { true, true, true, false }),
+    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>(pair_session_t {.client = {.uniqueID = "1234", .cert = PUBLIC_CERT, .name = "test"}, .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}}), .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true), .pin = "5338", .client_challenge = util::from_hex_vec("741CD3D6890C16DA39D53BCA0893AAF0", true), .server_challenge_resp = util::from_hex_vec("WRONG", true),
+                                   .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
+                                                                               "9BB74D8DE2FF006C3F47FC45EFDAA97D433783AFAB3ACD85CA7ED2330BB2A7BD18A5B044AF8CAC177116FAE8A6E8E44653A8944A0F8EA138B2E013756D847D2C4FC52F736E2E7E9B4154712B18F8307B2A161E010F0587744163E42ECA9EA548FC435756EDCF1FEB94037631ABB72B29DDAC0EA5E61F2DBFCC3B20AA021473CC85AC98D88052CA6618ED1701EFBF142C18D5E779A3155B84DF65057D4823EC194E6DF14006793E8D7A3DCCE20A911636C4E01ECA8B54B9DE9F256F15DE9A980EA024B30D77579140D45EC220C738164BDEEEBF7364AE94A5FF9B784B40F2E640CE8603017DEEAC7B2AD77B807C643B7B349C110FE15F94C7B3D37FF15FDFBE26",
+                                                                               true)},
+                    pairing_output {true, true, true, false}),
     /**
      * Wrong signature
      */
-    std::make_tuple(pairing_input { .session = std::make_shared<pair_session_t>(pair_session_t { .client = { .uniqueID = "1234", .cert = PUBLIC_CERT, .name = "test" }, .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }), .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true), .pin = "5338", .client_challenge = util::from_hex_vec("741CD3D6890C16DA39D53BCA0893AAF0", true), .server_challenge_resp = util::from_hex_vec("920BABAE9F7599AA1CA8EC87FB3454C91872A7D8D5127DDC176C2FDAE635CF7A", true),
-                      .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
-                                                                  "NOSIGNATURE",  // Wrong signature
-                        true) },
-      pairing_output { true, true, true, false }),
+    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>(pair_session_t {.client = {.uniqueID = "1234", .cert = PUBLIC_CERT, .name = "test"}, .async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}}), .override_server_challenge = util::from_hex_vec("AAAAAAAAAAAAAAAA", true), .pin = "5338", .client_challenge = util::from_hex_vec("741CD3D6890C16DA39D53BCA0893AAF0", true), .server_challenge_resp = util::from_hex_vec("920BABAE9F7599AA1CA8EC87FB3454C91872A7D8D5127DDC176C2FDAE635CF7A", true),
+                                   .client_pairing_secret = util::from_hex_vec("000102030405060708090A0B0C0D0EFF"  // secret
+                                                                               "NOSIGNATURE",  // Wrong signature
+                                                                               true)},
+                    pairing_output {true, true, true, false}),
     /**
      * null values (phase 1)
      */
-    std::make_tuple(pairing_input { .session = std::make_shared<pair_session_t>() }, pairing_output { false }),
+    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>()}, pairing_output {false}),
     /**
      * null values (phase 4, phase 2 and 3 have no reason to fail since we are running them in order)
      */
-    std::make_tuple(pairing_input { .session = std::make_shared<pair_session_t>(pair_session_t { .async_insert_pin = { .salt = "ff5dc6eda99339a8a0793e216c4257c4" } }) }, pairing_output { true, true, true, false })));
+    std::make_tuple(pairing_input {.session = std::make_shared<pair_session_t>(pair_session_t {.async_insert_pin = {.salt = "ff5dc6eda99339a8a0793e216c4257c4"}})}, pairing_output {true, true, true, false})
+  )
+);
 
 TEST(PairingTest, OutOfOrderCalls) {
   boost::property_tree::ptree tree;

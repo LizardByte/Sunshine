@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 #include <bitset>
 #include <chrono>
 #include <optional>
@@ -11,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
+// local includes
 #include "nvenc/nvenc_config.h"
 
 namespace config {
@@ -22,6 +24,7 @@ namespace config {
     int av1_mode;
 
     int min_threads;  // Minimum number of threads/slices for CPU encoding
+
     struct {
       std::string sw_preset;
       std::string sw_tune;
@@ -204,17 +207,25 @@ namespace config {
       CONST_PIN,  ///< Use "universal" pin
       FLAG_SIZE  ///< Number of flags
     };
-  }
+  }  // namespace flag
 
   struct prep_cmd_t {
     prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
-        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)) {}
+        do_cmd(std::move(do_cmd)),
+        undo_cmd(std::move(undo_cmd)),
+        elevated(std::move(elevated)) {
+    }
+
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
-        do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
+        do_cmd(std::move(do_cmd)),
+        elevated(std::move(elevated)) {
+    }
+
     std::string do_cmd;
     std::string undo_cmd;
     bool elevated;
   };
+
   struct sunshine_t {
     std::string locale;
     int min_log_level;
@@ -248,8 +259,6 @@ namespace config {
   extern input_t input;
   extern sunshine_t sunshine;
 
-  int
-  parse(int argc, char *argv[]);
-  std::unordered_map<std::string, std::string>
-  parse_config(const std::string_view &file_content);
+  int parse(int argc, char *argv[]);
+  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 }  // namespace config

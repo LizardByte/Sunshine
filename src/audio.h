@@ -71,8 +71,7 @@ namespace audio {
   using packet_t = std::pair<void *, buffer_t>;
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
-  void
-  capture(safe::mail_t mail, config_t config, void *channel_data);
+  void capture(safe::mail_t mail, config_t config, void *channel_data);
 
   /**
    * @brief Get the reference to the audio context.
@@ -84,8 +83,7 @@ namespace audio {
    * audio_ctx_ref_t audio = get_audio_ctx_ref()
    * @examples_end
    */
-  audio_ctx_ref_t
-  get_audio_ctx_ref();
+  audio_ctx_ref_t get_audio_ctx_ref();
 
   /**
    * @brief Check if the audio sink held by audio context is available.
@@ -101,6 +99,5 @@ namespace audio {
    * return false;
    * @examples_end
    */
-  bool
-  is_audio_ctx_sink_available(const audio_ctx_t &ctx);
+  bool is_audio_ctx_sink_available(const audio_ctx_t &ctx);
 }  // namespace audio

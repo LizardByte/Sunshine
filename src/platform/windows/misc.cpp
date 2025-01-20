@@ -2,12 +2,15 @@
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
  */
+// standard includes
 #include <csignal>
 #include <filesystem>
 #include <iomanip>
+#include <iterator>
 #include <set>
 #include <sstream>
 
+// lib includes
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ip/address.hpp>
 #include <boost/process/v1.hpp>
@@ -34,16 +37,14 @@
 #define NTDDI_VERSION NTDDI_WIN10
 #include <Shlwapi.h>
 
+// local includes
 #include "misc.h"
-
+#include "nvprefs/nvprefs_interface.h"
 #include "src/entry_handler.h"
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
-#include <iterator>
-
-#include "nvprefs/nvprefs_interface.h"
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
@@ -63,16 +64,14 @@
 
 #include <winternl.h>
 extern "C" {
-NTSTATUS NTAPI
-NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
+  NTSTATUS NTAPI NtSetTimerResolution(ULONG DesiredResolution, BOOLEAN SetResolution, PULONG CurrentResolution);
 }
 
 namespace {
 
   std::atomic<bool> used_nt_set_timer_resolution = false;
 
-  bool
-  nt_set_timer_resolution_max() {
+  bool nt_set_timer_resolution_max() {
     ULONG minimum, maximum, current;
     if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
         !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
@@ -81,8 +80,7 @@ namespace {
     return true;
   }
 
-  bool
-  nt_set_timer_resolution_min() {
+  bool nt_set_timer_resolution_min() {
     ULONG minimum, maximum, current;
     if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
         !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
@@ -96,6 +94,7 @@ namespace {
 namespace bp = boost::process;
 
 using namespace std::literals;
+
 namespace platf {
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
@@ -116,30 +115,26 @@ namespace platf {
   decltype(WlanEnumInterfaces) *fn_WlanEnumInterfaces = nullptr;
   decltype(WlanSetInterface) *fn_WlanSetInterface = nullptr;
 
-  std::filesystem::path
-  appdata() {
+  std::filesystem::path appdata() {
     WCHAR sunshine_path[MAX_PATH];
     GetModuleFileNameW(NULL, sunshine_path, _countof(sunshine_path));
-    return std::filesystem::path { sunshine_path }.remove_filename() / L"config"sv;
+    return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
   }
 
-  std::string
-  from_sockaddr(const sockaddr *const socket_address) {
+  std::string from_sockaddr(const sockaddr *const socket_address) {
     char data[INET6_ADDRSTRLEN] = {};
 
     auto family = socket_address->sa_family;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) socket_address)->sin6_addr, data, INET6_ADDRSTRLEN);
-    }
-    else if (family == AF_INET) {
+    } else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) socket_address)->sin_addr, data, INET_ADDRSTRLEN);
     }
 
-    return std::string { data };
+    return std::string {data};
   }
 
-  std::pair<std::uint16_t, std::string>
-  from_sockaddr_ex(const sockaddr *const ip_addr) {
+  std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
     auto family = ip_addr->sa_family;
@@ -147,18 +142,16 @@ namespace platf {
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
       port = ((sockaddr_in6 *) ip_addr)->sin6_port;
-    }
-    else if (family == AF_INET) {
+    } else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
       port = ((sockaddr_in *) ip_addr)->sin_port;
     }
 
-    return { port, std::string { data } };
+    return {port, std::string {data}};
   }
 
-  adapteraddrs_t
-  get_adapteraddrs() {
-    adapteraddrs_t info { nullptr };
+  adapteraddrs_t get_adapteraddrs() {
+    adapteraddrs_t info {nullptr};
     ULONG size = 0;
 
     while (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, info.get(), &size) == ERROR_BUFFER_OVERFLOW) {
@@ -168,8 +161,7 @@ namespace platf {
     return info;
   }
 
-  std::string
-  get_mac_address(const std::string_view &address) {
+  std::string get_mac_address(const std::string_view &address) {
     adapteraddrs_t info = get_adapteraddrs();
     for (auto adapter_pos = info.get(); adapter_pos != nullptr; adapter_pos = adapter_pos->Next) {
       for (auto addr_pos = adapter_pos->FirstUnicastAddress; addr_pos != nullptr; addr_pos = addr_pos->Next) {
@@ -190,8 +182,7 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
-  HDESK
-  syncThreadDesktop() {
+  HDESK syncThreadDesktop() {
     auto hDesk = OpenInputDesktop(DF_ALLOWOTHERACCOUNTHOOK, FALSE, GENERIC_ALL);
     if (!hDesk) {
       auto err = GetLastError();
@@ -210,23 +201,15 @@ namespace platf {
     return hDesk;
   }
 
-  void
-  print_status(const std::string_view &prefix, HRESULT status) {
+  void print_status(const std::string_view &prefix, HRESULT status) {
     char err_string[1024];
 
-    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-      nullptr,
-      status,
-      MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-      err_string,
-      sizeof(err_string),
-      nullptr);
+    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string, sizeof(err_string), nullptr);
 
-    BOOST_LOG(error) << prefix << ": "sv << std::string_view { err_string, bytes };
+    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string, bytes};
   }
 
-  bool
-  IsUserAdmin(HANDLE user_token) {
+  bool IsUserAdmin(HANDLE user_token) {
     WINBOOL ret;
     SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
     PSID AdministratorsGroup;
@@ -235,16 +218,21 @@ namespace platf {
       2,
       SECURITY_BUILTIN_DOMAIN_RID,
       DOMAIN_ALIAS_RID_ADMINS,
-      0, 0, 0, 0, 0, 0,
-      &AdministratorsGroup);
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      &AdministratorsGroup
+    );
     if (ret) {
       if (!CheckTokenMembership(user_token, AdministratorsGroup, &ret)) {
         ret = false;
         BOOST_LOG(error) << "Failed to verify token membership for administrative access: " << GetLastError();
       }
       FreeSid(AdministratorsGroup);
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "Unable to allocate SID to check administrative access: " << GetLastError();
     }
 
@@ -255,8 +243,7 @@ namespace platf {
    * @brief Obtain the current sessions user's primary token with elevated privileges.
    * @return The user's token. If user has admin capability it will be elevated, otherwise it will be a limited token. On error, `nullptr`.
    */
-  HANDLE
-  retrieve_users_token(bool elevated) {
+  HANDLE retrieve_users_token(bool elevated) {
     DWORD consoleSessionId;
     HANDLE userToken;
     TOKEN_ELEVATION_TYPE elevationType;
@@ -317,8 +304,7 @@ namespace platf {
     return userToken;
   }
 
-  bool
-  merge_user_environment_block(bp::environment &env, HANDLE shell_token) {
+  bool merge_user_environment_block(bp::environment &env, HANDLE shell_token) {
     // Get the target user's environment block
     PVOID env_block;
     if (!CreateEnvironmentBlock(&env_block, shell_token, FALSE)) {
@@ -328,13 +314,14 @@ namespace platf {
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
-      std::string env_tuple = to_utf8(std::wstring { c });
+      std::string env_tuple = to_utf8(std::wstring {c});
       std::string env_name = env_tuple.substr(0, env_tuple.find('='));
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      auto itr = std::find_if(env.cbegin(), env.cend(),
-        [&](const auto &e) { return boost::iequals(e.get_name(), env_name); });
+      auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
+        return boost::iequals(e.get_name(), env_name);
+      });
       if (itr != env.cend()) {
         // Use this existing name if it is already present to ensure we merge properly
         env_name = itr->get_name();
@@ -343,8 +330,7 @@ namespace platf {
       // For the PATH variable, we will merge the values together
       if (boost::iequals(env_name, "PATH")) {
         env[env_name] = env_val + ";" + env[env_name].to_string();
-      }
-      else {
+      } else {
         // Other variables will be superseded by those in the user's environment block
         env[env_name] = env_val;
       }
@@ -358,8 +344,7 @@ namespace platf {
    * @brief Check if the current process is running with system-level privileges.
    * @return `true` if the current process has system-level privileges, `false` otherwise.
    */
-  bool
-  is_running_as_system() {
+  bool is_running_as_system() {
     BOOL ret;
     PSID SystemSid;
     DWORD dwSize = SECURITY_MAX_SID_SIZE;
@@ -379,8 +364,7 @@ namespace platf {
         BOOST_LOG(error) << "Failed to check token membership: " << GetLastError();
         ret = false;
       }
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "Failed to create a SID for the local system account. This may happen if the system is out of memory or if the SID buffer is too small: " << GetLastError();
     }
 
@@ -390,14 +374,12 @@ namespace platf {
   }
 
   // Note: This does NOT append a null terminator
-  void
-  append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
+  void append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
     std::memcpy(&env_block[offset], wstr.data(), wstr.length() * sizeof(wchar_t));
     offset += wstr.length();
   }
 
-  std::wstring
-  create_environment_block(bp::environment &env) {
+  std::wstring create_environment_block(bp::environment &env) {
     int size = 0;
     for (const auto &entry : env) {
       auto name = entry.get_name();
@@ -426,8 +408,7 @@ namespace platf {
     return std::wstring(env_block, offset);
   }
 
-  LPPROC_THREAD_ATTRIBUTE_LIST
-  allocate_proc_thread_attr_list(DWORD attribute_count) {
+  LPPROC_THREAD_ATTRIBUTE_LIST allocate_proc_thread_attr_list(DWORD attribute_count) {
     SIZE_T size;
     InitializeProcThreadAttributeList(NULL, attribute_count, 0, &size);
 
@@ -444,8 +425,7 @@ namespace platf {
     return list;
   }
 
-  void
-  free_proc_thread_attr_list(LPPROC_THREAD_ATTRIBUTE_LIST list) {
+  void free_proc_thread_attr_list(LPPROC_THREAD_ATTRIBUTE_LIST list) {
     DeleteProcThreadAttributeList(list);
     HeapFree(GetProcessHeap(), 0, list);
   }
@@ -458,8 +438,7 @@ namespace platf {
    * @param process_info A reference to a `PROCESS_INFORMATION` structure that contains information about the new process.
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch failed.
    */
-  bp::child
-  create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info) {
+  bp::child create_boost_child_from_results(bool process_launched, const std::string &cmd, std::error_code &ec, PROCESS_INFORMATION &process_info) {
     // Use RAII to ensure the process is closed when we're done with it, even if there was an error.
     auto close_process_handles = util::fail_guard([process_launched, process_info]() {
       if (process_launched) {
@@ -478,8 +457,7 @@ namespace platf {
       auto child = bp::child((bp::pid_t) process_info.dwProcessId);
       BOOST_LOG(info) << cmd << " running with PID "sv << child.id();
       return child;
-    }
-    else {
+    } else {
       auto winerror = GetLastError();
       BOOST_LOG(error) << "Failed to launch process: "sv << winerror;
       ec = std::make_error_code(std::errc::invalid_argument);
@@ -496,8 +474,7 @@ namespace platf {
    * @param callback A function that will be executed while impersonating the user.
    * @return Object that will store any error that occurred during the impersonation
    */
-  std::error_code
-  impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
+  std::error_code impersonate_current_user(HANDLE user_token, std::function<void()> callback) {
     std::error_code ec;
     // Impersonate the user when launching the process. This will ensure that appropriate access
     // checks are done against the user token, not our SYSTEM token. It will also allow network
@@ -534,8 +511,7 @@ namespace platf {
    * @param ec A reference to a `std::error_code` object that will store any error that occurred during the creation of the structure.
    * @return A structure that contains information about how to launch the new process.
    */
-  STARTUPINFOEXW
-  create_startup_info(FILE *file, HANDLE *job, std::error_code &ec) {
+  STARTUPINFOEXW create_startup_info(FILE *file, HANDLE *job, std::error_code &ec) {
     // Initialize a zeroed-out STARTUPINFOEXW structure and set its size
     STARTUPINFOEXW startup_info = {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
@@ -563,13 +539,7 @@ namespace platf {
       //
       // Note: The value we point to here must be valid for the lifetime of the attribute list,
       // so we need to point into the STARTUPINFO instead of our log_file_variable on the stack.
-      UpdateProcThreadAttribute(startup_info.lpAttributeList,
-        0,
-        PROC_THREAD_ATTRIBUTE_HANDLE_LIST,
-        &startup_info.StartupInfo.hStdOutput,
-        sizeof(startup_info.StartupInfo.hStdOutput),
-        NULL,
-        NULL);
+      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &startup_info.StartupInfo.hStdOutput, sizeof(startup_info.StartupInfo.hStdOutput), NULL, NULL);
     }
 
     if (job) {
@@ -577,13 +547,7 @@ namespace platf {
       //
       // Note: The value we point to here must be valid for the lifetime of the attribute list,
       // so we take a HANDLE* instead of just a HANDLE to use the caller's stack storage.
-      UpdateProcThreadAttribute(startup_info.lpAttributeList,
-        0,
-        PROC_THREAD_ATTRIBUTE_JOB_LIST,
-        job,
-        sizeof(*job),
-        NULL,
-        NULL);
+      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, job, sizeof(*job), NULL, NULL);
     }
 
     return startup_info;
@@ -594,8 +558,7 @@ namespace platf {
    * @param token The primary token identifying the user to use, or `NULL` to restore original keys.
    * @return `true` if the override or restore operation was successful.
    */
-  bool
-  override_per_user_predefined_keys(HANDLE token) {
+  bool override_per_user_predefined_keys(HANDLE token) {
     HKEY user_classes_root = NULL;
     if (token) {
       auto err = RegOpenUserClassesRoot(token, 0, GENERIC_ALL, &user_classes_root);
@@ -651,8 +614,7 @@ namespace platf {
    * @param argument The raw argument to process.
    * @return An argument string suitable for use by CreateProcess().
    */
-  std::wstring
-  escape_argument(const std::wstring &argument) {
+  std::wstring escape_argument(const std::wstring &argument) {
     // If there are no characters requiring quoting/escaping, we're done
     if (argument.find_first_of(L" \t\n\v\"") == argument.npos) {
       return argument;
@@ -672,11 +634,9 @@ namespace platf {
       if (it == argument.end()) {
         escaped_arg.append(backslash_count * 2, L'\\');
         break;
-      }
-      else if (*it == L'"') {
+      } else if (*it == L'"') {
         escaped_arg.append(backslash_count * 2 + 1, L'\\');
-      }
-      else {
+      } else {
         escaped_arg.append(backslash_count, L'\\');
       }
 
@@ -691,8 +651,7 @@ namespace platf {
    * @param argument An argument already escaped by `escape_argument()`.
    * @return An argument string suitable for use by cmd.exe.
    */
-  std::wstring
-  escape_argument_for_cmd(const std::wstring &argument) {
+  std::wstring escape_argument_for_cmd(const std::wstring &argument) {
     // Start with the original string and modify from there
     std::wstring escaped_arg = argument;
 
@@ -716,8 +675,7 @@ namespace platf {
    * @param creation_flags The creation flags for CreateProcess(), which may be modified by this function.
    * @return A command string suitable for use by CreateProcess().
    */
-  std::wstring
-  resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token, DWORD &creation_flags) {
+  std::wstring resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token, DWORD &creation_flags) {
     std::wstring raw_cmd_w = from_utf8(raw_cmd);
 
     // First, convert the given command into parts so we can get the executable/file/URL without parameters
@@ -744,16 +702,14 @@ namespace platf {
 
       // If the target is a URL, the class is found using the URL scheme (prior to and not including the ':')
       lookup_string = scheme.data();
-    }
-    else {
+    } else {
       // If the target is not a URL, assume it's a regular file path
       auto extension = PathFindExtensionW(raw_target.c_str());
       if (extension == nullptr || *extension == 0) {
         // If the file has no extension, assume it's a command and allow CreateProcess()
         // to try to find it via PATH
         return from_utf8(raw_cmd);
-      }
-      else if (boost::iequals(extension, L".exe")) {
+      } else if (boost::iequals(extension, L".exe")) {
         // If the file has an .exe extension, we will bypass the resolution here and
         // directly pass the unmodified command string to CreateProcess(). The argument
         // escaping rules are subtly different between CreateProcess() and ShellExecute(),
@@ -814,7 +770,7 @@ namespace platf {
     // uncommon ones that are unsupported here.
     //
     // https://web.archive.org/web/20111002101214/http://msdn.microsoft.com/en-us/library/windows/desktop/cc144101(v=vs.85).aspx
-    std::wstring cmd_string { shell_command_string.data() };
+    std::wstring cmd_string {shell_command_string.data()};
     size_t match_pos = 0;
     while ((match_pos = cmd_string.find_first_of(L'%', match_pos)) != std::wstring::npos) {
       std::wstring match_replacement;
@@ -843,19 +799,20 @@ namespace platf {
         case L'6':
         case L'7':
         case L'8':
-        case L'9': {
-          // Arguments numbers are 1-based, except for %0 which is equivalent to %1
-          int index = next_char - L'0';
-          if (next_char != L'0') {
-            index--;
-          }
+        case L'9':
+          {
+            // Arguments numbers are 1-based, except for %0 which is equivalent to %1
+            int index = next_char - L'0';
+            if (next_char != L'0') {
+              index--;
+            }
 
-          // Replace with the matching argument, or nothing if the index is invalid
-          if (index < raw_cmd_parts.size()) {
-            match_replacement = raw_cmd_parts.at(index);
+            // Replace with the matching argument, or nothing if the index is invalid
+            if (index < raw_cmd_parts.size()) {
+              match_replacement = raw_cmd_parts.at(index);
+            }
+            break;
           }
-          break;
-        }
 
         // All arguments following the target
         case L'*':
@@ -878,29 +835,29 @@ namespace platf {
         // Long file path of target
         case L'l':
         case L'd':
-        case L'v': {
-          std::array<WCHAR, MAX_PATH> path;
-          std::array<PCWCHAR, 2> other_dirs { working_dir.c_str(), nullptr };
+        case L'v':
+          {
+            std::array<WCHAR, MAX_PATH> path;
+            std::array<PCWCHAR, 2> other_dirs {working_dir.c_str(), nullptr};
 
-          // PathFindOnPath() is a little gross because it uses the same
-          // buffer for input and output, so we need to copy our input
-          // into the path array.
-          std::wcsncpy(path.data(), raw_target.c_str(), path.size());
-          if (path[path.size() - 1] != 0) {
-            // The path was so long it was truncated by this copy. We'll
-            // assume it was an absolute path (likely) and use it unmodified.
-            match_replacement = raw_target;
+            // PathFindOnPath() is a little gross because it uses the same
+            // buffer for input and output, so we need to copy our input
+            // into the path array.
+            std::wcsncpy(path.data(), raw_target.c_str(), path.size());
+            if (path[path.size() - 1] != 0) {
+              // The path was so long it was truncated by this copy. We'll
+              // assume it was an absolute path (likely) and use it unmodified.
+              match_replacement = raw_target;
+            }
+            // See if we can find the path on our search path or working directory
+            else if (PathFindOnPathW(path.data(), other_dirs.data())) {
+              match_replacement = std::wstring {path.data()};
+            } else {
+              // We couldn't find the target, so we'll just hope for the best
+              match_replacement = raw_target;
+            }
+            break;
           }
-          // See if we can find the path on our search path or working directory
-          else if (PathFindOnPathW(path.data(), other_dirs.data())) {
-            match_replacement = std::wstring { path.data() };
-          }
-          else {
-            // We couldn't find the target, so we'll just hope for the best
-            match_replacement = raw_target;
-          }
-          break;
-        }
 
         // Working directory
         case L'w':
@@ -938,8 +895,7 @@ namespace platf {
    * @param group A pointer to a `bp::group` object to which the new process should belong (may be `nullptr`).
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
-  bp::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     std::wstring start_dir = from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
@@ -967,9 +923,11 @@ namespace platf {
 
     // Find the PATH variable in our environment block using a case-insensitive search
     auto sunshine_wenv = boost::this_process::wenvironment();
-    std::wstring path_var_name { L"PATH" };
+    std::wstring path_var_name {L"PATH"};
     std::wstring old_path_val;
-    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) { return boost::iequals(e.get_name(), path_var_name); });
+    auto itr = std::find_if(sunshine_wenv.cbegin(), sunshine_wenv.cend(), [&](const auto &e) {
+      return boost::iequals(e.get_name(), path_var_name);
+    });
     if (itr != sunshine_wenv.cend()) {
       // Use the existing variable if it exists, since Boost treats these as case-sensitive.
       path_var_name = itr->get_name();
@@ -984,8 +942,7 @@ namespace platf {
     auto restore_path = util::fail_guard([&]() {
       if (old_path_val.empty()) {
         sunshine_wenv[path_var_name].clear();
-      }
-      else {
+      } else {
         sunshine_wenv[path_var_name].assign(old_path_val);
       }
     });
@@ -1015,17 +972,7 @@ namespace platf {
       ec = impersonate_current_user(user_token, [&]() {
         std::wstring env_block = create_environment_block(cloned_env);
         std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
-        ret = CreateProcessAsUserW(user_token,
-          NULL,
-          (LPWSTR) wcmd.c_str(),
-          NULL,
-          NULL,
-          !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-          creation_flags,
-          env_block.data(),
-          start_dir.empty() ? NULL : start_dir.c_str(),
-          (LPSTARTUPINFOW) &startup_info,
-          &process_info);
+        ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
       });
     }
     // Otherwise, launch the process using CreateProcessW()
@@ -1049,16 +996,7 @@ namespace platf {
 
       std::wstring env_block = create_environment_block(cloned_env);
       std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
-      ret = CreateProcessW(NULL,
-        (LPWSTR) wcmd.c_str(),
-        NULL,
-        NULL,
-        !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES),
-        creation_flags,
-        env_block.data(),
-        start_dir.empty() ? NULL : start_dir.c_str(),
-        (LPSTARTUPINFOW) &startup_info,
-        &process_info);
+      ret = CreateProcessW(NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
     }
 
     // Use the results of the launch to create a bp::child object
@@ -1069,8 +1007,7 @@ namespace platf {
    * @brief Open a url in the default web browser.
    * @param url The url to open.
    */
-  void
-  open_url(const std::string &url) {
+  void open_url(const std::string &url) {
     boost::process::v1::environment _env = boost::this_process::environment();
     auto working_dir = boost::filesystem::path();
     std::error_code ec;
@@ -1078,15 +1015,13 @@ namespace platf {
     auto child = run_command(false, false, url, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
       BOOST_LOG(warning) << "Couldn't open url ["sv << url << "]: System: "sv << ec.message();
-    }
-    else {
+    } else {
       BOOST_LOG(info) << "Opened url ["sv << url << "]"sv;
       child.detach();
     }
   }
 
-  void
-  adjust_thread_priority(thread_priority_e priority) {
+  void adjust_thread_priority(thread_priority_e priority) {
     int win32_priority;
 
     switch (priority) {
@@ -1113,8 +1048,7 @@ namespace platf {
     }
   }
 
-  void
-  streaming_will_start() {
+  void streaming_will_start() {
     static std::once_flag load_wlanapi_once_flag;
     std::call_once(load_wlanapi_once_flag, []() {
       // wlanapi.dll is not installed by default on Windows Server, so we load it dynamically
@@ -1150,8 +1084,7 @@ namespace platf {
     // Reduce timer period to 0.5ms
     if (nt_set_timer_resolution_max()) {
       used_nt_set_timer_resolution = true;
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "NtSetTimerResolution() failed, falling back to timeBeginPeriod()";
       timeBeginPeriod(1);
       used_nt_set_timer_resolution = false;
@@ -1186,8 +1119,7 @@ namespace platf {
               // https://docs.microsoft.com/en-us/windows-hardware/drivers/network/oid-wdi-set-connection-quality
               // https://docs.microsoft.com/en-us/previous-versions/windows/hardware/wireless/native-802-11-media-streaming
               BOOL value = TRUE;
-              auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid,
-                wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
+              auto error = fn_WlanSetInterface(wlan_handle, &wlan_interface_list->InterfaceInfo[i].InterfaceGuid, wlan_intf_opcode_media_streaming_mode, sizeof(value), &value, nullptr);
               if (error == ERROR_SUCCESS) {
                 BOOST_LOG(info) << "WLAN interface "sv << i << " is now in low latency mode"sv;
               }
@@ -1195,8 +1127,7 @@ namespace platf {
           }
 
           fn_WlanFreeMemory(wlan_interface_list);
-        }
-        else {
+        } else {
           fn_WlanCloseHandle(wlan_handle, nullptr);
           wlan_handle = NULL;
         }
@@ -1220,21 +1151,18 @@ namespace platf {
         if (SystemParametersInfoW(SPI_SETMOUSEKEYS, 0, &new_mouse_keys_state, 0)) {
           // Remember to restore the previous settings when we stop streaming
           enabled_mouse_keys = true;
-        }
-        else {
+        } else {
           auto winerr = GetLastError();
           BOOST_LOG(warning) << "Unable to enable Mouse Keys: "sv << winerr;
         }
-      }
-      else {
+      } else {
         auto winerr = GetLastError();
         BOOST_LOG(warning) << "Unable to get current state of Mouse Keys: "sv << winerr;
       }
     }
   }
 
-  void
-  streaming_will_stop() {
+  void streaming_will_stop() {
     // Demote ourselves back to normal priority class
     SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 
@@ -1244,8 +1172,7 @@ namespace platf {
       if (!nt_set_timer_resolution_min()) {
         BOOST_LOG(error) << "nt_set_timer_resolution_min() failed even though nt_set_timer_resolution_max() succeeded";
       }
-    }
-    else {
+    } else {
       timeEndPeriod(1);
     }
 
@@ -1268,8 +1195,7 @@ namespace platf {
     }
   }
 
-  void
-  restart_on_exit() {
+  void restart_on_exit() {
     STARTUPINFOEXW startup_info {};
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
@@ -1281,16 +1207,7 @@ namespace platf {
     }
 
     PROCESS_INFORMATION process_info;
-    if (!CreateProcessW(executable,
-          GetCommandLineW(),
-          nullptr,
-          nullptr,
-          false,
-          CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT,
-          nullptr,
-          nullptr,
-          (LPSTARTUPINFOW) &startup_info,
-          &process_info)) {
+    if (!CreateProcessW(executable, GetCommandLineW(), nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT | EXTENDED_STARTUPINFO_PRESENT, nullptr, nullptr, (LPSTARTUPINFOW) &startup_info, &process_info)) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Unable to restart Sunshine: "sv << winerr;
       return;
@@ -1300,8 +1217,7 @@ namespace platf {
     CloseHandle(process_info.hThread);
   }
 
-  void
-  restart() {
+  void restart() {
     // If we're running standalone, we have to respawn ourselves via CreateProcess().
     // If we're running from the service, we should just exit and let it respawn us.
     if (GetConsoleWindow() != NULL) {
@@ -1313,13 +1229,11 @@ namespace platf {
     lifetime::exit_sunshine(0, true);
   }
 
-  int
-  set_env(const std::string &name, const std::string &value) {
+  int set_env(const std::string &name, const std::string &value) {
     return _putenv_s(name.c_str(), value.c_str());
   }
 
-  int
-  unset_env(const std::string &name) {
+  int unset_env(const std::string &name) {
     return _putenv_s(name.c_str(), "");
   }
 
@@ -1328,8 +1242,7 @@ namespace platf {
     bool requested_exit;
   };
 
-  static BOOL CALLBACK
-  prgrp_enum_windows(HWND hwnd, LPARAM lParam) {
+  static BOOL CALLBACK prgrp_enum_windows(HWND hwnd, LPARAM lParam) {
     auto enum_ctx = (enum_wnd_context_t *) lParam;
 
     // Find the owner PID of this window
@@ -1345,8 +1258,7 @@ namespace platf {
       if (SendNotifyMessageW(hwnd, WM_CLOSE, 0, 0)) {
         BOOST_LOG(debug) << "Sent WM_CLOSE to PID: "sv << wnd_process_id;
         enum_ctx->requested_exit = true;
-      }
-      else {
+      } else {
         auto error = GetLastError();
         BOOST_LOG(warning) << "Failed to send WM_CLOSE to PID ["sv << wnd_process_id << "]: " << error;
       }
@@ -1356,8 +1268,7 @@ namespace platf {
     return TRUE;
   }
 
-  bool
-  request_process_group_exit(std::uintptr_t native_handle) {
+  bool request_process_group_exit(std::uintptr_t native_handle) {
     auto job_handle = (HANDLE) native_handle;
 
     // Get list of all processes in our job object
@@ -1367,8 +1278,7 @@ namespace platf {
     auto fg = util::fail_guard([&process_id_list]() {
       free(process_id_list);
     });
-    while (!(success = QueryInformationJobObject(job_handle, JobObjectBasicProcessIdList,
-               process_id_list, required_length, &required_length)) &&
+    while (!(success = QueryInformationJobObject(job_handle, JobObjectBasicProcessIdList, process_id_list, required_length, &required_length)) &&
            GetLastError() == ERROR_MORE_DATA) {
       free(process_id_list);
       process_id_list = (PJOBOBJECT_BASIC_PROCESS_ID_LIST) calloc(1, required_length);
@@ -1381,8 +1291,7 @@ namespace platf {
       auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to enumerate processes in group: "sv << err;
       return false;
-    }
-    else if (process_id_list->NumberOfProcessIdsInList == 0) {
+    } else if (process_id_list->NumberOfProcessIdsInList == 0) {
       // If all processes are already dead, treat it as a success
       return true;
     }
@@ -1400,8 +1309,7 @@ namespace platf {
     return enum_ctx.requested_exit;
   }
 
-  bool
-  process_group_running(std::uintptr_t native_handle) {
+  bool process_group_running(std::uintptr_t native_handle) {
     JOBOBJECT_BASIC_ACCOUNTING_INFORMATION accounting_info;
 
     if (!QueryInformationJobObject((HANDLE) native_handle, JobObjectBasicAccountingInformation, &accounting_info, sizeof(accounting_info), nullptr)) {
@@ -1413,8 +1321,7 @@ namespace platf {
     return accounting_info.ActiveProcesses != 0;
   }
 
-  SOCKADDR_IN
-  to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+  SOCKADDR_IN to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
     SOCKADDR_IN saddr_v4 = {};
 
     saddr_v4.sin_family = AF_INET;
@@ -1426,8 +1333,7 @@ namespace platf {
     return saddr_v4;
   }
 
-  SOCKADDR_IN6
-  to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+  SOCKADDR_IN6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
     SOCKADDR_IN6 saddr_v6 = {};
 
     saddr_v6.sin6_family = AF_INET6;
@@ -1442,8 +1348,7 @@ namespace platf {
 
   // Use UDP segmentation offload if it is supported by the OS. If the NIC is capable, this will use
   // hardware acceleration to reduce CPU usage. Support for USO was introduced in Windows 10 20H1.
-  bool
-  send_batch(batched_send_info_t &send_info) {
+  bool send_batch(batched_send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1454,8 +1359,7 @@ namespace platf {
 
       msg.name = (PSOCKADDR) &taddr_v6;
       msg.namelen = sizeof(taddr_v6);
-    }
-    else {
+    } else {
       taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
 
       msg.name = (PSOCKADDR) &taddr_v4;
@@ -1477,8 +1381,7 @@ namespace platf {
         bufs[bufcount].len = send_info.payload_size;
         bufcount++;
       }
-    }
-    else {
+    } else {
       // Translate buffer descriptors into WSABUFs
       auto payload_offset = send_info.block_offset * send_info.payload_size;
       auto payload_length = payload_offset + (send_info.block_count * send_info.payload_size);
@@ -1496,8 +1399,7 @@ namespace platf {
     msg.dwFlags = 0;
 
     // At most, one DWORD option and one PKTINFO option
-    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD)) +
-               std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
+    char cmbuf[WSA_CMSG_SPACE(sizeof(DWORD)) + std::max(WSA_CMSG_SPACE(sizeof(IN6_PKTINFO)), WSA_CMSG_SPACE(sizeof(IN_PKTINFO)))] = {};
     ULONG cmbuflen = 0;
 
     msg.Control.buf = cmbuf;
@@ -1517,8 +1419,7 @@ namespace platf {
       cm->cmsg_type = IPV6_PKTINFO;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
       memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
-    else {
+    } else {
       IN_PKTINFO pktInfo;
 
       SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -1550,8 +1451,7 @@ namespace platf {
     return WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
   }
 
-  bool
-  send(send_info_t &send_info) {
+  bool send(send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1562,8 +1462,7 @@ namespace platf {
 
       msg.name = (PSOCKADDR) &taddr_v6;
       msg.namelen = sizeof(taddr_v6);
-    }
-    else {
+    } else {
       taddr_v4 = to_sockaddr(send_info.target_address.to_v4(), send_info.target_port);
 
       msg.name = (PSOCKADDR) &taddr_v4;
@@ -1605,8 +1504,7 @@ namespace platf {
       cm->cmsg_type = IPV6_PKTINFO;
       cm->cmsg_len = WSA_CMSG_LEN(sizeof(pktInfo));
       memcpy(WSA_CMSG_DATA(cm), &pktInfo, sizeof(pktInfo));
-    }
-    else {
+    } else {
       IN_PKTINFO pktInfo;
 
       SOCKADDR_IN saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -1636,7 +1534,8 @@ namespace platf {
   class qos_t: public deinit_t {
   public:
     qos_t(QOS_FLOWID flow_id):
-        flow_id(flow_id) {}
+        flow_id(flow_id) {
+    }
 
     virtual ~qos_t() {
       if (!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET) NULL, flow_id, 0)) {
@@ -1657,8 +1556,7 @@ namespace platf {
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
-  std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;
@@ -1693,7 +1591,7 @@ namespace platf {
         return;
       }
 
-      QOS_VERSION qos_version { 1, 0 };
+      QOS_VERSION qos_version {1, 0};
       if (!fn_QOSCreateHandle(&qos_version, &qos_handle)) {
         auto winerr = GetLastError();
         BOOST_LOG(warning) << "QOSCreateHandle() failed: "sv << winerr;
@@ -1733,15 +1631,13 @@ namespace platf {
         if (connect((SOCKET) native_socket, (PSOCKADDR) &saddr_v6, sizeof(saddr_v6)) < 0) {
           auto wsaerr = WSAGetLastError();
           BOOST_LOG(error) << "qWAVE dual-stack workaround failed: "sv << wsaerr;
-        }
-        else {
+        } else {
           BOOST_LOG(debug) << "Using qWAVE connect() workaround for QoS tagging"sv;
           using_connect_hack = true;
           dest_addr = nullptr;
         }
       }
-    }
-    else {
+    } else {
       saddr_v4 = to_sockaddr(address.to_v4(), port);
       dest_addr = (PSOCKADDR) &saddr_v4;
     }
@@ -1768,15 +1664,16 @@ namespace platf {
 
     return std::make_unique<qos_t>(flow_id);
   }
-  int64_t
-  qpc_counter() {
+
+  int64_t qpc_counter() {
     LARGE_INTEGER performance_counter;
-    if (QueryPerformanceCounter(&performance_counter)) return performance_counter.QuadPart;
+    if (QueryPerformanceCounter(&performance_counter)) {
+      return performance_counter.QuadPart;
+    }
     return 0;
   }
 
-  std::chrono::nanoseconds
-  qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
+  std::chrono::nanoseconds qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2) {
     auto get_frequency = []() {
       LARGE_INTEGER frequency;
       frequency.QuadPart = 0;
@@ -1790,8 +1687,7 @@ namespace platf {
     return {};
   }
 
-  std::wstring
-  from_utf8(const std::string &string) {
+  std::wstring from_utf8(const std::string &string) {
     // No conversion needed if the string is empty
     if (string.empty()) {
       return {};
@@ -1817,16 +1713,14 @@ namespace platf {
     return output;
   }
 
-  std::string
-  to_utf8(const std::wstring &string) {
+  std::string to_utf8(const std::wstring &string) {
     // No conversion needed if the string is empty
     if (string.empty()) {
       return {};
     }
 
     // Get the output size required to store the string
-    auto output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(),
-      nullptr, 0, nullptr, nullptr);
+    auto output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0, nullptr, nullptr);
     if (output_size == 0) {
       auto winerr = GetLastError();
       BOOST_LOG(error) << "Failed to get UTF-8 buffer size: "sv << winerr;
@@ -1835,8 +1729,7 @@ namespace platf {
 
     // Perform the conversion
     std::string output(output_size, '\0');
-    output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(),
-      output.data(), output.size(), nullptr, nullptr);
+    output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size(), nullptr, nullptr);
     if (output_size == 0) {
       auto winerr = GetLastError();
       BOOST_LOG(error) << "Failed to convert string to UTF-8: "sv << winerr;
@@ -1846,8 +1739,7 @@ namespace platf {
     return output;
   }
 
-  std::string
-  get_host_name() {
+  std::string get_host_name() {
     WCHAR hostname[256];
     if (GetHostNameW(hostname, ARRAYSIZE(hostname)) == SOCKET_ERROR) {
       BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
@@ -1870,11 +1762,12 @@ namespace platf {
     }
 
     ~win32_high_precision_timer() {
-      if (timer) CloseHandle(timer);
+      if (timer) {
+        CloseHandle(timer);
+      }
     }
 
-    void
-    sleep_for(const std::chrono::nanoseconds &duration) override {
+    void sleep_for(const std::chrono::nanoseconds &duration) override {
       if (!timer) {
         BOOST_LOG(error) << "Attempting high_precision_timer::sleep_for() with uninitialized timer";
         return;
@@ -1902,8 +1795,7 @@ namespace platf {
     HANDLE timer = NULL;
   };
 
-  std::unique_ptr<high_precision_timer>
-  create_high_precision_timer() {
+  std::unique_ptr<high_precision_timer> create_high_precision_timer() {
     return std::make_unique<win32_high_precision_timer>();
   }
 }  // namespace platf

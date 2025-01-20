@@ -3,6 +3,7 @@
  * @brief Definitions for FFmpeg Coded Bitstream API.
  */
 extern "C" {
+// lib includes
 #include <libavcodec/avcodec.h>
 #include <libavcodec/cbs_h264.h>
 #include <libavcodec/cbs_h265.h>
@@ -10,14 +11,15 @@ extern "C" {
 #include <libavutil/pixdesc.h>
 }
 
+// local includes
 #include "cbs.h"
 #include "logging.h"
 #include "utility.h"
 
 using namespace std::literals;
+
 namespace cbs {
-  void
-  close(CodedBitstreamContext *c) {
+  void close(CodedBitstreamContext *c) {
     ff_cbs_close(&c);
   }
 
@@ -36,8 +38,7 @@ namespace cbs {
       std::fill_n((std::uint8_t *) this, sizeof(*this), 0);
     }
 
-    frag_t &
-    operator=(frag_t &&o) {
+    frag_t &operator=(frag_t &&o) {
       std::copy((std::uint8_t *) &o, (std::uint8_t *) (&o + 1), (std::uint8_t *) this);
 
       o.data = nullptr;
@@ -53,12 +54,11 @@ namespace cbs {
     }
   };
 
-  util::buffer_t<std::uint8_t>
-  write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  util::buffer_t<std::uint8_t> write(cbs::ctx_t &cbs_ctx, std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::frag_t frag;
     auto err = ff_cbs_insert_unit_content(&frag, -1, nal, uh, nullptr);
     if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Could not insert NAL unit SPS: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return {};
@@ -66,29 +66,27 @@ namespace cbs {
 
     err = ff_cbs_write_fragment_data(cbs_ctx.get(), &frag);
     if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Could not write fragment data: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return {};
     }
 
     // frag.data_size * 8 - frag.data_bit_padding == bits in fragment
-    util::buffer_t<std::uint8_t> data { frag.data_size };
+    util::buffer_t<std::uint8_t> data {frag.data_size};
     std::copy_n(frag.data, frag.data_size, std::begin(data));
 
     return data;
   }
 
-  util::buffer_t<std::uint8_t>
-  write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
+  util::buffer_t<std::uint8_t> write(std::uint8_t nal, void *uh, AVCodecID codec_id) {
     cbs::ctx_t cbs_ctx;
     ff_cbs_init(&cbs_ctx, codec_id, nullptr);
 
     return write(cbs_ctx, nal, uh, codec_id);
   }
 
-  h264_t
-  make_sps_h264(const AVCodecContext *avctx, const AVPacket *packet) {
+  h264_t make_sps_h264(const AVCodecContext *avctx, const AVPacket *packet) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, AV_CODEC_ID_H264, nullptr)) {
       return {};
@@ -98,7 +96,7 @@ namespace cbs {
 
     int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
     if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return {};
@@ -144,8 +142,7 @@ namespace cbs {
     };
   }
 
-  hevc_t
-  make_sps_hevc(const AVCodecContext *avctx, const AVPacket *packet) {
+  hevc_t make_sps_hevc(const AVCodecContext *avctx, const AVPacket *packet) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, AV_CODEC_ID_H265, nullptr)) {
       return {};
@@ -155,7 +152,7 @@ namespace cbs {
 
     int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
     if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return {};
@@ -222,8 +219,7 @@ namespace cbs {
    * It then checks if the SPS->VUI (Video Usability Information) is present in the active SPS of the packet.
    * This is done for both H264 and H265 codecs.
    */
-  bool
-  validate_sps(const AVPacket *packet, int codec_id) {
+  bool validate_sps(const AVPacket *packet, int codec_id) {
     cbs::ctx_t ctx;
     if (ff_cbs_init(&ctx, (AVCodecID) codec_id, nullptr)) {
       return false;
@@ -233,7 +229,7 @@ namespace cbs {
 
     int err = ff_cbs_read_packet(ctx.get(), &frag, packet);
     if (err < 0) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Couldn't read packet: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return false;

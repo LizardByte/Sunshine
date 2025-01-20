@@ -3,8 +3,10 @@
  * @brief Definitions for native Direct3D11 NVENC encoder.
  */
 #ifdef _WIN32
+  // this include
   #include "nvenc_d3d11_native.h"
 
+  // local includes
   #include "nvenc_utils.h"
 
 namespace nvenc {
@@ -16,16 +18,17 @@ namespace nvenc {
   }
 
   nvenc_d3d11_native::~nvenc_d3d11_native() {
-    if (encoder) destroy_encoder();
+    if (encoder) {
+      destroy_encoder();
+    }
   }
 
   ID3D11Texture2D *
-  nvenc_d3d11_native::get_input_texture() {
+    nvenc_d3d11_native::get_input_texture() {
     return d3d_input_texture.GetInterfacePtr();
   }
 
-  bool
-  nvenc_d3d11_native::create_and_register_input_buffer() {
+  bool nvenc_d3d11_native::create_and_register_input_buffer() {
     if (encoder_params.buffer_format == NV_ENC_BUFFER_FORMAT_YUV444_10BIT) {
       BOOST_LOG(error) << "NvEnc: 10-bit 4:4:4 encoding is incompatible with D3D11 surface formats, use CUDA interop";
       return false;
@@ -48,7 +51,7 @@ namespace nvenc {
     }
 
     if (!registered_input_buffer) {
-      NV_ENC_REGISTER_RESOURCE register_resource = { min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4) };
+      NV_ENC_REGISTER_RESOURCE register_resource = {min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4)};
       register_resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_DIRECTX;
       register_resource.width = encoder_params.width;
       register_resource.height = encoder_params.height;

@@ -2,13 +2,15 @@
  * @file src/platform/linux/cuda.cpp
  * @brief Definitions for CUDA encoding.
  */
+// standard includes
 #include <bitset>
 #include <fcntl.h>
 #include <filesystem>
 #include <thread>
 
-#include <NvFBC.h>
+// lib includes
 #include <ffnvcodec/dynlink_loader.h>
+#include <NvFBC.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -16,6 +18,7 @@ extern "C" {
 #include <libavutil/imgutils.h>
 }
 
+// local includes
 #include "cuda.h"
 #include "graphics.h"
 #include "src/logging.h"
@@ -27,7 +30,8 @@ extern "C" {
 #define SUNSHINE_STRINGVIEW(x) SUNSHINE_STRINGVIEW_HELPER(x)
 
 #define CU_CHECK(x, y) \
-  if (check((x), SUNSHINE_STRINGVIEW(y ": "))) return -1
+  if (check((x), SUNSHINE_STRINGVIEW(y ": "))) \
+  return -1
 
 #define CU_CHECK_IGNORE(x, y) \
   check((x), SUNSHINE_STRINGVIEW(y ": "))
@@ -35,17 +39,16 @@ extern "C" {
 namespace fs = std::filesystem;
 
 using namespace std::literals;
+
 namespace cuda {
   constexpr auto cudaDevAttrMaxThreadsPerBlock = (CUdevice_attribute) 1;
   constexpr auto cudaDevAttrMaxThreadsPerMultiProcessor = (CUdevice_attribute) 39;
 
-  void
-  pass_error(const std::string_view &sv, const char *name, const char *description) {
+  void pass_error(const std::string_view &sv, const char *name, const char *description) {
     BOOST_LOG(error) << sv << name << ':' << description;
   }
 
-  void
-  cff(CudaFunctions *cf) {
+  void cff(CudaFunctions *cf) {
     cuda_free_functions(&cf);
   }
 
@@ -53,8 +56,7 @@ namespace cuda {
 
   static cdf_t cdf;
 
-  inline static int
-  check(CUresult result, const std::string_view &sv) {
+  inline static int check(CUresult result, const std::string_view &sv) {
     if (result != CUDA_SUCCESS) {
       const char *name;
       const char *description;
@@ -69,13 +71,11 @@ namespace cuda {
     return 0;
   }
 
-  void
-  freeStream(CUstream stream) {
+  void freeStream(CUstream stream) {
     CU_CHECK_IGNORE(cdf->cuStreamDestroy(stream), "Couldn't destroy cuda stream");
   }
 
-  void
-  unregisterResource(CUgraphicsResource resource) {
+  void unregisterResource(CUgraphicsResource resource) {
     CU_CHECK_IGNORE(cdf->cuGraphicsUnregisterResource(resource), "Couldn't unregister resource");
   }
 
@@ -86,8 +86,7 @@ namespace cuda {
     tex_t tex;
   };
 
-  int
-  init() {
+  int init() {
     auto status = cuda_load_functions(&cdf, nullptr);
     if (status) {
       BOOST_LOG(error) << "Couldn't load cuda: "sv << status;
@@ -102,8 +101,7 @@ namespace cuda {
 
   class cuda_t: public platf::avcodec_encode_device_t {
   public:
-    int
-    init(int in_width, int in_height) {
+    int init(int in_width, int in_height) {
       if (!cdf) {
         BOOST_LOG(warning) << "cuda not initialized"sv;
         return -1;
@@ -117,8 +115,7 @@ namespace cuda {
       return 0;
     }
 
-    int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
+    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
@@ -156,8 +153,7 @@ namespace cuda {
       return 0;
     }
 
-    void
-    apply_colorspace() override {
+    void apply_colorspace() override {
       sws.apply_colorspace(colorspace);
 
       auto tex = tex_t::make(height, width * 4);
@@ -182,11 +178,10 @@ namespace cuda {
         return;
       }
 
-      sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), { frame->width, frame->height, 0, 0 });
+      sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
     }
 
-    cudaTextureObject_t
-    tex_obj(const tex_t &tex) const {
+    cudaTextureObject_t tex_obj(const tex_t &tex) const {
       return linear_interpolation ? tex.texture.linear : tex.texture.point;
     }
 
@@ -203,13 +198,11 @@ namespace cuda {
 
   class cuda_ram_t: public cuda_t {
   public:
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
     }
 
-    int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
       if (cuda_t::set_frame(frame, hw_frames_ctx)) {
         return -1;
       }
@@ -229,8 +222,7 @@ namespace cuda {
 
   class cuda_vram_t: public cuda_t {
   public:
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
     }
   };
@@ -240,8 +232,7 @@ namespace cuda {
    * @param index CUDA device index to open.
    * @return File descriptor or -1 on failure.
    */
-  file_t
-  open_drm_fd_for_cuda_device(int index) {
+  file_t open_drm_fd_for_cuda_device(int index) {
     CUdevice device;
     CU_CHECK(cdf->cuDeviceGet(&device, index), "Couldn't get CUDA device");
 
@@ -252,29 +243,29 @@ namespace cuda {
     BOOST_LOG(debug) << "Found CUDA device with PCI bus ID: "sv << pci_bus_id.data();
 
     // Linux uses lowercase hexadecimal while CUDA uses uppercase
-    std::transform(pci_bus_id.begin(), pci_bus_id.end(), pci_bus_id.begin(),
-      [](char c) { return std::tolower(c); });
+    std::transform(pci_bus_id.begin(), pci_bus_id.end(), pci_bus_id.begin(), [](char c) {
+      return std::tolower(c);
+    });
 
     // Look for the name of the primary node in sysfs
     try {
       char sysfs_path[PATH_MAX];
       std::snprintf(sysfs_path, sizeof(sysfs_path), "/sys/bus/pci/devices/%s/drm", pci_bus_id.data());
-      fs::path sysfs_dir { sysfs_path };
-      for (auto &entry : fs::directory_iterator { sysfs_dir }) {
+      fs::path sysfs_dir {sysfs_path};
+      for (auto &entry : fs::directory_iterator {sysfs_dir}) {
         auto file = entry.path().filename();
         auto filestring = file.generic_string();
-        if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
+        if (std::string_view {filestring}.substr(0, 4) != "card"sv) {
           continue;
         }
 
         BOOST_LOG(debug) << "Found DRM primary node: "sv << filestring;
 
-        fs::path dri_path { "/dev/dri"sv };
+        fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
         return open(device_path.c_str(), O_RDWR);
       }
-    }
-    catch (const std::filesystem::filesystem_error &err) {
+    } catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(error) << "Failed to read sysfs: "sv << err.what();
     }
 
@@ -292,8 +283,7 @@ namespace cuda {
      * @param offset_y Offset of content in captured frame.
      * @return 0 on success or -1 on failure.
      */
-    int
-    init(int in_width, int in_height, int offset_x, int offset_y) {
+    int init(int in_width, int in_height, int offset_x, int offset_y) {
       // This must be non-zero to tell the video core that it's a hardware encoding device.
       data = (void *) 0x1;
 
@@ -340,8 +330,7 @@ namespace cuda {
      * @param hw_frames_ctx_buf FFmpeg hardware frame context.
      * @return 0 on success or -1 on failure.
      */
-    int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
+    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
@@ -377,10 +366,8 @@ namespace cuda {
 
       cuda_ctx->stream = stream.get();
 
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY),
-        "Couldn't register Y plane texture");
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY),
-        "Couldn't register UV plane texture");
+      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
+      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
 
       return 0;
     }
@@ -390,15 +377,13 @@ namespace cuda {
      * @param img Captured screen image.
      * @return 0 on success or -1 on failure.
      */
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
       if (descriptor.sequence == 0) {
         // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
         rgb = egl::create_blank(img);
-      }
-      else if (descriptor.sequence > sequence) {
+      } else if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
 
         rgb = egl::rgb_t {};
@@ -419,7 +404,7 @@ namespace cuda {
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
 
       // Map the GL textures to read for CUDA
-      CUgraphicsResource resources[2] = { y_res.get(), uv_res.get() };
+      CUgraphicsResource resources[2] = {y_res.get(), uv_res.get()};
       CU_CHECK(cdf->cuGraphicsMapResources(2, resources, stream.get()), "Couldn't map GL textures in CUDA");
 
       // Copy from the GL textures to the target CUDA frame
@@ -445,8 +430,7 @@ namespace cuda {
     /**
      * @brief Configures shader parameters for the specified colorspace.
      */
-    void
-    apply_colorspace() override {
+    void apply_colorspace() override {
       sws.apply_colorspace(colorspace);
     }
 
@@ -474,8 +458,7 @@ namespace cuda {
     int offset_x, offset_y;
   };
 
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_encode_device(int width, int height, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram) {
     if (init()) {
       return nullptr;
     }
@@ -484,8 +467,7 @@ namespace cuda {
 
     if (vram) {
       cuda = std::make_unique<cuda_vram_t>();
-    }
-    else {
+    } else {
       cuda = std::make_unique<cuda_ram_t>();
     }
 
@@ -504,8 +486,7 @@ namespace cuda {
    * @param offset_y Offset of content in captured frame.
    * @return FFmpeg encoding device context.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y) {
     if (init()) {
       return nullptr;
     }
@@ -521,29 +502,30 @@ namespace cuda {
 
   namespace nvfbc {
     static PNVFBCCREATEINSTANCE createInstance {};
-    static NVFBC_API_FUNCTION_LIST func { NVFBC_VERSION };
+    static NVFBC_API_FUNCTION_LIST func {NVFBC_VERSION};
 
-    static constexpr inline NVFBC_BOOL
-    nv_bool(bool b) {
+    static constexpr inline NVFBC_BOOL nv_bool(bool b) {
       return b ? NVFBC_TRUE : NVFBC_FALSE;
     }
 
-    static void *handle { nullptr };
-    int
-    init() {
+    static void *handle {nullptr};
+
+    int init() {
       static bool funcs_loaded = false;
 
-      if (funcs_loaded) return 0;
+      if (funcs_loaded) {
+        return 0;
+      }
 
       if (!handle) {
-        handle = dyn::handle({ "libnvidia-fbc.so.1", "libnvidia-fbc.so" });
+        handle = dyn::handle({"libnvidia-fbc.so.1", "libnvidia-fbc.so"});
         if (!handle) {
           return -1;
         }
       }
 
       std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-        { (dyn::apiproc *) &createInstance, "NvFBCCreateInstance" },
+        {(dyn::apiproc *) &createInstance, "NvFBCCreateInstance"},
       };
 
       if (dyn::load(handle, funcs)) {
@@ -569,7 +551,7 @@ namespace cuda {
     class ctx_t {
     public:
       ctx_t(NVFBC_SESSION_HANDLE handle) {
-        NVFBC_BIND_CONTEXT_PARAMS params { NVFBC_BIND_CONTEXT_PARAMS_VER };
+        NVFBC_BIND_CONTEXT_PARAMS params {NVFBC_BIND_CONTEXT_PARAMS_VER};
 
         if (func.nvFBCBindContext(handle, &params)) {
           BOOST_LOG(error) << "Couldn't bind NvFBC context to current thread: " << func.nvFBCGetLastErrorStr(handle);
@@ -579,7 +561,7 @@ namespace cuda {
       }
 
       ~ctx_t() {
-        NVFBC_RELEASE_CONTEXT_PARAMS params { NVFBC_RELEASE_CONTEXT_PARAMS_VER };
+        NVFBC_RELEASE_CONTEXT_PARAMS params {NVFBC_RELEASE_CONTEXT_PARAMS_VER};
         if (func.nvFBCReleaseContext(handle, &params)) {
           BOOST_LOG(error) << "Couldn't release NvFBC context from current thread: " << func.nvFBCGetLastErrorStr(handle);
         }
@@ -597,26 +579,26 @@ namespace cuda {
 
     public:
       handle_t() = default;
+
       handle_t(handle_t &&other):
-          handle_flags { other.handle_flags }, handle { other.handle } {
+          handle_flags {other.handle_flags},
+          handle {other.handle} {
         other.handle_flags.reset();
       }
 
-      handle_t &
-      operator=(handle_t &&other) {
+      handle_t &operator=(handle_t &&other) {
         std::swap(handle_flags, other.handle_flags);
         std::swap(handle, other.handle);
 
         return *this;
       }
 
-      static std::optional<handle_t>
-      make() {
-        NVFBC_CREATE_HANDLE_PARAMS params { NVFBC_CREATE_HANDLE_PARAMS_VER };
+      static std::optional<handle_t> make() {
+        NVFBC_CREATE_HANDLE_PARAMS params {NVFBC_CREATE_HANDLE_PARAMS_VER};
 
         // Set privateData to allow NvFBC on consumer NVIDIA GPUs.
         // Based on https://github.com/keylase/nvidia-patch/blob/3193b4b1cea91527bf09ea9b8db5aade6a3f3c0a/win/nvfbcwrp/nvfbcwrp_main.cpp#L23-L25 .
-        const unsigned int MAGIC_PRIVATE_DATA[4] = { 0xAEF57AC5, 0x401D1A39, 0x1B856BBE, 0x9ED0CEBA };
+        const unsigned int MAGIC_PRIVATE_DATA[4] = {0xAEF57AC5, 0x401D1A39, 0x1B856BBE, 0x9ED0CEBA};
         params.privateData = MAGIC_PRIVATE_DATA;
         params.privateDataSize = sizeof(MAGIC_PRIVATE_DATA);
 
@@ -633,14 +615,12 @@ namespace cuda {
         return handle;
       }
 
-      const char *
-      last_error() {
+      const char *last_error() {
         return func.nvFBCGetLastErrorStr(handle);
       }
 
-      std::optional<NVFBC_GET_STATUS_PARAMS>
-      status() {
-        NVFBC_GET_STATUS_PARAMS params { NVFBC_GET_STATUS_PARAMS_VER };
+      std::optional<NVFBC_GET_STATUS_PARAMS> status() {
+        NVFBC_GET_STATUS_PARAMS params {NVFBC_GET_STATUS_PARAMS_VER};
 
         auto status = func.nvFBCGetStatus(handle, &params);
         if (status) {
@@ -652,8 +632,7 @@ namespace cuda {
         return params;
       }
 
-      int
-      capture(NVFBC_CREATE_CAPTURE_SESSION_PARAMS &capture_params) {
+      int capture(NVFBC_CREATE_CAPTURE_SESSION_PARAMS &capture_params) {
         if (func.nvFBCCreateCaptureSession(handle, &capture_params)) {
           BOOST_LOG(error) << "Failed to start capture session: "sv << last_error();
           return -1;
@@ -673,13 +652,12 @@ namespace cuda {
         return 0;
       }
 
-      int
-      stop() {
+      int stop() {
         if (!handle_flags[SESSION_CAPTURE]) {
           return 0;
         }
 
-        NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params { NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER };
+        NVFBC_DESTROY_CAPTURE_SESSION_PARAMS params {NVFBC_DESTROY_CAPTURE_SESSION_PARAMS_VER};
 
         if (func.nvFBCDestroyCaptureSession(handle, &params)) {
           BOOST_LOG(error) << "Couldn't destroy capture session: "sv << last_error();
@@ -692,17 +670,16 @@ namespace cuda {
         return 0;
       }
 
-      int
-      reset() {
+      int reset() {
         if (!handle_flags[SESSION_HANDLE]) {
           return 0;
         }
 
         stop();
 
-        NVFBC_DESTROY_HANDLE_PARAMS params { NVFBC_DESTROY_HANDLE_PARAMS_VER };
+        NVFBC_DESTROY_HANDLE_PARAMS params {NVFBC_DESTROY_HANDLE_PARAMS_VER};
 
-        ctx_t ctx { handle };
+        ctx_t ctx {handle};
         if (func.nvFBCDestroyHandle(handle, &params)) {
           BOOST_LOG(error) << "Couldn't destroy session handle: "sv << func.nvFBCGetLastErrorStr(handle);
         }
@@ -723,14 +700,13 @@ namespace cuda {
 
     class display_t: public platf::display_t {
     public:
-      int
-      init(const std::string_view &display_name, const ::video::config_t &config) {
+      int init(const std::string_view &display_name, const ::video::config_t &config) {
         auto handle = handle_t::make();
         if (!handle) {
           return -1;
         }
 
-        ctx_t ctx { handle->handle };
+        ctx_t ctx {handle->handle};
 
         auto status_params = handle->status();
         if (!status_params) {
@@ -744,19 +720,17 @@ namespace cuda {
 
             if (monitor_nr < 0 || monitor_nr >= status_params->dwOutputNum) {
               BOOST_LOG(warning) << "Can't stream monitor ["sv << monitor_nr << "], it needs to be between [0] and ["sv << status_params->dwOutputNum - 1 << "], defaulting to virtual desktop"sv;
-            }
-            else {
+            } else {
               streamedMonitor = monitor_nr;
             }
-          }
-          else {
+          } else {
             BOOST_LOG(warning) << "XrandR not available, streaming entire virtual desktop"sv;
           }
         }
 
-        delay = std::chrono::nanoseconds { 1s } / config.framerate;
+        delay = std::chrono::nanoseconds {1s} / config.framerate;
 
-        capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS { NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER };
+        capture_params = NVFBC_CREATE_CAPTURE_SESSION_PARAMS {NVFBC_CREATE_CAPTURE_SESSION_PARAMS_VER};
 
         capture_params.eCaptureType = NVFBC_CAPTURE_SHARED_CUDA;
         capture_params.bDisableAutoModesetRecovery = nv_bool(true);
@@ -773,8 +747,7 @@ namespace cuda {
 
           capture_params.eTrackingType = NVFBC_TRACKING_OUTPUT;
           capture_params.dwOutputId = output.dwId;
-        }
-        else {
+        } else {
           capture_params.eTrackingType = NVFBC_TRACKING_SCREEN;
 
           width = status_params->screenSize.w;
@@ -788,8 +761,7 @@ namespace cuda {
         return 0;
       }
 
-      platf::capture_e
-      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         auto next_frame = std::chrono::steady_clock::now();
 
         {
@@ -802,7 +774,7 @@ namespace cuda {
         // Force display_t::capture to initialize handle_t::capture
         cursor_visible = !*cursor;
 
-        ctx_t ctx { handle.handle };
+        ctx_t ctx {handle.handle};
         auto fg = util::fail_guard([&]() {
           handle.reset();
         });
@@ -849,8 +821,7 @@ namespace cuda {
       }
 
       // Reinitialize the capture session.
-      platf::capture_e
-      reinit(bool cursor) {
+      platf::capture_e reinit(bool cursor) {
         if (handle.stop()) {
           return platf::capture_e::error;
         }
@@ -860,8 +831,7 @@ namespace cuda {
           capture_params.bPushModel = nv_bool(false);
           capture_params.bWithCursor = nv_bool(true);
           capture_params.bAllowDirectCapture = nv_bool(false);
-        }
-        else {
+        } else {
           capture_params.bPushModel = nv_bool(true);
           capture_params.bWithCursor = nv_bool(false);
           capture_params.bAllowDirectCapture = nv_bool(true);
@@ -919,8 +889,7 @@ namespace cuda {
         return platf::capture_e::ok;
       }
 
-      platf::capture_e
-      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+      platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         if (cursor != cursor_visible) {
           auto status = reinit(cursor);
           if (status != platf::capture_e::ok) {
@@ -960,13 +929,11 @@ namespace cuda {
         return platf::capture_e::ok;
       }
 
-      std::unique_ptr<platf::avcodec_encode_device_t>
-      make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) {
+      std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(platf::pix_fmt_e pix_fmt) {
         return ::cuda::make_avcodec_encode_device(width, height, true);
       }
 
-      std::shared_ptr<platf::img_t>
-      alloc_img() override {
+      std::shared_ptr<platf::img_t> alloc_img() override {
         auto img = std::make_shared<cuda::img_t>();
 
         img->data = nullptr;
@@ -985,8 +952,7 @@ namespace cuda {
         return img;
       };
 
-      int
-      dummy_img(platf::img_t *) override {
+      int dummy_img(platf::img_t *) override {
         return 0;
       }
 
@@ -1001,8 +967,7 @@ namespace cuda {
 }  // namespace cuda
 
 namespace platf {
-  std::shared_ptr<display_t>
-  nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+  std::shared_ptr<display_t> nvfbc_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type != mem_type_e::cuda) {
       BOOST_LOG(error) << "Could not initialize nvfbc display with the given hw device type"sv;
       return nullptr;
@@ -1017,8 +982,7 @@ namespace platf {
     return display;
   }
 
-  std::vector<std::string>
-  nvfbc_display_names() {
+  std::vector<std::string> nvfbc_display_names() {
     if (cuda::init() || cuda::nvfbc::init()) {
       return {};
     }

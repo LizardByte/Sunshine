@@ -2,9 +2,9 @@
  * @file tests/unit/test_network.cpp
  * @brief Test src/network.*
  */
-#include <src/network.h>
-
 #include "../tests_common.h"
+
+#include <src/network.h>
 
 struct MdnsInstanceNameTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
@@ -23,4 +23,6 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple("&", "Sunshine"),
     std::make_tuple("", "Sunshine"),
     std::make_tuple("😁", "Sunshine"),
-    std::make_tuple(std::string(128, 'a'), std::string(63, 'a'))));
+    std::make_tuple(std::string(128, 'a'), std::string(63, 'a'))
+  )
+);

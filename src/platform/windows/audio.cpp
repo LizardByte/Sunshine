@@ -3,21 +3,20 @@
  * @brief Definitions for Windows audio capture.
  */
 #define INITGUID
-#include <audioclient.h>
-#include <mmdeviceapi.h>
-#include <roapi.h>
 
+// platform includes
+#include <audioclient.h>
+#include <avrt.h>
+#include <mmdeviceapi.h>
+#include <newdev.h>
+#include <roapi.h>
 #include <synchapi.h>
 
-#include <newdev.h>
-
-#include <avrt.h>
-
+// local includes
+#include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-
-#include "misc.h"
 
 // Must be the last included file
 // clang-format off
@@ -65,8 +64,7 @@ namespace {
     _size,
   };
 
-  constexpr WAVEFORMATEXTENSIBLE
-  create_waveformat(sample_format_e sample_format, WORD channel_count, DWORD channel_mask) {
+  constexpr WAVEFORMATEXTENSIBLE create_waveformat(sample_format_e sample_format, WORD channel_count, DWORD channel_mask) {
     WAVEFORMATEXTENSIBLE waveformat = {};
 
     switch (sample_format) {
@@ -119,9 +117,8 @@ namespace {
 
   using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
-  template <WORD channel_count>
-  virtual_sink_waveformats_t
-  create_virtual_sink_waveformats() {
+  template<WORD channel_count>
+  virtual_sink_waveformats_t create_virtual_sink_waveformats() {
     if constexpr (channel_count == 2) {
       auto channel_mask = waveformat_mask_stereo;
       // only choose 24 or 16-bit formats to avoid clobbering existing Dolby/DTS spatial audio settings
@@ -130,8 +127,7 @@ namespace {
         create_waveformat(sample_format_e::s24, channel_count, channel_mask),
         create_waveformat(sample_format_e::s16, channel_count, channel_mask),
       };
-    }
-    else if (channel_count == 6) {
+    } else if (channel_count == 6) {
       auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
       auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers;
       return {
@@ -146,8 +142,7 @@ namespace {
         create_waveformat(sample_format_e::s16, channel_count, channel_mask1),
         create_waveformat(sample_format_e::s16, channel_count, channel_mask2),
       };
-    }
-    else if (channel_count == 8) {
+    } else if (channel_count == 8) {
       auto channel_mask = waveformat_mask_surround71;
       return {
         create_waveformat(sample_format_e::f32, channel_count, channel_mask),
@@ -159,8 +154,7 @@ namespace {
     }
   }
 
-  std::string
-  waveformat_to_pretty_string(const WAVEFORMATEXTENSIBLE &waveformat) {
+  std::string waveformat_to_pretty_string(const WAVEFORMATEXTENSIBLE &waveformat) {
     std::string result = waveformat.SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT ? "F" :
                          waveformat.SubFormat == KSDATAFORMAT_SUBTYPE_PCM        ? "S" :
                                                                                    "UNKNOWN";
@@ -196,16 +190,15 @@ namespace {
 }  // namespace
 
 using namespace std::literals;
+
 namespace platf::audio {
-  template <class T>
-  void
-  Release(T *p) {
+  template<class T>
+  void Release(T *p) {
     p->Release();
   }
 
-  template <class T>
-  void
-  co_task_free(T *p) {
+  template<class T>
+  void co_task_free(T *p) {
     CoTaskMemFree((LPVOID) p);
   }
 
@@ -272,14 +265,14 @@ namespace platf::audio {
     },
   };
 
-  audio_client_t
-  make_audio_client(device_t &device, const format_t &format) {
+  audio_client_t make_audio_client(device_t &device, const format_t &format) {
     audio_client_t audio_client;
     auto status = device->Activate(
       IID_IAudioClient,
       CLSCTX_ALL,
       nullptr,
-      (void **) &audio_client);
+      (void **) &audio_client
+    );
 
     if (FAILED(status)) {
       BOOST_LOG(error) << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']';
@@ -311,9 +304,11 @@ namespace platf::audio {
       AUDCLNT_SHAREMODE_SHARED,
       AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK |
         AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,  // Enable automatic resampling to 48 KHz
-      0, 0,
+      0,
+      0,
       (LPWAVEFORMATEX) &capture_waveformat,
-      nullptr);
+      nullptr
+    );
 
     if (status) {
       BOOST_LOG(error) << "Couldn't initialize audio client for ["sv << format.name << "]: [0x"sv << util::hex(status).to_string_view() << ']';
@@ -325,14 +320,14 @@ namespace platf::audio {
     return audio_client;
   }
 
-  device_t
-  default_device(device_enum_t &device_enum) {
+  device_t default_device(device_enum_t &device_enum) {
     device_t device;
     HRESULT status;
     status = device_enum->GetDefaultAudioEndpoint(
       eRender,
       eConsole,
-      &device);
+      &device
+    );
 
     if (FAILED(status)) {
       BOOST_LOG(error) << "Couldn't get default audio endpoint [0x"sv << util::hex(status).to_string_view() << ']';
@@ -345,68 +340,68 @@ namespace platf::audio {
 
   class audio_notification_t: public ::IMMNotificationClient {
   public:
-    audio_notification_t() {}
+    audio_notification_t() {
+    }
 
     // IUnknown implementation (unused by IMMDeviceEnumerator)
-    ULONG STDMETHODCALLTYPE
-    AddRef() {
+    ULONG STDMETHODCALLTYPE AddRef() {
       return 1;
     }
 
-    ULONG STDMETHODCALLTYPE
-    Release() {
+    ULONG STDMETHODCALLTYPE Release() {
       return 1;
     }
 
-    HRESULT STDMETHODCALLTYPE
-    QueryInterface(REFIID riid, VOID **ppvInterface) {
+    HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, VOID **ppvInterface) {
       if (IID_IUnknown == riid) {
         AddRef();
         *ppvInterface = (IUnknown *) this;
         return S_OK;
-      }
-      else if (__uuidof(IMMNotificationClient) == riid) {
+      } else if (__uuidof(IMMNotificationClient) == riid) {
         AddRef();
         *ppvInterface = (IMMNotificationClient *) this;
         return S_OK;
-      }
-      else {
+      } else {
         *ppvInterface = NULL;
         return E_NOINTERFACE;
       }
     }
 
     // IMMNotificationClient
-    HRESULT STDMETHODCALLTYPE
-    OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
+    HRESULT STDMETHODCALLTYPE OnDefaultDeviceChanged(EDataFlow flow, ERole role, LPCWSTR pwstrDeviceId) {
       if (flow == eRender) {
         default_render_device_changed_flag.store(true);
       }
       return S_OK;
     }
 
-    HRESULT STDMETHODCALLTYPE
-    OnDeviceAdded(LPCWSTR pwstrDeviceId) { return S_OK; }
+    HRESULT STDMETHODCALLTYPE OnDeviceAdded(LPCWSTR pwstrDeviceId) {
+      return S_OK;
+    }
 
-    HRESULT STDMETHODCALLTYPE
-    OnDeviceRemoved(LPCWSTR pwstrDeviceId) { return S_OK; }
+    HRESULT STDMETHODCALLTYPE OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
+      return S_OK;
+    }
 
-    HRESULT STDMETHODCALLTYPE
-    OnDeviceStateChanged(
+    HRESULT STDMETHODCALLTYPE OnDeviceStateChanged(
       LPCWSTR pwstrDeviceId,
-      DWORD dwNewState) { return S_OK; }
+      DWORD dwNewState
+    ) {
+      return S_OK;
+    }
 
-    HRESULT STDMETHODCALLTYPE
-    OnPropertyValueChanged(
+    HRESULT STDMETHODCALLTYPE OnPropertyValueChanged(
       LPCWSTR pwstrDeviceId,
-      const PROPERTYKEY key) { return S_OK; }
+      const PROPERTYKEY key
+    ) {
+      return S_OK;
+    }
 
     /**
      * @brief Checks if the default rendering device changed and resets the change flag
      * @return `true` if the device changed since last call
      */
-    bool
-    check_default_render_device_changed() {
+    bool check_default_render_device_changed() {
       return default_render_device_changed_flag.exchange(false);
     }
 
@@ -416,8 +411,7 @@ namespace platf::audio {
 
   class mic_wasapi_t: public mic_t {
   public:
-    capture_e
-    sample(std::vector<float> &sample_out) override {
+    capture_e sample(std::vector<float> &sample_out) override {
       auto sample_size = sample_out.size();
 
       // Refill the sample buffer if needed
@@ -438,8 +432,7 @@ namespace platf::audio {
       return capture_e::ok;
     }
 
-    int
-    init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out) {
+    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
         BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -454,7 +447,8 @@ namespace platf::audio {
         nullptr,
         CLSCTX_ALL,
         IID_IMMDeviceEnumerator,
-        (void **) &device_enum);
+        (void **) &device_enum
+      );
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't create Device Enumerator [0x"sv << util::hex(status).to_string_view() << ']';
@@ -509,7 +503,7 @@ namespace platf::audio {
       }
 
       // *2 --> needs to fit double
-      sample_buf = util::buffer_t<float> { std::max(frames, frame_size) * 2 * channels_out };
+      sample_buf = util::buffer_t<float> {std::max(frames, frame_size) * 2 * channels_out};
       sample_buf_pos = std::begin(sample_buf);
 
       status = audio_client->GetService(IID_IAudioCaptureClient, (void **) &audio_capture);
@@ -559,8 +553,7 @@ namespace platf::audio {
     }
 
   private:
-    capture_e
-    _fill_buffer() {
+    capture_e _fill_buffer() {
       HRESULT status;
 
       // Total number of samples
@@ -600,13 +593,16 @@ namespace platf::audio {
       for (
         status = audio_capture->GetNextPacketSize(&packet_size);
         SUCCEEDED(status) && packet_size > 0;
-        status = audio_capture->GetNextPacketSize(&packet_size)) {
+        status = audio_capture->GetNextPacketSize(&packet_size)
+      ) {
         DWORD buffer_flags;
         status = audio_capture->GetBuffer(
           (BYTE **) &sample_aligned.samples,
           &block_aligned.audio_sample_size,
           &buffer_flags,
-          nullptr, nullptr);
+          nullptr,
+          nullptr
+        );
 
         switch (status) {
           case S_OK:
@@ -631,8 +627,7 @@ namespace platf::audio {
 
         if (buffer_flags & AUDCLNT_BUFFERFLAGS_SILENT) {
           std::fill_n(sample_buf_pos, n, 0);
-        }
-        else {
+        } else {
           std::copy_n(sample_aligned.samples, n, sample_buf_pos);
         }
 
@@ -674,8 +669,7 @@ namespace platf::audio {
 
   class audio_control_t: public ::platf::audio_control_t {
   public:
-    std::optional<sink_t>
-    sink_info() override {
+    std::optional<sink_t> sink_info() override {
       sink_t sink;
 
       // Fill host sink name with the device_id of the current default audio device.
@@ -697,8 +691,7 @@ namespace platf::audio {
       match_fields_list_t match_list;
       if (config::audio.virtual_sink.empty()) {
         match_list = match_steam_speakers();
-      }
-      else {
+      } else {
         match_list = match_all_fields(from_utf8(config::audio.virtual_sink));
       }
 
@@ -714,16 +707,14 @@ namespace platf::audio {
           "virtual-"s + formats[1].name + device_id,
           "virtual-"s + formats[2].name + device_id,
         });
-      }
-      else if (!config::audio.virtual_sink.empty()) {
+      } else if (!config::audio.virtual_sink.empty()) {
         BOOST_LOG(warning) << "Couldn't find the specified virtual audio sink " << config::audio.virtual_sink;
       }
 
       return sink;
     }
 
-    bool
-    is_sink_available(const std::string &sink) override {
+    bool is_sink_available(const std::string &sink) override {
       const auto match_list = match_all_fields(from_utf8(sink));
       const auto matched = find_device_id(match_list);
       return static_cast<bool>(matched);
@@ -735,8 +726,7 @@ namespace platf::audio {
      * @return A pair of device_id and format reference if the sink name matches
      *         our naming scheme for virtual audio sinks, `std::nullopt` otherwise.
      */
-    std::optional<std::pair<std::wstring, std::reference_wrapper<const format_t>>>
-    extract_virtual_sink_info(const std::string &sink) {
+    std::optional<std::pair<std::wstring, std::reference_wrapper<const format_t>>> extract_virtual_sink_info(const std::string &sink) {
       // Encoding format:
       // [virtual-(format name)]device_id
       std::string current = sink;
@@ -756,8 +746,7 @@ namespace platf::audio {
       return std::nullopt;
     }
 
-    std::unique_ptr<mic_t>
-    microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
       if (mic->init(sample_rate, frame_size, channels)) {
@@ -784,8 +773,7 @@ namespace platf::audio {
      *    virtual-(format name)
      * If it doesn't contain that prefix, then the format will not be changed
      */
-    std::optional<std::wstring>
-    set_format(const std::string &sink) {
+    std::optional<std::wstring> set_format(const std::string &sink) {
       if (sink.empty()) {
         return std::nullopt;
       }
@@ -799,8 +787,7 @@ namespace platf::audio {
         auto matched = find_device_id(match_all_fields(from_utf8(sink)));
         if (matched) {
           return matched->second;
-        }
-        else {
+        } else {
           BOOST_LOG(error) << "Couldn't find audio sink " << sink;
           return std::nullopt;
         }
@@ -826,8 +813,7 @@ namespace platf::audio {
       return std::nullopt;
     }
 
-    int
-    set_sink(const std::string &sink) override {
+    int set_sink(const std::string &sink) override {
       auto device_id = set_format(sink);
       if (!device_id) {
         return -1;
@@ -840,8 +826,7 @@ namespace platf::audio {
           // Depending on the format of the string, we could get either of these errors
           if (status == HRESULT_FROM_WIN32(ERROR_NOT_FOUND) || status == E_INVALIDARG) {
             BOOST_LOG(warning) << "Audio sink not found: "sv << sink;
-          }
-          else {
+          } else {
             BOOST_LOG(warning) << "Couldn't set ["sv << sink << "] to role ["sv << x << "]: 0x"sv << util::hex(status).to_string_view();
           }
 
@@ -868,20 +853,18 @@ namespace platf::audio {
     using match_fields_list_t = std::vector<std::pair<match_field_e, std::wstring>>;
     using matched_field_t = std::pair<match_field_e, std::wstring>;
 
-    audio_control_t::match_fields_list_t
-    match_steam_speakers() {
+    audio_control_t::match_fields_list_t match_steam_speakers() {
       return {
-        { match_field_e::adapter_friendly_name, L"Steam Streaming Speakers" }
+        {match_field_e::adapter_friendly_name, L"Steam Streaming Speakers"}
       };
     }
 
-    audio_control_t::match_fields_list_t
-    match_all_fields(const std::wstring &name) {
+    audio_control_t::match_fields_list_t match_all_fields(const std::wstring &name) {
       return {
-        { match_field_e::device_id, name },  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
-        { match_field_e::device_friendly_name, name },  // Digital Audio (S/PDIF) (High Definition Audio Device)
-        { match_field_e::device_description, name },  // Digital Audio (S/PDIF)
-        { match_field_e::adapter_friendly_name, name },  // High Definition Audio Device
+        {match_field_e::device_id, name},  // {0.0.0.00000000}.{29dd7668-45b2-4846-882d-950f55bf7eb8}
+        {match_field_e::device_friendly_name, name},  // Digital Audio (S/PDIF) (High Definition Audio Device)
+        {match_field_e::device_description, name},  // Digital Audio (S/PDIF)
+        {match_field_e::adapter_friendly_name, name},  // High Definition Audio Device
       };
     }
 
@@ -890,8 +873,7 @@ namespace platf::audio {
      * @param match_list Pairs of match fields and values
      * @return Optional pair of matched field and device_id
      */
-    std::optional<matched_field_t>
-    find_device_id(const match_fields_list_t &match_list) {
+    std::optional<matched_field_t> find_device_id(const match_fields_list_t &match_list) {
       if (match_list.empty()) {
         return std::nullopt;
       }
@@ -965,8 +947,7 @@ namespace platf::audio {
     /**
      * @brief Resets the default audio device from Steam Streaming Speakers.
      */
-    void
-    reset_default_device() {
+    void reset_default_device() {
       auto matched_steam = find_device_id(match_steam_speakers());
       if (!matched_steam) {
         return;
@@ -1027,8 +1008,7 @@ namespace platf::audio {
      * @brief Installs the Steam Streaming Speakers driver, if present.
      * @return `true` if installation was successful.
      */
-    bool
-    install_steam_audio_drivers() {
+    bool install_steam_audio_drivers() {
 #ifdef STEAM_DRIVER_SUBDIR
       // MinGW's libnewdev.a is missing DiInstallDriverW() even though the headers have it,
       // so we have to load it at runtime. It's Vista or later, so it will always be available.
@@ -1072,8 +1052,7 @@ namespace platf::audio {
         }
 
         return true;
-      }
-      else {
+      } else {
         auto err = GetLastError();
         switch (err) {
           case ERROR_ACCESS_DENIED:
@@ -1096,14 +1075,14 @@ namespace platf::audio {
 #endif
     }
 
-    int
-    init() {
+    int init() {
       auto status = CoCreateInstance(
         CLSID_CPolicyConfigClient,
         nullptr,
         CLSCTX_ALL,
         IID_IPolicyConfig,
-        (void **) &policy);
+        (void **) &policy
+      );
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't create audio policy config: [0x"sv << util::hex(status).to_string_view() << ']';
@@ -1116,7 +1095,8 @@ namespace platf::audio {
         nullptr,
         CLSCTX_ALL,
         IID_IMMDeviceEnumerator,
-        (void **) &device_enum);
+        (void **) &device_enum
+      );
 
       if (FAILED(status)) {
         BOOST_LOG(error) << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']';
@@ -1126,7 +1106,8 @@ namespace platf::audio {
       return 0;
     }
 
-    ~audio_control_t() override {}
+    ~audio_control_t() override {
+    }
 
     policy_t policy;
     audio::device_enum_t device_enum;
@@ -1138,12 +1119,10 @@ namespace platf {
 
   // It's not big enough to justify it's own source file :/
   namespace dxgi {
-    int
-    init();
+    int init();
   }
 
-  std::unique_ptr<audio_control_t>
-  audio_control() {
+  std::unique_ptr<audio_control_t> audio_control() {
     auto control = std::make_unique<audio::audio_control_t>();
 
     if (control->init()) {
@@ -1160,8 +1139,7 @@ namespace platf {
     return control;
   }
 
-  std::unique_ptr<deinit_t>
-  init() {
+  std::unique_ptr<deinit_t> init() {
     if (dxgi::init()) {
       return nullptr;
     }
