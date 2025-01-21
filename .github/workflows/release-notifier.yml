@@ -80,13 +80,14 @@ jobs:
           month_day=$(printf "%04d" "$month_day")
 
           # create the filename
-          file_name="_posts/releases/${year}-${month_day:0:2}-${month_day:2:2}-v${semver}.md"
+          file_name="_posts/releases/${repo_lower}/${year}-${month_day:0:2}-${month_day:2:2}-v${semver}.md"
           mkdir -p "$(dirname "${file_name}")"
 
           # create jekyll blog post
           echo "---" > "${file_name}"
           echo "layout: release" >> "${file_name}"
           echo "title: ${{ github.event.repository.name }} ${tag_name} Released" >> "${file_name}"
+          echo "release-tag: ${tag_name}" >> "${file_name}"
           echo "gh-repo: ${{ github.repository }}" >> "${file_name}"
           echo "gh-badge: [follow, fork, star]" >> "${file_name}"
           echo "tags: [release, ${repo_lower}]" >> "${file_name}"
