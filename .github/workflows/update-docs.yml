@@ -81,9 +81,16 @@ jobs:
             --arg description "${{ github.event.repository.description }}" \
             '{default_branch: $default_branch}')
 
+          # change the default branch to the latest release
           curl \
             -X PATCH \
             -H "Authorization: Token ${RTD_TOKEN}" \
-              https://readthedocs.org/api/v3/projects/${RTD_SLUG}/ \
             -H "Content-Type: application/json" \
+            https://readthedocs.org/api/v3/projects/${RTD_SLUG}/ \
             -d "$json_body"
+
+          # trigger a build for the latest version
+          curl \
+            -X POST \
+            -H "Authorization: Token ${RTD_TOKEN}" \
+            https://readthedocs.org/api/v3/projects/${RTD_SLUG}/versions/latest/builds/
