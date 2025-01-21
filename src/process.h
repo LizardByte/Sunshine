@@ -89,24 +89,63 @@ namespace proc {
 
     ~proc_t();
 
-    const std::vector<ctx_t> &
-    get_apps() const;
-    std::vector<ctx_t> &
-    get_apps();
-    void
-    set_apps(std::vector<ctx_t> apps);
-    std::string
-    get_app_image(int app_id);
-    std::string
-    get_last_run_app_name();
-    const boost::process::v1::environment &
-    get_env() const;
-    boost::process::v1::environment &
-    get_env();
-    void
-    set_env(boost::process::v1::environment env);
-    void
-    terminate();
+    /**
+     * @brief Gets the list of applications.
+     * @return A constant reference to the vector of applications.
+     */
+    const std::vector<ctx_t>& get_apps() const;
+
+    /**
+     * @brief Gets the list of applications.
+     * @return A reference to the vector of applications.
+     */
+    std::vector<ctx_t>& get_apps();
+
+    /**
+     * @brief Sets the list of applications.
+     * @param apps The new list of applications.
+     * @note This will overwrite the existing list of applications.
+     * @see refresh(const std::string &file_name)
+     */
+    void set_apps(std::vector<ctx_t> apps);
+
+    /**
+     * @brief Gets the image path of the application with the given app_id.
+     * @param app_id The ID of the application.
+     * @return The image path of the application.
+     */
+    std::string get_app_image(int app_id);
+
+    /**
+     * @brief Gets the name of the last run application.
+     * @return The name of the last run application.
+     */
+    std::string get_last_run_app_name();
+
+    /**
+     * @brief Gets the environment variables.
+     * @return A constant reference to the environment variables.
+     */
+    const boost::process::v1::environment& get_env() const;
+
+    /**
+     * @brief Gets the environment variables.
+     * @return A reference to the environment variables.
+     */
+    boost::process::v1::environment& get_env();
+
+    /**
+     * @brief Sets the environment variables.
+     * @param env The new environment variables.
+     * @note This will overwrite the existing environment variables.
+     * @see refresh(const std::string &file_name)
+     */
+    void set_env(boost::process::v1::environment env);
+
+    /**
+     * @brief Terminates the currently running process.
+     */
+    void terminate();
 
   private:
     int _app_id;

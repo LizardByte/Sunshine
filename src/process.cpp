@@ -715,6 +715,9 @@ namespace proc {
     auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {
+      // Update the process object with the new environment and apps
+      // And, keep app running status.
+
       proc.set_env(proc_opt->get_env());
       proc.set_apps(proc_opt->get_apps());
     }
