@@ -2,20 +2,21 @@
  * @file src/platform/linux/audio.cpp
  * @brief Definitions for audio control on Linux.
  */
+// standard includes
 #include <bitset>
 #include <sstream>
 #include <thread>
 
+// lib includes
 #include <boost/regex.hpp>
-
 #include <pulse/error.h>
 #include <pulse/pulseaudio.h>
 #include <pulse/simple.h>
 
-#include "src/platform/common.h"
-
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
+#include "src/platform/common.h"
 #include "src/thread_safe.h"
 
 namespace platf {
@@ -32,8 +33,7 @@ namespace platf {
     PA_CHANNEL_POSITION_SIDE_RIGHT,
   };
 
-  std::string
-  to_string(const char *name, const std::uint8_t *mapping, int channels) {
+  std::string to_string(const char *name, const std::uint8_t *mapping, int channels) {
     std::stringstream ss;
 
     ss << "rate=48000 sink_name="sv << name << " format=float channels="sv << channels << " channel_map="sv;
@@ -53,8 +53,7 @@ namespace platf {
   struct mic_attr_t: public mic_t {
     util::safe_ptr<pa_simple, pa_simple_free> mic;
 
-    capture_e
-    sample(std::vector<float> &sample_buf) override {
+    capture_e sample(std::vector<float> &sample_buf) override {
       auto sample_size = sample_buf.size();
 
       auto buf = sample_buf.data();
@@ -69,11 +68,10 @@ namespace platf {
     }
   };
 
-  std::unique_ptr<mic_t>
-  microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
+  std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
     auto mic = std::make_unique<mic_attr_t>();
 
-    pa_sample_spec ss { PA_SAMPLE_FLOAT32, sample_rate, (std::uint8_t) channels };
+    pa_sample_spec ss {PA_SAMPLE_FLOAT32, sample_rate, (std::uint8_t) channels};
     pa_channel_map pa_map;
 
     pa_map.channels = channels;
@@ -92,9 +90,8 @@ namespace platf {
     int status;
 
     mic->mic.reset(
-      pa_simple_new(nullptr, "sunshine",
-        pa_stream_direction_t::PA_STREAM_RECORD, source_name.c_str(),
-        "sunshine-record", &ss, &pa_map, &pa_attr, &status));
+      pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, source_name.c_str(), "sunshine-record", &ss, &pa_map, &pa_attr, &status)
+    );
 
     if (!mic->mic) {
       auto err_str = pa_strerror(status);
@@ -106,38 +103,37 @@ namespace platf {
   }
 
   namespace pa {
-    template <bool B, class T>
+    template<bool B, class T>
     struct add_const_helper;
 
-    template <class T>
+    template<class T>
     struct add_const_helper<true, T> {
       using type = const std::remove_pointer_t<T> *;
     };
 
-    template <class T>
+    template<class T>
     struct add_const_helper<false, T> {
       using type = const T *;
     };
 
-    template <class T>
+    template<class T>
     using add_const_t = typename add_const_helper<std::is_pointer_v<T>, T>::type;
 
-    template <class T>
-    void
-    pa_free(T *p) {
+    template<class T>
+    void pa_free(T *p) {
       pa_xfree(p);
     }
+
     using ctx_t = util::safe_ptr<pa_context, pa_context_unref>;
     using loop_t = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
     using op_t = util::safe_ptr<pa_operation, pa_operation_unref>;
     using string_t = util::safe_ptr<char, pa_free<char>>;
 
-    template <class T>
+    template<class T>
     using cb_simple_t = std::function<void(ctx_t::pointer, add_const_t<T> i)>;
 
-    template <class T>
-    void
-    cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
+    template<class T>
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, void *userdata) {
       auto &f = *(cb_simple_t<T> *) userdata;
 
       // Cannot similarly filter on eol here. Unless reported otherwise assume
@@ -145,12 +141,11 @@ namespace platf {
       f(ctx, i);
     }
 
-    template <class T>
+    template<class T>
     using cb_t = std::function<void(ctx_t::pointer, add_const_t<T> i, int eol)>;
 
-    template <class T>
-    void
-    cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {
+    template<class T>
+    void cb(ctx_t::pointer ctx, add_const_t<T> i, int eol, void *userdata) {
       auto &f = *(cb_t<T> *) userdata;
 
       // For some reason, pulseaudio calls this callback after disconnecting
@@ -161,22 +156,19 @@ namespace platf {
       f(ctx, i, eol);
     }
 
-    void
-    cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
+    void cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
 
       alarm->ring(i);
     }
 
-    void
-    ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
+    void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
       auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
 
       f(ctx);
     }
 
-    void
-    success_cb(ctx_t::pointer ctx, int status, void *userdata) {
+    void success_cb(ctx_t::pointer ctx, int status, void *userdata) {
       assert(userdata != nullptr);
 
       auto alarm = (safe::alarm_raw_t<int> *) userdata;
@@ -205,8 +197,8 @@ namespace platf {
       std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;
 
       std::thread worker;
-      int
-      init() {
+
+      int init() {
         events = std::make_unique<safe::event_t<ctx_event_e>>();
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
@@ -262,8 +254,7 @@ namespace platf {
         return 0;
       }
 
-      int
-      load_null(const char *name, const std::uint8_t *channel_mapping, int channels) {
+      int load_null(const char *name, const std::uint8_t *channel_mapping, int channels) {
         auto alarm = safe::make_alarm<int>();
 
         op_t op {
@@ -272,15 +263,15 @@ namespace platf {
             "module-null-sink",
             to_string(name, channel_mapping, channels).c_str(),
             cb_i,
-            alarm.get()),
+            alarm.get()
+          ),
         };
 
         alarm->wait();
         return *alarm->status();
       }
 
-      int
-      unload_null(std::uint32_t i) {
+      int unload_null(std::uint32_t i) {
         if (i == PA_INVALID_INDEX) {
           return 0;
         }
@@ -301,8 +292,7 @@ namespace platf {
         return 0;
       }
 
-      std::optional<sink_t>
-      sink_info() override {
+      std::optional<sink_t> sink_info() override {
         constexpr auto stereo = "sink-sunshine-stereo";
         constexpr auto surround51 = "sink-sunshine-surround51";
         constexpr auto surround71 = "sink-sunshine-surround71";
@@ -331,20 +321,18 @@ namespace platf {
             index.stereo = sink_info->owner_module;
 
             ++nullcount;
-          }
-          else if (!std::strcmp(sink_info->name, surround51)) {
+          } else if (!std::strcmp(sink_info->name, surround51)) {
             index.surround51 = sink_info->owner_module;
 
             ++nullcount;
-          }
-          else if (!std::strcmp(sink_info->name, surround71)) {
+          } else if (!std::strcmp(sink_info->name, surround71)) {
             index.surround71 = sink_info->owner_module;
 
             ++nullcount;
           }
         };
 
-        op_t op { pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f) };
+        op_t op {pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f)};
 
         if (!op) {
           BOOST_LOG(error) << "Couldn't create card info operation: "sv << pa_strerror(pa_context_errno(ctx.get()));
@@ -365,8 +353,7 @@ namespace platf {
           index.stereo = load_null(stereo, speaker::map_stereo, sizeof(speaker::map_stereo));
           if (index.stereo == PA_INVALID_INDEX) {
             BOOST_LOG(warning) << "Couldn't create virtual sink for stereo: "sv << pa_strerror(pa_context_errno(ctx.get()));
-          }
-          else {
+          } else {
             ++nullcount;
           }
         }
@@ -375,8 +362,7 @@ namespace platf {
           index.surround51 = load_null(surround51, speaker::map_surround51, sizeof(speaker::map_surround51));
           if (index.surround51 == PA_INVALID_INDEX) {
             BOOST_LOG(warning) << "Couldn't create virtual sink for surround-51: "sv << pa_strerror(pa_context_errno(ctx.get()));
-          }
-          else {
+          } else {
             ++nullcount;
           }
         }
@@ -385,8 +371,7 @@ namespace platf {
           index.surround71 = load_null(surround71, speaker::map_surround71, sizeof(speaker::map_surround71));
           if (index.surround71 == PA_INVALID_INDEX) {
             BOOST_LOG(warning) << "Couldn't create virtual sink for surround-71: "sv << pa_strerror(pa_context_errno(ctx.get()));
-          }
-          else {
+          } else {
             ++nullcount;
           }
         }
@@ -396,14 +381,13 @@ namespace platf {
         }
 
         if (nullcount == 3) {
-          sink.null = std::make_optional(sink_t::null_t { stereo, surround51, surround71 });
+          sink.null = std::make_optional(sink_t::null_t {stereo, surround51, surround71});
         }
 
         return std::make_optional(std::move(sink));
       }
 
-      std::string
-      get_default_sink_name() {
+      std::string get_default_sink_name() {
         std::string sink_name;
         auto alarm = safe::make_alarm<int>();
 
@@ -419,14 +403,13 @@ namespace platf {
           alarm->ring(0);
         };
 
-        op_t server_op { pa_context_get_server_info(ctx.get(), cb<pa_server_info *>, &server_f) };
+        op_t server_op {pa_context_get_server_info(ctx.get(), cb<pa_server_info *>, &server_f)};
         alarm->wait();
         // No need to check status. If it failed just return default name.
         return sink_name;
       }
 
-      std::string
-      get_monitor_name(const std::string &sink_name) {
+      std::string get_monitor_name(const std::string &sink_name) {
         std::string monitor_name;
         auto alarm = safe::make_alarm<int>();
 
@@ -449,7 +432,7 @@ namespace platf {
           monitor_name = sink_info->monitor_source_name;
         };
 
-        op_t sink_op { pa_context_get_sink_info_by_name(ctx.get(), sink_name.c_str(), cb<pa_sink_info *>, &sink_f) };
+        op_t sink_op {pa_context_get_sink_info_by_name(ctx.get(), sink_name.c_str(), cb<pa_sink_info *>, &sink_f)};
 
         alarm->wait();
         // No need to check status. If it failed just return default name.
@@ -457,8 +440,7 @@ namespace platf {
         return monitor_name;
       }
 
-      std::unique_ptr<mic_t>
-      microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+      std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
         // Sink choice priority:
         // 1. Config sink
         // 2. Last sink swapped to (Usually virtual in this case)
@@ -467,20 +449,32 @@ namespace platf {
         // but this happens right after the swap so the default returned by PA was not
         // the new one just set!
         auto sink_name = config::audio.sink;
-        if (sink_name.empty()) sink_name = requested_sink;
-        if (sink_name.empty()) sink_name = get_default_sink_name();
+        if (sink_name.empty()) {
+          sink_name = requested_sink;
+        }
+        if (sink_name.empty()) {
+          sink_name = get_default_sink_name();
+        }
 
         return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
       }
 
-      int
-      set_sink(const std::string &sink) override {
+      bool is_sink_available(const std::string &sink) override {
+        BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+        return true;
+      }
+
+      int set_sink(const std::string &sink) override {
         auto alarm = safe::make_alarm<int>();
 
         BOOST_LOG(info) << "Setting default sink to: ["sv << sink << "]"sv;
         op_t op {
           pa_context_set_default_sink(
-            ctx.get(), sink.c_str(), success_cb, alarm.get()),
+            ctx.get(),
+            sink.c_str(),
+            success_cb,
+            alarm.get()
+          ),
         };
 
         if (!op) {
@@ -519,8 +513,7 @@ namespace platf {
     };
   }  // namespace pa
 
-  std::unique_ptr<audio_control_t>
-  audio_control() {
+  std::unique_ptr<audio_control_t> audio_control() {
     auto audio = std::make_unique<pa::server_t>();
 
     if (audio->init()) {

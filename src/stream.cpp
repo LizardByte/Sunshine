@@ -2,35 +2,37 @@
  * @file src/stream.cpp
  * @brief Definitions for the streaming protocols.
  */
-#include "process.h"
 
+// standard includes
+#include <fstream>
 #include <future>
 #include <queue>
 
-#include <fstream>
+// lib includes
+#include <boost/endian/arithmetic.hpp>
 #include <openssl/err.h>
 
-#include <boost/endian/arithmetic.hpp>
-
 extern "C" {
-// clang-format off
+  // clang-format off
 #include <moonlight-common-c/src/Limelight-internal.h>
 #include "rswrapper.h"
-// clang-format on
+  // clang-format on
 }
 
+// local includes
 #include "config.h"
+#include "display_device.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
 #include "network.h"
+#include "platform/common.h"
+#include "process.h"
 #include "stream.h"
 #include "sync.h"
 #include "system_tray.h"
 #include "thread_safe.h"
 #include "utility.h"
-
-#include "platform/common.h"
 
 #define IDX_START_A 0
 #define IDX_START_B 1
@@ -83,8 +85,7 @@ namespace stream {
 #pragma pack(push, 1)
 
   struct video_short_frame_header_t {
-    uint8_t *
-    payload() {
+    uint8_t *payload() {
       return (uint8_t *) (this + 1);
     }
 
@@ -111,11 +112,11 @@ namespace stream {
 
   static_assert(
     sizeof(video_short_frame_header_t) == 8,
-    "Short frame header must be 8 bytes");
+    "Short frame header must be 8 bytes"
+  );
 
   struct video_packet_raw_t {
-    uint8_t *
-    payload() {
+    uint8_t *payload() {
       return (uint8_t *) (this + 1);
     }
 
@@ -139,8 +140,7 @@ namespace stream {
     std::uint16_t type;
     std::uint16_t payloadLength;
 
-    uint8_t *
-    payload() {
+    uint8_t *payload() {
       return (uint8_t *) (this + 1);
     }
   };
@@ -202,10 +202,10 @@ namespace stream {
     // seq is accepted as an arbitrary value in Moonlight
     std::uint32_t seq;  // Monotonically increasing sequence number (used as IV for AES-GCM)
 
-    uint8_t *
-    payload() {
+    uint8_t *payload() {
       return (uint8_t *) (this + 1);
     }
+
     // encrypted control_header_v2 and payload data follow
   } *control_encrypted_p;
 
@@ -216,10 +216,10 @@ namespace stream {
 
 #pragma pack(pop)
 
-  constexpr std::size_t
-  round_to_pkcs7_padded(std::size_t size) {
+  constexpr std::size_t round_to_pkcs7_padded(std::size_t size) {
     return ((size + 15) / 16) * 16;
   }
+
   constexpr std::size_t MAX_AUDIO_PACKET_SIZE = 1400;
 
   using audio_aes_t = std::array<char, round_to_pkcs7_padded(MAX_AUDIO_PACKET_SIZE)>;
@@ -230,19 +230,17 @@ namespace stream {
 
   // return bytes written on success
   // return -1 on error
-  static inline int
-  encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
+  static inline int encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
     // If encryption isn't enabled
     if (!encrypted) {
       std::copy(std::begin(plaintext), std::end(plaintext), destination);
       return plaintext.size();
     }
 
-    return cbc.encrypt(std::string_view { (char *) std::begin(plaintext), plaintext.size() }, destination, &iv);
+    return cbc.encrypt(std::string_view {(char *) std::begin(plaintext), plaintext.size()}, destination, &iv);
   }
 
-  static inline void
-  while_starting_do_nothing(std::atomic<session::state_e> &state) {
+  static inline void while_starting_do_nothing(std::atomic<session::state_e> &state) {
     while (state.load(std::memory_order_acquire) == session::state_e::STARTING) {
       std::this_thread::sleep_for(1ms);
     }
@@ -250,8 +248,7 @@ namespace stream {
 
   class control_server_t {
   public:
-    int
-    bind(net::af_e address_family, std::uint16_t port) {
+    int bind(net::af_e address_family, std::uint16_t port) {
       _host = net::host_create(address_family, _addr, port);
 
       return !(bool) _host;
@@ -260,16 +257,14 @@ namespace stream {
     // Get session associated with address.
     // If none are found, try to find a session not yet claimed. (It will be marked by a port of value 0
     // If none of those are found, return nullptr
-    session_t *
-    get_session(const net::peer_t peer, uint32_t connect_data);
+    session_t *get_session(const net::peer_t peer, uint32_t connect_data);
 
     // Circular dependency:
     //   iterate refers to session
     //   session refers to broadcast_ctx_t
     //   broadcast_ctx_t refers to control_server_t
     // Therefore, iterate is implemented further down the source file
-    void
-    iterate(std::chrono::milliseconds timeout);
+    void iterate(std::chrono::milliseconds timeout);
 
     /**
      * @brief Call the handler for a given control stream message.
@@ -278,16 +273,13 @@ namespace stream {
      * @param payload The payload of the message.
      * @param reinjected `true` if this message is being reprocessed after decryption.
      */
-    void
-    call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected);
+    void call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected);
 
-    void
-    map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
+    void map(uint16_t type, std::function<void(session_t *, const std::string_view &)> cb) {
       _map_type_cb.emplace(type, std::move(cb));
     }
 
-    int
-    send(const std::string_view &payload, net::peer_t peer) {
+    int send(const std::string_view &payload, net::peer_t peer) {
       auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
       if (enet_peer_send(peer, 0, packet)) {
         enet_packet_destroy(packet);
@@ -298,8 +290,7 @@ namespace stream {
       return 0;
     }
 
-    void
-    flush() {
+    void flush() {
       enet_host_flush(_host.get());
     }
 
@@ -324,10 +315,10 @@ namespace stream {
     std::thread audio_thread;
     std::thread control_thread;
 
-    asio::io_service io;
+    asio::io_context io_context;
 
-    udp::socket video_sock { io };
-    udp::socket audio_sock { io };
+    udp::socket video_sock {io_context};
+    udp::socket audio_sock {io_context};
 
     control_server_t control_server;
   };
@@ -410,12 +401,12 @@ namespace stream {
    * returns empty string_view on failure
    * returns string_view pointing to payload data
    */
-  template <std::size_t max_payload_size>
-  static inline std::string_view
-  encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
+  template<std::size_t max_payload_size>
+  static inline std::string_view encode_control(session_t *session, const std::string_view &plaintext, std::array<std::uint8_t, max_payload_size> &tagged_cipher) {
     static_assert(
       max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size),
-      "max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)");
+      "max_payload_size >= sizeof(control_encrypted_t) + sizeof(crypto::cipher::tag_size)"
+    );
 
     if (session->config.controlProtocolType != 13) {
       return plaintext;
@@ -437,8 +428,7 @@ namespace stream {
       std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
       iv[10] = 'H';  // Host originated
       iv[11] = 'C';  // Control stream
-    }
-    else {
+    } else {
       // Nvidia's old style encryption uses a 16-byte IV
       iv.resize(16);
 
@@ -459,18 +449,15 @@ namespace stream {
     packet->length = util::endian::little(packet_length);
     packet->seq = util::endian::little(seq);
 
-    return std::string_view { (char *) tagged_cipher.data(), packet_length + sizeof(control_encrypted_t) - sizeof(control_encrypted_t::seq) };
+    return std::string_view {(char *) tagged_cipher.data(), packet_length + sizeof(control_encrypted_t) - sizeof(control_encrypted_t::seq)};
   }
 
-  int
-  start_broadcast(broadcast_ctx_t &ctx);
-  void
-  end_broadcast(broadcast_ctx_t &ctx);
+  int start_broadcast(broadcast_ctx_t &ctx);
+  void end_broadcast(broadcast_ctx_t &ctx);
 
   static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
 
-  session_t *
-  control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
+  session_t *control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
     {
       // Fast path - look up existing session by peer
       auto lg = _peer_to_session.lock();
@@ -496,16 +483,13 @@ namespace stream {
       if (session_p->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) {
         if (session_p->control.connect_data != connect_data) {
           continue;
-        }
-        else {
+        } else {
           BOOST_LOG(debug) << "Initialized new control stream session by connect data match [v2]"sv;
         }
-      }
-      else {
+      } else {
         if (session_p->control.expected_peer_address != peer_addr) {
           continue;
-        }
-        else {
+        } else {
           BOOST_LOG(debug) << "Initialized new control stream session by IP address match [v1]"sv;
         }
       }
@@ -540,8 +524,7 @@ namespace stream {
    * @param payload The payload of the message.
    * @param reinjected `true` if this message is being reprocessed after decryption.
    */
-  void
-  control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
+  void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
     // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
     if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
       BOOST_LOG(error) << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
@@ -555,14 +538,12 @@ namespace stream {
         << "---data---"sv << std::endl
         << util::hex_vec(payload) << std::endl
         << "---end data---"sv;
-    }
-    else {
+    } else {
       cb->second(session, payload);
     }
   }
 
-  void
-  control_server_t::iterate(std::chrono::milliseconds timeout) {
+  void control_server_t::iterate(std::chrono::milliseconds timeout) {
     ENetEvent event;
     auto res = enet_host_service(_host.get(), &event, timeout.count());
 
@@ -578,14 +559,16 @@ namespace stream {
       session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
       switch (event.type) {
-        case ENET_EVENT_TYPE_RECEIVE: {
-          net::packet_t packet { event.packet };
+        case ENET_EVENT_TYPE_RECEIVE:
+          {
+            net::packet_t packet {event.packet};
 
-          auto type = *(std::uint16_t *) packet->data;
-          std::string_view payload { (char *) packet->data + sizeof(type), packet->dataLength - sizeof(type) };
+            auto type = *(std::uint16_t *) packet->data;
+            std::string_view payload {(char *) packet->data + sizeof(type), packet->dataLength - sizeof(type)};
 
-          call(type, session, payload, false);
-        } break;
+            call(type, session, payload, false);
+          }
+          break;
         case ENET_EVENT_TYPE_CONNECT:
           BOOST_LOG(info) << "CLIENT CONNECTED"sv;
           break;
@@ -603,7 +586,9 @@ namespace stream {
   }
 
   namespace fec {
-    using rs_t = util::safe_ptr<reed_solomon, [](reed_solomon *rs) { reed_solomon_release(rs); }>;
+    using rs_t = util::safe_ptr<reed_solomon, [](reed_solomon *rs) {
+      reed_solomon_release(rs);
+    }>;
 
     struct fec_t {
       size_t data_shards;
@@ -618,24 +603,20 @@ namespace stream {
 
       std::vector<platf::buffer_descriptor_t> payload_buffers;
 
-      char *
-      data(size_t el) {
+      char *data(size_t el) {
         return (char *) shards_p[el];
       }
 
-      char *
-      prefix(size_t el) {
+      char *prefix(size_t el) {
         return prefixsize ? &headers[el * prefixsize] : nullptr;
       }
 
-      size_t
-      size() const {
+      size_t size() const {
         return nr_shards;
       }
     };
 
-    static fec_t
-    encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage, size_t minparityshards, size_t prefixsize) {
+    static fec_t encode(const std::string_view &payload, size_t blocksize, size_t fecpercentage, size_t minparityshards, size_t prefixsize) {
       auto payload_size = payload.size();
 
       auto pad = payload_size % blocksize != 0;
@@ -657,8 +638,8 @@ namespace stream {
       // If we need to store a zero-padded data shard, allocate that first to
       // to keep the shards in order and reduce buffer fragmentation
       auto parity_shard_offset = pad ? 1 : 0;
-      util::buffer_t<char> shards { (parity_shard_offset + parity_shards) * blocksize };
-      util::buffer_t<uint8_t *> shards_p { nr_shards };
+      util::buffer_t<char> shards {(parity_shard_offset + parity_shards) * blocksize};
+      util::buffer_t<uint8_t *> shards_p {nr_shards};
       std::vector<platf::buffer_descriptor_t> payload_buffers;
       payload_buffers.reserve(2);
 
@@ -695,7 +676,7 @@ namespace stream {
         }
 
         // packets = parity_shards + data_shards
-        rs_t rs { reed_solomon_new(data_shards, parity_shards) };
+        rs_t rs {reed_solomon_new(data_shards, parity_shards)};
 
         reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
       }
@@ -707,7 +688,7 @@ namespace stream {
         blocksize,
         prefixsize,
         std::move(shards),
-        util::buffer_t<char> { nr_shards * prefixsize },
+        util::buffer_t<char> {nr_shards * prefixsize},
         std::move(shards_p),
         std::move(payload_buffers),
       };
@@ -721,8 +702,7 @@ namespace stream {
    * @param data1 The first data buffer.
    * @param data2 The second data buffer.
    */
-  std::vector<uint8_t>
-  concat_and_insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data1, const std::string_view &data2) {
+  std::vector<uint8_t> concat_and_insert(uint64_t insert_size, uint64_t slice_size, const std::string_view &data1, const std::string_view &data2) {
     auto data_size = data1.size() + data2.size();
     auto pad = data_size % slice_size != 0;
     auto elements = data_size / slice_size + (pad ? 1 : 0);
@@ -751,8 +731,7 @@ namespace stream {
         end = std::end(data2);
         std::copy(next, next + (slice_size - copy_len), (char *) p + copy_len + insert_size);
         next += slice_size - copy_len;
-      }
-      else {
+      } else {
         std::copy(next, next + slice_size, (char *) p + insert_size);
         next += slice_size;
       }
@@ -761,8 +740,7 @@ namespace stream {
     return result;
   }
 
-  std::vector<uint8_t>
-  replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
+  std::vector<uint8_t> replace(const std::string_view &original, const std::string_view &old, const std::string_view &_new) {
     std::vector<uint8_t> replaced;
     replaced.reserve(original.size() + _new.size() - old.size());
 
@@ -785,8 +763,7 @@ namespace stream {
    * @param msg The message to pass.
    * @return 0 on success.
    */
-  int
-  send_feedback_msg(session_t *session, platf::gamepad_feedback_msg_t &msg) {
+  int send_feedback_msg(session_t *session, platf::gamepad_feedback_msg_t &msg) {
     if (!session->control.peer) {
       BOOST_LOG(warning) << "Couldn't send gamepad feedback data, still waiting for PING from Moonlight"sv;
       // Still waiting for PING from Moonlight
@@ -807,13 +784,11 @@ namespace stream {
       plaintext.highfreq = util::endian::little(data.highfreq);
 
       BOOST_LOG(verbose) << "Rumble: "sv << msg.id << " :: "sv << util::hex(data.lowfreq).to_string_view() << " :: "sv << util::hex(data.highfreq).to_string_view();
-      std::array<std::uint8_t,
-        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
-    }
-    else if (msg.type == platf::gamepad_feedback_e::rumble_triggers) {
+    } else if (msg.type == platf::gamepad_feedback_e::rumble_triggers) {
       control_rumble_triggers_t plaintext;
       plaintext.header.type = packetTypes[IDX_RUMBLE_TRIGGER_DATA];
       plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
@@ -825,13 +800,11 @@ namespace stream {
       plaintext.right = util::endian::little(data.right_trigger);
 
       BOOST_LOG(verbose) << "Rumble triggers: "sv << msg.id << " :: "sv << util::hex(data.left_trigger).to_string_view() << " :: "sv << util::hex(data.right_trigger).to_string_view();
-      std::array<std::uint8_t,
-        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
-    }
-    else if (msg.type == platf::gamepad_feedback_e::set_motion_event_state) {
+    } else if (msg.type == platf::gamepad_feedback_e::set_motion_event_state) {
       control_set_motion_event_t plaintext;
       plaintext.header.type = packetTypes[IDX_SET_MOTION_EVENT];
       plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
@@ -843,13 +816,11 @@ namespace stream {
       plaintext.type = data.motion_type;
 
       BOOST_LOG(verbose) << "Motion event state: "sv << msg.id << " :: "sv << util::hex(data.report_rate).to_string_view() << " :: "sv << util::hex(data.motion_type).to_string_view();
-      std::array<std::uint8_t,
-        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
-    }
-    else if (msg.type == platf::gamepad_feedback_e::set_rgb_led) {
+    } else if (msg.type == platf::gamepad_feedback_e::set_rgb_led) {
       control_set_rgb_led_t plaintext;
       plaintext.header.type = packetTypes[IDX_SET_RGB_LED];
       plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
@@ -862,13 +833,11 @@ namespace stream {
       plaintext.b = data.b;
 
       BOOST_LOG(verbose) << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
-      std::array<std::uint8_t,
-        sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "Unknown gamepad feedback message type"sv;
       return -1;
     }
@@ -883,8 +852,7 @@ namespace stream {
     return 0;
   }
 
-  int
-  send_hdr_mode(session_t *session, video::hdr_info_t hdr_info) {
+  int send_hdr_mode(session_t *session, video::hdr_info_t hdr_info) {
     if (!session->control.peer) {
       BOOST_LOG(warning) << "Couldn't send HDR mode, still waiting for PING from Moonlight"sv;
       // Still waiting for PING from Moonlight
@@ -898,8 +866,7 @@ namespace stream {
     plaintext.enabled = hdr_info->enabled;
     plaintext.metadata = hdr_info->metadata;
 
-    std::array<std::uint8_t,
-      sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
       encrypted_payload;
 
     auto payload = encode_control(session, util::view(plaintext), encrypted_payload);
@@ -914,8 +881,7 @@ namespace stream {
     return 0;
   }
 
-  void
-  controlBroadcastThread(control_server_t *server) {
+  void controlBroadcastThread(control_server_t *server) {
     server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
       BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
     });
@@ -931,7 +897,7 @@ namespace stream {
     server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
       int32_t *stats = (int32_t *) payload.data();
       auto count = stats[0];
-      std::chrono::milliseconds t { stats[1] };
+      std::chrono::milliseconds t {stats[1]};
 
       auto lastGoodFrame = stats[3];
 
@@ -967,7 +933,7 @@ namespace stream {
       BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
       auto tagged_cipher_length = util::endian::big(*(int32_t *) payload.data());
-      std::string_view tagged_cipher { payload.data() + sizeof(tagged_cipher_length), (size_t) tagged_cipher_length };
+      std::string_view tagged_cipher {payload.data() + sizeof(tagged_cipher_length), (size_t) tagged_cipher_length};
 
       std::vector<uint8_t> plaintext;
 
@@ -1003,7 +969,7 @@ namespace stream {
       }
 
       auto tagged_cipher_length = length - 4;
-      std::string_view tagged_cipher { (char *) header->payload(), (size_t) tagged_cipher_length };
+      std::string_view tagged_cipher {(char *) header->payload(), (size_t) tagged_cipher_length};
 
       auto &cipher = session->control.cipher;
       auto &iv = session->control.incoming_iv;
@@ -1020,8 +986,7 @@ namespace stream {
         std::copy_n((uint8_t *) &seq, sizeof(seq), std::begin(iv));
         iv[10] = 'C';  // Client originated
         iv[11] = 'C';  // Control stream
-      }
-      else {
+      } else {
         // Nvidia's old style encryption uses a 16-byte IV
         iv.resize(16);
 
@@ -1039,7 +1004,7 @@ namespace stream {
       }
 
       auto type = *(std::uint16_t *) plaintext.data();
-      std::string_view next_payload { (char *) plaintext.data() + 4, plaintext.size() - 4 };
+      std::string_view next_payload {(char *) plaintext.data() + 4, plaintext.size() - 4};
 
       if (type == packetTypes[IDX_ENCRYPTED]) {
         BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
@@ -1051,8 +1016,7 @@ namespace stream {
       if (type == packetTypes[IDX_INPUT_DATA]) {
         plaintext.erase(std::begin(plaintext), std::begin(plaintext) + 4);
         input::passthrough(session->input, std::move(plaintext));
-      }
-      else {
+      } else {
         server->call(type, session, next_payload, true);
       }
     });
@@ -1108,8 +1072,7 @@ namespace stream {
           // the app terminates before they finish connecting.
           if (!session->control.peer) {
             has_session_awaiting_peer = true;
-          }
-          else {
+          } else {
             auto &feedback_queue = session->control.feedback_queue;
             while (feedback_queue->peek()) {
               auto feedback_msg = feedback_queue->pop();
@@ -1147,8 +1110,7 @@ namespace stream {
     plaintext.header.payloadLength = sizeof(plaintext.ec);
     plaintext.ec = util::endian::big<uint32_t>(reason);
 
-    std::array<std::uint8_t,
-      sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+    std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
       encrypted_payload;
 
     auto lg = server->_sessions.lock();
@@ -1172,8 +1134,7 @@ namespace stream {
     server->flush();
   }
 
-  void
-  recvThread(broadcast_ctx_t &ctx) {
+  void recvThread(broadcast_ctx_t &ctx) {
     std::map<av_session_id_t, message_queue_t> peer_to_video_session;
     std::map<av_session_id_t, message_queue_t> peer_to_audio_session;
 
@@ -1183,7 +1144,7 @@ namespace stream {
     auto &message_queue_queue = ctx.message_queue_queue;
     auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
-    auto &io = ctx.io;
+    auto &io = ctx.io_context;
 
     udp::endpoint peer;
 
@@ -1199,16 +1160,14 @@ namespace stream {
           case socket_e::video:
             if (message_queue) {
               peer_to_video_session.emplace(session_id, message_queue);
-            }
-            else {
+            } else {
               peer_to_video_session.erase(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
               peer_to_audio_session.emplace(session_id, message_queue);
-            }
-            else {
+            } else {
               peer_to_audio_session.erase(session_id);
             }
             break;
@@ -1242,17 +1201,16 @@ namespace stream {
           auto it = peer_to_session.find(peer.address());
           if (it != std::end(peer_to_session)) {
             BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
-            it->second->raise(peer, std::string { buf[buf_elem].data(), bytes });
+            it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
-        }
-        else if (bytes >= sizeof(SS_PING)) {
+        } else if (bytes >= sizeof(SS_PING)) {
           auto ping = (PSS_PING) buf[buf_elem].data();
 
           // For new PING packets that include a client identifier, search by payload.
-          auto it = peer_to_session.find(std::string { ping->payload, sizeof(ping->payload) });
+          auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)});
           if (it != std::end(peer_to_session)) {
             BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
-            it->second->raise(peer, std::string { buf[buf_elem].data(), bytes });
+            it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
         }
       };
@@ -1269,8 +1227,7 @@ namespace stream {
     }
   }
 
-  void
-  videoBroadcastThread(udp::socket &sock) {
+  void videoBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
     auto timebase = boost::posix_time::microsec_clock::universal_time();
@@ -1304,7 +1261,7 @@ namespace stream {
       auto session = (session_t *) packet->channel_data;
       auto lowseq = session->video.lowseq;
 
-      std::string_view payload { (char *) packet->data(), packet->data_size() };
+      std::string_view payload {(char *) packet->data(), packet->data_size()};
       std::vector<uint8_t> payload_with_replacements;
 
       // Apply replacements on the packet payload before performing any other operations.
@@ -1317,7 +1274,7 @@ namespace stream {
           auto frame_new = replacement._new;
 
           payload_with_replacements = replace(payload, frame_old, frame_new);
-          payload = { (char *) payload_with_replacements.data(), payload_with_replacements.size() };
+          payload = {(char *) payload_with_replacements.data(), payload_with_replacements.size()};
         }
       }
 
@@ -1340,8 +1297,7 @@ namespace stream {
         uint16_t latency = duration_to_latency(std::chrono::steady_clock::now() - *packet->frame_timestamp);
         frame_header.frame_processing_latency = latency;
         frame_processing_latency_logger.collect_and_log(latency / 10.);
-      }
-      else {
+      } else {
         frame_header.frame_processing_latency = 0;
       }
 
@@ -1350,10 +1306,9 @@ namespace stream {
       // Insert space for packet headers
       auto blocksize = session->config.packetsize + MAX_RTP_HEADER_SIZE;
       auto payload_blocksize = blocksize - sizeof(video_packet_raw_t);
-      auto payload_new = concat_and_insert(sizeof(video_packet_raw_t), payload_blocksize,
-        std::string_view { (char *) &frame_header, sizeof(frame_header) }, payload);
+      auto payload_new = concat_and_insert(sizeof(video_packet_raw_t), payload_blocksize, std::string_view {(char *) &frame_header, sizeof(frame_header)}, payload);
 
-      payload = std::string_view { (char *) payload_new.data(), payload_new.size() };
+      payload = std::string_view {(char *) payload_new.data(), payload_new.size()};
 
       // There are 2 bits for FEC block count for a maximum of 4 FEC blocks
       constexpr auto MAX_FEC_BLOCKS = 4;
@@ -1401,8 +1356,7 @@ namespace stream {
         if (x == fec_blocks_needed - 1) {
           // The last block must extend to the end of the payload
           fec_blocks[x] = payload.substr(x * aligned_size);
-        }
-        else {
+        } else {
           // Earlier blocks just extend to the next block offset
           fec_blocks[x] = payload.substr(x * aligned_size, aligned_size);
         }
@@ -1453,8 +1407,7 @@ namespace stream {
 
           frame_fec_latency_logger.first_point_now();
           // If video encryption is enabled, we allocate space for the encryption header before each shard
-          auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets,
-            session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
+          auto shards = fec::encode(current_payload, blocksize, fecPercentage, session->config.minRequiredFecPackets, session->video.cipher ? sizeof(video_packet_enc_prefix_t) : 0);
           frame_fec_latency_logger.second_point_now_and_log();
 
           auto peer_address = session->video.peer.address();
@@ -1483,8 +1436,8 @@ namespace stream {
 
             inspect->packet.fecInfo =
               (x << 12 |
-                shards.data_shards << 22 |
-                shards.percentage << 4);
+               shards.data_shards << 22 |
+               shards.percentage << 4);
 
             inspect->rtp.header = 0x80 | FLAG_EXTENSION;
             inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
@@ -1511,8 +1464,7 @@ namespace stream {
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
               prefix->frameNumber = packet->frame_index();
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
-              session->video.cipher->encrypt(std::string_view { (char *) inspect, (size_t) blocksize },
-                prefix->tag, (uint8_t *) inspect, &iv);
+              session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
             }
 
             if (x - next_shard_to_send + 1 >= send_batch_size ||
@@ -1575,8 +1527,7 @@ namespace stream {
 
           if (packet->is_idr()) {
             BOOST_LOG(verbose) << "Key Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv;
-          }
-          else {
+          } else {
             BOOST_LOG(verbose) << "Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
           }
 
@@ -1585,8 +1536,7 @@ namespace stream {
         });
 
         session->video.lowseq = lowseq;
-      }
-      catch (const std::exception &e) {
+      } catch (const std::exception &e) {
         BOOST_LOG(error) << "Broadcast video failed "sv << e.what();
         std::this_thread::sleep_for(100ms);
       }
@@ -1595,13 +1545,12 @@ namespace stream {
     shutdown_event->raise(true);
   }
 
-  void
-  audioBroadcastThread(udp::socket &sock) {
+  void audioBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
 
     audio_packet_t audio_packet;
-    fec::rs_t rs { reed_solomon_new(RTPA_DATA_SHARDS, RTPA_FEC_SHARDS) };
+    fec::rs_t rs {reed_solomon_new(RTPA_DATA_SHARDS, RTPA_FEC_SHARDS)};
     crypto::aes_t iv(16);
 
     // For unknown reasons, the RS parity matrix computed by our RS implementation
@@ -1609,7 +1558,7 @@ namespace stream {
     // but we can simply replace it with the matrix generated by OpenFEC which
     // works correctly. This is possible because the data and FEC shard count is
     // constant and known in advance.
-    const unsigned char parity[] = { 0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c };
+    const unsigned char parity[] = {0x77, 0x40, 0x38, 0x0e, 0xc7, 0xa7, 0x0d, 0x6c};
     memcpy(rs.get()->p, parity, sizeof(parity));
 
     audio_packet.rtp.header = 0x80;
@@ -1634,8 +1583,7 @@ namespace stream {
 
       auto &shards_p = session->audio.shards_p;
 
-      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data,
-        shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
+      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio packet"sv;
         break;
@@ -1691,8 +1639,7 @@ namespace stream {
             BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
           }
         }
-      }
-      catch (const std::exception &e) {
+      } catch (const std::exception &e) {
         BOOST_LOG(error) << "Broadcast audio failed "sv << e.what();
         std::this_thread::sleep_for(100ms);
       }
@@ -1701,8 +1648,7 @@ namespace stream {
     shutdown_event->raise(true);
   }
 
-  int
-  start_broadcast(broadcast_ctx_t &ctx) {
+  int start_broadcast(broadcast_ctx_t &ctx) {
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
     auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
     auto control_port = net::map_port(CONTROL_PORT);
@@ -1726,8 +1672,7 @@ namespace stream {
     // Set video socket send buffer size (SO_SENDBUF) to 1MB
     try {
       ctx.video_sock.set_option(boost::asio::socket_base::send_buffer_size(1024 * 1024));
-    }
-    catch (...) {
+    } catch (...) {
       BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
     }
 
@@ -1754,17 +1699,16 @@ namespace stream {
 
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
-    ctx.video_thread = std::thread { videoBroadcastThread, std::ref(ctx.video_sock) };
-    ctx.audio_thread = std::thread { audioBroadcastThread, std::ref(ctx.audio_sock) };
-    ctx.control_thread = std::thread { controlBroadcastThread, &ctx.control_server };
+    ctx.video_thread = std::thread {videoBroadcastThread, std::ref(ctx.video_sock)};
+    ctx.audio_thread = std::thread {audioBroadcastThread, std::ref(ctx.audio_sock)};
+    ctx.control_thread = std::thread {controlBroadcastThread, &ctx.control_server};
 
-    ctx.recv_thread = std::thread { recvThread, std::ref(ctx) };
+    ctx.recv_thread = std::thread {recvThread, std::ref(ctx)};
 
     return 0;
   }
 
-  void
-  end_broadcast(broadcast_ctx_t &ctx) {
+  void end_broadcast(broadcast_ctx_t &ctx) {
     auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
     broadcast_shutdown_event->raise(true);
@@ -1777,7 +1721,7 @@ namespace stream {
     audio_packets->stop();
 
     ctx.message_queue_queue->stop();
-    ctx.io.stop();
+    ctx.io_context.stop();
 
     ctx.video_sock.close();
     ctx.audio_sock.close();
@@ -1798,10 +1742,9 @@ namespace stream {
     broadcast_shutdown_event->reset();
   }
 
-  int
-  recv_ping(session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
+  int recv_ping(session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
     auto messages = std::make_shared<message_queue_t::element_type>(30);
-    av_session_id_t session_id = std::string { expected_payload };
+    av_session_id_t session_id = std::string {expected_payload};
 
     // Only allow matches on the peer address for legacy clients
     if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1)) {
@@ -1834,12 +1777,10 @@ namespace stream {
       if (msg.find(expected_payload) != std::string::npos) {
         // Match the new PING payload format
         BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
-      }
-      else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {
+      } else if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) && msg == "PING"sv) {
         // Match the legacy fixed PING payload only if the new type is not supported
         BOOST_LOG(debug) << "Received ping [v1] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
-      }
-      else {
+      } else {
         BOOST_LOG(debug) << "Received non-ping from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
         current_time = std::chrono::steady_clock::now();
         continue;
@@ -1854,8 +1795,7 @@ namespace stream {
     return -1;
   }
 
-  void
-  videoThread(session_t *session) {
+  void videoThread(session_t *session) {
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });
@@ -1870,15 +1810,13 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on video traffic if requested by the client
     auto address = session->video.peer.address();
-    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address,
-      session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
+    session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
     video::capture(session->mail, session->config.monitor, session);
   }
 
-  void
-  audioThread(session_t *session) {
+  void audioThread(session_t *session) {
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });
@@ -1893,8 +1831,7 @@ namespace stream {
 
     // Enable local prioritization and QoS tagging on audio traffic if requested by the client
     auto address = session->audio.peer.address();
-    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address,
-      session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
+    session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
     audio::capture(session->mail, session->config.audio, session);
@@ -1903,13 +1840,11 @@ namespace stream {
   namespace session {
     std::atomic_uint running_sessions;
 
-    state_e
-    state(session_t &session) {
+    state_e state(session_t &session) {
       return session.state.load(std::memory_order_relaxed);
     }
 
-    void
-    stop(session_t &session) {
+    void stop(session_t &session) {
       while_starting_do_nothing(session.state);
       auto expected = state_e::RUNNING;
       auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
@@ -1920,8 +1855,7 @@ namespace stream {
       session.shutdown_event->raise(true);
     }
 
-    void
-    join(session_t &session) {
+    void join(session_t &session) {
       // Current Nvidia drivers have a bug where NVENC can deadlock the encoder thread with hardware-accelerated
       // GPU scheduling enabled. If this happens, we will terminate ourselves and the service can restart.
       // The alternative is that Sunshine can never start another session until it's manually restarted.
@@ -1948,19 +1882,21 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
         if (proc::proc.running()) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
-        }
 #endif
+        } else {
+          display_device::revert_configuration();
+        }
+
         platf::streaming_will_stop();
       }
 
       BOOST_LOG(debug) << "Session ended"sv;
     }
 
-    int
-    start(session_t &session, const std::string &addr_string) {
+    int start(session_t &session, const std::string &addr_string) {
       session.input = input::alloc(session.mail);
 
       session.broadcast_ref = broadcast.ref();
@@ -1986,8 +1922,8 @@ namespace stream {
 
       session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
-      session.audioThread = std::thread { audioThread, &session };
-      session.videoThread = std::thread { videoThread, &session };
+      session.audioThread = std::thread {audioThread, &session};
+      session.videoThread = std::thread {videoThread, &session};
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 
@@ -2002,8 +1938,7 @@ namespace stream {
       return 0;
     }
 
-    std::shared_ptr<session_t>
-    alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
+    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();
 
       auto mail = std::make_shared<safe::mail_raw_t>();
@@ -2018,7 +1953,8 @@ namespace stream {
       session->control.hdr_queue = mail->event<video::hdr_info_t>(mail::hdr);
       session->control.legacy_input_enc_iv = launch_session.iv;
       session->control.cipher = crypto::cipher::gcm_t {
-        launch_session.gcm_key, false
+        launch_session.gcm_key,
+        false
       };
 
       session->video.idr_events = mail->event<bool>(mail::idr);
@@ -2028,15 +1964,16 @@ namespace stream {
       if (config.encryptionFlagsEnabled & SS_ENC_VIDEO) {
         BOOST_LOG(info) << "Video encryption enabled"sv;
         session->video.cipher = crypto::cipher::gcm_t {
-          launch_session.gcm_key, false
+          launch_session.gcm_key,
+          false
         };
         session->video.gcm_iv_counter = 0;
       }
 
       constexpr auto max_block_size = crypto::cipher::round_to_pkcs7_padded(2048);
 
-      util::buffer_t<char> shards { RTPA_TOTAL_SHARDS * max_block_size };
-      util::buffer_t<uint8_t *> shards_p { RTPA_TOTAL_SHARDS };
+      util::buffer_t<char> shards {RTPA_TOTAL_SHARDS * max_block_size};
+      util::buffer_t<uint8_t *> shards_p {RTPA_TOTAL_SHARDS};
 
       for (auto x = 0; x < RTPA_TOTAL_SHARDS; ++x) {
         shards_p[x] = (uint8_t *) &shards[x * max_block_size];
@@ -2056,7 +1993,8 @@ namespace stream {
       session->audio.fec_packet.fecHeader.ssrc = 0;
 
       session->audio.cipher = crypto::cipher::cbc_t {
-        launch_session.gcm_key, true
+        launch_session.gcm_key,
+        true
       };
 
       session->audio.ping_payload = launch_session.av_ping_payload;

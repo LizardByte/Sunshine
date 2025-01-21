@@ -2,20 +2,23 @@
  * @file src/platform/macos/input.cpp
  * @brief Definitions for macOS input handling.
  */
-#include "src/input.h"
-
-#import <Carbon/Carbon.h>
+// standard includes
 #include <chrono>
+#include <iostream>
+#include <thread>
+
+// platform includes
+#include <ApplicationServices/ApplicationServices.h>
+#import <Carbon/Carbon.h>
+#include <CoreFoundation/CoreFoundation.h>
 #include <mach/mach.h>
 
+// local includes
+#include "src/display_device.h"
+#include "src/input.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
-
-#include <ApplicationServices/ApplicationServices.h>
-#include <CoreFoundation/CoreFoundation.h>
-#include <iostream>
-#include <thread>
 
 /**
  * @brief Delay for a double click, in milliseconds.
@@ -49,8 +52,7 @@ namespace platf {
   };
 
   // Customized less operator for using std::lower_bound() on a KeyCodeMap array.
-  bool
-  operator<(const KeyCodeMap &a, const KeyCodeMap &b) {
+  bool operator<(const KeyCodeMap &a, const KeyCodeMap &b) {
     return a.win_keycode < b.win_keycode;
   }
 
@@ -226,13 +228,15 @@ const KeyCodeMap kKeyCodesMap[] = {
 };
   // clang-format on
 
-  int
-  keysym(int keycode) {
+  int keysym(int keycode) {
     KeyCodeMap key_map {};
 
     key_map.win_keycode = keycode;
     const KeyCodeMap *temp_map = std::lower_bound(
-      kKeyCodesMap, kKeyCodesMap + sizeof(kKeyCodesMap) / sizeof(kKeyCodesMap[0]), key_map);
+      kKeyCodesMap,
+      kKeyCodesMap + sizeof(kKeyCodesMap) / sizeof(kKeyCodesMap[0]),
+      key_map
+    );
 
     if (temp_map >= kKeyCodesMap + sizeof(kKeyCodesMap) / sizeof(kKeyCodesMap[0]) ||
         temp_map->win_keycode != keycode || temp_map->mac_keycode == -1) {
@@ -242,8 +246,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     return temp_map->mac_keycode;
   }
 
-  void
-  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
     auto key = keysym(modcode);
 
     BOOST_LOG(debug) << "got keycode: 0x"sv << std::hex << modcode << ", translated to: 0x" << std::hex << key << ", release:" << release;
@@ -283,8 +286,7 @@ const KeyCodeMap kKeyCodesMap[] = {
       macos_input->kb_flags = release ? macos_input->kb_flags & ~mask : macos_input->kb_flags | mask;
       CGEventSetType(event, kCGEventFlagsChanged);
       CGEventSetFlags(event, macos_input->kb_flags);
-    }
-    else {
+    } else {
       CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, key);
       CGEventSetType(event, release ? kCGEventKeyUp : kCGEventKeyDown);
     }
@@ -292,30 +294,25 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventPost(kCGHIDEventTap, event);
   }
 
-  void
-  unicode(input_t &input, char *utf8, int size) {
+  void unicode(input_t &input, char *utf8, int size) {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
-  int
-  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
     return -1;
   }
 
-  void
-  free_gamepad(input_t &input, int nr) {
+  void free_gamepad(input_t &input, int nr) {
     BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
   }
 
-  void
-  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     BOOST_LOG(info) << "gamepad: Gamepad not yet implemented for MacOS."sv;
   }
 
   // returns current mouse location:
-  util::point_t
-  get_mouse_loc(input_t &input) {
+  util::point_t get_mouse_loc(input_t &input) {
     // Creating a new event every time to avoid any reuse risk
     const auto macos_input = static_cast<macos_input_t *>(input.get());
     const auto snapshot_event = CGEventCreate(macos_input->source);
@@ -327,14 +324,14 @@ const KeyCodeMap kKeyCodesMap[] = {
     };
   }
 
-  void
-  post_mouse(
+  void post_mouse(
     input_t &input,
     const CGMouseButton button,
     const CGEventType type,
     const util::point_t raw_location,
     const util::point_t previous_location,
-    const int click_count) {
+    const int click_count
+  ) {
     BOOST_LOG(debug) << "mouse_event: "sv << button << ", type: "sv << type << ", location:"sv << raw_location.x << ":"sv << raw_location.y << " click_count: "sv << click_count;
 
     const auto macos_input = static_cast<macos_input_t *>(input.get());
@@ -367,8 +364,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGWarpMouseCursorPosition(location);
   }
 
-  inline CGEventType
-  event_type_mouse(input_t &input) {
+  inline CGEventType event_type_mouse(input_t &input) {
     const auto macos_input = static_cast<macos_input_t *>(input.get());
 
     if (macos_input->mouse_down[0]) {
@@ -383,28 +379,28 @@ const KeyCodeMap kKeyCodesMap[] = {
     return kCGEventMouseMoved;
   }
 
-  void
-  move_mouse(
+  void move_mouse(
     input_t &input,
     const int deltaX,
-    const int deltaY) {
+    const int deltaY
+  ) {
     const auto current = get_mouse_loc(input);
 
-    const auto location = util::point_t { current.x + deltaX, current.y + deltaY };
+    const auto location = util::point_t {current.x + deltaX, current.y + deltaY};
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, current, 0);
   }
 
-  void
-  abs_mouse(
+  void abs_mouse(
     input_t &input,
     const touch_port_t &touch_port,
     const float x,
-    const float y) {
+    const float y
+  ) {
     const auto macos_input = static_cast<macos_input_t *>(input.get());
     const auto scaling = macos_input->displayScaling;
     const auto display = macos_input->display;
 
-    auto location = util::point_t { x * scaling, y * scaling };
+    auto location = util::point_t {x * scaling, y * scaling};
     CGRect display_bounds = CGDisplayBounds(display);
     // in order to get the correct mouse location for capturing display , we need to add the display bounds to the location
     location.x += display_bounds.origin.x;
@@ -413,8 +409,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     post_mouse(input, kCGMouseButtonLeft, event_type_mouse(input), location, get_mouse_loc(input), 0);
   }
 
-  void
-  button_mouse(input_t &input, const int button, const bool release) {
+  void button_mouse(input_t &input, const int button, const bool release) {
     CGMouseButton mac_button;
     CGEventType event;
 
@@ -446,26 +441,26 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     if (now < macos_input->last_mouse_event[mac_button][release] + MULTICLICK_DELAY_MS) {
       post_mouse(input, mac_button, event, mouse_position, mouse_position, 2);
-    }
-    else {
+    } else {
       post_mouse(input, mac_button, event, mouse_position, mouse_position, 1);
     }
 
     macos_input->last_mouse_event[mac_button][release] = now;
   }
 
-  void
-  scroll(input_t &input, const int high_res_distance) {
+  void scroll(input_t &input, const int high_res_distance) {
     CGEventRef upEvent = CGEventCreateScrollWheelEvent(
       nullptr,
       kCGScrollEventUnitLine,
-      2, high_res_distance > 0 ? 1 : -1, high_res_distance);
+      2,
+      high_res_distance > 0 ? 1 : -1,
+      high_res_distance
+    );
     CGEventPost(kCGHIDEventTap, upEvent);
     CFRelease(upEvent);
   }
 
-  void
-  hscroll(input_t &input, int high_res_distance) {
+  void hscroll(input_t &input, int high_res_distance) {
     // Unimplemented
   }
 
@@ -474,8 +469,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @return A unique pointer to a per-client input data context.
    */
-  std::unique_ptr<client_input_t>
-  allocate_client_input_context(input_t &input) {
+  std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input) {
     // Unused
     return nullptr;
   }
@@ -486,8 +480,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param touch The touch event.
    */
-  void
-  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
     // Unimplemented feature - platform_caps::pen_touch
   }
 
@@ -497,8 +490,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param pen The pen event.
    */
-  void
-  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
+  void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen) {
     // Unimplemented feature - platform_caps::pen_touch
   }
 
@@ -507,8 +499,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param touch The touch event.
    */
-  void
-  gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+  void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
     // Unimplemented feature - platform_caps::controller_touch
   }
 
@@ -517,8 +508,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param motion The motion event.
    */
-  void
-  gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+  void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
     // Unimplemented
   }
 
@@ -527,21 +517,19 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param battery The battery event.
    */
-  void
-  gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+  void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
     // Unimplemented
   }
 
-  input_t
-  input() {
-    input_t result { new macos_input_t() };
+  input_t input() {
+    input_t result {new macos_input_t()};
 
     const auto macos_input = static_cast<macos_input_t *>(result.get());
 
     // Default to main display
     macos_input->display = CGMainDisplayID();
 
-    auto output_name = config::video.output_name;
+    auto output_name = display_device::map_output_name(config::video.output_name);
     // If output_name is set, try to find the display with that display id
     if (!output_name.empty()) {
       uint32_t max_display = 32;
@@ -549,8 +537,7 @@ const KeyCodeMap kKeyCodesMap[] = {
       CGDirectDisplayID displays[max_display];
       if (CGGetActiveDisplayList(max_display, displays, &display_count) != kCGErrorSuccess) {
         BOOST_LOG(error) << "Unable to get active display list , error: "sv << std::endl;
-      }
-      else {
+      } else {
         for (int i = 0; i < display_count; i++) {
           CGDirectDisplayID display_id = displays[i];
           if (display_id == std::atoi(output_name.c_str())) {
@@ -580,8 +567,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     return result;
   }
 
-  void
-  freeInput(void *p) {
+  void freeInput(void *p) {
     const auto *input = static_cast<macos_input_t *>(p);
 
     CFRelease(input->source);
@@ -591,10 +577,9 @@ const KeyCodeMap kKeyCodesMap[] = {
     delete input;
   }
 
-  std::vector<supported_gamepad_t> &
-  supported_gamepads(input_t *input) {
+  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
     static std::vector gamepads {
-      supported_gamepad_t { "", false, "gamepads.macos_not_implemented" }
+      supported_gamepad_t {"", false, "gamepads.macos_not_implemented"}
     };
 
     return gamepads;
@@ -604,8 +589,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @brief Returns the supported platform capabilities to advertise to the client.
    * @return Capability flags.
    */
-  platform_caps::caps_t
-  get_capabilities() {
+  platform_caps::caps_t get_capabilities() {
     return 0;
   }
 }  // namespace platf

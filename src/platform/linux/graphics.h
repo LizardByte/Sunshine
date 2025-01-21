@@ -4,12 +4,15 @@
  */
 #pragma once
 
+// standard includes
 #include <optional>
 #include <string_view>
 
+// lib includes
 #include <glad/egl.h>
 #include <glad/gl.h>
 
+// local includes
 #include "misc.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -21,35 +24,30 @@
 #define gl_drain_errors_helper(x) gl::drain_errors(x)
 #define gl_drain_errors gl_drain_errors_helper(__FILE__ ":" SUNSHINE_STRINGIFY(__LINE__))
 
-extern "C" int
-close(int __fd);
+extern "C" int close(int __fd);
 
 // X11 Display
 extern "C" struct _XDisplay;
 
 struct AVFrame;
-void
-free_frame(AVFrame *frame);
+void free_frame(AVFrame *frame);
 
 using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace gl {
   extern GladGLContext ctx;
-  void
-  drain_errors(const std::string_view &prefix);
+  void drain_errors(const std::string_view &prefix);
 
   class tex_t: public util::buffer_t<GLuint> {
     using util::buffer_t<GLuint>::buffer_t;
 
   public:
     tex_t(tex_t &&) = default;
-    tex_t &
-    operator=(tex_t &&) = default;
+    tex_t &operator=(tex_t &&) = default;
 
     ~tex_t();
 
-    static tex_t
-    make(std::size_t count);
+    static tex_t make(std::size_t count);
   };
 
   class frame_buf_t: public util::buffer_t<GLuint> {
@@ -57,16 +55,13 @@ namespace gl {
 
   public:
     frame_buf_t(frame_buf_t &&) = default;
-    frame_buf_t &
-    operator=(frame_buf_t &&) = default;
+    frame_buf_t &operator=(frame_buf_t &&) = default;
 
     ~frame_buf_t();
 
-    static frame_buf_t
-    make(std::size_t count);
+    static frame_buf_t make(std::size_t count);
 
-    inline void
-    bind(std::nullptr_t, std::nullptr_t) {
+    inline void bind(std::nullptr_t, std::nullptr_t) {
       int x = 0;
       for (auto fb : (*this)) {
         ctx.BindFramebuffer(GL_FRAMEBUFFER, fb);
@@ -77,9 +72,8 @@ namespace gl {
       return;
     }
 
-    template <class It>
-    void
-    bind(It it_begin, It it_end) {
+    template<class It>
+    void bind(It it_begin, It it_end) {
       using namespace std::literals;
       if (std::distance(it_begin, it_end) > size()) {
         BOOST_LOG(warning) << "To many elements to bind"sv;
@@ -100,8 +94,7 @@ namespace gl {
     /**
      * Copies a part of the framebuffer to texture
      */
-    void
-    copy(int id, int texture, int offset_x, int offset_y, int width, int height);
+    void copy(int id, int texture, int offset_x, int offset_y, int width, int height);
   };
 
   class shader_t {
@@ -112,14 +105,11 @@ namespace gl {
     });
 
   public:
-    std::string
-    err_str();
+    std::string err_str();
 
-    static util::Either<shader_t, std::string>
-    compile(const std::string_view &source, GLenum type);
+    static util::Either<shader_t, std::string> compile(const std::string_view &source, GLenum type);
 
-    GLuint
-    handle() const;
+    GLuint handle() const;
 
   private:
     shader_internal_t _shader;
@@ -133,19 +123,14 @@ namespace gl {
     });
 
   public:
-    static buffer_t
-    make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data);
+    static buffer_t make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data);
 
-    GLuint
-    handle() const;
+    GLuint handle() const;
 
-    const char *
-    block() const;
+    const char *block() const;
 
-    void
-    update(const std::string_view &view, std::size_t offset = 0);
-    void
-    update(std::string_view *members, std::size_t count, std::size_t offset = 0);
+    void update(const std::string_view &view, std::size_t offset = 0);
+    void update(std::string_view *members, std::size_t count, std::size_t offset = 0);
 
   private:
     const char *_block;
@@ -165,20 +150,15 @@ namespace gl {
     });
 
   public:
-    std::string
-    err_str();
+    std::string err_str();
 
-    static util::Either<program_t, std::string>
-    link(const shader_t &vert, const shader_t &frag);
+    static util::Either<program_t, std::string> link(const shader_t &vert, const shader_t &frag);
 
-    void
-    bind(const buffer_t &buffer);
+    void bind(const buffer_t &buffer);
 
-    std::optional<buffer_t>
-    uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count);
+    std::optional<buffer_t> uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count);
 
-    GLuint
-    handle() const;
+    GLuint handle() const;
 
   private:
     program_internal_t _program;
@@ -195,8 +175,7 @@ namespace gbm {
 
   using gbm_t = util::dyn_safe_ptr<device, &device_destroy>;
 
-  int
-  init();
+  int init();
 
 }  // namespace gbm
 
@@ -258,24 +237,23 @@ namespace egl {
     std::uint32_t offsets[4];
   };
 
-  display_t
-  make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display);
-  std::optional<ctx_t>
-  make_ctx(display_t::pointer display);
+  display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display);
+  std::optional<ctx_t> make_ctx(display_t::pointer display);
 
   std::optional<rgb_t>
-  import_source(
-    display_t::pointer egl_display,
-    const surface_descriptor_t &xrgb);
+    import_source(
+      display_t::pointer egl_display,
+      const surface_descriptor_t &xrgb
+    );
 
-  rgb_t
-  create_blank(platf::img_t &img);
+  rgb_t create_blank(platf::img_t &img);
 
-  std::optional<nv12_t>
-  import_target(
+  std::optional<nv12_t> import_target(
     display_t::pointer egl_display,
     std::array<file_t, nv12_img_t::num_fds> &&fds,
-    const surface_descriptor_t &y, const surface_descriptor_t &uv);
+    const surface_descriptor_t &y,
+    const surface_descriptor_t &uv
+  );
 
   /**
    * @brief Creates biplanar YUV textures to render into.
@@ -284,8 +262,7 @@ namespace egl {
    * @param format Format of the target frame.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t>
-  create_target(int width, int height, AVPixelFormat format);
+  std::optional<nv12_t> create_target(int width, int height, AVPixelFormat format);
 
   class cursor_t: public platf::img_t {
   public:
@@ -304,8 +281,7 @@ namespace egl {
       reset();
     }
 
-    void
-    reset() {
+    void reset() {
       for (auto x = 0; x < 4; ++x) {
         if (sd.fds[x] >= 0) {
           close(sd.fds[x]);
@@ -323,26 +299,19 @@ namespace egl {
 
   class sws_t {
   public:
-    static std::optional<sws_t>
-    make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
-    static std::optional<sws_t>
-    make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format);
+    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
+    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format);
 
     // Convert the loaded image into the first two framebuffers
-    int
-    convert(gl::frame_buf_t &fb);
+    int convert(gl::frame_buf_t &fb);
 
     // Make an area of the image black
-    int
-    blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
+    int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
 
-    void
-    load_ram(platf::img_t &img);
-    void
-    load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
+    void load_ram(platf::img_t &img);
+    void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
-    void
-    apply_colorspace(const video::sunshine_colorspace_t &colorspace);
+    void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
     // The first texture is the monitor image.
     // The second texture is the cursor image
@@ -367,6 +336,5 @@ namespace egl {
     std::uint64_t serial;
   };
 
-  bool
-  fail();
+  bool fail();
 }  // namespace egl

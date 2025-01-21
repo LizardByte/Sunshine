@@ -2,6 +2,7 @@
  * @file src/platform/macos/av_video.m
  * @brief Definitions for video capture on macOS.
  */
+// local includes
 #import "av_video.h"
 
 @implementation AVVideo
@@ -32,8 +33,7 @@
 }
 
 + (NSString *)getDisplayName:(CGDirectDisplayID)displayID {
-  NSScreen *screens = [NSScreen screens];
-  for (NSScreen *screen in screens) {
+  for (NSScreen *screen in [NSScreen screens]) {
     if (screen.deviceDescription[@"NSScreenNumber"] == [NSNumber numberWithUnsignedInt:displayID]) {
       return screen.localizedName;
     }
@@ -63,8 +63,7 @@
 
   if ([self.session canAddInput:screenInput]) {
     [self.session addInput:screenInput];
-  }
-  else {
+  } else {
     [screenInput release];
     return nil;
   }
@@ -98,9 +97,7 @@
       (NSString *) AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
     }];
 
-    dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,
-      QOS_CLASS_USER_INITIATED,
-      DISPATCH_QUEUE_PRIORITY_HIGH);
+    dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
     dispatch_queue_t recordingQueue = dispatch_queue_create("videoCaptureQueue", qos);
     [videoOutput setSampleBufferDelegate:self queue:recordingQueue];
 
@@ -108,8 +105,7 @@
 
     if ([self.session canAddOutput:videoOutput]) {
       [self.session addOutput:videoOutput];
-    }
-    else {
+    } else {
       [videoOutput release];
       return nil;
     }

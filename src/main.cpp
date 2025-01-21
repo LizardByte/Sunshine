@@ -10,6 +10,7 @@
 
 // local includes
 #include "confighttp.h"
+#include "display_device.h"
 #include "entry_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -29,31 +30,37 @@ extern "C" {
 using namespace std::literals;
 
 std::map<int, std::function<void()>> signal_handlers;
-void
-on_signal_forwarder(int sig) {
+
+void on_signal_forwarder(int sig) {
   signal_handlers.at(sig)();
 }
 
-template <class FN>
-void
-on_signal(int sig, FN &&fn) {
+template<class FN>
+void on_signal(int sig, FN &&fn) {
   signal_handlers.emplace(sig, std::forward<FN>(fn));
 
   std::signal(sig, on_signal_forwarder);
 }
 
 std::map<std::string_view, std::function<int(const char *name, int argc, char **argv)>> cmd_to_func {
-  { "creds"sv, [](const char *name, int argc, char **argv) { return args::creds(name, argc, argv); } },
-  { "help"sv, [](const char *name, int argc, char **argv) { return args::help(name); } },
-  { "version"sv, [](const char *name, int argc, char **argv) { return args::version(); } },
+  {"creds"sv, [](const char *name, int argc, char **argv) {
+     return args::creds(name, argc, argv);
+   }},
+  {"help"sv, [](const char *name, int argc, char **argv) {
+     return args::help(name);
+   }},
+  {"version"sv, [](const char *name, int argc, char **argv) {
+     return args::version();
+   }},
 #ifdef _WIN32
-  { "restore-nvprefs-undo"sv, [](const char *name, int argc, char **argv) { return args::restore_nvprefs_undo(); } },
+  {"restore-nvprefs-undo"sv, [](const char *name, int argc, char **argv) {
+     return args::restore_nvprefs_undo();
+   }},
 #endif
 };
 
 #ifdef _WIN32
-LRESULT CALLBACK
-SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
   switch (uMsg) {
     case WM_CLOSE:
       DestroyWindow(hwnd);
@@ -61,19 +68,19 @@ SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     case WM_DESTROY:
       PostQuitMessage(0);
       return 0;
-    case WM_ENDSESSION: {
-      // Terminate ourselves with a blocking exit call
-      std::cout << "Received WM_ENDSESSION"sv << std::endl;
-      lifetime::exit_sunshine(0, false);
-      return 0;
-    }
+    case WM_ENDSESSION:
+      {
+        // Terminate ourselves with a blocking exit call
+        std::cout << "Received WM_ENDSESSION"sv << std::endl;
+        lifetime::exit_sunshine(0, false);
+        return 0;
+      }
     default:
       return DefWindowProc(hwnd, uMsg, wParam, lParam);
   }
 }
 
-WINAPI BOOL
-ConsoleCtrlHandler(DWORD type) {
+WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
   if (type == CTRL_CLOSE_EVENT) {
     BOOST_LOG(info) << "Console closed handler called";
     lifetime::exit_sunshine(0, false);
@@ -82,8 +89,7 @@ ConsoleCtrlHandler(DWORD type) {
 }
 #endif
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
@@ -133,6 +139,14 @@ main(int argc, char *argv[]) {
     return fn->second(argv[0], config::sunshine.cmd.argc, config::sunshine.cmd.argv);
   }
 
+  // Adding guard here first as it also performs recovery after crash,
+  // otherwise people could theoretically end up without display output.
+  // It also should be destroyed before forced shutdown to expedite the cleanup.
+  auto display_device_deinit_guard = display_device::init(platf::appdata() / "display_device.state", config::video);
+  if (!display_device_deinit_guard) {
+    BOOST_LOG(error) << "Display device session failed to initialize"sv;
+  }
+
 #ifdef WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
@@ -179,7 +193,8 @@ main(int argc, char *argv[]) {
       nullptr,
       nullptr,
       nullptr,
-      nullptr);
+      nullptr
+    );
 
     session_monitor_hwnd_promise.set_value(wnd);
 
@@ -207,12 +222,10 @@ main(int argc, char *argv[]) {
       if (session_monitor_join_thread_future.wait_for(1s) == std::future_status::ready) {
         session_monitor_thread.join();
         return;
-      }
-      else {
+      } else {
         BOOST_LOG(warning) << "session_monitor_join_thread_future reached timeout";
       }
-    }
-    else {
+    } else {
       BOOST_LOG(warning) << "session_monitor_hwnd_future reached timeout";
     }
 
@@ -230,7 +243,7 @@ main(int argc, char *argv[]) {
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-  on_signal(SIGINT, [&force_shutdown, shutdown_event]() {
+  on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Interrupt handler called"sv;
 
     auto task = []() {
@@ -241,9 +254,10 @@ main(int argc, char *argv[]) {
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
     shutdown_event->raise(true);
+    display_device_deinit_guard = nullptr;
   });
 
-  on_signal(SIGTERM, [&force_shutdown, shutdown_event]() {
+  on_signal(SIGTERM, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
     BOOST_LOG(info) << "Terminate handler called"sv;
 
     auto task = []() {
@@ -254,6 +268,7 @@ main(int argc, char *argv[]) {
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
     shutdown_event->raise(true);
+    display_device_deinit_guard = nullptr;
   });
 
 #ifdef _WIN32
@@ -313,8 +328,8 @@ main(int argc, char *argv[]) {
     return lifetime::desired_exit_code;
   }
 
-  std::thread httpThread { nvhttp::start };
-  std::thread configThread { confighttp::start };
+  std::thread httpThread {nvhttp::start};
+  std::thread configThread {confighttp::start};
 
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user

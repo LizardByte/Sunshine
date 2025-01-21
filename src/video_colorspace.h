@@ -23,14 +23,12 @@ namespace video {
     unsigned bit_depth;
   };
 
-  bool
-  colorspace_is_hdr(const sunshine_colorspace_t &colorspace);
+  bool colorspace_is_hdr(const sunshine_colorspace_t &colorspace);
 
   // Declared in video.h
   struct config_t;
 
-  sunshine_colorspace_t
-  colorspace_from_client_config(const config_t &config, bool hdr_display);
+  sunshine_colorspace_t colorspace_from_client_config(const config_t &config, bool hdr_display);
 
   struct avcodec_colorspace_t {
     AVColorPrimaries primaries;
@@ -40,8 +38,7 @@ namespace video {
     int software_format;
   };
 
-  avcodec_colorspace_t
-  avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace);
+  avcodec_colorspace_t avcodec_colorspace_from_sunshine_colorspace(const sunshine_colorspace_t &sunshine_colorspace);
 
   struct alignas(16) color_t {
     float color_vec_y[4];
@@ -51,11 +48,9 @@ namespace video {
     float range_uv[2];
   };
 
-  const color_t *
-  color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace);
+  const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace);
 
-  const color_t *
-  color_vectors_from_colorspace(colorspace_e colorspace, bool full_range);
+  const color_t *color_vectors_from_colorspace(colorspace_e colorspace, bool full_range);
 
   /**
    * @brief New version of `color_vectors_from_colorspace()` function that better adheres to the standards.
@@ -68,6 +63,5 @@ namespace video {
    *         Components `range_y` and `range_uv` are there for backwards compatibility
    *         and can be ignored in the computation.
    */
-  const color_t *
-  new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace);
+  const color_t *new_color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace);
 }  // namespace video

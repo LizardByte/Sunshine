@@ -2,12 +2,11 @@
  * @file tests/unit/test_logging.cpp
  * @brief Test src/logging.*.
  */
-#include <src/logging.h>
-
 #include "../tests_common.h"
 #include "../tests_log_checker.h"
 
 #include <random>
+#include <src/logging.h>
 
 namespace {
   std::array log_levels = {
@@ -28,7 +27,10 @@ INSTANTIATE_TEST_SUITE_P(
   Logging,
   LogLevelsTest,
   testing::ValuesIn(log_levels),
-  [](const auto &info) { return std::string(std::get<0>(info.param)); });
+  [](const auto &info) {
+    return std::string(std::get<0>(info.param));
+  }
+);
 
 TEST_P(LogLevelsTest, PutMessage) {
   auto [label, plogger] = GetParam();

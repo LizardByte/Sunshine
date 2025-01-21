@@ -3,18 +3,15 @@
  * @brief Handles collecting audio device information from Windows.
  */
 #define INITGUID
+#include "src/utility.h"
+
 #include <audioclient.h>
+#include <codecvt>
+#include <iostream>
+#include <locale>
 #include <mmdeviceapi.h>
 #include <roapi.h>
-
-#include <codecvt>
-#include <locale>
-
 #include <synchapi.h>
-
-#include <iostream>
-
-#include "src/utility.h"
 
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
@@ -25,15 +22,13 @@ using namespace std::literals;
 int device_state_filter = DEVICE_STATE_ACTIVE;
 
 namespace audio {
-  template <class T>
-  void
-  Release(T *p) {
+  template<class T>
+  void Release(T *p) {
     p->Release();
   }
 
-  template <class T>
-  void
-  co_task_free(T *p) {
+  template<class T>
+  void co_task_free(T *p) {
     CoTaskMemFree((LPVOID) p);
   }
 
@@ -64,8 +59,7 @@ namespace audio {
     PROPVARIANT prop;
   };
 
-  const wchar_t *
-  no_null(const wchar_t *str) {
+  const wchar_t *no_null(const wchar_t *str) {
     return str ? str : L"Unknown";
   }
 
@@ -74,48 +68,47 @@ namespace audio {
     int channels;
     int channel_mask;
   } formats[] {
-    { "Mono"sv,
-      1,
-      SPEAKER_FRONT_CENTER },
-    { "Stereo"sv,
-      2,
-      SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT },
-    { "Quadraphonic"sv,
-      4,
-      SPEAKER_FRONT_LEFT |
-        SPEAKER_FRONT_RIGHT |
-        SPEAKER_BACK_LEFT |
-        SPEAKER_BACK_RIGHT },
-    { "Surround 5.1 (Side)"sv,
-      6,
-      SPEAKER_FRONT_LEFT |
-        SPEAKER_FRONT_RIGHT |
-        SPEAKER_FRONT_CENTER |
-        SPEAKER_LOW_FREQUENCY |
-        SPEAKER_SIDE_LEFT |
-        SPEAKER_SIDE_RIGHT },
-    { "Surround 5.1 (Back)"sv,
-      6,
-      SPEAKER_FRONT_LEFT |
-        SPEAKER_FRONT_RIGHT |
-        SPEAKER_FRONT_CENTER |
-        SPEAKER_LOW_FREQUENCY |
-        SPEAKER_BACK_LEFT |
-        SPEAKER_BACK_RIGHT },
-    { "Surround 7.1"sv,
-      8,
-      SPEAKER_FRONT_LEFT |
-        SPEAKER_FRONT_RIGHT |
-        SPEAKER_FRONT_CENTER |
-        SPEAKER_LOW_FREQUENCY |
-        SPEAKER_BACK_LEFT |
-        SPEAKER_BACK_RIGHT |
-        SPEAKER_SIDE_LEFT |
-        SPEAKER_SIDE_RIGHT }
+    {"Mono"sv,
+     1,
+     SPEAKER_FRONT_CENTER},
+    {"Stereo"sv,
+     2,
+     SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT},
+    {"Quadraphonic"sv,
+     4,
+     SPEAKER_FRONT_LEFT |
+       SPEAKER_FRONT_RIGHT |
+       SPEAKER_BACK_LEFT |
+       SPEAKER_BACK_RIGHT},
+    {"Surround 5.1 (Side)"sv,
+     6,
+     SPEAKER_FRONT_LEFT |
+       SPEAKER_FRONT_RIGHT |
+       SPEAKER_FRONT_CENTER |
+       SPEAKER_LOW_FREQUENCY |
+       SPEAKER_SIDE_LEFT |
+       SPEAKER_SIDE_RIGHT},
+    {"Surround 5.1 (Back)"sv,
+     6,
+     SPEAKER_FRONT_LEFT |
+       SPEAKER_FRONT_RIGHT |
+       SPEAKER_FRONT_CENTER |
+       SPEAKER_LOW_FREQUENCY |
+       SPEAKER_BACK_LEFT |
+       SPEAKER_BACK_RIGHT},
+    {"Surround 7.1"sv,
+     8,
+     SPEAKER_FRONT_LEFT |
+       SPEAKER_FRONT_RIGHT |
+       SPEAKER_FRONT_CENTER |
+       SPEAKER_LOW_FREQUENCY |
+       SPEAKER_BACK_LEFT |
+       SPEAKER_BACK_RIGHT |
+       SPEAKER_SIDE_LEFT |
+       SPEAKER_SIDE_RIGHT}
   };
 
-  void
-  set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
+  void set_wave_format(audio::wave_format_t &wave_format, const format_t &format) {
     wave_format->nChannels = format.channels;
     wave_format->nBlockAlign = wave_format->nChannels * wave_format->wBitsPerSample / 8;
     wave_format->nAvgBytesPerSec = wave_format->nSamplesPerSec * wave_format->nBlockAlign;
@@ -125,14 +118,14 @@ namespace audio {
     }
   }
 
-  audio_client_t
-  make_audio_client(device_t &device, const format_t &format) {
+  audio_client_t make_audio_client(device_t &device, const format_t &format) {
     audio_client_t audio_client;
     auto status = device->Activate(
       IID_IAudioClient,
       CLSCTX_ALL,
       nullptr,
-      (void **) &audio_client);
+      (void **) &audio_client
+    );
 
     if (FAILED(status)) {
       std::cout << "Couldn't activate Device: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
@@ -154,9 +147,11 @@ namespace audio {
     status = audio_client->Initialize(
       AUDCLNT_SHAREMODE_SHARED,
       AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
-      0, 0,
+      0,
+      0,
       wave_format.get(),
-      nullptr);
+      nullptr
+    );
 
     if (status) {
       return nullptr;
@@ -165,8 +160,7 @@ namespace audio {
     return audio_client;
   }
 
-  void
-  print_device(device_t &device) {
+  void print_device(device_t &device) {
     audio::wstring_t wstring;
     DWORD device_state;
 
@@ -227,16 +221,14 @@ namespace audio {
   }
 }  // namespace audio
 
-void
-print_help() {
+void print_help() {
   std::cout
     << "==== Help ===="sv << std::endl
     << "Usage:"sv << std::endl
     << "    audio-info [Active|Disabled|Unplugged|Not-Present]" << std::endl;
 }
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   CoInitializeEx(nullptr, COINIT_MULTITHREADED | COINIT_SPEED_OVER_MEMORY);
 
   auto fg = util::fail_guard([]() {
@@ -260,17 +252,13 @@ main(int argc, char *argv[]) {
 
     if (argv[x] == "active"sv) {
       device_state_filter |= DEVICE_STATE_ACTIVE;
-    }
-    else if (argv[x] == "disabled"sv) {
+    } else if (argv[x] == "disabled"sv) {
       device_state_filter |= DEVICE_STATE_DISABLED;
-    }
-    else if (argv[x] == "unplugged"sv) {
+    } else if (argv[x] == "unplugged"sv) {
       device_state_filter |= DEVICE_STATE_UNPLUGGED;
-    }
-    else if (argv[x] == "not-present"sv) {
+    } else if (argv[x] == "not-present"sv) {
       device_state_filter |= DEVICE_STATE_NOTPRESENT;
-    }
-    else {
+    } else {
       print_help();
       return 2;
     }
@@ -284,7 +272,8 @@ main(int argc, char *argv[]) {
     nullptr,
     CLSCTX_ALL,
     IID_IMMDeviceEnumerator,
-    (void **) &device_enum);
+    (void **) &device_enum
+  );
 
   if (FAILED(status)) {
     std::cout << "Couldn't create Device Enumerator: [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;

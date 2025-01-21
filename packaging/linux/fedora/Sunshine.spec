@@ -95,14 +95,12 @@ fedora_version=%{fedora}
 cuda_supported_architectures=("x86_64" "aarch64")
 
 # set cuda_version based on Fedora version
-# these are the same right now, but leave this structure to make it easier to set different versions
-if [ "$fedora_version" == 39 ]; then
-  cuda_version="12.6.2"
-  cuda_build="560.35.03"
-else
-  cuda_version="12.6.2"
-  cuda_build="560.35.03"
-fi
+case "$fedora_version" in
+  *)
+    cuda_version="12.6.3"
+    cuda_build="560.35.05"
+    ;;
+esac
 
 # prepare CMAKE args
 cmake_args=(
@@ -132,7 +130,7 @@ function install_cuda() {
 
   if [ "$fedora_version" -ge 40 ]; then
     # update environment variables for CUDA, necessary when using cuda-gcc-c++
-    export NVCC_PREPEND_FLAGS='-ccbin /usr/bin/cuda'
+    export NVCC_PREPEND_FLAGS='-ccbin /usr/bin/g++-13'
     export PATH=/usr/bin/cuda:"%{_builddir}/cuda/bin:${PATH}"
     export LD_LIBRARY_PATH="%{_builddir}/cuda/lib64:${LD_LIBRARY_PATH}"
   fi
@@ -169,6 +167,8 @@ export CXXFLAGS=""
 export FFLAGS=""
 export FCFLAGS=""
 export LDFLAGS=""
+export CC=gcc-13
+export CXX=g++-13
 
 if [ -n "$cuda_version" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
   install_cuda

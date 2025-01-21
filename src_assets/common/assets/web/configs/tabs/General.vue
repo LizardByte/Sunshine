@@ -1,14 +1,12 @@
 <script setup>
+import Checkbox from '../../Checkbox.vue'
 import { ref } from 'vue'
 
 const props = defineProps({
   platform: String,
-  config: Object,
-  globalPrepCmd: Array
+  config: Object
 })
-
 const config = ref(props.config)
-const globalPrepCmd = ref(props.globalPrepCmd)
 
 function addCmd() {
   let template = {
@@ -19,11 +17,11 @@ function addCmd() {
   if (props.platform === 'windows') {
     template = { ...template, elevated: false };
   }
-  globalPrepCmd.value.push(template);
+  config.value.global_prep_cmd.push(template);
 }
 
 function removeCmd(index) {
-  globalPrepCmd.value.splice(index,1)
+  config.value.global_prep_cmd.splice(index,1)
 }
 </script>
 
@@ -33,6 +31,7 @@ function removeCmd(index) {
     <div class="mb-3">
       <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
       <select id="locale" class="form-select" v-model="config.locale">
+        <option value="bg">Български (Bulgarian)</option>
         <option value="de">Deutsch (German)</option>
         <option value="en">English</option>
         <option value="en_GB">English, UK</option>
@@ -41,10 +40,14 @@ function removeCmd(index) {
         <option value="fr">Français (French)</option>
         <option value="it">Italiano (Italian)</option>
         <option value="ja">日本語 (Japanese)</option>
+        <option value="ko">한국어 (Korean)</option>
+        <option value="pl">Polski (Polish)</option>
         <option value="pt">Português (Portuguese)</option>
+        <option value="pt_BR">Português, Brasileiro (Portuguese, Brazilian)</option>
         <option value="ru">Русский (Russian)</option>
         <option value="sv">svenska (Swedish)</option>
         <option value="tr">Türkçe (Turkish)</option>
+        <option value="uk">Українська (Ukranian)</option>
         <option value="zh">简体中文 (Chinese Simplified)</option>
       </select>
       <div class="form-text">{{ $t('config.locale_desc') }}</div>
@@ -77,7 +80,7 @@ function removeCmd(index) {
     <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-      <table class="table" v-if="globalPrepCmd.length > 0">
+      <table class="table" v-if="config.global_prep_cmd.length > 0">
         <thead>
         <tr>
           <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
@@ -89,19 +92,19 @@ function removeCmd(index) {
         </tr>
         </thead>
         <tbody>
-        <tr v-for="(c, i) in globalPrepCmd">
+        <tr v-for="(c, i) in config.global_prep_cmd">
           <td>
             <input type="text" class="form-control monospace" v-model="c.do" />
           </td>
           <td>
             <input type="text" class="form-control monospace" v-model="c.undo" />
           </td>
-          <td v-if="platform === 'windows'">
-            <div class="form-check">
-              <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                     true-value="true" false-value="false" />
-              <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('config.elevated') }}</label>
-            </div>
+          <td v-if="platform === 'windows'" class="align-middle">
+            <Checkbox :id="'prep-cmd-admin-' + i"
+                      label="_common.elevated"
+                      desc=""
+                      v-model="c.elevated"
+            ></Checkbox>
           </td>
           <td>
             <button class="btn btn-danger" @click="removeCmd(i)">
@@ -120,14 +123,12 @@ function removeCmd(index) {
     </div>
 
     <!-- Notify Pre-Releases -->
-    <div class="mb-3">
-        <label for="notify_pre_releases" class="form-label">{{ $t('config.notify_pre_releases') }}</label>
-        <select id="notify_pre_releases" class="form-select" v-model="config.notify_pre_releases">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled') }}</option>
-        </select>
-        <div class="form-text">{{ $t('config.notify_pre_releases_desc') }}</div>
-    </div>
+    <Checkbox class="mb-3"
+              id="notify_pre_releases"
+              locale-prefix="config"
+              v-model="config.notify_pre_releases"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 

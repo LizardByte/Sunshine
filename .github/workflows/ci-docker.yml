@@ -115,7 +115,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2024.919.143601
+        uses: LizardByte/setup-release-action@v2025.102.14715
         with:
           dotnet: ${{ needs.check_dockerfiles.outputs.dotnet }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -317,10 +317,20 @@ jobs:
         if: ${{ steps.prepare.outputs.artifacts == 'true' }}
         working-directory: artifacts
         run: |
+          # debug directory
+          echo "Current directory: $(pwd)"
+          echo "Directory contents: $(ls -Ra)"
+
           # artifacts will be in sub directories named after the docker target platform, e.g. `linux_amd64`
           # so move files to the artifacts directory
           # https://unix.stackexchange.com/a/52816
-          find ./ -type f -exec mv -t ./ -n '{}' +
+          find \
+            ./ \
+            -maxdepth 2 \
+            -mindepth 2 \
+            -type f \
+            -not -name 'provenance.json' \
+            -exec mv -t ./ -n '{}' +
 
           # remove provenance file
           rm -f ./provenance.json
@@ -334,7 +344,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
-        uses: LizardByte/create-release-action@v2024.919.143026
+        uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true
           artifacts: "*artifacts/*"

@@ -11,7 +11,6 @@ install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 
 # Mandatory tools
-install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
 install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
 
 # Mandatory scripts
@@ -63,7 +62,7 @@ set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
 SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
         IfSilent +2 0
-        ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
+        ExecShell 'open' 'https://docs.lizardbyte.dev/projects/sunshine'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
@@ -81,7 +80,7 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
         MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to remove Virtual Gamepad)?' \
+            'Do you want to remove Virtual Gamepad?' \
             /SD IDNO IDNO NoGamepad
             nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-gamepad.bat\\\"'; skipped if no
         NoGamepad:
@@ -110,12 +109,12 @@ set(CPACK_NSIS_DELETE_ICONS_EXTRA
 # Checking for previous installed versions
 set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
 
-set(CPACK_NSIS_HELP_LINK "https://sunshinestream.readthedocs.io/en/latest/about/installation.html")
+set(CPACK_NSIS_HELP_LINK "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html")
 set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
 set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
 
 set(CPACK_NSIS_MENU_LINKS
-        "https://sunshinestream.readthedocs.io" "Sunshine documentation"
+        "https://docs.lizardbyte.dev/projects/sunshine" "Sunshine documentation"
         "https://app.lizardbyte.dev" "LizardByte Web Site"
         "https://app.lizardbyte.dev/support" "LizardByte Support")
 set(CPACK_NSIS_MANIFEST_DPI_AWARE true)

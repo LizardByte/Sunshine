@@ -4,29 +4,29 @@
  */
 #pragma once
 
+// standard includes
 #include <array>
 #include <mutex>
 #include <utility>
 
 namespace sync_util {
 
-  template <class T, class M = std::mutex>
+  template<class T, class M = std::mutex>
   class sync_t {
   public:
     using value_t = T;
     using mutex_t = M;
 
-    std::lock_guard<mutex_t>
-    lock() {
-      return std::lock_guard { _lock };
+    std::lock_guard<mutex_t> lock() {
+      return std::lock_guard {_lock};
     }
 
-    template <class... Args>
+    template<class... Args>
     sync_t(Args &&...args):
-        raw { std::forward<Args>(args)... } {}
+        raw {std::forward<Args>(args)...} {
+    }
 
-    sync_t &
-    operator=(sync_t &&other) noexcept {
+    sync_t &operator=(sync_t &&other) noexcept {
       std::lock(_lock, other._lock);
 
       raw = std::move(other.raw);
@@ -37,8 +37,7 @@ namespace sync_util {
       return *this;
     }
 
-    sync_t &
-    operator=(sync_t &other) noexcept {
+    sync_t &operator=(sync_t &other) noexcept {
       std::lock(_lock, other._lock);
 
       raw = other.raw;
@@ -49,9 +48,8 @@ namespace sync_util {
       return *this;
     }
 
-    template <class V>
-    sync_t &
-    operator=(V &&val) {
+    template<class V>
+    sync_t &operator=(V &&val) {
       auto lg = lock();
 
       raw = val;
@@ -59,8 +57,7 @@ namespace sync_util {
       return *this;
     }
 
-    sync_t &
-    operator=(const value_t &val) noexcept {
+    sync_t &operator=(const value_t &val) noexcept {
       auto lg = lock();
 
       raw = val;
@@ -68,8 +65,7 @@ namespace sync_util {
       return *this;
     }
 
-    sync_t &
-    operator=(value_t &&val) noexcept {
+    sync_t &operator=(value_t &&val) noexcept {
       auto lg = lock();
 
       raw = std::move(val);
@@ -77,18 +73,15 @@ namespace sync_util {
       return *this;
     }
 
-    value_t *
-    operator->() {
+    value_t *operator->() {
       return &raw;
     }
 
-    value_t &
-    operator*() {
+    value_t &operator*() {
       return raw;
     }
 
-    const value_t &
-    operator*() const {
+    const value_t &operator*() const {
       return raw;
     }
 

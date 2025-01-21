@@ -32,6 +32,9 @@ modules:
   # Test dependencies
   - "modules/xvfb/xvfb.json"
 
+  # Build dependencies
+  - "modules/nlohmann_json.json"
+
   # Runtime dependencies
   - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
   - "modules/avahi.json"

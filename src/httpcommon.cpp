@@ -4,22 +4,21 @@
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#include "process.h"
-
+// standard includes
 #include <filesystem>
 #include <utility>
 
+// lib includes
+#include <boost/asio/ssl/context.hpp>
+#include <boost/asio/ssl/context_base.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
-
-#include <boost/asio/ssl/context.hpp>
-
+#include <curl/curl.h>
 #include <Simple-Web-Server/server_http.hpp>
 #include <Simple-Web-Server/server_https.hpp>
-#include <boost/asio/ssl/context_base.hpp>
-#include <curl/curl.h>
 
+// local includes
 #include "config.h"
 #include "crypto.h"
 #include "file_handler.h"
@@ -28,6 +27,7 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#include "process.h"
 #include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
@@ -37,16 +37,13 @@ namespace http {
   namespace fs = std::filesystem;
   namespace pt = boost::property_tree;
 
-  int
-  reload_user_creds(const std::string &file);
-  bool
-  user_creds_exist(const std::string &file);
+  int reload_user_creds(const std::string &file);
+  bool user_creds_exist(const std::string &file);
 
   std::string unique_id;
   net::net_e origin_web_ui_allowed;
 
-  int
-  init() {
+  int init() {
     bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
     origin_web_ui_allowed = net::from_enum_string(config::nvhttp.origin_web_ui_allowed);
 
@@ -63,23 +60,22 @@ namespace http {
       }
     }
     if (user_creds_exist(config::sunshine.credentials_file)) {
-      if (reload_user_creds(config::sunshine.credentials_file)) return -1;
-    }
-    else {
+      if (reload_user_creds(config::sunshine.credentials_file)) {
+        return -1;
+      }
+    } else {
       BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
     }
     return 0;
   }
 
-  int
-  save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
+  int save_user_creds(const std::string &file, const std::string &username, const std::string &password, bool run_our_mouth) {
     pt::ptree outputTree;
 
     if (fs::exists(file)) {
       try {
         pt::read_json(file, outputTree);
-      }
-      catch (std::exception &e) {
+      } catch (std::exception &e) {
         BOOST_LOG(error) << "Couldn't read user credentials: "sv << e.what();
         return -1;
       }
@@ -91,8 +87,7 @@ namespace http {
     outputTree.put("password", util::hex(crypto::hash(password + salt)).to_string());
     try {
       pt::write_json(file, outputTree);
-    }
-    catch (std::exception &e) {
+    } catch (std::exception &e) {
       BOOST_LOG(error) << "error writing to the credentials file, perhaps try this again as an administrator? Details: "sv << e.what();
       return -1;
     }
@@ -101,8 +96,7 @@ namespace http {
     return 0;
   }
 
-  bool
-  user_creds_exist(const std::string &file) {
+  bool user_creds_exist(const std::string &file) {
     if (!fs::exists(file)) {
       return false;
     }
@@ -113,32 +107,28 @@ namespace http {
       return inputTree.find("username") != inputTree.not_found() &&
              inputTree.find("password") != inputTree.not_found() &&
              inputTree.find("salt") != inputTree.not_found();
-    }
-    catch (std::exception &e) {
+    } catch (std::exception &e) {
       BOOST_LOG(error) << "validating user credentials: "sv << e.what();
     }
 
     return false;
   }
 
-  int
-  reload_user_creds(const std::string &file) {
+  int reload_user_creds(const std::string &file) {
     pt::ptree inputTree;
     try {
       pt::read_json(file, inputTree);
       config::sunshine.username = inputTree.get<std::string>("username");
       config::sunshine.password = inputTree.get<std::string>("password");
       config::sunshine.salt = inputTree.get<std::string>("salt");
-    }
-    catch (std::exception &e) {
+    } catch (std::exception &e) {
       BOOST_LOG(error) << "loading user credentials: "sv << e.what();
       return -1;
     }
     return 0;
   }
 
-  int
-  create_creds(const std::string &pkey, const std::string &cert) {
+  int create_creds(const std::string &pkey, const std::string &cert) {
     fs::path pkey_path = pkey;
     fs::path cert_path = cert;
 
@@ -172,18 +162,14 @@ namespace http {
       return -1;
     }
 
-    fs::permissions(pkey_path,
-      fs::perms::owner_read | fs::perms::owner_write,
-      fs::perm_options::replace, err_code);
+    fs::permissions(pkey_path, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
       BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.pkey << "] :"sv << err_code.message();
       return -1;
     }
 
-    fs::permissions(cert_path,
-      fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write,
-      fs::perm_options::replace, err_code);
+    fs::permissions(cert_path, fs::perms::owner_read | fs::perms::group_read | fs::perms::others_read | fs::perms::owner_write, fs::perm_options::replace, err_code);
 
     if (err_code) {
       BOOST_LOG(error) << "Couldn't change permissions of ["sv << config::nvhttp.cert << "] :"sv << err_code.message();
@@ -193,15 +179,13 @@ namespace http {
     return 0;
   }
 
-  bool
-  download_file(const std::string &url, const std::string &file) {
+  bool download_file(const std::string &url, const std::string &file) {
     CURL *curl = curl_easy_init();
     if (curl) {
       // sonar complains about weak ssl and tls versions
       // ideally, the setopts should go after the early returns; however sonar cannot detect the fix
       curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
@@ -234,8 +218,7 @@ namespace http {
     return result == CURLE_OK;
   }
 
-  std::string
-  url_escape(const std::string &url) {
+  std::string url_escape(const std::string &url) {
     CURL *curl = curl_easy_init();
     char *string = curl_easy_escape(curl, url.c_str(), url.length());
     std::string result(string);
@@ -244,8 +227,7 @@ namespace http {
     return result;
   }
 
-  std::string
-  url_get_host(const std::string &url) {
+  std::string url_get_host(const std::string &url) {
     CURLU *curlu = curl_url();
     curl_url_set(curlu, CURLUPART_URL, url.c_str(), url.length());
     char *host;

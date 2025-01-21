@@ -2,23 +2,23 @@
  * @file src/platform/linux/input/inputtino_pen.cpp
  * @brief Definitions for inputtino pen input handling.
  */
+// lib includes
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 
+// local includes
+#include "inputtino_common.h"
+#include "inputtino_pen.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
 
-#include "inputtino_common.h"
-#include "inputtino_pen.h"
-
 using namespace std::literals;
 
 namespace platf::pen {
-  void
-  update(client_input_raw_t *raw, const touch_port_t &touch_port, const pen_input_t &pen) {
+  void update(client_input_raw_t *raw, const touch_port_t &touch_port, const pen_input_t &pen) {
     if (raw->pen) {
       // First set the buttons
       (*raw->pen).set_btn(inputtino::PenTablet::PRIMARY, pen.penButtons & LI_PEN_BUTTON_PRIMARY);
@@ -63,13 +63,7 @@ namespace platf::pen {
 
       bool is_touching = pen.eventType == LI_TOUCH_EVENT_DOWN || pen.eventType == LI_TOUCH_EVENT_MOVE;
 
-      (*raw->pen).place_tool(tool,
-        pen.x,
-        pen.y,
-        is_touching ? pen.pressureOrDistance : -1,
-        is_touching ? -1 : pen.pressureOrDistance,
-        tilt_x,
-        tilt_y);
+      (*raw->pen).place_tool(tool, pen.x, pen.y, is_touching ? pen.pressureOrDistance : -1, is_touching ? -1 : pen.pressureOrDistance, tilt_x, tilt_y);
     }
   }
 }  // namespace platf::pen

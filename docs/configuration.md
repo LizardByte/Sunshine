@@ -57,7 +57,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="13">Choices</td>
+        <td rowspan="18">Choices</td>
+        <td>bg</td>
+        <td>Bulgarian</td>
+    </tr>
+    <tr>
         <td>de</td>
         <td>German</td>
     </tr>
@@ -90,8 +94,20 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Japanese</td>
     </tr>
     <tr>
+        <td>ko</td>
+        <td>Korean</td>
+    </tr>
+    <tr>
+        <td>pl</td>
+        <td>Polish</td>
+    </tr>
+    <tr>
         <td>pt</td>
         <td>Portuguese</td>
+    </tr>
+    <tr>
+        <td>pt_BR</td>
+        <td>Portuguese (Brazilian)</td>
     </tr>
     <tr>
         <td>ru</td>
@@ -104,6 +120,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>tr</td>
         <td>Turkish</td>
+    </tr>
+    <tr>
+        <td>uk</td>
+        <td>Ukranian</td>
     </tr>
     <tr>
         <td>zh</td>
@@ -865,10 +885,56 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **Windows:**
             <br>
-            Enter the following command in command prompt or PowerShell.
+            During Sunshine startup, you should see the list of detected displays:
             @code{}
-            %ProgramFiles%\Sunshine\tools\dxgi-info.exe
+            Info: Currently available display devices:
+            [
+              {
+                "device_id": "{64243705-4020-5895-b923-adc862c3457e}",
+                "display_name": "",
+                "friendly_name": "IDD HDR",
+                "info": null
+              },
+              {
+                "device_id": "{77f67f3e-754f-5d31-af64-ee037e18100a}",
+                "display_name": "",
+                "friendly_name": "SunshineHDR",
+                "info": null
+              },
+              {
+                "device_id": "{daeac860-f4db-5208-b1f5-cf59444fb768}",
+                "display_name": "\\\\.\\DISPLAY1",
+                "friendly_name": "ROG PG279Q",
+                "info": {
+                  "hdr_state": null,
+                  "origin_point": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "primary": true,
+                  "refresh_rate": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 1000,
+                      "numerator": 119998
+                    }
+                  },
+                  "resolution": {
+                    "height": 1440,
+                    "width": 2560
+                  },
+                  "resolution_scale": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 100,
+                      "numerator": 100
+                    }
+                  }
+                }
+              }
+            ]
             @endcode
+            You need to use the `device_id` value.
             }
         </td>
     </tr>
@@ -891,8 +957,335 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
-            output_name  = \\.\DISPLAY1
+            output_name = {daeac860-f4db-5208-b1f5-cf59444fb768}
             @endcode</td>
+    </tr>
+</table>
+
+### dd_configuration_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform mandatory verification and additional configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}verify_only@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_configuration_option = ensure_only_display
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="5">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration (disables all `dd_` configuration options).</td>
+    </tr>
+    <tr>
+        <td>verify_only</td>
+        <td>Verify that display is active only (this is a mandatory step without any extra steps to verify display state).</td>
+    </tr>
+    <tr>
+        <td>ensure_active</td>
+        <td>Activate the display if it's currently inactive.</td>
+    </tr>
+    <tr>
+        <td>ensure_primary</td>
+        <td>Activate the display if it's currently inactive and make it primary.</td>
+    </tr>
+    <tr>
+        <td>ensure_only_display</td>
+        <td>Activate the display if it's currently inactive and disable all others.</td>
+    </tr>
+</table>
+
+### dd_resolution_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional resolution configuration for the display device.
+            @note{"Optimize game settings" must be enabled in Moonlight for this option to work.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_resolution_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change resolution to the requested resolution from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change resolution to the user specified one (set via [dd_manual_resolution](#dd_manual_resolution)).</td>
+    </tr>
+</table>
+
+### dd_manual_resolution
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual resolution to be used.
+            @note{[dd_resolution_option](#dd_resolution_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 1920x1080
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_refresh_rate_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional refresh rate configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_refresh_rate_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change refresh rate to the requested FPS value from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change refresh rate to the user specified one (set via [dd_manual_refresh_rate](#dd_manual_refresh_rate)).</td>
+    </tr>
+</table>
+
+### dd_manual_refresh_rate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual refresh rate to be used.
+            @note{[dd_refresh_rate_option](#dd_refresh_rate_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 120
+            dd_manual_resolution = 59.95
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_hdr_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional HDR configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_hdr_option = disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change HDR to the requested state from the client if the display supports it.</td>
+    </tr>
+</table>
+
+### dd_wa_hdr_toggle
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When using virtual display device as for streaming, it might display incorrect (high-contrast) color.
+            With this option enabled, Sunshine will try to mitigate this issue.
+            @note{This option works independently of [dd_hdr_option](#dd_hdr_option)}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_wa_hdr_toggle = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_config_revert_delay
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Additional delay in milliseconds to wait before reverting configuration when the app has been closed or the last session terminated.
+            Main purpose is to provide a smoother transition when quickly switching between apps.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}3000@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_config_revert_delay = 1500
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_mode_remapping
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Remap the requested resolution and FPS to another display mode.<br>
+            Depending on the [dd_resolution_option](#dd_resolution_option) and
+            [dd_refresh_rate_option](#dd_refresh_rate_option) values, the following mapping 
+            groups are available:
+            <ul>
+                <li>`mixed` - both options are set to `auto`.</li>
+                <li>
+                  `resolution_only` - only [dd_resolution_option](#dd_resolution_option) is set to `auto`.
+                </li>
+                <li>
+                  `refresh_rate_only` - only [dd_refresh_rate_option](#dd_refresh_rate_option) is set to `auto`.
+                </li>
+            </ul>
+            For each of those groups, a list of fields can be configured to perform remapping:  
+            <ul>
+                <li>
+                  `requested_resolution` - resolution that needs to be matched in order to use this remapping entry.
+                </li>
+                <li>`requested_fps` - FPS that needs to be matched in order to use this remapping entry.</li>
+                <li>`final_resolution` - resolution value to be used if the entry was matched.</li>
+                <li>`final_refresh_rate` - refresh rate value to be used if the entry was matched.</li>
+            </ul>
+            If `requested_*` field is left empty, it will match <b>everything</b>.<br>
+            If `final_*` field is left empty, the original value will not be remapped and either a requested, manual 
+            or current value is used. However, at least one `final_*` must be set, otherwise the entry is considered 
+            invalid.<br>
+            @note{"Optimize game settings" must be enabled on client side for ANY entry with `resolution` 
+            field to be considered.}
+            @note{First entry to be matched in the list is the one that will be used.}
+            @tip{`requested_resolution` and `final_resolution` can be omitted for `refresh_rate_only` group.}
+            @tip{`requested_fps` and `final_refresh_rate` can be omitted for `resolution_only` group.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            dd_mode_remapping = {
+              "mixed": [],
+              "resolution_only": [],
+              "refresh_rate_only": []
+            }
+            @endcode
+        </td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_mode_remapping = {
+              "mixed": [
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "119.95",
+                  "requested_resolution": "1920x1080",
+                  "final_resolution": "2560x1440"
+                },
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "120",
+                  "requested_resolution": "",
+                  "final_resolution": ""
+                }
+              ],
+              "resolution_only": [
+                {
+                  "requested_resolution": "1920x1080",
+                  "final_resolution": "2560x1440"
+                }
+              ],
+              "refresh_rate_only": [
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "119.95"
+                }
+              ]
+            }@endcode
+        </td>
     </tr>
 </table>
 

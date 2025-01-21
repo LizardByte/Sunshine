@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps([
   'platform',
@@ -25,7 +26,7 @@ const config = ref(props.config)
     </div>
 
     <!-- AMD Rate Control group options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -49,21 +50,19 @@ const config = ref(props.config)
             </div>
 
             <!-- AMF HRD Enforcement -->
-            <div class="mb-3">
-              <label for="amd_enforce_hrd" class="form-label">{{ $t('config.amd_enforce_hrd') }}</label>
-              <select id="amd_enforce_hrd" class="form-select" v-model="config.amd_enforce_hrd">
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.amd_enforce_hrd_desc') }}</div>
-            </div>
+            <Checkbox class="mb-3"
+                      id="amd_enforce_hrd"
+                      locale-prefix="config"
+                      v-model="config.amd_enforce_hrd"
+                      default="false"
+            ></Checkbox>
           </div>
         </div>
       </div>
     </div>
 
     <!-- AMF Quality group options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -86,24 +85,20 @@ const config = ref(props.config)
             </div>
 
             <!-- AMD Preanalysis -->
-            <div class="mb-3">
-              <label for="amd_preanalysis" class="form-label">{{ $t('config.amd_preanalysis') }}</label>
-              <select id="amd_preanalysis" class="form-select" v-model="config.amd_preanalysis">
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.amd_preanalysis_desc') }}</div>
-            </div>
+            <Checkbox class="mb-3"
+                      id="amd_preanalysis"
+                      locale-prefix="config"
+                      v-model="config.amd_preanalysis"
+                      default="false"
+            ></Checkbox>
 
             <!-- AMD VBAQ -->
-            <div class="mb-3">
-              <label for="amd_vbaq" class="form-label">{{ $t('config.amd_vbaq') }}</label>
-              <select id="amd_vbaq" class="form-select" v-model="config.amd_vbaq">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.amd_vbaq_desc') }}</div>
-            </div>
+            <Checkbox class="mb-3"
+                      id="amd_vbaq"
+                      locale-prefix="config"
+                      v-model="config.amd_vbaq"
+                      default="true"
+            ></Checkbox>
 
             <!-- AMF Coder (H264) -->
             <div class="mb-3">

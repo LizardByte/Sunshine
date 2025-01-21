@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// local includes
 #include "entry_handler.h"
 #include "thread_pool.h"
 
@@ -31,9 +32,9 @@ extern nvprefs::nvprefs_interface nvprefs_instance;
  * @brief Handles process-wide communication.
  */
 namespace mail {
-#define MAIL(x)                         \
+#define MAIL(x) \
   constexpr auto x = std::string_view { \
-    #x                                  \
+    #x \
   }
 
   /**

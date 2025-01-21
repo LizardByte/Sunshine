@@ -2,9 +2,9 @@
  * @file tests/unit/test_httpcommon.cpp
  * @brief Test src/httpcommon.*.
  */
-#include <src/httpcommon.h>
-
 #include "../tests_common.h"
+
+#include <src/httpcommon.h>
 
 struct UrlEscapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
@@ -19,7 +19,9 @@ INSTANTIATE_TEST_SUITE_P(
   testing::Values(
     std::make_tuple("igdb_0123456789", "igdb_0123456789"),
     std::make_tuple("../../../", "..%2F..%2F..%2F"),
-    std::make_tuple("..*\\", "..%2A%5C")));
+    std::make_tuple("..*\\", "..%2A%5C")
+  )
+);
 
 struct UrlGetHostTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
@@ -34,7 +36,9 @@ INSTANTIATE_TEST_SUITE_P(
   testing::Values(
     std::make_tuple("https://images.igdb.com/example.txt", "images.igdb.com"),
     std::make_tuple("http://localhost:8080", "localhost"),
-    std::make_tuple("nonsense!!}{::", "")));
+    std::make_tuple("nonsense!!}{::", "")
+  )
+);
 
 struct DownloadFileTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
@@ -59,4 +63,6 @@ INSTANTIATE_TEST_SUITE_P(
   DownloadFileTest,
   testing::Values(
     std::make_tuple(URL_1, "hello.txt"),
-    std::make_tuple(URL_2, "hello-redirect.txt")));
+    std::make_tuple(URL_2, "hello-redirect.txt")
+  )
+);

@@ -4,10 +4,11 @@
  */
 #pragma once
 #ifdef _WIN32
-
-  #include "nvenc_d3d11.h"
-
+  // lib includes
   #include <ffnvcodec/dynlink_cuda.h>
+
+  // local includes
+  #include "nvenc_d3d11.h"
 
 namespace nvenc {
 
@@ -24,24 +25,18 @@ namespace nvenc {
     explicit nvenc_d3d11_on_cuda(ID3D11Device *d3d_device);
     ~nvenc_d3d11_on_cuda();
 
-    ID3D11Texture2D *
-    get_input_texture() override;
+    ID3D11Texture2D *get_input_texture() override;
 
   private:
-    bool
-    init_library() override;
+    bool init_library() override;
 
-    bool
-    create_and_register_input_buffer() override;
+    bool create_and_register_input_buffer() override;
 
-    bool
-    synchronize_input_buffer() override;
+    bool synchronize_input_buffer() override;
 
-    bool
-    cuda_succeeded(CUresult result);
+    bool cuda_succeeded(CUresult result);
 
-    bool
-    cuda_failed(CUresult result);
+    bool cuda_failed(CUresult result);
 
     struct autopop_context {
       autopop_context(nvenc_d3d11_on_cuda &parent, CUcontext pushed_context):
@@ -51,8 +46,7 @@ namespace nvenc {
 
       ~autopop_context();
 
-      explicit
-      operator bool() const {
+      explicit operator bool() const {
         return pushed_context != nullptr;
       }
 
@@ -60,8 +54,7 @@ namespace nvenc {
       CUcontext pushed_context = nullptr;
     };
 
-    autopop_context
-    push_context();
+    autopop_context push_context();
 
     HMODULE dll = NULL;
     const ID3D11DevicePtr d3d_device;

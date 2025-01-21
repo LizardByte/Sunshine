@@ -2,28 +2,30 @@
  * @file src/platform/linux/kmsgrab.cpp
  * @brief Definitions for KMS screen capture.
  */
-#include <drm_fourcc.h>
+// standard includes
 #include <errno.h>
 #include <fcntl.h>
+#include <filesystem>
+#include <thread>
+#include <unistd.h>
+
+// platform includes
+#include <drm_fourcc.h>
 #include <linux/dma-buf.h>
 #include <sys/capability.h>
 #include <sys/mman.h>
-#include <unistd.h>
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
-#include <filesystem>
-#include <thread>
-
+// local includes
+#include "cuda.h"
+#include "graphics.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
 #include "src/utility.h"
 #include "src/video.h"
-
-#include "cuda.h"
-#include "graphics.h"
 #include "vaapi.h"
 #include "wayland.h"
 
@@ -59,7 +61,10 @@ namespace platf {
     class wrapper_fb {
     public:
       wrapper_fb(drmModeFB *fb):
-          fb { fb }, fb_id { fb->fb_id }, width { fb->width }, height { fb->height } {
+          fb {fb},
+          fb_id {fb->fb_id},
+          width {fb->width},
+          height {fb->height} {
         pixel_format = DRM_FORMAT_XRGB8888;
         modifier = DRM_FORMAT_MOD_INVALID;
         std::fill_n(handles, 4, 0);
@@ -70,7 +75,10 @@ namespace platf {
       }
 
       wrapper_fb(drmModeFB2 *fb2):
-          fb2 { fb2 }, fb_id { fb2->fb_id }, width { fb2->width }, height { fb2->height } {
+          fb2 {fb2},
+          fb_id {fb2->fb_id},
+          width {fb2->width},
+          height {fb2->height} {
         pixel_format = fb2->pixel_format;
         modifier = (fb2->flags & DRM_MODE_FB_MODIFIERS) ? fb2->modifier : DRM_FORMAT_MOD_INVALID;
 
@@ -82,8 +90,7 @@ namespace platf {
       ~wrapper_fb() {
         if (fb) {
           drmModeFreeFB(fb);
-        }
-        else if (fb2) {
+        } else if (fb2) {
           drmModeFreeFB2(fb2);
         }
       }
@@ -116,8 +123,7 @@ namespace platf {
     static int env_width;
     static int env_height;
 
-    std::string_view
-    plane_type(std::uint64_t val) {
+    std::string_view plane_type(std::uint64_t val) {
       switch (val) {
         case DRM_PLANE_TYPE_OVERLAY:
           return "DRM_PLANE_TYPE_OVERLAY"sv;
@@ -165,10 +171,10 @@ namespace platf {
 
     static std::vector<card_descriptor_t> card_descriptors;
 
-    static std::uint32_t
-    from_view(const std::string_view &string) {
+    static std::uint32_t from_view(const std::string_view &string) {
 #define _CONVERT(x, y) \
-  if (string == x) return DRM_MODE_CONNECTOR_##y
+  if (string == x) \
+  return DRM_MODE_CONNECTOR_##y
 
       // This list was created from the following sources:
       // https://gitlab.freedesktop.org/mesa/drm/-/blob/main/xf86drmMode.c (drmModeGetConnectorTypeName)
@@ -212,7 +218,7 @@ namespace platf {
       // value appended to the string. Let's try to read it.
       if (string.find("Unknown"sv) == 0) {
         std::uint32_t type;
-        std::string null_terminated_string { string };
+        std::string null_terminated_string {string};
         if (std::sscanf(null_terminated_string.c_str(), "Unknown%u", &type) == 1) {
           return type;
         }
@@ -225,15 +231,19 @@ namespace platf {
     class plane_it_t: public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
     public:
       plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
-          fd { fd }, plane_p { plane_p }, end { end } {
+          fd {fd},
+          plane_p {plane_p},
+          end {end} {
         load_next_valid_plane();
       }
 
       plane_it_t(int fd, std::uint32_t *end):
-          fd { fd }, plane_p { end }, end { end } {}
+          fd {fd},
+          plane_p {end},
+          end {end} {
+      }
 
-      void
-      load_next_valid_plane() {
+      void load_next_valid_plane() {
         this->plane.reset();
 
         for (; plane_p != end; ++plane_p) {
@@ -248,19 +258,16 @@ namespace platf {
         }
       }
 
-      void
-      inc() {
+      void inc() {
         ++plane_p;
         load_next_valid_plane();
       }
 
-      bool
-      eq(const plane_it_t &other) const {
+      bool eq(const plane_it_t &other) const {
         return plane_p == other.plane_p;
       }
 
-      plane_t::pointer
-      get() {
+      plane_t::pointer get() {
         return plane.get();
       }
 
@@ -289,8 +296,7 @@ namespace platf {
     public:
       using connector_interal_t = util::safe_ptr<drmModeConnector, drmModeFreeConnector>;
 
-      int
-      init(const char *path) {
+      int init(const char *path) {
         cap_sys_admin admin;
         fd.el = open(path, O_RDWR);
 
@@ -299,7 +305,7 @@ namespace platf {
           return -1;
         }
 
-        version_t ver { drmGetVersion(fd.el) };
+        version_t ver {drmGetVersion(fd.el)};
         BOOST_LOG(info) << path << " -> "sv << ((ver && ver->name) ? ver->name : "UNKNOWN");
 
         // Open the render node for this card to share with libva.
@@ -313,8 +319,7 @@ namespace platf {
             render_fd.el = dup(fd.el);
           }
           free(rendernode_path);
-        }
-        else {
+        } else {
           BOOST_LOG(warning) << "No render device name for: "sv << path;
           render_fd.el = dup(fd.el);
         }
@@ -346,8 +351,7 @@ namespace platf {
         return 0;
       }
 
-      fb_t
-      fb(plane_t::pointer plane) {
+      fb_t fb(plane_t::pointer plane) {
         cap_sys_admin admin;
 
         auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
@@ -363,36 +367,30 @@ namespace platf {
         return nullptr;
       }
 
-      crtc_t
-      crtc(std::uint32_t id) {
+      crtc_t crtc(std::uint32_t id) {
         return drmModeGetCrtc(fd.el, id);
       }
 
-      encoder_t
-      encoder(std::uint32_t id) {
+      encoder_t encoder(std::uint32_t id) {
         return drmModeGetEncoder(fd.el, id);
       }
 
-      res_t
-      res() {
+      res_t res() {
         return drmModeGetResources(fd.el);
       }
 
-      bool
-      is_nvidia() {
-        version_t ver { drmGetVersion(fd.el) };
+      bool is_nvidia() {
+        version_t ver {drmGetVersion(fd.el)};
         return ver && ver->name && strncmp(ver->name, "nvidia-drm", 10) == 0;
       }
 
-      bool
-      is_cursor(std::uint32_t plane_id) {
+      bool is_cursor(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         for (auto &[prop, val] : props) {
           if (prop->name == "type"sv) {
             if (val == DRM_PLANE_TYPE_CURSOR) {
               return true;
-            }
-            else {
+            } else {
               return false;
             }
           }
@@ -401,8 +399,7 @@ namespace platf {
         return false;
       }
 
-      std::optional<std::uint64_t>
-      prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
+      std::optional<std::uint64_t> prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
         for (auto &[prop, val] : props) {
           if (prop->name == name) {
             return val;
@@ -411,8 +408,7 @@ namespace platf {
         return std::nullopt;
       }
 
-      std::uint32_t
-      get_panel_orientation(std::uint32_t plane_id) {
+      std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
         auto props = plane_props(plane_id);
         auto value = prop_value_by_name(props, "rotation"sv);
         if (value) {
@@ -423,8 +419,7 @@ namespace platf {
         return DRM_MODE_ROTATE_0;
       }
 
-      int
-      get_crtc_index_by_id(std::uint32_t crtc_id) {
+      int get_crtc_index_by_id(std::uint32_t crtc_id) {
         auto resources = res();
         for (int i = 0; i < resources->count_crtcs; i++) {
           if (resources->crtcs[i] == crtc_id) {
@@ -434,13 +429,11 @@ namespace platf {
         return -1;
       }
 
-      connector_interal_t
-      connector(std::uint32_t id) {
+      connector_interal_t connector(std::uint32_t id) {
         return drmModeGetConnector(fd.el, id);
       }
 
-      std::vector<connector_t>
-      monitors(conn_type_count_t &conn_type_count) {
+      std::vector<connector_t> monitors(conn_type_count_t &conn_type_count) {
         auto resources = res();
         if (!resources) {
           BOOST_LOG(error) << "Couldn't get connector resources"sv;
@@ -474,8 +467,7 @@ namespace platf {
         return monitors;
       }
 
-      file_t
-      handleFD(std::uint32_t handle) {
+      file_t handleFD(std::uint32_t handle) {
         file_t fb_fd;
 
         auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el);
@@ -486,8 +478,7 @@ namespace platf {
         return fb_fd;
       }
 
-      std::vector<std::pair<prop_t, std::uint64_t>>
-      props(std::uint32_t id, std::uint32_t type) {
+      std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
         obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
         if (!obj_prop) {
           return {};
@@ -503,39 +494,32 @@ namespace platf {
         return props;
       }
 
-      std::vector<std::pair<prop_t, std::uint64_t>>
-      plane_props(std::uint32_t id) {
+      std::vector<std::pair<prop_t, std::uint64_t>> plane_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_PLANE);
       }
 
-      std::vector<std::pair<prop_t, std::uint64_t>>
-      crtc_props(std::uint32_t id) {
+      std::vector<std::pair<prop_t, std::uint64_t>> crtc_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_CRTC);
       }
 
-      std::vector<std::pair<prop_t, std::uint64_t>>
-      connector_props(std::uint32_t id) {
+      std::vector<std::pair<prop_t, std::uint64_t>> connector_props(std::uint32_t id) {
         return props(id, DRM_MODE_OBJECT_CONNECTOR);
       }
 
-      plane_t
-      operator[](std::uint32_t index) {
+      plane_t operator[](std::uint32_t index) {
         return drmModeGetPlane(fd.el, plane_res->planes[index]);
       }
 
-      std::uint32_t
-      count() {
+      std::uint32_t count() {
         return plane_res->count_planes;
       }
 
-      plane_it_t
-      begin() const {
-        return plane_it_t { fd.el, plane_res->planes, plane_res->planes + plane_res->count_planes };
+      plane_it_t begin() const {
+        return plane_it_t {fd.el, plane_res->planes, plane_res->planes + plane_res->count_planes};
       }
 
-      plane_it_t
-      end() const {
-        return plane_it_t { fd.el, plane_res->planes + plane_res->count_planes };
+      plane_it_t end() const {
+        return plane_it_t {fd.el, plane_res->planes + plane_res->count_planes};
       }
 
       file_t fd;
@@ -543,16 +527,14 @@ namespace platf {
       plane_res_t plane_res;
     };
 
-    std::map<std::uint32_t, monitor_t>
-    map_crtc_to_monitor(const std::vector<connector_t> &connectors) {
+    std::map<std::uint32_t, monitor_t> map_crtc_to_monitor(const std::vector<connector_t> &connectors) {
       std::map<std::uint32_t, monitor_t> result;
 
       for (auto &connector : connectors) {
-        result.emplace(connector.crtc_id,
-          monitor_t {
-            connector.type,
-            connector.index,
-          });
+        result.emplace(connector.crtc_id, monitor_t {
+                                            connector.type,
+                                            connector.index,
+                                          });
       }
 
       return result;
@@ -565,8 +547,7 @@ namespace platf {
       }
     };
 
-    void
-    print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
+    void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
       if (crtc) {
         BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
         BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
@@ -601,21 +582,22 @@ namespace platf {
     class display_t: public platf::display_t {
     public:
       display_t(mem_type_e mem_type):
-          platf::display_t(), mem_type { mem_type } {}
+          platf::display_t(),
+          mem_type {mem_type} {
+      }
 
-      int
-      init(const std::string &display_name, const ::video::config_t &config) {
-        delay = std::chrono::nanoseconds { 1s } / config.framerate;
+      int init(const std::string &display_name, const ::video::config_t &config) {
+        delay = std::chrono::nanoseconds {1s} / config.framerate;
 
         int monitor_index = util::from_view(display_name);
         int monitor = 0;
 
-        fs::path card_dir { "/dev/dri"sv };
-        for (auto &entry : fs::directory_iterator { card_dir }) {
+        fs::path card_dir {"/dev/dri"sv};
+        for (auto &entry : fs::directory_iterator {card_dir}) {
           auto file = entry.path().filename();
 
           auto filestring = file.generic_string();
-          if (filestring.size() < 4 || std::string_view { filestring }.substr(0, 4) != "card"sv) {
+          if (filestring.size() < 4 || std::string_view {filestring}.substr(0, 4) != "card"sv) {
             continue;
           }
 
@@ -779,8 +761,7 @@ namespace platf {
           if (!(plane->possible_crtcs & (1 << crtc_index))) {
             // Skip cursor planes for other CRTCs
             continue;
-          }
-          else if (plane->possible_crtcs != (1 << crtc_index)) {
+          } else if (plane->possible_crtcs != (1 << crtc_index)) {
             // We assume a 1:1 mapping between cursor planes and CRTCs, which seems to
             // match the behavior of drivers in the real world. If it's violated, we'll
             // proceed anyway but print a warning in the log.
@@ -799,8 +780,7 @@ namespace platf {
         return 0;
       }
 
-      bool
-      is_hdr() {
+      bool is_hdr() {
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
         }
@@ -846,8 +826,7 @@ namespace platf {
         }
       }
 
-      bool
-      get_hdr_metadata(SS_HDR_METADATA &metadata) {
+      bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
         // This performs all the metadata validation
         if (!is_hdr()) {
           return false;
@@ -876,8 +855,7 @@ namespace platf {
         return true;
       }
 
-      void
-      update_cursor() {
+      void update_cursor() {
         if (cursor_plane_id < 0) {
           return;
         }
@@ -898,26 +876,19 @@ namespace platf {
         for (auto &[prop, val] : props) {
           if (prop->name == "CRTC_X"sv) {
             prop_crtc_x = val;
-          }
-          else if (prop->name == "CRTC_Y"sv) {
+          } else if (prop->name == "CRTC_Y"sv) {
             prop_crtc_y = val;
-          }
-          else if (prop->name == "CRTC_W"sv) {
+          } else if (prop->name == "CRTC_W"sv) {
             prop_crtc_w = val;
-          }
-          else if (prop->name == "CRTC_H"sv) {
+          } else if (prop->name == "CRTC_H"sv) {
             prop_crtc_h = val;
-          }
-          else if (prop->name == "SRC_X"sv) {
+          } else if (prop->name == "SRC_X"sv) {
             prop_src_x = val;
-          }
-          else if (prop->name == "SRC_Y"sv) {
+          } else if (prop->name == "SRC_Y"sv) {
             prop_src_y = val;
-          }
-          else if (prop->name == "SRC_W"sv) {
+          } else if (prop->name == "SRC_W"sv) {
             prop_src_w = val;
-          }
-          else if (prop->name == "SRC_H"sv) {
+          } else if (prop->name == "SRC_H"sv) {
             prop_src_h = val;
           }
         }
@@ -951,15 +922,13 @@ namespace platf {
         if (!plane->fb_id) {
           captured_cursor.visible = false;
           captured_cursor.fb_id = 0;
-        }
-        else if (plane->fb_id != captured_cursor.fb_id) {
+        } else if (plane->fb_id != captured_cursor.fb_id) {
           BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
           cursor_dirty = true;
-        }
-        else if (*prop_src_x != captured_cursor.prop_src_x ||
-                 *prop_src_y != captured_cursor.prop_src_y ||
-                 *prop_src_w != captured_cursor.prop_src_w ||
-                 *prop_src_h != captured_cursor.prop_src_h) {
+        } else if (*prop_src_x != captured_cursor.prop_src_x ||
+                   *prop_src_y != captured_cursor.prop_src_y ||
+                   *prop_src_w != captured_cursor.prop_src_w ||
+                   *prop_src_h != captured_cursor.prop_src_h) {
           BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
           cursor_dirty = true;
         }
@@ -1041,8 +1010,7 @@ namespace platf {
           // If the image is tightly packed, copy it in one shot
           if (fb->pitches[0] == src_w * 4 && src_x == 0) {
             memcpy(captured_cursor.pixels.data(), &((std::uint8_t *) mapped_data)[src_y * fb->pitches[0]], src_h * fb->pitches[0]);
-          }
-          else {
+          } else {
             // Copy row by row to deal with mismatched pitch or an X offset
             auto pixel_dst = captured_cursor.pixels.data();
             for (int y = 0; y < src_h; y++) {
@@ -1068,8 +1036,7 @@ namespace platf {
         }
       }
 
-      inline capture_e
-      refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
+      inline capture_e refresh(file_t *file, egl::surface_descriptor_t *sd, std::optional<std::chrono::steady_clock::time_point> &frame_timestamp) {
         // Check for a change in HDR metadata
         if (connector_id) {
           auto connector_props = card.connector_props(*connector_id);
@@ -1123,7 +1090,8 @@ namespace platf {
 
         if (
           fb->width != img_width ||
-          fb->height != img_height) {
+          fb->height != img_height
+        ) {
           return capture_e::reinit;
         }
 
@@ -1155,10 +1123,10 @@ namespace platf {
     class display_ram_t: public display_t {
     public:
       display_ram_t(mem_type_e mem_type):
-          display_t(mem_type) {}
+          display_t(mem_type) {
+      }
 
-      int
-      init(const std::string &display_name, const ::video::config_t &config) {
+      int init(const std::string &display_name, const ::video::config_t &config) {
         if (!gbm::create_device) {
           BOOST_LOG(warning) << "libgbm not initialized"sv;
           return -1;
@@ -1189,8 +1157,7 @@ namespace platf {
         return 0;
       }
 
-      capture_e
-      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
+      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
         auto next_frame = std::chrono::steady_clock::now();
 
         sleep_overshoot_logger.reset();
@@ -1235,8 +1202,7 @@ namespace platf {
         return capture_e::ok;
       }
 
-      std::unique_ptr<avcodec_encode_device_t>
-      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, false);
@@ -1252,8 +1218,7 @@ namespace platf {
         return std::make_unique<avcodec_encode_device_t>();
       }
 
-      void
-      blend_cursor(img_t &img) {
+      void blend_cursor(img_t &img) {
         // TODO: Cursor scaling is not supported in this codepath.
         // We always draw the cursor at the source size.
         auto pixels = (int *) img.data;
@@ -1290,8 +1255,7 @@ namespace platf {
             auto alpha = (*(uint *) &cursor_pixel) >> 24u;
             if (alpha == 255) {
               *pixels_begin = cursor_pixel;
-            }
-            else {
+            } else {
               auto colors_out = (uint8_t *) &cursor_pixel;
               colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
               colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
@@ -1302,8 +1266,7 @@ namespace platf {
         }
       }
 
-      capture_e
-      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
+      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
         file_t fb_fd[4];
 
         egl::surface_descriptor_t sd;
@@ -1345,8 +1308,7 @@ namespace platf {
         return capture_e::ok;
       }
 
-      std::shared_ptr<img_t>
-      alloc_img() override {
+      std::shared_ptr<img_t> alloc_img() override {
         auto img = std::make_shared<kms_img_t>();
         img->width = width;
         img->height = height;
@@ -1357,8 +1319,7 @@ namespace platf {
         return img;
       }
 
-      int
-      dummy_img(platf::img_t *img) override {
+      int dummy_img(platf::img_t *img) override {
         return 0;
       }
 
@@ -1370,10 +1331,10 @@ namespace platf {
     class display_vram_t: public display_t {
     public:
       display_vram_t(mem_type_e mem_type):
-          display_t(mem_type) {}
+          display_t(mem_type) {
+      }
 
-      std::unique_ptr<avcodec_encode_device_t>
-      make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
+      std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
 #ifdef SUNSHINE_BUILD_VAAPI
         if (mem_type == mem_type_e::vaapi) {
           return va::make_avcodec_encode_device(width, height, dup(card.render_fd.el), img_offset_x, img_offset_y, true);
@@ -1390,8 +1351,7 @@ namespace platf {
         return nullptr;
       }
 
-      std::shared_ptr<img_t>
-      alloc_img() override {
+      std::shared_ptr<img_t> alloc_img() override {
         auto img = std::make_shared<egl::img_descriptor_t>();
 
         img->width = width;
@@ -1406,14 +1366,12 @@ namespace platf {
         return img;
       }
 
-      int
-      dummy_img(platf::img_t *img) override {
+      int dummy_img(platf::img_t *img) override {
         // Empty images are recognized as dummies by the zero sequence number
         return 0;
       }
 
-      capture_e
-      capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
+      capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
         auto next_frame = std::chrono::steady_clock::now();
 
         sleep_overshoot_logger.reset();
@@ -1458,8 +1416,7 @@ namespace platf {
         return capture_e::ok;
       }
 
-      capture_e
-      snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
+      capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds /* timeout */, bool cursor) {
         file_t fb_fd[4];
 
         if (!pull_free_image_cb(img_out)) {
@@ -1491,8 +1448,7 @@ namespace platf {
           img->pixel_pitch = 4;
           img->row_pitch = img->pixel_pitch * img->width;
           img->data = img->buffer.data();
-        }
-        else {
+        } else {
           img->data = nullptr;
         }
 
@@ -1502,8 +1458,7 @@ namespace platf {
         return capture_e::ok;
       }
 
-      int
-      init(const std::string &display_name, const ::video::config_t &config) {
+      int init(const std::string &display_name, const ::video::config_t &config) {
         if (display_t::init(display_name, config)) {
           return -1;
         }
@@ -1530,8 +1485,7 @@ namespace platf {
 
   }  // namespace kms
 
-  std::shared_ptr<display_t>
-  kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+  std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
     if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
@@ -1561,8 +1515,7 @@ namespace platf {
    *
    * This is an ugly hack :(
    */
-  void
-  correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
+  void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
     auto monitors = wl::monitors();
 
     BOOST_LOG(info) << "-------- Start of KMS monitor list --------"sv;
@@ -1578,8 +1531,7 @@ namespace platf {
       std::uint32_t index;
       if (index_begin == std::string_view::npos) {
         index = 1;
-      }
-      else {
+      } else {
         index = std::max<int64_t>(1, util::from_view(name.substr(index_begin + 1)));
       }
 
@@ -1594,7 +1546,8 @@ namespace platf {
             // A sanity check, it's guesswork after all.
             if (
               monitor_descriptor.viewport.width != monitor->viewport.width ||
-              monitor_descriptor.viewport.height != monitor->viewport.height) {
+              monitor_descriptor.viewport.height != monitor->viewport.height
+            ) {
               BOOST_LOG(warning)
                 << "Mismatch on expected Resolution compared to actual resolution: "sv
                 << monitor_descriptor.viewport.width << 'x' << monitor_descriptor.viewport.height
@@ -1616,8 +1569,7 @@ namespace platf {
   }
 
   // A list of names of displays accepted as display_name
-  std::vector<std::string>
-  kms_display_names(mem_type_e hwdevice_type) {
+  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type) {
     int count = 0;
 
     if (!fs::exists("/dev/dri")) {
@@ -1635,12 +1587,12 @@ namespace platf {
     std::vector<kms::card_descriptor_t> cds;
     std::vector<std::string> display_names;
 
-    fs::path card_dir { "/dev/dri"sv };
-    for (auto &entry : fs::directory_iterator { card_dir }) {
+    fs::path card_dir {"/dev/dri"sv};
+    for (auto &entry : fs::directory_iterator {card_dir}) {
       auto file = entry.path().filename();
 
       auto filestring = file.generic_string();
-      if (std::string_view { filestring }.substr(0, 4) != "card"sv) {
+      if (std::string_view {filestring}.substr(0, 4) != "card"sv) {
         continue;
       }
 
@@ -1655,8 +1607,7 @@ namespace platf {
         BOOST_LOG(debug) << file << " is not a CUDA device"sv;
         if (config::video.encoder == "nvenc") {
           BOOST_LOG(warning) << "Using NVENC with your display connected to a different GPU may not work properly!"sv;
-        }
-        else {
+        } else {
           continue;
         }
       }
@@ -1685,7 +1636,7 @@ namespace platf {
           BOOST_LOG((window_system != window_system_e::X11 || config::video.capture == "kms") ? fatal : error)
             << "You must run [sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))] for KMS display capture to work!\n"sv
             << "If you installed from AppImage or Flatpak, please refer to the official documentation:\n"sv
-            << "https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/setup.html#install"sv;
+            << "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux"sv;
           break;
         }
 

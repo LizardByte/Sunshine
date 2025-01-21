@@ -1,5 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue'
+import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
   'platform',
@@ -15,14 +16,12 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
 <template>
   <div id="network" class="config-page">
     <!-- UPnP -->
-    <div class="mb-3">
-      <label for="upnp" class="form-label">{{ $t('config.upnp') }}</label>
-      <select id="upnp" class="form-select" v-model="config.upnp">
-        <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-        <option value="enabled">{{ $t('_common.enabled') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.upnp_desc') }}</div>
-    </div>
+    <Checkbox class="mb-3"
+              id="upnp"
+              locale-prefix="config"
+              v-model="config.upnp"
+              default="false"
+    ></Checkbox>
 
     <!-- Address family -->
     <div class="mb-3">

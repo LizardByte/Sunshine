@@ -2,12 +2,13 @@
  * @file src/platform/macos/av_audio.m
  * @brief Definitions for audio capture on macOS.
  */
+// local includes
 #import "av_audio.h"
 
 @implementation AVAudio
 
 + (NSArray<AVCaptureDevice *> *)microphones {
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })]) {
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})]) {
     // This will generate a warning about AVCaptureDeviceDiscoverySession being
     // unavailable before macOS 10.15, but we have a guard to prevent it from
     // being called on those earlier systems.
@@ -16,14 +17,12 @@
     // a different method.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
-    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
-      AVCaptureDeviceTypeExternalUnknown]
+    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone, AVCaptureDeviceTypeExternalUnknown]
                                                                                                                mediaType:AVMediaTypeAudio
                                                                                                                 position:AVCaptureDevicePositionUnspecified];
     return discoverySession.devices;
 #pragma clang diagnostic pop
-  }
-  else {
+  } else {
     // We're intentionally using a deprecated API here specifically for versions
     // of macOS where it's not deprecated, so we can ignore any deprecation
     // warnings:
@@ -75,8 +74,7 @@
 
   if ([self.audioCaptureSession canAddInput:audioInput]) {
     [self.audioCaptureSession addInput:audioInput];
-  }
-  else {
+  } else {
     [audioInput dealloc];
     return -1;
   }
@@ -92,17 +90,14 @@
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
 
-  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,
-    QOS_CLASS_USER_INITIATED,
-    DISPATCH_QUEUE_PRIORITY_HIGH);
+  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
 
   [audioOutput setSampleBufferDelegate:self queue:recordingQueue];
 
   if ([self.audioCaptureSession canAddOutput:audioOutput]) {
     [self.audioCaptureSession addOutput:audioOutput];
-  }
-  else {
+  } else {
     [audioInput release];
     [audioOutput release];
     return -1;

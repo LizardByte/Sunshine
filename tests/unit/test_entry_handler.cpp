@@ -2,10 +2,10 @@
  * @file tests/unit/test_entry_handler.cpp
  * @brief Test src/entry_handler.*.
  */
-#include <src/entry_handler.h>
-
 #include "../tests_common.h"
 #include "../tests_log_checker.h"
+
+#include <src/entry_handler.h>
 
 TEST(EntryHandlerTests, LogPublisherDataTest) {
   // call log_publisher_data

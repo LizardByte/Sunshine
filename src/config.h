@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 #include <bitset>
 #include <chrono>
 #include <optional>
@@ -11,6 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
+// local includes
 #include "nvenc/nvenc_config.h"
 
 namespace config {
@@ -21,8 +23,8 @@ namespace config {
     int hevc_mode;
     int av1_mode;
 
-    int min_fps_factor;  // Minimum fps target, determines minimum frame time
     int min_threads;  // Minimum number of threads/slices for CPU encoding
+
     struct {
       std::string sw_preset;
       std::string sw_tune;
@@ -79,6 +81,62 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
+
+    struct dd_t {
+      struct workarounds_t {
+        bool hdr_toggle;  ///< Specify whether to apply HDR high-contrast color workaround.
+      };
+
+      enum class config_option_e {
+        disabled,  ///< Disable the configuration for the device.
+        verify_only,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_active,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_primary,  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+        ensure_only_display  ///< @seealso{display_device::SingleDisplayConfiguration::DevicePreparation}
+      };
+
+      enum class resolution_option_e {
+        disabled,  ///< Do not change resolution.
+        automatic,  ///< Change resolution and use the one received from Moonlight.
+        manual  ///< Change resolution and use the manually provided one.
+      };
+
+      enum class refresh_rate_option_e {
+        disabled,  ///< Do not change refresh rate.
+        automatic,  ///< Change refresh rate and use the one received from Moonlight.
+        manual  ///< Change refresh rate and use the manually provided one.
+      };
+
+      enum class hdr_option_e {
+        disabled,  ///< Do not change HDR settings.
+        automatic  ///< Change HDR settings and use the state requested by Moonlight.
+      };
+
+      struct mode_remapping_entry_t {
+        std::string requested_resolution;
+        std::string requested_fps;
+        std::string final_resolution;
+        std::string final_refresh_rate;
+      };
+
+      struct mode_remapping_t {
+        std::vector<mode_remapping_entry_t> mixed;  ///< To be used when `resolution_option` and `refresh_rate_option` is set to `automatic`.
+        std::vector<mode_remapping_entry_t> resolution_only;  ///< To be use when only `resolution_option` is set to `automatic`.
+        std::vector<mode_remapping_entry_t> refresh_rate_only;  ///< To be use when only `refresh_rate_option` is set to `automatic`.
+      };
+
+      config_option_e configuration_option;
+      resolution_option_e resolution_option;
+      std::string manual_resolution;  ///< Manual resolution in case `resolution_option == resolution_option_e::manual`.
+      refresh_rate_option_e refresh_rate_option;
+      std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
+      hdr_option_e hdr_option;
+      std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
+      mode_remapping_t mode_remapping;
+      workarounds_t wa;
+    } dd;
+
+    int min_fps_factor;  // Minimum fps target, determines minimum frame time
   };
 
   struct audio_t {
@@ -149,17 +207,25 @@ namespace config {
       CONST_PIN,  ///< Use "universal" pin
       FLAG_SIZE  ///< Number of flags
     };
-  }
+  }  // namespace flag
 
   struct prep_cmd_t {
     prep_cmd_t(std::string &&do_cmd, std::string &&undo_cmd, bool &&elevated):
-        do_cmd(std::move(do_cmd)), undo_cmd(std::move(undo_cmd)), elevated(std::move(elevated)) {}
+        do_cmd(std::move(do_cmd)),
+        undo_cmd(std::move(undo_cmd)),
+        elevated(std::move(elevated)) {
+    }
+
     explicit prep_cmd_t(std::string &&do_cmd, bool &&elevated):
-        do_cmd(std::move(do_cmd)), elevated(std::move(elevated)) {}
+        do_cmd(std::move(do_cmd)),
+        elevated(std::move(elevated)) {
+    }
+
     std::string do_cmd;
     std::string undo_cmd;
     bool elevated;
   };
+
   struct sunshine_t {
     std::string locale;
     int min_log_level;
@@ -193,8 +259,6 @@ namespace config {
   extern input_t input;
   extern sunshine_t sunshine;
 
-  int
-  parse(int argc, char *argv[]);
-  std::unordered_map<std::string, std::string>
-  parse_config(const std::string_view &file_content);
+  int parse(int argc, char *argv[]);
+  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content);
 }  // namespace config

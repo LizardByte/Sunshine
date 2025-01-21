@@ -31,8 +31,7 @@ PROJECT_NAME = Sunshine
 
 # project specific settings
 DOT_GRAPH_MAX_NODES = 60
-IMAGE_PATH = ../docs/images
-INCLUDE_PATH = ../third-party/build-deps/dist/Linux-x86_64/include/
+# IMAGE_PATH = ../docs/images
 PREDEFINED += SUNSHINE_BUILD_WAYLAND
 PREDEFINED += SUNSHINE_TRAY=1
 
@@ -63,4 +62,8 @@ INPUT = ../README.md \
 HTML_EXTRA_STYLESHEET += doc-styles.css
 
 # extra js
+HTML_EXTRA_FILES += api.js
 HTML_EXTRA_FILES += configuration.js
+
+# custom aliases
+ALIASES += api_examples{3|}="@htmlonly<script>(function() { let examples = generateExamples('\1', '\2', \3); document.write(createTabs(examples)); })();</script>@endhtmlonly"
