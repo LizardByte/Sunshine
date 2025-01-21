@@ -58,7 +58,9 @@ namespace http {
         create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
       return -1;
     }
-    if (user_creds_exist(config::sunshine.credentials_file) && reload_user_creds(config::sunshine.credentials_file)) {
+    if (!user_creds_exist(config::sunshine.credentials_file)) {
+      BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
+    } else if (reload_user_creds(config::sunshine.credentials_file)) {
       return -1;
     }
     return 0;
@@ -106,7 +108,6 @@ namespace http {
       BOOST_LOG(error) << "validating user credentials: "sv << e.what();
     }
 
-    BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
     return false;
   }
 
@@ -175,9 +176,9 @@ namespace http {
     return 0;
   }
 
-  bool download_file(const std::string &url, const std::string &file) {
+  bool download_file(const std::string &url, const std::string &file, long ssl_version) {
     // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
-    CURL *curl = curl_easy_init(); // NOSONAR
+    CURL *curl = curl_easy_init();  // NOSONAR
     if (!curl) {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
@@ -196,7 +197,7 @@ namespace http {
       return false;
     }
 
-    curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_3); // NOSONAR
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);  // NOSONAR
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
