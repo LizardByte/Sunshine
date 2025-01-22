@@ -77,7 +77,7 @@ namespace system_tray {
   tray_reset_display_device_config_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Resetting display device config from system tray"sv;
 
-    std::ignore = display_device::session_t::get().reset_persistence();
+    display_device::session_t::get().reset_persistence();
   }
 
   void

@@ -2,6 +2,13 @@
  * @file tests/unit/test_httpcommon.cpp
  * @brief Test src/httpcommon.*.
  */
+// test imports
+#include "../tests_common.h"
+
+// lib imports
+#include <curl/curl.h>
+
+// local imports
 #include <src/httpcommon.h>
 
 #include "../tests_common.h"
@@ -9,7 +16,7 @@
 struct UrlEscapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlEscapeTest, Run) {
-  auto [input, expected] = GetParam();
+  const auto &[input, expected] = GetParam();
   ASSERT_EQ(http::url_escape(input), expected);
 }
 
@@ -24,7 +31,7 @@ INSTANTIATE_TEST_SUITE_P(
 struct UrlGetHostTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(UrlGetHostTest, Run) {
-  auto [input, expected] = GetParam();
+  const auto &[input, expected] = GetParam();
   ASSERT_EQ(http::url_get_host(input), expected);
 }
 
@@ -39,10 +46,10 @@ INSTANTIATE_TEST_SUITE_P(
 struct DownloadFileTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(DownloadFileTest, Run) {
-  auto [url, filename] = GetParam();
+  const auto &[url, filename] = GetParam();
   const std::string test_dir = platf::appdata().string() + "/tests/";
-  std::basic_string path = test_dir + filename;
-  ASSERT_TRUE(http::download_file(url, path));
+  std::string path = test_dir + filename;
+  ASSERT_TRUE(http::download_file(url, path, CURL_SSLVERSION_TLSv1_0));
 }
 
 INSTANTIATE_TEST_SUITE_P(
