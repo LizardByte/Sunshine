@@ -44,8 +44,8 @@ class SunshineVersion {
       return false;
     }
     for (let i = 0; i < Math.min(3, this.versionParts.length, otherVersionParts.length); i++) {
-      if (this.versionParts[i] > otherVersionParts[i]) {
-        return true;
+      if (this.versionParts[i] !== otherVersionParts[i]) {
+        return this.versionParts[i] > otherVersionParts[i];
       }
     }
     return false;
