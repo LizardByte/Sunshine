@@ -1156,14 +1156,15 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### dd_wa_hdr_toggle
+### dd_wa_hdr_toggle_delay
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            When using virtual display device as for streaming, it might display incorrect (high-contrast) color.
-            With this option enabled, Sunshine will try to mitigate this issue.
+            When using virtual display device (VDD) for streaming, it might incorrectly display HDR color. Sunshine can try to mitigate this issue, by turning HDR off and then on again.<br>
+            If the value is set to 0, the workaround is disabled (default). If the value is between 0 and 3000 milliseconds, Sunshine will turn off HDR, wait for the specified amount of time and then turn HDR on again. The recommended delay time is around 500 milliseconds in most cases.<br>
+            DO NOT use this workaround unless you actually have issues with HDR as it directly impacts stream start time!
             @note{This option works independently of [dd_hdr_option](#dd_hdr_option)}
             @note{Applies to Windows only.}
         </td>
@@ -1171,13 +1172,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            disabled
+            0
             @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            dd_wa_hdr_toggle = enabled
+            dd_wa_hdr_toggle_delay = 500
             @endcode</td>
     </tr>
 </table>
