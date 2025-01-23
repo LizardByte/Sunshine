@@ -1,0 +1,37 @@
+---
+delete:
+  summary: Delete an application.
+  description: |
+    Delete an application.
+  operationId: deleteApps
+  tags:
+    - Apps
+  parameters:
+    - name: index
+      in: path
+      description: The index of the application to delete.
+      required: true
+      schema:
+        type: integer
+        format: int32
+  responses:
+    '200':
+      description: The application was deleted successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+              result:
+                type: string
+          example:
+            status: true
+            result: "application 9999 deleted"
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"
