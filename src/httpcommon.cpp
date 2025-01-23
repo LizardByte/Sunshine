@@ -54,17 +54,14 @@ namespace http {
       config::nvhttp.pkey = (dir / ("pkey-"s + unique_id)).string();
     }
 
-    if (!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) {
-      if (create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
-        return -1;
-      }
+    if ((!fs::exists(config::nvhttp.pkey) || !fs::exists(config::nvhttp.cert)) &&
+        create_creds(config::nvhttp.pkey, config::nvhttp.cert)) {
+      return -1;
     }
-    if (user_creds_exist(config::sunshine.credentials_file)) {
-      if (reload_user_creds(config::sunshine.credentials_file)) {
-        return -1;
-      }
-    } else {
+    if (!user_creds_exist(config::sunshine.credentials_file)) {
       BOOST_LOG(info) << "Open the Web UI to set your new username and password and getting started";
+    } else if (reload_user_creds(config::sunshine.credentials_file)) {
+      return -1;
     }
     return 0;
   }
@@ -179,19 +176,15 @@ namespace http {
     return 0;
   }
 
-  bool download_file(const std::string &url, const std::string &file) {
-    CURL *curl = curl_easy_init();
-    if (curl) {
-      // sonar complains about weak ssl and tls versions
-      // ideally, the setopts should go after the early returns; however sonar cannot detect the fix
-      curl_easy_setopt(curl, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
-    } else {
+  bool download_file(const std::string &url, const std::string &file, long ssl_version) {
+    // sonar complains about weak ssl and tls versions; however sonar cannot detect the fix
+    CURL *curl = curl_easy_init();  // NOSONAR
+    if (!curl) {
       BOOST_LOG(error) << "Couldn't create CURL instance";
       return false;
     }
 
-    std::string file_dir = file_handler::get_parent_directory(file);
-    if (!file_handler::make_directory(file_dir)) {
+    if (std::string file_dir = file_handler::get_parent_directory(file); !file_handler::make_directory(file_dir)) {
       BOOST_LOG(error) << "Couldn't create directory ["sv << file_dir << ']';
       curl_easy_cleanup(curl);
       return false;
@@ -204,6 +197,7 @@ namespace http {
       return false;
     }
 
+    curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);  // NOSONAR
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, fp);
@@ -219,17 +213,15 @@ namespace http {
   }
 
   std::string url_escape(const std::string &url) {
-    CURL *curl = curl_easy_init();
-    char *string = curl_easy_escape(curl, url.c_str(), url.length());
+    char *string = curl_easy_escape(nullptr, url.c_str(), static_cast<int>(url.length()));
     std::string result(string);
     curl_free(string);
-    curl_easy_cleanup(curl);
     return result;
   }
 
   std::string url_get_host(const std::string &url) {
     CURLU *curlu = curl_url();
-    curl_url_set(curlu, CURLUPART_URL, url.c_str(), url.length());
+    curl_url_set(curlu, CURLUPART_URL, url.c_str(), static_cast<unsigned int>(url.length()));
     char *host;
     if (curl_url_get(curlu, CURLUPART_HOST, &host, 0) != CURLUE_OK) {
       curl_url_cleanup(curlu);
@@ -240,5 +232,4 @@ namespace http {
     curl_url_cleanup(curlu);
     return result;
   }
-
 }  // namespace http
