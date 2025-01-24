@@ -40,7 +40,7 @@
   </description>
 
   <releases>
-    <release version="@PROJECT_VERSION@" date="1970-01-01"></release>
+    <release version="@PROJECT_VERSION@" date="1990-01-01"></release>
   </releases>
 
   <developer_name>LizardByte</developer_name>
