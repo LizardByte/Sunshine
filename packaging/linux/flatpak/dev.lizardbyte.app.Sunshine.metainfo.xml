@@ -29,10 +29,10 @@
     </p>
 
     <p>NOTE: Sunshine requires additional installation steps.</p>
-    <p>flatpak run --command=additional-install.sh @PROJECT_FQDN@</p>
+    <code>flatpak run --command=additional-install.sh @PROJECT_FQDN@</code>
     <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure, but it is safe.</p>
     <p>NOTE: KMS Grab (Optional)</p>
-    <p>sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run @PROJECT_FQDN@</p>
+    <code>sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run @PROJECT_FQDN@</code>
   </description>
 
   <releases>
