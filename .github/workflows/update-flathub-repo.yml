@@ -143,9 +143,9 @@ jobs:
           BEGIN { replaced = 0 }
           /<release version=.*>/ {
             if (!replaced) {
-              print "<release version=\"" version "\" date=\"" date "\">"
-              print "<description><p>" changelog "</p></description>"
-              print "</release>"
+              print "    <release version=\"" version "\" date=\"" date "\">"
+              print "      <description><p>" changelog "</p></description>"
+              print "    </release>"
               replaced = 1
             }
           }
