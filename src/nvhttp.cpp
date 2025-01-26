@@ -852,13 +852,13 @@ namespace nvhttp {
     auto launch_session = make_launch_session(host_audio, args);
 
     if (rtsp_stream::session_count() == 0) {
+      // The display should be restored in case something fails as there are no other sessions.
+      revert_display_configuration = true;
+
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
       // change the active displays.
       display_device::configure_display(config::video, *launch_session);
-
-      // The display should be restored in case something fails as there are no other sessions.
-      revert_display_configuration = true;
 
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed

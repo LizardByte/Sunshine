@@ -110,8 +110,8 @@ namespace display_device {
    * The user then accepts that Sunshine is not able to restore the state and "agrees" to
    * do it manually.
    *
-   * @return
-   * @note Whether the function succeeds or fails, the any of the scheduled "retries" from
+   * @return True if persistence was reset, false otherwise.
+   * @note Whether the function succeeds or fails, any of the scheduled "retries" from
    *       other methods will be stopped to not interfere with the user actions.
    *
    * @examples
@@ -119,6 +119,16 @@ namespace display_device {
    * @examples_end
    */
   [[nodiscard]] bool reset_persistence();
+
+  /**
+   * @brief Check if any of the display devices is currently active.
+   * @return True if at least one device is active.
+   *
+   * @examples
+   * const auto result = is_any_device_active();
+   * @examples_end
+   */
+  [[nodiscard]] bool is_any_device_active();
 
   /**
    * @brief A tag structure indicating that configuration parsing has failed.

@@ -2550,6 +2550,11 @@ namespace video {
   }
 
   int probe_encoders() {
+    if (!display_device::is_any_device_active()) {
+      BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe encoders as this could break Sunshine.";
+      return -1;
+    }
+
     auto encoder_list = encoders;
 
     // If we already have a good encoder, check to see if another probe is required
