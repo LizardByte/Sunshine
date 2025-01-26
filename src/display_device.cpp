@@ -810,6 +810,22 @@ namespace display_device {
     });
   }
 
+  bool is_any_device_active() {
+    std::lock_guard lock {DD_DATA.mutex};
+    if (!DD_DATA.sm_instance) {
+      // Platform is not supported, assume success.
+      return true;
+    }
+
+    return DD_DATA.sm_instance->execute([](auto &settings_iface) {
+      const auto devices {settings_iface.enumAvailableDevices()};
+      // If at least one device has additional info, it is active.
+      return std::any_of(std::begin(devices), std::end(devices), [](const auto &device) {
+        return static_cast<bool>(device.m_info);
+      });
+    });
+  }
+
   std::variant<failed_to_parse_tag_t, configuration_disabled_tag_t, SingleDisplayConfiguration> parse_configuration(const config::video_t &video_config, const rtsp_stream::launch_session_t &session) {
     const auto device_prep {parse_device_prep_option(video_config)};
     if (!device_prep) {
