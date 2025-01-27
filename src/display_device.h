@@ -121,14 +121,14 @@ namespace display_device {
   [[nodiscard]] bool reset_persistence();
 
   /**
-   * @brief Check if any of the display devices is currently active.
-   * @return True if at least one device is active.
+   * @brief Enumerate the available devices.
+   * @return A list of devices.
    *
    * @examples
-   * const auto result = is_any_device_active();
+   * const auto devices = enumerate_devices();
    * @examples_end
    */
-  [[nodiscard]] bool is_any_device_active();
+  [[nodiscard]] EnumeratedDeviceList enumerate_devices();
 
   /**
    * @brief A tag structure indicating that configuration parsing has failed.

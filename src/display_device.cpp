@@ -810,19 +810,15 @@ namespace display_device {
     });
   }
 
-  bool is_any_device_active() {
+  EnumeratedDeviceList enumerate_devices() {
     std::lock_guard lock {DD_DATA.mutex};
     if (!DD_DATA.sm_instance) {
-      // Platform is not supported, assume success.
-      return true;
+      // Platform is not supported.
+      return {};
     }
 
     return DD_DATA.sm_instance->execute([](auto &settings_iface) {
-      const auto devices {settings_iface.enumAvailableDevices()};
-      // If at least one device has additional info, it is active.
-      return std::any_of(std::begin(devices), std::end(devices), [](const auto &device) {
-        return static_cast<bool>(device.m_info);
-      });
+      return settings_iface.enumAvailableDevices();
     });
   }
 
