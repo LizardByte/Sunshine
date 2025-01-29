@@ -504,6 +504,7 @@ namespace config {
       {},  // manual_refresh_rate
       video_t::dd_t::hdr_option_e::automatic,  // hdr_option
       3s,  // config_revert_delay
+      {},  // config_revert_on_disconnect
       {},  // mode_remapping
       {}  // wa
     },  // display_device
@@ -1132,6 +1133,7 @@ namespace config {
         video.dd.config_revert_delay = std::chrono::milliseconds {value};
       }
     }
+    bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
     generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
     bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
 

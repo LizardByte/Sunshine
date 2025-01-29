@@ -1886,6 +1886,10 @@ namespace stream {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
 #endif
+          if(config::video.dd.config_revert_on_disconnect)
+          {
+            display_device::revert_configuration();
+          }
         } else {
           display_device::revert_configuration();
         }
