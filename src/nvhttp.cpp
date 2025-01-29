@@ -753,10 +753,10 @@ namespace nvhttp {
     }
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
-    auto current_appid = proc::proc.running();
+    auto current_appid = proc::proc.get_running_app_id();
     tree.put("root.PairStatus", pair_status);
-    tree.put("root.currentgame", current_appid);
-    tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
+    tree.put("root.currentgame", current_appid.value_or(0));
+    tree.put("root.state", current_appid ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
     std::ostringstream data;
 
@@ -837,10 +837,7 @@ namespace nvhttp {
       return;
     }
 
-    auto appid = util::from_view(get_arg(args, "appid"));
-
-    auto current_appid = proc::proc.running();
-    if (current_appid > 0) {
+    if (proc::proc.get_running_app_id()) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
@@ -884,6 +881,7 @@ namespace nvhttp {
       return;
     }
 
+    auto appid = util::from_view(get_arg(args, "appid"));
     if (appid > 0) {
       auto err = proc::proc.execute(appid, launch_session);
       if (err) {
@@ -917,8 +915,7 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    auto current_appid = proc::proc.running();
-    if (current_appid == 0) {
+    if (!proc::proc.get_running_app_id()) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
       tree.put("root.<xmlattr>.status_message", "No running app to resume");
@@ -1000,12 +997,9 @@ namespace nvhttp {
     tree.put("root.<xmlattr>.status_code", 200);
 
     rtsp_stream::terminate_sessions();
+    proc::proc.terminate();
 
-    if (proc::proc.running() > 0) {
-      proc::proc.terminate();
-    }
-
-    // The config needs to be reverted regardless of whether "proc::proc.terminate()" was called or not.
+    // The config needs to be reverted regardless of whether "proc::proc.terminate()" actually terminated app or not.
     display_device::revert_configuration();
   }
 

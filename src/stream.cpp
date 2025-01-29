@@ -1093,7 +1093,7 @@ namespace stream {
       }
 
       // Don't break until any pending sessions either expire or connect
-      if (proc::proc.running() == 0 && !has_session_awaiting_peer) {
+      if (!proc::proc.get_running_app_id() && !has_session_awaiting_peer) {
         BOOST_LOG(info) << "Process terminated"sv;
         break;
       }
@@ -1883,7 +1883,7 @@ namespace stream {
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
         bool revert_display_config {config::video.dd.config_revert_on_disconnect};
-        if (proc::proc.running()) {
+        if (proc::proc.get_running_app_id()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
 #endif

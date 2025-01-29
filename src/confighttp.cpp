@@ -584,7 +584,7 @@ namespace confighttp {
       });
 
       file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      proc::refresh(config::stream.file_apps);
+      proc::proc.refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
       send_response(response, output_tree);
@@ -656,7 +656,7 @@ namespace confighttp {
       file_tree["apps"] = new_apps;
 
       file_handler::write_file(config::stream.file_apps.c_str(), file_tree.dump(4));
-      proc::refresh(config::stream.file_apps);
+      proc::proc.refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
       output_tree["result"] = "application " + std::to_string(index) + " deleted";

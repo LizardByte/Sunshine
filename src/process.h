@@ -23,8 +23,7 @@
 
 namespace proc {
   using file_t = util::safe_ptr_v2<FILE, int, fclose>;
-
-  typedef config::prep_cmd_t cmd_t;
+  using cmd_t = config::prep_cmd_t;
 
   /**
    * pre_cmds -- guaranteed to be executed unless any of the commands fail.
@@ -67,115 +66,211 @@ namespace proc {
     std::chrono::seconds exit_timeout;
   };
 
+  /**
+   * @brief App class that contains all of what is necessary for executing and terminating app.
+   */
+  class app_t {
+  public:
+    /**
+     * @brief Start the app based on the provided context, env and session settings.
+     * @param app_context Data required for starting the app.
+     * @param app_id Requested app id for starting the app.
+     * @param env Environment for the app processes.
+     * @param launch_session Additional parameters provided during stream start/resume.
+     * @returns An instance of the `app_t` class or a "return code" in case the app could not be started.
+     */
+    static std::variant<std::unique_ptr<app_t>, int> start(ctx_t app_context, int app_id, boost::process::v1::environment env, const rtsp_stream::launch_session_t &launch_session);
+
+    /**
+     * @brief Destructor that automatically cleans up after the app, terminating processes if needed.
+     */
+    virtual ~app_t();
+
+    /**
+     * @brief Get id of the app if it's still running.
+     *
+     * It is not necessary for any kind of process to be actually running, for the
+     * app to be considered "running". App can be of a detached type - without any process.
+     *
+     * @note This method pools for the process state every time it is called and may perform early cleanup.
+     * @return App id that was provided during start if the app is still running, empty optional otherwise
+     */
+    std::optional<int> get_app_id();
+
+  private:
+    /**
+     * @brief Private constructor to enforce the usage of `start` method.
+     */
+    explicit app_t() = default;
+
+    /**
+     * @brief Execute the app based on the provided context, env and session settings.
+     * @param app_context Data required for starting the app.
+     * @param app_id Requested app id for starting the app.
+     * @param env Environment for the app processes.
+     * @param launch_session Additional parameters provided during stream start/resume.
+     * @returns "Return code" - `0` on success and other values on failure.
+     */
+    int execute(ctx_t app_context, int app_id, boost::process::v1::environment env, const rtsp_stream::launch_session_t &launch_session);
+
+    /**
+     * @brief Terminate the currently running process (if any) and run undo commands.
+     */
+    void terminate();
+
+    /**
+     * @brief Terminate all child processes in a process group.
+     * @param proc The child process itself.
+     * @param group The group of all children in the process tree.
+     * @param exit_timeout The timeout to wait for the process group to gracefully exit.
+     */
+    static void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
+
+    int _app_id {0};  ///< A hash representing the app.
+    bool _is_detached {false};  ///< App has no cmd, or it has successfully terminated withing 5s (configurable) as is now considered as detached.
+
+    ctx_t _context;  ///< Parsed app context from settings.
+    std::vector<cmd_t>::const_iterator _prep_cmd_it;  ///< Prep cmd iterator used as a starting point when terminating app if execution failed and not all undo commands need to be executed.
+    std::chrono::steady_clock::time_point _launch_time;  ///< Time at which the app was executed.
+
+    boost::process::v1::environment _env;  ///< Environment used during execution and termination.
+    boost::process::v1::child _process;  ///< Process handle.
+    boost::process::v1::group _process_group;  ///< Process group handle.
+    file_t _output_pipe;  ///< Pipe to an optional output file.
+  };
+
+  /**
+   * @brief Thread-safe wrapper-like class around the app list for handling the execution and termination of the app.
+   */
   class proc_t {
   public:
-    KITTY_DEFAULT_CONSTR_MOVE_THROW(proc_t)
+    /**
+     * @brief Destructor that may assert in debug mode if the app was not terminated at this point.
+     */
+    virtual ~proc_t();
 
-    proc_t(
-      boost::process::v1::environment &&env,
-      std::vector<ctx_t> &&apps
-    ):
-        _app_id(0),
-        _env(std::move(env)),
-        _apps(std::move(apps)) {
-    }
-
+    /**
+     * @brief Execute the app based on the app id and session settings.
+     * @param app_id Requested app id for starting the app.
+     * @param launch_session Additional parameters provided during stream start/resume.
+     * @returns "Return code" - `0` on success and other values on failure.
+     * @note The apps list for `app_id` is populated by calling `refresh`.
+     */
     int execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
 
     /**
-     * @return `_app_id` if a process is running, otherwise returns `0`
+     * @brief Get id of the app if it's still running.
+     * @return App id that was provided during execution if the app is still running, empty optional otherwise
      */
-    int running();
-
-    ~proc_t();
-
-    /**
-     * @brief Get the list of applications.
-     * @return A constant reference to the vector of applications.
-     */
-    const std::vector<ctx_t>& get_apps() const;
-
-    /**
-     * @brief Set the list of applications.
-     * @param apps The new list of applications.
-     * @note This will overwrite the existing list of applications.
-     * @see refresh(const std::string &file_name)
-     */
-    void set_apps(std::vector<ctx_t> apps);
-
-    /**
-     * @brief Get the image path of the application with the given app_id.
-     * @param app_id The ID of the application.
-     * @return The image path of the application.
-     */
-    std::string get_app_image(int app_id);
-
-    /**
-     * @brief Get the name of the last run application.
-     * @return The name of the last run application.
-     */
-    std::string get_last_run_app_name();
-
-    /**
-     * @brief Get the environment variables.
-     * @return A constant reference to the environment variables.
-     */
-    const boost::process::v1::environment& get_env() const;
-
-    /**
-     * @brief Set the environment variables.
-     * @param env The new environment variables.
-     * @note This will overwrite the existing environment variables.
-     */
-    void set_env(boost::process::v1::environment env);
+    std::optional<int> get_running_app_id();
 
     /**
      * @brief Terminate the currently running process.
      */
     void terminate();
 
+    /**
+     * @brief Get the list of applications.
+     * @return A list of applications.
+     */
+    std::vector<ctx_t> get_apps() const;
+
+    /**
+     * @brief Get the image path of the application with the given app_id.
+     *
+     * - returns image from assets directory if found there.
+     * - returns default image if image configuration is not set.
+     * - returns http content-type header compatible image type.
+     *
+     * @param app_id The id of the application.
+     * @return The image path of the application.
+     */
+    std::string get_app_image(int app_id) const;
+
+    /**
+     * @brief Get the name of the last run application (not necessarily successfully started).
+     * @return The name of the last run application.
+     */
+    std::string get_last_run_app_name() const;
+
+    /**
+     * @brief Refresh the app list and env to be used for the next execution of the app.
+     * @param file_name File to be parsed for the app list.
+     */
+    void refresh(const std::string &file_name);
+
   private:
-    int _app_id;
-
-    boost::process::v1::environment _env;
-    std::vector<ctx_t> _apps;
-    ctx_t _app;
-    std::chrono::steady_clock::time_point _app_launch_time;
-
-    // If no command associated with _app_id, yet it's still running
-    bool placebo {};
-
-    boost::process::v1::child _process;
-    boost::process::v1::group _process_group;
-
-    file_t _pipe;
-    std::vector<cmd_t>::const_iterator _app_prep_it;
-    std::vector<cmd_t>::const_iterator _app_prep_begin;
+    mutable std::recursive_mutex _mutex;  ///< Mutex to sync access from multiple threads.
+    std::unique_ptr<app_t> _started_app;  ///< Successfully started app that may or may no longer be running.
+    boost::process::v1::environment _env;  ///< Environment to be used for a new app execution.
+    std::vector<ctx_t> _apps;  ///< App contexts for starting new apps.
+    std::string _last_run_app_name;  ///< Name of the last executed application.
   };
 
-  /**
-   * @brief Calculate a stable id based on name and image data
-   * @return Tuple of id calculated without index (for use if no collision) and one with.
-   */
-  std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index);
-
-  std::string validate_app_image_path(std::string app_image_path);
-  void refresh(const std::string &file_name);
-  std::optional<proc::proc_t> parse(const std::string &file_name);
+  /// The legendary global of the proc_t
+  extern proc_t proc;
 
   /**
-   * @brief Initialize proc functions
-   * @return Unique pointer to `deinit_t` to manage cleanup
+   * @brief Initialize proc functions.
+   * @return Unique pointer to `deinit_t` to manage cleanup.
    */
   std::unique_ptr<platf::deinit_t> init();
 
   /**
-   * @brief Terminates all child processes in a process group.
-   * @param proc The child process itself.
-   * @param group The group of all children in the process tree.
-   * @param exit_timeout The timeout to wait for the process group to gracefully exit.
+   * @brief Get the working directory for the file path.
+   * @param file_path File path to be parsed.
+   * @return Working directory.
    */
-  void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
+  boost::filesystem::path find_working_directory(const std::string &file_path);
 
-  extern proc_t proc;
+  /**
+   * @brief Parse the string and replace any "$(...)" patterns with a value from env.
+   * @param env Environment to be used as a source for replacement.
+   * @param val_raw Raw string to be parsed.
+   * @returns Strings with replacements made (if any) with values from env.
+   * @warning This function throws if the `val_raw` is ill-formed.
+   */
+  std::string parse_env_val(const boost::process::v1::native_environment &env, std::string_view val_raw);
+
+  /**
+   * @brief Validate the image path.
+   * @param app_image_path File path to validate.
+   *
+   * Requirements:
+   *  - images must be of `.png` file ending
+   *  - image file must exist (can be relative to the `assets` directory).
+   *
+   * @returns Validated image path on success, default image path on failure.
+   */
+  std::string validate_app_image_path(const std::string &app_image_path);
+
+  /**
+   * @brief Calculate SHA256 from the file contents.
+   * @param file_name File to be used for calculation.
+   * @returns Calculated hash string or empty optional if hash could not be calculated.
+   */
+  std::optional<std::string> calculate_sha256(const std::string &file_name);
+
+  /**
+   * @brief Calculate CRC32 for the input string.
+   * @param input String to calculate hash for.
+   * @returns Hash for the input string.
+   */
+  uint32_t calculate_crc32(const std::string &input);
+
+  /**
+   * @brief Calculate a stable id based on name and image data (and an app index if required).
+   * @param app_name App name.
+   * @param app_image_path App image path.
+   * @param app_index App index in the app list.
+   * @return Tuple of id calculated without index (for use if no collision) and one with.
+   */
+  std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, const std::string &app_image_path, int app_index);
+
+  /**
+   * @brief Parse the app list file.
+   * @param file_name The app list file location.
+   * @returns A tuple of parsed apps list and the environment used for parsing, empty optional if parsing has failed.
+   */
+  std::optional<std::tuple<boost::process::v1::environment, std::vector<ctx_t>>> parse(const std::string &file_name);
 }  // namespace proc
