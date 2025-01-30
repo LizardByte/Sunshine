@@ -1882,7 +1882,7 @@ namespace stream {
 
       // If this is the last session, invoke the platform callbacks
       if (--running_sessions == 0) {
-        bool revert_display_config{config::video.dd.config_revert_on_disconnect};
+        bool revert_display_config {config::video.dd.config_revert_on_disconnect};
         if (proc::proc.running()) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
@@ -1892,8 +1892,7 @@ namespace stream {
           revert_display_config = true;
         }
 
-        if(revert_display_config)
-        {
+        if (revert_display_config) {
           display_device::revert_configuration();
         }
 
