@@ -132,6 +132,7 @@ namespace config {
       std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
       hdr_option_e hdr_option;
       std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
+      bool config_revert_on_disconnect;  ///< Specify whether to revert display configuration on client disconnect.
       mode_remapping_t mode_remapping;
       workarounds_t wa;
     } dd;

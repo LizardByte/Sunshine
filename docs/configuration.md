@@ -1203,6 +1203,31 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+
+### dd_config_revert_on_disconnect
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When enabled, display configuration is reverted upon disconnect of all clients instead of app close or last session termination.
+            This can be useful for returning to physical usage of the host machine without closing the active app.
+            @warning{Some applications may not function properly when display configuration is changed while active.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}disabled@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_config_revert_on_disconnect = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### dd_mode_remapping
 
 <table>

@@ -151,6 +151,15 @@ function addRemappingEntry() {
                 </div>
               </div>
 
+              <!-- Config revert on disconnect -->
+              <div class="mb-3" v-if="config.dd_configuration_option !== 'disabled'">
+                <Checkbox id="dd_config_revert_on_disconnect"
+                  locale-prefix="config"
+                  v-model="config.dd_config_revert_on_disconnect"
+                  default="false"
+                ></Checkbox>
+              </div>
+
               <!-- Display mode remapping -->
               <div class="mb-3" v-if="canBeRemapped()">
                 <label for="dd_mode_remapping" class="form-label">
