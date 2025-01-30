@@ -158,6 +158,8 @@
     "dd_config_label": "장치 구성",
     "dd_config_revert_delay": "구성 되돌리기 지연",
     "dd_config_revert_delay_desc": "앱이 닫히거나 마지막 세션이 종료된 경우 구성을 되돌리기 전에 대기하는 추가 지연 시간(밀리초)입니다. 주요 목적은 앱 간에 빠르게 전환할 때 보다 원활한 전환을 제공하기 위한 것입니다.",
+    "dd_config_revert_on_disconnect": "연결 해제 시 구성 되돌리기",
+    "dd_config_revert_on_disconnect_desc": "앱 종료 또는 마지막 세션 종료 대신 모든 클라이언트의 연결이 끊어지면 구성을 되돌립니다.",
     "dd_config_verify_only": "디스플레이가 활성화되어 있는지 확인합니다(기본값).",
     "dd_hdr_option": "HDR",
     "dd_hdr_option_auto": "클라이언트의 요청에 따라 HDR 모드 켜기/끄기(기본값)",
