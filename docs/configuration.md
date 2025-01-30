@@ -1218,7 +1218,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">@code{}enabled@endcode</td>
+        <td colspan="2">@code{}disabled@endcode</td>
     </tr>
     <tr>
         <td>Example</td>
