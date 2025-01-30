@@ -159,7 +159,7 @@
     "dd_config_revert_delay": "Config revert delay",
     "dd_config_revert_delay_desc": "Additional delay in milliseconds to wait before reverting configuration when the app has been closed or the last session terminated. Main purpose is to provide a smoother transition when quickly switching between apps.",
     "dd_config_revert_on_disconnect": "Config revert on disconnect",
-    "dd_config_revert_on_disconnect_desc": "Revert configuration upon disconnect of client instead of session termination.",
+    "dd_config_revert_on_disconnect_desc": "Revert configuration upon disconnect of all clients instead of session termination.",
     "dd_config_verify_only": "Verify that the display is enabled (default)",
     "dd_hdr_option": "HDR",
     "dd_hdr_option_auto": "Switch on/off the HDR mode as requested by the client (default)",
