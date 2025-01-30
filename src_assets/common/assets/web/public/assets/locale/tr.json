@@ -158,6 +158,8 @@
     "dd_config_label": "Cihaz yapılandırması",
     "dd_config_revert_delay": "Yapılandırma geri dönüş gecikmesi",
     "dd_config_revert_delay_desc": "Uygulama kapatıldığında veya son oturum sonlandırıldığında yapılandırmaya geri dönmeden önce beklemek için milisaniye cinsinden ek gecikme. Ana amaç, uygulamalar arasında hızlı geçiş yaparken daha yumuşak bir geçiş sağlamaktır.",
+    "dd_config_revert_on_disconnect": "Bağlantı kesildiğinde yapılandırma geri dönüşü",
+    "dd_config_revert_on_disconnect_desc": "Uygulama kapanışı veya son oturum sonlandırması yerine tüm istemcilerin bağlantısı kesildiğinde yapılandırmayı geri döndürün.",
     "dd_config_verify_only": "Ekranın etkin olduğunu doğrulayın (varsayılan)",
     "dd_hdr_option": "HDR",
     "dd_hdr_option_auto": "İstemci tarafından talep edildiği şekilde HDR modunu açma/kapatma (varsayılan)",
