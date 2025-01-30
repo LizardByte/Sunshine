@@ -158,6 +158,8 @@
     "dd_config_label": "Enhetens konfiguration",
     "dd_config_revert_delay": "Konfigurationen återställ fördröjning",
     "dd_config_revert_delay_desc": "Ytterligare fördröjning i millisekunder för att vänta innan konfiguration återställs när appen har stängts eller den senaste sessionen avslutats. Huvudsyftet är att ge en smidigare övergång när du snabbt växlar mellan appar.",
+    "dd_config_revert_on_disconnect": "Konfigurationen återställs vid frånkoppling",
+    "dd_config_revert_on_disconnect_desc": "Återställ konfigurationen vid frånkoppling av alla klienter istället för appnära eller senaste sessionsavslut.",
     "dd_config_verify_only": "Kontrollera att skärmen är aktiverad (standard)",
     "dd_hdr_option": "HDR",
     "dd_hdr_option_auto": "Slå på/av HDR-läget som begärts av klienten (standard)",
