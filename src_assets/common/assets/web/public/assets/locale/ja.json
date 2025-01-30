@@ -158,6 +158,8 @@
     "dd_config_label": "デバイス設定",
     "dd_config_revert_delay": "設定の戻す遅延時間",
     "dd_config_revert_delay_desc": "アプリが閉じられたか、最後のセッションが終了したときに設定を元に戻すまで待機するミリ秒単位の追加の遅延が発生します。 主な目的は、アプリ間の迅速な切り替え時のスムーズな移行を提供することです。",
+    "dd_config_revert_on_disconnect": "切断時に設定を元に戻す",
+    "dd_config_revert_on_disconnect_desc": "アプリ終了または最後のセッション終了ではなく、すべてのクライアントの切断時に設定を元に戻します。",
     "dd_config_verify_only": "ディスプレイが有効になっていることを確認します（デフォルト）",
     "dd_hdr_option": "HDR",
     "dd_hdr_option_auto": "クライアントが要求するHDRモードのオン/オフを切り替えます (デフォルト)",
