@@ -538,7 +538,6 @@ namespace config {
     platf::get_host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
-    0, // max bitrate
   };
 
   input_t input {

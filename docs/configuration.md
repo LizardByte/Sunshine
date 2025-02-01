@@ -1314,6 +1314,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### max_bitrate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            max_bitrate = 5000
+            @endcode</td>
+    </tr>
+</table>
+
 ### min_fps_factor
 
 <table>

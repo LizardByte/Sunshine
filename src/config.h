@@ -175,12 +175,9 @@ namespace config {
     std::string file_state;
 
     std::string external_ip;
-<<<<<<< HEAD
     std::vector<std::string> resolutions;
     std::vector<int> fps;
     int max_bitrate;
-=======
->>>>>>> upstream/master
   };
 
   struct input_t {
