@@ -77,7 +77,7 @@ jobs:
       NODE_VERSION: "20"
       PLATFORM_VERSION: "23.08"
     name: Linux Flatpak
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [setup_release, setup_flatpak_matrix]
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
@@ -318,8 +318,8 @@ jobs:
       matrix:
         include:  # package these differently
           - type: AppImage
-            EXTRA_ARGS: '--appimage-build'
-            dist: 22.04
+            EXTRA_ARGS: "--appimage-build"
+            dist: 24.04
 
     steps:
       - name: Maximize build space
