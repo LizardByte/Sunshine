@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Actuellement, les pilotes NVIDIA peuvent geler dans l'encodeur lorsque HAGS est activé, la priorité en temps réel est utilisée et l'utilisation de VRAM est proche du maximum. Désactiver cette option réduit la priorité à la hauteur, en évitant le gel au prix de performances de capture réduites lorsque le GPU est lourdement chargé.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Assignez des valeurs QP plus élevées aux zones uniformes de la vidéo. Il est conseillé de l'activer lors de la diffusion à des débits binaires réduits.",
-    "nvenc_spatial_aq_disabled": "Désactivé (plus rapide, par défaut)",
-    "nvenc_spatial_aq_enabled": "Activé (plus lent)",
     "nvenc_twopass": "Mode bi-passe",
     "nvenc_twopass_desc": "Ajoute le passage d'encodage préliminaire. Cela permet de détecter plus de vecteurs de mouvement, de mieux répartir le débit sur la trame et de respecter plus strictement les limites de débit. La désactivation n'est pas recommandée car cela peut entraîner des dépassements occasionnels de débit et des pertes de paquets subséquentes.",
     "nvenc_twopass_disabled": "Désactivé (plus rapide, non recommandé)",
