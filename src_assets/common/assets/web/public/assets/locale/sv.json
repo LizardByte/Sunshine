@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "För närvarande NVIDIA-drivrutiner kan frysa i kodare när HAGS är aktiverad, realtid prioritet används och VRAM-användning är nära maximal. Inaktivering av det här alternativet sänker prioriteringen till höga, sidostäder frysningen på bekostnad av reducerad fångstprestanda när GPU är kraftigt belastad.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Tilldela högre QP-värden till platta regioner i videon. Rekommenderas att aktivera vid strömning med lägre bithastigheter.",
-    "nvenc_spatial_aq_disabled": "Inaktiverad (snabbare, standard)",
-    "nvenc_spatial_aq_enabled": "Aktiverad (långsammare)",
     "nvenc_twopass": "Tvåpass-läge",
     "nvenc_twopass_desc": "Lägger till preliminär kodning pass. Detta gör det möjligt att upptäcka fler rörelsevektorer, bättre distribuera bithastighet över ramen och mer strikt följa bitrate gränser. Inaktivera det rekommenderas inte eftersom detta kan leda till enstaka bithastighet overshoot och efterföljande paketförlust.",
     "nvenc_twopass_disabled": "Inaktiverad (snabbast rekommenderas inte)",
