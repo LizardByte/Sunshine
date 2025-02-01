@@ -5,9 +5,15 @@
 
 blank_issues_enabled: false
 contact_links:
+  - name: Discussions
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Community discussions
+  - name: Questions
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Ask questions
+  - name: Feature Requests
+    url: https://github.com/orgs/LizardByte/discussions
+    about: Request new features
   - name: Support Center
     url: https://app.lizardbyte.dev/support
     about: Official LizardByte support
-  - name: Discussions
-    url: https://github.com/orgs/LizardByte/discussions
-    about: Community discussions, questions, and feature requests
