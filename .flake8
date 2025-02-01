@@ -1,7 +1,6 @@
 [flake8]
 filename =
-    *.py,
-    *.pys
+    *.py
 max-line-length = 120
 extend-exclude =
     venv/

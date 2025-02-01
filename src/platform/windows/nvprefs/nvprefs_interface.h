@@ -1,4 +1,11 @@
+/**
+ * @file src/platform/windows/nvprefs/nvprefs_interface.h
+ * @brief Declarations for nvidia preferences interface.
+ */
 #pragma once
+
+// standard includes
+#include <memory>
 
 namespace nvprefs {
 
@@ -7,26 +14,19 @@ namespace nvprefs {
     nvprefs_interface();
     ~nvprefs_interface();
 
-    bool
-    load();
+    bool load();
 
-    void
-    unload();
+    void unload();
 
-    bool
-    restore_from_and_delete_undo_file_if_exists();
+    bool restore_from_and_delete_undo_file_if_exists();
 
-    bool
-    modify_application_profile();
+    bool modify_application_profile();
 
-    bool
-    modify_global_profile();
+    bool modify_global_profile();
 
-    bool
-    owning_undo_file();
+    bool owning_undo_file();
 
-    bool
-    restore_global_profile();
+    bool restore_global_profile();
 
   private:
     struct impl;

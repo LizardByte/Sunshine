@@ -2,30 +2,46 @@
 
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}")
+
+# copy assets (excluding shaders) to build directory, for running without install
+file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/"
+        DESTINATION "${CMAKE_BINARY_DIR}/assets"
+        PATTERN "shaders" EXCLUDE)
+# use symbolic link for shaders directory
+file(CREATE_LINK "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/shaders"
+        "${CMAKE_BINARY_DIR}/assets/shaders" COPY_ON_ERROR SYMBOLIC)
+
 if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 else()
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/85-sunshine.rules"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/udev/rules.d")
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/systemd/user")
+    find_package(Systemd)
+    find_package(Udev)
+
+    if(UDEV_FOUND)
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
+                DESTINATION "${UDEV_RULES_INSTALL_DIR}")
+    endif()
+    if(SYSTEMD_FOUND)
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
+                DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+    endif()
 endif()
 
 # Post install
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 
+# Apply setcap for RPM
+# https://github.com/coreos/rpm-ostree/discussions/5036#discussioncomment-10291071
+set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin+p) ${SUNSHINE_EXECUTABLE_PATH}")
+
 # Dependencies
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
-            libboost-filesystem${Boost_VERSION}, \
-            libboost-locale${Boost_VERSION}, \
-            libboost-log${Boost_VERSION}, \
-            libboost-program-options${Boost_VERSION}, \
             libcap2, \
             libcurl4, \
             libdrm2, \
@@ -35,47 +51,80 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libpulse0, \
             libva2, \
             libva-drm2, \
-            libvdpau1, \
             libwayland-client0, \
             libx11-6, \
+            miniupnpc, \
             openssl | libssl3")
 set(CPACK_RPM_PACKAGE_REQUIRES "\
             ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
-            boost-filesystem >= ${Boost_VERSION}, \
-            boost-locale >= ${Boost_VERSION}, \
-            boost-log >= ${Boost_VERSION}, \
-            boost-program-options >= ${Boost_VERSION}, \
             libcap >= 2.22, \
             libcurl >= 7.0, \
             libdrm >= 2.4.97, \
             libevdev >= 1.5.6, \
             libopusenc >= 0.2.1, \
             libva >= 2.14.0, \
-            libvdpau >= 1.5, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
+            miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \
             pulseaudio-libs >= 10.0")
+
+if(NOT BOOST_USE_STATIC)
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                libboost-filesystem${Boost_VERSION}, \
+                libboost-locale${Boost_VERSION}, \
+                libboost-log${Boost_VERSION}, \
+                libboost-program-options${Boost_VERSION}")
+    set(CPACK_RPM_PACKAGE_REQUIRES "\
+                ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                boost-filesystem >= ${Boost_VERSION}, \
+                boost-locale >= ${Boost_VERSION}, \
+                boost-log >= ${Boost_VERSION}, \
+                boost-program-options >= ${Boost_VERSION}")
+endif()
 
 # This should automatically figure out dependencies, doesn't work with the current config
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
 # application icon
-install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/apps")
+if(NOT ${SUNSHINE_BUILD_FLATPAK})
+    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps")
+else()
+    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps"
+            RENAME "${PROJECT_FQDN}.svg")
+endif()
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
-    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status"
-            RENAME "sunshine-tray.svg")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-playing.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-pausing.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/images/sunshine-locked.svg"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/scalable/status")
+    if(NOT ${SUNSHINE_BUILD_FLATPAK})
+        install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
+                RENAME "sunshine-tray.svg")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-playing.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-pausing.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-locked.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status")
+    else()
+        # flatpak icons must be prefixed with the app id or they will not be included in the flatpak
+        install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
+                RENAME "${PROJECT_FQDN}-tray.svg")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-playing.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
+                RENAME "${PROJECT_FQDN}-playing.svg")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-pausing.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
+                RENAME "${PROJECT_FQDN}-pausing.svg")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-locked.svg"
+                DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
+                RENAME "${PROJECT_FQDN}-locked.svg")
+    endif()
 
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
@@ -88,18 +137,25 @@ endif()
 
 # desktop file
 # todo - validate desktop files with `desktop-file-validate`
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
-if(NOT ${SUNSHINE_BUILD_APPIMAGE})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+if(NOT ${SUNSHINE_BUILD_FLATPAK})
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
+else()
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
+            RENAME "${PROJECT_FQDN}.desktop")
 endif()
-if(${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_kms.desktop"
-            DESTINATION "${CMAKE_INSTALL_PREFIX}/share/applications")
+if(NOT ${SUNSHINE_BUILD_APPIMAGE} AND NOT ${SUNSHINE_BUILD_FLATPAK})
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 endif()
 
 # metadata file
 # todo - validate file with `appstream-util validate-relax`
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.appdata.xml"
-        DESTINATION "${CMAKE_INSTALL_PREFIX}/share/metainfo")
+if(NOT ${SUNSHINE_BUILD_FLATPAK})
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.appdata.xml"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
+else()
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
+endif()

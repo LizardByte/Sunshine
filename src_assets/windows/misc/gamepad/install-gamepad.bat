@@ -1,6 +1,21 @@
 @echo off
 setlocal enabledelayedexpansion
 
+rem Check if a compatible version of ViGEmBus is already installed (1.17 or later)
+rem
+rem Note: We use exit code 2 to indicate success because either 0 or 1 may be returned
+rem based on the PowerShell version if an exception occurs.
+powershell -c Exit $(if ((Get-Item "$env:SystemRoot\System32\drivers\ViGEmBus.sys").VersionInfo.FileVersion -ge [System.Version]"1.17") { 2 } Else { 1 })
+if %ERRORLEVEL% EQU 2 (
+    goto skip
+)
+goto continue
+
+:skip
+echo "The installed version is 1.17 or later, no update needed. Exiting."
+exit /b 0
+
+:continue
 rem Get temp directory
 set temp_dir=%temp%/Sunshine
 

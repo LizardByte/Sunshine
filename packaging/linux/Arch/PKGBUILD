@@ -1,4 +1,4 @@
-# Edit on github: https://github.com/LizardByte/Sunshine/blob/nightly/packaging/linux/Arch/PKGBUILD
+# Edit on github: https://github.com/LizardByte/Sunshine/blob/master/packaging/linux/Arch/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
 pkgname='sunshine'
@@ -7,76 +7,68 @@ pkgrel=1
 pkgdesc="@PROJECT_DESCRIPTION@"
 arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@
-license=('GPL3')
+license=('GPL-3.0-only')
+install=sunshine.install
 
-depends=('avahi'
-         'boost-libs'
-         'curl'
-         'libayatana-appindicator'
-         'libevdev'
-         'libmfx'
-         'libnotify'
-         'libpulse'
-         'libva'
-         'libvdpau'
-         'libx11'
-         'libxcb'
-         'libxfixes'
-         'libxrandr'
-         'libxtst'
-         'numactl'
-         'openssl'
-         'opus'
-         'udev')
-makedepends=('boost'
-             'cmake'
-             'git'
-             'make'
-             'nodejs'
-             'npm')
-optdepends=('cuda: NvFBC capture support'
-            'libcap'
-            'libdrm')
+_gcc_version=13
 
-provides=('sunshine')
+depends=(
+  'avahi'
+  'curl'
+  'libayatana-appindicator'
+  'libcap'
+  'libdrm'
+  'libevdev'
+  'libmfx'
+  'libnotify'
+  'libpulse'
+  'libva'
+  'libx11'
+  'libxcb'
+  'libxfixes'
+  'libxrandr'
+  'libxtst'
+  'miniupnpc'
+  'numactl'
+  'openssl'
+  'opus'
+  'udev'
+)
+
+makedepends=(
+  'cmake'
+  'cuda'
+  "gcc${_gcc_version}"
+  'git'
+  'make'
+  'nodejs'
+  'npm'
+)
+
+optdepends=(
+  'cuda: Nvidia GPU encoding support'
+  'libva-mesa-driver: AMD GPU encoding support'
+  'xorg-server-xvfb: Virtual X server for headless testing'
+)
+
+provides=()
+conflicts=()
 
 source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
 sha256sums=('SKIP')
 
 prepare() {
     cd "$pkgname"
-    # Skip submodules that we don't want
-    if [[ $CARCH == "x86_64" ]]; then
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-linux-aarch64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-    elif [[ $CARCH == "aarch64" ]]; then
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-linux-x86_64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-
-    # It's unlikely that someone could get this far on a system with an incorrect arch, but we should handle it anyway
-    # Pull linux ffmpeg submodules
-    else
-        git -c submodule."ffmpeg-macos-x86_64".update=none \
-            -c submodule."ffmpeg-windows-x86_64".update=none \
-            -c submodule."ffmpeg-macos-aarch64".update=none \
-            submodule update --recursive --init
-    fi
+    git submodule update --recursive --init
 }
 
 build() {
-    pushd "$pkgname"
-    npm install
-    popd
-
     export BRANCH="@GITHUB_BRANCH@"
     export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"
+
+    export CC="gcc-${_gcc_version}"
+    export CXX="g++-${_gcc_version}"
 
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
@@ -85,11 +77,24 @@ build() {
         -S "$pkgname" \
         -B build \
         -Wno-dev \
+        -D BUILD_DOCS=OFF \
+        -D BUILD_WERROR=ON \
         -D CMAKE_INSTALL_PREFIX=/usr \
         -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-        -D SUNSHINE_ASSETS_DIR="share/sunshine"
+        -D SUNSHINE_ASSETS_DIR="share/sunshine" \
+        -D SUNSHINE_PUBLISHER_NAME='LizardByte' \
+        -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+        -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
 
     make -C build
+}
+
+check() {
+    export CC="gcc-${_gcc_version}"
+    export CXX="g++-${_gcc_version}"
+
+    cd "${srcdir}/build/tests"
+    ./test_sunshine --gtest_color=yes
 }
 
 package() {

@@ -1,26 +1,23 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
 # no-cache-filters: artifacts,sunshine
-ARG BASE=archlinux
+ARG BASE=archlinux/archlinux
 ARG TAG=base-devel
 FROM ${BASE}:${TAG} AS sunshine-base
 
-# install dependencies
+# Update keyring to avoid signature errors, and update system
 RUN <<_DEPS
 #!/bin/bash
 set -e
-pacman -Syu --disable-download-timeout --needed --noconfirm \
+pacman -Syy --disable-download-timeout --needed --noconfirm \
   archlinux-keyring
+pacman -Syu --disable-download-timeout --noconfirm
+pacman -Scc --noconfirm
 _DEPS
 
-# Setup builder user, arch prevents running makepkg as root
-RUN useradd -m builder && \
-    echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-# makepkg is used in sunshine-build and uploader build stages
-
-FROM sunshine-base as sunshine-build
+FROM sunshine-base AS sunshine-build
 
 ARG BRANCH
 ARG BUILD_VERSION
@@ -33,20 +30,29 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-# install dependencies
-# cuda, libcap, and libdrm are optional dependencies for PKGBUILD
-RUN <<_DEPS
+
+# hadolint ignore=SC2016
+RUN <<_SETUP
 #!/bin/bash
 set -e
+
+# Setup builder user, arch prevents running makepkg as root
+useradd -m builder
+echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+# patch the build flags
+sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
+
+# install dependencies
 pacman -Syu --disable-download-timeout --needed --noconfirm \
   base-devel \
   cmake \
   cuda \
   git \
-  libcap \
-  libdrm \
-  namcap
-_DEPS
+  namcap \
+  xorg-server-xvfb
+pacman -Scc --noconfirm
+_SETUP
 
 # Setup builder user
 USER builder
@@ -79,36 +85,51 @@ cmake \
 _MAKE
 
 WORKDIR /build/sunshine/pkg
-RUN mv /build/sunshine/build/PKGBUILD .
+RUN <<_PACKAGE
+mv /build/sunshine/build/PKGBUILD .
+mv /build/sunshine/build/sunshine.install .
+makepkg --printsrcinfo > .SRCINFO
+_PACKAGE
+
+# create a PKGBUILD archive
+USER root
+RUN <<_REPO
+#!/bin/bash
+set -e
+tar -czf /build/sunshine/sunshine.pkg.tar.gz .
+_REPO
 
 # namcap and build PKGBUILD file
+USER builder
 RUN <<_PKGBUILD
 #!/bin/bash
 set -e
+# shellcheck source=/dev/null
+source /etc/profile  # ensure cuda is in the PATH
+export DISPLAY=:1
+Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 namcap -i PKGBUILD
 makepkg -si --noconfirm
+rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
-FROM scratch as artifacts
+FROM scratch AS artifacts
 
-COPY --link --from=sunshine-build /build/sunshine/pkg/PKGBUILD /PKGBUILD
 COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
 
-FROM sunshine-base as sunshine
+FROM sunshine-base AS sunshine
 
-# copy from uploader instead of artifacts or uploader stage will not run
 COPY --link --from=artifacts /sunshine.pkg.tar.zst /
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
 #!/bin/bash
 set -e
-# update keyring to prevent cached keyring errors
-pacman -Syu --disable-download-timeout --needed --noconfirm \
-  archlinux-keyring
 pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
+pacman -Scc --noconfirm
 _INSTALL_SUNSHINE
 
 # network setup
@@ -131,10 +152,6 @@ ENV HOME=/home/$UNAME
 RUN <<_SETUP_USER
 #!/bin/bash
 set -e
-# first delete the builder user
-userdel -r builder
-
-# then create the lizard user
 groupadd -f -g "${PGID}" "${UNAME}"
 useradd -lm -d ${HOME} -s /bin/bash -g "${PGID}" -u "${PUID}" "${UNAME}"
 mkdir -p ${HOME}/.config/sunshine

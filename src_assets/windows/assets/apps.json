@@ -1,7 +1,5 @@
 {
-  "env": {
-    "PATH": "$(PATH);$(ProgramFiles(x86))\\Steam"
-  },
+  "env": {},
   "apps": [
     {
       "name": "Desktop",
@@ -9,9 +7,9 @@
     },
     {
       "name": "Steam Big Picture",
-      "detached": [
-        "steam steam://open/bigpicture"
-      ],
+      "cmd": "steam://open/bigpicture",
+      "auto-detach": "true",
+      "wait-all": "true",
       "image-path": "steam.png"
     }
   ]

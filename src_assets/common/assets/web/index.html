@@ -1,161 +1,148 @@
-<div id="content" class="container">
-  <h1 class="my-4">Hello, Sunshine!</h1>
-  <p>Sunshine is a self-hosted game stream host for Moonlight.</p>
-  <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
-    <div style="line-height: 32px;">
-      <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
-      <b>Attention!</b> Sunshine detected these errors during startup. These errors <b>MUST</b> be fixed before using
-      Sunshine.<br>
-    </div>
-    <ul>
-      <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
-    </ul>
-  </div>
-  <!--Version-->
-  <div class="card p-2 my-4">
-    <div class="card-body" v-if="version">
-      <h2>Version {{version}}</h2>
-      <br />
-      <div v-if="loading">
-        Loading Latest Release...
-      </div>
-      <div class="alert alert-success" v-if="buildVersionIsDirty">
-        Thank you for helping to make Sunshine a better software! 🌇
-      </div>
-      <div v-else-if="!nightlyBuildAvailable && !stableBuildAvailable && !buildVersionIsDirty">
-        <div class="alert alert-success">
-          You're running the latest version of Sunshine
-        </div>
-      </div>
-      <div v-if="nightlyBuildAvailable">
-        <div class="alert alert-warning">
-          <div class="d-flex justify-content-between">
-            <div class="my-2">A new <b>Nightly</b> Version is Available!</div>
-            <a class="btn btn-success m-1" href="https://github.com/LizardByte/Sunshine/releases/nightly-dev"
-              target="_blank">Download</a>
-          </div>
-          <pre><b>{{nightlyData.head_sha}}</b></pre>
-          <pre>{{nightlyData.display_title}}</pre>
-        </div>
-      </div>
-      <div v-if="stableBuildAvailable">
-        <div class="alert alert-warning">
-          <div class="d-flex justify-content-between">
-            <div class="my-2">A new <b>Stable</b> Version is Available!</div>
-            <a class="btn btn-success m-1" :href="githubVersion.html_url" target="_blank">Download</a>
-          </div>
-          <h3>{{githubVersion.name}}</h3>
-          <pre>{{githubVersion.body}}</pre>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!--Resources-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Resources</h2>
-      <br />
-      <p>
-        Resources for Sunshine!
-      </p>
-      <div class="card-group p-4 align-items-center">
-        <a class="btn btn-success m-1" href="https://app.lizardbyte.dev" target="_blank">LizardByte Website</a>
-        <a class="btn btn-primary m-1" href="https://app.lizardbyte.dev/discord" target="_blank">
-          <i class="fab fa-fw fa-discord"></i> Discord</a>
-        <a class="btn btn-secondary m-1" href="https://github.com/LizardByte/Sunshine/discussions" target="_blank">
-          <i class="fab fa-fw fa-github"></i> Github Discussions</a>
-      </div>
-    </div>
-  </div>
-  <!--Legal-->
-  <div class="card p-2 my-4">
-    <div class="card-body">
-      <h2>Legal</h2>
-      <br />
-      <p>
-        By continuing to use this software you agree to the terms and conditions in the following documents.
-      </p>
-      <div class="card-group p-4 align-items-center">
-        <a class="btn btn-danger m-1" href="https://github.com/LizardByte/Sunshine/blob/master/LICENSE" target="_blank">
-          <i class="fas fa-fw fa-file-alt"></i> License</a>
-        <a class="btn btn-danger m-1" href="https://github.com/LizardByte/Sunshine/blob/master/NOTICE" target="_blank">
-          <i class="fas fa-fw fa-exclamation"></i> Third Party Notice</a>
-      </div>
-    </div>
-  </div>
-</div>
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
 
-<script>
-  new Vue({
-    el: "#content",
+<head>
+  <%- header %>
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <h1 class="my-4">{{ $t('index.welcome') }}</h1>
+    <p>{{ $t('index.description') }}</p>
+    <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+      <div style="line-height: 32px;">
+        <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
+        <p v-html="$t('index.startup_errors')"></p>
+        <br>
+      </div>
+      <ul>
+        <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+      </ul>
+      <a class="btn btn-danger" href="./troubleshooting#logs">View Logs</a>
+    </div>
+    <!-- Version -->
+    <div class="card p-2 my-4">
+      <div class="card-body" v-if="version">
+        <h2>Version {{version.version}}</h2>
+        <br>
+        <div v-if="loading">
+          {{ $t('index.loading_latest') }}
+        </div>
+        <div class="alert alert-success" v-if="buildVersionIsDirty">
+          {{ $t('index.version_dirty') }} 🌇
+        </div>
+        <div class="alert alert-info" v-if="installedVersionNotStable">
+          {{ $t('index.installed_version_not_stable') }}
+        </div>
+        <div v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
+          <div class="alert alert-success">
+            {{ $t('index.version_latest') }}
+          </div>
+        </div>
+        <div v-if="notifyPreReleases && preReleaseBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">
+                <p>{{ $t('index.new_pre_release') }}</p>
+              </div>
+              <a class="btn btn-success m-1" :href="preReleaseVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
+            </div>
+            <pre><b>{{preReleaseVersion.release.name}}</b></pre>
+            <pre>{{preReleaseVersion.release.body}}</pre>
+          </div>
+        </div>
+        <div v-if="stableBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">
+                <p>{{ $t('index.new_stable') }}</p>
+              </div>
+              <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
+            </div>
+            <h3>{{githubVersion.release.name}}</h3>
+            <pre>{{githubVersion.release.body}}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Resources -->
+    <div class="my-4">
+      <Resource-Card></Resource-Card>
+    </div>
+  </div>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import { initApp } from './init'
+  import Navbar from './Navbar.vue'
+  import ResourceCard from './ResourceCard.vue'
+  import SunshineVersion from './sunshine_version'
+
+  console.log("Hello, Sunshine!")
+  let app = createApp({
+    components: {
+      Navbar,
+      ResourceCard
+    },
     data() {
       return {
         version: null,
         githubVersion: null,
-        nightlyData: null,
+        notifyPreReleases: false,
+        preReleaseVersion: null,
         loading: true,
         logs: null,
       }
     },
     async created() {
       try {
-        this.version = (await fetch("/api/config").then((r) => r.json())).version;
-        this.githubVersion = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()));
-        if (this.buildVersionIsNightly) {
-          this.nightlyData = (await fetch("https://api.github.com/repos/LizardByte/Sunshine/actions/workflows/CI.yml/runs?branch=nightly&event=push&exclude_pull_requests=true&per_page=1").then((r) => r.json())).workflow_runs[0];
-        }
+        let config = await fetch("./api/config").then((r) => r.json());
+        this.notifyPreReleases = config.notify_pre_releases;
+        this.version = new SunshineVersion(null, config.version);
+        console.log("Version: ", this.version.version)
+        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
+        console.log("GitHub Version: ", this.githubVersion.version)
+        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
+        console.log("Pre-Release Version: ", this.preReleaseVersion.version)
       } catch (e) {
+        console.error(e);
       }
       try {
-        this.logs = (await fetch("/api/logs").then(r => r.text()))
+        this.logs = (await fetch("./api/logs").then(r => r.text()))
       } catch (e) {
         console.error(e);
       }
       this.loading = false;
     },
     computed: {
-      stableBuildAvailable() {
-        // If we can't get versions, return false
-        if (!this.githubVersion || !this.version) return false;
-        // Get the GitHub version tag
-        let v = this.githubVersion.name;
-        // If the version starts with a v, remove it
-        if (v.indexOf("v") === 0) v = v.substring(1);
-
-        // if nightly or dirty, we do an additional check to make sure it's an actual upgrade.
-        if (this.buildVersionIsNightly || this.buildVersionIsDirty) {
-          const stableVersion = this.version.split('.').slice(0, 3).join('.');
-          return this.githubVersion.tag_name.substring(1) > stableVersion;
+      installedVersionNotStable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
         }
-
-        // return true if the version is different, otherwise false
-        return v !== this.version;
+        return this.version.isGreater(this.githubVersion);
       },
-      nightlyBuildAvailable() {
-        // Verify nightly data is available and the build version is not stable
-        // This is important to ensure the UI does not try to load undefined values.
-        if (!this.nightlyData || this.buildVersionIsStable) return false;
-        // If built with dirty git tree, return false
-        if (this.buildVersionIsDirty) return false;
-        // Get the commit hash
-        let commit = this.version?.split(".").pop();
-        // return true if the commit hash is different, otherwise false
-        return this.nightlyData.head_sha.indexOf(commit) !== 0;
+      stableBuildAvailable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.githubVersion.isGreater(this.version);
+      },
+      preReleaseBuildAvailable() {
+        if (!this.preReleaseVersion || !this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.preReleaseVersion.isGreater(this.version) && this.preReleaseVersion.isGreater(this.githubVersion);
       },
       buildVersionIsDirty() {
-        return this.version?.split(".").length === 5 &&
-          this.version.indexOf("dirty") !== -1
-      },
-      buildVersionIsNightly() {
-        return this.version?.split(".").length === 4
-      },
-      buildVersionIsStable() {
-        return this.version?.split(".").length === 3
+        return this.version.version?.split(".").length === 5 &&
+          this.version.version.indexOf("dirty") !== -1
       },
       /** Parse the text errors, calculating the text, the timestamp and the level */
       fancyLogs() {
         if (!this.logs) return [];
-        let regex = /(\[\d{4}:\d{2}:\d{2}:\d{2}:\d{2}:\d{2}\]):\s/g;
+        let regex = /(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}]):\s/g;
         let rawLogLines = (this.logs.split(regex)).splice(1);
         let logLines = []
         for (let i = 0; i < rawLogLines.length; i += 2) {
@@ -165,4 +152,6 @@
       }
     }
   });
+
+  initApp(app);
 </script>

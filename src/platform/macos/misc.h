@@ -1,19 +1,23 @@
 /**
  * @file src/platform/macos/misc.h
- * @brief todo
+ * @brief Miscellaneous declarations for macOS platform.
  */
 #pragma once
 
+// standard includes
 #include <vector>
 
+// platform includes
 #include <CoreGraphics/CoreGraphics.h>
 
-namespace dyn {
-  typedef void (*apiproc)(void);
+namespace platf {
+  bool is_screen_capture_allowed();
+}
 
-  int
-  load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
-  void *
-  handle(const std::vector<const char *> &libs);
+namespace dyn {
+  typedef void (*apiproc)();
+
+  int load(void *handle, const std::vector<std::tuple<apiproc *, const char *>> &funcs, bool strict = true);
+  void *handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn

@@ -1,10 +1,17 @@
 ---
-# This action is centrally managed in https://github.com/<organization>/.github/
+# This file is centrally managed in https://github.com/<organization>/.github/
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
 version: 2
 updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "07:30"
+    open-pull-requests-limit: 10
+
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -18,6 +25,20 @@ updates:
       interval: "daily"
       time: "08:30"
     open-pull-requests-limit: 10
+    groups:
+      docker-actions:
+        applies-to: version-updates
+        patterns:
+          - "docker/*"
+      github-actions:
+        applies-to: version-updates
+        patterns:
+          - "actions/*"
+          - "github/*"
+      lizardbyte-actions:
+        applies-to: version-updates
+        patterns:
+          - "LizardByte/*"
 
   - package-ecosystem: "npm"
     directory: "/"
@@ -25,6 +46,10 @@ updates:
       interval: "daily"
       time: "09:00"
     open-pull-requests-limit: 10
+    groups:
+      dev-dependencies:
+        applies-to: version-updates
+        dependency-type: "development"
 
   - package-ecosystem: "nuget"
     directory: "/"
@@ -39,6 +64,11 @@ updates:
       interval: "daily"
       time: "10:00"
     open-pull-requests-limit: 10
+    groups:
+      pytest-dependencies:
+        applies-to: version-updates
+        patterns:
+          - "pytest*"
 
   - package-ecosystem: "gitsubmodule"
     directory: "/"

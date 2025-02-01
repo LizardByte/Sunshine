@@ -1,26 +1,32 @@
 /**
  * @file src/config.cpp
- * @brief todo
+ * @brief Definitions for the configuration of Sunshine.
  */
+// standard includes
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <thread>
 #include <unordered_map>
+#include <utility>
 
+// lib includes
 #include <boost/asio.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
+// local includes
 #include "config.h"
-#include "main.h"
+#include "entry_handler.h"
+#include "file_handler.h"
+#include "logging.h"
 #include "nvhttp.h"
+#include "platform/common.h"
 #include "rtsp.h"
 #include "utility.h"
-
-#include "platform/common.h"
 
 #ifdef _WIN32
   #include <shellapi.h>
@@ -39,15 +45,21 @@ using namespace std::literals;
 #define CERTIFICATE_FILE CA_DIR "/cacert.pem"
 
 #define APPS_JSON_PATH platf::appdata().string() + "/apps.json"
+
 namespace config {
 
   namespace nv {
 
-    nvenc::nvenc_two_pass
-    twopass_from_view(const std::string_view &preset) {
-      if (preset == "disabled") return nvenc::nvenc_two_pass::disabled;
-      if (preset == "quarter_res") return nvenc::nvenc_two_pass::quarter_resolution;
-      if (preset == "full_res") return nvenc::nvenc_two_pass::full_resolution;
+    nvenc::nvenc_two_pass twopass_from_view(const std::string_view &preset) {
+      if (preset == "disabled") {
+        return nvenc::nvenc_two_pass::disabled;
+      }
+      if (preset == "quarter_res") {
+        return nvenc::nvenc_two_pass::quarter_resolution;
+      }
+      if (preset == "full_res") {
+        return nvenc::nvenc_two_pass::full_resolution;
+      }
       BOOST_LOG(warning) << "config: unknown nvenc_twopass value: " << preset;
       return nvenc::nvenc_two_pass::quarter_resolution;
     }
@@ -55,7 +67,7 @@ namespace config {
   }  // namespace nv
 
   namespace amd {
-#ifdef __APPLE__
+#if !defined(_WIN32) || defined(DOXYGEN)
   // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
   #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
@@ -82,158 +94,173 @@ namespace config {
   #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING 0
+  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING 0
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_USAGE_TRANSCONDING 0
+  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY 5
+  #define AMF_VIDEO_ENCODER_USAGE_TRANSCODING 0
   #define AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY 1
   #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY 2
   #define AMF_VIDEO_ENCODER_USAGE_WEBCAM 3
+  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY 5
   #define AMF_VIDEO_ENCODER_UNDEFINED 0
   #define AMF_VIDEO_ENCODER_CABAC 1
   #define AMF_VIDEO_ENCODER_CALV 2
 #else
+  #ifdef _GLIBCXX_USE_C99_INTTYPES
+    #undef _GLIBCXX_USE_C99_INTTYPES
+  #endif
   #include <AMF/components/VideoEncoderAV1.h>
   #include <AMF/components/VideoEncoderHEVC.h>
   #include <AMF/components/VideoEncoderVCE.h>
 #endif
 
     enum class quality_av1_e : int {
-      speed = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED,
-      quality = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY,
-      balanced = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED
+      speed = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
     enum class quality_hevc_e : int {
-      speed = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED,
-      quality = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY,
-      balanced = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED
+      speed = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
     enum class quality_h264_e : int {
-      speed = AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED,
-      quality = AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY,
-      balanced = AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED
+      speed = AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED,  ///< Speed preset
+      quality = AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY,  ///< Quality preset
+      balanced = AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED  ///< Balanced preset
     };
 
     enum class rc_av1_e : int {
-      cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,
-      vbr_latency = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR
+      cbr = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
     enum class rc_hevc_e : int {
-      cqp = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP,
-      vbr_latency = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR
+      cbr = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
     enum class rc_h264_e : int {
-      cqp = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP,
-      vbr_latency = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,
-      vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR,
-      cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR
+      cbr = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR,  ///< CBR
+      cqp = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP,  ///< CQP
+      vbr_latency = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR,  ///< VBR with latency constraints
+      vbr_peak = AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR  ///< VBR with peak constraints
     };
 
     enum class usage_av1_e : int {
-      transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,
-      webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,
-      lowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY,
-      ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY
+      transcoding = AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
     enum class usage_hevc_e : int {
-      transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCONDING,
-      webcam = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,
-      lowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY,
-      ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY
+      transcoding = AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
     enum class usage_h264_e : int {
-      transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCONDING,
-      webcam = AMF_VIDEO_ENCODER_USAGE_WEBCAM,
-      lowlatency = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY,
-      ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY
+      transcoding = AMF_VIDEO_ENCODER_USAGE_TRANSCODING,  ///< Transcoding preset
+      webcam = AMF_VIDEO_ENCODER_USAGE_WEBCAM,  ///< Webcam preset
+      lowlatency_high_quality = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY,  ///< Low latency high quality preset
+      lowlatency = AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY,  ///< Low latency preset
+      ultralowlatency = AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY  ///< Ultra low latency preset
     };
 
     enum coder_e : int {
-      _auto = AMF_VIDEO_ENCODER_UNDEFINED,
-      cabac = AMF_VIDEO_ENCODER_CABAC,
-      cavlc = AMF_VIDEO_ENCODER_CALV
+      _auto = AMF_VIDEO_ENCODER_UNDEFINED,  ///< Auto
+      cabac = AMF_VIDEO_ENCODER_CABAC,  ///< CABAC
+      cavlc = AMF_VIDEO_ENCODER_CALV  ///< CAVLC
     };
 
-    template <class T>
-    std::optional<int>
-    quality_from_view(const std::string_view &quality_type) {
+    template<class T>
+    std::optional<int> quality_from_view(const std::string_view &quality_type, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
-  if (quality_type == #x##sv) return (int) T::x
+  if (quality_type == #x##sv) \
+  return (int) T::x
+      _CONVERT_(balanced);
       _CONVERT_(quality);
       _CONVERT_(speed);
-      _CONVERT_(balanced);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
-    template <class T>
-    std::optional<int>
-    rc_from_view(const std::string_view &rc) {
+    template<class T>
+    std::optional<int> rc_from_view(const std::string_view &rc, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return (int) T::x
+  if (rc == #x##sv) \
+  return (int) T::x
+      _CONVERT_(cbr);
       _CONVERT_(cqp);
       _CONVERT_(vbr_latency);
       _CONVERT_(vbr_peak);
-      _CONVERT_(cbr);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
-    template <class T>
-    std::optional<int>
-    usage_from_view(const std::string_view &rc) {
+    template<class T>
+    std::optional<int> usage_from_view(const std::string_view &usage, const std::optional<int>(&original)) {
 #define _CONVERT_(x) \
-  if (rc == #x##sv) return (int) T::x
-      _CONVERT_(transcoding);
-      _CONVERT_(webcam);
+  if (usage == #x##sv) \
+  return (int) T::x
       _CONVERT_(lowlatency);
+      _CONVERT_(lowlatency_high_quality);
+      _CONVERT_(transcoding);
       _CONVERT_(ultralowlatency);
+      _CONVERT_(webcam);
 #undef _CONVERT_
-      return std::nullopt;
+      return original;
     }
 
-    int
-    coder_from_view(const std::string_view &coder) {
-      if (coder == "auto"sv) return _auto;
-      if (coder == "cabac"sv || coder == "ac"sv) return cabac;
-      if (coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
+    int coder_from_view(const std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return cabac;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return cavlc;
+      }
 
-      return -1;
+      return _auto;
     }
   }  // namespace amd
 
   namespace qsv {
     enum preset_e : int {
-      veryslow = 1,
-      slower = 2,
-      slow = 3,
-      medium = 4,
-      fast = 5,
-      faster = 6,
-      veryfast = 7
+      veryslow = 1,  ///< veryslow preset
+      slower = 2,  ///< slower preset
+      slow = 3,  ///< slow preset
+      medium = 4,  ///< medium preset
+      fast = 5,  ///< fast preset
+      faster = 6,  ///< faster preset
+      veryfast = 7  ///< veryfast preset
     };
 
     enum cavlc_e : int {
-      _auto = false,
-      enabled = true,
-      disabled = false
+      _auto = false,  ///< Auto
+      enabled = true,  ///< Enabled
+      disabled = false  ///< Disabled
     };
 
-    std::optional<int>
-    preset_from_view(const std::string_view &preset) {
+    std::optional<int> preset_from_view(const std::string_view &preset) {
 #define _CONVERT_(x) \
-  if (preset == #x##sv) return x
+  if (preset == #x##sv) \
+  return x
       _CONVERT_(veryslow);
       _CONVERT_(slower);
       _CONVERT_(slow);
@@ -245,11 +272,16 @@ namespace config {
       return std::nullopt;
     }
 
-    std::optional<int>
-    coder_from_view(const std::string_view &coder) {
-      if (coder == "auto"sv) return _auto;
-      if (coder == "cabac"sv || coder == "ac"sv) return disabled;
-      if (coder == "cavlc"sv || coder == "vlc"sv) return enabled;
+    std::optional<int> coder_from_view(const std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return disabled;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return enabled;
+      }
       return std::nullopt;
     }
 
@@ -258,37 +290,45 @@ namespace config {
   namespace vt {
 
     enum coder_e : int {
-      _auto = 0,
-      cabac,
-      cavlc
+      _auto = 0,  ///< Auto
+      cabac,  ///< CABAC
+      cavlc  ///< CAVLC
     };
 
-    int
-    coder_from_view(const std::string_view &coder) {
-      if (coder == "auto"sv) return _auto;
-      if (coder == "cabac"sv || coder == "ac"sv) return cabac;
-      if (coder == "cavlc"sv || coder == "vlc"sv) return cavlc;
+    int coder_from_view(const std::string_view &coder) {
+      if (coder == "auto"sv) {
+        return _auto;
+      }
+      if (coder == "cabac"sv || coder == "ac"sv) {
+        return cabac;
+      }
+      if (coder == "cavlc"sv || coder == "vlc"sv) {
+        return cavlc;
+      }
 
       return -1;
     }
 
-    int
-    allow_software_from_view(const std::string_view &software) {
-      if (software == "allowed"sv || software == "forced") return 1;
+    int allow_software_from_view(const std::string_view &software) {
+      if (software == "allowed"sv || software == "forced") {
+        return 1;
+      }
 
       return 0;
     }
 
-    int
-    force_software_from_view(const std::string_view &software) {
-      if (software == "forced") return 1;
+    int force_software_from_view(const std::string_view &software) {
+      if (software == "forced") {
+        return 1;
+      }
 
       return 0;
     }
 
-    int
-    rt_from_view(const std::string_view &rt) {
-      if (rt == "disabled" || rt == "off" || rt == "0") return 0;
+    int rt_from_view(const std::string_view &rt) {
+      if (rt == "disabled" || rt == "off" || rt == "0") {
+        return 0;
+      }
 
       return 1;
     }
@@ -296,10 +336,10 @@ namespace config {
   }  // namespace vt
 
   namespace sw {
-    int
-    svtav1_preset_from_view(const std::string_view &preset) {
+    int svtav1_preset_from_view(const std::string_view &preset) {
 #define _CONVERT_(x, y) \
-  if (preset == #x##sv) return y
+  if (preset == #x##sv) \
+  return y
       _CONVERT_(veryslow, 1);
       _CONVERT_(slower, 2);
       _CONVERT_(slow, 4);
@@ -314,13 +354,98 @@ namespace config {
     }
   }  // namespace sw
 
+  namespace dd {
+    video_t::dd_t::config_option_e config_option_from_view(const std::string_view value) {
+#define _CONVERT_(x) \
+  if (value == #x##sv) \
+  return video_t::dd_t::config_option_e::x
+      _CONVERT_(disabled);
+      _CONVERT_(verify_only);
+      _CONVERT_(ensure_active);
+      _CONVERT_(ensure_primary);
+      _CONVERT_(ensure_only_display);
+#undef _CONVERT_
+      return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::resolution_option_e resolution_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::resolution_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::refresh_rate_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+      _CONVERT_(manual);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::hdr_option_e hdr_option_from_view(const std::string_view value) {
+#define _CONVERT_2_ARG_(str, val) \
+  if (value == #str##sv) \
+  return video_t::dd_t::hdr_option_e::val
+#define _CONVERT_(x) _CONVERT_2_ARG_(x, x)
+      _CONVERT_(disabled);
+      _CONVERT_2_ARG_(auto, automatic);
+#undef _CONVERT_
+#undef _CONVERT_2_ARG_
+      return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
+    }
+
+    video_t::dd_t::mode_remapping_t mode_remapping_from_view(const std::string_view value) {
+      const auto parse_entry_list {[](const auto &entry_list, auto &output_field) {
+        for (auto &[_, entry] : entry_list) {
+          auto requested_resolution = entry.template get_optional<std::string>("requested_resolution"s);
+          auto requested_fps = entry.template get_optional<std::string>("requested_fps"s);
+          auto final_resolution = entry.template get_optional<std::string>("final_resolution"s);
+          auto final_refresh_rate = entry.template get_optional<std::string>("final_refresh_rate"s);
+
+          output_field.push_back(video_t::dd_t::mode_remapping_entry_t {
+            requested_resolution.value_or(""),
+            requested_fps.value_or(""),
+            final_resolution.value_or(""),
+            final_refresh_rate.value_or("")
+          });
+        }
+      }};
+
+      // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
+      std::stringstream json_stream;
+      json_stream << "{\"dd_mode_remapping\":" << value << "}";
+
+      boost::property_tree::ptree json_tree;
+      boost::property_tree::read_json(json_stream, json_tree);
+
+      video_t::dd_t::mode_remapping_t output;
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.mixed"), output.mixed);
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.resolution_only"), output.resolution_only);
+      parse_entry_list(json_tree.get_child("dd_mode_remapping.refresh_rate_only"), output.refresh_rate_only);
+
+      return output;
+    }
+  }  // namespace dd
+
   video_t video {
     28,  // qp
 
     0,  // hevc_mode
     0,  // av1_mode
 
-    1,  // min_threads
+    2,  // min_threads
     {
       "superfast"s,  // preset
       "zerolatency"s,  // tune
@@ -329,23 +454,27 @@ namespace config {
 
     {},  // nv
     true,  // nv_realtime_hags
+    true,  // nv_opengl_vulkan_on_dxgi
+    true,  // nv_sunshine_high_power_mode
     {},  // nv_legacy
 
     {
       qsv::medium,  // preset
       qsv::_auto,  // cavlc
+      false,  // slow_hevc
     },  // qsv
 
     {
-      (int) amd::quality_h264_e::balanced,  // quality (h264)
-      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
-      (int) amd::quality_av1_e::balanced,  // quality (av1)
-      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
-      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
-      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
       (int) amd::usage_h264_e::ultralowlatency,  // usage (h264)
       (int) amd::usage_hevc_e::ultralowlatency,  // usage (hevc)
       (int) amd::usage_av1_e::ultralowlatency,  // usage (av1)
+      (int) amd::rc_h264_e::vbr_latency,  // rate control (h264)
+      (int) amd::rc_hevc_e::vbr_latency,  // rate control (hevc)
+      (int) amd::rc_av1_e::vbr_latency,  // rate control (av1)
+      0,  // enforce_hrd
+      (int) amd::quality_h264_e::balanced,  // quality (h264)
+      (int) amd::quality_hevc_e::balanced,  // quality (hevc)
+      (int) amd::quality_av1_e::balanced,  // quality (av1)
       0,  // preanalysis
       1,  // vbaq
       (int) amd::coder_e::_auto,  // coder
@@ -358,10 +487,29 @@ namespace config {
       -1,
     },  // vt
 
+    {
+      false,  // strict_rc_buffer
+    },  // vaapi
+
     {},  // capture
     {},  // encoder
     {},  // adapter_name
     {},  // output_name
+
+    {
+      video_t::dd_t::config_option_e::verify_only,  // configuration_option
+      video_t::dd_t::resolution_option_e::automatic,  // resolution_option
+      {},  // manual_resolution
+      video_t::dd_t::refresh_rate_option_e::automatic,  // refresh_rate_option
+      {},  // manual_refresh_rate
+      video_t::dd_t::hdr_option_e::automatic,  // hdr_option
+      3s,  // config_revert_delay
+      {},  // config_revert_on_disconnect
+      {},  // mode_remapping
+      {}  // wa
+    },  // display_device
+
+    1  // min_fps_factor
   };
 
   audio_t audio {
@@ -376,7 +524,9 @@ namespace config {
     APPS_JSON_PATH,
 
     20,  // fecPercentage
-    1  // channels
+
+    ENCRYPTION_MODE_NEVER,  // lan_encryption_mode
+    ENCRYPTION_MODE_OPPORTUNISTIC,  // wan_encryption_mode
   };
 
   nvhttp_t nvhttp {
@@ -385,50 +535,40 @@ namespace config {
     PRIVATE_KEY_FILE,
     CERTIFICATE_FILE,
 
-    boost::asio::ip::host_name(),  // sunshine_name,
+    platf::get_host_name(),  // sunshine_name,
     "sunshine_state.json"s,  // file_state
     {},  // external_ip
-    {
-      "352x240"s,
-      "480x360"s,
-      "858x480"s,
-      "1280x720"s,
-      "1920x1080"s,
-      "2560x1080"s,
-      "2560x1440"s,
-      "3440x1440"s,
-      "1920x1200"s,
-      "3840x2160"s,
-      "3840x1600"s,
-    },  // supported resolutions
-
-    { 10, 30, 60, 90, 120 },  // supported fps
     0, // max bitrate
   };
 
   input_t input {
     {
-      { 0x10, 0xA0 },
-      { 0x11, 0xA2 },
-      { 0x12, 0xA4 },
+      {0x10, 0xA0},
+      {0x11, 0xA2},
+      {0x12, 0xA4},
     },
     -1ms,  // back_button_timeout
     500ms,  // key_repeat_delay
-    std::chrono::duration<double> { 1 / 24.9 },  // key_repeat_period
+    std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
 
     {
-      platf::supported_gamepads().front().data(),
-      platf::supported_gamepads().front().size(),
+      platf::supported_gamepads(nullptr).front().name.data(),
+      platf::supported_gamepads(nullptr).front().name.size(),
     },  // Default gamepad
     true,  // back as touchpad click enabled (manual DS4 only)
+    true,  // client gamepads with motion events are emulated as DS4
+    true,  // client gamepads with touchpads are emulated as DS4
 
     true,  // keyboard enabled
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
+    true,  // high resolution scrolling
+    true,  // native pen/touch support
   };
 
   sunshine_t sunshine {
+    "en",  // locale
     2,  // min_log_level
     0,  // flags
     {},  // User file
@@ -440,26 +580,23 @@ namespace config {
     47989,  // Base port number
     "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
+    false,  // notify_pre_releases
     {},  // prep commands
   };
 
-  bool
-  endline(char ch) {
+  bool endline(char ch) {
     return ch == '\r' || ch == '\n';
   }
 
-  bool
-  space_tab(char ch) {
+  bool space_tab(char ch) {
     return ch == ' ' || ch == '\t';
   }
 
-  bool
-  whitespace(char ch) {
+  bool whitespace(char ch) {
     return space_tab(ch) || endline(ch);
   }
 
-  std::string
-  to_string(const char *begin, const char *end) {
+  std::string to_string(const char *begin, const char *end) {
     std::string result;
 
     KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
@@ -474,9 +611,8 @@ namespace config {
     return result;
   }
 
-  template <class It>
-  It
-  skip_list(It skipper, It end) {
+  template<class It>
+  It skip_list(It skipper, It end) {
     int stack = 1;
     while (skipper != end && stack) {
       if (*skipper == '[') {
@@ -495,7 +631,7 @@ namespace config {
   std::pair<
     std::string_view::const_iterator,
     std::optional<std::pair<std::string, std::string>>>
-  parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
+    parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
     begin = std::find_if_not(begin, end, whitespace);
     auto endl = std::find_if(begin, end, endline);
     auto endc = std::find(begin, endl, '#');
@@ -525,11 +661,11 @@ namespace config {
 
     return std::make_pair(
       endl,
-      std::make_pair(to_string(begin, end_name), to_string(begin_val, endl)));
+      std::make_pair(to_string(begin, end_name), to_string(begin_val, endl))
+    );
   }
 
-  std::unordered_map<std::string, std::string>
-  parse_config(const std::string_view &file_content) {
+  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content) {
     std::unordered_map<std::string, std::string> vars;
 
     auto pos = std::begin(file_content);
@@ -554,8 +690,7 @@ namespace config {
     return vars;
   }
 
-  void
-  string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  void string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
     auto it = vars.find(name);
     if (it == std::end(vars)) {
       return;
@@ -566,9 +701,8 @@ namespace config {
     vars.erase(it);
   }
 
-  template <typename T, typename F>
-  void
-  generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
+  template<typename T, typename F>
+  void generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
     std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
@@ -576,8 +710,7 @@ namespace config {
     }
   }
 
-  void
-  string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
+  void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
     std::string temp;
     string_f(vars, name, temp);
 
@@ -589,8 +722,7 @@ namespace config {
     }
   }
 
-  void
-  path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
     // appdata needs to be retrieved once only
     static auto appdata = platf::appdata();
 
@@ -614,8 +746,7 @@ namespace config {
     }
   }
 
-  void
-  path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
     fs::path temp = input;
 
     path_f(vars, name, temp);
@@ -623,8 +754,7 @@ namespace config {
     input = temp.string();
   }
 
-  void
-  int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
     auto it = vars.find(name);
 
     if (it == std::end(vars)) {
@@ -641,16 +771,14 @@ namespace config {
     // If that integer is in hexadecimal
     if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
       input = util::from_hex<int>(val.substr(2));
-    }
-    else {
+    } else {
       input = util::from_view(val);
     }
 
     vars.erase(it);
   }
 
-  void
-  int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
     auto it = vars.find(name);
 
     if (it == std::end(vars)) {
@@ -667,17 +795,15 @@ namespace config {
     // If that integer is in hexadecimal
     if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
       input = util::from_hex<int>(val.substr(2));
-    }
-    else {
+    } else {
       input = util::from_view(val);
     }
 
     vars.erase(it);
   }
 
-  template <class F>
-  void
-  int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
+  template<class F>
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
     std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
@@ -685,9 +811,8 @@ namespace config {
     }
   }
 
-  template <class F>
-  void
-  int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
+  template<class F>
+  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
     std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
@@ -695,8 +820,7 @@ namespace config {
     }
   }
 
-  void
-  int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
+  void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
     int temp = input;
 
     int_f(vars, name, temp);
@@ -707,9 +831,10 @@ namespace config {
     }
   }
 
-  bool
-  to_bool(std::string &boolean) {
-    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) { return (char) std::tolower(ch); });
+  bool to_bool(std::string &boolean) {
+    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) {
+      return (char) std::tolower(ch);
+    });
 
     return boolean == "true"sv ||
            boolean == "yes"sv ||
@@ -719,8 +844,7 @@ namespace config {
            (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
   }
 
-  void
-  bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
+  void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
     std::string tmp;
     string_f(vars, name, tmp);
 
@@ -731,8 +855,7 @@ namespace config {
     input = to_bool(tmp);
   }
 
-  void
-  double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
+  void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
     std::string tmp;
     string_f(vars, name, tmp);
 
@@ -750,8 +873,7 @@ namespace config {
     input = val;
   }
 
-  void
-  double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
+  void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
     double temp = input;
 
     double_f(vars, name, temp);
@@ -762,8 +884,7 @@ namespace config {
     }
   }
 
-  void
-  list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+  void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
     std::string string;
     string_f(vars, name, string);
 
@@ -787,15 +908,12 @@ namespace config {
     while (pos < std::cend(string)) {
       if (*pos == '[') {
         pos = skip_list(pos + 1, std::cend(string)) + 1;
-      }
-      else if (*pos == ']') {
+      } else if (*pos == ']') {
         break;
-      }
-      else if (*pos == ',') {
+      } else if (*pos == ',') {
         input.emplace_back(begin, pos);
         pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
-      }
-      else {
+      } else {
         ++pos;
       }
     }
@@ -805,8 +923,7 @@ namespace config {
     }
   }
 
-  void
-  list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
+  void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
     std::string string;
     string_f(vars, name, string);
 
@@ -832,11 +949,19 @@ namespace config {
     }
   }
 
-  void
-  list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
+  void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
 
+    // check if list is empty, i.e. when the value doesn't exist in the config file
+    if (list.empty()) {
+      return;
+    }
+
+    // The framerate list must be cleared before adding values from the file configuration.
+    // If the list is not cleared, then the specified parameters do not affect the behavior of the sunshine server.
+    // That is, if you set only 30 fps in the configuration file, it will not work because by default, during initialization the list includes 10, 30, 60, 90 and 120 fps.
+    input.clear();
     for (auto &el : list) {
       std::string_view val = el;
 
@@ -850,16 +975,14 @@ namespace config {
       // If the integer is a hexadecimal
       if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
         tmp = util::from_hex<int>(val.substr(2));
-      }
-      else {
+      } else {
         tmp = util::from_view(val);
       }
       input.emplace_back(tmp);
     }
   }
 
-  void
-  map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
+  void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
     std::vector<int> list;
     list_int_f(vars, name, list);
 
@@ -878,8 +1001,7 @@ namespace config {
     }
   }
 
-  int
-  apply_flags(const char *line) {
+  int apply_flags(const char *line) {
     int ret = 0;
     while (*line != '\0') {
       switch (*line) {
@@ -906,8 +1028,17 @@ namespace config {
     return ret;
   }
 
-  void
-  apply_config(std::unordered_map<std::string, std::string> &&vars) {
+  std::vector<std::string_view> &get_supported_gamepad_options() {
+    const auto options = platf::supported_gamepads(nullptr);
+    static std::vector<std::string_view> opts {};
+    opts.reserve(options.size());
+    for (auto &opt : options) {
+      opts.emplace_back(opt.name);
+    }
+    return opts;
+  }
+
+  void apply_config(std::unordered_map<std::string, std::string> &&vars) {
     if (!fs::exists(stream.file_apps.c_str())) {
       fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
     }
@@ -917,19 +1048,23 @@ namespace config {
     }
 
     int_f(vars, "qp", video.qp);
+    int_between_f(vars, "hevc_mode", video.hevc_mode, {0, 3});
+    int_between_f(vars, "av1_mode", video.av1_mode, {0, 3});
     int_f(vars, "min_threads", video.min_threads);
-    int_between_f(vars, "hevc_mode", video.hevc_mode, { 0, 3 });
-    int_between_f(vars, "av1_mode", video.av1_mode, { 0, 3 });
     string_f(vars, "sw_preset", video.sw.sw_preset);
     if (!video.sw.sw_preset.empty()) {
       video.sw.svtav1_preset = sw::svtav1_preset_from_view(video.sw.sw_preset);
     }
     string_f(vars, "sw_tune", video.sw.sw_tune);
 
-    int_between_f(vars, "nvenc_preset", video.nv.quality_preset, { 1, 7 });
+    int_between_f(vars, "nvenc_preset", video.nv.quality_preset, {1, 7});
+    int_between_f(vars, "nvenc_vbv_increase", video.nv.vbv_percentage_increase, {0, 400});
+    bool_f(vars, "nvenc_spatial_aq", video.nv.adaptive_quantization);
     generic_f(vars, "nvenc_twopass", video.nv.two_pass, nv::twopass_from_view);
     bool_f(vars, "nvenc_h264_cavlc", video.nv.h264_cavlc);
     bool_f(vars, "nvenc_realtime_hags", video.nv_realtime_hags);
+    bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
+    bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
 #ifndef __APPLE__
     video.nv_legacy.preset = video.nv.quality_preset + 11;
@@ -937,48 +1072,73 @@ namespace config {
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
                                                                                                  NV_ENC_MULTI_PASS_DISABLED;
     video.nv_legacy.h264_coder = video.nv.h264_cavlc ? NV_ENC_H264_ENTROPY_CODING_MODE_CAVLC : NV_ENC_H264_ENTROPY_CODING_MODE_CABAC;
+    video.nv_legacy.aq = video.nv.adaptive_quantization;
+    video.nv_legacy.vbv_percentage_increase = video.nv.vbv_percentage_increase;
 #endif
 
     int_f(vars, "qsv_preset", video.qsv.qsv_preset, qsv::preset_from_view);
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
+    bool_f(vars, "qsv_slow_hevc", video.qsv.qsv_slow_hevc);
 
     std::string quality;
     string_f(vars, "amd_quality", quality);
     if (!quality.empty()) {
-      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality);
-      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality);
-      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality);
+      video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality, video.amd.amd_quality_h264);
+      video.amd.amd_quality_hevc = amd::quality_from_view<amd::quality_hevc_e>(quality, video.amd.amd_quality_hevc);
+      video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality, video.amd.amd_quality_av1);
     }
 
     std::string rc;
     string_f(vars, "amd_rc", rc);
     int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
     if (!rc.empty()) {
-      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc);
-      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc);
-      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc);
+      video.amd.amd_rc_h264 = amd::rc_from_view<amd::rc_h264_e>(rc, video.amd.amd_rc_h264);
+      video.amd.amd_rc_hevc = amd::rc_from_view<amd::rc_hevc_e>(rc, video.amd.amd_rc_hevc);
+      video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc, video.amd.amd_rc_av1);
     }
 
     std::string usage;
     string_f(vars, "amd_usage", usage);
     if (!usage.empty()) {
-      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(rc);
-      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(rc);
-      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(rc);
+      video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(usage, video.amd.amd_usage_h264);
+      video.amd.amd_usage_hevc = amd::usage_from_view<amd::usage_hevc_e>(usage, video.amd.amd_usage_hevc);
+      video.amd.amd_usage_av1 = amd::usage_from_view<amd::usage_av1_e>(usage, video.amd.amd_usage_av1);
     }
 
     bool_f(vars, "amd_preanalysis", (bool &) video.amd.amd_preanalysis);
     bool_f(vars, "amd_vbaq", (bool &) video.amd.amd_vbaq);
+    bool_f(vars, "amd_enforce_hrd", (bool &) video.amd.amd_enforce_hrd);
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
+    bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
+
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
+
+    generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
+    generic_f(vars, "dd_resolution_option", video.dd.resolution_option, dd::resolution_option_from_view);
+    string_f(vars, "dd_manual_resolution", video.dd.manual_resolution);
+    generic_f(vars, "dd_refresh_rate_option", video.dd.refresh_rate_option, dd::refresh_rate_option_from_view);
+    string_f(vars, "dd_manual_refresh_rate", video.dd.manual_refresh_rate);
+    generic_f(vars, "dd_hdr_option", video.dd.hdr_option, dd::hdr_option_from_view);
+    {
+      int value = -1;
+      int_between_f(vars, "dd_config_revert_delay", value, {0, std::numeric_limits<int>::max()});
+      if (value >= 0) {
+        video.dd.config_revert_delay = std::chrono::milliseconds {value};
+      }
+    }
+    bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
+    generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
+    bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
+
+    int_between_f(vars, "min_fps_factor", video.min_fps_factor, {1, 3});
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -991,8 +1151,6 @@ namespace config {
     path_f(vars, "credentials_file", config::sunshine.credentials_file);
 
     string_f(vars, "external_ip", nvhttp.external_ip);
-    list_string_f(vars, "resolutions"s, nvhttp.resolutions);
-    list_int_f(vars, "fps"s, nvhttp.fps);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
     int_f(vars, "max_bitrate", nvhttp.max_bitrate);
 
@@ -1000,18 +1158,19 @@ namespace config {
     string_f(vars, "virtual_sink", audio.virtual_sink);
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
-    string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, { "pc"sv, "lan"sv, "wan"sv });
+    string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
 
     int to = -1;
-    int_between_f(vars, "ping_timeout", to, { -1, std::numeric_limits<int>::max() });
+    int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
     if (to != -1) {
       stream.ping_timeout = std::chrono::milliseconds(to);
     }
 
-    int_between_f(vars, "channels", stream.channels, { 1, std::numeric_limits<int>::max() });
+    int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
+    int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
 
     path_f(vars, "file_apps", stream.file_apps);
-    int_between_f(vars, "fec_percentage", stream.fec_percentage, { 1, 255 });
+    int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);
 
@@ -1028,24 +1187,26 @@ namespace config {
     int_f(vars, "back_button_timeout", to);
 
     if (to > std::numeric_limits<int>::min()) {
-      input.back_button_timeout = std::chrono::milliseconds { to };
+      input.back_button_timeout = std::chrono::milliseconds {to};
     }
 
-    double repeat_frequency { 0 };
-    double_between_f(vars, "key_repeat_frequency", repeat_frequency, { 0, std::numeric_limits<double>::max() });
+    double repeat_frequency {0};
+    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, std::numeric_limits<double>::max()});
 
     if (repeat_frequency > 0) {
-      config::input.key_repeat_period = std::chrono::duration<double> { 1 / repeat_frequency };
+      config::input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency};
     }
 
     to = -1;
     int_f(vars, "key_repeat_delay", to);
     if (to >= 0) {
-      input.key_repeat_delay = std::chrono::milliseconds { to };
+      input.key_repeat_delay = std::chrono::milliseconds {to};
     }
 
-    string_restricted_f(vars, "gamepad"s, input.gamepad, platf::supported_gamepads());
+    string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
+    bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
+    bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
@@ -1053,11 +1214,16 @@ namespace config {
 
     bool_f(vars, "always_send_scancodes", input.always_send_scancodes);
 
+    bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
+    bool_f(vars, "native_pen_touch", input.native_pen_touch);
+
+    bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
+
     int port = sunshine.port;
-    int_between_f(vars, "port"s, port, { 1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT });
+    int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
     sunshine.port = (std::uint16_t) port;
 
-    string_restricted_f(vars, "address_family", sunshine.address_family, { "ipv4"sv, "both"sv });
+    string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
 
     bool upnp = false;
     bool_f(vars, "upnp"s, upnp);
@@ -1066,32 +1232,46 @@ namespace config {
       config::sunshine.flags[config::flag::UPNP].flip();
     }
 
+    string_restricted_f(vars, "locale", config::sunshine.locale, {
+                                                                   "bg"sv,  // Bulgarian
+                                                                   "de"sv,  // German
+                                                                   "en"sv,  // English
+                                                                   "en_GB"sv,  // English (UK)
+                                                                   "en_US"sv,  // English (US)
+                                                                   "es"sv,  // Spanish
+                                                                   "fr"sv,  // French
+                                                                   "it"sv,  // Italian
+                                                                   "ja"sv,  // Japanese
+                                                                   "ko"sv,  // Korean
+                                                                   "pl"sv,  // Polish
+                                                                   "pt"sv,  // Portuguese
+                                                                   "pt_BR"sv,  // Portuguese (Brazilian)
+                                                                   "ru"sv,  // Russian
+                                                                   "sv"sv,  // Swedish
+                                                                   "tr"sv,  // Turkish
+                                                                   "uk"sv,  // Ukrainian
+                                                                   "zh"sv,  // Chinese
+                                                                 });
+
     std::string log_level_string;
     string_f(vars, "min_log_level", log_level_string);
 
     if (!log_level_string.empty()) {
       if (log_level_string == "verbose"sv) {
         sunshine.min_log_level = 0;
-      }
-      else if (log_level_string == "debug"sv) {
+      } else if (log_level_string == "debug"sv) {
         sunshine.min_log_level = 1;
-      }
-      else if (log_level_string == "info"sv) {
+      } else if (log_level_string == "info"sv) {
         sunshine.min_log_level = 2;
-      }
-      else if (log_level_string == "warning"sv) {
+      } else if (log_level_string == "warning"sv) {
         sunshine.min_log_level = 3;
-      }
-      else if (log_level_string == "error"sv) {
+      } else if (log_level_string == "error"sv) {
         sunshine.min_log_level = 4;
-      }
-      else if (log_level_string == "fatal"sv) {
+      } else if (log_level_string == "fatal"sv) {
         sunshine.min_log_level = 5;
-      }
-      else if (log_level_string == "none"sv) {
+      } else if (log_level_string == "none"sv) {
         sunshine.min_log_level = 6;
-      }
-      else {
+      } else {
         // accept digit directly
         auto val = log_level_string[0];
         if (val >= '0' && val < '7') {
@@ -1114,8 +1294,7 @@ namespace config {
     }
   }
 
-  int
-  parse(int argc, char *argv[]) {
+  int parse(int argc, char *argv[]) {
     std::unordered_map<std::string, std::string> cmd_vars;
 #ifdef _WIN32
     bool shortcut_launch = false;
@@ -1126,14 +1305,13 @@ namespace config {
       auto line = argv[x];
 
       if (line == "--help"sv) {
-        print_help(*argv);
+        logging::print_help(*argv);
         return 1;
       }
 #ifdef _WIN32
       else if (line == "--shortcut"sv) {
         shortcut_launch = true;
-      }
-      else if (line == "--shortcut-admin"sv) {
+      } else if (line == "--shortcut-admin"sv) {
         service_admin_launch = true;
       }
 #endif
@@ -1146,21 +1324,19 @@ namespace config {
           break;
         }
         if (apply_flags(line + 1)) {
-          print_help(*argv);
+          logging::print_help(*argv);
           return -1;
         }
-      }
-      else {
+      } else {
         auto line_end = line + strlen(line);
 
         auto pos = std::find(line, line_end, '=');
         if (pos == line_end) {
           sunshine.config_file = line;
-        }
-        else {
+        } else {
           TUPLE_EL(var, 1, parse_option(line, line_end));
           if (!var) {
-            print_help(*argv);
+            logging::print_help(*argv);
             return -1;
           }
 
@@ -1179,17 +1355,15 @@ namespace config {
     bool config_loaded = false;
     try {
       // Create appdata folder if it does not exist
-      if (!boost::filesystem::exists(platf::appdata().string())) {
-        boost::filesystem::create_directories(platf::appdata().string());
-      }
+      file_handler::make_directory(platf::appdata().string());
 
       // Create empty config file if it does not exist
       if (!fs::exists(sunshine.config_file)) {
-        std::ofstream { sunshine.config_file };
+        std::ofstream {sunshine.config_file};
       }
 
       // Read config file
-      auto vars = parse_config(read_file(sunshine.config_file.c_str()));
+      auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
       for (auto &[name, value] : cmd_vars) {
         vars.insert_or_assign(std::move(name), std::move(value));
@@ -1200,18 +1374,22 @@ namespace config {
       // the path is incorrect or inaccessible.
       apply_config(std::move(vars));
       config_loaded = true;
-    }
-    catch (const std::filesystem::filesystem_error &err) {
+    } catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
-    }
-    catch (const boost::filesystem::filesystem_error &err) {
+    } catch (const boost::filesystem::filesystem_error &err) {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
     }
 
-    if (!config_loaded) {
 #ifdef _WIN32
+    // UCRT64 raises an access denied exception if launching from the shortcut
+    // as non-admin and the config folder is not yet present; we can defer
+    // so that service instance will do the work instead.
+
+    if (!config_loaded && !shortcut_launch) {
       BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
       std::this_thread::sleep_for(10s);
+#else
+    if (!config_loaded) {
 #endif
       return -1;
     }
@@ -1219,6 +1397,8 @@ namespace config {
 #ifdef _WIN32
     // We have to wait until the config is loaded to handle these launches,
     // because we need to have the correct base port loaded in our config.
+    // Exception: UCRT64 shortcut_launch instances may have no config loaded due to
+    // insufficient permissions to create folder; port defaults will be acceptable.
     if (service_admin_launch) {
       // This is a relaunch as admin to start the service
       service_ctrl::start_service();
@@ -1226,7 +1406,7 @@ namespace config {
       // Always return 1 to ensure Sunshine doesn't start normally
       return 1;
     }
-    else if (shortcut_launch) {
+    if (shortcut_launch) {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
         WCHAR executable[MAX_PATH];

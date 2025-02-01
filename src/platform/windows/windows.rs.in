@@ -1,3 +1,9 @@
+/**
+ * @file src/platform/windows/windows.rs.in
+ * @brief Windows resource file template.
+ * @note The final `windows.rs` is generated from this file during the CMake build.
+ * @todo Use CMake definitions directly, instead of configuring this file.
+ */
 #include "winver.h"
 VS_VERSION_INFO VERSIONINFO
 FILEVERSION     @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0

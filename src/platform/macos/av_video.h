@@ -1,9 +1,11 @@
 /**
  * @file src/platform/macos/av_video.h
- * @brief todo
+ * @brief Declarations for video capture on macOS.
  */
 #pragma once
 
+// platform includes
+#import <AppKit/AppKit.h>
 #import <AVFoundation/AVFoundation.h>
 
 struct CaptureSession {
@@ -29,6 +31,7 @@ typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
 @property (nonatomic, assign) NSMapTable<AVCaptureConnection *, dispatch_semaphore_t> *captureSignals;
 
 + (NSArray<NSDictionary *> *)displayNames;
++ (NSString *)getDisplayName:(CGDirectDisplayID)displayID;
 
 - (id)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate;
 

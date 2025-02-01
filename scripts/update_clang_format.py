@@ -5,13 +5,14 @@ import subprocess
 # variables
 directories = [
     'src',
+    'tests',
     'tools',
-    os.path.join('third-party', 'glad'),
-    os.path.join('third-party', 'nvfbc'),
 ]
 file_types = [
     'cpp',
+    'cu',
     'h',
+    'hpp',
     'm',
     'mm'
 ]

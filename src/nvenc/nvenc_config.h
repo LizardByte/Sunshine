@@ -1,24 +1,29 @@
+/**
+ * @file src/nvenc/nvenc_config.h
+ * @brief Declarations for NVENC encoder configuration.
+ */
 #pragma once
 
 namespace nvenc {
 
   enum class nvenc_two_pass {
-    // Single pass, the fastest and no extra vram
-    disabled,
-
-    // Larger motion vectors being caught, faster and uses less extra vram
-    quarter_resolution,
-
-    // Better overall statistics, slower and uses more extra vram
-    full_resolution,
+    disabled,  ///< Single pass, the fastest and no extra vram
+    quarter_resolution,  ///< Larger motion vectors being caught, faster and uses less extra vram
+    full_resolution,  ///< Better overall statistics, slower and uses more extra vram
   };
 
+  /**
+   * @brief NVENC encoder configuration.
+   */
   struct nvenc_config {
     // Quality preset from 1 to 7, higher is slower
     int quality_preset = 1;
 
     // Use optional preliminary pass for better motion vectors, bitrate distribution and stricter VBV(HRD), uses CUDA cores
     nvenc_two_pass two_pass = nvenc_two_pass::quarter_resolution;
+
+    // Percentage increase of VBV/HRD from the default single frame, allows low-latency variable bitrate
+    int vbv_percentage_increase = 0;
 
     // Improves fades compression, uses CUDA cores
     bool weighted_prediction = false;

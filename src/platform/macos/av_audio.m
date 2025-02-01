@@ -1,13 +1,14 @@
 /**
  * @file src/platform/macos/av_audio.m
- * @brief todo
+ * @brief Definitions for audio capture on macOS.
  */
+// local includes
 #import "av_audio.h"
 
 @implementation AVAudio
 
 + (NSArray<AVCaptureDevice *> *)microphones {
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) { 10, 15, 0 })]) {
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})]) {
     // This will generate a warning about AVCaptureDeviceDiscoverySession being
     // unavailable before macOS 10.15, but we have a guard to prevent it from
     // being called on those earlier systems.
@@ -16,14 +17,12 @@
     // a different method.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
-    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone,
-      AVCaptureDeviceTypeExternalUnknown]
+    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone, AVCaptureDeviceTypeExternalUnknown]
                                                                                                                mediaType:AVMediaTypeAudio
                                                                                                                 position:AVCaptureDevicePositionUnspecified];
     return discoverySession.devices;
 #pragma clang diagnostic pop
-  }
-  else {
+  } else {
     // We're intentionally using a deprecated API here specifically for versions
     // of macOS where it's not deprecated, so we can ignore any deprecation
     // warnings:
@@ -75,8 +74,7 @@
 
   if ([self.audioCaptureSession canAddInput:audioInput]) {
     [self.audioCaptureSession addInput:audioInput];
-  }
-  else {
+  } else {
     [audioInput dealloc];
     return -1;
   }
@@ -87,22 +85,19 @@
     (NSString *) AVFormatIDKey: [NSNumber numberWithUnsignedInt:kAudioFormatLinearPCM],
     (NSString *) AVSampleRateKey: [NSNumber numberWithUnsignedInt:sampleRate],
     (NSString *) AVNumberOfChannelsKey: [NSNumber numberWithUnsignedInt:channels],
-    (NSString *) AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:16],
-    (NSString *) AVLinearPCMIsFloatKey: @NO,
+    (NSString *) AVLinearPCMBitDepthKey: [NSNumber numberWithUnsignedInt:32],
+    (NSString *) AVLinearPCMIsFloatKey: @YES,
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
 
-  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,
-    QOS_CLASS_USER_INITIATED,
-    DISPATCH_QUEUE_PRIORITY_HIGH);
+  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
 
   [audioOutput setSampleBufferDelegate:self queue:recordingQueue];
 
   if ([self.audioCaptureSession canAddOutput:audioOutput]) {
     [self.audioCaptureSession addOutput:audioOutput];
-  }
-  else {
+  } else {
     [audioInput release];
     [audioOutput release];
     return -1;
@@ -130,9 +125,9 @@
 
     CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sampleBuffer, NULL, &audioBufferList, sizeof(audioBufferList), NULL, NULL, 0, &blockBuffer);
 
-    // NSAssert(audioBufferList.mNumberBuffers == 1, @"Expected interlveaved PCM format but buffer contained %u streams", audioBufferList.mNumberBuffers);
+    // NSAssert(audioBufferList.mNumberBuffers == 1, @"Expected interleaved PCM format but buffer contained %u streams", audioBufferList.mNumberBuffers);
 
-    // this is safe, because an interleaved PCM stream has exactly one buffer
+    // this is safe, because an interleaved PCM stream has exactly one buffer,
     // and we don't want to do sanity checks in a performance critical exec path
     AudioBuffer audioBuffer = audioBufferList.mBuffers[0];
 

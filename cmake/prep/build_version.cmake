@@ -4,8 +4,9 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMI
         # If BRANCH is "master" and BUILD_VERSION is not empty, then we are building a master branch
         MESSAGE("Got from CI master branch and version $ENV{BUILD_VERSION}")
         set(PROJECT_VERSION $ENV{BUILD_VERSION})
+        set(CMAKE_PROJECT_VERSION ${PROJECT_VERSION})  # cpack will use this to set the binary versions
     elseif((DEFINED ENV{BRANCH}) AND (DEFINED ENV{COMMIT}))
-        # If BRANCH is set but not BUILD_VERSION we are building nightly, we gather only the commit hash
+        # If BRANCH is set but not BUILD_VERSION we are building a PR, we gather only the commit hash
         MESSAGE("Got from CI $ENV{BRANCH} branch and commit $ENV{COMMIT}")
         set(PROJECT_VERSION ${PROJECT_VERSION}.$ENV{COMMIT})
     endif()
@@ -14,12 +15,11 @@ if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}) AND (DEFINED ENV{COMMI
 else()
     find_package(Git)
     if(GIT_EXECUTABLE)
-        MESSAGE("${CMAKE_CURRENT_SOURCE_DIR}")
-        get_filename_component(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR} DIRECTORY)
+        MESSAGE("${CMAKE_SOURCE_DIR}")
+        get_filename_component(SRC_DIR "${CMAKE_SOURCE_DIR}" DIRECTORY)
         #Get current Branch
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} rev-parse --abbrev-ref HEAD
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 OUTPUT_VARIABLE GIT_DESCRIBE_BRANCH
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
                 OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -27,7 +27,6 @@ else()
         # Gather current commit
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} rev-parse --short HEAD
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 OUTPUT_VARIABLE GIT_DESCRIBE_VERSION
                 RESULT_VARIABLE GIT_DESCRIBE_ERROR_CODE
                 OUTPUT_STRIP_TRAILING_WHITESPACE
@@ -35,7 +34,6 @@ else()
         # Check if Dirty
         execute_process(
                 COMMAND ${GIT_EXECUTABLE} diff --quiet --exit-code
-                #WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
                 RESULT_VARIABLE GIT_IS_DIRTY
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )

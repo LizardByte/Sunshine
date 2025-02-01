@@ -1,7 +1,8 @@
 /**
  * @file src/platform/macos/av_video.m
- * @brief todo
+ * @brief Definitions for video capture on macOS.
  */
+// local includes
 #import "av_video.h"
 
 @implementation AVVideo
@@ -23,11 +24,21 @@
   for (uint32_t i = 0; i < count; i++) {
     [result addObject:@{
       @"id": [NSNumber numberWithUnsignedInt:displays[i]],
-      @"name": [NSString stringWithFormat:@"%d", displays[i]]
+      @"name": [NSString stringWithFormat:@"%d", displays[i]],
+      @"displayName": [self getDisplayName:displays[i]],
     }];
   }
 
   return [NSArray arrayWithArray:result];
+}
+
++ (NSString *)getDisplayName:(CGDirectDisplayID)displayID {
+  for (NSScreen *screen in [NSScreen screens]) {
+    if (screen.deviceDescription[@"NSScreenNumber"] == [NSNumber numberWithUnsignedInt:displayID]) {
+      return screen.localizedName;
+    }
+  }
+  return nil;
 }
 
 - (id)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate {
@@ -37,8 +48,8 @@
 
   self.displayID = displayID;
   self.pixelFormat = kCVPixelFormatType_32BGRA;
-  self.frameWidth = CGDisplayModeGetPixelWidth(mode);
-  self.frameHeight = CGDisplayModeGetPixelHeight(mode);
+  self.frameWidth = (int) CGDisplayModeGetPixelWidth(mode);
+  self.frameHeight = (int) CGDisplayModeGetPixelHeight(mode);
   self.minFrameDuration = CMTimeMake(1, frameRate);
   self.session = [[AVCaptureSession alloc] init];
   self.videoOutputs = [[NSMapTable alloc] init];
@@ -52,8 +63,7 @@
 
   if ([self.session canAddInput:screenInput]) {
     [self.session addInput:screenInput];
-  }
-  else {
+  } else {
     [screenInput release];
     return nil;
   }
@@ -87,9 +97,7 @@
       (NSString *) AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
     }];
 
-    dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL,
-      QOS_CLASS_USER_INITIATED,
-      DISPATCH_QUEUE_PRIORITY_HIGH);
+    dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
     dispatch_queue_t recordingQueue = dispatch_queue_create("videoCaptureQueue", qos);
     [videoOutput setSampleBufferDelegate:self queue:recordingQueue];
 
@@ -97,8 +105,7 @@
 
     if ([self.session canAddOutput:videoOutput]) {
       [self.session addOutput:videoOutput];
-    }
-    else {
+    } else {
       [videoOutput release];
       return nil;
     }

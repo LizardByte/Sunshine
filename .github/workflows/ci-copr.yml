@@ -1,0 +1,33 @@
+---
+name: CI Copr
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  release:
+    types:
+      - prereleased
+      - released
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  call-copr-ci:
+    uses: LizardByte/copr-ci/.github/workflows/copr-ci.yml@master
+    with:
+      copr_pr_webhook_token: "05fc9b07-a19b-4f83-89b2-ae1e7e0b5282"
+      github_org_owner: LizardByte
+      copr_ownername: lizardbyte
+      auto_update_package: true
+      job_timeout: 60
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
+      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
+      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}

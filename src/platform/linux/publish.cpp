@@ -1,13 +1,15 @@
 /**
  * @file src/platform/linux/publish.cpp
- * @brief todo
+ * @brief Definitions for publishing services on Linux.
  * @note Adapted from https://www.avahi.org/doxygen/html/client-publish-service_8c-example.html
- * @todo Use a common file for this and src/platform/macos/publish.cpp
  */
+// standard includes
 #include <thread>
 
+// local includes
 #include "misc.h"
-#include "src/main.h"
+#include "src/logging.h"
+#include "src/network.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
@@ -20,122 +22,119 @@ namespace avahi {
    * @brief Error codes used by avahi.
    */
   enum err_e {
-    OK = 0, /**< OK */
-    ERR_FAILURE = -1, /**< Generic error code */
-    ERR_BAD_STATE = -2, /**< Object was in a bad state */
-    ERR_INVALID_HOST_NAME = -3, /**< Invalid host name */
-    ERR_INVALID_DOMAIN_NAME = -4, /**< Invalid domain name */
-    ERR_NO_NETWORK = -5, /**< No suitable network protocol available */
-    ERR_INVALID_TTL = -6, /**< Invalid DNS TTL */
-    ERR_IS_PATTERN = -7, /**< RR key is pattern */
-    ERR_COLLISION = -8, /**< Name collision */
-    ERR_INVALID_RECORD = -9, /**< Invalid RR */
+    OK = 0,  ///< OK
+    ERR_FAILURE = -1,  ///< Generic error code
+    ERR_BAD_STATE = -2,  ///< Object was in a bad state
+    ERR_INVALID_HOST_NAME = -3,  ///< Invalid host name
+    ERR_INVALID_DOMAIN_NAME = -4,  ///< Invalid domain name
+    ERR_NO_NETWORK = -5,  ///< No suitable network protocol available
+    ERR_INVALID_TTL = -6,  ///< Invalid DNS TTL
+    ERR_IS_PATTERN = -7,  ///< RR key is pattern
+    ERR_COLLISION = -8,  ///< Name collision
+    ERR_INVALID_RECORD = -9,  ///< Invalid RR
 
-    ERR_INVALID_SERVICE_NAME = -10, /**< Invalid service name */
-    ERR_INVALID_SERVICE_TYPE = -11, /**< Invalid service type */
-    ERR_INVALID_PORT = -12, /**< Invalid port number */
-    ERR_INVALID_KEY = -13, /**< Invalid key */
-    ERR_INVALID_ADDRESS = -14, /**< Invalid address */
-    ERR_TIMEOUT = -15, /**< Timeout reached */
-    ERR_TOO_MANY_CLIENTS = -16, /**< Too many clients */
-    ERR_TOO_MANY_OBJECTS = -17, /**< Too many objects */
-    ERR_TOO_MANY_ENTRIES = -18, /**< Too many entries */
-    ERR_OS = -19, /**< OS error */
+    ERR_INVALID_SERVICE_NAME = -10,  ///< Invalid service name
+    ERR_INVALID_SERVICE_TYPE = -11,  ///< Invalid service type
+    ERR_INVALID_PORT = -12,  ///< Invalid port number
+    ERR_INVALID_KEY = -13,  ///< Invalid key
+    ERR_INVALID_ADDRESS = -14,  ///< Invalid address
+    ERR_TIMEOUT = -15,  ///< Timeout reached
+    ERR_TOO_MANY_CLIENTS = -16,  ///< Too many clients
+    ERR_TOO_MANY_OBJECTS = -17,  ///< Too many objects
+    ERR_TOO_MANY_ENTRIES = -18,  ///< Too many entries
+    ERR_OS = -19,  ///< OS error
 
-    ERR_ACCESS_DENIED = -20, /**< Access denied */
-    ERR_INVALID_OPERATION = -21, /**< Invalid operation */
-    ERR_DBUS_ERROR = -22, /**< An unexpected D-Bus error occurred */
-    ERR_DISCONNECTED = -23, /**< Daemon connection failed */
-    ERR_NO_MEMORY = -24, /**< Memory exhausted */
-    ERR_INVALID_OBJECT = -25, /**< The object passed to this function was invalid */
-    ERR_NO_DAEMON = -26, /**< Daemon not running */
-    ERR_INVALID_INTERFACE = -27, /**< Invalid interface */
-    ERR_INVALID_PROTOCOL = -28, /**< Invalid protocol */
-    ERR_INVALID_FLAGS = -29, /**< Invalid flags */
+    ERR_ACCESS_DENIED = -20,  ///< Access denied
+    ERR_INVALID_OPERATION = -21,  ///< Invalid operation
+    ERR_DBUS_ERROR = -22,  ///< An unexpected D-Bus error occurred
+    ERR_DISCONNECTED = -23,  ///< Daemon connection failed
+    ERR_NO_MEMORY = -24,  ///< Memory exhausted
+    ERR_INVALID_OBJECT = -25,  ///< The object passed to this function was invalid
+    ERR_NO_DAEMON = -26,  ///< Daemon not running
+    ERR_INVALID_INTERFACE = -27,  ///< Invalid interface
+    ERR_INVALID_PROTOCOL = -28,  ///< Invalid protocol
+    ERR_INVALID_FLAGS = -29,  ///< Invalid flags
 
-    ERR_NOT_FOUND = -30, /**< Not found */
-    ERR_INVALID_CONFIG = -31, /**< Configuration error */
-    ERR_VERSION_MISMATCH = -32, /**< Version mismatch */
-    ERR_INVALID_SERVICE_SUBTYPE = -33, /**< Invalid service subtype */
-    ERR_INVALID_PACKET = -34, /**< Invalid packet */
-    ERR_INVALID_DNS_ERROR = -35, /**< Invalid DNS return code */
-    ERR_DNS_FORMERR = -36, /**< DNS Error: Form error */
-    ERR_DNS_SERVFAIL = -37, /**< DNS Error: Server Failure */
-    ERR_DNS_NXDOMAIN = -38, /**< DNS Error: No such domain */
-    ERR_DNS_NOTIMP = -39, /**< DNS Error: Not implemented */
+    ERR_NOT_FOUND = -30,  ///< Not found
+    ERR_INVALID_CONFIG = -31,  ///< Configuration error
+    ERR_VERSION_MISMATCH = -32,  ///< Version mismatch
+    ERR_INVALID_SERVICE_SUBTYPE = -33,  ///< Invalid service subtype
+    ERR_INVALID_PACKET = -34,  ///< Invalid packet
+    ERR_INVALID_DNS_ERROR = -35,  ///< Invalid DNS return code
+    ERR_DNS_FORMERR = -36,  ///< DNS Error: Form error
+    ERR_DNS_SERVFAIL = -37,  ///< DNS Error: Server Failure
+    ERR_DNS_NXDOMAIN = -38,  ///< DNS Error: No such domain
+    ERR_DNS_NOTIMP = -39,  ///< DNS Error: Not implemented
 
-    ERR_DNS_REFUSED = -40, /**< DNS Error: Operation refused */
-    ERR_DNS_YXDOMAIN = -41,
-    ERR_DNS_YXRRSET = -42,
-    ERR_DNS_NXRRSET = -43,
-    ERR_DNS_NOTAUTH = -44, /**< DNS Error: Not authorized */
-    ERR_DNS_NOTZONE = -45,
-    ERR_INVALID_RDATA = -46, /**< Invalid RDATA */
-    ERR_INVALID_DNS_CLASS = -47, /**< Invalid DNS class */
-    ERR_INVALID_DNS_TYPE = -48, /**< Invalid DNS type */
-    ERR_NOT_SUPPORTED = -49, /**< Not supported */
+    ERR_DNS_REFUSED = -40,  ///< DNS Error: Operation refused
+    ERR_DNS_YXDOMAIN = -41,  ///< TODO
+    ERR_DNS_YXRRSET = -42,  ///< TODO
+    ERR_DNS_NXRRSET = -43,  ///< TODO
+    ERR_DNS_NOTAUTH = -44,  ///< DNS Error: Not authorized
+    ERR_DNS_NOTZONE = -45,  ///< TODO
+    ERR_INVALID_RDATA = -46,  ///< Invalid RDATA
+    ERR_INVALID_DNS_CLASS = -47,  ///< Invalid DNS class
+    ERR_INVALID_DNS_TYPE = -48,  ///< Invalid DNS type
+    ERR_NOT_SUPPORTED = -49,  ///< Not supported
 
-    ERR_NOT_PERMITTED = -50, /**< Operation not permitted */
-    ERR_INVALID_ARGUMENT = -51, /**< Invalid argument */
-    ERR_IS_EMPTY = -52, /**< Is empty */
-    ERR_NO_CHANGE = -53, /**< The requested operation is invalid because it is redundant */
+    ERR_NOT_PERMITTED = -50,  ///< Operation not permitted
+    ERR_INVALID_ARGUMENT = -51,  ///< Invalid argument
+    ERR_IS_EMPTY = -52,  ///< Is empty
+    ERR_NO_CHANGE = -53,  ///< The requested operation is invalid because it is redundant
 
-    ERR_MAX = -54
+    ERR_MAX = -54  ///< TODO
   };
 
   constexpr auto IF_UNSPEC = -1;
+
   enum proto {
-    PROTO_INET = 0, /**< IPv4 */
-    PROTO_INET6 = 1, /**< IPv6 */
-    PROTO_UNSPEC = -1 /**< Unspecified/all protocol(s) */
+    PROTO_INET = 0,  ///< IPv4
+    PROTO_INET6 = 1,  ///< IPv6
+    PROTO_UNSPEC = -1  ///< Unspecified/all protocol(s)
   };
 
   enum ServerState {
-    SERVER_INVALID, /**< Invalid state (initial) */
-    SERVER_REGISTERING, /**< Host RRs are being registered */
-    SERVER_RUNNING, /**< All host RRs have been established */
-    SERVER_COLLISION, /**< There is a collision with a host RR. All host RRs have been withdrawn, the user should set a new host name via avahi_server_set_host_name() */
-    SERVER_FAILURE /**< Some fatal failure happened, the server is unable to proceed */
+    SERVER_INVALID,  ///< Invalid state (initial)
+    SERVER_REGISTERING,  ///< Host RRs are being registered
+    SERVER_RUNNING,  ///< All host RRs have been established
+    SERVER_COLLISION,  ///< There is a collision with a host RR. All host RRs have been withdrawn, the user should set a new host name via avahi_server_set_host_name()
+    SERVER_FAILURE  ///< Some fatal failure happened, the server is unable to proceed
   };
 
   enum ClientState {
-    CLIENT_S_REGISTERING = SERVER_REGISTERING, /**< Server state: REGISTERING */
-    CLIENT_S_RUNNING = SERVER_RUNNING, /**< Server state: RUNNING */
-    CLIENT_S_COLLISION = SERVER_COLLISION, /**< Server state: COLLISION */
-    CLIENT_FAILURE = 100, /**< Some kind of error happened on the client side */
-    CLIENT_CONNECTING = 101 /**< We're still connecting. This state is only entered when AVAHI_CLIENT_NO_FAIL has been passed to avahi_client_new() and the daemon is not yet available. */
+    CLIENT_S_REGISTERING = SERVER_REGISTERING,  ///< Server state: REGISTERING
+    CLIENT_S_RUNNING = SERVER_RUNNING,  ///< Server state: RUNNING
+    CLIENT_S_COLLISION = SERVER_COLLISION,  ///< Server state: COLLISION
+    CLIENT_FAILURE = 100,  ///< Some kind of error happened on the client side
+    CLIENT_CONNECTING = 101  ///< We're still connecting. This state is only entered when AVAHI_CLIENT_NO_FAIL has been passed to avahi_client_new() and the daemon is not yet available.
   };
 
   enum EntryGroupState {
-    ENTRY_GROUP_UNCOMMITED, /**< The group has not yet been committed, the user must still call avahi_entry_group_commit() */
-    ENTRY_GROUP_REGISTERING, /**< The entries of the group are currently being registered */
-    ENTRY_GROUP_ESTABLISHED, /**< The entries have successfully been established */
-    ENTRY_GROUP_COLLISION, /**< A name collision for one of the entries in the group has been detected, the entries have been withdrawn */
-    ENTRY_GROUP_FAILURE /**< Some kind of failure happened, the entries have been withdrawn */
+    ENTRY_GROUP_UNCOMMITED,  ///< The group has not yet been committed, the user must still call avahi_entry_group_commit()
+    ENTRY_GROUP_REGISTERING,  ///< The entries of the group are currently being registered
+    ENTRY_GROUP_ESTABLISHED,  ///< The entries have successfully been established
+    ENTRY_GROUP_COLLISION,  ///< A name collision for one of the entries in the group has been detected, the entries have been withdrawn
+    ENTRY_GROUP_FAILURE  ///< Some kind of failure happened, the entries have been withdrawn
   };
 
   enum ClientFlags {
-    CLIENT_IGNORE_USER_CONFIG = 1, /**< Don't read user configuration */
-    CLIENT_NO_FAIL = 2 /**< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear */
+    CLIENT_IGNORE_USER_CONFIG = 1,  ///< Don't read user configuration
+    CLIENT_NO_FAIL = 2  ///< Don't fail if the daemon is not available when avahi_client_new() is called, instead enter CLIENT_CONNECTING state and wait for the daemon to appear
   };
 
   /**
    * @brief Flags for publishing functions.
    */
   enum PublishFlags {
-    PUBLISH_UNIQUE = 1, /**< For raw records: The RRset is intended to be unique */
-    PUBLISH_NO_PROBE = 2, /**< For raw records: Though the RRset is intended to be unique no probes shall be sent */
-    PUBLISH_NO_ANNOUNCE = 4, /**< For raw records: Do not announce this RR to other hosts */
-    PUBLISH_ALLOW_MULTIPLE = 8, /**< For raw records: Allow multiple local records of this type, even if they are intended to be unique */
-    /** \cond fulldocs */
-    PUBLISH_NO_REVERSE = 16, /**< For address records: don't create a reverse (PTR) entry */
-    PUBLISH_NO_COOKIE = 32, /**< For service records: do not implicitly add the local service cookie to TXT data */
-    /** \endcond */
-    PUBLISH_UPDATE = 64, /**< Update existing records instead of adding new ones */
-    /** \cond fulldocs */
-    PUBLISH_USE_WIDE_AREA = 128, /**< Register the record using wide area DNS (i.e. unicast DNS update) */
-    PUBLISH_USE_MULTICAST = 256 /**< Register the record using multicast DNS */
-    /** \endcond */
+    PUBLISH_UNIQUE = 1,  ///< For raw records: The RRset is intended to be unique
+    PUBLISH_NO_PROBE = 2,  ///< For raw records: Though the RRset is intended to be unique no probes shall be sent
+    PUBLISH_NO_ANNOUNCE = 4,  ///< For raw records: Do not announce this RR to other hosts
+    PUBLISH_ALLOW_MULTIPLE = 8,  ///< For raw records: Allow multiple local records of this type, even if they are intended to be unique
+    PUBLISH_NO_REVERSE = 16,  ///< For address records: don't create a reverse (PTR) entry
+    PUBLISH_NO_COOKIE = 32,  ///< For service records: do not implicitly add the local service cookie to TXT data
+    PUBLISH_UPDATE = 64,  ///< Update existing records instead of adding new ones
+    PUBLISH_USE_WIDE_AREA = 128,  ///< Register the record using wide area DNS (i.e. unicast DNS update)
+    PUBLISH_USE_MULTICAST = 256  ///< Register the record using multicast DNS
   };
 
   using IfIndex = int;
@@ -168,7 +167,8 @@ namespace avahi {
     const char *domain,
     const char *host,
     uint16_t port,
-    ...);
+    ...
+  );
 
   typedef int (*entry_group_is_empty_fn)(EntryGroup *);
   typedef int (*entry_group_reset_fn)(EntryGroup *);
@@ -203,30 +203,31 @@ namespace avahi {
   simple_poll_new_fn simple_poll_new;
   simple_poll_free_fn simple_poll_free;
 
-  int
-  init_common() {
-    static void *handle { nullptr };
+  int init_common() {
+    static void *handle {nullptr};
     static bool funcs_loaded = false;
 
-    if (funcs_loaded) return 0;
+    if (funcs_loaded) {
+      return 0;
+    }
 
     if (!handle) {
-      handle = dyn::handle({ "libavahi-common.so.3", "libavahi-common.so" });
+      handle = dyn::handle({"libavahi-common.so.3", "libavahi-common.so"});
       if (!handle) {
         return -1;
       }
     }
 
     std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name" },
-      { (dyn::apiproc *) &free, "avahi_free" },
-      { (dyn::apiproc *) &strdup, "avahi_strdup" },
-      { (dyn::apiproc *) &strerror, "avahi_strerror" },
-      { (dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get" },
-      { (dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop" },
-      { (dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit" },
-      { (dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new" },
-      { (dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free" },
+      {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
+      {(dyn::apiproc *) &free, "avahi_free"},
+      {(dyn::apiproc *) &strdup, "avahi_strdup"},
+      {(dyn::apiproc *) &strerror, "avahi_strerror"},
+      {(dyn::apiproc *) &simple_poll_get, "avahi_simple_poll_get"},
+      {(dyn::apiproc *) &simple_poll_loop, "avahi_simple_poll_loop"},
+      {(dyn::apiproc *) &simple_poll_quit, "avahi_simple_poll_quit"},
+      {(dyn::apiproc *) &simple_poll_new, "avahi_simple_poll_new"},
+      {(dyn::apiproc *) &simple_poll_free, "avahi_simple_poll_free"},
     };
 
     if (dyn::load(handle, funcs)) {
@@ -237,34 +238,35 @@ namespace avahi {
     return 0;
   }
 
-  int
-  init_client() {
+  int init_client() {
     if (init_common()) {
       return -1;
     }
 
-    static void *handle { nullptr };
+    static void *handle {nullptr};
     static bool funcs_loaded = false;
 
-    if (funcs_loaded) return 0;
+    if (funcs_loaded) {
+      return 0;
+    }
 
     if (!handle) {
-      handle = dyn::handle({ "libavahi-client.so.3", "libavahi-client.so" });
+      handle = dyn::handle({"libavahi-client.so.3", "libavahi-client.so"});
       if (!handle) {
         return -1;
       }
     }
 
     std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
-      { (dyn::apiproc *) &client_new, "avahi_client_new" },
-      { (dyn::apiproc *) &client_free, "avahi_client_free" },
-      { (dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client" },
-      { (dyn::apiproc *) &entry_group_new, "avahi_entry_group_new" },
-      { (dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service" },
-      { (dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty" },
-      { (dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset" },
-      { (dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit" },
-      { (dyn::apiproc *) &client_errno, "avahi_client_errno" },
+      {(dyn::apiproc *) &client_new, "avahi_client_new"},
+      {(dyn::apiproc *) &client_free, "avahi_client_free"},
+      {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
+      {(dyn::apiproc *) &entry_group_new, "avahi_entry_group_new"},
+      {(dyn::apiproc *) &entry_group_add_service, "avahi_entry_group_add_service"},
+      {(dyn::apiproc *) &entry_group_is_empty, "avahi_entry_group_is_empty"},
+      {(dyn::apiproc *) &entry_group_reset, "avahi_entry_group_reset"},
+      {(dyn::apiproc *) &entry_group_commit, "avahi_entry_group_commit"},
+      {(dyn::apiproc *) &client_errno, "avahi_client_errno"},
     };
 
     if (dyn::load(handle, funcs)) {
@@ -278,13 +280,12 @@ namespace avahi {
 
 namespace platf::publish {
 
-  template <class T>
-  void
-  free(T *p) {
+  template<class T>
+  void free(T *p) {
     avahi::free(p);
   }
 
-  template <class T>
+  template<class T>
   using ptr_t = util::safe_ptr<T, free<T>>;
   using client_t = util::dyn_safe_ptr<avahi::Client, &avahi::client_free>;
   using poll_t = util::dyn_safe_ptr<avahi::SimplePoll, &avahi::simple_poll_free>;
@@ -296,11 +297,9 @@ namespace platf::publish {
 
   ptr_t<char> name;
 
-  void
-  create_services(avahi::Client *c);
+  void create_services(avahi::Client *c);
 
-  void
-  entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
+  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
     group = g;
 
     switch (state) {
@@ -323,8 +322,7 @@ namespace platf::publish {
     }
   }
 
-  void
-  create_services(avahi::Client *c) {
+  void create_services(avahi::Client *c) {
     int ret;
 
     auto fg = util::fail_guard([]() {
@@ -343,13 +341,16 @@ namespace platf::publish {
 
       ret = avahi::entry_group_add_service(
         group,
-        avahi::IF_UNSPEC, avahi::PROTO_UNSPEC,
+        avahi::IF_UNSPEC,
+        avahi::PROTO_UNSPEC,
         avahi::PublishFlags(0),
         name.get(),
         SERVICE_TYPE,
-        nullptr, nullptr,
-        map_port(nvhttp::PORT_HTTP),
-        nullptr);
+        nullptr,
+        nullptr,
+        net::map_port(nvhttp::PORT_HTTP),
+        nullptr
+      );
 
       if (ret < 0) {
         if (ret == avahi::ERR_COLLISION) {
@@ -379,8 +380,7 @@ namespace platf::publish {
     fg.disable();
   }
 
-  void
-  client_callback(avahi::Client *c, avahi::ClientState state, void *) {
+  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
         create_services(c);
@@ -391,8 +391,9 @@ namespace platf::publish {
         break;
       case avahi::CLIENT_S_COLLISION:
       case avahi::CLIENT_S_REGISTERING:
-        if (group)
+        if (group) {
           avahi::entry_group_reset(group);
+        }
         break;
       case avahi::CLIENT_CONNECTING:;
     }
@@ -403,7 +404,8 @@ namespace platf::publish {
     std::thread poll_thread;
 
     deinit_t(std::thread poll_thread):
-        poll_thread { std::move(poll_thread) } {}
+        poll_thread {std::move(poll_thread)} {
+    }
 
     ~deinit_t() override {
       if (avahi::simple_poll_quit && poll) {
@@ -416,8 +418,7 @@ namespace platf::publish {
     }
   };
 
-  [[nodiscard]] std::unique_ptr<::platf::deinit_t>
-  start() {
+  [[nodiscard]] std::unique_ptr<::platf::deinit_t> start() {
     if (avahi::init_client()) {
       return nullptr;
     }
@@ -430,16 +431,18 @@ namespace platf::publish {
       return nullptr;
     }
 
-    name.reset(avahi::strdup(SERVICE_NAME));
+    auto instance_name = net::mdns_instance_name(platf::get_host_name());
+    name.reset(avahi::strdup(instance_name.c_str()));
 
     client.reset(
-      avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error));
+      avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error)
+    );
 
     if (!client) {
       BOOST_LOG(error) << "Failed to create client: "sv << avahi::strerror(avhi_error);
       return nullptr;
     }
 
-    return std::make_unique<deinit_t>(std::thread { avahi::simple_poll_loop, poll.get() });
+    return std::make_unique<deinit_t>(std::thread {avahi::simple_poll_loop, poll.get()});
   }
 }  // namespace platf::publish

@@ -2,6 +2,7 @@
  * @file src/version.h.in
  * @brief Version definitions for Sunshine.
  * @note The final `version.h` is generated from this file during the CMake build.
+ * @todo Use CMake definitions directly, instead of configuring this file.
  */
 #pragma once
 

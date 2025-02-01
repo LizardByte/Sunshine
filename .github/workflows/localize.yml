@@ -3,7 +3,7 @@ name: localize
 
 on:
   push:
-    branches: [nightly]
+    branches: [master]
     paths:  # prevents workflow from running unless these files change
       - '.github/workflows/localize.yml'
       - 'src/**'
@@ -23,7 +23,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Python 3.9
-        uses: actions/setup-python@v4  # https://github.com/actions/setup-python
+        uses: actions/setup-python@v5  # https://github.com/actions/setup-python
         with:
           python-version: '3.9'
 
@@ -77,16 +77,16 @@ jobs:
         run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
 
       - name: Create/Update Pull Request
-        uses: peter-evans/create-pull-request@v5
+        uses: peter-evans/create-pull-request@v7
         with:
           add-paths: |
             locale/*.po
           token: ${{ secrets.GH_BOT_TOKEN }}  # must trigger PR tests
-          commit-message: New localization template
+          commit-message: "chore(l10n): new babel updates"
           branch: localize/update
           delete-branch: true
-          base: nightly
-          title: New Babel Updates
+          base: master
+          title: "chore(l10n): new babel updates"
           body: |
             Update report
             - Updated ${{ steps.date.outputs.date }}

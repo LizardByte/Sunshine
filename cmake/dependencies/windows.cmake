@@ -1,6 +1,12 @@
 # windows specific dependencies
 
-set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
-# Boost >= 1.82.0 is required for boost::json::value::set_at_pointer() support
-# todo - are we actually using json? I think this was attempted to be used in a PR, but we ended up not using json
-find_package(Boost 1.82.0 COMPONENTS locale log filesystem program_options json REQUIRED)
+# nlohmann_json
+find_package(nlohmann_json CONFIG 3.11 REQUIRED)
+
+# Make sure MinHook is installed
+find_library(MINHOOK_LIBRARY libMinHook.a REQUIRED)
+find_path(MINHOOK_INCLUDE_DIR MinHook.h PATH_SUFFIXES include REQUIRED)
+
+add_library(minhook::minhook STATIC IMPORTED)
+set_property(TARGET minhook::minhook PROPERTY IMPORTED_LOCATION ${MINHOOK_LIBRARY})
+target_include_directories(minhook::minhook INTERFACE ${MINHOOK_INCLUDE_DIR})

@@ -1,0 +1,2 @@
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"
+KERNEL=="uhid", TAG+="uaccess"
