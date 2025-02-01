@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Obecnie sterowniki NVIDIA mogą zawieszać się w koderze, gdy włączony jest HAGS, używany jest priorytet czasu rzeczywistego, a wykorzystanie pamięci VRAM jest bliskie maksimum. Wyłączenie tej opcji obniża priorytet do wysokiego, omijając zamrożenie kosztem zmniejszonej wydajności przechwytywania, gdy GPU jest mocno obciążony.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Przypisuje wyższe wartości QP do płaskich regionów wideo. Zalecane włączenie podczas streamowania przy niższych przepływnościach.",
-    "nvenc_spatial_aq_disabled": "Wyłączone (szybciej, domyślnie)",
-    "nvenc_spatial_aq_enabled": "Włączone (wolniej)",
     "nvenc_twopass": "Tryb dwuprzebiegowy",
     "nvenc_twopass_desc": "Dodaje wstępne przejście kodowania. Pozwala to wykryć więcej wektorów ruchu, lepiej rozłożyć przepływność w ramce i ściślej przestrzegać limitów przepływności. Wyłączenie tej funkcji nie jest zalecane, ponieważ może to prowadzić do sporadycznych przekroczeń przepływności i późniejszej utraty pakietów.",
     "nvenc_twopass_disabled": "Wyłączony (najszybszy, niezalecany)",
