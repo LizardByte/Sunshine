@@ -92,7 +92,6 @@ dependencies=(
   "mingw-w64-ucrt-x86_64-graphviz"  # Optional, for docs
   "mingw-w64-ucrt-x86_64-MinHook"
   "mingw-w64-ucrt-x86_64-miniupnpc"
-  "mingw-w64-ucrt-x86_64-nlohmann-json"
   "mingw-w64-ucrt-x86_64-nodejs"
   "mingw-w64-ucrt-x86_64-nsis"
   "mingw-w64-ucrt-x86_64-onevpl"
