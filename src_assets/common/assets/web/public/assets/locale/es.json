@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Actualmente los controladores NVIDIA pueden congelarse en el codificador cuando HAGS está habilitado, se utiliza prioridad en tiempo real y la utilización de VRAM está cerca del máximo. Deshabilitar esta opción reduce la prioridad a alto, evitando la congelación a costa de un menor rendimiento de captura cuando la GPU está muy cargada.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Asigne valores más altos de QP a regiones planas del vídeo. Recomendado para habilitar al transmitir a tasas de bits más bajas.",
-    "nvenc_spatial_aq_disabled": "Desactivado (más rápido, por defecto)",
-    "nvenc_spatial_aq_enabled": "Habilitado (más lento)",
     "nvenc_twopass": "Modo dos pases",
     "nvenc_twopass_desc": "Añade una tarjeta de codificación preliminar. Esto permite detectar más vectores de movimiento, distribuir mejor la tasa de bits a lo largo del fotograma y adherirse más estrictamente a los límites de la tasa de bits. Deshabilitar no es recomendable ya que esto puede llevar a un rebasamiento ocasional de la tasa de bits y a la pérdida posterior de paquetes.",
     "nvenc_twopass_disabled": "Desactivado (lo más rápido, no recomendado)",
