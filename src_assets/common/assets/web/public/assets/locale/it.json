@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Attualmente i driver NVIDIA possono bloccarsi durante la codifica quando HAGS è abilitato, la priorità in tempo reale viene utilizzata e l'utilizzo VRAM è vicino al massimo. Disabilitare questa opzione riduce la priorità ad alta, eludendo il blocco al costo di una riduzione delle prestazioni di acquisizione quando la GPU è pesantemente caricata.",
     "nvenc_spatial_aq": "AQ spaziale",
     "nvenc_spatial_aq_desc": "Assegna valori QP più alti alle parti piatte del video. È consigliato abilitarlo per lo streaming a bitrate più bassi.",
-    "nvenc_spatial_aq_disabled": "Disabilitato (più veloce, predefinito)",
-    "nvenc_spatial_aq_enabled": "Abilitato (più lento)",
     "nvenc_twopass": "Modalità a due passaggi",
     "nvenc_twopass_desc": "Aggiunge un passaggio di codifica preliminare. Questo permette di rilevare più vettori di movimento, distribuire meglio il bitrate attraverso il frame e rispettare più rigorosamente i limiti di bitrate. Disabilitarlo non è raccomandato in quanto questo può portare a occasionali bitrate overshoot e successiva perdita del pacchetto.",
     "nvenc_twopass_disabled": "Disabilitato (più veloce, non consigliato)",
