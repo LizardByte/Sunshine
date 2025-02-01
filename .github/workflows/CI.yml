@@ -355,7 +355,6 @@ jobs:
             libxcb-dri3-dev \
             libxfixes-dev \ 
             libxext-dev \
-            libx11-dev
 
       - name: Setup python
         id: python
