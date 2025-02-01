@@ -27,12 +27,3 @@ target_link_libraries(sunshinesvc
         wtsapi32
         ${PLATFORM_LIBRARIES})
 target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
-
-add_executable(ddprobe ddprobe.cpp)
-set_target_properties(ddprobe PROPERTIES CXX_STANDARD 20)
-target_link_libraries(ddprobe
-        ${CMAKE_THREAD_LIBS_INIT}
-        dxgi
-        d3d11
-        ${PLATFORM_LIBRARIES})
-target_compile_options(ddprobe PRIVATE ${SUNSHINE_COMPILE_OPTIONS})

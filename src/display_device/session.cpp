@@ -136,17 +136,15 @@ namespace display_device {
 
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
-    if (session_t::get().settings.is_changing_settings_going_to_fail()) {
-      const auto devices { enum_available_devices() };
-      const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
-      if (!devices.empty()) {
-        BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-        zako_device_id = vdd_devices;
-        // 大多数哔叽本开机默认虚拟屏优先导致黑屏
-        if (!vdd_devices.empty() && devices.size() > 1) {
-          session_t::get().disable_vdd();
-          std::this_thread::sleep_for(2333ms);
-        }
+    const auto devices { enum_available_devices() };
+    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
+    if (!devices.empty()) {
+      BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+      zako_device_id = vdd_devices;
+      // 大多数哔叽本开机默认虚拟屏优先导致黑屏
+      if (!vdd_devices.empty() && devices.size() > 1) {
+        session_t::get().disable_vdd();
+        std::this_thread::sleep_for(2333ms);
       }
     }
 
@@ -197,57 +195,57 @@ namespace display_device {
     }
   }
 
-  void
-  session_t::enable_vdd() {
-    boost::process::environment _env = boost::this_process::environment();
-    auto working_dir = boost::filesystem::path();
-
-    std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /enable \"Virtual Display with HDR\"";
-
-    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-    if (ec) {
-      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
+  namespace {
+    constexpr auto kMaxRetryCount = 5;
+    constexpr auto kInitialRetryDelay = 500ms;
+    constexpr auto kMaxRetryDelay = 5000ms;
+    
+    std::chrono::milliseconds calculate_exponential_backoff(int attempt) {
+      auto delay = kInitialRetryDelay * (1 << attempt);
+      return std::min(delay, kMaxRetryDelay);
     }
-    else {
-      BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
-      child.detach();
+
+    bool execute_vdd_command(const std::string& action) {
+      static const std::string kDevManPath = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe";
+      static const std::string kDriverName = "Virtual Display Driver";
+      
+      boost::process::environment _env = boost::this_process::environment();
+      auto working_dir = boost::filesystem::path();
+      std::error_code ec;
+      
+      std::string cmd = kDevManPath + " /" + action + " \"" + kDriverName + "\"";
+      
+      for (int attempt = 0; attempt < kMaxRetryCount; ++attempt) {
+        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
+        if (!ec) {
+          BOOST_LOG(info) << "Successfully executed VDD " << action << " command";
+          child.detach();
+          return true;
+        }
+        
+        auto delay = calculate_exponential_backoff(attempt);
+        BOOST_LOG(warning) << "Failed to execute VDD " << action << " command (attempt " 
+                          << attempt + 1 << "), retrying in " << delay.count() << "ms";
+        std::this_thread::sleep_for(delay);
+      }
+      
+      BOOST_LOG(error) << "Failed to execute VDD " << action << " command after " 
+                      << kMaxRetryCount << " attempts";
+      return false;
     }
   }
 
-  void
-  session_t::disable_vdd() {
-    boost::process::environment _env = boost::this_process::environment();
-    auto working_dir = boost::filesystem::path();
-
-    std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable \"Virtual Display with HDR\"";
-
-    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-    if (ec) {
-      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
-    }
-    else {
-      BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
-      child.detach();
-    }
+  void session_t::enable_vdd() {
+    execute_vdd_command("enable");
   }
 
-  void
-  session_t::disable_enable_vdd() {
-    boost::process::environment _env = boost::this_process::environment();
-    auto working_dir = boost::filesystem::path();
+  void session_t::disable_vdd() {
+    execute_vdd_command("disable");
+  }
 
-    std::error_code ec;
-    std::string cmd = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe /disable_enable \"Virtual Display with HDR\"";
-
-    auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-    if (ec) {
-      BOOST_LOG(warning) << "Couldn't run cmd ["sv << cmd << "]: System: "sv << ec.message();
-    }
-    else {
-      BOOST_LOG(info) << "Executing idd cmd ["sv << cmd << "]"sv;
-      child.detach();
+  void session_t::disable_enable_vdd() {
+    if (execute_vdd_command("disable")) {
+      execute_vdd_command("enable");
     }
   }
 

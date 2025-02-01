@@ -635,7 +635,7 @@ namespace confighttp {
       resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
     }
 
-    std::string idd_option_path = "c:\\IddSampleDriver\\vdd_settings.xml";
+    std::string idd_option_path = "c:\\VirtualDisplayDriver\\vdd_settings.xml";
     if (fs::exists(idd_option_path)) {
       pt::ptree monitor_node;
       monitor_node.put("count", 1);

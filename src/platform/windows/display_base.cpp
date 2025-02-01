@@ -9,9 +9,21 @@
 #include <boost/algorithm/string/join.hpp>
 #include <boost/process/v1.hpp>
 
+#include <MinHook.h>
+
 // We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
 typedef long NTSTATUS;
+
+// Definition from the WDK's d3dkmthk.h
+typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
+  D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
+  D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
+  D3DKMT_GPU_PREFERENCE_STATE_MINIMUM_POWER,  ///< The minimum-powered GPU is preferred.
+  D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED,  ///< A GPU preference isn't specified.
+  D3DKMT_GPU_PREFERENCE_STATE_NOT_FOUND,  ///< A GPU preference isn't found.
+  D3DKMT_GPU_PREFERENCE_STATE_USER_SPECIFIED_GPU  ///< A specific GPU is preferred.
+} D3DKMT_GPU_PREFERENCE_QUERY_STATE;
 
 #include "display.h"
 #include "misc.h"
@@ -525,6 +537,27 @@ namespace platf::dxgi {
     return false;
   }
 
+  /**
+   * @brief Hook for NtGdiDdDDIGetCachedHybridQueryValue() from win32u.dll.
+   * @param gpuPreference A pointer to the location where the preference will be written.
+   * @return Always STATUS_SUCCESS if valid arguments are provided.
+   */
+  NTSTATUS
+  __stdcall NtGdiDdDDIGetCachedHybridQueryValueHook(D3DKMT_GPU_PREFERENCE_QUERY_STATE *gpuPreference) {
+    // By faking a cached GPU preference state of D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED, this will
+    // prevent DXGI from performing the normal GPU preference resolution that looks at the registry,
+    // power settings, and the hybrid adapter DDI interface to pick a GPU. Instead, we will not be
+    // bound to any specific GPU. This will prevent DXGI from performing output reparenting (moving
+    // outputs from their true location to the render GPU), which breaks DDA.
+    if (gpuPreference) {
+      *gpuPreference = D3DKMT_GPU_PREFERENCE_STATE_UNSPECIFIED;
+      return 0;  // STATUS_SUCCESS
+    }
+    else {
+      return STATUS_INVALID_PARAMETER;
+    }
+  }
+
   int
   display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
     std::once_flag windows_cpp_once_flag;
@@ -534,13 +567,22 @@ namespace platf::dxgi {
 
       typedef BOOL (*User32_SetProcessDpiAwarenessContext)(DPI_AWARENESS_CONTEXT value);
 
-      auto user32 = LoadLibraryA("user32.dll");
-      auto f = (User32_SetProcessDpiAwarenessContext) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
-      if (f) {
-        f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+      {
+        auto user32 = LoadLibraryA("user32.dll");
+        auto f = (User32_SetProcessDpiAwarenessContext) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        if (f) {
+          f(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        }
+
+        FreeLibrary(user32);
       }
 
-      FreeLibrary(user32);
+      {
+        // We aren't calling MH_Uninitialize(), but that's okay because this hook lasts for the life of the process
+        MH_Initialize();
+        MH_CreateHookApi(L"win32u.dll", "NtGdiDdDDIGetCachedHybridQueryValue", (void *) NtGdiDdDDIGetCachedHybridQueryValueHook, nullptr);
+        MH_EnableHook(MH_ALL_HOOKS);
+      }
     });
 
     // Get rectangle of full desktop for absolute mouse coordinates
@@ -548,11 +590,6 @@ namespace platf::dxgi {
     env_height = GetSystemMetrics(SM_CYVIRTUALSCREEN);
 
     HRESULT status;
-
-    // We must set the GPU preference before calling any DXGI APIs!
-    if (!probe_for_gpu_preference(display_name)) {
-      BOOST_LOG(warning) << "Failed to set GPU preference. Capture may not work!"sv;
-    }
 
     status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory);
     if (FAILED(status)) {

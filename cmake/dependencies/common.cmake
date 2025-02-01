@@ -25,12 +25,12 @@ include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 # ffmpeg pre-compiled binaries
 if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     if(WIN32)
-        set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl)
+        set(FFMPEG_PLATFORM_LIBRARIES mfplat ole32 strmiids mfuuid vpl MinHook)
     elseif(UNIX AND NOT APPLE)
         set(FFMPEG_PLATFORM_LIBRARIES numa va va-drm va-x11 X11)
     endif()
     set(FFMPEG_PREPARED_BINARIES
-            "${CMAKE_SOURCE_DIR}/third-party/build-deps/ffmpeg/${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
+            "${CMAKE_SOURCE_DIR}/third-party/build-deps/dist/${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR}")
 
     # check if the directory exists
     if(NOT EXISTS "${FFMPEG_PREPARED_BINARIES}")

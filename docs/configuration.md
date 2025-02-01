@@ -819,7 +819,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [output_name](https://localhost:47990/config/#output_name)
+### output_name
 
 <table>
     <tr>
