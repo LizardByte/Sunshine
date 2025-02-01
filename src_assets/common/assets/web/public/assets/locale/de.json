@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Derzeit können NVIDIA-Treiber im Encoder einfrieren, wenn HAGS aktiviert ist, Echtzeit-Priorität verwendet wird und die VRAM-Auslastung fast fast erreicht ist. Die Deaktivierung dieser Option senkt die Priorität auf hoch, indem das Einfrieren auf Kosten einer reduzierten Aufnahmeleistung umgangen wird, wenn die GPU stark belastet ist.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Zuweisen von höheren QP-Werten zu flachen Regionen des Videos. Wird empfohlen zu aktivieren, wenn Streaming mit niedrigeren Bitraten.",
-    "nvenc_spatial_aq_disabled": "Deaktiviert (schneller, Standard)",
-    "nvenc_spatial_aq_enabled": "Aktiviert (langsamer)",
     "nvenc_twopass": "Zwei-Pass-Modus",
     "nvenc_twopass_desc": "Fügt vorläufige Kodierungen hinzu. Dies erlaubt es, mehr Bewegungsvektoren zu erkennen, eine bessere Verteilung der Bitrate über den Rahmen und strengere Einhaltung der Bitratengrenzen. Die Deaktivierung ist nicht empfehlenswert, da dies gelegentlich zu Bitraten-Overshoot und anschließendem Paketverlust führen kann.",
     "nvenc_twopass_disabled": "Deaktiviert (schnellste, nicht empfohlen)",
