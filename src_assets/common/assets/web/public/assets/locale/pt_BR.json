@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Atualmente, os drivers da NVIDIA podem travar no codificador quando o HAGS está ativado, a prioridade em tempo real é usada e a utilização da VRAM está próxima do máximo. A desativação dessa opção reduz a prioridade para alta, evitando o congelamento ao custo de um desempenho de captura reduzido quando a GPU está muito carregada.",
     "nvenc_spatial_aq": "AQ espacial",
     "nvenc_spatial_aq_desc": "Atribui valores de QP mais altos a regiões planas do vídeo. Recomenda-se ativá-lo ao fazer streaming com taxas de bits mais baixas.",
-    "nvenc_spatial_aq_disabled": "Desativado (mais rápido, padrão)",
-    "nvenc_spatial_aq_enabled": "Ativado (mais lento)",
     "nvenc_twopass": "Modo de duas passagens",
     "nvenc_twopass_desc": "Adiciona uma passagem de codificação preliminar. Isso permite detectar mais vetores de movimento, distribuir melhor a taxa de bits pelo quadro e aderir mais rigorosamente aos limites de taxa de bits. Não é recomendável desativá-lo, pois isso pode levar a um excesso ocasional de taxa de bits e à subsequente perda de pacotes.",
     "nvenc_twopass_disabled": "Desativado (mais rápido, não recomendado)",
