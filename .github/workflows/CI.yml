@@ -353,13 +353,15 @@ jobs:
             libwayland-dev \
             libx11-xcb-dev \
             libxcb-dri3-dev \
-            libxfixes-dev
+            libxfixes-dev \ 
+            libxext-dev \
+            libx11-dev
 
       - name: Setup python
         id: python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Build latest libva
         env:
