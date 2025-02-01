@@ -279,8 +279,6 @@
     "nvenc_realtime_hags_desc": "Şu anda NVIDIA sürücüleri, HAGS etkinleştirildiğinde, gerçek zamanlı öncelik kullanıldığında ve VRAM kullanımı maksimuma yakın olduğunda kodlayıcıda donabilir. Bu seçeneğin devre dışı bırakılması, önceliği yüksek seviyeye düşürerek GPU'ya çok fazla yük bindiğinde yakalama performansının düşmesi pahasına donmayı önler.",
     "nvenc_spatial_aq": "Uzamsal AQ",
     "nvenc_spatial_aq_desc": "Videonun düz bölgelerine daha yüksek QP değerleri atayın. Düşük bit hızlarında akış yaparken etkinleştirilmesi önerilir.",
-    "nvenc_spatial_aq_disabled": "Devre dışı (daha hızlı, varsayılan)",
-    "nvenc_spatial_aq_enabled": "Etkin (daha yavaş)",
     "nvenc_twopass": "İki geçişli mod",
     "nvenc_twopass_desc": "Ön kodlama geçişi ekler. Bu, daha fazla hareket vektörünün algılanmasını, bit hızının kareye daha iyi dağıtılmasını ve bit hızı sınırlarına daha sıkı uyulmasını sağlar. Zaman zaman bit hızının aşılmasına ve ardından paket kaybına neden olabileceğinden devre dışı bırakılması önerilmez.",
     "nvenc_twopass_disabled": "Devre dışı (en hızlı, önerilmez)",
