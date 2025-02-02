@@ -353,7 +353,8 @@ jobs:
             libwayland-dev \
             libx11-xcb-dev \
             libxcb-dri3-dev \
-            libxfixes-dev
+            libxfixes-dev \
+            libxext-dev
 
       - name: Setup python
         id: python
