@@ -318,7 +318,7 @@ jobs:
       matrix:
         include: # package these differently
           - type: Deb
-            EXTRA_ARGS: "--deb-build"
+            EXTRA_ARGS: ""
             dist: 24.04
 
     steps:
