@@ -461,12 +461,6 @@ jobs:
           name: sunshine-linux-${{ matrix.type }}-${{ matrix.dist }}
           path: artifacts/
 
-      - name: Package Linux - Debian (.deb)
-        working-directory: build
-        run: |
-          cpack -G DEB
-          mv *.deb ../artifacts/
-
       - name: Install test deps
         run: |
           sudo apt-get update -y
