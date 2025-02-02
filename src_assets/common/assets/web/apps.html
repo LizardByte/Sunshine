@@ -441,7 +441,7 @@
         );
         if (resp) {
           fetch("./api/apps/" + id, { method: "DELETE" }).then((r) => {
-            if (r.status == 200) document.location.reload();
+            if (r.status === 200) document.location.reload();
           });
         }
       },
@@ -557,7 +557,7 @@
           method: "POST",
           body: JSON.stringify(this.editForm),
         }).then((r) => {
-          if (r.status == 200) document.location.reload();
+          if (r.status === 200) document.location.reload();
         });
       },
     },

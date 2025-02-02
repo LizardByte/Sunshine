@@ -120,13 +120,14 @@
       </div>
       <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
         <div v-for="client in clients" class="list-group-item d-flex">
-          <div class="p-2 flex-grow-1">{{client.name != "" ? client.name : $t('troubleshooting.unpair_single_unknown')}}</div><div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
+          <div class="p-2 flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
+          <div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
         </div>
       </ul>
       <ul v-else class="list-group list-group-flush list-group-item-light">
         <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em></div>
       </ul>
-      
+
     </div>
     <!-- Logs -->
     <div class="card p-2 my-4">
@@ -176,7 +177,7 @@
         actualLogs() {
           if (!this.logFilter) return this.logs;
           let lines = this.logs.split("\n");
-          lines = lines.filter(x => x.indexOf(this.logFilter) != -1);
+          lines = lines.filter(x => x.indexOf(this.logFilter) !== -1);
           return lines.join("\n");
         }
       },
@@ -210,7 +211,7 @@
             .then((r) => r.json())
             .then((r) => {
               this.closeAppPressed = false;
-              this.closeAppStatus = r.status.toString() === "true";
+              this.closeAppStatus = r.status;
               setTimeout(() => {
                 this.closeAppStatus = null;
               }, 5000);
@@ -222,7 +223,7 @@
             .then((r) => r.json())
             .then((r) => {
               this.unpairAllPressed = false;
-              this.unpairAllStatus = r.status.toString() === "true";
+              this.unpairAllStatus = r.status;
               setTimeout(() => {
                 this.unpairAllStatus = null;
               }, 5000);
@@ -240,9 +241,9 @@
             .then((response) => response.json())
             .then((response) => {
               const clientList = document.querySelector("#client-list");
-              if (response.status === 'true' && response.named_certs && response.named_certs.length) {
+              if (response.status === true && response.named_certs && response.named_certs.length) {
                 this.clients = response.named_certs.sort((a, b) => {
-                  return (a.name.toLowerCase() > b.name.toLowerCase() || a.name == "" ? 1 : -1)
+                  return (a.name.toLowerCase() > b.name.toLowerCase() || a.name === "" ? 1 : -1)
                 });
               } else {
                 this.clients = [];
@@ -270,7 +271,7 @@
             .then((r) => r.json())
             .then((r) => {
               this.ddResetPressed = false;
-              this.ddResetStatus = r.status.toString() === "true";
+              this.ddResetStatus = r.status;
               setTimeout(() => {
                 this.ddResetStatus = null;
               }, 5000);
