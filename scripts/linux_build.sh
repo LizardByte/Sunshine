@@ -3,6 +3,10 @@ set -e
 
 # Default value for arguments
 appimage_build=0
+cc_install_root="/mnt/cross"
+cc_target_tuple="$(uname -m)-linux-gnu"
+cc_target_arch="$(dpkg --print-architecture || rpm --eval '%{_host}')"
+cross_compile=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
 publisher_website=""
@@ -28,6 +32,10 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --cc-install-root        The root directory to install the cross compiler. Default is /mnt/cross. (Fedora only)
+  --cc-target-tuple        The target tuple for the cross compiler.
+  --cc-target-arch         The target architecture for the cross compiler.
+  --cross-compile          Enable cross compilation.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
@@ -55,6 +63,16 @@ while getopts ":hs-:" opt; do
           appimage_build=1
           skip_libva=1
           ;;
+        cc-install-root=*)
+          cc_install_root="${OPTARG#*=}"
+          ;;
+        cc-target-tuple=*)
+          cc_target_tuple="${OPTARG#*=}"
+          ;;
+        cc-target-arch=*)
+          cc_target_arch="${OPTARG#*=}"
+          ;;
+        cross-compile) cross_compile=1 ;;
         num-processors=*)
           num_processors="${OPTARG#*=}"
           ;;
@@ -97,28 +115,28 @@ function add_debain_based_deps() {
     "cmake"
     "doxygen"
     "flex"  # required if we need to compile doxygen
-    "gcc-${gcc_version}"
-    "g++-${gcc_version}"
+    "gcc-${gcc_version}:${cc_target_arch}"
+    "g++-${gcc_version}:${cc_target_arch}"
     "git"
     "graphviz"
-    "libcap-dev"  # KMS
-    "libcurl4-openssl-dev"
-    "libdrm-dev"  # KMS
-    "libevdev-dev"
-    "libminiupnpc-dev"
-    "libnotify-dev"
-    "libnuma-dev"
-    "libopus-dev"
-    "libpulse-dev"
-    "libssl-dev"
-    "libwayland-dev"  # Wayland
-    "libx11-dev"  # X11
-    "libxcb-shm0-dev"  # X11
-    "libxcb-xfixes0-dev"  # X11
-    "libxcb1-dev"  # X11
-    "libxfixes-dev"  # X11
-    "libxrandr-dev"  # X11
-    "libxtst-dev"  # X11
+    "libcap-dev:${cc_target_arch}"  # KMS
+    "libcurl4-openssl-dev:${cc_target_arch}"
+    "libdrm-dev:${cc_target_arch}"  # KMS
+    "libevdev-dev:${cc_target_arch}"
+    "libminiupnpc-dev:${cc_target_arch}"
+    "libnotify-dev:${cc_target_arch}"
+    "libnuma-dev:${cc_target_arch}"
+    "libopus-dev:${cc_target_arch}"
+    "libpulse-dev:${cc_target_arch}"
+    "libssl-dev:${cc_target_arch}"
+    "libwayland-dev:${cc_target_arch}"  # Wayland
+    "libx11-dev:${cc_target_arch}"  # X11
+    "libxcb-shm0-dev:${cc_target_arch}"  # X11
+    "libxcb-xfixes0-dev:${cc_target_arch}"  # X11
+    "libxcb1-dev:${cc_target_arch}"  # X11
+    "libxfixes-dev:${cc_target_arch}"  # X11
+    "libxrandr-dev:${cc_target_arch}"  # X11
+    "libxtst-dev:${cc_target_arch}"  # X11
     "ninja-build"
     "npm"  # web-ui
     "udev"
@@ -128,7 +146,13 @@ function add_debain_based_deps() {
 
   if [ "$skip_libva" == 0 ]; then
     dependencies+=(
-      "libva-dev"  # VA-API
+      "libva-dev:${cc_target_arch}"  # VA-API
+    )
+  fi
+
+  if [ "$cross_compile" == 1 ]; then
+    dependencies+=(
+      "crossbuild-essential-${cc_target_arch}"
     )
   fi
 }
@@ -136,7 +160,7 @@ function add_debain_based_deps() {
 function add_debain_deps() {
   add_debain_based_deps
   dependencies+=(
-    "libayatana-appindicator3-dev"
+    "libayatana-appindicator3-dev:${cc_target_arch}"
   )
 }
 
@@ -148,7 +172,7 @@ function add_ubuntu_deps() {
 
   add_debain_based_deps
   dependencies+=(
-    "libappindicator3-dev"
+    "libappindicator3-dev:${cc_target_arch}"
   )
 }
 
@@ -156,10 +180,19 @@ function add_fedora_deps() {
   dependencies+=(
     "cmake"
     "doxygen"
-    "gcc"
-    "g++"
     "git"
     "graphviz"
+    "ninja-build"
+    "npm"
+    "rpm-build"  # if you want to build an RPM binary package
+    "wget"  # necessary for cuda install with `run` file
+    "which"  # necessary for cuda install with `run` file
+    "xorg-x11-server-Xvfb"  # necessary for headless unit testing
+  )
+
+  arch_dependencies=(
+    "gcc"
+    "g++"
     "libappindicator-gtk3-devel"
     "libcap-devel"
     "libcurl-devel"
@@ -176,20 +209,14 @@ function add_fedora_deps() {
     "libXtst-devel"  # X11
     "mesa-libGL-devel"
     "miniupnpc-devel"
-    "ninja-build"
-    "npm"
     "numactl-devel"
     "openssl-devel"
     "opus-devel"
     "pulseaudio-libs-devel"
-    "rpm-build"  # if you want to build an RPM binary package
-    "wget"  # necessary for cuda install with `run` file
-    "which"  # necessary for cuda install with `run` file
-    "xorg-x11-server-Xvfb"  # necessary for headless unit testing
   )
 
   if [ "$skip_libva" == 0 ]; then
-    dependencies+=(
+    arch_dependencies+=(
       "libva-devel"  # VA-API
     )
   fi
@@ -204,15 +231,15 @@ function install_cuda() {
 
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
   local cuda_suffix=""
-  if [ "$architecture" == "aarch64" ]; then
+  if [ "$cc_target_arch" == "aarch64" ]; then
     local cuda_suffix="_sbsa"
   fi
 
-  if [ "$architecture" == "aarch64" ]; then
+  if [ "$cc_target_arch" == "aarch64" ]; then
     # we need to patch the math-vector.h file for aarch64 fedora
     # back up /usr/include/bits/math-vector.h
     math_vector_file=""
-    if [ "$distro" == "ubuntu" ] || [ "$version" == "24.04" ]; then
+    if [ "$distro" == "ubuntu" ] && [ "$version" == "24.04" ]; then
       math_vector_file="/usr/include/aarch64-linux-gnu/bits/math-vector.h"
     elif [ "$distro" == "fedora" ]; then
       math_vector_file="/usr/include/bits/math-vector.h"
@@ -283,6 +310,11 @@ function run_install() {
     "-DSUNSHINE_ENABLE_DRM=ON"
   )
 
+  if [ "$cross_compile" == 1 ]; then
+    cmake_args+=("-DCMAKE_C_COMPILER=${cc_target_tuple}-gcc")
+    cmake_args+=("-DCMAKE_CXX_COMPILER=${cc_target_tuple}-g++")
+  fi
+
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
   fi
@@ -312,6 +344,11 @@ function run_install() {
 
   # Install the dependencies
   $package_install_command "${dependencies[@]}"
+
+  # Fedora has a special command for installing architecture specific packages
+  if [ "$distro" == "fedora" ]; then
+    $package_install_command_arch "${arch_dependencies[@]}"
+  fi
 
   # reload the environment
   # shellcheck source=/dev/null
@@ -448,6 +485,11 @@ elif grep -q "PLATFORM_ID=\"platform:f39\"" /etc/os-release; then
   version="39"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
+  if [ "$cross_compile" == 0 ]; then
+    package_install_command_arch="${sudo_cmd} dnf -y --releasever=39 --forcearch=${cc_target_arch} install"
+  else
+    package_install_command_arch="${sudo_cmd} dnf -y --installroot=${cc_install_root} --releasever=39 --forcearch=${cc_target_arch} install"
+  fi
   cuda_version="12.4.0"
   cuda_build="550.54.14"
   gcc_version="13"
@@ -457,6 +499,11 @@ elif grep -q "PLATFORM_ID=\"platform:f40\"" /etc/os-release; then
   version="40"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
+  if [ "$cross_compile" == 0 ]; then
+    package_install_command_arch="${sudo_cmd} dnf -y --releasever=39 --forcearch=${cc_target_arch} install"
+  else
+    package_install_command_arch="${sudo_cmd} dnf -y --installroot=${cc_install_root} --releasever=39 --forcearch=${cc_target_arch} install"
+  fi
   cuda_version=
   cuda_build=
   gcc_version="13"
