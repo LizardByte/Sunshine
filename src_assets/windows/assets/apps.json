@@ -8,8 +8,8 @@
     {
       "name": "Steam Big Picture",
       "cmd": "steam://open/bigpicture",
-      "auto-detach": "true",
-      "wait-all": "true",
+      "auto-detach": true,
+      "wait-all": true,
       "image-path": "steam.png"
     }
   ]
