@@ -65,7 +65,7 @@
     "env_vars_desc": "All commands get these environment variables by default:",
     "env_xrandr_example": "Example - Xrandr for Resolution Automation:",
     "exit_timeout": "Exit Timeout",
-    "exit_timeout_desc": "Number of seconds to wait for all app processes to gracefully exit when requested to quit. If unset, the default is to wait up to 5 seconds. If set to zero or a negative value, the app will be immediately terminated.",
+    "exit_timeout_desc": "Number of seconds to wait for all app processes to gracefully exit when requested to quit. If unset, the default is to wait up to 5 seconds. If set to 0, the app will be immediately terminated.",
     "find_cover": "Find Cover",
     "global_prep_desc": "Enable/Disable the execution of Global Prep Commands for this application.",
     "global_prep_name": "Global Prep Commands",
