@@ -111,7 +111,8 @@ class @PROJECT_NAME@ < Formula
     cd "build" do
       system "make"
       system "make", "install"
-
+      
+      bin.install "sunshine-#{ENV["BUILD_VERSION"]}" => "sunshine"
       bin.install "tests/test_sunshine"
     end
 
