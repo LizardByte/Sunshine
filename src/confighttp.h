@@ -5,7 +5,6 @@
 #pragma once
 
 // standard includes
-#include <functional>
 #include <string>
 
 // local includes

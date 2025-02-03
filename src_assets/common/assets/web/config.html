@@ -344,10 +344,7 @@
         this.$forceUpdate()
       },
       serialize() {
-        let config = JSON.parse(JSON.stringify(this.config));
-        config.global_prep_cmd = JSON.stringify(config.global_prep_cmd);
-        config.dd_mode_remapping = JSON.stringify(config.dd_mode_remapping);
-        return config;
+        return JSON.parse(JSON.stringify(this.config));
       },
       save() {
         this.saved = false;
@@ -361,17 +358,8 @@
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            if (["global_prep_cmd", "dd_mode_remapping"].includes(optionKey)) {
-              const config_value = config[optionKey]
-              const default_value = JSON.stringify(tab.options[optionKey])
-
-              if (config_value === default_value) {
-                delete_value = true
-              }
-            }
-
             // todo: add proper type checking
-            if (String(config[optionKey]) === String(tab.options[optionKey])) {
+            if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
               delete_value = true
             }
 
