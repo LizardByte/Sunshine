@@ -20,8 +20,8 @@ namespace display_device {
      * @param mutex A shared mutex for synchronization.
      * @warning Because we are keeping references to shared parameters, we MUST ensure they outlive this object!
      */
-    StateRetryTimer(std::mutex &mutex):
-        mutex { mutex }, timer_thread {
+    StateRetryTimer(std::mutex &mutex, std::chrono::seconds timeout = std::chrono::seconds { 5 }):
+        mutex { mutex }, timeout_duration { timeout }, timer_thread {
           std::thread { [this]() {
             std::unique_lock<std::mutex> lock { this->mutex };
             while (keep_alive) {
@@ -125,6 +125,8 @@ namespace display_device {
   };
 
   session_t::deinit_t::~deinit_t() {
+    // Stop vdd timer before destruction
+    session_t::get().vdd_timer->setup_timer(nullptr);
     session_t::get().restore_state();
   }
 
@@ -137,12 +139,13 @@ namespace display_device {
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
     const auto devices { enum_available_devices() };
-    const auto vdd_devices { display_device::find_device_by_friendlyname(zako_name) };
+    const auto vdd_device { display_device::find_device_by_friendlyname(zako_name) };
     if (!devices.empty()) {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-      zako_device_id = vdd_devices;
+      zako_device_id = vdd_device;
       // 大多数哔叽本开机默认虚拟屏优先导致黑屏
-      if (!vdd_devices.empty() && devices.size() > 1) {
+      // 但是如果只有一个显示器，或者指定使用vdd, 那么就不需要关闭虚拟屏
+      if (!vdd_device.empty() && config::video.output_name != vdd_device && devices.size() > 1) {
         session_t::get().disable_vdd();
         std::this_thread::sleep_for(2333ms);
       }
@@ -196,25 +199,27 @@ namespace display_device {
   }
 
   namespace {
-    constexpr auto kMaxRetryCount = 5;
+    constexpr auto kMaxRetryCount = 3;
     constexpr auto kInitialRetryDelay = 500ms;
     constexpr auto kMaxRetryDelay = 5000ms;
-    
-    std::chrono::milliseconds calculate_exponential_backoff(int attempt) {
+
+    std::chrono::milliseconds
+    calculate_exponential_backoff(int attempt) {
       auto delay = kInitialRetryDelay * (1 << attempt);
       return std::min(delay, kMaxRetryDelay);
     }
 
-    bool execute_vdd_command(const std::string& action) {
+    bool
+    execute_vdd_command(const std::string &action) {
       static const std::string kDevManPath = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe";
       static const std::string kDriverName = "Virtual Display Driver";
-      
+
       boost::process::environment _env = boost::this_process::environment();
       auto working_dir = boost::filesystem::path();
       std::error_code ec;
-      
+
       std::string cmd = kDevManPath + " /" + action + " \"" + kDriverName + "\"";
-      
+
       for (int attempt = 0; attempt < kMaxRetryCount; ++attempt) {
         auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
         if (!ec) {
@@ -222,120 +227,147 @@ namespace display_device {
           child.detach();
           return true;
         }
-        
+
         auto delay = calculate_exponential_backoff(attempt);
-        BOOST_LOG(warning) << "Failed to execute VDD " << action << " command (attempt " 
-                          << attempt + 1 << "), retrying in " << delay.count() << "ms";
+        BOOST_LOG(warning) << "Failed to execute VDD " << action << " command (attempt "
+                           << attempt + 1 << "), retrying in " << delay.count() << "ms";
         std::this_thread::sleep_for(delay);
       }
-      
-      BOOST_LOG(error) << "Failed to execute VDD " << action << " command after " 
-                      << kMaxRetryCount << " attempts";
+
+      BOOST_LOG(error) << "Failed to execute VDD " << action << " command after "
+                       << kMaxRetryCount << " attempts";
       return false;
     }
-  }
 
-  void session_t::enable_vdd() {
+    struct VddSettings {
+      std::string resolutions;
+      std::string fps;
+      bool needs_update;
+    };
+
+    VddSettings
+    prepare_vdd_settings(const parsed_config_t &config) {
+      auto is_res_cached = false;
+      auto is_fps_cached = false;
+      std::ostringstream res_stream, fps_stream;
+
+      res_stream << '[';
+      fps_stream << '[';
+
+      // 检查分辨率是否已缓存
+      for (const auto &res : config::nvhttp.resolutions) {
+        res_stream << res << ',';
+        if (config.resolution && res == to_string(*config.resolution)) {
+          is_res_cached = true;
+        }
+      }
+
+      // 检查帧率是否已缓存
+      for (const auto &fps : config::nvhttp.fps) {
+        fps_stream << fps << ',';
+        if (config.refresh_rate && std::to_string(fps) == to_string(*config.refresh_rate)) {
+          is_fps_cached = true;
+        }
+      }
+
+      // 如果需要更新设置
+      bool needs_update = (!is_res_cached || !is_fps_cached) && config.resolution;
+      if (needs_update) {
+        if (!is_res_cached) {
+          res_stream << to_string(*config.resolution);
+        }
+        if (!is_fps_cached) {
+          fps_stream << to_string(*config.refresh_rate);
+        }
+      }
+
+      // 移除最后的逗号并添加结束括号
+      auto res_str = res_stream.str();
+      auto fps_str = fps_stream.str();
+      if (res_str.back() == ',') res_str.pop_back();
+      if (fps_str.back() == ',') fps_str.pop_back();
+      res_str += ']';
+      fps_str += ']';
+
+      return { res_str, fps_str, needs_update };
+    }
+  }  // namespace
+
+  void
+  session_t::enable_vdd() {
     execute_vdd_command("enable");
   }
 
-  void session_t::disable_vdd() {
+  void
+  session_t::disable_vdd() {
     execute_vdd_command("disable");
   }
 
-  void session_t::disable_enable_vdd() {
-    if (execute_vdd_command("disable")) {
-      execute_vdd_command("enable");
-    }
+  void
+  session_t::disable_enable_vdd() {
+    execute_vdd_command("disable_enable");
   }
 
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
-    // resolutions and fps from parsed
-    bool is_cached_res { false };
-    bool is_cached_fps { false };
-    std::stringstream write_resolutions;
-    std::stringstream write_fps;
-    write_resolutions << "[";
-    write_fps << "[";
+    BOOST_LOG(info) << "准备配置VDD，可用分辨率数量: " << config::nvhttp.resolutions.size();
 
-    BOOST_LOG(info) << "config.resolution.size" << "," << config::nvhttp.resolutions.size();
+    // 准备VDD设置
+    auto vdd_settings = prepare_vdd_settings(config);
 
-    for (auto &res : config::nvhttp.resolutions) {
-      write_resolutions << res << ",";
-      if (res == to_string(*config.resolution)) {
-        is_cached_res = true;
-      }
-    }
-
-    for (auto &fps : config::nvhttp.fps) {
-      write_fps << fps << ",";
-      if (std::to_string(fps) == to_string(*config.refresh_rate)) {
-        is_cached_fps = true;
-      }
-    }
-
+    // 检查是否需要切换VDD设置
     bool should_toggle_vdd = false;
-    if ((!is_cached_res || !is_cached_fps) && config.resolution != boost::none) {
-      std::stringstream new_setting;
-      new_setting << to_string(*config.resolution) << "@" << to_string(*config.refresh_rate);
+    if (vdd_settings.needs_update && config.resolution) {
+      std::string new_setting =
+        to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
 
-      BOOST_LOG(info) << "last_vdd_setting/new_setting from parsed: "sv << display_device::session_t::get().last_vdd_setting << "/" << new_setting.str();
+      BOOST_LOG(info) << "VDD设置 - 当前/新: " << last_vdd_setting << "/" << new_setting;
 
-      should_toggle_vdd = display_device::session_t::get().last_vdd_setting != new_setting.str();
-
+      should_toggle_vdd = (last_vdd_setting != new_setting);
       if (should_toggle_vdd) {
-        write_resolutions << to_string(*config.resolution) << "]";
-        if (is_cached_fps) {
-          std::string str = write_fps.str();
-          str.pop_back();
-          write_fps.str("");
-          write_fps << str << "]";
-        }
-        else {
-          write_fps << to_string(*config.refresh_rate) << "]";
-        }
-
-        confighttp::saveVddSettings(write_resolutions.str(), write_fps.str(), config::video.adapter_name);
-        BOOST_LOG(info) << "Set Client request res to VDD: "sv << new_setting.str();
-        display_device::session_t::get().last_vdd_setting = new_setting.str();
+        confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps,
+          config::video.adapter_name);
+        BOOST_LOG(info) << "更新VDD设置为: " << new_setting;
+        last_vdd_setting = new_setting;
       }
     }
 
     bool should_reset_zako_hdr = false;
-    int retry_count = 0;
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
       // 解锁后启动vdd，避免捕获不到流串流黑屏
       if (settings.is_changing_settings_going_to_fail()) {
-        std::thread { [this]() {
+        std::thread([this]() {
           while (settings.is_changing_settings_going_to_fail()) {
             std::this_thread::sleep_for(777ms);
-            BOOST_LOG(warning) << "Fisrt time Enable vdd will fail - retrying later...";
+            BOOST_LOG(warning) << "等待设置解锁以启用VDD...";
           }
-          session_t::get().enable_vdd();
+          enable_vdd();
           config::video.output_name = zako_device_id;
-        } }
-          .detach();
+        }).detach();
+
         config.device_id = zako_device_id;
         return;
       }
-      session_t::get().enable_vdd();
+      enable_vdd();
     }
     else if (should_toggle_vdd) {
-      session_t::get().disable_enable_vdd();
+      disable_enable_vdd();
       std::this_thread::sleep_for(2333ms);
       should_reset_zako_hdr = true;
     }
 
-    device_zako = display_device::find_device_by_friendlyname(zako_name);
-    while (device_zako.empty() && retry_count < 50) {
-      BOOST_LOG(info) << "Find zako retry_count : "sv << retry_count;
+    // 等待VDD设备就绪
+    const int max_retries = 50;
+    int retry_count = 0;
+    while (device_zako.empty() && retry_count < max_retries) {
+      BOOST_LOG(info) << "查找VDD设备重试次数: " << retry_count;
       retry_count += 1;
       device_zako = display_device::find_device_by_friendlyname(zako_name);
       std::this_thread::sleep_for(233ms);
     }
 
+    // 更新设备配置
     if (!device_zako.empty()) {
       config.device_id = device_zako;
       config::video.output_name = device_zako;
@@ -388,7 +420,22 @@ namespace display_device {
   }
 
   session_t::session_t():
-      timer { std::make_unique<StateRetryTimer>(mutex) } {
+      timer { std::make_unique<StateRetryTimer>(mutex) },
+      vdd_timer { std::make_unique<StateRetryTimer>(mutex, std::chrono::minutes(2)) } {
+    // Start vdd timer to check session status
+    vdd_timer->setup_timer([this]() {
+      if (!display_device::find_device_by_friendlyname(zako_name).empty() && config::video.preferUseVdd && !is_session_active()) {
+        BOOST_LOG(info) << "No active session detected, disabling VDD";
+        disable_vdd();
+      }
+      return false;  // Keep timer running
+    });
+  }
+
+  bool
+  session_t::is_session_active() {
+    std::lock_guard lock { mutex };
+    return rtsp_stream::session_count() > 0;
   }
 
 }  // namespace display_device

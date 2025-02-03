@@ -198,6 +198,9 @@ namespace display_device {
      * @warning MUST BE declared after the settings and mutex members to ensure proper destruction order!.
      */
     std::unique_ptr<StateRetryTimer> timer;
+    std::unique_ptr<StateRetryTimer> vdd_timer;
+    
+    bool is_session_active();
   };
 
 }  // namespace display_device
