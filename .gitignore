@@ -41,14 +41,6 @@
 build/
 cmake-*/
 docs/doxyconfig*
-_deps/
-assets/
-CMakeFiles/
-tests/
-latex/
-html/
-third-party/ffmpeg-*
-third-party/miniupnp
 
 # npm
 node_modules/
