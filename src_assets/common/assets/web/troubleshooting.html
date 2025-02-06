@@ -200,6 +200,9 @@
       <div class="card-body">
         <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
         <br>
+        <div>
+          <button class="btn btn-primary" @click="copyConfig">{{ $t('troubleshooting.copy_config') }}</button>
+        </div>
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>{{ $t('troubleshooting.logs_desc') }}</p>
           <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" style="width: 300px">
@@ -335,6 +338,20 @@
           fetch("/api/boom", {
             method: "GET",
           });
+        },
+        copyConfig() {
+          fetch('/api/config')
+            .then(response => response.json())
+            .then(data => {
+              const configString = JSON.stringify(data, null, 2);
+              navigator.clipboard.writeText(configString)
+                .then(() => {
+                  alert(this.$t('troubleshooting.copy_config_success'));
+                })
+                .catch(err => {
+                  console.error(this.$t('troubleshooting.copy_config_error'), err);
+                });
+            });
         },
       },
     });
