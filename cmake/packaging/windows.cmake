@@ -52,7 +52,7 @@ file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
 # use junction for shaders directory
 file(TO_NATIVE_PATH "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/shaders" shaders_in_build_src_native)
 file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/assets/shaders" shaders_in_build_dest_native)
-execute_process(COMMAND cmd.exe /c mklink /J "${shaders_in_build_dest_native}" "${shaders_in_build_src_native}")
+execute_process(COMMAND cp -rpf "${shaders_in_build_src_native}" "${shaders_in_build_dest_native}")
 
 # set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
 set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}\\\\sunshine.ico")
