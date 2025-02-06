@@ -175,8 +175,6 @@ namespace config {
     std::string file_state;
 
     std::string external_ip;
-    std::vector<std::string> resolutions;
-    std::vector<int> fps;
     int max_bitrate;
   };
 
