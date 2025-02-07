@@ -708,6 +708,18 @@ namespace confighttp {
   }
 
   void
+  boom(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+
+    print_req(request);
+    if (GetConsoleWindow() == NULL) {
+      lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
+      return;
+    }
+    lifetime::exit_sunshine(0, false);
+  }
+
+  void
   resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
 
@@ -928,6 +940,8 @@ namespace confighttp {
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/restart$"]["GET"] = restart;
+    server.resource["^/api/boom$"]["GET"] = boom;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;

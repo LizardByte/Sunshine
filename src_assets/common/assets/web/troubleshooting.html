@@ -3,37 +3,122 @@
 
 <head>
   <%- header %>
-    <style>
-      .troubleshooting-logs {
-        white-space: pre;
-        font-family: monospace;
-        overflow: auto;
-        max-height: 500px;
-        min-height: 500px;
-        font-size: 16px;
-        position: relative;
-      }
+  <style>
+    .troubleshooting-logs {
+      white-space: pre;
+      font-family: monospace;
+      overflow: auto;
+      max-height: 500px;
+      min-height: 500px;
+      font-size: 16px;
+      position: relative;
+    }
 
-      .copy-icon {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        padding: 8px;
-        cursor: pointer;
-        color: rgba(0, 0, 0, 1);
-        appearance: none;
-        border: none;
-        background: none;
-      }
+    .copy-icon {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      padding: 8px;
+      cursor: pointer;
+      color: rgba(0, 0, 0, 1);
+      appearance: none;
+      border: none;
+      background: none;
+    }
 
-      .copy-icon:hover {
-        color: rgba(0, 0, 0, 0.75);
-      }
+    .copy-icon:hover {
+      color: rgba(0, 0, 0, 0.75);
+    }
 
-      .copy-icon:active {
-        color: rgba(0, 0, 0, 1);
-      }
-    </style>
+    .copy-icon:active {
+      color: rgba(0, 0, 0, 1);
+    }
+
+    /* Modal styles */
+    .modal {
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      display: none;
+    }
+
+    .modal.show {
+      display: flex;
+    }
+
+    .modal-content {
+      background-color: #ffffff !important;
+      margin: auto;
+      padding: 20px;
+      border: 1px solid #ddd;
+      max-height: 500px;
+      max-width: 500px;
+      width: 70% !important;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .modal-header h5 {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 800;
+    }
+
+    .close {
+      color: #aaa;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0 2px;
+      position: absolute;
+      right: 12px;
+      top: 8px;
+    }
+
+    .close:hover,
+    .close:focus {
+      color: black;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    .modal-body {
+      margin: 8px 0;
+      font-size: 0.95rem;
+      line-height: 1.4;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 8px;
+      padding-top: 10px;
+      border-top: 1px solid #eee;
+    }
+
+    .modal-footer button {
+      padding: 4px 12px;
+      font-size: 0.9rem;
+    }
+  </style>
 </head>
 
 <body id="app" v-cloak>
@@ -75,6 +160,22 @@
         </div>
       </div>
     </div>
+    <!-- Boom Sunshine -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="boom">{{ $t('troubleshooting.boom_sunshine') }}</h2>
+        <br>
+        <p>{{ $t('troubleshooting.boom_sunshine_desc') }}</p>
+        <div class="alert alert-success" v-if="boomPressed === true">
+          {{ $t('troubleshooting.boom_sunshine_success') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="boomPressed" @click="confirmBoom">
+            {{ $t('troubleshooting.boom_sunshine') }}
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Reset persistent display device settings -->
     <div class="card p-2 my-4" v-if="platform === 'windows'">
       <div class="card-body">
@@ -93,13 +194,15 @@
           </button>
         </div>
       </div>
-      
     </div>
     <!-- Logs -->
     <div class="card p-2 my-4">
       <div class="card-body">
         <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
         <br>
+        <div>
+          <button class="btn btn-primary" @click="copyConfig">{{ $t('troubleshooting.copy_config') }}</button>
+        </div>
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>{{ $t('troubleshooting.logs_desc') }}</p>
           <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" style="width: 300px">
@@ -112,7 +215,22 @@
       </div>
     </div>
   </div>
-
+  <!-- Confirmation Boom Sunshine Modal -->
+  <div id="boomModal" class="modal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5>{{ $t('troubleshooting.confirm_boom') }}</h5>
+          <span class="close" @click="closeModal">&times;</span>
+        </div>
+        <div class="modal-body">
+          <p>{{ $t('troubleshooting.confirm_boom_desc') }}</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" @click="closeModal">{{ $t('_common.cancel') }}</button>
+          <button type="button" class="btn btn-danger" @click="boom">{{ $t('troubleshooting.boom_sunshine') }}</button>
+        </div>
+    </div>
+  </div>
   <script type="module">
     import { createApp } from 'vue'
     import { initApp } from './init'
@@ -128,6 +246,7 @@
           closeAppPressed: false,
           closeAppStatus: null,
           restartPressed: false,
+          boomPressed: false,
           resetDisplayDevicePressed: false,
           resetDisplayDeviceStatus: null,
           logs: 'Loading...',
@@ -206,6 +325,33 @@
           fetch("/api/restart", {
             method: "POST",
           });
+        },
+        confirmBoom() {
+          document.getElementById('boomModal').classList.add('show');
+        },
+        closeModal() {
+          document.getElementById('boomModal').classList.remove('show');
+        },
+        boom() {
+          this.boomPressed = true;
+          this.closeModal();
+          fetch("/api/boom", {
+            method: "GET",
+          });
+        },
+        copyConfig() {
+          fetch('/api/config')
+            .then(response => response.json())
+            .then(data => {
+              const configString = JSON.stringify(data, null, 2);
+              navigator.clipboard.writeText(configString)
+                .then(() => {
+                  alert(this.$t('troubleshooting.copy_config_success'));
+                })
+                .catch(err => {
+                  console.error(this.$t('troubleshooting.copy_config_error'), err);
+                });
+            });
         },
       },
     });

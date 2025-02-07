@@ -87,7 +87,7 @@ export default {
 body {
     background: url(https://raw.gitmirror.com/qiin2333/qiin.github.io/assets/img/sunshine-bg0.webp) center no-repeat;
     background-color: #5496dd;
-    background-size: cover;
+    background-size: auto 100%;
     background-attachment: fixed;
 }
 
