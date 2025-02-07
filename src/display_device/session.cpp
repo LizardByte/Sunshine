@@ -428,13 +428,12 @@ namespace display_device {
         BOOST_LOG(info) << "No active session detected, disabling VDD";
         disable_vdd();
       }
-      return false;  // Keep timer running
+      return false;
     });
   }
 
   bool
   session_t::is_session_active() {
-    std::lock_guard lock { mutex };
     return rtsp_stream::session_count() > 0;
   }
 
