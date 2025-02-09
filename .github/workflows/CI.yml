@@ -554,12 +554,16 @@ jobs:
           rm '/usr/local/bin/2to3-3.12'
           rm '/usr/local/bin/idle3'
           rm '/usr/local/bin/idle3.12'
+          rm '/usr/local/bin/idle3.13'
           rm '/usr/local/bin/pydoc3'
           rm '/usr/local/bin/pydoc3.12'
+          rm '/usr/local/bin/pydoc3.13'
           rm '/usr/local/bin/python3'
-          rm '/usr/local/bin/python3-config'
           rm '/usr/local/bin/python3.12'
+          rm '/usr/local/bin/python3.13'
+          rm '/usr/local/bin/python3-config'
           rm '/usr/local/bin/python3.12-config'
+          rm '/usr/local/bin/python3.13-config'
           brew install python
 
       - name: Setup python
@@ -887,7 +891,6 @@ jobs:
             mingw-w64-ucrt-x86_64-graphviz
             mingw-w64-ucrt-x86_64-MinHook
             mingw-w64-ucrt-x86_64-miniupnpc
-            mingw-w64-ucrt-x86_64-nlohmann-json
             mingw-w64-ucrt-x86_64-nodejs
             mingw-w64-ucrt-x86_64-nsis
             mingw-w64-ucrt-x86_64-onevpl

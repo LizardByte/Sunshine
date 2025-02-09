@@ -765,14 +765,14 @@ namespace nvhttp {
     response->close_connection_after_response = true;
   }
 
-  pt::ptree get_all_clients() {
-    pt::ptree named_cert_nodes;
+  nlohmann::json get_all_clients() {
+    nlohmann::json named_cert_nodes = nlohmann::json::array();
     client_t &client = client_root;
     for (auto &named_cert : client.named_devices) {
-      pt::ptree named_cert_node;
-      named_cert_node.put("name"s, named_cert.name);
-      named_cert_node.put("uuid"s, named_cert.uuid);
-      named_cert_nodes.push_back(std::make_pair(""s, named_cert_node));
+      nlohmann::json named_cert_node;
+      named_cert_node["name"] = named_cert.name;
+      named_cert_node["uuid"] = named_cert.uuid;
+      named_cert_nodes.push_back(named_cert_node);
     }
 
     return named_cert_nodes;
@@ -1177,13 +1177,13 @@ namespace nvhttp {
     save_state();
   }
 
-  int unpair_client(std::string uuid) {
-    int removed = 0;
+  bool unpair_client(const std::string_view uuid) {
+    bool removed = false;
     client_t &client = client_root;
     for (auto it = client.named_devices.begin(); it != client.named_devices.end();) {
       if ((*it).uuid == uuid) {
         it = client.named_devices.erase(it);
-        removed++;
+        removed = true;
       } else {
         ++it;
       }
