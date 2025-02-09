@@ -509,7 +509,8 @@ namespace config {
       {}  // wa
     },  // display_device
 
-    1  // min_fps_factor
+    1,  // min_fps_factor
+    0  // max_bitrate
   };
 
   audio_t audio {
@@ -1138,6 +1139,7 @@ namespace config {
     bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
 
     int_between_f(vars, "min_fps_factor", video.min_fps_factor, {1, 3});
+    int_f(vars, "max_bitrate", video.max_bitrate);
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1151,7 +1153,6 @@ namespace config {
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
-    int_f(vars, "max_bitrate", nvhttp.max_bitrate);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
