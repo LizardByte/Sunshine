@@ -497,7 +497,7 @@ namespace config {
     {},  // output_name
 
     {
-      video_t::dd_t::config_option_e::verify_only,  // configuration_option
+      video_t::dd_t::config_option_e::disabled,  // configuration_option
       video_t::dd_t::resolution_option_e::automatic,  // resolution_option
       {},  // manual_resolution
       video_t::dd_t::refresh_rate_option_e::automatic,  // refresh_rate_option
