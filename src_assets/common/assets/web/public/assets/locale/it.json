@@ -252,6 +252,8 @@
     "log_level_desc": "Il livello minimo di log sullo standard output",
     "log_path": "Percorso File Di Log",
     "log_path_desc": "Il file in cui vengono memorizzati i log attuali di Sunshine.",
+    "max_bitrate": "Bitrate Massimo",
+    "max_bitrate_desc": "Il bitrate massimo (in Kbps) in cui Sunshine codificherà il flusso. Se impostato a 0, utilizzerà sempre il bitrate richiesto dal Moonlight.",
     "min_fps_factor": "Fattore FPS Minimo",
     "min_fps_factor_desc": "Sunshine userà questo fattore per calcolare il tempo minimo tra i frame. Aumentare leggermente questo valore può aiutare durante lo streaming per lo più di contenuti statici. Valori più alti consumeranno più larghezza di banda.",
     "min_threads": "Conteggio Minimo Thread CPU",
