@@ -252,6 +252,8 @@
     "log_level_desc": "Minimalny poziom logów wyświetlany w konsoli",
     "log_path": "Ścieżka pliku dziennika",
     "log_path_desc": "Plik, w którym przechowywane są bieżące dzienniki Sunshine.",
+    "max_bitrate": "Maksymalna przepływność",
+    "max_bitrate_desc": "Maksymalny bitrate (w Kbps), który Sunshine zakoduje stream. Jeśli ustawiony na 0, zawsze będzie używał bitrate żądany przez Moonlight.",
     "min_fps_factor": "Minimalny współczynnik FPS",
     "min_fps_factor_desc": "Sunshine użyje tego współczynnika do obliczenia minimalnego czasu między klatkami. Nieznaczne zwiększenie tej wartości może pomóc w przypadku strumieniowania głównie treści statycznych. Wyższe wartości będą zużywać więcej przepustowości.",
     "min_threads": "Minimalna liczba wątków procesora",
