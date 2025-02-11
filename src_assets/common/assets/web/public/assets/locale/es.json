@@ -252,6 +252,8 @@
     "log_level_desc": "El nivel mínimo de registro impreso a nivel estándar",
     "log_path": "Ruta del archivo de registro",
     "log_path_desc": "El archivo donde se almacenan los registros actuales de Sunshine.",
+    "max_bitrate": "Tasa de bits máxima",
+    "max_bitrate_desc": "La tasa de bits máxima (en Kbps) que Sunshine codificará la secuencia. Si se establece en 0, siempre utilizará la tasa de bits solicitada por la luz lunar.",
     "min_fps_factor": "Factor FPS Mínimo",
     "min_fps_factor_desc": "Sunshine usará este factor para calcular el tiempo mínimo entre fotogramas. Incrementar este valor ligeramente puede ayudar a  la transmisión en su mayoría de contenido estático. Valores más altos consumirán más banda ancha.",
     "min_threads": "Recuento mínimo de hilos de CPU",
