@@ -68,7 +68,7 @@ function addRemappingEntry() {
                   {{ $t('config.dd_config_label') }}
                 </label>
                 <select id="dd_configuration_option" class="form-select" v-model="config.dd_configuration_option">
-                  <option value="disabled">{{ $t('_common.disabled') }}</option>
+                  <option value="disabled">{{ $t('_common.disabled_def') }}</option>
                   <option value="verify_only">{{ $t('config.dd_config_verify_only') }}</option>
                   <option value="ensure_active">{{ $t('config.dd_config_ensure_active') }}</option>
                   <option value="ensure_primary">{{ $t('config.dd_config_ensure_primary') }}</option>
