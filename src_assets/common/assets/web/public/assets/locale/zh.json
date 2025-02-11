@@ -252,6 +252,8 @@
     "log_level_desc": "打印到标准输出的最小日志级别",
     "log_path": "日志文件路径",
     "log_path_desc": "Sunshine 当前日志存储的文件。",
+    "max_bitrate": "最大比特率",
+    "max_bitrate_desc": "Sunshine 的最大比特率(Kbps) 将编码流。如果设置为 0，它将始终使用月亮请求的比特率。",
     "min_fps_factor": "最小帧率系数",
     "min_fps_factor_desc": "Sunshine 将使用此系数来计算帧之间的最小时间。当串流的内容主要为静态内容时，稍微增加此值可能会有帮助。更大的值将会使用更大的带宽。",
     "min_threads": "最低 CPU 线程数",
