@@ -252,6 +252,8 @@
     "log_level_desc": "Le niveau minimum des journaux affiché sur la sortie standard.",
     "log_path": "Chemin du fichier journal",
     "log_path_desc": "Le fichier où sont stockés les logs actuels de Sunshine.",
+    "max_bitrate": "Débit maximum",
+    "max_bitrate_desc": "Le débit maximum (en Kbps) auquel Sunshine encode le flux. Si réglé sur 0, il utilisera toujours le débit demandé par Lune.",
     "min_fps_factor": "Facteur FPS minimum",
     "min_fps_factor_desc": "Sunshine utilisera ce facteur pour calculer le temps minimum entre les images. Augmenter légèrement cette valeur peut aider lorsque vous streamez du contenu statique. Des valeurs plus élevées consommeront plus de bande passante.",
     "min_threads": "Nombre minimum de threads CPU",
