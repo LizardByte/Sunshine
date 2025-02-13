@@ -138,6 +138,12 @@ namespace display_device {
     void
     reset_persistence();
 
+    bool
+    create_vdd_monitor();
+
+    bool
+    destroy_vdd_monitor();
+
     void
     enable_vdd();
 
@@ -146,6 +152,9 @@ namespace display_device {
 
     void
     disable_enable_vdd();
+
+    void
+    toggle_display_power();
 
     void
     prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session);
@@ -199,8 +208,11 @@ namespace display_device {
      */
     std::unique_ptr<StateRetryTimer> timer;
     std::unique_ptr<StateRetryTimer> vdd_timer;
-    
-    bool is_session_active();
+    std::chrono::steady_clock::time_point last_toggle_time;  ///< 上次切换显示器电源的时间点
+    std::chrono::milliseconds debounce_interval; 
+
+    bool
+    is_session_active();
   };
 
 }  // namespace display_device

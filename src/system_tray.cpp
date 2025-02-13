@@ -111,6 +111,12 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
+  void
+  tray_toggle_display_cb(struct tray_menu *item) {
+    BOOST_LOG(info) << "Toggling display power from system tray"sv;
+    display_device::session_t::get().toggle_display_power();
+  }
+
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
@@ -120,13 +126,14 @@ namespace system_tray {
         // todo - use boost/locale to translate menu strings
         { .text = "Open Sunshine", .cb = tray_open_ui_cb },
         { .text = "-" },
-        { .text = "Donate",
-          .submenu =
-            (struct tray_menu[]) {
-              { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-              { .text = "Patreon", .cb = tray_donate_patreon_cb },
-              { .text = "PayPal", .cb = tray_donate_paypal_cb },
-              { .text = nullptr } } },
+        { .text = "Toggle Display Power", .cb = tray_toggle_display_cb },
+        // { .text = "Donate",
+        //   .submenu =
+        //     (struct tray_menu[]) {
+        //       { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
+        //       { .text = "Patreon", .cb = tray_donate_patreon_cb },
+        //       { .text = "PayPal", .cb = tray_donate_paypal_cb },
+        //       { .text = nullptr } } },
         { .text = "-" },
   // Currently display device settings are only supported on Windows
   #ifdef _WIN32

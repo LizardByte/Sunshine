@@ -143,12 +143,6 @@ namespace display_device {
     if (!devices.empty()) {
       BOOST_LOG(info) << "Available display devices: " << to_string(devices);
       zako_device_id = vdd_device;
-      // 大多数哔叽本开机默认虚拟屏优先导致黑屏
-      // 但是如果只有一个显示器，或者指定使用vdd, 那么就不需要关闭虚拟屏
-      if (!vdd_device.empty() && config::video.output_name != vdd_device && devices.size() > 1) {
-        session_t::get().disable_vdd();
-        std::this_thread::sleep_for(2333ms);
-      }
     }
 
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
@@ -239,6 +233,98 @@ namespace display_device {
       return false;
     }
 
+    constexpr auto kVddRetryInterval = 2333ms;
+    const wchar_t *kVddPipeName = L"\\\\.\\pipe\\ZakoVDDPipe";
+    const DWORD kPipeTimeoutMs = 5000;
+    const DWORD kPipeBufferSize = 4096;
+
+    HANDLE
+    connect_to_pipe_with_retry(const wchar_t *pipe_name, int max_retries = 3) {
+      HANDLE hPipe = INVALID_HANDLE_VALUE;
+      int attempt = 0;
+      auto retry_delay = kInitialRetryDelay;
+
+      while (attempt < max_retries) {
+        hPipe = CreateFileW(
+          pipe_name,
+          GENERIC_READ | GENERIC_WRITE,
+          0,
+          NULL,
+          OPEN_EXISTING,
+          FILE_FLAG_OVERLAPPED,  // 使用异步IO
+          NULL);
+
+        if (hPipe != INVALID_HANDLE_VALUE) {
+          DWORD mode = PIPE_READMODE_MESSAGE;
+          if (SetNamedPipeHandleState(hPipe, &mode, NULL, NULL)) {
+            return hPipe;
+          }
+          CloseHandle(hPipe);
+        }
+
+        ++attempt;
+        retry_delay = calculate_exponential_backoff(attempt);
+        std::this_thread::sleep_for(retry_delay);
+      }
+      return INVALID_HANDLE_VALUE;
+    }
+
+    bool
+    execute_pipe_command(const wchar_t *pipe_name, const wchar_t *command, std::string *response = nullptr) {
+      auto hPipe = connect_to_pipe_with_retry(pipe_name);
+      if (hPipe == INVALID_HANDLE_VALUE) {
+        BOOST_LOG(error) << "连接MTT虚拟显示管道失败，已重试多次";
+        return false;
+      }
+
+      // 异步IO结构体
+      OVERLAPPED overlapped = { 0 };
+      overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+      struct HandleGuard {
+        HANDLE handle;
+        ~HandleGuard() {
+          if (handle) CloseHandle(handle);
+        }
+      } event_guard { overlapped.hEvent };
+
+      // 发送命令（使用宽字符版本）
+      DWORD bytesWritten;
+      size_t cmd_len = (wcslen(command) + 1) * sizeof(wchar_t);  // 包含终止符
+      if (!WriteFile(hPipe, command, (DWORD) cmd_len, &bytesWritten, &overlapped)) {
+        if (GetLastError() != ERROR_IO_PENDING) {
+          BOOST_LOG(error) << L"发送" << command << L"命令失败，错误代码: " << GetLastError();
+          return false;
+        }
+
+        // 等待写入完成
+        DWORD waitResult = WaitForSingleObject(overlapped.hEvent, kPipeTimeoutMs);
+        if (waitResult != WAIT_OBJECT_0) {
+          BOOST_LOG(error) << L"发送" << command << L"命令超时";
+          return false;
+        }
+      }
+
+      // 读取响应
+      if (response) {
+        char buffer[kPipeBufferSize];
+        DWORD bytesRead;
+        if (!ReadFile(hPipe, buffer, sizeof(buffer), &bytesRead, &overlapped)) {
+          if (GetLastError() != ERROR_IO_PENDING) {
+            BOOST_LOG(warning) << "读取响应失败，错误代码: " << GetLastError();
+            return false;
+          }
+
+          DWORD waitResult = WaitForSingleObject(overlapped.hEvent, kPipeTimeoutMs);
+          if (waitResult == WAIT_OBJECT_0 && GetOverlappedResult(hPipe, &overlapped, &bytesRead, FALSE)) {
+            buffer[bytesRead] = '\0';
+            *response = std::string(buffer, bytesRead);
+          }
+        }
+      }
+
+      return true;
+    }
     struct VddSettings {
       std::string resolutions;
       std::string fps;
@@ -293,6 +379,47 @@ namespace display_device {
     }
   }  // namespace
 
+  bool
+  session_t::create_vdd_monitor() {
+    std::string response;
+    if (!execute_pipe_command(kVddPipeName, L"CREATEMONITOR", &response)) {
+      BOOST_LOG(error) << "创建虚拟显示器失败";
+      return false;
+    }
+
+    BOOST_LOG(info) << "创建虚拟显示器完成，响应: " << response;
+    return true;
+  }
+
+  bool
+  session_t::destroy_vdd_monitor() {
+    std::string response;
+    if (!execute_pipe_command(kVddPipeName, L"DESTROYMONITOR", &response)) {
+      BOOST_LOG(error) << "销毁虚拟显示器失败";
+      return false;
+    }
+
+    BOOST_LOG(info) << "销毁虚拟显示器完成，响应: " << response;
+    return true;
+  }
+
+  bool
+  reload_driver() {
+    std::string response;
+    if (!execute_pipe_command(kVddPipeName, L"RELOAD_DRIVER", &response)) {
+      return false;
+    }
+    return true;
+
+    // if (response != "FinishInit") {
+    //   BOOST_LOG(error) << "驱动重载异常，响应: " << response;
+    //   return false;
+    // }
+
+    // BOOST_LOG(info) << "开始创建虚拟显示器";
+    // return session_t::get().create_vdd_monitor();
+  }
+
   void
   session_t::enable_vdd() {
     execute_vdd_command("enable");
@@ -305,56 +432,56 @@ namespace display_device {
 
   void
   session_t::disable_enable_vdd() {
-    execute_vdd_command("disable_enable");
+    reload_driver();
+  }
+
+  std::chrono::steady_clock::time_point last_toggle_time;
+  std::chrono::milliseconds debounce_interval { 2000 };  // 2000毫秒防抖间隔
+
+  void
+  session_t::toggle_display_power() {
+    auto now = std::chrono::steady_clock::now();
+
+    if (now - last_toggle_time < debounce_interval) {
+      BOOST_LOG(debug) << "忽略快速重复的显示器开关请求";
+      return;
+    }
+
+    last_toggle_time = now;
+
+    if (display_device::find_device_by_friendlyname(zako_name).empty()) {
+      create_vdd_monitor();
+    }
+    else {
+      destroy_vdd_monitor();
+    }
   }
 
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
-    BOOST_LOG(info) << "准备配置VDD，可用分辨率数量: " << config::nvhttp.resolutions.size();
-
-    // 准备VDD设置
     auto vdd_settings = prepare_vdd_settings(config);
-
-    // 检查是否需要切换VDD设置
     bool should_toggle_vdd = false;
+
     if (vdd_settings.needs_update && config.resolution) {
-      std::string new_setting =
-        to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
-
-      BOOST_LOG(info) << "VDD设置 - 当前/新: " << last_vdd_setting << "/" << new_setting;
-
+      std::string new_setting = to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
       should_toggle_vdd = (last_vdd_setting != new_setting);
+
       if (should_toggle_vdd) {
         confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps,
           config::video.adapter_name);
-        BOOST_LOG(info) << "更新VDD设置为: " << new_setting;
         last_vdd_setting = new_setting;
       }
     }
 
-    bool should_reset_zako_hdr = false;
+    if (should_toggle_vdd) {
+      disable_enable_vdd();
+      std::this_thread::sleep_for(kVddRetryInterval);
+    }
+
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
-      // 解锁后启动vdd，避免捕获不到流串流黑屏
-      if (settings.is_changing_settings_going_to_fail()) {
-        std::thread([this]() {
-          while (settings.is_changing_settings_going_to_fail()) {
-            std::this_thread::sleep_for(777ms);
-            BOOST_LOG(warning) << "等待设置解锁以启用VDD...";
-          }
-          enable_vdd();
-          config::video.output_name = zako_device_id;
-        }).detach();
-
-        config.device_id = zako_device_id;
-        return;
-      }
-      enable_vdd();
-    }
-    else if (should_toggle_vdd) {
-      disable_enable_vdd();
-      std::this_thread::sleep_for(2333ms);
-      should_reset_zako_hdr = true;
+      create_vdd_monitor();
+      std::this_thread::sleep_for(233ms);
     }
 
     // 等待VDD设备就绪
@@ -371,17 +498,6 @@ namespace display_device {
     if (!device_zako.empty()) {
       config.device_id = device_zako;
       config::video.output_name = device_zako;
-
-      // 解决热切换可能造成的HDR映射异常
-      if (should_reset_zako_hdr && session.enable_hdr) {
-        std::thread { [this, device_zako]() {
-          display_device::set_hdr_states({ { device_zako, hdr_state_e::disabled } });
-          BOOST_LOG(info) << "Reset HDR stat for: "sv << device_zako;
-          std::this_thread::sleep_for(1s);
-          display_device::set_hdr_states({ { device_zako, hdr_state_e::enabled } });
-        } }
-          .detach();
-      }
     }
   }
 
@@ -421,15 +537,17 @@ namespace display_device {
 
   session_t::session_t():
       timer { std::make_unique<StateRetryTimer>(mutex) },
-      vdd_timer { std::make_unique<StateRetryTimer>(mutex, std::chrono::minutes(2)) } {
+      vdd_timer { std::make_unique<StateRetryTimer>(mutex, std::chrono::minutes(2)) },
+      last_toggle_time { std::chrono::steady_clock::now() },
+      debounce_interval { 2000 } {
     // Start vdd timer to check session status
-    vdd_timer->setup_timer([this]() {
-      if (!display_device::find_device_by_friendlyname(zako_name).empty() && config::video.preferUseVdd && !is_session_active()) {
-        BOOST_LOG(info) << "No active session detected, disabling VDD";
-        disable_vdd();
-      }
-      return false;
-    });
+    // vdd_timer->setup_timer([this]() {
+    //   if (!display_device::find_device_by_friendlyname(zako_name).empty() && config::video.preferUseVdd && !is_session_active()) {
+    //     BOOST_LOG(info) << "No active session detected, disabling VDD";
+    //     destroy_vdd_monitor();
+    //   }
+    //   return false;
+    // });
   }
 
   bool

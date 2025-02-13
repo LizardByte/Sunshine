@@ -743,7 +743,7 @@ namespace display_device {
       if (!vdd_device.empty() && devices.size() > 1) {
         std::this_thread::sleep_for(777ms);
         BOOST_LOG(info) << "preferUseVdd && devices.size() > 1, turning off vdd";
-        display_device::session_t::get().disable_vdd();
+        display_device::session_t::get().destroy_vdd_monitor();
       }
     }
 

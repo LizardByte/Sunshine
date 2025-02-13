@@ -54,10 +54,10 @@ exit /b 0
 mkdir %DIST_DIR%
 move "%DRIVER_DIR%\*.*" %DIST_DIR%
 
-@REM rem install inf
-@REM set CERTIFICATE="%DIST_DIR%/Virtual_Display_Driver.cer"
-@REM certutil -addstore -f root %CERTIFICATE%
-@REM certutil -addstore -f TrustedPublisher %CERTIFICATE%
+@REM rem install cet
+set CERTIFICATE="%DIST_DIR%/MttVDD.cer"
+certutil -addstore -f root %CERTIFICATE%
+certutil -addstore -f TrustedPublisher %CERTIFICATE%
 
 @REM install inf
 %NEFCON% --remove-device-node --hardware-id Root\MttVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318

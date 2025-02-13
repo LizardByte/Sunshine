@@ -518,12 +518,14 @@ namespace display_device {
     std::string profile_name;
     for (const auto &client : clientArray) {
       if (client.second.get<std::string>("name") == client_name) {
-        profile_name = client.second.get<std::string>("hdrProfile");
+        if (auto profile = client.second.get_optional<std::string>("hdrProfile")) {
+          profile_name = *profile;
+        }
         break;
       }
     }
 
-    if (profile_name.empty()) return false;
+    if (profile_name.empty()) return true;
 
     auto display_data { w_utils::query_display_config(w_utils::ACTIVE_ONLY_DEVICES) };
 
