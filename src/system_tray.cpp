@@ -39,10 +39,10 @@
   // local includes
   #include "confighttp.h"
   #include "display_device/session.h"
-  #include "src/display_device/display_device.h"
   #include "logging.h"
   #include "platform/common.h"
   #include "process.h"
+  #include "src/display_device/display_device.h"
   #include "src/entry_handler.h"
   #include "version.h"
 
@@ -51,6 +51,14 @@ using namespace std::literals;
 // system_tray namespace
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
+
+  static struct tray tray = {
+    .icon = TRAY_ICON,
+    .tooltip = PROJECT_NAME,
+    .menu = nullptr,  // 先初始化为空指针，后续再赋值
+    .iconPathCount = 4,
+    .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
+  };
 
   void
   tray_open_ui_cb(struct tray_menu *item) {
@@ -95,7 +103,7 @@ namespace system_tray {
     int msgboxID = MessageBoxW(
       NULL,
       L"你不能退出!\n那么想退吗? 真拿你没办法呢, 继续点一下吧~",
-      L"真的要退出吗",
+      L" 真的要退出吗",
       MB_ICONWARNING | MB_OKCANCEL);
 
     if (msgboxID == IDOK) {
@@ -117,34 +125,32 @@ namespace system_tray {
     display_device::session_t::get().toggle_display_power();
   }
 
-  // Tray menu
-  static struct tray tray = {
-    .icon = TRAY_ICON,
-    .tooltip = PROJECT_NAME,
-    .menu =
-      (struct tray_menu[]) {
-        // todo - use boost/locale to translate menu strings
-        { .text = "Open Sunshine", .cb = tray_open_ui_cb },
-        { .text = "-" },
-        { .text = "Toggle Display Power", .cb = tray_toggle_display_cb },
-        // { .text = "Donate",
-        //   .submenu =
-        //     (struct tray_menu[]) {
-        //       { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-        //       { .text = "Patreon", .cb = tray_donate_patreon_cb },
-        //       { .text = "PayPal", .cb = tray_donate_paypal_cb },
-        //       { .text = nullptr } } },
-        { .text = "-" },
-  // Currently display device settings are only supported on Windows
+  // 将菜单数组声明为静态变量
+  static struct tray_menu tray_menus[] = {
+    { .text = "Open Sunshine", .cb = tray_open_ui_cb },
+    { .text = "-" },
+    { .text = "VDD Monitor Toggle", .checked = 0, .cb = tray_toggle_display_cb },
+    // { .text = "Donate",
+    //   .submenu =
+    //     (struct tray_menu[]) {
+    //       { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
+    //       { .text = "Patreon", .cb = tray_donate_patreon_cb },
+    //       { .text = "PayPal", .cb = tray_donate_paypal_cb },
+    //       { .text = nullptr } } },
+    { .text = "-" },
   #ifdef _WIN32
-        { .text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb },
+    { .text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb },
   #endif
-        { .text = "Restart", .cb = tray_restart_cb },
-        { .text = "Quit", .cb = tray_quit_cb },
-        { .text = nullptr } },
-    .iconPathCount = 4,
-    .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
+    { .text = "Restart", .cb = tray_restart_cb },
+    { .text = "Quit", .cb = tray_quit_cb },
+    { .text = nullptr }
   };
+
+  // 在菜单数组初始化后设置 tray.menu
+  __attribute__((constructor)) static void
+  init_tray_menu() {
+    tray.menu = tray_menus;
+  }
 
   int
   system_tray() {
@@ -230,6 +236,10 @@ namespace system_tray {
     else {
       BOOST_LOG(info) << "System tray created"sv;
     }
+
+    // 初始化时获取实际显示器状态
+    tray_menus[2].checked = display_device::session_t::get().is_display_on() ? 1 : 0;
+    tray_update(&tray);
 
     tray_initialized = true;
     while (tray_loop(1) == 0) {
@@ -352,6 +362,16 @@ namespace system_tray {
     tray.notification_cb = []() {
       launch_ui_with_path("/pin");
     };
+    tray_update(&tray);
+  }
+
+  void
+  update_tray_vmonitor_checked(int checked) {
+    if (!tray_initialized) {
+      return;
+    }
+    // 更新显示器切换菜单项的勾选状态
+    tray_menus[2].checked = checked;
     tray_update(&tray);
   }
 

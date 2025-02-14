@@ -153,6 +153,9 @@ namespace display_device {
     void
     disable_enable_vdd();
 
+    bool
+    is_display_on();
+
     void
     toggle_display_power();
 

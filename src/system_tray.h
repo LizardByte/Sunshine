@@ -105,4 +105,7 @@ namespace system_tray {
    */
   void
   update_tray_require_pin(std::string pin_name);
+
+  void
+  update_tray_vmonitor_checked(int checked);
 }  // namespace system_tray

@@ -9,6 +9,7 @@
 #include "src/globals.h"
 #include "src/platform/common.h"
 #include "src/rtsp.h"
+#include "src/system_tray.h"
 #include "to_string.h"
 
 namespace display_device {
@@ -386,7 +387,9 @@ namespace display_device {
       BOOST_LOG(error) << "创建虚拟显示器失败";
       return false;
     }
-
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    system_tray::update_tray_vmonitor_checked(1);
+#endif
     BOOST_LOG(info) << "创建虚拟显示器完成，响应: " << response;
     return true;
   }
@@ -398,6 +401,10 @@ namespace display_device {
       BOOST_LOG(error) << "销毁虚拟显示器失败";
       return false;
     }
+
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+    system_tray::update_tray_vmonitor_checked(0);
+#endif
 
     BOOST_LOG(info) << "销毁虚拟显示器完成，响应: " << response;
     return true;
@@ -435,6 +442,12 @@ namespace display_device {
     reload_driver();
   }
 
+  bool
+  session_t::is_display_on() {
+    std::lock_guard lock { mutex };
+    return !display_device::find_device_by_friendlyname(zako_name).empty();
+  }
+
   std::chrono::steady_clock::time_point last_toggle_time;
   std::chrono::milliseconds debounce_interval { 5000 };  // 5000毫秒防抖间隔
 
@@ -443,34 +456,39 @@ namespace display_device {
     auto now = std::chrono::steady_clock::now();
 
     if (now - last_toggle_time < debounce_interval) {
-        BOOST_LOG(debug) << "忽略快速重复的显示器开关请求";
-        return;
+      BOOST_LOG(debug) << "忽略快速重复的显示器开关请求";
+      return;
     }
 
     last_toggle_time = now;
 
-    if (display_device::find_device_by_friendlyname(zako_name).empty()) {
-        if (create_vdd_monitor()) {
-            // 启动新线程处理确认弹窗和超时
-            std::thread([this]() {
-                // Windows弹窗确认
-                auto future = std::async(std::launch::async, []() {
-                    return MessageBoxW(nullptr, 
-                        L"已创建虚拟显示器，是否继续使用？", 
-                        L"显示器确认", 
-                        MB_YESNO | MB_ICONQUESTION) == IDYES;
-                });
+    if (!is_display_on()) {
+      if (create_vdd_monitor()) {
+        // 启动新线程处理确认弹窗和超时
+        std::thread([this]() {
+          // Windows弹窗确认
+          auto future = std::async(std::launch::async, []() {
+            return MessageBoxW(nullptr,
+                     L"已创建虚拟显示器，是否继续使用？",
+                     L"显示器确认",
+                     MB_YESNO | MB_ICONQUESTION) == IDYES;
+          });
 
-                // 等待20秒超时
-                if (future.wait_for(20s) != std::future_status::ready || !future.get()) {
-                    BOOST_LOG(info) << "用户未确认或超时，自动销毁虚拟显示器";
-                    destroy_vdd_monitor();
-                }
-            }).detach();  // 分离线程自动管理
-        }
+          // 等待20秒超时
+          if (future.wait_for(20s) != std::future_status::ready || !future.get()) {
+            BOOST_LOG(info) << "用户未确认或超时，自动销毁虚拟显示器";
+            // 强制关闭消息框
+            HWND hwnd = GetActiveWindow();
+            if (hwnd && IsWindow(hwnd)) {
+              PostMessage(hwnd, WM_CLOSE, 0, 0);
+            }
+            destroy_vdd_monitor();
+          }
+        }).detach();  // 分离线程自动管理
+      }
     }
     else {
-        destroy_vdd_monitor();
+      destroy_vdd_monitor();
     }
   }
 
