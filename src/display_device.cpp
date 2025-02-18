@@ -621,7 +621,7 @@ namespace display_device {
           std::make_shared<FileSettingsPersistence>(persistence_filepath)
         ),
         WinWorkarounds {
-          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle ? std::make_optional(500ms) : std::nullopt
+          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle_delay != std::chrono::milliseconds::zero() ? std::make_optional(video_config.dd.wa.hdr_toggle_delay) : std::nullopt
         }
       );
 #else

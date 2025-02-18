@@ -1,7 +1,6 @@
 <script setup>
 import { ref } from 'vue'
 import PlatformLayout from '../../../PlatformLayout.vue'
-import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps({
   platform: String,
@@ -132,11 +131,18 @@ function addRemappingEntry() {
                   <option value="auto">{{ $t('config.dd_hdr_option_auto') }}</option>
                 </select>
                 <!-- HDR toggle -->
-                <Checkbox id="dd_wa_hdr_toggle"
-                          locale-prefix="config"
-                          v-model="config.dd_wa_hdr_toggle"
-                          default="false"
-                ></Checkbox>
+                <label for="dd_wa_hdr_toggle_delay" class="form-label">
+                  {{ $t('config.dd_wa_hdr_toggle_delay') }}
+                </label>
+                <input type="number" class="form-control" id="dd_wa_hdr_toggle_delay" placeholder="0" min="0" max="3000"
+                       v-model="config.dd_wa_hdr_toggle_delay" />
+                <div class="form-text">
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_1') }}
+                  <br>
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_2') }}
+                  <br>
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_3') }}
+                </div>
               </div>
 
               <!-- Config revert delay -->
