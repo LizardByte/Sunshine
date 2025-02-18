@@ -516,30 +516,18 @@
           });
         }
       },
-      addPrepCmd() {
-        let template = {
-          do: "",
-          undo: ""
-        };
-
-        if (this.platform === 'windows') {
-          template = {...template, elevated: false};
+      addCommand(type, template) {
+        const cmd = {
+          ...template,
+          ...(this.platform === 'windows' && { elevated: false })
         }
-
-        this.editForm["prep-cmd"].push(template);
+        this.editForm[type].push(cmd)
+      },
+      addPrepCmd() {
+        this.addCommand('prep-cmd', { do: "", undo: "" })
       },
       addMenuCmd() {
-        let template = {
-          id: nanoid(10),
-          name: "",
-          cmd: ""
-        };
-
-        if (this.platform === 'windows') {
-          template = {...template, elevated: false};
-        }
-
-        this.editForm["menu-cmd"].push(template);
+        this.addCommand('menu-cmd', { id: nanoid(10), name: "", cmd: "" })
       },
       showCoverFinder($event) {
         this.coverCandidates = [];

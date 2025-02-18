@@ -163,13 +163,13 @@ namespace display_device {
     }
 
     if (settings.is_changing_settings_going_to_fail()) {
-      timer->setup_timer([this, config_copy = *parsed_config]() {
+      timer->setup_timer([this, config_copy = *parsed_config, &session]() {
         if (settings.is_changing_settings_going_to_fail()) {
           BOOST_LOG(warning) << "Applying display settings will fail - retrying later...";
           return false;
         }
 
-        const auto result { settings.apply_config(config_copy) };
+        const auto result { settings.apply_config(config_copy, session) };
         if (!result) {
           BOOST_LOG(warning) << "Failed to apply display settings - will stop trying, but will allow stream to continue.";
 
@@ -184,7 +184,7 @@ namespace display_device {
       return;
     }
 
-    const auto result { settings.apply_config(*parsed_config) };
+    const auto result { settings.apply_config(*parsed_config, session) };
     if (result) {
       timer->setup_timer(nullptr);
     }
@@ -449,7 +449,7 @@ namespace display_device {
   }
 
   std::chrono::steady_clock::time_point last_toggle_time;
-  std::chrono::milliseconds debounce_interval { 5000 };  // 5000毫秒防抖间隔
+  std::chrono::milliseconds debounce_interval { 9000 };  // 9000毫秒防抖间隔
 
   void
   session_t::toggle_display_power() {

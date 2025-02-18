@@ -142,7 +142,7 @@ namespace display_device {
      * ```
      */
     apply_result_t
-    apply_config(const parsed_config_t &config);
+    apply_config(const parsed_config_t &config, const rtsp_stream::launch_session_t &session);
 
     /**
      * @brief Revert the applied configuration and restore the previous settings.

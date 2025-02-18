@@ -45,6 +45,9 @@
   #include "src/display_device/display_device.h"
   #include "src/entry_handler.h"
   #include "version.h"
+  #include <chrono>
+  #include <future>
+  #include <thread>
 
 using namespace std::literals;
 
@@ -52,10 +55,38 @@ using namespace std::literals;
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
 
+  // 前向声明所有回调函数
+  void tray_open_ui_cb(struct tray_menu *item);
+  void tray_toggle_display_cb(struct tray_menu *item);
+  void tray_reset_display_device_config_cb(struct tray_menu *item);
+  void tray_restart_cb(struct tray_menu *item);
+  void tray_quit_cb(struct tray_menu *item);
+
+  // 菜单数组声明
+  static struct tray_menu tray_menus[] = {
+    { .text = "Open Sunshine", .cb = tray_open_ui_cb },
+    { .text = "-" },
+    { .text = "VDD Monitor Toggle", .checked = 0, .cb = tray_toggle_display_cb },
+    // { .text = "Donate",
+    //   .submenu =
+    //     (struct tray_menu[]) {
+    //       { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
+    //       { .text = "Patreon", .cb = tray_donate_patreon_cb },
+    //       { .text = "PayPal", .cb = tray_donate_paypal_cb },
+    //       { .text = nullptr } } },
+    { .text = "-" },
+  #ifdef _WIN32
+    { .text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb },
+  #endif
+    { .text = "Restart", .cb = tray_restart_cb },
+    { .text = "Quit", .cb = tray_quit_cb },
+    { .text = nullptr }
+  };
+
   static struct tray tray = {
     .icon = TRAY_ICON,
     .tooltip = PROJECT_NAME,
-    .menu = nullptr,  // 先初始化为空指针，后续再赋值
+    .menu = tray_menus,
     .iconPathCount = 4,
     .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
   };
@@ -119,37 +150,64 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
-  void
-  tray_toggle_display_cb(struct tray_menu *item) {
-    BOOST_LOG(info) << "Toggling display power from system tray"sv;
-    display_device::session_t::get().toggle_display_power();
-  }
-
-  // 将菜单数组声明为静态变量
-  static struct tray_menu tray_menus[] = {
-    { .text = "Open Sunshine", .cb = tray_open_ui_cb },
-    { .text = "-" },
-    { .text = "VDD Monitor Toggle", .checked = 0, .cb = tray_toggle_display_cb },
-    // { .text = "Donate",
-    //   .submenu =
-    //     (struct tray_menu[]) {
-    //       { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-    //       { .text = "Patreon", .cb = tray_donate_patreon_cb },
-    //       { .text = "PayPal", .cb = tray_donate_paypal_cb },
-    //       { .text = nullptr } } },
-    { .text = "-" },
-  #ifdef _WIN32
-    { .text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb },
-  #endif
-    { .text = "Restart", .cb = tray_restart_cb },
-    { .text = "Quit", .cb = tray_quit_cb },
-    { .text = nullptr }
+  class AsyncTask {
+  public:
+    ~AsyncTask() { 
+        // 添加超时处理,避免无限等待
+        if (fut.valid()) {
+            auto status = fut.wait_for(std::chrono::seconds(1));
+            if (status != std::future_status::ready) {
+                BOOST_LOG(warning) << "AsyncTask timeout on destruction";
+            }
+        }
+    }
+    
+    void launch(std::function<void()> task) {
+        try {
+            // 确保之前的任务已完成
+            if (fut.valid()) {
+                auto status = fut.wait_for(std::chrono::seconds(1));
+                if (status != std::future_status::ready) {
+                    BOOST_LOG(warning) << "Previous task timeout, forcing new task";
+                }
+            }
+            fut = std::async(std::launch::async, task);
+        }
+        catch (const std::exception& e) {
+            BOOST_LOG(error) << "Failed to launch async task: " << e.what();
+        }
+    }
+  private:
+    std::future<void> fut;
   };
 
-  // 在菜单数组初始化后设置 tray.menu
-  __attribute__((constructor)) static void
-  init_tray_menu() {
-    tray.menu = tray_menus;
+  static AsyncTask async_task;
+
+  void
+  tray_toggle_display_cb(struct tray_menu *item) {
+    // 添加状态检查和日志
+    if (!tray_initialized) {
+        BOOST_LOG(warning) << "Tray not initialized, ignoring toggle";
+        return;
+    }
+    
+    if (system_tray::tray_menus[2].disabled) {
+        BOOST_LOG(info) << "Toggle display is in cooldown, ignoring request";
+        return;
+    }
+
+    BOOST_LOG(info) << "Toggling display power from system tray"sv;
+    display_device::session_t::get().toggle_display_power();
+    
+    // 添加10秒禁用状态
+    system_tray::tray_menus[2].disabled = 1;
+    tray_update(&tray);
+    
+    async_task.launch([]{
+      std::this_thread::sleep_for(10s);
+      system_tray::tray_menus[2].disabled = 0;
+      tray_update(&tray);
+    });
   }
 
   int
@@ -372,6 +430,8 @@ namespace system_tray {
     }
     // 更新显示器切换菜单项的勾选状态
     tray_menus[2].checked = checked;
+    // 同时更新禁用状态（冷却期间保持禁用）
+    tray_menus[2].disabled = checked ? 0 : tray_menus[2].disabled;
     tray_update(&tray);
   }
 

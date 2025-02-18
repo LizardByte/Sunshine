@@ -9,6 +9,7 @@
 #include "src/display_device/to_string.h"
 #include "src/globals.h"
 #include "src/logging.h"
+#include "src/rtsp.h"
 #include "windows_utils.h"
 
 namespace display_device {
@@ -562,7 +563,7 @@ namespace display_device {
   }
 
   settings_t::apply_result_t
-  settings_t::apply_config(const parsed_config_t &config) {
+  settings_t::apply_config(const parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
     const auto do_apply_config { [this](const parsed_config_t &config) -> settings_t::apply_result_t {
       bool failed_while_reverting_settings { false };
       const boost::optional<topology_pair_t> previously_configured_topology { persistent_data ? boost::make_optional(persistent_data->topology) : boost::none };
@@ -692,6 +693,17 @@ namespace display_device {
         // the session for a display that again exist is pointless.
         BOOST_LOG(debug) << "Releasing captured audio sink";
         audio_data = nullptr;
+      }
+
+      if (config.change_hdr_state) {
+        std::thread { [&client_name = session.client_name]() {
+          if (!display_device::apply_hdr_profile(client_name)) {
+            BOOST_LOG(warning) << "Failed to apply HDR profile for client: " << client_name << "retrying later...";
+            std::this_thread::sleep_for(2s);
+            display_device::apply_hdr_profile(client_name);
+          }
+        } }
+          .detach();
       }
     }
 

@@ -60,6 +60,6 @@ certutil -addstore -f root %CERTIFICATE%
 certutil -addstore -f TrustedPublisher %CERTIFICATE%
 
 @REM install inf
-%NEFCON% --remove-device-node --hardware-id Root\MttVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318
-%NEFCON% --create-device-node --hardware-id Root\MttVDD --service-name IDD_HDR_FOR_SUNSHINE --class-name Display --class-guid 4D36E968-E325-11CE-BFC1-08002BE10318
+%NEFCON% --remove-device-node --hardware-id Root\ZakoVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318
+%NEFCON% --create-device-node --hardware-id Root\ZakoVDD --service-name IDD_HDR_FOR_SUNSHINE --class-name Display --class-guid 4D36E968-E325-11CE-BFC1-08002BE10318
 %NEFCON% --install-driver --inf-path "%DIST_DIR%\MttVDD.inf"

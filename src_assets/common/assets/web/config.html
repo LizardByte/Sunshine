@@ -281,25 +281,18 @@
         fetch('/api/config')
           .then((r) => r.json())
           .then((r) => {
+            // 使用映射表简化平台过滤逻辑
+            const platformExclusions = {
+              windows: ['vt', 'vaapi'],
+              linux: ['amd', 'qsv', 'vt'],
+              macos: ['amd', 'nv', 'qsv', 'vaapi']
+            };
+            
             this.config = r
             this.platform = this.config.platform
-
-            var app = document.getElementById('app')
-            if (this.platform === 'windows') {
-              this.tabs = this.tabs.filter((el) => {
-                return el.id !== 'vt' && el.id !== 'vaapi'
-              })
-            }
-            if (this.platform === 'linux') {
-              this.tabs = this.tabs.filter((el) => {
-                return el.id !== 'amd' && el.id !== 'qsv' && el.id !== 'vt'
-              })
-            }
-            if (this.platform === 'macos') {
-              this.tabs = this.tabs.filter((el) => {
-                return el.id !== 'amd' && el.id !== 'nv' && el.id !== 'qsv' && el.id !== 'vaapi'
-              })
-            }
+            this.tabs = this.tabs.filter(tab => 
+              !platformExclusions[this.platform]?.includes(tab.id)
+            );
 
             // remove values we don't want in the config file
             delete this.config.platform
@@ -318,11 +311,16 @@
             })
 
             this.fps = JSON.parse(this.config.fps)
-            //Resolutions should be fixed because are not valid JSON
-            let res = this.config.resolutions.substring(1, this.config.resolutions.length - 1)
-            let resolutions = []
-            res.split(',').forEach((r) => resolutions.push(r.trim()))
-            this.resolutions = resolutions
+            // 优化分辨率解析逻辑
+            try {
+              this.resolutions = JSON.parse(
+                this.config.resolutions
+                  .replace(/(\d+)x(\d+)/g, '"$1x$2"')
+              );
+            } catch (e) {
+              console.error('Error parsing resolutions:', e);
+              this.resolutions = [];
+            }
 
             this.config.global_prep_cmd = this.config.global_prep_cmd || []
             this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd)
@@ -336,58 +334,57 @@
           this.$forceUpdate()
         },
         serialize() {
-          let nl = this.config === 'windows' ? '\r\n' : '\n'
-          this.config.resolutions = '[' + nl + '    ' + this.resolutions.join(',' + nl + '    ') + nl + ']'
-          // remove values that don't supported in vdd
-          this.fps = this.fps.filter((item) => +item >= 30 && +item <= 500)
-          // remove quotes from values in fps
-          this.config.fps = JSON.stringify(this.fps).replace(/"/g, '')
-          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd)
-          this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping)
+          const nl = this.config === 'windows' ? '\r\n' : '\n';
+          this.config.resolutions = JSON.stringify(this.resolutions)
+            .replace(/","/g, `,${nl}    `)
+            .replace(/\["/, `[${nl}    `)
+            .replace(/"\]/, `${nl}]`);
+
+          this.fps = this.fps.filter(item => +item >= 30 && +item <= 500);
+          this.config.fps = JSON.stringify(this.fps).replaceAll('"', '');
+          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
+          this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping);
         },
-        save() {
-          this.saved = false
-          this.restarted = false
-          this.serialize()
+        async save() {
+          this.saved = false;
+          this.restarted = false;
+          this.serialize();
 
-          // create a temp copy of this.config to use for the post request
-          let config = JSON.parse(JSON.stringify(this.config))
-
-          // delete default values from this.config
-          this.tabs.forEach((tab) => {
-            Object.keys(tab.options).forEach((optionKey) => {
-              let delete_value = false
-
-              if (['resolutions', 'fps', 'adapter_name'].includes(optionKey)) return false
-
-              if (['global_prep_cmd', 'display_mode_remapping'].includes(optionKey)) {
-                if (JSON.parse(config[optionKey]) === JSON.parse(tab.options[optionKey])) {
-                  delete_value = true
-                }
+          const config = JSON.parse(JSON.stringify(this.config));
+          
+          // 使用更清晰的默认值过滤逻辑
+          this.tabs.forEach(tab => {
+            Object.keys(tab.options).forEach(optionKey => {
+              if (this.shouldDeleteDefault(config, tab, optionKey)) {
+                delete config[optionKey];
               }
+            });
+          });
 
-              // todo: add proper type checking
-              if (String(config[optionKey]) === String(tab.options[optionKey])) {
-                delete_value = true
-              }
+          try {
+            const response = await fetch('/api/config', {
+              method: 'POST',
+              body: JSON.stringify(config),
+            });
+            this.saved = response.status === 200;
+            return this.saved;
+          } catch (error) {
+            console.error('Save failed:', error);
+            return false;
+          }
+        },
+        shouldDeleteDefault(config, tab, optionKey) {
+          const excludedKeys = ['resolutions', 'fps', 'adapter_name'];
+          if (excludedKeys.includes(optionKey)) return false;
 
-              if (delete_value) {
-                delete config[optionKey]
-              }
-            })
-          })
-
-          return fetch('/api/config', {
-            method: 'POST',
-            body: JSON.stringify(config),
-          }).then((r) => {
-            if (r.status === 200) {
-              this.saved = true
-              return this.saved
-            } else {
-              return false
-            }
-          })
+          const currentValue = config[optionKey];
+          const defaultValue = tab.options[optionKey];
+          
+          try {
+            return JSON.stringify(JSON.parse(currentValue)) === JSON.stringify(JSON.parse(defaultValue));
+          } catch {
+            return String(currentValue) === String(defaultValue);
+          }
         },
         apply() {
           this.saved = this.restarted = false
@@ -407,42 +404,26 @@
         },
       },
       mounted() {
-        // Handle hashchange events
+        // 优化哈希处理逻辑
         const handleHash = () => {
-          let hash = window.location.hash
-          if (hash) {
-            // remove the # from the hash
-            let stripped_hash = hash.substring(1)
+          const hash = window.location.hash.slice(1);
+          if (!hash) return;
 
-            this.tabs.forEach((tab) => {
-              Object.keys(tab.options).forEach((key) => {
-                if (tab.id === stripped_hash || key === stripped_hash) {
-                  this.currentTab = tab.id
-                }
-                if (key === stripped_hash) {
-                  // sleep for 2 seconds to allow the page to load
-                  setTimeout(() => {
-                    let element = document.getElementById(stripped_hash)
-                    if (element) {
-                      window.location.hash = hash
-                    }
-                  }, 2000)
-                }
+          const targetTab = this.tabs.find(tab => 
+            tab.id === hash || Object.keys(tab.options).includes(hash)
+          );
 
-                if (this.currentTab === tab.id) {
-                  // stop looping
-                  return true
-                }
-              })
-            })
+          if (targetTab) {
+            this.currentTab = targetTab.id;
+            this.$nextTick(() => {
+              const element = document.getElementById(hash);
+              element?.scrollIntoView({ behavior: 'smooth' });
+            });
           }
-        }
+        };
 
-        // Call handleHash for the initial load
-        handleHash()
-
-        // Add hashchange event listener
-        window.addEventListener('hashchange', handleHash)
+        handleHash();
+        window.addEventListener('hashchange', handleHash);
       },
     })
 

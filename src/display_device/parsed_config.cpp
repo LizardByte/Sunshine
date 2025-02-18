@@ -562,17 +562,6 @@ namespace display_device {
       display_device::session_t::get().prepare_vdd(parsed_config, session);
     }
 
-    if (session.enable_hdr) {
-      std::thread { [&client_name = session.client_name]() {
-        if (!display_device::apply_hdr_profile(client_name)) {
-          BOOST_LOG(warning) << "Failed to apply HDR profile for client: " << client_name << "retrying later...";
-          std::this_thread::sleep_for(2s);
-          display_device::apply_hdr_profile(client_name);
-        }
-      } }
-        .detach();
-    }
-
     BOOST_LOG(debug) << "Parsed display device config:\n"
                      << "device_id: " << parsed_config.device_id << "\n"
                      << "device_prep: " << static_cast<int>(parsed_config.device_prep) << "\n"

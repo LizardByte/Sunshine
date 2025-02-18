@@ -39,7 +39,7 @@
     },
     {
       "name": "禁用虚拟显示器",
-      "cmd": "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"VirtualDisplayDriver\"",
+      "cmd": "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Zako Display Adapter\"",
       "elevated": "true"
     },
     {
