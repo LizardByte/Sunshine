@@ -1,16 +1,19 @@
 # syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
+# platforms_pr: linux/amd64,linux/arm64/v8
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=debian
 ARG TAG=bookworm
 FROM ${BASE}:${TAG} AS sunshine-base
-
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base AS sunshine-build
+ARG BASE
+ARG TAG
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-build
+ENV DEBIAN_FRONTEND=noninteractive
 
+ARG TARGETPLATFORM
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -30,8 +33,33 @@ COPY --link .. .
 RUN <<_BUILD
 #!/bin/bash
 set -e
+
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  cross_compile="--cross-compile"
+else
+  cross_compile=""
+fi
+
+case "${TARGETPLATFORM}" in
+  linux/amd64)
+    cc_target_tuple="x86_64-linux-gnu"
+    cc_target_arch="amd64"
+    ;;
+  linux/arm64)
+    cc_target_tuple="aarch64-linux-gnu"
+    cc_target_arch="arm64"
+    ;;
+  *)
+    echo "unsupported platform: ${TARGETPLATFORM}";
+    exit 1
+    ;;
+esac
+
 chmod +x ./scripts/linux_build.sh
 ./scripts/linux_build.sh \
+  ${cross_compile} \
+  --cc-target-tuple="${cc_target_tuple}" \
+  --cc-target-arch="${cc_target_arch}" \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
