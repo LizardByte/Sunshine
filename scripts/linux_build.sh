@@ -152,6 +152,34 @@ function add_ubuntu_deps() {
   )
 }
 
+function add_opensuse_deps() {
+  dependencies+=(
+    "git"
+    "gcc-c++"
+    "libappindicator3-devel"
+    "libcap-devel"
+    "libcurl-devel"
+    "libdrm-devel"
+    "libevdev-devel"
+    "libminiupnpc-devel"
+    "libnotify-devel"
+    "libnuma-devel"
+    "libopenssl-devel"
+    "libopus-devel"
+    "libpulse-devel"
+    "ninja"
+    "nodejs"
+    "rpm-build"
+    "udev"
+  )
+
+  if [ "$skip_libva" == 0 ]; then
+    dependencies+=(
+      "libva-devel"  # VA-API
+    )
+  fi
+}
+
 function add_fedora_deps() {
   dependencies+=(
     "cmake"
@@ -248,6 +276,9 @@ function check_version() {
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
   elif [ "$distro" == "fedora" ]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
+  elif [ "$distro" == "opensuse" ]; then
+    # avoid using system packages on openSUSE - boost and doxygen versions cause errors
+    return 1
   else
     echo "Unsupported Distro"
     return 1
@@ -283,6 +314,8 @@ function run_install() {
     "-DSUNSHINE_ENABLE_DRM=ON"
   )
 
+  cmake_args+=("-DSUNSHINE_BUILD_DISTRO='${distro}'")
+
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
   fi
@@ -308,6 +341,8 @@ function run_install() {
   elif [ "$distro" == "fedora" ]; then
     add_fedora_deps
     ${sudo_cmd} dnf group install "Development Tools" -y
+  elif [ "$distro" == "opensuse" ]; then
+    add_opensuse_deps
   fi
 
   # Install the dependencies
@@ -395,6 +430,8 @@ function run_install() {
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
     cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=${build_dir}/cuda/bin/nvcc")
+  else
+    cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
   fi
 
   # Cmake stuff here
@@ -408,7 +445,7 @@ function run_install() {
   if [ "$skip_package" == 0 ]; then
     if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
       cpack -G DEB --config ./build/CPackConfig.cmake
-    elif [ "$distro" == "fedora" ]; then
+    elif [ "$distro" == "fedora" ] || [ "$distro" == "opensuse" ]; then
       cpack -G RPM --config ./build/CPackConfig.cmake
     fi
   fi
@@ -479,6 +516,11 @@ elif grep -q "Ubuntu 24.04" /etc/os-release; then
   cuda_build="520.61.05"
   gcc_version="11"
   nvm_node=0
+elif grep -q "opensuse-tumbleweed" /etc/os-release; then
+  distro="opensuse"
+  version="tumbleweed"
+  package_update_command="${sudo_cmd} zypper dup"
+  package_install_command="${sudo_cmd} zypper in -y"
 else
   echo "Unsupported Distro or Version"
   exit 1
