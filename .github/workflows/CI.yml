@@ -45,43 +45,22 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  setup_flatpak_matrix:
-    name: Setup Flatpak Matrix
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set release details
-        id: flatpak_matrix
-        # https://www.cynkra.com/blog/2020-12-23-dynamic-gha
-        run: |
-          # determine which architectures to build
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            matrix=$((
-              echo '{ "arch" : ["x86_64", "aarch64"] }'
-            ) | jq -c .)
-          else
-            matrix=$((
-              echo '{ "arch" : ["x86_64"] }'
-            ) | jq -c .)
-          fi
-
-          echo $matrix
-          echo $matrix | jq .
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
-
-    outputs:
-      matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
-
   build_linux_flatpak:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       NODE_VERSION: "20"
       PLATFORM_VERSION: "23.08"
     name: Linux Flatpak
-    runs-on: ubuntu-22.04
-    needs: [setup_release, setup_flatpak_matrix]
+    needs: [setup_release]
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
-      matrix: ${{fromJson(needs.setup_flatpak_matrix.outputs.matrix)}}
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
 
     steps:
       - name: Maximize build space
@@ -126,8 +105,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
-            flatpak \
-            qemu-user-static
+            flatpak
 
           sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo"
