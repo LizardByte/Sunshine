@@ -16,7 +16,7 @@ namespace confighttp {
   void
   start();
 
-  void
+  bool
   saveVddSettings(std::string resArray, std::string fpsArray, std::string gpu_name);
 }  // namespace confighttp
 

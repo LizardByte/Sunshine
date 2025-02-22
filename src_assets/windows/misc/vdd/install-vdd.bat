@@ -39,27 +39,26 @@ rem install
 set "DRIVER_DIR=%~dp0\driver"
 echo %DRIVER_DIR%
 
-set DIST_DIR="C:/VirtualDisplayDriver"
+set "DIST_DIR=%SYSTEMDRIVE%\VirtualDisplayDriver"
 set "NEFCON=%DIST_DIR%\nefconw.exe"
-if exist %NEFCON% (
-    goto skip
+
+rem 如果目录存在则删除
+if exist "%DIST_DIR%" (
+    rmdir /s /q "%DIST_DIR%"
 )
-goto continue
 
-:skip
-echo "no install needed. Exiting."
-exit /b 0
+mkdir "%DIST_DIR%"
+copy "%DRIVER_DIR%\*.*" %DIST_DIR%
 
-:continue
-mkdir %DIST_DIR%
-move "%DRIVER_DIR%\*.*" %DIST_DIR%
+%NEFCON% --remove-device-node --hardware-id ROOT\MttVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318
+echo 正在等待vdd卸载...
+timeout /t 5 /nobreak > nul
 
 @REM rem install cet
 set CERTIFICATE="%DIST_DIR%/MttVDD.cer"
 certutil -addstore -f root %CERTIFICATE%
-certutil -addstore -f TrustedPublisher %CERTIFICATE%
+@REM certutil -addstore -f TrustedPublisher %CERTIFICATE%
 
 @REM install inf
-%NEFCON% --remove-device-node --hardware-id Root\ZakoVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318
-%NEFCON% --create-device-node --hardware-id Root\ZakoVDD --service-name IDD_HDR_FOR_SUNSHINE --class-name Display --class-guid 4D36E968-E325-11CE-BFC1-08002BE10318
+%NEFCON% --create-device-node --hardware-id Root\MttVDD --service-name IDD_HDR_FOR_SUNSHINE --class-name Display --class-guid 4D36E968-E325-11CE-BFC1-08002BE10318
 %NEFCON% --install-driver --inf-path "%DIST_DIR%\MttVDD.inf"

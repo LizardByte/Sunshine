@@ -34,7 +34,8 @@
     "cmd_prep_desc": "A list of commands to be run before/after this application. If any of the prep-commands fail, starting the application is aborted.",
     "add_cmds": "Add Commands",
     "do_cmd": "Do Command",
-    "undo_cmd": "Undo Command","elevated": "Elevated",
+    "undo_cmd": "Undo Command",
+    "elevated": "Run as Administrator",
     "detached_cmds": "Detached Commands",
     "detached_cmds_add": "Add Detached Command",
     "detached_cmds_desc": "A list of commands to be run in the background.",
@@ -44,7 +45,7 @@
     "cmd_note": "If the path to the command executable contains spaces, you must enclose it in quotes.",
     "working_dir": "Working Directory",
     "working_dir_desc": "The working directory that should be passed to the process. For example, some applications use the working directory to search for configuration files. If not set, Sunshine will default to the parent directory of the command",
-    "run_as": "Run as Admin",
+    "run_as": "Run As",
     "run_as_desc": "This can be necessary for some applications that require administrator permissions to run properly.",
     "auto_detach": "Continue streaming if the application exits quickly",
     "auto_detach_desc": "This will attempt to automatically detect launcher-type apps that close quickly after launching another program or instance of themselves. When a launcher-type app is detected, it is treated as a detached app.",
@@ -74,6 +75,23 @@
     "env_qres_path": "qres path",
     "env_xrandr_example": "Example - Xrandr for Resolution Automation:",
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
-    "add_new": "Add New"
+    "add_new": "Add New",
+    "menu_cmd": "Menu Commands",
+    "menu_cmd_desc": "Configure quick-access commands visible in client menu without interrupting streaming",
+    "menu_cmd_example": "DisplayName-Shutdown System; Command-shutdown -s -t 10",
+    "add_menu_cmd": "Add Menu Command",
+    "display_name": "Display Name",
+    "placeholder": {
+      "display_name": "Enter display name",
+      "command": "Enter command"
+    }
+  },
+  "_common": {
+    "elevated": "Run as Administrator",
+    "run_as": "Run As",
+    "delete": "Delete",
+    "duplicate": "Duplicate",
+    "example": "Example",
+    "see_more": "See More Examples"
   }
 }

@@ -103,13 +103,17 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto ip_type = net::from_address(address);
 
+    auto user_agent = request->header.find("User-Agent");
+    bool is_scp = user_agent != request->header.end() &&
+                  user_agent->second.find("SunshineControlPanel") != std::string::npos;
+
     if (ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
     }
 
-    if (ip_type == net::LAN || ip_type == net::PC) {
+    if (ip_type == net::PC || (is_scp && ip_type != net::WAN)) {
       return true;
     }
 
@@ -383,7 +387,7 @@ namespace confighttp {
       auto &apps_node = fileTree.get_child("apps"s);
       auto &input_apps_node = inputTree.get_child("apps"s);
       auto &input_edit_node = inputTree.get_child("editApp"s);
-      
+
       if (input_edit_node.empty()) {
         fileTree.erase("apps");
         fileTree.push_back(std::make_pair("apps", input_apps_node));
@@ -580,7 +584,7 @@ namespace confighttp {
     for (auto &[name, value] : vars) {
       outputTree.put(std::move(name), std::move(value));
     }
-    
+
     outputTree.put("pair_name", nvhttp::get_pair_name());
   }
 
@@ -614,7 +618,7 @@ namespace confighttp {
     return tokens;
   }
 
-  void
+  bool
   saveVddSettings(std::string resArray, std::string fpsArray, std::string gpu_name) {
     pt::ptree iddOptionTree;
     pt::ptree resolutions_nodes;
@@ -625,7 +629,10 @@ namespace confighttp {
     std::string str = boost::regex_replace(resArray, pattern, "");
     boost::algorithm::trim(str);
     for (const auto &resolution : split(str, delimiter)) {
-      auto index = resolution.find("x", 0);
+      auto index = resolution.find('x');
+      if(index == std::string::npos) {
+        return false;
+      }
       pt::ptree res_node;
       res_node.put("width", resolution.substr(0, index));
       res_node.put("height", resolution.substr(index + 1));
@@ -635,22 +642,42 @@ namespace confighttp {
       resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
     }
 
-    std::string idd_option_path = "c:\\VirtualDisplayDriver\\vdd_settings.xml";
-    if (fs::exists(idd_option_path)) {
-      pt::ptree monitor_node;
-      monitor_node.put("count", 1);
+    char* systemDrive = std::getenv("SystemDrive");
+    if (!systemDrive) {
+        BOOST_LOG(error) << "无法获取 SystemDrive 环境变量";
+        return false;
+    }
+    
+    auto idd_option_path = std::filesystem::path(systemDrive) 
+        / "\\"
+        / "VirtualDisplayDriver" 
+        / "vdd_settings.xml";
 
-      pt::ptree gpu_node;
-      gpu_node.put("friendlyname", gpu_name);
+    BOOST_LOG(info) << "VDD配置文件路径: " << idd_option_path.string();
+    
+    if (!fs::exists(idd_option_path)) {
+        return false;
+    }
 
-      iddOptionTree.add_child("monitors", monitor_node);
-      iddOptionTree.add_child("gpu", gpu_node);
-      iddOptionTree.add_child("resolutions", resolutions_nodes);
+    pt::ptree monitor_node;
+    monitor_node.put("count", 1);
 
-      pt::ptree root;
-      root.add_child("vdd_settings", iddOptionTree);
+    pt::ptree gpu_node;
+    gpu_node.put("friendlyname", gpu_name);
+
+    iddOptionTree.add_child("monitors", monitor_node);
+    iddOptionTree.add_child("gpu", gpu_node);
+    iddOptionTree.add_child("resolutions", resolutions_nodes);
+
+    pt::ptree root;
+    root.add_child("vdd_settings", iddOptionTree);
+    try {
       auto setting = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
-      write_xml(idd_option_path, root, std::locale(), setting);
+      write_xml(idd_option_path.string(), root, std::locale(), setting);
+      return true;
+    }
+    catch(...) {
+      return false;
     }
   }
 
@@ -680,7 +707,11 @@ namespace confighttp {
       std::string fpsArray = inputTree.get<std::string>("fps", "[]");
       std::string gpu_name = inputTree.get<std::string>("adapter_name", "");
 
-      saveVddSettings(resArray, fpsArray, gpu_name);
+      if (!saveVddSettings(resArray, fpsArray, gpu_name)) {
+        outputTree.put("status", "false");
+        outputTree.put("error", "Invalid Vdd Settings");
+        return;
+      }
 
       for (const auto &kv : inputTree) {
         std::string value = inputTree.get<std::string>(kv.first);

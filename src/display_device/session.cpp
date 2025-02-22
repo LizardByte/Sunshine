@@ -206,8 +206,8 @@ namespace display_device {
 
     bool
     execute_vdd_command(const std::string &action) {
-      static const std::string kDevManPath = "C:\\Program Files\\Sunshine\\tools\\DevManView.exe";
-      static const std::string kDriverName = "Virtual Display Driver";
+      static const std::string kDevManPath = (std::filesystem::path(SUNSHINE_ASSETS_DIR).parent_path() / "DevManView.exe").string();
+      static const std::string kDriverName = "Zako Display Adapter";
 
       boost::process::environment _env = boost::this_process::environment();
       auto working_dir = boost::filesystem::path();
@@ -417,14 +417,6 @@ namespace display_device {
       return false;
     }
     return true;
-
-    // if (response != "FinishInit") {
-    //   BOOST_LOG(error) << "驱动重载异常，响应: " << response;
-    //   return false;
-    // }
-
-    // BOOST_LOG(info) << "开始创建虚拟显示器";
-    // return session_t::get().create_vdd_monitor();
   }
 
   void
@@ -464,7 +456,6 @@ namespace display_device {
 
     if (!is_display_on()) {
       if (create_vdd_monitor()) {
-        // 启动新线程处理确认弹窗和超时
         std::thread([this]() {
           // Windows弹窗确认
           auto future = std::async(std::launch::async, []() {
@@ -477,14 +468,19 @@ namespace display_device {
           // 等待20秒超时
           if (future.wait_for(20s) != std::future_status::ready || !future.get()) {
             BOOST_LOG(info) << "用户未确认或超时，自动销毁虚拟显示器";
-            // 强制关闭消息框
-            HWND hwnd = GetActiveWindow();
+            HWND hwnd = FindWindowW(L"#32770", L"显示器确认");
             if (hwnd && IsWindow(hwnd)) {
+              // 发送退出命令并等待窗口关闭
+              PostMessage(hwnd, WM_COMMAND, MAKEWPARAM(IDNO, BN_CLICKED), 0);
               PostMessage(hwnd, WM_CLOSE, 0, 0);
+
+              for (int i = 0; i < 3 && IsWindow(hwnd); ++i) {
+                std::this_thread::sleep_for(200ms);
+              }
             }
             destroy_vdd_monitor();
           }
-        }).detach();  // 分离线程自动管理
+        }).detach();
       }
     }
     else {
@@ -497,14 +493,23 @@ namespace display_device {
     auto vdd_settings = prepare_vdd_settings(config);
     bool should_toggle_vdd = false;
 
+    BOOST_LOG(debug) << "needs_update: " << vdd_settings.needs_update
+                     << ", new_setting: " << (config.resolution ? to_string(*config.resolution) + "@" + to_string(*config.refresh_rate) : "null")
+                     << ", last_vdd_setting: " << (last_vdd_setting.empty() ? "null" : last_vdd_setting);
+
     if (vdd_settings.needs_update && config.resolution) {
       std::string new_setting = to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
       should_toggle_vdd = (last_vdd_setting != new_setting);
 
       if (should_toggle_vdd) {
-        confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps,
-          config::video.adapter_name);
-        last_vdd_setting = new_setting;
+        if (confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps,
+              config::video.adapter_name)) {
+          last_vdd_setting = new_setting;
+        }
+        else {
+          BOOST_LOG(error) << "保存VDD设置失败，保持原有配置";
+          should_toggle_vdd = false;  // 取消后续的驱动重载操作
+        }
       }
     }
 
@@ -519,14 +524,78 @@ namespace display_device {
       std::this_thread::sleep_for(233ms);
     }
 
-    // 等待VDD设备就绪
-    const int max_retries = 50;
-    int retry_count = 0;
-    while (device_zako.empty() && retry_count < max_retries) {
-      BOOST_LOG(info) << "查找VDD设备重试次数: " << retry_count;
-      retry_count += 1;
+    struct RetryConfig {
+      int max_attempts;
+      std::chrono::milliseconds initial_delay;
+      std::chrono::milliseconds max_delay;
+      std::string_view context;
+    };
+
+    auto retry_with_backoff = [](auto &&check_func, const RetryConfig &config) -> bool {
+      int attempt = 0;
+      auto delay = config.initial_delay;
+
+      while (attempt < config.max_attempts) {
+        if (check_func()) {
+          return true;
+        }
+
+        ++attempt;
+        if (attempt < config.max_attempts) {
+          delay = std::min(config.max_delay, delay * 2);
+          BOOST_LOG(info) << config.context << " 重试中 [" << attempt << "/"
+                          << config.max_attempts << "], 下次重试间隔: " << delay.count() << "ms";
+          std::this_thread::sleep_for(delay);
+        }
+      }
+      return false;
+    };
+
+    const bool device_found = retry_with_backoff([&device_zako]() {
       device_zako = display_device::find_device_by_friendlyname(zako_name);
-      std::this_thread::sleep_for(233ms);
+      return !device_zako.empty();
+    },
+      { .max_attempts = 20, .initial_delay = 233ms, .max_delay = 2000ms, .context = "等待VDD设备初始化" });
+
+    // 失败后处理
+    if (!device_found) {
+      BOOST_LOG(error) << "VDD设备初始化失败，尝试重置驱动";
+      disable_enable_vdd();
+      std::this_thread::sleep_for(2s);
+
+      // 统一重试逻辑
+      constexpr int max_retries = 3;
+      bool final_success = false;
+
+      for (int retry = 1; retry <= max_retries; ++retry) {
+        // 创建显示器并检查结果
+        const bool create_success = create_vdd_monitor();
+        const bool check_success = create_success && retry_with_backoff(
+                                                       [&device_zako]() {
+                                                         device_zako = display_device::find_device_by_friendlyname(zako_name);
+                                                         return !device_zako.empty();
+                                                       },
+                                                       { .max_attempts = 5, .initial_delay = 233ms, .max_delay = 2000ms, .context = "最终设备检查" });
+
+        if (check_success) {
+          final_success = true;
+          break;
+        }
+
+        const std::string error_type = create_success ? "设备初始化" : "创建显示器";
+        BOOST_LOG(error) << error_type << "失败，正在第" << retry << "/" << max_retries << "次重试...";
+
+        if (retry < max_retries) {
+          std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略：2,4,8秒
+        }
+      }
+
+      if (!final_success) {
+        BOOST_LOG(error) << "VDD设备最终初始化失败，请检查：\n"
+                         << "1. 显卡驱动是否正常\n"
+                         << "2. 设备管理器中的虚拟设备状态";
+        disable_enable_vdd();  // 最终回退操作
+      }
     }
 
     // 更新设备配置

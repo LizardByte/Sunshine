@@ -2,7 +2,8 @@
   "common": {
     "note": "Note:",
     "save": "Save",
-    "see_more": "See More"
+    "see_more": "See More",
+    "cancel": "Cancel"
   },
   "index": {
     "welcome": "Hello, Sunshine!",
@@ -34,7 +35,8 @@
     "cmd_prep_desc": "A list of commands to be run before/after this application. If any of the prep-commands fail, starting the application is aborted.",
     "add_cmds": "Add Commands",
     "do_cmd": "Do Command",
-    "undo_cmd": "Undo Command","elevated": "Elevated",
+    "undo_cmd": "Undo Command",
+    "elevated": "Elevated",
     "detached_cmds": "Detached Commands",
     "detached_cmds_add": "Add Detached Command",
     "detached_cmds_desc": "A list of commands to be run in the background.",
@@ -76,6 +78,8 @@
     "env_qres_path": "qres path",
     "env_xrandr_example": "Example - Xrandr for Resolution Automation:",
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
-    "add_new": "Add New"
+    "add_new": "Add New",
+    "confirm_delete": "Confirm Delete",
+    "confirm_delete_msg": "Are you sure you want to delete {name}?"
   }
 }

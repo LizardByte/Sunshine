@@ -546,7 +546,7 @@ namespace display_device {
     auto working_dir = boost::filesystem::path();
 
     std::error_code ec;
-    std::string cmd = "C:\\PROGRA~1\\Sunshine\\tools\\setreg.exe -registryPath \"HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ICM\\ProfileAssociations\\Display\\" + driver_path + "\" -valueName \"ICMProfileAC\" -valueData \"" + profile_name + "\"";
+    std::string cmd = "\"" + (std::filesystem::path(SUNSHINE_ASSETS_DIR).parent_path() / "tools" / "setreg.exe").string() + "\" -registryPath \"HKCU:\\Software\\Microsoft\\Windows NT\\CurrentVersion\\ICM\\ProfileAssociations\\Display\\" + driver_path + "\" -valueName \"ICMProfileAC\" -valueData \"" + profile_name + "\"";
 
     auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {

@@ -2,7 +2,12 @@
   "common": {
     "note": "Note:",
     "save": "Save",
-    "see_more": "See More"
+    "see_more": "See More",
+    "elevated": "管理员权限",
+    "run_as": "运行身份",
+    "delete": "删除",
+    "duplicate": "复制",
+    "example": "示例"
   },
   "index": {
     "welcome": "Hello, Sunshine!",
@@ -34,7 +39,8 @@
     "cmd_prep_desc": "A list of commands to be run before/after this application. If any of the prep-commands fail, starting the application is aborted.",
     "add_cmds": "Add Commands",
     "do_cmd": "Do Command",
-    "undo_cmd": "Undo Command","elevated": "Elevated",
+    "undo_cmd": "Undo Command",
+    "elevated": "Elevated",
     "detached_cmds": "Detached Commands",
     "detached_cmds_add": "Add Detached Command",
     "detached_cmds_desc": "A list of commands to be run in the background.",
@@ -74,6 +80,17 @@
     "env_qres_path": "qres path",
     "env_xrandr_example": "Example - Xrandr for Resolution Automation:",
     "env_displayplacer_example": "Example - displayplacer for Resolution Automation:",
-    "add_new": "Add New"
+    "add_new": "Add New",
+    "menu_cmd": "超级菜单命令",
+    "menu_cmd_desc": "配置客户端快捷菜单命令，操作不影响当前串流会话",
+    "menu_cmd_example": "显示名称-关闭系统；指令-shutdown -s -t 10",
+    "add_menu_cmd": "添加菜单命令",
+    "display_name": "显示名称",
+    "placeholder": {
+      "display_name": "输入菜单显示名称",
+      "command": "输入执行指令"
+    },
+    "confirm_delete": "确认删除",
+    "confirm_delete_msg": "确定要删除 {name} 吗？"
   }
 }

@@ -2,10 +2,17 @@
   <nav class="navbar navbar-light navbar-expand-lg navbar-background header">
     <div class="container-fluid">
       <a class="navbar-brand" href="/" title="Sunshine">
-        <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
+        <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine" />
       </a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent"
-              aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarSupportedContent"
+        aria-controls="navbarSupportedContent"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
@@ -23,13 +30,17 @@
             <a class="nav-link" href="/config"><i class="fas fa-fw fa-cog"></i> {{ $t('navbar.configuration') }}</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="/password"><i class="fas fa-fw fa-user-shield"></i> {{ $t('navbar.password') }}</a>
+            <a class="nav-link" href="/password"
+              ><i class="fas fa-fw fa-user-shield"></i> {{ $t('navbar.password') }}</a
+            >
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="/troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a>
+            <a class="nav-link" href="/troubleshooting"
+              ><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a
+            >
           </li>
           <li class="nav-item">
-            <ThemeToggle/>
+            <ThemeToggle />
           </li>
         </ul>
       </div>
@@ -37,28 +48,75 @@
   </nav>
 </template>
 
-<script>
+<script setup>
+import { onMounted, onUnmounted } from 'vue'
 import ThemeToggle from './ThemeToggle.vue'
 
-export default {
-  components: { ThemeToggle },
-  created() {
-    console.log("Header mounted!")
-  },
-  mounted() {
-    let el = document.querySelector("a[href='" + document.location.pathname + "']");
-    if (el) el.classList.add("active")
+// 背景处理逻辑
+const loadBackground = () => {
+  const savedBg =
+    localStorage.getItem('customBackground') ??
+    'https://raw.gitmirror.com/qiin2333/qiin.github.io/assets/img/sunshine-bg0.webp'
+  if (savedBg) {
+    document.body.style.background = `${savedBg} center/cover fixed no-repeat`
   }
 }
+
+// 拖拽事件处理
+const handleDragOver = (e) => {
+  e.preventDefault()
+  document.body.classList.add('dragover')
+}
+
+const handleDragLeave = () => {
+  document.body.classList.remove('dragover')
+}
+
+const handleDrop = (e) => {
+  e.preventDefault()
+  document.body.classList.remove('dragover')
+
+  const file = e.dataTransfer.files[0]
+  if (file?.type.startsWith('image/')) {
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const bg = `url(${event.target.result})`
+      document.body.style.background = `${bg} center/cover fixed no-repeat`
+      localStorage.setItem('customBackground', bg)
+    }
+    reader.readAsDataURL(file)
+  }
+}
+
+// 生命周期
+onMounted(() => {
+  loadBackground()
+
+  // 当前路由高亮
+  const el = document.querySelector(`a[href="${location.pathname}"]`)
+  if (el) el.classList.add('active')
+
+  // 添加事件监听
+  document.addEventListener('dragover', handleDragOver)
+  document.addEventListener('dragleave', handleDragLeave)
+  document.addEventListener('drop', handleDrop)
+})
+
+onUnmounted(() => {
+  // 清理事件监听
+  document.removeEventListener('dragover', handleDragOver)
+  document.removeEventListener('dragleave', handleDragLeave)
+  document.removeEventListener('drop', handleDrop)
+})
 </script>
 
 <style>
 .navbar-background {
-  background-color: #ffc400
+  background-color: #ffc400;
 }
 
 .header .nav-link {
-  color: rgba(0, 0, 0, .65) !important;
+  color: rgba(0, 0, 0, 0.65) !important;
 }
 
 .header .nav-link.active {
@@ -72,7 +130,7 @@ export default {
 }
 
 .header .navbar-toggler {
-  color: rgba(var(--bs-dark-rgb), .65) !important;
+  color: rgba(var(--bs-dark-rgb), 0.65) !important;
   border: var(--bs-border-width) solid rgba(var(--bs-dark-rgb), 0.15) !important;
 }
 
@@ -85,16 +143,22 @@ export default {
 }
 
 body {
-    background: url(https://raw.gitmirror.com/qiin2333/qiin.github.io/assets/img/sunshine-bg0.webp) center no-repeat;
-    background-color: #5496dd;
-    background-size: cover;
-    background-attachment: fixed;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: #5496dd;
+  background-size: cover;
+  background-attachment: fixed;
+  transition: background 0.3s ease;
 }
 
-[data-bs-theme=light] {
-    --bs-body-bg: rgba(255, 255, 255, .3);
+[data-bs-theme='light'] {
+  --bs-body-bg: rgba(255, 255, 255, 0.3);
 }
-[data-bs-theme=dark] {
-    --bs-body-bg: rgba(0, 0, 0, .65);
+[data-bs-theme='dark'] {
+  --bs-body-bg: rgba(0, 0, 0, 0.65);
+}
+.dragover {
+  outline: 4px dashed #ffc400;
+  outline-offset: -20px;
 }
 </style>
