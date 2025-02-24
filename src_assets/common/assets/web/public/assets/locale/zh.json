@@ -13,7 +13,7 @@
     "elevated": "提权运行",
     "enabled": "启用",
     "enabled_def": "启用（默认）",
-    "enabled_def_cbox": "默认值：已检查",
+    "enabled_def_cbox": "默认值：已选中",
     "error": "错误！",
     "note": "注：",
     "password": "密码",
