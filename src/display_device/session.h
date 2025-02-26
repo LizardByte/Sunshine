@@ -2,7 +2,6 @@
 
 // standard includes
 #include <mutex>
-
 // local includes
 #include "settings.h"
 
@@ -83,7 +82,7 @@ namespace display_device {
      * ```
      */
     void
-    configure_display(const config::video_t &config, const rtsp_stream::launch_session_t &session, bool is_reconfigure);
+    configure_display(const config::video_t &config, const rtsp_stream::launch_session_t &session, bool is_reconfigure = false);
 
     /**
      * @brief Revert the display configuration and restore the previous state.
@@ -138,29 +137,59 @@ namespace display_device {
     void
     reset_persistence();
 
+    /**
+     * @brief Create VDD monitor
+     */
     bool
     create_vdd_monitor();
 
+    /**
+     * @brief Destroy VDD monitor
+     */
     bool
     destroy_vdd_monitor();
 
+    /**
+     * @brief Enable VDD driver
+     */
     void
     enable_vdd();
 
+    /**
+     * @brief Disable VDD driver
+     */
     void
     disable_vdd();
 
+    /**
+     * @brief Disable and enable VDD driver
+     */
     void
     disable_enable_vdd();
 
-    bool
-    is_display_on();
-
+    /**
+     * @brief Toggle display power
+     */
     void
     toggle_display_power();
 
+    /**
+     * @brief Check if display is on
+     */
+    bool
+    is_display_on();
+
+    /**
+     * @brief Prepares VDD for use
+     */
     void
     prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session);
+
+    /**
+     * @brief Checks if a RTSP streaming session is active.
+     */
+    bool
+    is_session_active();
 
     /**
      * @brief A deleted copy constructor for singleton pattern.
@@ -212,10 +241,7 @@ namespace display_device {
     std::unique_ptr<StateRetryTimer> timer;
     std::unique_ptr<StateRetryTimer> vdd_timer;
     std::chrono::steady_clock::time_point last_toggle_time;  ///< 上次切换显示器电源的时间点
-    std::chrono::milliseconds debounce_interval; 
-
-    bool
-    is_session_active();
+    std::chrono::milliseconds debounce_interval;
   };
 
 }  // namespace display_device

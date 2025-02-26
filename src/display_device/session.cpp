@@ -1,6 +1,7 @@
 // standard includes
 #include <boost/optional/optional_io.hpp>
 #include <boost/process.hpp>
+#include <future>
 #include <thread>
 
 // local includes
@@ -9,8 +10,8 @@
 #include "src/globals.h"
 #include "src/platform/common.h"
 #include "src/rtsp.h"
-#include "src/system_tray.h"
 #include "to_string.h"
+#include "vdd_utils.h"
 
 namespace display_device {
 
@@ -193,309 +194,49 @@ namespace display_device {
     }
   }
 
-  namespace {
-    constexpr auto kMaxRetryCount = 3;
-    constexpr auto kInitialRetryDelay = 500ms;
-    constexpr auto kMaxRetryDelay = 5000ms;
-
-    std::chrono::milliseconds
-    calculate_exponential_backoff(int attempt) {
-      auto delay = kInitialRetryDelay * (1 << attempt);
-      return std::min(delay, kMaxRetryDelay);
-    }
-
-    bool
-    execute_vdd_command(const std::string &action) {
-      static const std::string kDevManPath = (std::filesystem::path(SUNSHINE_ASSETS_DIR).parent_path() / "DevManView.exe").string();
-      static const std::string kDriverName = "Zako Display Adapter";
-
-      boost::process::environment _env = boost::this_process::environment();
-      auto working_dir = boost::filesystem::path();
-      std::error_code ec;
-
-      std::string cmd = kDevManPath + " /" + action + " \"" + kDriverName + "\"";
-
-      for (int attempt = 0; attempt < kMaxRetryCount; ++attempt) {
-        auto child = platf::run_command(true, true, cmd, working_dir, _env, nullptr, ec, nullptr);
-        if (!ec) {
-          BOOST_LOG(info) << "Successfully executed VDD " << action << " command";
-          child.detach();
-          return true;
-        }
-
-        auto delay = calculate_exponential_backoff(attempt);
-        BOOST_LOG(warning) << "Failed to execute VDD " << action << " command (attempt "
-                           << attempt + 1 << "), retrying in " << delay.count() << "ms";
-        std::this_thread::sleep_for(delay);
-      }
-
-      BOOST_LOG(error) << "Failed to execute VDD " << action << " command after "
-                       << kMaxRetryCount << " attempts";
-      return false;
-    }
-
-    constexpr auto kVddRetryInterval = 2333ms;
-    const wchar_t *kVddPipeName = L"\\\\.\\pipe\\ZakoVDDPipe";
-    const DWORD kPipeTimeoutMs = 5000;
-    const DWORD kPipeBufferSize = 4096;
-
-    HANDLE
-    connect_to_pipe_with_retry(const wchar_t *pipe_name, int max_retries = 3) {
-      HANDLE hPipe = INVALID_HANDLE_VALUE;
-      int attempt = 0;
-      auto retry_delay = kInitialRetryDelay;
-
-      while (attempt < max_retries) {
-        hPipe = CreateFileW(
-          pipe_name,
-          GENERIC_READ | GENERIC_WRITE,
-          0,
-          NULL,
-          OPEN_EXISTING,
-          FILE_FLAG_OVERLAPPED,  // 使用异步IO
-          NULL);
-
-        if (hPipe != INVALID_HANDLE_VALUE) {
-          DWORD mode = PIPE_READMODE_MESSAGE;
-          if (SetNamedPipeHandleState(hPipe, &mode, NULL, NULL)) {
-            return hPipe;
-          }
-          CloseHandle(hPipe);
-        }
-
-        ++attempt;
-        retry_delay = calculate_exponential_backoff(attempt);
-        std::this_thread::sleep_for(retry_delay);
-      }
-      return INVALID_HANDLE_VALUE;
-    }
-
-    bool
-    execute_pipe_command(const wchar_t *pipe_name, const wchar_t *command, std::string *response = nullptr) {
-      auto hPipe = connect_to_pipe_with_retry(pipe_name);
-      if (hPipe == INVALID_HANDLE_VALUE) {
-        BOOST_LOG(error) << "连接MTT虚拟显示管道失败，已重试多次";
-        return false;
-      }
-
-      // 异步IO结构体
-      OVERLAPPED overlapped = { 0 };
-      overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-      struct HandleGuard {
-        HANDLE handle;
-        ~HandleGuard() {
-          if (handle) CloseHandle(handle);
-        }
-      } event_guard { overlapped.hEvent };
-
-      // 发送命令（使用宽字符版本）
-      DWORD bytesWritten;
-      size_t cmd_len = (wcslen(command) + 1) * sizeof(wchar_t);  // 包含终止符
-      if (!WriteFile(hPipe, command, (DWORD) cmd_len, &bytesWritten, &overlapped)) {
-        if (GetLastError() != ERROR_IO_PENDING) {
-          BOOST_LOG(error) << L"发送" << command << L"命令失败，错误代码: " << GetLastError();
-          return false;
-        }
-
-        // 等待写入完成
-        DWORD waitResult = WaitForSingleObject(overlapped.hEvent, kPipeTimeoutMs);
-        if (waitResult != WAIT_OBJECT_0) {
-          BOOST_LOG(error) << L"发送" << command << L"命令超时";
-          return false;
-        }
-      }
-
-      // 读取响应
-      if (response) {
-        char buffer[kPipeBufferSize];
-        DWORD bytesRead;
-        if (!ReadFile(hPipe, buffer, sizeof(buffer), &bytesRead, &overlapped)) {
-          if (GetLastError() != ERROR_IO_PENDING) {
-            BOOST_LOG(warning) << "读取响应失败，错误代码: " << GetLastError();
-            return false;
-          }
-
-          DWORD waitResult = WaitForSingleObject(overlapped.hEvent, kPipeTimeoutMs);
-          if (waitResult == WAIT_OBJECT_0 && GetOverlappedResult(hPipe, &overlapped, &bytesRead, FALSE)) {
-            buffer[bytesRead] = '\0';
-            *response = std::string(buffer, bytesRead);
-          }
-        }
-      }
-
-      return true;
-    }
-    struct VddSettings {
-      std::string resolutions;
-      std::string fps;
-      bool needs_update;
-    };
-
-    VddSettings
-    prepare_vdd_settings(const parsed_config_t &config) {
-      auto is_res_cached = false;
-      auto is_fps_cached = false;
-      std::ostringstream res_stream, fps_stream;
-
-      res_stream << '[';
-      fps_stream << '[';
-
-      // 检查分辨率是否已缓存
-      for (const auto &res : config::nvhttp.resolutions) {
-        res_stream << res << ',';
-        if (config.resolution && res == to_string(*config.resolution)) {
-          is_res_cached = true;
-        }
-      }
-
-      // 检查帧率是否已缓存
-      for (const auto &fps : config::nvhttp.fps) {
-        fps_stream << fps << ',';
-        if (config.refresh_rate && std::to_string(fps) == to_string(*config.refresh_rate)) {
-          is_fps_cached = true;
-        }
-      }
-
-      // 如果需要更新设置
-      bool needs_update = (!is_res_cached || !is_fps_cached) && config.resolution;
-      if (needs_update) {
-        if (!is_res_cached) {
-          res_stream << to_string(*config.resolution);
-        }
-        if (!is_fps_cached) {
-          fps_stream << to_string(*config.refresh_rate);
-        }
-      }
-
-      // 移除最后的逗号并添加结束括号
-      auto res_str = res_stream.str();
-      auto fps_str = fps_stream.str();
-      if (res_str.back() == ',') res_str.pop_back();
-      if (fps_str.back() == ',') fps_str.pop_back();
-      res_str += ']';
-      fps_str += ']';
-
-      return { res_str, fps_str, needs_update };
-    }
-  }  // namespace
-
   bool
   session_t::create_vdd_monitor() {
-    std::string response;
-    if (!execute_pipe_command(kVddPipeName, L"CREATEMONITOR", &response)) {
-      BOOST_LOG(error) << "创建虚拟显示器失败";
-      return false;
-    }
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-    system_tray::update_tray_vmonitor_checked(1);
-#endif
-    BOOST_LOG(info) << "创建虚拟显示器完成，响应: " << response;
-    return true;
+    return vdd_utils::create_vdd_monitor();
   }
 
   bool
   session_t::destroy_vdd_monitor() {
-    std::string response;
-    if (!execute_pipe_command(kVddPipeName, L"DESTROYMONITOR", &response)) {
-      BOOST_LOG(error) << "销毁虚拟显示器失败";
-      return false;
-    }
-
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-    system_tray::update_tray_vmonitor_checked(0);
-#endif
-
-    BOOST_LOG(info) << "销毁虚拟显示器完成，响应: " << response;
-    return true;
-  }
-
-  bool
-  reload_driver() {
-    std::string response;
-    if (!execute_pipe_command(kVddPipeName, L"RELOAD_DRIVER", &response)) {
-      return false;
-    }
-    return true;
+    return vdd_utils::destroy_vdd_monitor();
   }
 
   void
   session_t::enable_vdd() {
-    execute_vdd_command("enable");
+    vdd_utils::enable_vdd();
   }
 
   void
   session_t::disable_vdd() {
-    execute_vdd_command("disable");
+    vdd_utils::disable_vdd();
   }
 
   void
   session_t::disable_enable_vdd() {
-    reload_driver();
+    vdd_utils::disable_enable_vdd();
   }
 
   bool
   session_t::is_display_on() {
-    std::lock_guard lock { mutex };
-    return !display_device::find_device_by_friendlyname(zako_name).empty();
+    return vdd_utils::is_display_on();
   }
-
-  std::chrono::steady_clock::time_point last_toggle_time;
-  std::chrono::milliseconds debounce_interval { 9000 };  // 9000毫秒防抖间隔
 
   void
   session_t::toggle_display_power() {
-    auto now = std::chrono::steady_clock::now();
-
-    if (now - last_toggle_time < debounce_interval) {
-      BOOST_LOG(debug) << "忽略快速重复的显示器开关请求";
-      return;
-    }
-
-    last_toggle_time = now;
-
-    if (!is_display_on()) {
-      if (create_vdd_monitor()) {
-        std::thread([this]() {
-          // Windows弹窗确认
-          auto future = std::async(std::launch::async, []() {
-            return MessageBoxW(nullptr,
-                     L"已创建虚拟显示器，是否继续使用？",
-                     L"显示器确认",
-                     MB_YESNO | MB_ICONQUESTION) == IDYES;
-          });
-
-          // 等待20秒超时
-          if (future.wait_for(20s) != std::future_status::ready || !future.get()) {
-            BOOST_LOG(info) << "用户未确认或超时，自动销毁虚拟显示器";
-            HWND hwnd = FindWindowW(L"#32770", L"显示器确认");
-            if (hwnd && IsWindow(hwnd)) {
-              // 发送退出命令并等待窗口关闭
-              PostMessage(hwnd, WM_COMMAND, MAKEWPARAM(IDNO, BN_CLICKED), 0);
-              PostMessage(hwnd, WM_CLOSE, 0, 0);
-
-              for (int i = 0; i < 3 && IsWindow(hwnd); ++i) {
-                std::this_thread::sleep_for(200ms);
-              }
-            }
-            destroy_vdd_monitor();
-          }
-        }).detach();
-      }
-    }
-    else {
-      destroy_vdd_monitor();
-    }
+    vdd_utils::toggle_display_power();
   }
 
   void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
-    auto vdd_settings = prepare_vdd_settings(config);
+    auto vdd_settings = vdd_utils::prepare_vdd_settings(config);
     bool should_toggle_vdd = false;
 
-    BOOST_LOG(debug) << "needs_update: " << vdd_settings.needs_update
-                     << ", new_setting: " << (config.resolution ? to_string(*config.resolution) + "@" + to_string(*config.refresh_rate) : "null")
-                     << ", last_vdd_setting: " << (last_vdd_setting.empty() ? "null" : last_vdd_setting);
+    BOOST_LOG(debug) << "VDD设置状态: 需要更新=" << (vdd_settings.needs_update ? "是" : "否")
+                     << ", 新设置=" << (config.resolution ? to_string(*config.resolution) + "@" + to_string(*config.refresh_rate) : "无")
+                     << ", 上次VDD设置=" << (last_vdd_setting.empty() ? "无" : last_vdd_setting);
 
     if (vdd_settings.needs_update && config.resolution) {
       std::string new_setting = to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
@@ -504,6 +245,7 @@ namespace display_device {
       if (should_toggle_vdd) {
         if (confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps,
               config::video.adapter_name)) {
+          BOOST_LOG(info) << "成功保存VDD设置: " << new_setting;
           last_vdd_setting = new_setting;
         }
         else {
@@ -514,48 +256,27 @@ namespace display_device {
     }
 
     if (should_toggle_vdd) {
-      disable_enable_vdd();
-      std::this_thread::sleep_for(kVddRetryInterval);
+      BOOST_LOG(info) << "配置已更改，重新加载VDD驱动...";
+      vdd_utils::reload_driver();
+      std::this_thread::sleep_for(vdd_utils::kVddRetryInterval);
     }
 
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
+      BOOST_LOG(info) << "没有找到VDD设备，开始创建虚拟显示器...";
       create_vdd_monitor();
       std::this_thread::sleep_for(233ms);
     }
 
-    struct RetryConfig {
-      int max_attempts;
-      std::chrono::milliseconds initial_delay;
-      std::chrono::milliseconds max_delay;
-      std::string_view context;
-    };
-
-    auto retry_with_backoff = [](auto &&check_func, const RetryConfig &config) -> bool {
-      int attempt = 0;
-      auto delay = config.initial_delay;
-
-      while (attempt < config.max_attempts) {
-        if (check_func()) {
-          return true;
-        }
-
-        ++attempt;
-        if (attempt < config.max_attempts) {
-          delay = std::min(config.max_delay, delay * 2);
-          BOOST_LOG(info) << config.context << " 重试中 [" << attempt << "/"
-                          << config.max_attempts << "], 下次重试间隔: " << delay.count() << "ms";
-          std::this_thread::sleep_for(delay);
-        }
-      }
-      return false;
-    };
-
-    const bool device_found = retry_with_backoff([&device_zako]() {
-      device_zako = display_device::find_device_by_friendlyname(zako_name);
-      return !device_zako.empty();
-    },
-      { .max_attempts = 20, .initial_delay = 233ms, .max_delay = 2000ms, .context = "等待VDD设备初始化" });
+    const bool device_found = vdd_utils::retry_with_backoff(
+      [&device_zako]() {
+        device_zako = display_device::find_device_by_friendlyname(zako_name);
+        return !device_zako.empty();
+      },
+      { .max_attempts = 10,
+        .initial_delay = 233ms,
+        .max_delay = 1000ms,
+        .context = "等待VDD设备初始化" });
 
     // 失败后处理
     if (!device_found) {
@@ -569,31 +290,46 @@ namespace display_device {
 
       for (int retry = 1; retry <= max_retries; ++retry) {
         // 创建显示器并检查结果
+        BOOST_LOG(info) << "正在执行第" << retry << "次VDD恢复尝试...";
         const bool create_success = create_vdd_monitor();
-        const bool check_success = create_success && retry_with_backoff(
-                                                       [&device_zako]() {
-                                                         device_zako = display_device::find_device_by_friendlyname(zako_name);
-                                                         return !device_zako.empty();
-                                                       },
-                                                       { .max_attempts = 5, .initial_delay = 233ms, .max_delay = 2000ms, .context = "最终设备检查" });
+
+        if (!create_success) {
+          BOOST_LOG(error) << "创建虚拟显示器失败，尝试" << retry << "/" << max_retries;
+          if (retry < max_retries) {
+            std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略：2,4,8秒
+            continue;
+          }
+          break;
+        }
+
+        const bool check_success = vdd_utils::retry_with_backoff(
+          [&device_zako]() {
+            device_zako = display_device::find_device_by_friendlyname(zako_name);
+            return !device_zako.empty();
+          },
+          { .max_attempts = 5,
+            .initial_delay = 233ms,
+            .max_delay = 2000ms,
+            .context = "最终设备检查" });
 
         if (check_success) {
+          BOOST_LOG(info) << "VDD设备恢复成功！";
           final_success = true;
           break;
         }
 
-        const std::string error_type = create_success ? "设备初始化" : "创建显示器";
-        BOOST_LOG(error) << error_type << "失败，正在第" << retry << "/" << max_retries << "次重试...";
+        BOOST_LOG(error) << "VDD设备检测失败，正在第" << retry << "/" << max_retries << "次重试...";
 
         if (retry < max_retries) {
-          std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略：2,4,8秒
+          std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略
         }
       }
 
       if (!final_success) {
         BOOST_LOG(error) << "VDD设备最终初始化失败，请检查：\n"
                          << "1. 显卡驱动是否正常\n"
-                         << "2. 设备管理器中的虚拟设备状态";
+                         << "2. 设备管理器中的虚拟设备状态\n"
+                         << "3. 系统事件日志中的相关错误";
         disable_enable_vdd();  // 最终回退操作
       }
     }
@@ -602,6 +338,7 @@ namespace display_device {
     if (!device_zako.empty()) {
       config.device_id = device_zako;
       config::video.output_name = device_zako;
+      BOOST_LOG(info) << "成功配置VDD设备: " << device_zako;
     }
   }
 
@@ -621,8 +358,12 @@ namespace display_device {
 
   void
   session_t::restore_state_impl() {
+    static int retry_count = 0;
+    constexpr int max_retries = 5;
+
     if (!settings.is_changing_settings_going_to_fail() && settings.revert_settings()) {
       timer->setup_timer(nullptr);
+      retry_count = 0;
     }
     else {
       if (settings.is_changing_settings_going_to_fail()) {
@@ -630,10 +371,17 @@ namespace display_device {
       }
 
       timer->setup_timer([this]() {
+        if (retry_count >= max_retries) {
+          BOOST_LOG(warning) << "Max retry count (" << max_retries << ") reached for reverting display settings";
+          return true;
+        }
+
         if (settings.is_changing_settings_going_to_fail()) {
           BOOST_LOG(warning) << "Reverting display settings will still fail - retrying later...";
+          retry_count++;
           return false;
         }
+        retry_count = 0;
         return settings.revert_settings();
       });
     }

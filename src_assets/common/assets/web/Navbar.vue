@@ -58,7 +58,7 @@ const loadBackground = () => {
     localStorage.getItem('customBackground') ??
     'https://raw.gitmirror.com/qiin2333/qiin.github.io/assets/img/sunshine-bg0.webp'
   if (savedBg) {
-    document.body.style.background = `${savedBg} center/cover fixed no-repeat`
+    document.body.style.background = `url(${savedBg}) center/cover fixed no-repeat`
   }
 }
 

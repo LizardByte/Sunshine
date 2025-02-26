@@ -66,6 +66,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/display_device/settings.h"
         "${CMAKE_SOURCE_DIR}/src/display_device/to_string.cpp"
         "${CMAKE_SOURCE_DIR}/src/display_device/to_string.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device/vdd_utils.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device/vdd_utils.h"
         "${CMAKE_SOURCE_DIR}/src/upnp.cpp"
         "${CMAKE_SOURCE_DIR}/src/upnp.h"
         "${CMAKE_SOURCE_DIR}/src/cbs.cpp"
