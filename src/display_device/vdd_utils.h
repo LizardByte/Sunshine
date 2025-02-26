@@ -26,7 +26,6 @@ namespace display_device {
     constexpr auto kMaxRetryCount = 3;
     constexpr auto kInitialRetryDelay = 500ms;
     constexpr auto kMaxRetryDelay = 5000ms;
-    constexpr auto kVddRetryInterval = 2333ms;
     extern const wchar_t *kVddPipeName;
     extern const DWORD kPipeTimeoutMs;
     extern const DWORD kPipeBufferSize;

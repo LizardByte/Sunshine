@@ -748,14 +748,19 @@ namespace display_device {
       BOOST_LOG(info) << "Display device configuration reverted.";
     }
 
-    const auto devices { display_device::enum_available_devices() };
-    const auto vdd_device { display_device::find_device_by_friendlyname(zako_name) };
+    const auto available_devices { display_device::enum_available_devices() };
+    auto &session = display_device::session_t::get();
 
-    if (config::video.preferUseVdd) {
-      if (!vdd_device.empty() && devices.size() > 1) {
-        std::this_thread::sleep_for(777ms);
-        BOOST_LOG(info) << "preferUseVdd && devices.size() > 1, turning off vdd";
-        display_device::session_t::get().destroy_vdd_monitor();
+    if (config::video.preferUseVdd && available_devices.size() > 1 && session.is_display_on()) {
+      BOOST_LOG(info) << "检测到多显示器且VDD已启用，执行关闭操作";
+      session.destroy_vdd_monitor();
+    }
+    else if (!config::video.preferUseVdd) {
+      BOOST_LOG(info) << "VDD偏好未启用，尝试创建显示器";
+      session.create_vdd_monitor();
+      // 需要阻断，直到显示器创建成功，后续操作需要显示器存在
+      while (!session.is_display_on()) {
+        std::this_thread::sleep_for(233ms);
       }
     }
 

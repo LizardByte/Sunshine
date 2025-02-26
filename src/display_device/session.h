@@ -186,12 +186,6 @@ namespace display_device {
     prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session);
 
     /**
-     * @brief Checks if a RTSP streaming session is active.
-     */
-    bool
-    is_session_active();
-
-    /**
      * @brief A deleted copy constructor for singleton pattern.
      * @note Public to ensure better error message.
      */
@@ -239,9 +233,6 @@ namespace display_device {
      * @warning MUST BE declared after the settings and mutex members to ensure proper destruction order!.
      */
     std::unique_ptr<StateRetryTimer> timer;
-    std::unique_ptr<StateRetryTimer> vdd_timer;
-    std::chrono::steady_clock::time_point last_toggle_time;  ///< 上次切换显示器电源的时间点
-    std::chrono::milliseconds debounce_interval;
   };
 
 }  // namespace display_device

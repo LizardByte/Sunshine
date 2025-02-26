@@ -558,7 +558,7 @@ namespace display_device {
     }
 
     // 需要准备VDD的场景
-    if (config.preferUseVdd || session.use_vdd || display_device::get_display_friendly_name(config.output_name) == zako_name) {
+    if (config.preferUseVdd || session.use_vdd || display_device::get_display_friendly_name(config.output_name).empty()) {
       display_device::session_t::get().prepare_vdd(parsed_config, session);
     }
 
