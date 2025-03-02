@@ -164,6 +164,14 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 
 Our support methods are listed in our [LizardByte Docs](https://docs.lizardbyte.dev/latest/about/support.html).
 
+## 💲 Sponsors and Supporters
+
+<p align="center">
+  <a href="https://app.lizardbyte.dev" aria-label="Sponsor LizardByte">
+    <img src='https://raw.githubusercontent.com/LizardByte/sponsors/refs/heads/dist/sponsors.svg'/>
+  </a>
+</p>
+
 <div class="section_buttons">
 
 | Previous |                                       Next |
