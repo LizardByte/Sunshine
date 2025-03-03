@@ -6,39 +6,6 @@
 namespace display_device {
 
   namespace {
-
-    /**
-     * @brief Enumerate and get one of the devices matching the id or
-     *        any of the primary devices if id is unspecified.
-     * @param device_id Id to find in enumerated devices.
-     * @return Device id, or empty string if an error has occurred.
-     *
-     * EXAMPLES:
-     * ```cpp
-     * const std::string primary_device = find_one_of_the_available_devices("");
-     * const std::string id_that_matches_provided_id = find_one_of_the_available_devices(primary_device);
-     * ```
-     */
-    std::string
-    find_one_of_the_available_devices(const std::string &device_id) {
-      const auto devices { enum_available_devices() };
-      if (devices.empty()) {
-        BOOST_LOG(error) << "Display device list is empty!";
-        return {};
-      }
-      BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-
-      const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&device_id](const auto &entry) {
-        return device_id.empty() ? entry.second.device_state == device_state_e::primary : entry.first == device_id;
-      }) };
-      if (device_it == std::end(devices)) {
-        BOOST_LOG(error) << "Device " << (device_id.empty() ? "PRIMARY" : device_id) << " not found in the list of available devices!";
-        return {};
-      }
-
-      return device_it->first;
-    }
-
     /**
      * @brief Get all device ids that belong in the same group as provided ids (duplicated displays).
      * @param device_id Device id to search for in the topology.
@@ -164,6 +131,38 @@ namespace display_device {
     }
 
   }  // namespace
+
+  /**
+   * @brief Enumerate and get one of the devices matching the id or
+   *        any of the primary devices if id is unspecified.
+   * @param device_id Id to find in enumerated devices.
+   * @return Device id, or empty string if an error has occurred.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * const std::string primary_device = find_one_of_the_available_devices("");
+   * const std::string id_that_matches_provided_id = find_one_of_the_available_devices(primary_device);
+   * ```
+   */
+  std::string
+  find_one_of_the_available_devices(const std::string &device_id) {
+    const auto devices { enum_available_devices() };
+    if (devices.empty()) {
+      BOOST_LOG(error) << "Display device list is empty!";
+      return {};
+    }
+    BOOST_LOG(info) << "Available display devices: " << to_string(devices);
+
+    const auto device_it { std::find_if(std::begin(devices), std::end(devices), [&device_id](const auto &entry) {
+      return device_id.empty() ? entry.second.device_state == device_state_e::primary : entry.first == device_id;
+    }) };
+    if (device_it == std::end(devices)) {
+      BOOST_LOG(error) << "Device " << (device_id.empty() ? "PRIMARY" : device_id) << " not found in the list of available devices!";
+      return {};
+    }
+
+    return device_it->first;
+  }
 
   std::unordered_set<std::string>
   get_device_ids_from_topology(const active_topology_t &topology) {

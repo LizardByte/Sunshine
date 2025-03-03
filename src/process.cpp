@@ -357,7 +357,7 @@ namespace proc {
 #endif
 
       // Same applies when restoring display state
-      display_device::session_t::get().restore_state();
+      // display_device::session_t::get().restore_state();
     }
 
     _app_id = -1;

@@ -4,6 +4,7 @@
 #include <mutex>
 // local includes
 #include "settings.h"
+#include "vdd_utils.h"
 
 namespace display_device {
 
@@ -233,6 +234,9 @@ namespace display_device {
      * @warning MUST BE declared after the settings and mutex members to ensure proper destruction order!.
      */
     std::unique_ptr<StateRetryTimer> timer;
+
+    void
+    update_vdd_resolution(const parsed_config_t &config, const vdd_utils::VddSettings &vdd_settings);
   };
 
 }  // namespace display_device

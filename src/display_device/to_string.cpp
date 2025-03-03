@@ -48,7 +48,7 @@ namespace display_device {
   to_string(const device_info_t &value) {
     std::stringstream output;
     output << "DISPLAY NAME: " << (value.display_name.empty() ? "NOT AVAILABLE" : value.display_name) << std::endl;
-    output << "FRIENDLY NAME: " << (value.friendly_name.empty() ? "NOT AVAILABLE" : value.friendly_name) << std::endl;
+    output << "FRIENDLY NAME: " << (value.friendly_name.empty() ? "通用/内建显示器" : value.friendly_name) << std::endl;
     output << "DEVICE STATE: " << to_string(value.device_state) << std::endl;
     output << "HDR STATE: " << to_string(value.hdr_state);
     return output.str();

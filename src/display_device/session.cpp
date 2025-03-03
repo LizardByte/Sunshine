@@ -140,15 +140,7 @@ namespace display_device {
 
   std::unique_ptr<session_t::deinit_t>
   session_t::init() {
-    // const auto devices { enum_available_devices() };
-    // const auto vdd_device { display_device::find_device_by_friendlyname(zako_name) };
-    // if (!devices.empty()) {
-    //   BOOST_LOG(info) << "Available display devices: " << to_string(devices);
-    //   zako_device_id = vdd_device;
-    // }
-
     session_t::get().settings.set_filepath(platf::appdata() / "original_display_settings.json");
-
     session_t::get().restore_state();
     return std::make_unique<deinit_t>();
   }
@@ -230,6 +222,29 @@ namespace display_device {
   }
 
   void
+  session_t::update_vdd_resolution(const parsed_config_t &config, const vdd_utils::VddSettings &vdd_settings) {
+    const auto new_setting = to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
+
+    if (last_vdd_setting == new_setting) {
+      BOOST_LOG(debug) << "VDD配置未变更: " << new_setting;
+      return;
+    }
+
+    if (!confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps, config::video.adapter_name)) {
+      BOOST_LOG(error) << "VDD配置保存失败 [resolutions: " << vdd_settings.resolutions << " fps: " << vdd_settings.fps << "]";
+      return;
+    }
+
+    last_vdd_setting = new_setting;
+    BOOST_LOG(info) << "VDD配置更新完成: " << new_setting;
+
+    // 配置变更后执行驱动重载
+    BOOST_LOG(info) << "重新加载VDD驱动...";
+    vdd_utils::reload_driver();
+    std::this_thread::sleep_for(1500ms);
+  }
+
+  void
   session_t::prepare_vdd(parsed_config_t &config, const rtsp_stream::launch_session_t &session) {
     auto vdd_settings = vdd_utils::prepare_vdd_settings(config);
     const bool has_new_resolution = vdd_settings.needs_update && config.resolution;
@@ -238,27 +253,7 @@ namespace display_device {
                      << ", new_setting=" << (config.resolution ? to_string(*config.resolution) + "@" + to_string(*config.refresh_rate) : "none")
                      << ", last_vdd_setting=" << (last_vdd_setting.empty() ? "none" : last_vdd_setting);
 
-    if (has_new_resolution) {
-      const auto new_setting = to_string(*config.resolution) + "@" + to_string(*config.refresh_rate);
-      
-      if (last_vdd_setting == new_setting) {
-        BOOST_LOG(debug) << "VDD配置未变更: " << new_setting;
-        return;
-      }
-
-      if (!confighttp::saveVddSettings(vdd_settings.resolutions, vdd_settings.fps, config::video.adapter_name)) {
-        BOOST_LOG(error) << "VDD配置保存失败 [resolutions: " << vdd_settings.resolutions << " fps: " << vdd_settings.fps << "]";
-        return;
-      }
-
-      last_vdd_setting = new_setting;
-      BOOST_LOG(info) << "VDD配置更新完成: " << new_setting;
-
-      // 配置变更后执行驱动重载
-      BOOST_LOG(info) << "重新加载VDD驱动...";
-      vdd_utils::reload_driver();
-      std::this_thread::sleep_for(1500ms);
-    }
+    if (has_new_resolution) update_vdd_resolution(config, vdd_settings);
 
     auto device_zako = display_device::find_device_by_friendlyname(zako_name);
     if (device_zako.empty()) {
@@ -277,59 +272,44 @@ namespace display_device {
         .max_delay = 500ms,
         .context = "等待VDD设备初始化" });
 
-    // 失败后处理
+    // 失败后优化处理流程
     if (!device_found) {
       BOOST_LOG(error) << "VDD设备初始化失败，尝试重置驱动";
       disable_enable_vdd();
       std::this_thread::sleep_for(2s);
 
-      // 统一重试逻辑
-      constexpr int max_retries = 3;
-      bool final_success = false;
-
-      for (int retry = 1; retry <= max_retries; ++retry) {
-        // 创建显示器并检查结果
+      for (int retry = 1; retry <= 3; ++retry) {
         BOOST_LOG(info) << "正在执行第" << retry << "次VDD恢复尝试...";
-        const bool create_success = create_vdd_monitor();
 
-        if (!create_success) {
-          BOOST_LOG(error) << "创建虚拟显示器失败，尝试" << retry << "/" << max_retries;
-          if (retry < max_retries) {
-            std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略：2,4,8秒
+        if (!create_vdd_monitor()) {
+          BOOST_LOG(error) << "创建虚拟显示器失败，尝试" << retry << "/3";
+          if (retry < 3) {
+            std::this_thread::sleep_for(std::chrono::seconds(1 << retry));
             continue;
           }
           break;
         }
 
-        const bool check_success = vdd_utils::retry_with_backoff(
-          [&device_zako]() {
-            device_zako = display_device::find_device_by_friendlyname(zako_name);
-            return !device_zako.empty();
-          },
-          { .max_attempts = 5,
-            .initial_delay = 233ms,
-            .max_delay = 2000ms,
-            .context = "最终设备检查" });
-
-        if (check_success) {
+        if (vdd_utils::retry_with_backoff(
+              [&device_zako]() {
+                device_zako = display_device::find_device_by_friendlyname(zako_name);
+                return !device_zako.empty();
+              },
+              { .max_attempts = 5,
+                .initial_delay = 233ms,
+                .max_delay = 2000ms,
+                .context = "最终设备检查" })) {
           BOOST_LOG(info) << "VDD设备恢复成功！";
-          final_success = true;
           break;
         }
 
-        BOOST_LOG(error) << "VDD设备检测失败，正在第" << retry << "/" << max_retries << "次重试...";
-
-        if (retry < max_retries) {
-          std::this_thread::sleep_for(std::chrono::seconds(1 << retry));  // 指数退避策略
-        }
+        BOOST_LOG(error) << "VDD设备检测失败，正在第" << retry << "/3次重试...";
+        if (retry < 3) std::this_thread::sleep_for(std::chrono::seconds(1 << retry));
       }
 
-      if (!final_success) {
-        BOOST_LOG(error) << "VDD设备最终初始化失败，请检查：\n"
-                         << "1. 显卡驱动是否正常\n"
-                         << "2. 设备管理器中的虚拟设备状态\n"
-                         << "3. 系统事件日志中的相关错误";
-        disable_enable_vdd();  // 最终回退操作
+      if (device_zako.empty()) {
+        BOOST_LOG(error) << "VDD设备最终初始化失败，请检查显卡驱动和设备状态";
+        disable_enable_vdd();
       }
     }
 
@@ -370,7 +350,11 @@ namespace display_device {
           BOOST_LOG(warning) << "Reverting display settings will still fail - retrying later...";
           return false;
         }
-        return settings.revert_settings();
+
+        // 只恢复一次
+        auto result = settings.revert_settings();
+        BOOST_LOG(info) << "尝试恢复显示设置" << (result ? "成功" : "失败") << "，不再重试";
+        return true;
       });
     }
   }

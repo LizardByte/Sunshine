@@ -129,6 +129,9 @@ namespace display_device {
   enum_available_devices();
 
   std::string
+  find_one_of_the_available_devices(const std::string &device_id);
+
+  std::string
   find_device_by_friendlyname(const std::string &friendly_name);
 
   /**
