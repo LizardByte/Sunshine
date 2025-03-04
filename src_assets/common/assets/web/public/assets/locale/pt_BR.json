@@ -90,7 +90,7 @@
     "adapter_name_placeholder_windows": "Série Radeon RX 580",
     "add": "Adicionar",
     "address_family": "Endereço da família",
-    "address_family_both": "IPv4+IPv6",
+    "address_family_both": "IPv4 + IPv6",
     "address_family_desc": "Definir a família de endereços usada pelo Sunshine",
     "address_family_ipv4": "Somente IPv4",
     "always_send_scancodes": "Sempre enviar códigos de barras",
