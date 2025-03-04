@@ -17,7 +17,9 @@
       "two_letters_code": {
         # map non-two letter codes here, left side is crowdin designation, right side is babel designation
         "en-GB": "en_GB",
-        "en-US": "en_US"
+        "en-US": "en_US",
+        "pt-BR": "pt_BR",
+        "zh-TW": "zh_TW"
       }
     },
     "update_option": "update_as_unapproved"
