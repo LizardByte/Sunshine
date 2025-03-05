@@ -117,6 +117,8 @@ namespace {
 
   using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
+  // The list of virtual formats are sorted in preference order and the first valid format will be used.
+  // One exception is if the default audio device is set to 16-bit, in which case we will choose the first 16-bit format.
   template<WORD channel_count>
   virtual_sink_waveformats_t create_virtual_sink_waveformats() {
     if constexpr (channel_count == 2) {
@@ -129,7 +131,7 @@ namespace {
       };
     } else if (channel_count == 6) {
       auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
-      auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers;
+      auto channel_mask2 = waveformat_mask_surround51_with_sidespeakers; // XXX will never be used, but is probably the better 5.1 layout
       return {
         create_waveformat(sample_format_e::f32, channel_count, channel_mask1),
         create_waveformat(sample_format_e::f32, channel_count, channel_mask2),
@@ -793,6 +795,30 @@ namespace platf::audio {
         }
       }
 
+      // When switching to a Steam virtual speaker device, try to retain the bit depth of the
+      // default audio device. Switching from a 16-bit device to a 24-bit one has been known to
+      // cause glitches for some users.
+      bool use_16bit = false;
+      auto current_default_dev = default_device(device_enum);
+      if (current_default_dev) {
+        audio::prop_t prop;
+        prop_var_t current_device_format;
+        prop_var_t current_device_friendly_name;
+
+        current_default_dev->OpenPropertyStore(STGM_READ, &prop);
+
+        if (SUCCEEDED(prop->GetValue(PKEY_AudioEngine_DeviceFormat, &current_device_format.prop))) {
+          WAVEFORMATEXTENSIBLE *format = (WAVEFORMATEXTENSIBLE *)current_device_format.prop.blob.pBlobData;
+          if (format->Format.wBitsPerSample < 24) {
+            if (SUCCEEDED(prop->GetValue(PKEY_Device_FriendlyName, &current_device_friendly_name.prop))) {
+              auto friendly_name = to_utf8(std::wstring(current_device_friendly_name.prop.pwszVal));
+              BOOST_LOG(info) << "Steam Streaming Speakers will use 16-bit to match default audio device: "sv << friendly_name;
+              use_16bit = true;
+            }
+          }
+        }
+      }
+
       auto &device_id = virtual_sink_info->first;
       auto &waveformats = virtual_sink_info->second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
@@ -801,6 +827,10 @@ namespace platf::audio {
         auto device_id_copy = device_id;
         auto waveformat_copy = waveformat;
         auto waveformat_copy_pointer = reinterpret_cast<WAVEFORMATEX *>(&waveformat_copy);
+
+        if (use_16bit && waveformat.Samples.wValidBitsPerSample != 16) {
+          continue;
+        }
 
         WAVEFORMATEXTENSIBLE p {};
         if (SUCCEEDED(policy->SetDeviceFormat(device_id_copy.c_str(), waveformat_copy_pointer, (WAVEFORMATEX *) &p))) {
