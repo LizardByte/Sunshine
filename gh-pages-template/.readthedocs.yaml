@@ -1,0 +1,23 @@
+---
+# Read the Docs configuration file
+# See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
+
+version: 2
+
+build:
+  os: ubuntu-24.04
+  tools:
+    ruby: "3.3"
+  apt_packages:
+    - 7zip
+    - jq
+  jobs:
+    install:
+      - |
+        mkdir -p "./tmp"
+        url="https://raw.githubusercontent.com/LizardByte/LizardByte.github.io/refs/heads/ci/build/preview-PR-builds-via-Read-the-Docs/scripts/readthedocs_build.sh"
+        curl -sSL -o "./tmp/readthedocs_build.sh" "${url}"
+        chmod +x "./tmp/readthedocs_build.sh"
+    build:
+      html:
+        - "./tmp/readthedocs_build.sh"
