@@ -1382,7 +1382,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Range</td>
-        <td colspan="2">1-3</td>
+        <td colspan="2">1-30</td>
     </tr>
     <tr>
         <td>Example</td>
