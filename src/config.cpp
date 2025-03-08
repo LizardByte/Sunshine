@@ -1136,7 +1136,11 @@ namespace config {
     }
     bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
     generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
-    bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
+    {
+      int value = 0;
+      int_between_f(vars, "dd_wa_hdr_toggle_delay", value, {0, 3000});
+      video.dd.wa.hdr_toggle_delay = std::chrono::milliseconds {value};
+    }
 
     int_between_f(vars, "min_fps_factor", video.min_fps_factor, {1, 3});
     int_f(vars, "max_bitrate", video.max_bitrate);

@@ -45,43 +45,22 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-  setup_flatpak_matrix:
-    name: Setup Flatpak Matrix
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set release details
-        id: flatpak_matrix
-        # https://www.cynkra.com/blog/2020-12-23-dynamic-gha
-        run: |
-          # determine which architectures to build
-          if [[ "${{ github.event_name }}" == "push" ]]; then
-            matrix=$((
-              echo '{ "arch" : ["x86_64", "aarch64"] }'
-            ) | jq -c .)
-          else
-            matrix=$((
-              echo '{ "arch" : ["x86_64"] }'
-            ) | jq -c .)
-          fi
-
-          echo $matrix
-          echo $matrix | jq .
-          echo "matrix=$matrix" >> $GITHUB_OUTPUT
-
-    outputs:
-      matrix: ${{ steps.flatpak_matrix.outputs.matrix }}
-
   build_linux_flatpak:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       NODE_VERSION: "20"
       PLATFORM_VERSION: "23.08"
     name: Linux Flatpak
-    runs-on: ubuntu-22.04
-    needs: [setup_release, setup_flatpak_matrix]
+    needs: [setup_release]
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
-      matrix: ${{fromJson(needs.setup_flatpak_matrix.outputs.matrix)}}
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-22.04
+          - arch: aarch64
+            runner: ubuntu-22.04-arm
 
     steps:
       - name: Maximize build space
@@ -126,8 +105,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
-            flatpak \
-            qemu-user-static
+            flatpak
 
           sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
             https://flathub.org/repo/flathub.flatpakrepo"
@@ -227,52 +205,23 @@ jobs:
       - name: Lint Flatpak
         working-directory: build
         run: |
+          exceptions_file="${{ github.workspace }}/packaging/linux/flatpak/exceptions.json"
+
           echo "Linting flatpak manifest"
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            manifest ${APP_ID}.yml > _flatpak-lint-exceptions_manifest.json || true
+            --exceptions \
+            --user-exceptions "${exceptions_file}" \
+            manifest \
+            ${APP_ID}.yml
 
           echo "Linting flatpak repo"
           # TODO: add arg
           # --mirror-screenshots-url=https://dl.flathub.org/media \
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \
-            repo repo > _flatpak-lint-exceptions_repo.json || true
-
-          checks=(manifest repo)
-          exit_code=0
-
-          # check if files are equal
-          for check in "${checks[@]}"; do
-            echo "Validating $check"
-
-            # load baseline and result files
-            baseline="${{ github.workspace }}/packaging/linux/flatpak/flatpak-lint-baseline_${check}.json"
-            result="_flatpak-lint-exceptions_${check}.json"
-
-            # Extract errors from both JSON files
-            readarray -t result_errors < <(jq -r '.errors[]' "$result")
-            readarray -t baseline_errors < <(jq -r '.errors[]' "$baseline")
-
-            # Loop through result errors and check against baseline errors
-            for error in "${result_errors[@]}"; do
-              if printf '%s\n' "${baseline_errors[@]}" | grep -q -F "$error"; then
-                echo "::warning:: '$error'"
-              else
-                echo "::error:: '$error'"
-                exit_code=1
-              fi
-            done
-          done
-
-          # if exit code is not 0, print results
-          if [ $exit_code -ne 0 ]; then
-            echo "Manifest lint results:"
-            cat _flatpak-lint-exceptions_manifest.json
-            echo "Repo lint results:"
-            cat _flatpak-lint-exceptions_repo.json
-          fi
-
-          # exit with the correct code
-          exit $exit_code
+            --exceptions \
+            --user-exceptions "${exceptions_file}" \
+            repo \
+            repo
 
       - name: Package Flathub repo archive
         # copy files required to generate the Flathub repo
