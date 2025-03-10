@@ -1255,6 +1255,7 @@ namespace config {
                                                                    "tr"sv,  // Turkish
                                                                    "uk"sv,  // Ukrainian
                                                                    "zh"sv,  // Chinese
+                                                                   "zh_TW"sv,  // Chinese (Traditional)
                                                                  });
 
     std::string log_level_string;
