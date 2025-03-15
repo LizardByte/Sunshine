@@ -24,9 +24,9 @@ add_definitions(-DMINIUPNP_STATICLIB)
 add_subdirectory(tools)  # todo - this is temporary, only tools for Windows are needed, for now
 
 # nvidia
-include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nvapi-open-source-sdk")
+include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nvapi")
 file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
-        "${CMAKE_SOURCE_DIR}/third-party/nvapi-open-source-sdk/*.h"
+        "${CMAKE_SOURCE_DIR}/third-party/nvapi/*.h"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/nvprefs/*.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/nvprefs/*.h")
 
