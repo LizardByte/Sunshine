@@ -8,9 +8,9 @@
     "serve": "serve ./tests/fixtures/http --no-port-switching"
   },
   "dependencies": {
-    "@lizardbyte/shared-web": "2024.921.191855",
+    "@lizardbyte/shared-web": "2025.221.2011",
     "vue": "3.5.13",
-    "vue-i18n": "11.1.1"
+    "vue-i18n": "11.1.2"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "4.6.2",
