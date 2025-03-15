@@ -51,32 +51,41 @@ jobs:
               "include": []
             }
 
+            // Track languages we've already added to avoid duplicates
+            const addedLanguages = new Set()
+
             for (let [key, value] of Object.entries(response.data)) {
               // remap language
               if (remap_languages[key.toLowerCase()]) {
                 console.log(`Remapping language: ${key} to ${remap_languages[key.toLowerCase()]}`)
                 key = remap_languages[key.toLowerCase()]
               }
-              if (supported_languages.includes(key.toLowerCase())) {
-                console.log(`Found supported language: ${key}`)
+
+              const normalizedKey = key.toLowerCase()
+
+              if (supported_languages.includes(normalizedKey) && !addedLanguages.has(normalizedKey)) {
+                // Mark this language as added
+                addedLanguages.add(normalizedKey)
+
+                console.log(`Found supported language: ${normalizedKey}`)
                 let osList = ['ubuntu-latest'];
-                if (key.toLowerCase() === 'swift') {
+                if (normalizedKey === 'swift') {
                   osList = ['macos-latest'];
-                } else if (key.toLowerCase() === 'cpp') {
+                } else if (normalizedKey === 'cpp') {
                   // TODO: update macos to latest after the below issue is resolved
                   // https://github.com/github/codeql-action/issues/2266
                   osList = ['macos-13', 'ubuntu-latest', 'windows-latest'];
                 }
                 for (let os of osList) {
                   // set name for matrix
-                  if (osList.length == 1) {
-                    name = key.toLowerCase()
-                  } else {
-                    name = `${key.toLowerCase()}, ${os}`
-                  }
+                  let name = osList.length === 1 ? normalizedKey : `${normalizedKey}, ${os}`
 
                   // add to matrix
-                  matrix['include'].push({"language": key.toLowerCase(), "os": os, "name": name})
+                  matrix['include'].push({
+                    "language": normalizedKey,
+                    "os": os,
+                    "name": name
+                  })
                 }
               }
             }
