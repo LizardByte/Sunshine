@@ -1,17 +1,17 @@
 # windows specific packaging
 
 # see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
-install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
+install(TARGETS sunshine RUNTIME DESTINATION "bin" COMPONENT application)
 
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
-install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
+install(FILES "${ZLIB}" DESTINATION "bin" COMPONENT application)
 
 # Adding tools
-install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
-install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
+install(TARGETS dxgi-info RUNTIME DESTINATION "bin" COMPONENT dxgi)
+install(TARGETS audio-info RUNTIME DESTINATION "bin" COMPONENT audio)
 
 # Mandatory tools
-install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
+install(TARGETS sunshinesvc RUNTIME DESTINATION "bin" COMPONENT application)
 
 # Mandatory scripts
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
@@ -78,7 +78,7 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\bin\\\\${CMAKE_PROJECT_NAME}.exe\\\" --restore-nvprefs-undo'
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove Virtual Gamepad?' \
             /SD IDNO IDNO NoGamepad
@@ -92,14 +92,15 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         ")
 
 # Adding an option for the start menu
-set(CPACK_NSIS_MODIFY_PATH "OFF")
+set(CPACK_NSIS_MODIFY_PATH ON)
 set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 # This will be shown on the installed apps Windows settings
 set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
 set(CPACK_NSIS_CREATE_ICONS_EXTRA
         "${CPACK_NSIS_CREATE_ICONS_EXTRA}
+        SetOutPath '\$INSTDIR'
         CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
-            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe' '--shortcut'
+            '\$INSTDIR\\\\bin\\\\${CMAKE_PROJECT_NAME}.exe' '--shortcut'
         ")
 set(CPACK_NSIS_DELETE_ICONS_EXTRA
         "${CPACK_NSIS_DELETE_ICONS_EXTRA}

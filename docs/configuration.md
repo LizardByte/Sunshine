@@ -708,7 +708,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             Enter the following command in command prompt or PowerShell.
             @code{}
-            %ProgramFiles%\Sunshine\tools\audio-info.exe
+            %ProgramFiles%\Sunshine\bin\audio-info.exe
             @endcode
             If you have multiple audio devices with identical names, use the Device ID instead.
             }
@@ -822,7 +822,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             Enter the following command in command prompt or PowerShell.
             @code{}
-            %ProgramFiles%\Sunshine\tools\dxgi-info.exe
+            %ProgramFiles%\Sunshine\bin\dxgi-info.exe
             @endcode
             For hybrid graphics systems, DXGI reports the outputs are connected to whichever graphics
             adapter that the application is configured to use, so it's not a reliable indicator of how the
