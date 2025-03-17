@@ -48,7 +48,7 @@
 	branch = sdk
 [submodule "third-party/Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
-	url = https://gitlab.com/eidheim/Simple-Web-Server.git
+	url = https://github.com/LizardByte-infrastructure/Simple-Web-Server.git
 	branch = master
 [submodule "third-party/TPCircularBuffer"]
 	path = third-party/TPCircularBuffer
@@ -64,11 +64,11 @@
 	branch = master
 [submodule "third-party/wayland-protocols"]
 	path = third-party/wayland-protocols
-	url = https://gitlab.freedesktop.org/wayland/wayland-protocols.git
+	url = https://github.com/LizardByte-infrastructure/wayland-protocols.git
 	branch = main
 [submodule "third-party/wlr-protocols"]
 	path = third-party/wlr-protocols
-	url = https://gitlab.freedesktop.org/wlroots/wlr-protocols.git
+	url = https://github.com/LizardByte-infrastructure/wlr-protocols.git
 	branch = master
 [submodule "src_assets/common/sunshine-control-panel"]
 	path = src_assets/common/sunshine-control-panel
