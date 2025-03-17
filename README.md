@@ -168,7 +168,27 @@ Our support methods are listed in our [LizardByte Docs](https://docs.lizardbyte.
 
 <p align="center">
   <a href="https://app.lizardbyte.dev" aria-label="Sponsor LizardByte">
-    <img src='https://raw.githubusercontent.com/LizardByte/sponsors/refs/heads/dist/sponsors.svg'/>
+    <img src='https://raw.githubusercontent.com/LizardByte/contributors/refs/heads/dist/sponsors.svg'/>
+  </a>
+</p>
+
+## 👥 Contributors
+
+Thank you to all the contributors who have helped make Sunshine better!
+
+### GitHub
+
+<p align="center">
+  <a href="https://github.com/LizardByte/Sunshine" aria-label="GitHub">
+    <img src='https://raw.githubusercontent.com/LizardByte/contributors/refs/heads/dist/github.Sunshine.svg'/>
+  </a>
+</p>
+
+### CrowdIn
+
+<p align="center">
+  <a href="https://translate.lizardbyte.dev" aria-label="CrowdIn">
+    <img src='https://raw.githubusercontent.com/LizardByte/contributors/refs/heads/dist/crowdin.svg'/>
   </a>
 </p>
 
