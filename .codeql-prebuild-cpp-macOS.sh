@@ -12,7 +12,7 @@ dependencies=(
   "opus"
   "pkg-config"
 )
-brew install "${dependencies[@]}"
+arch -arm64 brew install "${dependencies[@]}"
 
 # build
 mkdir -p build
@@ -22,7 +22,8 @@ cmake \
   -S . \
   -DBOOST_USE_STATIC=OFF \
   -DBUILD_DOCS=OFF \
-  -DBUILD_WERROR=ON
+  -DBUILD_WERROR=ON \
+  -DCMAKE_TOOLCHAIN_FILE="./cmake/toolchains/Darwin-arm64.cmake"
 ninja -C build
 
 # skip autobuild
