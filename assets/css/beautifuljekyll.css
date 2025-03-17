@@ -425,7 +425,10 @@ footer a:focus {
 footer .list-inline {
   margin: 0;
   padding: 0;
-  margin-bottom: 1.875rem;
+  margin-bottom: 1.375rem;
+}
+footer .list-inline .list-inline-item {
+  margin-bottom: 0.5rem;
 }
 footer .copyright {
   font-family: var(--header-font);
@@ -822,6 +825,8 @@ nav.top-nav-short-permanent ~ header > .intro-header.big-img {
 
 table {
   padding: 0;
+  overflow-x: auto;
+  display: block;
 }
 table tr {
   border-top: 1px solid #cccccc;
