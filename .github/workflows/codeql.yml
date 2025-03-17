@@ -72,9 +72,7 @@ jobs:
                 if (normalizedKey === 'swift') {
                   osList = ['macos-latest'];
                 } else if (normalizedKey === 'cpp') {
-                  // TODO: update macos to latest after the below issue is resolved
-                  // https://github.com/github/codeql-action/issues/2266
-                  osList = ['macos-13', 'ubuntu-latest', 'windows-latest'];
+                  osList = ['macos-latest', 'ubuntu-latest', 'windows-latest'];
                 }
                 for (let os of osList) {
                   // set name for matrix
