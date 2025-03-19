@@ -152,6 +152,10 @@ namespace platf::gamepad {
               gamepad->last_rgb_led = msg;
             });
 
+            (*ds5).set_on_trigger_effect([feedback_queue, idx = id.clientRelativeIndex](const inputtino::PS5Joypad::TriggerEffect &trigger_effect) {
+              feedback_queue->raise(gamepad_feedback_msg_t::make_adaptive_triggers(idx, trigger_effect.type_left, trigger_effect.type_right, trigger_effect.left, trigger_effect.right));
+            });
+
             // Activate the motion sensors
             feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_ACCEL, 100));
             feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(id.clientRelativeIndex, LI_MOTION_TYPE_GYRO, 100));
