@@ -11,14 +11,15 @@
   ],
   "sources": [
     {
-      "type": "archive",
-      "url": "https://gitlab.freedesktop.org/xorg/xserver/-/archive/xorg-server-21.1.13/xserver-xorg-server-21.1.13.tar.bz2",
-      "sha256": "ee2bf6d65f4b111ce86ca817c3327dc1e70d9c958aa16876f2820caf7bf7cffa",
+      "type": "git",
+      "url": "https://github.com/LizardByte-infrastructure/xserver.git",
+      "tag": "xorg-server-21.1.13",
+      "commit": "be2767845d6ed3c6dbd25a151051294d0908a995",
       "x-checker-data": {
         "type": "anitya",
         "project-id": 5250,
         "stable-only": true,
-        "url-template": "https://gitlab.freedesktop.org/xorg/xserver/-/archive/xorg-server-$version/xserver-xorg-server-$version.tar.bz2"
+        "tag-template": "xorg-server-$version"
       }
     },
     {
@@ -32,14 +33,15 @@
       "buildsystem": "meson",
       "sources": [
         {
-          "type": "archive",
-          "url": "https://gitlab.freedesktop.org/xorg/lib/libxcvt/-/archive/libxcvt-0.1.2/libxcvt-libxcvt-0.1.2.tar.bz2",
-          "sha256": "590e5a6da87ace7aa7857026b207a2c4d378620035441e20ea97efedd15d6d4a",
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/libxcvt.git",
+          "tag": "libxcvt-0.1.2",
+          "commit": "d9ca87eea9eecddaccc3a77227bcb3acf84e89df",
           "x-checker-data": {
             "type": "anitya",
             "project-id": 235147,
             "stable-only": true,
-            "url-template": "https://gitlab.freedesktop.org/xorg/lib/libxcvt/-/archive/libxcvt-$version/libxcvt-libxcvt-$version.tar.bz2"
+            "tag-template": "libxcvt-$version"
           }
         }
       ]
@@ -131,14 +133,15 @@
       "name": "xvfb-xauth",
       "sources": [
         {
-          "type": "archive",
-          "url": "https://gitlab.freedesktop.org/xorg/app/xauth/-/archive/xauth-1.1.1/xauth-xauth-1.1.3.tar.bz2",
-          "sha256": "3cee16ebe9de0e85c62513f6d6353710407c8ebb1f855b18d03807c27d38a215",
+          "type": "git",
+          "url": "https://github.com/LizardByte-infrastructure/xauth.git",
+          "tag": "xauth-1.1.3",
+          "commit": "c29eef23683f0e3575a3c60d9314de8156fbe2c2",
           "x-checker-data": {
             "type": "anitya",
             "project-id": 5253,
             "stable-only": true,
-            "url-template": "https://gitlab.freedesktop.org/xorg/app/xauth/-/archive/xauth-1.1.1/xauth-xauth-$version.tar.bz2"
+            "tag-template": "xauth-$version"
           }
         }
       ]
