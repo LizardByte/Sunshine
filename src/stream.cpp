@@ -48,6 +48,7 @@ extern "C" {
 #define IDX_RUMBLE_TRIGGER_DATA 12
 #define IDX_SET_MOTION_EVENT 13
 #define IDX_SET_RGB_LED 14
+#define IDX_SET_ADAPTIVE_TRIGGERS 15
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -65,6 +66,7 @@ static const short packetTypes[] = {
   0x5500,  // Rumble triggers (Sunshine protocol extension)
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
+  0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -184,6 +186,16 @@ namespace stream {
     std::uint8_t r;
     std::uint8_t g;
     std::uint8_t b;
+  };
+
+  struct control_adaptive_triggers_t {
+    control_header_v2 header;
+
+    std::uint16_t id;
+    std::uint8_t type_left;
+    std::uint8_t type_right;
+    std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];
+    std::uint8_t right[DS_EFFECT_PAYLOAD_SIZE];
   };
 
   struct control_hdr_mode_t {
@@ -835,6 +847,21 @@ namespace stream {
       BOOST_LOG(verbose) << "RGB: "sv << msg.id << " :: "sv << util::hex(data.r).to_string_view() << util::hex(data.g).to_string_view() << util::hex(data.b).to_string_view();
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
         encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_adaptive_triggers) {
+      control_adaptive_triggers_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_ADAPTIVE_TRIGGERS];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.type_left = msg.data.adaptive_triggers.type_left;
+      std::copy(msg.data.adaptive_triggers.left.begin(), msg.data.adaptive_triggers.left.end(), std::begin(plaintext.left));
+      plaintext.type_right = msg.data.adaptive_triggers.type_right;
+      std::copy(msg.data.adaptive_triggers.right.begin(), msg.data.adaptive_triggers.right.end(), std::begin(plaintext.right));
+
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+       encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
     } else {
