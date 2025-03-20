@@ -192,6 +192,11 @@ namespace stream {
     control_header_v2 header;
 
     std::uint16_t id;
+    /**
+     * 0x04 - Right trigger
+     * 0x08 - Left trigger
+     */
+    std::uint8_t event_flags;
     std::uint8_t type_left;
     std::uint8_t type_right;
     std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];
@@ -855,13 +860,14 @@ namespace stream {
       plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
 
       plaintext.id = util::endian::little(msg.id);
+      plaintext.event_flags = msg.data.adaptive_triggers.event_flags;
       plaintext.type_left = msg.data.adaptive_triggers.type_left;
-      std::copy(msg.data.adaptive_triggers.left.begin(), msg.data.adaptive_triggers.left.end(), std::begin(plaintext.left));
+      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left);
       plaintext.type_right = msg.data.adaptive_triggers.type_right;
-      std::copy(msg.data.adaptive_triggers.right.begin(), msg.data.adaptive_triggers.right.end(), std::begin(plaintext.right));
+      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
 
       std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
-       encrypted_payload;
+        encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
     } else {
