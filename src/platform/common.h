@@ -143,11 +143,11 @@ namespace platf {
       return msg;
     }
 
-    static gamepad_feedback_msg_t make_adaptive_triggers(std::uint16_t id, uint8_t type_left, uint8_t type_right, const std::array<uint8_t, 10> &left, const std::array<uint8_t, 10> &right) {
+    static gamepad_feedback_msg_t make_adaptive_triggers(std::uint16_t id, uint8_t event_flags, uint8_t type_left, uint8_t type_right, const std::array<uint8_t, 10> &left, const std::array<uint8_t, 10> &right) {
       gamepad_feedback_msg_t msg;
       msg.type = gamepad_feedback_e::set_adaptive_triggers;
       msg.id = id;
-      msg.data.adaptive_triggers = {.type_left = type_left, .type_right = type_right, .left = left, .right = right};
+      msg.data.adaptive_triggers = {.event_flags = event_flags, .type_left = type_left, .type_right = type_right, .left = left, .right = right};
       return msg;
     }
 
@@ -178,6 +178,7 @@ namespace platf {
 
       struct {
         uint16_t controllerNumber;
+        uint8_t event_flags;
         uint8_t type_left;
         uint8_t type_right;
         std::array<uint8_t, 10> left;
