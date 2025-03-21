@@ -21,6 +21,7 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "platform/common.h"
+#include "display_device/session.h"
 #include "thread_pool.h"
 #include "utility.h"
 
@@ -196,19 +197,22 @@ namespace input {
    */
   inline int
   apply_shortcut(short keyCode) {
-    constexpr auto VK_F1 = 0x70;
-    constexpr auto VK_F13 = 0x7C;
+    constexpr auto SUNSHINE_VK_F1 = 0x70;
+    constexpr auto SUNSHINE_VK_F13 = 0x7C;
 
     BOOST_LOG(debug) << "Apply Shortcut: 0x"sv << util::hex((std::uint8_t) keyCode).to_string_view();
 
-    if (keyCode >= VK_F1 && keyCode <= VK_F13) {
-      mail::man->event<int>(mail::switch_display)->raise(keyCode - VK_F1);
+    if (keyCode >= SUNSHINE_VK_F1 && keyCode <= SUNSHINE_VK_F13) {
+      mail::man->event<int>(mail::switch_display)->raise(keyCode - SUNSHINE_VK_F1);
       return 1;
     }
 
     switch (keyCode) {
       case 0x4E /* VKEY_N */:
         display_cursor = !display_cursor;
+        return 1;
+      case 0x56 /* VKEY_V */:
+        display_device::session_t::get().toggle_display_power();
         return 1;
     }
 

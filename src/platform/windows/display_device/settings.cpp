@@ -745,7 +745,7 @@ namespace display_device {
         }
       }
     }
-    
+
     if (!persistent_data) {
       BOOST_LOG(info) << "Loading persistent display device settings.";
       persistent_data = load_settings(filepath);
@@ -760,7 +760,7 @@ namespace display_device {
           save_settings(filepath, *persistent_data);  // Ignoring return value
         }
 
-        BOOST_LOG(error) << "Failed to revert display device settings!";
+        BOOST_LOG(fatal) << "Failed to revert display device settings! 建议立即使用重置记忆术~";
         return false;
       }
 

@@ -28,6 +28,11 @@ if exist "%OLD_DIR%\sunshine_state.json" (
     )
 )
 
+rem remove the original_display_settings.json file
+if exist "%NEW_DIR%\original_display_settings.json" (
+    del "%NEW_DIR%\original_display_settings.json"
+)
+
 rem Migrate the credentials directory
 if exist "%OLD_DIR%\credentials\" (
     if not exist "%NEW_DIR%\credentials\" (

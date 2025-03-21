@@ -21,11 +21,25 @@
         >
         <a
           class="btn btn-secondary m-1"
+          href="https://github.com/qiin2333/Sunshine-Foundation"
+          target="_blank"
+        >
+          <i class="fab fa-fw fa-github"></i>Follow Github</a
+        >
+        <a
+          class="btn btn-secondary m-1"
           href="https://github.com/qiin2333/moonlight-android/releases/tag/shortcut"
           target="_blank"
         >
           <i class="fab fa-fw fa-github"></i> 威力加强版 Moonlight-Android
           下载</a
+        >
+        <a
+          class="btn btn-secondary m-1"
+          href="https://github.com/qiin2333/moonlight-qt"
+          target="_blank"
+        >
+          <i class="fab fa-fw fa-github"></i>Moonlight-PC</a
         >
         <a
           class="btn btn-secondary m-1"
