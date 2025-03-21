@@ -15,7 +15,11 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/severity_logger.hpp>
-#include <display_device/logging.h>
+#ifdef __ANDROID__
+  #include <android/log.h>
+#else
+  #include <display_device/logging.h>
+#endif
 
 // local includes
 #include "logging.h"
@@ -86,6 +90,32 @@ namespace logging {
 #endif
     };
 
+#ifdef __ANDROID__
+    android_LogPriority android_priority;
+    switch (log_level) {
+      case 0:
+        android_priority = ANDROID_LOG_VERBOSE;
+        break;
+      case 1:
+        android_priority = ANDROID_LOG_DEBUG;
+        break;
+      case 2:
+        android_priority = ANDROID_LOG_INFO;
+        break;
+      case 3:
+        android_priority = ANDROID_LOG_WARN;
+        break;
+      case 4:
+        android_priority = ANDROID_LOG_ERROR;
+        break;
+      case 5:
+        android_priority = ANDROID_LOG_FATAL;
+        break;
+    };
+    // get log adn input to andorid
+    std::string log_message = view.attribute_values()[message].extract<std::string>().get();
+    __android_log_print(android_priority, "Sunshine", "%s%s", log_type.data(), log_message.c_str());
+#endif
     auto now = std::chrono::system_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
       now - std::chrono::time_point_cast<std::chrono::seconds>(now)
@@ -105,7 +135,9 @@ namespace logging {
     }
 
     setup_av_logging(min_log_level);
+#ifndef __ANDROID__
     setup_libdisplaydevice_logging(min_log_level);
+#endif
 
     sink = boost::make_shared<text_sink>();
 
@@ -153,6 +185,7 @@ namespace logging {
     });
   }
 
+#ifndef __ANDROID__
   void setup_libdisplaydevice_logging(int min_log_level) {
     constexpr int min_level {static_cast<int>(display_device::Logger::LogLevel::verbose)};
     constexpr int max_level {static_cast<int>(display_device::Logger::LogLevel::fatal)};
@@ -182,6 +215,7 @@ namespace logging {
       }
     });
   }
+#endif
 
   void log_flush() {
     if (sink) {
