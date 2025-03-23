@@ -15,6 +15,8 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/severity_logger.hpp>
+
+// conditional includes
 #ifdef __ANDROID__
   #include <android/log.h>
 #else
