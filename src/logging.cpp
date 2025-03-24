@@ -16,15 +16,15 @@
 #include <boost/log/sinks.hpp>
 #include <boost/log/sources/severity_logger.hpp>
 
+// local includes
+#include "logging.h"
+
 // conditional includes
 #ifdef __ANDROID__
   #include <android/log.h>
 #else
   #include <display_device/logging.h>
 #endif
-
-// local includes
-#include "logging.h"
 
 extern "C" {
 #include <libavutil/log.h>
@@ -92,9 +92,24 @@ namespace logging {
 #endif
     };
 
+    auto now = std::chrono::system_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+      now - std::chrono::time_point_cast<std::chrono::seconds>(now)
+    );
+
+    auto t = std::chrono::system_clock::to_time_t(now);
+    auto lt = *std::localtime(&t);
+
+    os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
+       << log_type << view.attribute_values()[message].extract<std::string>();
+  }
 #ifdef __ANDROID__
+  namespace sinks = boost::log::sinks;
+  namespace expr = boost::log::expressions;
+
+  void android_log(const std::string &message, int severity) {
     android_LogPriority android_priority;
-    switch (log_level) {
+    switch (severity) {
       case 0:
         android_priority = ANDROID_LOG_VERBOSE;
         break;
@@ -113,22 +128,23 @@ namespace logging {
       case 5:
         android_priority = ANDROID_LOG_FATAL;
         break;
-    };
-    // get log adn input to andorid
-    std::string log_message = view.attribute_values()[message].extract<std::string>().get();
-    __android_log_print(android_priority, "Sunshine", "%s%s", log_type.data(), log_message.c_str());
-#endif
-    auto now = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-      now - std::chrono::time_point_cast<std::chrono::seconds>(now)
-    );
-
-    auto t = std::chrono::system_clock::to_time_t(now);
-    auto lt = *std::localtime(&t);
-
-    os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
-       << log_type << view.attribute_values()[message].extract<std::string>();
+      default:
+        android_priority = ANDROID_LOG_INFO;
+        break;
+    }
+    __android_log_print(android_priority, "Sunshine", "%s", message.c_str());
   }
+
+  // custom sink backend for android
+  struct android_sink_backend: public sinks::basic_sink_backend<sinks::concurrent_feeding> {
+    void consume(const bl::record_view &rec) {
+      int log_sev = rec[severity].get();
+      const std::string log_msg = rec[expr::smessage].get();
+      // log to android
+      android_log(log_msg, log_sev);
+    }
+  };
+#endif
 
   [[nodiscard]] std::unique_ptr<deinit_t> init(int min_log_level, const std::string &log_file) {
     if (sink) {
@@ -136,8 +152,8 @@ namespace logging {
       deinit();
     }
 
-    setup_av_logging(min_log_level);
 #ifndef __ANDROID__
+    setup_av_logging(min_log_level);
     setup_libdisplaydevice_logging(min_log_level);
 #endif
 
@@ -147,6 +163,7 @@ namespace logging {
     boost::shared_ptr<std::ostream> stream {&std::cout, boost::null_deleter()};
     sink->locked_backend()->add_stream(stream);
 #endif
+
     sink->locked_backend()->add_stream(boost::make_shared<std::ofstream>(log_file));
     sink->set_filter(severity >= min_log_level);
     sink->set_formatter(&formatter);
@@ -156,9 +173,15 @@ namespace logging {
     sink->locked_backend()->auto_flush(true);
 
     bl::core::get()->add_sink(sink);
+
+#ifdef __ANDROID__
+    auto android_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
+    bl::core::get()->add_sink(android_sink);
+#endif
     return std::make_unique<deinit_t>();
   }
 
+#ifndef __ANDROID__
   void setup_av_logging(int min_log_level) {
     if (min_log_level >= 1) {
       av_log_set_level(AV_LOG_QUIET);
@@ -187,7 +210,6 @@ namespace logging {
     });
   }
 
-#ifndef __ANDROID__
   void setup_libdisplaydevice_logging(int min_log_level) {
     constexpr int min_level {static_cast<int>(display_device::Logger::LogLevel::verbose)};
     constexpr int max_level {static_cast<int>(display_device::Logger::LogLevel::fatal)};
