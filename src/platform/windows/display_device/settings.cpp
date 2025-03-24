@@ -719,6 +719,34 @@ namespace display_device {
 
   bool
   settings_t::revert_settings() {
+    if (!persistent_data) {
+      BOOST_LOG(info) << "Loading persistent display device settings.";
+      persistent_data = load_settings(filepath);
+    }
+
+    if (persistent_data) {
+      BOOST_LOG(info) << "Reverting display device settings.";
+
+      bool data_updated { false };
+      if (!try_revert_settings(*persistent_data, data_updated)) {
+        if (data_updated) {
+          save_settings(filepath, *persistent_data);  // Ignoring return value
+        }
+
+        BOOST_LOG(fatal) << "Failed to revert display device settings! 建议立即使用重置记忆术~";
+      }
+
+      remove_file(filepath);
+      persistent_data = nullptr;
+
+      if (audio_data) {
+        BOOST_LOG(debug) << "Releasing captured audio sink";
+        audio_data = nullptr;
+      }
+
+      BOOST_LOG(info) << "Display device configuration reverted.";
+    }
+
     auto &session = display_device::session_t::get();
 
     // 检查是否需回退虚拟显示设备
@@ -744,35 +772,6 @@ namespace display_device {
           std::this_thread::sleep_for(wait_time);
         }
       }
-    }
-
-    if (!persistent_data) {
-      BOOST_LOG(info) << "Loading persistent display device settings.";
-      persistent_data = load_settings(filepath);
-    }
-
-    if (persistent_data) {
-      BOOST_LOG(info) << "Reverting display device settings.";
-
-      bool data_updated { false };
-      if (!try_revert_settings(*persistent_data, data_updated)) {
-        if (data_updated) {
-          save_settings(filepath, *persistent_data);  // Ignoring return value
-        }
-
-        BOOST_LOG(fatal) << "Failed to revert display device settings! 建议立即使用重置记忆术~";
-        return false;
-      }
-
-      remove_file(filepath);
-      persistent_data = nullptr;
-
-      if (audio_data) {
-        BOOST_LOG(debug) << "Releasing captured audio sink";
-        audio_data = nullptr;
-      }
-
-      BOOST_LOG(info) << "Display device configuration reverted.";
     }
 
     return true;
