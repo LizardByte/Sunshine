@@ -129,7 +129,7 @@ namespace logging {
         android_priority = ANDROID_LOG_FATAL;
         break;
       default:
-        android_priority = ANDROID_LOG_INFO;
+        android_priority = ANDROID_LOG_UNKNOWN;
         break;
     }
     __android_log_print(android_priority, "Sunshine", "%s", message.c_str());
