@@ -87,7 +87,7 @@
       <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
     </div>
     <div class="mb-3 buttons">
-      <button class="btn btn-primary" @click="save">{{ $t('_common.save') }}</button>
+      <button class="btn btn-primary mr-3" @click="save">{{ $t('_common.save') }}</button>
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
     </div>
   </div>
