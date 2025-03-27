@@ -38,8 +38,7 @@ namespace bp = boost::process;
 
 namespace platf {
 
-  std::unique_ptr<deinit_t>
-  init() {
+  std::unique_ptr<deinit_t> init() {
     if (permissions_manager.request_screen_capture_permission()) {
       return nullptr;
     }
