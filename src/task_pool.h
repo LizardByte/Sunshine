@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// standard includes
 #include <chrono>
 #include <deque>
 #include <functional>
@@ -14,8 +15,10 @@
 #include <utility>
 #include <vector>
 
+// local includes
 #include "move_by_copy.h"
 #include "utility.h"
+
 namespace task_pool_util {
 
   class _ImplBase {
@@ -24,20 +27,19 @@ namespace task_pool_util {
 
     inline virtual ~_ImplBase() = default;
 
-    virtual void
-    run() = 0;
+    virtual void run() = 0;
   };
 
-  template <class Function>
+  template<class Function>
   class _Impl: public _ImplBase {
     Function _func;
 
   public:
     _Impl(Function &&f):
-        _func(std::forward<Function>(f)) {}
+        _func(std::forward<Function>(f)) {
+    }
 
-    void
-    run() override {
+    void run() override {
       _func();
     }
   };
@@ -49,14 +51,16 @@ namespace task_pool_util {
 
     typedef std::chrono::steady_clock::time_point __time_point;
 
-    template <class R>
+    template<class R>
     class timer_task_t {
     public:
       task_id_t task_id;
       std::future<R> future;
 
       timer_task_t(task_id_t task_id, std::future<R> &future):
-          task_id { task_id }, future { std::move(future) } {}
+          task_id {task_id},
+          future {std::move(future)} {
+      }
     };
 
   protected:
@@ -66,20 +70,21 @@ namespace task_pool_util {
 
   public:
     TaskPool() = default;
-    TaskPool(TaskPool &&other) noexcept:
-        _tasks { std::move(other._tasks) }, _timer_tasks { std::move(other._timer_tasks) } {}
 
-    TaskPool &
-    operator=(TaskPool &&other) noexcept {
+    TaskPool(TaskPool &&other) noexcept:
+        _tasks {std::move(other._tasks)},
+        _timer_tasks {std::move(other._timer_tasks)} {
+    }
+
+    TaskPool &operator=(TaskPool &&other) noexcept {
       std::swap(_tasks, other._tasks);
       std::swap(_timer_tasks, other._timer_tasks);
 
       return *this;
     }
 
-    template <class Function, class... Args>
-    auto
-    push(Function &&newTask, Args &&...args) {
+    template<class Function, class... Args>
+    auto push(Function &&newTask, Args &&...args) {
       static_assert(std::is_invocable_v<Function, Args &&...>, "arguments don't match the function");
 
       using __return = std::invoke_result_t<Function, Args &&...>;
@@ -99,8 +104,7 @@ namespace task_pool_util {
       return future;
     }
 
-    void
-    pushDelayed(std::pair<__time_point, __task> &&task) {
+    void pushDelayed(std::pair<__time_point, __task> &&task) {
       std::lock_guard lg(_task_mutex);
 
       auto it = _timer_tasks.cbegin();
@@ -116,9 +120,8 @@ namespace task_pool_util {
     /**
      * @return An id to potentially delay the task.
      */
-    template <class Function, class X, class Y, class... Args>
-    auto
-    pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
+    template<class Function, class X, class Y, class... Args>
+    auto pushDelayed(Function &&newTask, std::chrono::duration<X, Y> duration, Args &&...args) {
       static_assert(std::is_invocable_v<Function, Args &&...>, "arguments don't match the function");
 
       using __return = std::invoke_result_t<Function, Args &&...>;
@@ -127,8 +130,7 @@ namespace task_pool_util {
       __time_point time_point;
       if constexpr (std::is_floating_point_v<X>) {
         time_point = std::chrono::steady_clock::now() + std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
-      }
-      else {
+      } else {
         time_point = std::chrono::steady_clock::now() + duration;
       }
 
@@ -143,18 +145,17 @@ namespace task_pool_util {
 
       task_id_t task_id = &*runnable;
 
-      pushDelayed(std::pair { time_point, std::move(runnable) });
+      pushDelayed(std::pair {time_point, std::move(runnable)});
 
-      return timer_task_t<__return> { task_id, future };
+      return timer_task_t<__return> {task_id, future};
     }
 
     /**
      * @param task_id The id of the task to delay.
      * @param duration The delay before executing the task.
      */
-    template <class X, class Y>
-    void
-    delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
+    template<class X, class Y>
+    void delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
       std::lock_guard<std::mutex> lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
@@ -184,8 +185,7 @@ namespace task_pool_util {
       }
     }
 
-    bool
-    cancel(task_id_t task_id) {
+    bool cancel(task_id_t task_id) {
       std::lock_guard lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
@@ -202,11 +202,12 @@ namespace task_pool_util {
       return false;
     }
 
-    std::optional<std::pair<__time_point, __task>>
-    pop(task_id_t task_id) {
+    std::optional<std::pair<__time_point, __task>> pop(task_id_t task_id) {
       std::lock_guard lg(_task_mutex);
 
-      auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) { return t.second.get() == task_id; });
+      auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) {
+        return t.second.get() == task_id;
+      });
 
       if (pos == std::end(_timer_tasks)) {
         return std::nullopt;
@@ -215,8 +216,7 @@ namespace task_pool_util {
       return std::move(*pos);
     }
 
-    std::optional<__task>
-    pop() {
+    std::optional<__task> pop() {
       std::lock_guard lg(_task_mutex);
 
       if (!_tasks.empty()) {
@@ -234,15 +234,13 @@ namespace task_pool_util {
       return std::nullopt;
     }
 
-    bool
-    ready() {
+    bool ready() {
       std::lock_guard<std::mutex> lg(_task_mutex);
 
       return !_tasks.empty() || (!_timer_tasks.empty() && std::get<0>(_timer_tasks.back()) <= std::chrono::steady_clock::now());
     }
 
-    std::optional<__time_point>
-    next() {
+    std::optional<__time_point> next() {
       std::lock_guard<std::mutex> lg(_task_mutex);
 
       if (_timer_tasks.empty()) {
@@ -253,9 +251,8 @@ namespace task_pool_util {
     }
 
   private:
-    template <class Function>
-    std::unique_ptr<_ImplBase>
-    toRunnable(Function &&f) {
+    template<class Function>
+    std::unique_ptr<_ImplBase> toRunnable(Function &&f) {
       return std::make_unique<_Impl<Function>>(std::forward<Function &&>(f));
     }
   };

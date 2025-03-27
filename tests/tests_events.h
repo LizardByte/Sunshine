@@ -13,24 +13,20 @@ struct SunshineEventListener: testing::EmptyTestEventListener {
     sink->set_formatter(&logging::formatter);
   }
 
-  void
-  OnTestProgramStart(const testing::UnitTest &unit_test) override {
+  void OnTestProgramStart(const testing::UnitTest &unit_test) override {
     boost::log::core::get()->add_sink(sink);
   }
 
-  void
-  OnTestProgramEnd(const testing::UnitTest &unit_test) override {
+  void OnTestProgramEnd(const testing::UnitTest &unit_test) override {
     boost::log::core::get()->remove_sink(sink);
   }
 
-  void
-  OnTestStart(const testing::TestInfo &test_info) override {
+  void OnTestStart(const testing::TestInfo &test_info) override {
     BOOST_LOG(tests) << "From " << test_info.file() << ":" << test_info.line();
     BOOST_LOG(tests) << "  " << test_info.test_suite_name() << "/" << test_info.name() << " started";
   }
 
-  void
-  OnTestPartResult(const testing::TestPartResult &test_part_result) override {
+  void OnTestPartResult(const testing::TestPartResult &test_part_result) override {
     std::string file = test_part_result.file_name();
     BOOST_LOG(tests) << "At " << file << ":" << test_part_result.line_number();
 
@@ -47,8 +43,7 @@ struct SunshineEventListener: testing::EmptyTestEventListener {
     }
   }
 
-  void
-  OnTestEnd(const testing::TestInfo &test_info) override {
+  void OnTestEnd(const testing::TestInfo &test_info) override {
     auto &result = *test_info.result();
 
     auto result_text = result.Passed()  ? "passed" :

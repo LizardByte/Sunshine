@@ -33,7 +33,6 @@
       <general
         v-if="currentTab === 'general'"
         :config="config"
-        :global-prep-cmd="global_prep_cmd"
         :platform="platform">
       </general>
 
@@ -88,7 +87,7 @@
       <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
     </div>
     <div class="mb-3 buttons">
-      <button class="btn btn-primary" @click="save">{{ $t('_common.save') }}</button>
+      <button class="btn btn-primary mr-3" @click="save">{{ $t('_common.save') }}</button>
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
     </div>
   </div>
@@ -127,7 +126,6 @@
         restarted: false,
         config: null,
         currentTab: "general",
-        global_prep_cmd: [],
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -136,7 +134,7 @@
               "locale": "en",
               "sunshine_name": "",
               "min_log_level": 2,
-              "global_prep_cmd": "[]",
+              "global_prep_cmd": [],
               "notify_pre_releases": "disabled",
             },
           },
@@ -170,7 +168,18 @@
               "install_steam_audio_drivers": "enabled",
               "adapter_name": "",
               "output_name": "",
+              "dd_configuration_option": "disabled",
+              "dd_resolution_option": "auto",
+              "dd_manual_resolution": "",
+              "dd_refresh_rate_option": "auto",
+              "dd_manual_refresh_rate": "",
+              "dd_hdr_option": "auto",
+              "dd_config_revert_delay": 3000,
+              "dd_config_revert_on_disconnect": "disabled",
+              "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
+              "dd_wa_hdr_toggle_delay": 0,
               "min_fps_factor": 1,
+              "max_bitrate": 0,
             },
           },
           {
@@ -311,17 +320,23 @@
 
           // TODO: let each tab's Component handle it's own data instead of doing it here
 
+          // Parse the special options before population if available
+          const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
+          for (const optionKey of specialOptions) {
+            if (this.config.hasOwnProperty(optionKey)) {
+              this.config[optionKey] = JSON.parse(this.config[optionKey]);
+            }
+          }
+
           // Populate default values from tabs options
           this.tabs.forEach(tab => {
             Object.keys(tab.options).forEach(optionKey => {
               if (this.config[optionKey] === undefined) {
-                this.config[optionKey] = tab.options[optionKey];
+                // Make sure to copy by value
+                this.config[optionKey] = JSON.parse(JSON.stringify(tab.options[optionKey]));
               }
             });
           });
-
-          this.config.global_prep_cmd = this.config.global_prep_cmd || [];
-          this.global_prep_cmd = JSON.parse(this.config.global_prep_cmd);
         });
     },
     methods: {
@@ -329,34 +344,22 @@
         this.$forceUpdate()
       },
       serialize() {
-        this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
+        return JSON.parse(JSON.stringify(this.config));
       },
       save() {
         this.saved = false;
         this.restarted = false;
-        this.serialize();
 
         // create a temp copy of this.config to use for the post request
-        let config = JSON.parse(JSON.stringify(this.config))
+        let config = this.serialize();
 
         // delete default values from this.config
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(optionKey => {
             let delete_value = false
 
-            if (["global_prep_cmd"].includes(optionKey)) {
-              let config_value, default_value
-
-              config_value = JSON.parse(config[optionKey])
-              default_value = JSON.parse(tab.options[optionKey])
-
-              if (config_value === default_value) {
-                delete_value = true
-              }
-            }
-
             // todo: add proper type checking
-            if (String(config[optionKey]) === String(tab.options[optionKey])) {
+            if (JSON.stringify(config[optionKey]) === JSON.stringify(tab.options[optionKey])) {
               delete_value = true
             }
 

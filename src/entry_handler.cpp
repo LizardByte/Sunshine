@@ -26,21 +26,18 @@ extern "C" {
 
 using namespace std::literals;
 
-void
-launch_ui() {
+void launch_ui() {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
   platf::open_url(url);
 }
 
-void
-launch_ui_with_path(std::string path) {
+void launch_ui_with_path(std::string path) {
   std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
   platf::open_url(url);
 }
 
 namespace args {
-  int
-  creds(const char *name, int argc, char *argv[]) {
+  int creds(const char *name, int argc, char *argv[]) {
     if (argc < 2 || argv[0] == "help"sv || argv[1] == "help"sv) {
       help(name);
     }
@@ -50,21 +47,18 @@ namespace args {
     return 0;
   }
 
-  int
-  help(const char *name) {
+  int help(const char *name) {
     logging::print_help(name);
     return 0;
   }
 
-  int
-  version() {
+  int version() {
     // version was already logged at startup
     return 0;
   }
 
 #ifdef _WIN32
-  int
-  restore_nvprefs_undo() {
+  int restore_nvprefs_undo() {
     if (nvprefs_instance.load()) {
       nvprefs_instance.restore_from_and_delete_undo_file_if_exists();
       nvprefs_instance.unload();
@@ -78,8 +72,7 @@ namespace lifetime {
   char **argv;
   std::atomic_int desired_exit_code;
 
-  void
-  exit_sunshine(int exit_code, bool async) {
+  void exit_sunshine(int exit_code, bool async) {
     // Store the exit code of the first exit_sunshine() call
     int zero = 0;
     desired_exit_code.compare_exchange_strong(zero, exit_code);
@@ -94,8 +87,7 @@ namespace lifetime {
     }
   }
 
-  void
-  debug_trap() {
+  void debug_trap() {
 #ifdef _WIN32
     DebugBreak();
 #else
@@ -103,22 +95,19 @@ namespace lifetime {
 #endif
   }
 
-  char **
-  get_argv() {
+  char **get_argv() {
     return argv;
   }
 }  // namespace lifetime
 
-void
-log_publisher_data() {
+void log_publisher_data() {
   BOOST_LOG(info) << "Package Publisher: "sv << SUNSHINE_PUBLISHER_NAME;
   BOOST_LOG(info) << "Publisher Website: "sv << SUNSHINE_PUBLISHER_WEBSITE;
   BOOST_LOG(info) << "Get support: "sv << SUNSHINE_PUBLISHER_ISSUE_URL;
 }
 
 #ifdef _WIN32
-bool
-is_gamestream_enabled() {
+bool is_gamestream_enabled() {
   DWORD enabled;
   DWORD size = sizeof(enabled);
   return RegGetValueW(
@@ -128,7 +117,8 @@ is_gamestream_enabled() {
            RRF_RT_REG_DWORD,
            nullptr,
            &enabled,
-           &size) == ERROR_SUCCESS &&
+           &size
+         ) == ERROR_SUCCESS &&
          enabled != 0;
 }
 
@@ -168,8 +158,7 @@ namespace service_ctrl {
     /**
      * @brief Asynchronously starts the Sunshine service.
      */
-    bool
-    start_service() {
+    bool start_service() {
       if (!service_handle) {
         return false;
       }
@@ -189,8 +178,7 @@ namespace service_ctrl {
      * @brief Query the service status.
      * @param status The SERVICE_STATUS struct to populate.
      */
-    bool
-    query_service_status(SERVICE_STATUS &status) {
+    bool query_service_status(SERVICE_STATUS &status) {
       if (!service_handle) {
         return false;
       }
@@ -209,9 +197,8 @@ namespace service_ctrl {
     SC_HANDLE service_handle = NULL;
   };
 
-  bool
-  is_service_running() {
-    service_controller sc { SERVICE_QUERY_STATUS };
+  bool is_service_running() {
+    service_controller sc {SERVICE_QUERY_STATUS};
 
     SERVICE_STATUS status;
     if (!sc.query_service_status(status)) {
@@ -221,9 +208,8 @@ namespace service_ctrl {
     return status.dwCurrentState == SERVICE_RUNNING;
   }
 
-  bool
-  start_service() {
-    service_controller sc { SERVICE_QUERY_STATUS | SERVICE_START };
+  bool start_service() {
+    service_controller sc {SERVICE_QUERY_STATUS | SERVICE_START};
 
     std::cout << "Starting Sunshine..."sv;
 
@@ -247,8 +233,7 @@ namespace service_ctrl {
     return true;
   }
 
-  bool
-  wait_for_ui_ready() {
+  bool wait_for_ui_ready() {
     std::cout << "Waiting for Web UI to be ready...";
 
     // Wait up to 30 seconds for the web UI to start

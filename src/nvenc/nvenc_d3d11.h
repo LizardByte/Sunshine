@@ -5,9 +5,11 @@
 #pragma once
 #ifdef _WIN32
 
+  // standard includes
   #include <comdef.h>
   #include <d3d11.h>
 
+  // local includes
   #include "nvenc_base.h"
 
 namespace nvenc {
@@ -23,21 +25,18 @@ namespace nvenc {
    */
   class nvenc_d3d11: public nvenc_base {
   public:
-    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
-        nvenc_base(device_type) {}
-
+    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type);
     ~nvenc_d3d11();
 
     /**
      * @brief Get input surface texture.
      * @return Input surface texture.
      */
-    virtual ID3D11Texture2D *
-    get_input_texture() = 0;
+    virtual ID3D11Texture2D *get_input_texture() = 0;
 
   protected:
-    bool
-    init_library() override;
+    bool init_library() override;
+    bool wait_for_async_event(uint32_t timeout_ms) override;
 
   private:
     HMODULE dll = NULL;

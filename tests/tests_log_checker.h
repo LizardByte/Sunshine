@@ -7,9 +7,8 @@
 #include <algorithm>
 #include <fstream>
 #include <regex>
-#include <string>
-
 #include <src/logging.h>
+#include <string>
 
 namespace log_checker {
 
@@ -18,8 +17,7 @@ namespace log_checker {
    * @param line The log line.
    * @return The log line without the timestamp prefix.
    */
-  inline std::string
-  remove_timestamp_prefix(const std::string &line) {
+  inline std::string remove_timestamp_prefix(const std::string &line) {
     static const std::regex timestamp_regex(R"(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\]: )");
     return std::regex_replace(line, timestamp_regex, "");
   }
@@ -30,8 +28,7 @@ namespace log_checker {
    * @param start_str The string that the line should start with.
    * @return True if such a line is found, false otherwise.
    */
-  inline bool
-  line_starts_with(const std::string &log_file, const std::string_view &start_str) {
+  inline bool line_starts_with(const std::string &log_file, const std::string_view &start_str) {
     logging::log_flush();
 
     std::ifstream input(log_file);
@@ -54,8 +51,7 @@ namespace log_checker {
    * @param end_str The string that the line should end with.
    * @return True if such a line is found, false otherwise.
    */
-  inline bool
-  line_ends_with(const std::string &log_file, const std::string_view &end_str) {
+  inline bool line_ends_with(const std::string &log_file, const std::string_view &end_str) {
     logging::log_flush();
 
     std::ifstream input(log_file);
@@ -79,8 +75,7 @@ namespace log_checker {
    * @param str The string that the line should equal.
    * @return True if such a line is found, false otherwise.
    */
-  inline bool
-  line_equals(const std::string &log_file, const std::string_view &str) {
+  inline bool line_equals(const std::string &log_file, const std::string_view &str) {
     logging::log_flush();
 
     std::ifstream input(log_file);
@@ -104,8 +99,7 @@ namespace log_checker {
    * @param case_insensitive Whether the search should be case-insensitive.
    * @return True if such a line is found, false otherwise.
    */
-  inline bool
-  line_contains(const std::string &log_file, const std::string_view &substr, bool case_insensitive = false) {
+  inline bool line_contains(const std::string &log_file, const std::string_view &substr, bool case_insensitive = false) {
     logging::log_flush();
 
     std::ifstream input(log_file);

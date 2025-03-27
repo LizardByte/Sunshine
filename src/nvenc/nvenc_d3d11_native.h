@@ -4,10 +4,11 @@
  */
 #pragma once
 #ifdef _WIN32
-
+  // standard includes
   #include <comdef.h>
   #include <d3d11.h>
 
+  // local includes
   #include "nvenc_d3d11.h"
 
 namespace nvenc {
@@ -23,12 +24,10 @@ namespace nvenc {
     explicit nvenc_d3d11_native(ID3D11Device *d3d_device);
     ~nvenc_d3d11_native();
 
-    ID3D11Texture2D *
-    get_input_texture() override;
+    ID3D11Texture2D *get_input_texture() override;
 
   private:
-    bool
-    create_and_register_input_buffer() override;
+    bool create_and_register_input_buffer() override;
 
     const ID3D11DevicePtr d3d_device;
     ID3D11Texture2DPtr d3d_input_texture;

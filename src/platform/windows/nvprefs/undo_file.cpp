@@ -9,13 +9,14 @@ namespace {
 
   using namespace nvprefs;
 
-  DWORD
-  relax_permissions(HANDLE file_handle) {
+  DWORD relax_permissions(HANDLE file_handle) {
     PACL old_dacl = nullptr;
 
     safe_hlocal<PSECURITY_DESCRIPTOR> sd;
     DWORD status = GetSecurityInfo(file_handle, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl, nullptr, &sd);
-    if (status != ERROR_SUCCESS) return status;
+    if (status != ERROR_SUCCESS) {
+      return status;
+    }
 
     safe_sid users_sid;
     SID_IDENTIFIER_AUTHORITY nt_authorithy = SECURITY_NT_AUTHORITY;
@@ -32,10 +33,14 @@ namespace {
 
     safe_hlocal<PACL> new_dacl;
     status = SetEntriesInAcl(1, &ea, old_dacl, &new_dacl);
-    if (status != ERROR_SUCCESS) return status;
+    if (status != ERROR_SUCCESS) {
+      return status;
+    }
 
     status = SetSecurityInfo(file_handle, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, new_dacl.get(), nullptr);
-    if (status != ERROR_SUCCESS) return status;
+    if (status != ERROR_SUCCESS) {
+      return status;
+    }
 
     return 0;
   }
@@ -44,23 +49,20 @@ namespace {
 
 namespace nvprefs {
 
-  std::optional<undo_file_t>
-  undo_file_t::open_existing_file(std::filesystem::path file_path, bool &access_denied) {
+  std::optional<undo_file_t> undo_file_t::open_existing_file(std::filesystem::path file_path, bool &access_denied) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_READ | DELETE, 0, nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
     if (file.file_handle) {
       access_denied = false;
       return file;
-    }
-    else {
+    } else {
       auto last_error = GetLastError();
       access_denied = (last_error != ERROR_FILE_NOT_FOUND && last_error != ERROR_PATH_NOT_FOUND);
       return std::nullopt;
     }
   }
 
-  std::optional<undo_file_t>
-  undo_file_t::create_new_file(std::filesystem::path file_path) {
+  std::optional<undo_file_t> undo_file_t::create_new_file(std::filesystem::path file_path) {
     undo_file_t file;
     file.file_handle.reset(CreateFileW(file_path.c_str(), GENERIC_WRITE | STANDARD_RIGHTS_ALL, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL));
 
@@ -70,35 +72,34 @@ namespace nvprefs {
         error_message("Failed to relax permissions on undo file");
       }
       return file;
-    }
-    else {
+    } else {
       return std::nullopt;
     }
   }
 
-  bool
-  undo_file_t::delete_file() {
-    if (!file_handle) return false;
+  bool undo_file_t::delete_file() {
+    if (!file_handle) {
+      return false;
+    }
 
-    FILE_DISPOSITION_INFO delete_file_info = { TRUE };
+    FILE_DISPOSITION_INFO delete_file_info = {TRUE};
     if (SetFileInformationByHandle(file_handle.get(), FileDispositionInfo, &delete_file_info, sizeof(delete_file_info))) {
       file_handle.reset();
       return true;
-    }
-    else {
+    } else {
       return false;
     }
   }
 
-  bool
-  undo_file_t::write_undo_data(const undo_data_t &undo_data) {
-    if (!file_handle) return false;
+  bool undo_file_t::write_undo_data(const undo_data_t &undo_data) {
+    if (!file_handle) {
+      return false;
+    }
 
     std::string buffer;
     try {
       buffer = undo_data.write();
-    }
-    catch (...) {
+    } catch (...) {
       error_message("Couldn't serialize undo data");
       return false;
     }
@@ -121,9 +122,10 @@ namespace nvprefs {
     return true;
   }
 
-  std::optional<undo_data_t>
-  undo_file_t::read_undo_data() {
-    if (!file_handle) return std::nullopt;
+  std::optional<undo_data_t> undo_file_t::read_undo_data() {
+    if (!file_handle) {
+      return std::nullopt;
+    }
 
     LARGE_INTEGER file_size;
     if (!GetFileSizeEx(file_handle.get(), &file_size)) {
@@ -146,8 +148,7 @@ namespace nvprefs {
     undo_data_t undo_data;
     try {
       undo_data.read(buffer);
-    }
-    catch (...) {
+    } catch (...) {
       error_message("Couldn't parse undo file");
       return std::nullopt;
     }

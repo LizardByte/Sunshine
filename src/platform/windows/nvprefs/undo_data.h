@@ -4,7 +4,7 @@
  */
 #pragma once
 
-// standard library headers
+// standard includes
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -23,20 +23,15 @@ namespace nvprefs {
       std::optional<opengl_swapchain_t> opengl_swapchain;
     };
 
-    void
-    set_opengl_swapchain(uint32_t our_value, std::optional<uint32_t> undo_value);
+    void set_opengl_swapchain(uint32_t our_value, std::optional<uint32_t> undo_value);
 
-    std::optional<data_t::opengl_swapchain_t>
-    get_opengl_swapchain() const;
+    std::optional<data_t::opengl_swapchain_t> get_opengl_swapchain() const;
 
-    std::string
-    write() const;
+    std::string write() const;
 
-    void
-    read(const std::vector<char> &buffer);
+    void read(const std::vector<char> &buffer);
 
-    void
-    merge(const undo_data_t &newer_data);
+    void merge(const undo_data_t &newer_data);
 
   private:
     data_t data;

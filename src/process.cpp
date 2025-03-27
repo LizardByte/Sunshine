@@ -4,27 +4,29 @@
  */
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
-#include "process.h"
-
+// standard includes
 #include <filesystem>
 #include <string>
 #include <thread>
 #include <vector>
 
+// lib includes
 #include <boost/algorithm/string.hpp>
 #include <boost/crc.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
+// local includes
 #include "config.h"
 #include "crypto.h"
+#include "display_device.h"
 #include "logging.h"
 #include "platform/common.h"
+#include "process.h"
 #include "system_tray.h"
 #include "utility.h"
 
@@ -51,13 +53,11 @@ namespace proc {
     }
   };
 
-  std::unique_ptr<platf::deinit_t>
-  init() {
+  std::unique_ptr<platf::deinit_t> init() {
     return std::make_unique<deinit_t>();
   }
 
-  void
-  terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
+  void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout) {
     if (group.valid() && platf::process_group_running((std::uintptr_t) group.native_handle())) {
       if (exit_timeout.count() > 0) {
         // Request processes in the group to exit gracefully
@@ -72,16 +72,13 @@ namespace proc {
 
           if (exit_timeout.count() < 0) {
             BOOST_LOG(warning) << "App did not fully exit within the timeout. Terminating the app's remaining processes."sv;
-          }
-          else {
+          } else {
             BOOST_LOG(info) << "All app processes have successfully exited."sv;
           }
-        }
-        else {
+        } else {
           BOOST_LOG(info) << "App did not respond to a graceful termination request. Forcefully terminating the app's processes."sv;
         }
-      }
-      else {
+      } else {
         BOOST_LOG(info) << "No graceful exit timeout was specified for this app. Forcefully terminating the app's processes."sv;
       }
 
@@ -98,8 +95,7 @@ namespace proc {
     }
   }
 
-  boost::filesystem::path
-  find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
+  boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
     auto parts = boost::program_options::split_winmain(cmd);
@@ -134,8 +130,7 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
-  int
-  proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
+  int proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
     terminate();
 
@@ -238,8 +233,7 @@ namespace proc {
       auto child = platf::run_command(_app.elevated, true, cmd, working_dir, _env, _pipe.get(), ec, nullptr);
       if (ec) {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
-      }
-      else {
+      } else {
         child.detach();
       }
     }
@@ -247,8 +241,7 @@ namespace proc {
     if (_app.cmd.empty()) {
       BOOST_LOG(info) << "Executing [Desktop]"sv;
       placebo = true;
-    }
-    else {
+    } else {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(_app.cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
@@ -267,8 +260,7 @@ namespace proc {
     return 0;
   }
 
-  int
-  proc_t::running() {
+  int proc_t::running() {
 #ifndef _WIN32
     // On POSIX OSes, we must periodically wait for our children to avoid
     // them becoming zombies. This must be synchronized carefully with
@@ -281,17 +273,14 @@ namespace proc {
 
     if (placebo) {
       return _app_id;
-    }
-    else if (_app.wait_all && _process_group && platf::process_group_running((std::uintptr_t) _process_group.native_handle())) {
+    } else if (_app.wait_all && _process_group && platf::process_group_running((std::uintptr_t) _process_group.native_handle())) {
       // The app is still running if any process in the group is still running
       return _app_id;
-    }
-    else if (_process.running()) {
+    } else if (_process.running()) {
       // The app is still running only if the initial process launched is still running
       return _app_id;
-    }
-    else if (_app.auto_detach && _process.native_exit_code() == 0 &&
-             std::chrono::steady_clock::now() - _app_launch_time < 5s) {
+    } else if (_app.auto_detach && _process.native_exit_code() == 0 &&
+               std::chrono::steady_clock::now() - _app_launch_time < 5s) {
       BOOST_LOG(info) << "App exited gracefully within 5 seconds of launch. Treating the app as a detached command."sv;
       BOOST_LOG(info) << "Adjust this behavior in the Applications tab or apps.json if this is not what you want."sv;
       placebo = true;
@@ -307,8 +296,7 @@ namespace proc {
     return 0;
   }
 
-  void
-  proc_t::terminate() {
+  void proc_t::terminate() {
     std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);
@@ -341,25 +329,27 @@ namespace proc {
     }
 
     _pipe.reset();
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+
     bool has_run = _app_id > 0;
 
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started
     if (proc::proc.get_last_run_app_name().length() > 0 && has_run) {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
-    }
 #endif
+
+      display_device::revert_configuration();
+    }
 
     _app_id = -1;
   }
 
-  const std::vector<ctx_t> &
-  proc_t::get_apps() const {
+  const std::vector<ctx_t> &proc_t::get_apps() const {
     return _apps;
   }
-  std::vector<ctx_t> &
-  proc_t::get_apps() {
+
+  std::vector<ctx_t> &proc_t::get_apps() {
     return _apps;
   }
 
@@ -367,8 +357,7 @@ namespace proc {
   // Returns image from assets directory if found there.
   // Returns default image if image configuration is not set.
   // Returns http content-type header compatible image type.
-  std::string
-  proc_t::get_app_image(int app_id) {
+  std::string proc_t::get_app_image(int app_id) {
     auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
       return app.id == std::to_string(app_id);
     });
@@ -377,8 +366,7 @@ namespace proc {
     return validate_app_image_path(app_image_path);
   }
 
-  std::string
-  proc_t::get_last_run_app_name() {
+  std::string proc_t::get_last_run_app_name() {
     return _app.name;
   }
 
@@ -391,8 +379,7 @@ namespace proc {
     assert(!_process.running());
   }
 
-  std::string_view::iterator
-  find_match(std::string_view::iterator begin, std::string_view::iterator end) {
+  std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {
     int stack = 0;
 
     --begin;
@@ -413,8 +400,7 @@ namespace proc {
     return begin;
   }
 
-  std::string
-  parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw) {
+  std::string parse_env_val(boost::process::v1::native_environment &env, const std::string_view &val_raw) {
     auto pos = std::begin(val_raw);
     auto dollar = std::find(pos, std::end(val_raw), '$');
 
@@ -424,31 +410,33 @@ namespace proc {
       auto next = dollar + 1;
       if (next != std::end(val_raw)) {
         switch (*next) {
-          case '(': {
-            ss.write(pos, (dollar - pos));
-            auto var_begin = next + 1;
-            auto var_end = find_match(next, std::end(val_raw));
-            auto var_name = std::string { var_begin, var_end };
+          case '(':
+            {
+              ss.write(pos, (dollar - pos));
+              auto var_begin = next + 1;
+              auto var_end = find_match(next, std::end(val_raw));
+              auto var_name = std::string {var_begin, var_end};
 
 #ifdef _WIN32
-            // Windows treats environment variable names in a case-insensitive manner,
-            // so we look for a case-insensitive match here. This is critical for
-            // correctly appending to PATH on Windows.
-            auto itr = std::find_if(env.cbegin(), env.cend(),
-              [&](const auto &e) { return boost::iequals(e.get_name(), var_name); });
-            if (itr != env.cend()) {
-              // Use an existing case-insensitive match
-              var_name = itr->get_name();
-            }
+              // Windows treats environment variable names in a case-insensitive manner,
+              // so we look for a case-insensitive match here. This is critical for
+              // correctly appending to PATH on Windows.
+              auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
+                return boost::iequals(e.get_name(), var_name);
+              });
+              if (itr != env.cend()) {
+                // Use an existing case-insensitive match
+                var_name = itr->get_name();
+              }
 #endif
 
-            ss << env[var_name].to_string();
+              ss << env[var_name].to_string();
 
-            pos = var_end + 1;
-            next = var_end;
+              pos = var_end + 1;
+              next = var_end;
 
-            break;
-          }
+              break;
+            }
           case '$':
             ss.write(pos, (next - pos));
             pos = next + 1;
@@ -457,8 +445,7 @@ namespace proc {
         }
 
         dollar = std::find(next, std::end(val_raw), '$');
-      }
-      else {
+      } else {
         dollar = next;
       }
     }
@@ -468,8 +455,7 @@ namespace proc {
     return ss.str();
   }
 
-  std::string
-  validate_app_image_path(std::string app_image_path) {
+  std::string validate_app_image_path(std::string app_image_path) {
     if (app_image_path.empty()) {
       return DEFAULT_APP_IMAGE_PATH;
     }
@@ -487,8 +473,7 @@ namespace proc {
     auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
     if (std::filesystem::exists(full_image_path)) {
       return full_image_path.string();
-    }
-    else if (app_image_path == "./assets/steam.png") {
+    } else if (app_image_path == "./assets/steam.png") {
       // handle old default steam image definition
       return SUNSHINE_ASSETS_DIR "/steam.png";
     }
@@ -506,9 +491,8 @@ namespace proc {
     return app_image_path;
   }
 
-  std::optional<std::string>
-  calculate_sha256(const std::string &filename) {
-    crypto::md_ctx_t ctx { EVP_MD_CTX_create() };
+  std::optional<std::string> calculate_sha256(const std::string &filename) {
+    crypto::md_ctx_t ctx {EVP_MD_CTX_create()};
     if (!ctx) {
       return std::nullopt;
     }
@@ -542,15 +526,13 @@ namespace proc {
     return ss.str();
   }
 
-  uint32_t
-  calculate_crc32(const std::string &input) {
+  uint32_t calculate_crc32(const std::string &input) {
     boost::crc_32_type result;
     result.process_bytes(input.data(), input.length());
     return result.checksum();
   }
 
-  std::tuple<std::string, std::string>
-  calculate_app_id(const std::string &app_name, std::string app_image_path, int index) {
+  std::tuple<std::string, std::string> calculate_app_id(const std::string &app_name, std::string app_image_path, int index) {
     // Generate id by hashing name with image data if present
     std::vector<std::string> to_hash;
     to_hash.push_back(app_name);
@@ -559,8 +541,7 @@ namespace proc {
       auto file_hash = calculate_sha256(file_path);
       if (file_hash) {
         to_hash.push_back(file_hash.value());
-      }
-      else {
+      } else {
         // Fallback to just hashing image path
         to_hash.push_back(file_path);
       }
@@ -568,7 +549,9 @@ namespace proc {
 
     // Create combined strings for hash
     std::stringstream ss;
-    for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string &s) { ss << s; });
+    for_each(to_hash.begin(), to_hash.end(), [&ss](const std::string &s) {
+      ss << s;
+    });
     auto input_no_index = ss.str();
     ss << index;
     auto input_with_index = ss.str();
@@ -580,8 +563,7 @@ namespace proc {
     return std::make_tuple(id_no_index, id_with_index);
   }
 
-  std::optional<proc::proc_t>
-  parse(const std::string &file_name) {
+  std::optional<proc::proc_t> parse(const std::string &file_name) {
     pt::ptree tree;
 
     try {
@@ -625,7 +607,8 @@ namespace proc {
             prep_cmds.emplace_back(
               std::move(do_cmd),
               std::move(undo_cmd),
-              std::move(prep_cmd.elevated));
+              std::move(prep_cmd.elevated)
+            );
           }
         }
 
@@ -641,7 +624,8 @@ namespace proc {
             prep_cmds.emplace_back(
               parse_env_val(this_env, do_cmd.value_or("")),
               parse_env_val(this_env, undo_cmd.value_or("")),
-              std::move(elevated.value_or(false)));
+              std::move(elevated.value_or(false))
+            );
           }
         }
 
@@ -680,14 +664,13 @@ namespace proc {
         ctx.elevated = elevated.value_or(false);
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
-        ctx.exit_timeout = std::chrono::seconds { exit_timeout.value_or(5) };
+        ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {
           // Avoid using index to generate id if possible
           ctx.id = std::get<0>(possible_ids);
-        }
-        else {
+        } else {
           // Fallback to include index on collision
           ctx.id = std::get<1>(possible_ids);
         }
@@ -701,18 +684,17 @@ namespace proc {
       }
 
       return proc::proc_t {
-        std::move(this_env), std::move(apps)
+        std::move(this_env),
+        std::move(apps)
       };
-    }
-    catch (std::exception &e) {
+    } catch (std::exception &e) {
       BOOST_LOG(error) << e.what();
     }
 
     return std::nullopt;
   }
 
-  void
-  refresh(const std::string &file_name) {
+  void refresh(const std::string &file_name) {
     auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {

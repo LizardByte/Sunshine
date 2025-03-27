@@ -12,10 +12,6 @@ option(BUILD_TESTS "Build tests" ON)
 option(NPM_OFFLINE "Use offline npm packages. You must ensure packages are in your npm cache." OFF)
 option(TESTS_ENABLE_PYTHON_TESTS "Enable Python tests" ON)
 
-# DirectX11 is not available in GitHub runners, so even software encoding fails
-set(TESTS_SOFTWARE_ENCODER_UNAVAILABLE "fail"
-        CACHE STRING "How to handle unavailable software encoders in tests. 'fail/skip'")
-
 option(BUILD_WERROR "Enable -Werror flag." OFF)
 
 # if this option is set, the build will exit after configuring special package configuration files
@@ -69,6 +65,4 @@ elseif(UNIX)  # Linux
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11
             "Enable X11 grab if available." ON)
-    option(SUNSHINE_USE_LEGACY_INPUT  # TODO: Remove this legacy option after the next stable release
-            "Use the legacy virtual input implementation." OFF)
 endif()

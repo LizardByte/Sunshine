@@ -29,20 +29,24 @@
     </p>
 
     <p>NOTE: Sunshine requires additional installation steps.</p>
-    <p>flatpak run --command=additional-install.sh @PROJECT_FQDN@</p>
+    <p>
+      <code>flatpak run --command=additional-install.sh @PROJECT_FQDN@</code>
+    </p>
     <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure, but it is safe.</p>
     <p>NOTE: KMS Grab (Optional)</p>
-    <p>sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run @PROJECT_FQDN@</p>
+    <p>
+      <code>sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run @PROJECT_FQDN@</code>
+    </p>
   </description>
 
   <releases>
-    <release version="@PROJECT_VERSION@" date="1970-01-01"></release>
+    <release version="@PROJECT_VERSION@" date="1990-01-01"></release>
   </releases>
 
   <developer_name>LizardByte</developer_name>
   <screenshots>
     <screenshot type="default">
-      <image>https://app.lizardbyte.dev/Sunshine/assets/images/AdobeStock_305732536_1920x1280.jpg</image>
+      <image>https://app.lizardbyte.dev/Sunshine/assets/img/banners/AdobeStock_305732536_1920x1280.jpg</image>
       <caption>Sunshine</caption>
     </screenshot>
   </screenshots>

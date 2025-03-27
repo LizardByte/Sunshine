@@ -4,8 +4,10 @@
  */
 #pragma once
 
+// platform includes
 #import <AVFoundation/AVFoundation.h>
 
+// lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
 #define kBufferLength 4096

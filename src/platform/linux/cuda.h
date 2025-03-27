@@ -5,14 +5,15 @@
 #pragma once
 
 #if defined(SUNSHINE_BUILD_CUDA)
-
-  #include "src/video_colorspace.h"
-
+  // standard includes
   #include <cstdint>
   #include <memory>
   #include <optional>
   #include <string>
   #include <vector>
+
+  // local includes
+  #include "src/video_colorspace.h"
 
 namespace platf {
   class avcodec_encode_device_t;
@@ -22,11 +23,10 @@ namespace platf {
 namespace cuda {
 
   namespace nvfbc {
-    std::vector<std::string>
-    display_names();
+    std::vector<std::string> display_names();
   }
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_encode_device(int width, int height, bool vram);
+
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram);
 
   /**
    * @brief Create a GL->CUDA encoding device for consuming captured dmabufs.
@@ -36,11 +36,9 @@ namespace cuda {
    * @param offset_y Offset of content in captured frame.
    * @return FFmpeg encoding device context.
    */
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y);
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_gl_encode_device(int width, int height, int offset_x, int offset_y);
 
-  int
-  init();
+  int init();
 }  // namespace cuda
 
 typedef struct cudaArray *cudaArray_t;
@@ -57,21 +55,18 @@ namespace cuda {
 
   class freeCudaPtr_t {
   public:
-    void
-    operator()(void *ptr);
+    void operator()(void *ptr);
   };
 
   class freeCudaStream_t {
   public:
-    void
-    operator()(cudaStream_t ptr);
+    void operator()(cudaStream_t ptr);
   };
 
   using ptr_t = std::unique_ptr<void, freeCudaPtr_t>;
   using stream_t = std::unique_ptr<CUstream_st, freeCudaStream_t>;
 
-  stream_t
-  make_stream(int flags = 0);
+  stream_t make_stream(int flags = 0);
 
   struct viewport_t {
     int width, height;
@@ -80,19 +75,16 @@ namespace cuda {
 
   class tex_t {
   public:
-    static std::optional<tex_t>
-    make(int height, int pitch);
+    static std::optional<tex_t> make(int height, int pitch);
 
     tex_t();
     tex_t(tex_t &&);
 
-    tex_t &
-    operator=(tex_t &&other);
+    tex_t &operator=(tex_t &&other);
 
     ~tex_t();
 
-    int
-    copy(std::uint8_t *src, int height, int pitch);
+    int copy(std::uint8_t *src, int height, int pitch);
 
     cudaArray_t array;
 
@@ -113,20 +105,15 @@ namespace cuda {
      *
      * pitch -- The size of a single row of pixels in bytes
      */
-    static std::optional<sws_t>
-    make(int in_width, int in_height, int out_width, int out_height, int pitch);
+    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, int pitch);
 
     // Converts loaded image into a CUDevicePtr
-    int
-    convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream);
-    int
-    convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport);
+    int convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream);
+    int convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport);
 
-    void
-    apply_colorspace(const video::sunshine_colorspace_t &colorspace);
+    void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
-    int
-    load_ram(platf::img_t &img, cudaArray_t array);
+    int load_ram(platf::img_t &img, cudaArray_t array);
 
     ptr_t color_matrix;
 

@@ -5,6 +5,7 @@
  */
 #pragma once
 
+// standard includes
 #include <stdint.h>
 
 typedef struct _reed_solomon reed_solomon;
@@ -28,5 +29,4 @@ extern reed_solomon_decode_t reed_solomon_decode_fn;
  * @brief This initializes the RS function pointers to the best vectorized version available.
  * @details The streaming code will directly invoke these function pointers during encoding.
  */
-void
-reed_solomon_init(void);
+void reed_solomon_init(void);

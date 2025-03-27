@@ -4,31 +4,29 @@
  */
 #pragma once
 
+// standard includes
 #include <chrono>
 #include <functional>
 #include <limits>
 
+// lib includes
 #include <boost/format.hpp>
 
 namespace stat_trackers {
 
-  boost::format
-  one_digit_after_decimal();
+  boost::format one_digit_after_decimal();
 
-  boost::format
-  two_digits_after_decimal();
+  boost::format two_digits_after_decimal();
 
-  template <typename T>
+  template<typename T>
   class min_max_avg_tracker {
   public:
     using callback_function = std::function<void(T stat_min, T stat_max, double stat_avg)>;
 
-    void
-    collect_and_callback_on_interval(T stat, const callback_function &callback, std::chrono::seconds interval_in_seconds) {
+    void collect_and_callback_on_interval(T stat, const callback_function &callback, std::chrono::seconds interval_in_seconds) {
       if (data.calls == 0) {
         data.last_callback_time = std::chrono::steady_clock::now();
-      }
-      else if (std::chrono::steady_clock::now() > data.last_callback_time + interval_in_seconds) {
+      } else if (std::chrono::steady_clock::now() > data.last_callback_time + interval_in_seconds) {
         callback(data.stat_min, data.stat_max, data.stat_total / data.calls);
         data = {};
       }
@@ -38,8 +36,7 @@ namespace stat_trackers {
       data.calls += 1;
     }
 
-    void
-    reset() {
+    void reset() {
       data = {};
     }
 

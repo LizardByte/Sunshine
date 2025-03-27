@@ -167,7 +167,7 @@ process is killed.}
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
 @hint{The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS
-and iOS devices, since they use non standard resolutions.
+and iOS devices, since they use non-standard resolutions.
 
 You can update the ``Do`` command to this:
 ```bash
@@ -257,22 +257,10 @@ hard-coding their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mod
 
 ###### NVIDIA
 
-| Prep Step | Command                                                                                                     |
-|-----------|-------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}sh -c "${HOME}/scripts/set-custom-res.sh ${SUNSHINE_CLIENT_WIDTH} ${SUNSHINE_CLIENT_HEIGHT}"@endcode |
-| Undo      | @code{}sh -c "${HOME}/scripts/set-custom-res.sh 3840 2160"@endcode                                          |
-
-The ``set-custom-res.sh`` will have this content:
-```bash
-#!/bin/bash
-set -e
-
-# Get params and set any defaults
-width=${1:-1920}
-height=${2:-1080}
-output=${3:-HDMI-1}
-nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
-```
+| Prep Step | Command                                                                                                                                                                                                                        |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}, ViewPortOut=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}+0+0 }\""@endcode |
+| Undo      | @code{}nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=3840x2160, ViewPortOut=3840x2160+0+0 }"@endcode                                                                                            |
 
 ##### macOS
 
@@ -281,21 +269,23 @@ nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=$
 This tool can be installed following instructions in their
 [GitHub repository](https://github.com/jakehilborn/displayplacer)}.
 
-| Prep Step | Command                                                                                            |
-|-----------|----------------------------------------------------------------------------------------------------|
-| Do        | @code{}displayplacer "id:<screenId> res:1920x1080 hz:60 scaling:on origin:(0,0) degree:0"@endcode  |
-| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode |
+| Prep Step | Command                                                                                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "displayplacer \"id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0\""@endcode |
+| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode                                                                       |
 
 ##### Windows
+Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
+third-party tool, you can use *QRes* as an example.
 
 ###### QRes
 @note{This example uses the *QRes* tool to change the resolution and refresh rate.
-This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}.
+This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}
 
-| Prep Step | Command                                                                                                                 |
-|-----------|-------------------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}cmd /C FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%@endcode |
-| Undo      | @code{}cmd /C FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                          |
+| Prep Step | Command                                                                                                                   |
+|-----------|---------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}cmd /C "FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%"@endcode |
+| Undo      | @code{}FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                                   |
 
 ### Additional Considerations
 
@@ -311,22 +301,19 @@ administrative privileges. Simply enable the elevated option in the WEB UI, or a
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a
 UAC prompt.
 
-@note{It is important to write the values "true" and "false" as string values, not as the typical true/false
-values in most JSON.}
-
 **Example**
 ```json
 {
   "name": "Game With AntiCheat that Requires Admin",
   "output": "",
   "cmd": "ping 127.0.0.1",
-  "exclude-global-prep-cmd": "false",
-  "elevated": "true",
+  "exclude-global-prep-cmd": false,
+  "elevated": true,
   "prep-cmd": [
     {
       "do": "powershell.exe -command \"Start-Streaming\"",
       "undo": "powershell.exe -command \"Stop-Streaming\"",
-      "elevated": "false"
+      "elevated": false
     }
   ],
   "image-path": ""

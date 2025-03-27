@@ -4,10 +4,12 @@
  */
 #pragma once
 
+// lib includes
 #include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
@@ -94,8 +96,7 @@ namespace platf {
     inputtino::Result<inputtino::PenTablet> pen;
   };
 
-  inline float
-  deg2rad(float degree) {
+  inline float deg2rad(float degree) {
     return degree * (M_PI / 180.f);
   }
 }  // namespace platf

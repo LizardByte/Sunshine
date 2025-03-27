@@ -81,10 +81,10 @@
           body: JSON.stringify(this.passwordData),
         }).then((r) => {
           this.loading = false;
-          if (r.status == 200) {
+          if (r.status === 200) {
             r.json().then((rj) => {
-              if (rj.status.toString() === "true") {
-                this.success = true;
+              this.success = rj.status;
+              if (this.success === true) {
                 setTimeout(() => {
                   document.location.reload();
                 }, 5000);

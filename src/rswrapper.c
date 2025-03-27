@@ -121,8 +121,7 @@ reed_solomon_decode_t reed_solomon_decode_fn;
  * @brief This initializes the RS function pointers to the best vectorized version available.
  * @details The streaming code will directly invoke these function pointers during encoding.
  */
-void
-reed_solomon_init(void) {
+void reed_solomon_init(void) {
 #if defined(__x86_64__) || defined(__i386__)
   if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw")) {
     reed_solomon_new_fn = reed_solomon_new_avx512;
@@ -130,22 +129,19 @@ reed_solomon_init(void) {
     reed_solomon_encode_fn = reed_solomon_encode_avx512;
     reed_solomon_decode_fn = reed_solomon_decode_avx512;
     reed_solomon_init_avx512();
-  }
-  else if (__builtin_cpu_supports("avx2")) {
+  } else if (__builtin_cpu_supports("avx2")) {
     reed_solomon_new_fn = reed_solomon_new_avx2;
     reed_solomon_release_fn = reed_solomon_release_avx2;
     reed_solomon_encode_fn = reed_solomon_encode_avx2;
     reed_solomon_decode_fn = reed_solomon_decode_avx2;
     reed_solomon_init_avx2();
-  }
-  else if (__builtin_cpu_supports("ssse3")) {
+  } else if (__builtin_cpu_supports("ssse3")) {
     reed_solomon_new_fn = reed_solomon_new_ssse3;
     reed_solomon_release_fn = reed_solomon_release_ssse3;
     reed_solomon_encode_fn = reed_solomon_encode_ssse3;
     reed_solomon_decode_fn = reed_solomon_decode_ssse3;
     reed_solomon_init_ssse3();
-  }
-  else
+  } else
 #endif
   {
     reed_solomon_new_fn = reed_solomon_new_def;

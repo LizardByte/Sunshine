@@ -4,6 +4,7 @@
  */
 #pragma once
 
+// local includes
 #include "input.h"
 #include "platform/common.h"
 #include "thread_safe.h"
@@ -15,6 +16,7 @@ extern "C" {
 }
 
 struct AVPacket;
+
 namespace video {
 
   /* Encoding configuration requested by remote client */
@@ -38,19 +40,16 @@ namespace video {
     int dynamicRange;
 
     int chromaSamplingType;  // 0 - 4:2:0, 1 - 4:4:4
+
+    int enableIntraRefresh;  // 0 - disabled, 1 - enabled
   };
 
-  platf::mem_type_e
-  map_base_dev_type(AVHWDeviceType type);
-  platf::pix_fmt_e
-  map_pix_fmt(AVPixelFormat fmt);
+  platf::mem_type_e map_base_dev_type(AVHWDeviceType type);
+  platf::pix_fmt_e map_pix_fmt(AVPixelFormat fmt);
 
-  void
-  free_ctx(AVCodecContext *ctx);
-  void
-  free_frame(AVFrame *frame);
-  void
-  free_buffer(AVBufferRef *ref);
+  void free_ctx(AVCodecContext *ctx);
+  void free_frame(AVFrame *frame);
+  void free_buffer(AVBufferRef *ref);
 
   using avcodec_ctx_t = util::safe_ptr<AVCodecContext, free_ctx>;
   using avcodec_frame_t = util::safe_ptr<AVFrame, free_frame>;
@@ -76,15 +75,16 @@ namespace video {
       const AVPixelFormat &avcodec_pix_fmt_10bit,
       const AVPixelFormat &avcodec_pix_fmt_yuv444_8bit,
       const AVPixelFormat &avcodec_pix_fmt_yuv444_10bit,
-      const init_buffer_function_t &init_avcodec_hardware_input_buffer_function):
-        avcodec_base_dev_type { avcodec_base_dev_type },
-        avcodec_derived_dev_type { avcodec_derived_dev_type },
-        avcodec_dev_pix_fmt { avcodec_dev_pix_fmt },
-        avcodec_pix_fmt_8bit { avcodec_pix_fmt_8bit },
-        avcodec_pix_fmt_10bit { avcodec_pix_fmt_10bit },
-        avcodec_pix_fmt_yuv444_8bit { avcodec_pix_fmt_yuv444_8bit },
-        avcodec_pix_fmt_yuv444_10bit { avcodec_pix_fmt_yuv444_10bit },
-        init_avcodec_hardware_input_buffer { init_avcodec_hardware_input_buffer_function } {
+      const init_buffer_function_t &init_avcodec_hardware_input_buffer_function
+    ):
+        avcodec_base_dev_type {avcodec_base_dev_type},
+        avcodec_derived_dev_type {avcodec_derived_dev_type},
+        avcodec_dev_pix_fmt {avcodec_dev_pix_fmt},
+        avcodec_pix_fmt_8bit {avcodec_pix_fmt_8bit},
+        avcodec_pix_fmt_10bit {avcodec_pix_fmt_10bit},
+        avcodec_pix_fmt_yuv444_8bit {avcodec_pix_fmt_yuv444_8bit},
+        avcodec_pix_fmt_yuv444_10bit {avcodec_pix_fmt_yuv444_10bit},
+        init_avcodec_hardware_input_buffer {init_avcodec_hardware_input_buffer_function} {
       dev_type = map_base_dev_type(avcodec_base_dev_type);
       pix_fmt_8bit = map_pix_fmt(avcodec_pix_fmt_8bit);
       pix_fmt_10bit = map_pix_fmt(avcodec_pix_fmt_10bit);
@@ -106,7 +106,8 @@ namespace video {
       const platf::pix_fmt_e &pix_fmt_8bit,
       const platf::pix_fmt_e &pix_fmt_10bit,
       const platf::pix_fmt_e &pix_fmt_yuv444_8bit,
-      const platf::pix_fmt_e &pix_fmt_yuv444_10bit) {
+      const platf::pix_fmt_e &pix_fmt_yuv444_10bit
+    ) {
       encoder_platform_formats_t::dev_type = dev_type;
       encoder_platform_formats_t::pix_fmt_8bit = pix_fmt_8bit;
       encoder_platform_formats_t::pix_fmt_10bit = pix_fmt_10bit;
@@ -117,6 +118,7 @@ namespace video {
 
   struct encoder_t {
     std::string_view name;
+
     enum flag_e {
       PASSED,  ///< Indicates the encoder is supported.
       REF_FRAMES_RESTRICT,  ///< Set maximum reference frames.
@@ -126,10 +128,9 @@ namespace video {
       MAX_FLAGS  ///< Maximum number of flags.
     };
 
-    static std::string_view
-    from_flag(flag_e flag) {
+    static std::string_view from_flag(flag_e flag) {
 #define _CONVERT(x) \
-  case flag_e::x:   \
+  case flag_e::x: \
     return std::string_view(#x)
       switch (flag) {
         _CONVERT(PASSED);
@@ -141,7 +142,7 @@ namespace video {
       }
 #undef _CONVERT
 
-      return { "unknown" };
+      return {"unknown"};
     }
 
     struct option_t {
@@ -152,7 +153,9 @@ namespace video {
       std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *> value;
 
       option_t(std::string &&name, decltype(value) &&value):
-          name { std::move(name) }, value { std::move(value) } {}
+          name {std::move(name)},
+          value {std::move(value)} {
+      }
     };
 
     const std::unique_ptr<const encoder_platform_formats_t> platform_formats;
@@ -168,19 +171,16 @@ namespace video {
       std::string name;
       std::bitset<MAX_FLAGS> capabilities;
 
-      bool
-      operator[](flag_e flag) const {
+      bool operator[](flag_e flag) const {
         return capabilities[(std::size_t) flag];
       }
 
-      std::bitset<MAX_FLAGS>::reference
-      operator[](flag_e flag) {
+      std::bitset<MAX_FLAGS>::reference operator[](flag_e flag) {
         return capabilities[(std::size_t) flag];
       }
     } av1, hevc, h264;
 
-    const codec_t &
-    codec_from_config(const config_t &config) const {
+    const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {
         default:
           BOOST_LOG(error) << "Unknown video format " << config.videoFormat << ", falling back to H.264";
@@ -200,17 +200,13 @@ namespace video {
   struct encode_session_t {
     virtual ~encode_session_t() = default;
 
-    virtual int
-    convert(platf::img_t &img) = 0;
+    virtual int convert(platf::img_t &img) = 0;
 
-    virtual void
-    request_idr_frame() = 0;
+    virtual void request_idr_frame() = 0;
 
-    virtual void
-    request_normal_frame() = 0;
+    virtual void request_normal_frame() = 0;
 
-    virtual void
-    invalidate_ref_frames(int64_t first_frame, int64_t last_frame) = 0;
+    virtual void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) = 0;
   };
 
   // encoders
@@ -236,17 +232,13 @@ namespace video {
   struct packet_raw_t {
     virtual ~packet_raw_t() = default;
 
-    virtual bool
-    is_idr() = 0;
+    virtual bool is_idr() = 0;
 
-    virtual int64_t
-    frame_index() = 0;
+    virtual int64_t frame_index() = 0;
 
-    virtual uint8_t *
-    data() = 0;
+    virtual uint8_t *data() = 0;
 
-    virtual size_t
-    data_size() = 0;
+    virtual size_t data_size() = 0;
 
     struct replace_t {
       std::string_view old;
@@ -255,7 +247,9 @@ namespace video {
       KITTY_DEFAULT_CONSTR_MOVE(replace_t)
 
       replace_t(std::string_view old, std::string_view _new) noexcept:
-          old { std::move(old) }, _new { std::move(_new) } {}
+          old {std::move(old)},
+          _new {std::move(_new)} {
+      }
     };
 
     std::vector<replace_t> *replacements = nullptr;
@@ -273,23 +267,19 @@ namespace video {
       av_packet_free(&this->av_packet);
     }
 
-    bool
-    is_idr() override {
+    bool is_idr() override {
       return av_packet->flags & AV_PKT_FLAG_KEY;
     }
 
-    int64_t
-    frame_index() override {
+    int64_t frame_index() override {
       return av_packet->pts;
     }
 
-    uint8_t *
-    data() override {
+    uint8_t *data() override {
       return av_packet->data;
     }
 
-    size_t
-    data_size() override {
+    size_t data_size() override {
       return av_packet->size;
     }
 
@@ -298,26 +288,24 @@ namespace video {
 
   struct packet_raw_generic: packet_raw_t {
     packet_raw_generic(std::vector<uint8_t> &&frame_data, int64_t frame_index, bool idr):
-        frame_data { std::move(frame_data) }, index { frame_index }, idr { idr } {
+        frame_data {std::move(frame_data)},
+        index {frame_index},
+        idr {idr} {
     }
 
-    bool
-    is_idr() override {
+    bool is_idr() override {
       return idr;
     }
 
-    int64_t
-    frame_index() override {
+    int64_t frame_index() override {
       return index;
     }
 
-    uint8_t *
-    data() override {
+    uint8_t *data() override {
       return frame_data.data();
     }
 
-    size_t
-    data_size() override {
+    size_t data_size() override {
       return frame_data.size();
     }
 
@@ -330,9 +318,11 @@ namespace video {
 
   struct hdr_info_raw_t {
     explicit hdr_info_raw_t(bool enabled):
-        enabled { enabled }, metadata {} {};
+        enabled {enabled},
+        metadata {} {};
     explicit hdr_info_raw_t(bool enabled, const SS_HDR_METADATA &metadata):
-        enabled { enabled }, metadata { metadata } {};
+        enabled {enabled},
+        metadata {metadata} {};
 
     bool enabled;
     SS_HDR_METADATA metadata;
@@ -345,14 +335,13 @@ namespace video {
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 
-  void
-  capture(
+  void capture(
     safe::mail_t mail,
     config_t config,
-    void *channel_data);
+    void *channel_data
+  );
 
-  bool
-  validate_encoder(encoder_t &encoder, bool expect_failure);
+  bool validate_encoder(encoder_t &encoder, bool expect_failure);
 
   /**
    * @brief Probe encoders and select the preferred encoder.
@@ -362,6 +351,5 @@ namespace video {
    *
    * @warning This is only safe to call when there is no client actively streaming.
    */
-  int
-  probe_encoders();
+  int probe_encoders();
 }  // namespace video

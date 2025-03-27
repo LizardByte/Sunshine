@@ -4,18 +4,21 @@
  */
 #pragma once
 
+// standard includes
 #include <bitset>
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <string>
 
+// lib includes
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
   #include <boost/process.hpp>
 #endif
 
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/thread_safe.h"
@@ -44,13 +47,15 @@ namespace boost {
       class address;
     }  // namespace ip
   }  // namespace asio
+
   namespace filesystem {
     class path;
   }
+
   namespace process::inline v1 {
     class child;
     class group;
-    template <typename Char>
+    template<typename Char>
     class basic_environment;
     typedef basic_environment<char> environment;
   }  // namespace process::inline v1
@@ -59,6 +64,7 @@ namespace boost {
 namespace video {
   struct config_t;
 }  // namespace video
+
 namespace nvenc {
   class nvenc_base;
 }
@@ -100,29 +106,27 @@ namespace platf {
     rumble_triggers,  ///< Rumble triggers
     set_motion_event_state,  ///< Set motion event state
     set_rgb_led,  ///< Set RGB LED
+    set_adaptive_triggers,  ///< Set adaptive triggers
   };
 
   struct gamepad_feedback_msg_t {
-    static gamepad_feedback_msg_t
-    make_rumble(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
+    static gamepad_feedback_msg_t make_rumble(std::uint16_t id, std::uint16_t lowfreq, std::uint16_t highfreq) {
       gamepad_feedback_msg_t msg;
       msg.type = gamepad_feedback_e::rumble;
       msg.id = id;
-      msg.data.rumble = { lowfreq, highfreq };
+      msg.data.rumble = {lowfreq, highfreq};
       return msg;
     }
 
-    static gamepad_feedback_msg_t
-    make_rumble_triggers(std::uint16_t id, std::uint16_t left, std::uint16_t right) {
+    static gamepad_feedback_msg_t make_rumble_triggers(std::uint16_t id, std::uint16_t left, std::uint16_t right) {
       gamepad_feedback_msg_t msg;
       msg.type = gamepad_feedback_e::rumble_triggers;
       msg.id = id;
-      msg.data.rumble_triggers = { left, right };
+      msg.data.rumble_triggers = {left, right};
       return msg;
     }
 
-    static gamepad_feedback_msg_t
-    make_motion_event_state(std::uint16_t id, std::uint8_t motion_type, std::uint16_t report_rate) {
+    static gamepad_feedback_msg_t make_motion_event_state(std::uint16_t id, std::uint8_t motion_type, std::uint16_t report_rate) {
       gamepad_feedback_msg_t msg;
       msg.type = gamepad_feedback_e::set_motion_event_state;
       msg.id = id;
@@ -131,35 +135,55 @@ namespace platf {
       return msg;
     }
 
-    static gamepad_feedback_msg_t
-    make_rgb_led(std::uint16_t id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    static gamepad_feedback_msg_t make_rgb_led(std::uint16_t id, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
       gamepad_feedback_msg_t msg;
       msg.type = gamepad_feedback_e::set_rgb_led;
       msg.id = id;
-      msg.data.rgb_led = { r, g, b };
+      msg.data.rgb_led = {r, g, b};
+      return msg;
+    }
+
+    static gamepad_feedback_msg_t make_adaptive_triggers(std::uint16_t id, uint8_t event_flags, uint8_t type_left, uint8_t type_right, const std::array<uint8_t, 10> &left, const std::array<uint8_t, 10> &right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_adaptive_triggers;
+      msg.id = id;
+      msg.data.adaptive_triggers = {.event_flags = event_flags, .type_left = type_left, .type_right = type_right, .left = left, .right = right};
       return msg;
     }
 
     gamepad_feedback_e type;
     std::uint16_t id;
+
     union {
       struct {
         std::uint16_t lowfreq;
         std::uint16_t highfreq;
       } rumble;
+
       struct {
         std::uint16_t left_trigger;
         std::uint16_t right_trigger;
       } rumble_triggers;
+
       struct {
         std::uint16_t report_rate;
         std::uint8_t motion_type;
       } motion_event_state;
+
       struct {
         std::uint8_t r;
         std::uint8_t g;
         std::uint8_t b;
       } rgb_led;
+
+      struct {
+        uint16_t controllerNumber;
+        uint8_t event_flags;
+        uint8_t type_left;
+        uint8_t type_right;
+        std::array<uint8_t, 10> left;
+        std::array<uint8_t, 10> right;
+      } adaptive_triggers;
     } data;
   };
 
@@ -179,7 +203,8 @@ namespace platf {
     };
 
     constexpr std::uint8_t map_stereo[] {
-      FRONT_LEFT, FRONT_RIGHT
+      FRONT_LEFT,
+      FRONT_RIGHT
     };
     constexpr std::uint8_t map_surround51[] {
       FRONT_LEFT,
@@ -221,10 +246,9 @@ namespace platf {
     unknown  ///< Unknown
   };
 
-  inline std::string_view
-  from_pix_fmt(pix_fmt_e pix_fmt) {
+  inline std::string_view from_pix_fmt(pix_fmt_e pix_fmt) {
     using namespace std::literals;
-#define _CONVERT(x)  \
+#define _CONVERT(x) \
   case pix_fmt_e::x: \
     return #x##sv
     switch (pix_fmt) {
@@ -344,10 +368,8 @@ namespace platf {
 
     img_t(img_t &&) = delete;
     img_t(const img_t &) = delete;
-    img_t &
-    operator=(img_t &&) = delete;
-    img_t &
-    operator=(const img_t &) = delete;
+    img_t &operator=(img_t &&) = delete;
+    img_t &operator=(const img_t &) = delete;
 
     std::uint8_t *data {};
     std::int32_t width {};
@@ -371,14 +393,14 @@ namespace platf {
       std::string surround51;
       std::string surround71;
     };
+
     std::optional<null_t> null;
   };
 
   struct encode_device_t {
     virtual ~encode_device_t() = default;
 
-    virtual int
-    convert(platf::img_t &img) = 0;
+    virtual int convert(platf::img_t &img) = 0;
 
     video::sunshine_colorspace_t colorspace;
   };
@@ -387,21 +409,18 @@ namespace platf {
     void *data {};
     AVFrame *frame {};
 
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       return -1;
     }
 
-    virtual void
-    apply_colorspace() {
+    virtual void apply_colorspace() {
     }
 
     /**
      * @brief Set the frame to be encoded.
      * @note Implementations must take ownership of 'frame'.
      */
-    virtual int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
+    virtual int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx) {
       BOOST_LOG(error) << "Illegal call to hwdevice_t::set_frame(). Did you forget to override it?";
       return -1;
     };
@@ -410,29 +429,25 @@ namespace platf {
      * @brief Initialize the hwframes context.
      * @note Implementations may set parameters during initialization of the hwframes context.
      */
-    virtual void
-    init_hwframes(AVHWFramesContext *frames) {};
+    virtual void init_hwframes(AVHWFramesContext *frames) {};
 
     /**
      * @brief Provides a hook for allow platform-specific code to adjust codec options.
      * @note Implementations may set or modify codec options prior to codec initialization.
      */
-    virtual void
-    init_codec_options(AVCodecContext *ctx, AVDictionary **options) {};
+    virtual void init_codec_options(AVCodecContext *ctx, AVDictionary **options) {};
 
     /**
      * @brief Prepare to derive a context.
      * @note Implementations may make modifications required before context derivation
      */
-    virtual int
-    prepare_to_derive_context(int hw_device_type) {
+    virtual int prepare_to_derive_context(int hw_device_type) {
       return 0;
     };
   };
 
   struct nvenc_encode_device_t: encode_device_t {
-    virtual bool
-    init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
+    virtual bool init_encoder(const video::config_t &client_config, const video::sunshine_colorspace_t &colorspace) = 0;
 
     nvenc::nvenc_base *nvenc = nullptr;
   };
@@ -466,7 +481,9 @@ namespace platf {
     using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
     display_t() noexcept:
-        offset_x { 0 }, offset_y { 0 } {}
+        offset_x {0},
+        offset_y {0} {
+    }
 
     /**
      * @brief Capture a frame.
@@ -480,32 +497,25 @@ namespace platf {
      * @retval capture_e::error On error
      * @retval capture_e::reinit When need of reinitialization
      */
-    virtual capture_e
-    capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
+    virtual capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) = 0;
 
-    virtual std::shared_ptr<img_t>
-    alloc_img() = 0;
+    virtual std::shared_ptr<img_t> alloc_img() = 0;
 
-    virtual int
-    dummy_img(img_t *img) = 0;
+    virtual int dummy_img(img_t *img) = 0;
 
-    virtual std::unique_ptr<avcodec_encode_device_t>
-    make_avcodec_encode_device(pix_fmt_e pix_fmt) {
+    virtual std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) {
       return nullptr;
     }
 
-    virtual std::unique_ptr<nvenc_encode_device_t>
-    make_nvenc_encode_device(pix_fmt_e pix_fmt) {
+    virtual std::unique_ptr<nvenc_encode_device_t> make_nvenc_encode_device(pix_fmt_e pix_fmt) {
       return nullptr;
     }
 
-    virtual bool
-    is_hdr() {
+    virtual bool is_hdr() {
       return false;
     }
 
-    virtual bool
-    get_hdr_metadata(SS_HDR_METADATA &metadata) {
+    virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
       std::memset(&metadata, 0, sizeof(metadata));
       return false;
     }
@@ -516,8 +526,7 @@ namespace platf {
      * @param config The codec configuration.
      * @return `true` if supported, `false` otherwise.
      */
-    virtual bool
-    is_codec_supported(std::string_view name, const ::video::config_t &config) {
+    virtual bool is_codec_supported(std::string_view name, const ::video::config_t &config) {
       return true;
     }
 
@@ -531,49 +540,46 @@ namespace platf {
 
   protected:
     // collect capture timing data (at loglevel debug)
-    logging::time_delta_periodic_logger sleep_overshoot_logger = { debug, "Frame capture sleep overshoot" };
+    logging::time_delta_periodic_logger sleep_overshoot_logger = {debug, "Frame capture sleep overshoot"};
   };
 
   class mic_t {
   public:
-    virtual capture_e
-    sample(std::vector<float> &frame_buffer) = 0;
+    virtual capture_e sample(std::vector<float> &frame_buffer) = 0;
 
     virtual ~mic_t() = default;
   };
 
   class audio_control_t {
   public:
-    virtual int
-    set_sink(const std::string &sink) = 0;
+    virtual int set_sink(const std::string &sink) = 0;
 
-    virtual std::unique_ptr<mic_t>
-    microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
+    virtual std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
 
-    virtual std::optional<sink_t>
-    sink_info() = 0;
+    /**
+     * @brief Check if the audio sink is available in the system.
+     * @param sink Sink to be checked.
+     * @returns True if available, false otherwise.
+     */
+    virtual bool is_sink_available(const std::string &sink) = 0;
+
+    virtual std::optional<sink_t> sink_info() = 0;
 
     virtual ~audio_control_t() = default;
   };
 
-  void
-  freeInput(void *);
+  void freeInput(void *);
 
   using input_t = util::safe_ptr<void, freeInput>;
 
-  std::filesystem::path
-  appdata();
+  std::filesystem::path appdata();
 
-  std::string
-  get_mac_address(const std::string_view &address);
+  std::string get_mac_address(const std::string_view &address);
 
-  std::string
-  from_sockaddr(const sockaddr *const);
-  std::pair<std::uint16_t, std::string>
-  from_sockaddr_ex(const sockaddr *const);
+  std::string from_sockaddr(const sockaddr *const);
+  std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const);
 
-  std::unique_ptr<audio_control_t>
-  audio_control();
+  std::unique_ptr<audio_control_t> audio_control();
 
   /**
    * @brief Get the display_t instance for the given hwdevice_type.
@@ -583,22 +589,18 @@ namespace platf {
    * @param config Stream configuration
    * @return The display_t instance based on hwdevice_type.
    */
-  std::shared_ptr<display_t>
-  display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+  std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   // A list of names of displays accepted as display_name with the mem_type_e
-  std::vector<std::string>
-  display_names(mem_type_e hwdevice_type);
+  std::vector<std::string> display_names(mem_type_e hwdevice_type);
 
   /**
    * @brief Check if GPUs/drivers have changed since the last call to this function.
    * @return `true` if a change has occurred or if it is unknown whether a change occurred.
    */
-  bool
-  needs_encoder_reenumeration();
+  bool needs_encoder_reenumeration();
 
-  boost::process::v1::child
-  run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
+  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
 
   enum class thread_priority_e : int {
     low,  ///< Low priority
@@ -606,17 +608,13 @@ namespace platf {
     high,  ///< High priority
     critical  ///< Critical priority
   };
-  void
-  adjust_thread_priority(thread_priority_e priority);
+  void adjust_thread_priority(thread_priority_e priority);
 
   // Allow OS-specific actions to be taken to prepare for streaming
-  void
-  streaming_will_start();
-  void
-  streaming_will_stop();
+  void streaming_will_start();
+  void streaming_will_stop();
 
-  void
-  restart();
+  void restart();
 
   /**
    * @brief Set an environment variable.
@@ -624,16 +622,14 @@ namespace platf {
    * @param value The value to set the environment variable to.
    * @return 0 on success, non-zero on failure.
    */
-  int
-  set_env(const std::string &name, const std::string &value);
+  int set_env(const std::string &name, const std::string &value);
 
   /**
    * @brief Unset an environment variable.
    * @param name The name of the environment variable.
    * @return 0 on success, non-zero on failure.
    */
-  int
-  unset_env(const std::string &name);
+  int unset_env(const std::string &name);
 
   struct buffer_descriptor_t {
     const char *buffer;
@@ -641,9 +637,14 @@ namespace platf {
 
     // Constructors required for emplace_back() prior to C++20
     buffer_descriptor_t(const char *buffer, size_t size):
-        buffer(buffer), size(size) {}
+        buffer(buffer),
+        size(size) {
+    }
+
     buffer_descriptor_t():
-        buffer(nullptr), size(0) {}
+        buffer(nullptr),
+        size(0) {
+    }
   };
 
   struct batched_send_info_t {
@@ -674,24 +675,22 @@ namespace platf {
      * @param offset The offset in the total payload data (bytes).
      * @return Buffer descriptor describing the region at the given offset.
      */
-    buffer_descriptor_t
-    buffer_for_payload_offset(ptrdiff_t offset) {
+    buffer_descriptor_t buffer_for_payload_offset(ptrdiff_t offset) {
       for (const auto &desc : payload_buffers) {
         if (offset < desc.size) {
           return {
             desc.buffer + offset,
             desc.size - offset,
           };
-        }
-        else {
+        } else {
           offset -= desc.size;
         }
       }
       return {};
     }
   };
-  bool
-  send_batch(batched_send_info_t &send_info);
+
+  bool send_batch(batched_send_info_t &send_info);
 
   struct send_info_t {
     const char *header;
@@ -704,8 +703,8 @@ namespace platf {
     uint16_t target_port;
     boost::asio::ip::address &source_address;
   };
-  bool
-  send(send_info_t &send_info);
+
+  bool send(send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,  ///< Audio
@@ -720,34 +719,29 @@ namespace platf {
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
-  std::unique_ptr<deinit_t>
-  enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
+  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
    * @brief Open a url in the default web browser.
    * @param url The url to open.
    */
-  void
-  open_url(const std::string &url);
+  void open_url(const std::string &url);
 
   /**
    * @brief Attempt to gracefully terminate a process group.
    * @param native_handle The native handle of the process group.
    * @return `true` if termination was successfully requested.
    */
-  bool
-  request_process_group_exit(std::uintptr_t native_handle);
+  bool request_process_group_exit(std::uintptr_t native_handle);
 
   /**
    * @brief Check if a process group still has running children.
    * @param native_handle The native handle of the process group.
    * @return `true` if processes are still running.
    */
-  bool
-  process_group_running(std::uintptr_t native_handle);
+  bool process_group_running(std::uintptr_t native_handle);
 
-  input_t
-  input();
+  input_t input();
   /**
    * @brief Get the current mouse position on screen
    * @param input The input_t instance to use.
@@ -756,24 +750,15 @@ namespace platf {
    * auto [x, y] = get_mouse_loc(input);
    * @examples_end
    */
-  util::point_t
-  get_mouse_loc(input_t &input);
-  void
-  move_mouse(input_t &input, int deltaX, int deltaY);
-  void
-  abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
-  void
-  button_mouse(input_t &input, int button, bool release);
-  void
-  scroll(input_t &input, int distance);
-  void
-  hscroll(input_t &input, int distance);
-  void
-  keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags);
-  void
-  gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state);
-  void
-  unicode(input_t &input, char *utf8, int size);
+  util::point_t get_mouse_loc(input_t &input);
+  void move_mouse(input_t &input, int deltaX, int deltaY);
+  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y);
+  void button_mouse(input_t &input, int button, bool release);
+  void scroll(input_t &input, int distance);
+  void hscroll(input_t &input, int distance);
+  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags);
+  void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state);
+  void unicode(input_t &input, char *utf8, int size);
 
   typedef deinit_t client_input_t;
 
@@ -782,8 +767,7 @@ namespace platf {
    * @param input The global input context.
    * @return A unique pointer to a per-client input data context.
    */
-  std::unique_ptr<client_input_t>
-  allocate_client_input_context(input_t &input);
+  std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input);
 
   /**
    * @brief Send a touch event to the OS.
@@ -791,8 +775,7 @@ namespace platf {
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param touch The touch event.
    */
-  void
-  touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
+  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch);
 
   /**
    * @brief Send a pen event to the OS.
@@ -800,32 +783,28 @@ namespace platf {
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param pen The pen event.
    */
-  void
-  pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
+  void pen_update(client_input_t *input, const touch_port_t &touch_port, const pen_input_t &pen);
 
   /**
    * @brief Send a gamepad touch event to the OS.
    * @param input The global input context.
    * @param touch The touch event.
    */
-  void
-  gamepad_touch(input_t &input, const gamepad_touch_t &touch);
+  void gamepad_touch(input_t &input, const gamepad_touch_t &touch);
 
   /**
    * @brief Send a gamepad motion event to the OS.
    * @param input The global input context.
    * @param motion The motion event.
    */
-  void
-  gamepad_motion(input_t &input, const gamepad_motion_t &motion);
+  void gamepad_motion(input_t &input, const gamepad_motion_t &motion);
 
   /**
    * @brief Send a gamepad battery event to the OS.
    * @param input The global input context.
    * @param battery The battery event.
    */
-  void
-  gamepad_battery(input_t &input, const gamepad_battery_t &battery);
+  void gamepad_battery(input_t &input, const gamepad_battery_t &battery);
 
   /**
    * @brief Create a new virtual gamepad.
@@ -835,35 +814,29 @@ namespace platf {
    * @param feedback_queue The queue for posting messages back to the client.
    * @return 0 on success.
    */
-  int
-  alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
-  void
-  free_gamepad(input_t &input, int nr);
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
+  void free_gamepad(input_t &input, int nr);
 
   /**
    * @brief Get the supported platform capabilities to advertise to the client.
    * @return Capability flags.
    */
-  platform_caps::caps_t
-  get_capabilities();
+  platform_caps::caps_t get_capabilities();
 
 #define SERVICE_NAME "Sunshine"
 #define SERVICE_TYPE "_nvstream._tcp"
 
   namespace publish {
-    [[nodiscard]] std::unique_ptr<deinit_t>
-    start();
+    [[nodiscard]] std::unique_ptr<deinit_t> start();
   }
 
-  [[nodiscard]] std::unique_ptr<deinit_t>
-  init();
+  [[nodiscard]] std::unique_ptr<deinit_t> init();
 
   /**
    * @brief Returns the current computer name in UTF-8.
    * @return Computer name or a placeholder upon failure.
    */
-  std::string
-  get_host_name();
+  std::string get_host_name();
 
   /**
    * @brief Gets the supported gamepads for this platform backend.
@@ -871,8 +844,7 @@ namespace platf {
    * @param input Pointer to the platform's `input_t` or `nullptr`.
    * @return Vector of gamepad options and status.
    */
-  std::vector<supported_gamepad_t> &
-  supported_gamepads(input_t *input);
+  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input);
 
   struct high_precision_timer: private boost::noncopyable {
     virtual ~high_precision_timer() = default;
@@ -881,22 +853,19 @@ namespace platf {
      * @brief Sleep for the duration
      * @param duration Sleep duration
      */
-    virtual void
-    sleep_for(const std::chrono::nanoseconds &duration) = 0;
+    virtual void sleep_for(const std::chrono::nanoseconds &duration) = 0;
 
     /**
      * @brief Check if platform-specific timer backend has been initialized successfully
      * @return `true` on success, `false` on error
      */
-    virtual
-    operator bool() = 0;
+    virtual operator bool() = 0;
   };
 
   /**
    * @brief Create platform-specific timer capable of high-precision sleep
    * @return A unique pointer to timer
    */
-  std::unique_ptr<high_precision_timer>
-  create_high_precision_timer();
+  std::unique_ptr<high_precision_timer> create_high_precision_timer();
 
 }  // namespace platf

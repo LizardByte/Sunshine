@@ -14,10 +14,10 @@
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
     #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
   #elif defined(__linux__) || defined(linux) || defined(__linux)
-    #define TRAY_ICON "sunshine-tray"
-    #define TRAY_ICON_PLAYING "sunshine-playing"
-    #define TRAY_ICON_PAUSING "sunshine-pausing"
-    #define TRAY_ICON_LOCKED "sunshine-locked"
+    #define TRAY_ICON SUNSHINE_TRAY_PREFIX "-tray"
+    #define TRAY_ICON_PLAYING SUNSHINE_TRAY_PREFIX "-playing"
+    #define TRAY_ICON_PAUSING SUNSHINE_TRAY_PREFIX "-pausing"
+    #define TRAY_ICON_LOCKED SUNSHINE_TRAY_PREFIX "-locked"
   #elif defined(__APPLE__) || defined(__MACH__)
     #define TRAY_ICON WEB_DIR "images/logo-sunshine-16.png"
     #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing-16.png"
@@ -31,12 +31,13 @@
   #include <string>
 
   // lib includes
-  #include "tray/src/tray.h"
   #include <boost/filesystem.hpp>
   #include <boost/process/v1/environment.hpp>
+  #include <tray/src/tray.h>
 
   // local includes
   #include "confighttp.h"
+  #include "display_device.h"
   #include "logging.h"
   #include "platform/common.h"
   #include "process.h"
@@ -49,36 +50,36 @@ using namespace std::literals;
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
 
-  void
-  tray_open_ui_cb(struct tray_menu *item) {
+  void tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
     launch_ui();
   }
 
-  void
-  tray_donate_github_cb(struct tray_menu *item) {
+  void tray_donate_github_cb(struct tray_menu *item) {
     platf::open_url("https://github.com/sponsors/LizardByte");
   }
 
-  void
-  tray_donate_patreon_cb(struct tray_menu *item) {
+  void tray_donate_patreon_cb(struct tray_menu *item) {
     platf::open_url("https://www.patreon.com/LizardByte");
   }
 
-  void
-  tray_donate_paypal_cb(struct tray_menu *item) {
+  void tray_donate_paypal_cb(struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
-  void
-  tray_restart_cb(struct tray_menu *item) {
+  void tray_reset_display_device_config_cb(struct tray_menu *item) {
+    BOOST_LOG(info) << "Resetting display device config from system tray"sv;
+
+    std::ignore = display_device::reset_persistence();
+  }
+
+  void tray_restart_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Restarting from system tray"sv;
 
     platf::restart();
   }
 
-  void
-  tray_quit_cb(struct tray_menu *item) {
+  void tray_quit_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Quitting from system tray"sv;
 
   #ifdef _WIN32
@@ -100,25 +101,30 @@ namespace system_tray {
     .menu =
       (struct tray_menu[]) {
         // todo - use boost/locale to translate menu strings
-        { .text = "Open Sunshine", .cb = tray_open_ui_cb },
-        { .text = "-" },
-        { .text = "Donate",
-          .submenu =
-            (struct tray_menu[]) {
-              { .text = "GitHub Sponsors", .cb = tray_donate_github_cb },
-              { .text = "Patreon", .cb = tray_donate_patreon_cb },
-              { .text = "PayPal", .cb = tray_donate_paypal_cb },
-              { .text = nullptr } } },
-        { .text = "-" },
-        { .text = "Restart", .cb = tray_restart_cb },
-        { .text = "Quit", .cb = tray_quit_cb },
-        { .text = nullptr } },
+        {.text = "Open Sunshine", .cb = tray_open_ui_cb},
+        {.text = "-"},
+        {.text = "Donate",
+         .submenu =
+           (struct tray_menu[]) {
+             {.text = "GitHub Sponsors", .cb = tray_donate_github_cb},
+             {.text = "Patreon", .cb = tray_donate_patreon_cb},
+             {.text = "PayPal", .cb = tray_donate_paypal_cb},
+             {.text = nullptr}
+           }},
+        {.text = "-"},
+  // Currently display device settings are only supported on Windows
+  #ifdef _WIN32
+        {.text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb},
+  #endif
+        {.text = "Restart", .cb = tray_restart_cb},
+        {.text = "Quit", .cb = tray_quit_cb},
+        {.text = nullptr}
+      },
     .iconPathCount = 4,
-    .allIconPaths = { TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING },
+    .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   };
 
-  int
-  system_tray() {
+  int system_tray() {
   #ifdef _WIN32
     // If we're running as SYSTEM, Explorer.exe will not have permission to open our thread handle
     // to monitor for thread termination. If Explorer fails to open our thread, our tray icon
@@ -127,14 +133,7 @@ namespace system_tray {
     {
       PACL old_dacl;
       PSECURITY_DESCRIPTOR sd;
-      auto error = GetSecurityInfo(GetCurrentThread(),
-        SE_KERNEL_OBJECT,
-        DACL_SECURITY_INFORMATION,
-        nullptr,
-        nullptr,
-        &old_dacl,
-        nullptr,
-        &sd);
+      auto error = GetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, &old_dacl, nullptr, &sd);
       if (error != ERROR_SUCCESS) {
         BOOST_LOG(warning) << "GetSecurityInfo() failed: "sv << error;
         return 1;
@@ -174,13 +173,7 @@ namespace system_tray {
         LocalFree(new_dacl);
       });
 
-      error = SetSecurityInfo(GetCurrentThread(),
-        SE_KERNEL_OBJECT,
-        DACL_SECURITY_INFORMATION,
-        nullptr,
-        nullptr,
-        new_dacl,
-        nullptr);
+      error = SetSecurityInfo(GetCurrentThread(), SE_KERNEL_OBJECT, DACL_SECURITY_INFORMATION, nullptr, nullptr, new_dacl, nullptr);
       if (error != ERROR_SUCCESS) {
         BOOST_LOG(warning) << "SetSecurityInfo() failed: "sv << error;
         return 1;
@@ -197,8 +190,7 @@ namespace system_tray {
     if (tray_init(&tray) < 0) {
       BOOST_LOG(warning) << "Failed to create system tray"sv;
       return 1;
-    }
-    else {
+    } else {
       BOOST_LOG(info) << "System tray created"sv;
     }
 
@@ -210,8 +202,7 @@ namespace system_tray {
     return 0;
   }
 
-  void
-  run_tray() {
+  void run_tray() {
     // create the system tray
   #if defined(__APPLE__) || defined(__MACH__)
     // macOS requires that UI elements be created on the main thread
@@ -229,15 +220,13 @@ namespace system_tray {
   #endif
   }
 
-  int
-  end_tray() {
+  int end_tray() {
     tray_initialized = false;
     tray_exit();
     return 0;
   }
 
-  void
-  update_tray_playing(std::string app_name) {
+  void update_tray_playing(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
@@ -258,8 +247,7 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  void
-  update_tray_pausing(std::string app_name) {
+  void update_tray_pausing(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
@@ -280,8 +268,7 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  void
-  update_tray_stopped(std::string app_name) {
+  void update_tray_stopped(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
@@ -302,8 +289,7 @@ namespace system_tray {
     tray_update(&tray);
   }
 
-  void
-  update_tray_require_pin() {
+  void update_tray_require_pin() {
     if (!tray_initialized) {
       return;
     }

@@ -4,22 +4,19 @@
  */
 #pragma once
 #include <gtest/gtest.h>
-
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>
 
 struct PlatformTestSuite: testing::Test {
-  static void
-  SetUpTestSuite() {
+  static void SetUpTestSuite() {
     ASSERT_FALSE(platf_deinit);
     BOOST_LOG(tests) << "Setting up platform test suite";
     platf_deinit = platf::init();
     ASSERT_TRUE(platf_deinit);
   }
 
-  static void
-  TearDownTestSuite() {
+  static void TearDownTestSuite() {
     ASSERT_TRUE(platf_deinit);
     platf_deinit = {};
     BOOST_LOG(tests) << "Tore down platform test suite";

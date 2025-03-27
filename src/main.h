@@ -12,5 +12,4 @@
  * main(1, const char* args[] = {"sunshine", nullptr});
  * @examples_end
  */
-int
-main(int argc, char *argv[]);
+int main(int argc, char *argv[]);
