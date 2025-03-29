@@ -653,7 +653,7 @@ namespace config {
     if (*begin_val == '[') {
       endl = skip_list(begin_val + 1, end);
       if (endl == end) {
-        std::cout << "Warning: Config option ["sv << to_string(begin, end_name) << "] Missing ']'"sv;
+        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
 
         return std::make_pair(endl, std::nullopt);
       }
@@ -988,7 +988,7 @@ namespace config {
 
     // The list needs to be a multiple of 2
     if (list.size() % 2) {
-      std::cout << "Warning: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size() << std::endl;
+      BOOST_LOG(warning) << "config: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size();
       return;
     }
 
@@ -1018,7 +1018,7 @@ namespace config {
           config::sunshine.flags[config::flag::UPNP].flip();
           break;
         default:
-          std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
+          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << std::endl;
           ret = -1;
       }
 
@@ -1425,7 +1425,7 @@ namespace config {
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {
           auto winerr = GetLastError();
-          std::cout << "Error: ShellExecuteEx() failed:"sv << winerr << std::endl;
+          BOOST_LOG(error) << "Failed executing shell command: " << winerr << std::endl;
           return 1;
         }
 
