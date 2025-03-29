@@ -212,9 +212,9 @@ namespace audio {
     std::wcout
       << L"===== Device ====="sv << std::endl
       << L"Device ID          : "sv << wstring.get() << std::endl
-      << L"Device name        : "sv << no_null((LPWSTR) device_friendly_name.prop.pszVal) << std::endl
-      << L"Adapter name       : "sv << no_null((LPWSTR) adapter_friendly_name.prop.pszVal) << std::endl
-      << L"Device description : "sv << no_null((LPWSTR) device_desc.prop.pszVal) << std::endl
+      << L"Device name        : "sv << converter.to_bytes(no_null((LPWSTR) device_friendly_name.prop.pszVal)).c_str() << std::endl
+      << L"Adapter name       : "sv << converter.to_bytes(no_null((LPWSTR) adapter_friendly_name.prop.pszVal)).c_str() << std::endl
+      << L"Device description : "sv << converter.to_bytes(no_null((LPWSTR) device_desc.prop.pszVal)).c_str() << std::endl
       << L"Device state       : "sv << device_state_string << std::endl
       << L"Current format     : "sv << current_format << std::endl
       << std::endl;
