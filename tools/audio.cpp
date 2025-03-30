@@ -14,8 +14,8 @@
 #include <synchapi.h>
 
 #ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
+  #include <fcntl.h>
+  #include <io.h>
 #endif
 
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
@@ -214,11 +214,11 @@ namespace audio {
       }
     }
 
-    #ifdef _WIN32
+#ifdef _WIN32
     _setmode(_fileno(stdout), _O_U8TEXT);
-    #endif
     std::locale::global(std::locale(""));
     std::wcout.imbue(std::locale(""));
+#endif
     std::wcout
       << L"===== Device ====="sv << std::endl
       << L"Device ID          : "sv << wstring.get() << std::endl
