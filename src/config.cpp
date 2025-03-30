@@ -652,9 +652,13 @@ namespace config {
     // Lists might contain newlines
     if (*begin_val == '[') {
       endl = skip_list(begin_val + 1, end);
-      if (endl == end) {
-        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
 
+      // Check if we reached the end of the file without finding a closing bracket
+      // We know we have a valid closing bracket if:
+      // 1. We didn't reach the end, or
+      // 2. We reached the end but the last character was the matching closing bracket
+      if (endl == end && end == begin_val + 1) {
+        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
         return std::make_pair(endl, std::nullopt);
       }
     }
