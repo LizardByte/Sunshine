@@ -101,10 +101,6 @@ main(int argc, char *argv[]) {
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 
-  if (config::parse(argc, argv)) {
-    return 0;
-  }
-
   auto log_deinit_guard = logging::init(config::sunshine.min_log_level, config::sunshine.log_file);
   if (!log_deinit_guard) {
     BOOST_LOG(error) << "Logging failed to initialize"sv;
@@ -117,6 +113,11 @@ main(int argc, char *argv[]) {
 
   // Log publisher metadata
   log_publisher_data();
+
+  // parse config file
+  if (config::parse(argc, argv)) {
+    return 0;
+  }
 
   if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);
