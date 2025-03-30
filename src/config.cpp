@@ -1044,7 +1044,7 @@ namespace config {
     }
 
     for (auto &[name, val] : vars) {
-      std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
+      BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
     }
 
     int_f(vars, "qp", video.qp);
