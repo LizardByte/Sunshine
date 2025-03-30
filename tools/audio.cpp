@@ -13,6 +13,11 @@
 #include <roapi.h>
 #include <synchapi.h>
 
+#ifdef _WIN32
+#include <fcntl.h>
+#include <io.h>
+#endif
+
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
@@ -209,6 +214,11 @@ namespace audio {
       }
     }
 
+    #ifdef _WIN32
+    _setmode(_fileno(stdout), _O_U8TEXT);
+    #endif
+    std::locale::global(std::locale(""));
+    std::wcout.imbue(std::locale(""));
     std::wcout
       << L"===== Device ====="sv << std::endl
       << L"Device ID          : "sv << wstring.get() << std::endl
