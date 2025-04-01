@@ -86,7 +86,7 @@ build() {
         -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
         -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
 
-    make -C build
+    make -C build -j$(nproc)
 }
 
 check() {
