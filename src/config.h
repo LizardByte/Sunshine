@@ -16,6 +16,9 @@
 #include "nvenc/nvenc_config.h"
 
 namespace config {
+  // track modified config options
+  inline std::unordered_map<std::string, std::string> modified_config_settings;
+
   struct video_t {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
