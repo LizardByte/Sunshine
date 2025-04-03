@@ -1049,6 +1049,7 @@ namespace config {
 
     for (auto &[name, val] : vars) {
       BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
+      modified_config_settings[name] = val;
     }
 
     int_f(vars, "qp", video.qp);
