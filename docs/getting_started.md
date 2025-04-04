@@ -335,8 +335,6 @@ recommended for most users. No support will be provided!}
    scripts/uninstall-service.bat
    ```
 
-To uninstall, delete the extracted directory which contains the `sunshine.exe` file.
-
 ## Initial Setup
 After installation, some initial setup is required.
 

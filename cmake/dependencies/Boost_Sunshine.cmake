@@ -15,14 +15,19 @@ if(BOOST_USE_STATIC)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
 endif()
 
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
+endif()
 find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
 if(NOT Boost_FOUND)
     message(STATUS "Boost v${BOOST_VERSION}.x package not found in the system. Falling back to FetchContent.")
     include(FetchContent)
 
-    # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-        cmake_policy(SET CMP0135 NEW)
+        cmake_policy(SET CMP0135 NEW)  # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24
+    endif()
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.31.0")
+        cmake_policy(SET CMP0174 NEW)  # Handle empty variables
     endif()
 
     # more components required for compiling boost targets

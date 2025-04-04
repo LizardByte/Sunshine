@@ -8,4 +8,4 @@ echo Sunshine User Service has been removed.
 
 # Udev rule
 flatpak-spawn --host pkexec sh -c "rm /etc/udev/rules.d/60-sunshine.rules"
-echo Mouse permission removed. Restart computer to take effect.
+echo Input rules removed. Restart computer to take effect.

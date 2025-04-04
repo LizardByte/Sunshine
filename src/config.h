@@ -16,6 +16,9 @@
 #include "nvenc/nvenc_config.h"
 
 namespace config {
+  // track modified config options
+  inline std::unordered_map<std::string, std::string> modified_config_settings;
+
   struct video_t {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
@@ -84,7 +87,7 @@ namespace config {
 
     struct dd_t {
       struct workarounds_t {
-        bool hdr_toggle;  ///< Specify whether to apply HDR high-contrast color workaround.
+        std::chrono::milliseconds hdr_toggle_delay;  ///< Specify whether to apply HDR high-contrast color workaround and what delay to use.
       };
 
       enum class config_option_e {
@@ -132,11 +135,13 @@ namespace config {
       std::string manual_refresh_rate;  ///< Manual refresh rate in case `refresh_rate_option == refresh_rate_option_e::manual`.
       hdr_option_e hdr_option;
       std::chrono::milliseconds config_revert_delay;  ///< Time to wait until settings are reverted (after stream ends/app exists).
+      bool config_revert_on_disconnect;  ///< Specify whether to revert display configuration on client disconnect.
       mode_remapping_t mode_remapping;
       workarounds_t wa;
     } dd;
 
     int min_fps_factor;  // Minimum fps target, determines minimum frame time
+    int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
   };
 
   struct audio_t {

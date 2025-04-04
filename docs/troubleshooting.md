@@ -118,6 +118,16 @@ system. You may also want to enable decoders, however that is not required for S
 ```
 }
 
+### Input not working
+After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
+automatically, but if it fails you may need to restart your system.
+
+If the input is still not working, you may need to add your user to the `input` group.
+
+```bash
+sudo usermod -aG input $USER
+```
+
 @note{Other build options are listed in the
 [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.}
 

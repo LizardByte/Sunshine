@@ -2,6 +2,12 @@
 Read our contribution guide in our organization level
 [docs](https://docs.lizardbyte.dev/latest/developers/contributing.html).
 
+## Recommended Tools
+
+| Tool                                                                                                                                                                           | Description                                                                                                                                                                           |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| <a href="https://www.jetbrains.com/clion/"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/CLion_icon.svg" width="30" height="30"></a><br>CLion | Recommended IDE for C++ development. Free licenses available for open source developers through the [JetBrains Open Source Program](https://www.jetbrains.com/community/opensource/). |
+
 ## Project Patterns
 
 ### Web UI

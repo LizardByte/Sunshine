@@ -25,10 +25,7 @@ namespace nvenc {
    */
   class nvenc_d3d11: public nvenc_base {
   public:
-    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
-        nvenc_base(device_type) {
-    }
-
+    explicit nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type);
     ~nvenc_d3d11();
 
     /**
@@ -39,6 +36,7 @@ namespace nvenc {
 
   protected:
     bool init_library() override;
+    bool wait_for_async_event(uint32_t timeout_ms) override;
 
   private:
     HMODULE dll = NULL;

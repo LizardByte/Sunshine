@@ -43,7 +43,7 @@ namespace platf::gamepad {
   }
 
   auto create_ds5() {
-    return inputtino::PS5Joypad::create({.name = "Sunshine DualSense (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111});
+    return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111});
   }
 
   int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -150,6 +150,10 @@ namespace platf::gamepad {
               auto msg = gamepad_feedback_msg_t::make_rgb_led(idx, r, g, b);
               feedback_queue->raise(msg);
               gamepad->last_rgb_led = msg;
+            });
+
+            (*ds5).set_on_trigger_effect([feedback_queue, idx = id.clientRelativeIndex](const inputtino::PS5Joypad::TriggerEffect &trigger_effect) {
+              feedback_queue->raise(gamepad_feedback_msg_t::make_adaptive_triggers(idx, trigger_effect.event_flags, trigger_effect.type_left, trigger_effect.type_right, trigger_effect.left, trigger_effect.right));
             });
 
             // Activate the motion sensors

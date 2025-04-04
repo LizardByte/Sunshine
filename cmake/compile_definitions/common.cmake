@@ -149,6 +149,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CMAKE_THREAD_LIBS_INIT}
         enet
         libdisplaydevice::display_device
+        nlohmann_json::nlohmann_json
         opus
         ${FFMPEG_LIBRARIES}
         ${Boost_LIBRARIES}

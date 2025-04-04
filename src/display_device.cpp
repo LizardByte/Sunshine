@@ -621,7 +621,7 @@ namespace display_device {
           std::make_shared<FileSettingsPersistence>(persistence_filepath)
         ),
         WinWorkarounds {
-          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle ? std::make_optional(500ms) : std::nullopt
+          .m_hdr_blank_delay = video_config.dd.wa.hdr_toggle_delay != std::chrono::milliseconds::zero() ? std::make_optional(video_config.dd.wa.hdr_toggle_delay) : std::nullopt
         }
       );
 #else
@@ -807,6 +807,18 @@ namespace display_device {
       // so any schedulers need to be stopped.
       stop_token.requestStop();
       return settings_iface.resetPersistence();
+    });
+  }
+
+  EnumeratedDeviceList enumerate_devices() {
+    std::lock_guard lock {DD_DATA.mutex};
+    if (!DD_DATA.sm_instance) {
+      // Platform is not supported.
+      return {};
+    }
+
+    return DD_DATA.sm_instance->execute([](auto &settings_iface) {
+      return settings_iface.enumAvailableDevices();
     });
   }
 

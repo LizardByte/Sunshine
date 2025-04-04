@@ -10,6 +10,7 @@
 
 // lib includes
 #include <boost/property_tree/ptree.hpp>
+#include <nlohmann/json.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
 // local includes
@@ -176,20 +177,21 @@ namespace nvhttp {
 
   /**
    * @brief Remove single client.
+   * @param uuid The UUID of the client to remove.
    * @examples
    * nvhttp::unpair_client("4D7BB2DD-5704-A405-B41C-891A022932E1");
    * @examples_end
    */
-  int unpair_client(std::string uniqueid);
+  bool unpair_client(std::string_view uuid);
 
   /**
    * @brief Get all paired clients.
    * @return The list of all paired clients.
    * @examples
-   * boost::property_tree::ptree clients = nvhttp::get_all_clients();
+   * nlohmann::json clients = nvhttp::get_all_clients();
    * @examples_end
    */
-  boost::property_tree::ptree get_all_clients();
+  nlohmann::json get_all_clients();
 
   /**
    * @brief Remove all paired clients.

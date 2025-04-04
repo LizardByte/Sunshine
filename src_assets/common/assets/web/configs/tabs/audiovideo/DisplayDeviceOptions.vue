@@ -1,7 +1,6 @@
 <script setup>
 import { ref } from 'vue'
 import PlatformLayout from '../../../PlatformLayout.vue'
-import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps({
   platform: String,
@@ -68,7 +67,7 @@ function addRemappingEntry() {
                   {{ $t('config.dd_config_label') }}
                 </label>
                 <select id="dd_configuration_option" class="form-select" v-model="config.dd_configuration_option">
-                  <option value="disabled">{{ $t('_common.disabled') }}</option>
+                  <option value="disabled">{{ $t('_common.disabled_def') }}</option>
                   <option value="verify_only">{{ $t('config.dd_config_verify_only') }}</option>
                   <option value="ensure_active">{{ $t('config.dd_config_ensure_active') }}</option>
                   <option value="ensure_primary">{{ $t('config.dd_config_ensure_primary') }}</option>
@@ -132,11 +131,18 @@ function addRemappingEntry() {
                   <option value="auto">{{ $t('config.dd_hdr_option_auto') }}</option>
                 </select>
                 <!-- HDR toggle -->
-                <Checkbox id="dd_wa_hdr_toggle"
-                          locale-prefix="config"
-                          v-model="config.dd_wa_hdr_toggle"
-                          default="false"
-                ></Checkbox>
+                <label for="dd_wa_hdr_toggle_delay" class="form-label">
+                  {{ $t('config.dd_wa_hdr_toggle_delay') }}
+                </label>
+                <input type="number" class="form-control" id="dd_wa_hdr_toggle_delay" placeholder="0" min="0" max="3000"
+                       v-model="config.dd_wa_hdr_toggle_delay" />
+                <div class="form-text">
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_1') }}
+                  <br>
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_2') }}
+                  <br>
+                  {{ $t('config.dd_wa_hdr_toggle_delay_desc_3') }}
+                </div>
               </div>
 
               <!-- Config revert delay -->
@@ -149,6 +155,15 @@ function addRemappingEntry() {
                 <div class="form-text">
                   {{ $t('config.dd_config_revert_delay_desc') }}
                 </div>
+              </div>
+
+              <!-- Config revert on disconnect -->
+              <div class="mb-3" v-if="config.dd_configuration_option !== 'disabled'">
+                <Checkbox id="dd_config_revert_on_disconnect"
+                  locale-prefix="config"
+                  v-model="config.dd_config_revert_on_disconnect"
+                  default="false"
+                ></Checkbox>
               </div>
 
               <!-- Display mode remapping -->

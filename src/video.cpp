@@ -40,6 +40,37 @@ using namespace std::literals;
 
 namespace video {
 
+  namespace {
+    /**
+     * @brief Check if we can allow probing for the encoders.
+     * @return True if there should be no issues with the probing, false if we should prevent it.
+     */
+    bool allow_encoder_probing() {
+      const auto devices {display_device::enumerate_devices()};
+
+      // If there are no devices, then either the API is not working correctly or OS does not support the lib.
+      // Either way we should not block the probing in this case as we can't tell what's wrong.
+      if (devices.empty()) {
+        return true;
+      }
+
+      // Since Windows 11 24H2, it is possible that there will be no active devices present
+      // for some reason (probably a bug). Trying to probe encoders in such a state locks/breaks the DXGI
+      // and also the display device for Windows. So we must have at least 1 active device.
+      const bool at_least_one_device_is_active = std::any_of(std::begin(devices), std::end(devices), [](const auto &device) {
+        // If device has additional info, it is active.
+        return static_cast<bool>(device.m_info);
+      });
+
+      if (at_least_one_device_is_active) {
+        return true;
+      }
+
+      BOOST_LOG(error) << "No display devices are active at the moment! Cannot probe the encoders.";
+      return false;
+    }
+  }  // namespace
+
   void free_ctx(AVCodecContext *ctx) {
     avcodec_free_context(&ctx);
   }
@@ -268,6 +299,7 @@ namespace video {
     REF_FRAMES_INVALIDATION = 1 << 8,  ///< Support reference frames invalidation
     ALWAYS_REPROBE = 1 << 9,  ///< This is an encoder of last resort and we want to aggressively probe for a better one
     YUV444_SUPPORT = 1 << 10,  ///< Encoder may support 4:4:4 chroma sampling depending on hardware
+    ASYNC_TEARDOWN = 1 << 11,  ///< Encoder supports async teardown on a different thread
   };
 
   class avcodec_encode_session_t: public encode_session_t {
@@ -472,7 +504,7 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
-    PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT  // flags
+    PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN  // flags
   };
 #elif !defined(__APPLE__)
   encoder_t nvenc {
@@ -1655,7 +1687,8 @@ namespace video {
         }
       }
 
-      auto bitrate = config.bitrate * 1000;
+      auto bitrate = ((config::video.max_bitrate > 0) ? std::min(config.bitrate, config::video.max_bitrate) : config.bitrate) * 1000;
+      BOOST_LOG(info) << "Streaming bitrate is " << bitrate;
       ctx->rc_max_rate = bitrate;
       ctx->bit_rate = bitrate;
 
@@ -1824,6 +1857,23 @@ namespace video {
     if (!session) {
       return;
     }
+
+    // As a workaround for NVENC hangs and to generally speed up encoder reinit,
+    // we will complete the encoder teardown in a separate thread if supported.
+    // This will move expensive processing off the encoder thread to allow us
+    // to restart encoding as soon as possible. For cases where the NVENC driver
+    // hang occurs, this thread may probably never exit, but it will allow
+    // streaming to continue without requiring a full restart of Sunshine.
+    auto fail_guard = util::fail_guard([&encoder, &session] {
+      if (encoder.flags & ASYNC_TEARDOWN) {
+        std::thread encoder_teardown_thread {[session = std::move(session)]() mutable {
+          BOOST_LOG(info) << "Starting async encoder teardown";
+          session.reset();
+          BOOST_LOG(info) << "Async encoder teardown complete";
+        }};
+        encoder_teardown_thread.detach();
+      }
+    });
 
     // set minimum frame time, avoiding violation of client-requested target framerate
     auto minimum_frame_time = std::chrono::milliseconds(1000 / std::min(config.framerate, (config::video.min_fps_factor * 10)));
@@ -2550,6 +2600,11 @@ namespace video {
   }
 
   int probe_encoders() {
+    if (!allow_encoder_probing()) {
+      // Error already logged
+      return -1;
+    }
+
     auto encoder_list = encoders;
 
     // If we already have a good encoder, check to see if another probe is required

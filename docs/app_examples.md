@@ -301,22 +301,19 @@ administrative privileges. Simply enable the elevated option in the WEB UI, or a
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a
 UAC prompt.
 
-@note{It is important to write the values "true" and "false" as string values, not as the typical true/false
-values in most JSON.}
-
 **Example**
 ```json
 {
   "name": "Game With AntiCheat that Requires Admin",
   "output": "",
   "cmd": "ping 127.0.0.1",
-  "exclude-global-prep-cmd": "false",
-  "elevated": "true",
+  "exclude-global-prep-cmd": false,
+  "elevated": true,
   "prep-cmd": [
     {
       "do": "powershell.exe -command \"Start-Streaming\"",
       "undo": "powershell.exe -command \"Stop-Streaming\"",
-      "elevated": "false"
+      "elevated": false
     }
   ],
   "image-path": ""

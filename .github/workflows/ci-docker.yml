@@ -123,7 +123,7 @@ jobs:
   docker:
     needs: [check_dockerfiles, setup_release]
     if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     permissions:
       packages: write
       contents: write

@@ -497,18 +497,20 @@ namespace config {
     {},  // output_name
 
     {
-      video_t::dd_t::config_option_e::verify_only,  // configuration_option
+      video_t::dd_t::config_option_e::disabled,  // configuration_option
       video_t::dd_t::resolution_option_e::automatic,  // resolution_option
       {},  // manual_resolution
       video_t::dd_t::refresh_rate_option_e::automatic,  // refresh_rate_option
       {},  // manual_refresh_rate
       video_t::dd_t::hdr_option_e::automatic,  // hdr_option
       3s,  // config_revert_delay
+      {},  // config_revert_on_disconnect
       {},  // mode_remapping
       {}  // wa
     },  // display_device
 
-    1  // min_fps_factor
+    1,  // min_fps_factor
+    0  // max_bitrate
   };
 
   audio_t audio {
@@ -650,9 +652,13 @@ namespace config {
     // Lists might contain newlines
     if (*begin_val == '[') {
       endl = skip_list(begin_val + 1, end);
-      if (endl == end) {
-        std::cout << "Warning: Config option ["sv << to_string(begin, end_name) << "] Missing ']'"sv;
 
+      // Check if we reached the end of the file without finding a closing bracket
+      // We know we have a valid closing bracket if:
+      // 1. We didn't reach the end, or
+      // 2. We reached the end but the last character was the matching closing bracket
+      if (endl == end && end == begin_val + 1) {
+        BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
         return std::make_pair(endl, std::nullopt);
       }
     }
@@ -986,7 +992,7 @@ namespace config {
 
     // The list needs to be a multiple of 2
     if (list.size() % 2) {
-      std::cout << "Warning: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size() << std::endl;
+      BOOST_LOG(warning) << "config: expected "sv << name << " to have a multiple of two elements --> not "sv << list.size();
       return;
     }
 
@@ -1016,7 +1022,7 @@ namespace config {
           config::sunshine.flags[config::flag::UPNP].flip();
           break;
         default:
-          std::cout << "Warning: Unrecognized flag: ["sv << *line << ']' << std::endl;
+          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << std::endl;
           ret = -1;
       }
 
@@ -1042,7 +1048,8 @@ namespace config {
     }
 
     for (auto &[name, val] : vars) {
-      std::cout << "["sv << name << "] -- ["sv << val << ']' << std::endl;
+      BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
+      modified_config_settings[name] = val;
     }
 
     int_f(vars, "qp", video.qp);
@@ -1132,10 +1139,16 @@ namespace config {
         video.dd.config_revert_delay = std::chrono::milliseconds {value};
       }
     }
+    bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
     generic_f(vars, "dd_mode_remapping", video.dd.mode_remapping, dd::mode_remapping_from_view);
-    bool_f(vars, "dd_wa_hdr_toggle", video.dd.wa.hdr_toggle);
+    {
+      int value = 0;
+      int_between_f(vars, "dd_wa_hdr_toggle_delay", value, {0, 3000});
+      video.dd.wa.hdr_toggle_delay = std::chrono::milliseconds {value};
+    }
 
     int_between_f(vars, "min_fps_factor", video.min_fps_factor, {1, 3});
+    int_f(vars, "max_bitrate", video.max_bitrate);
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1417,7 +1430,7 @@ namespace config {
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {
           auto winerr = GetLastError();
-          std::cout << "Error: ShellExecuteEx() failed:"sv << winerr << std::endl;
+          BOOST_LOG(error) << "Failed executing shell command: " << winerr << std::endl;
           return 1;
         }
 

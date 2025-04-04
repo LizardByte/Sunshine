@@ -1,0 +1,8 @@
+{
+  "dev.lizardbyte.app.Sunshine": [
+    "appstream-missing-screenshots",
+    "appstream-screenshots-not-mirrored-in-ostree",
+    "external-gitmodule-url-found",
+    "finish-args-flatpak-spawn-access"
+  ]
+}

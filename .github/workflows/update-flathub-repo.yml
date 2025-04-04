@@ -104,7 +104,7 @@ jobs:
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true'
-        uses: robinraju/release-downloader@v1.11
+        uses: robinraju/release-downloader@v1.12
         with:
           repository: "${{ github.repository }}"
           tag: "${{ github.event.release.tag_name }}"
@@ -143,9 +143,9 @@ jobs:
           BEGIN { replaced = 0 }
           /<release version=.*>/ {
             if (!replaced) {
-              print "<release version=\"" version "\" date=\"" date "\">"
-              print "<description><p>" changelog "</p></description>"
-              print "</release>"
+              print "    <release version=\"" version "\" date=\"" date "\">"
+              print "      <description><p>" changelog "</p></description>"
+              print "    </release>"
               replaced = 1
             }
           }

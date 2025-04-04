@@ -3,6 +3,7 @@ set -e
 
 # Default value for arguments
 appimage_build=0
+num_processors=$(nproc)
 publisher_name="Third Party Publisher"
 publisher_website=""
 publisher_issue_url="https://app.lizardbyte.dev/support"
@@ -27,6 +28,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
   --publisher-issue-url    The URL of the publisher's support site or issue tracker.
@@ -52,6 +54,9 @@ while getopts ":hs-:" opt; do
         appimage-build)
           appimage_build=1
           skip_libva=1
+          ;;
+        num-processors=*)
+          num_processors="${OPTARG#*=}"
           ;;
         publisher-name=*)
           publisher_name="${OPTARG#*=}"
@@ -367,7 +372,7 @@ function run_install() {
       tar -xzf "${build_dir}/doxygen.tar.gz"
       cd "doxygen-${doxygen_min}"
       cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
-      ninja -C "build"
+      ninja -C "build" -j"${num_processors}"
       ninja -C "build" install
     else
       echo "Doxygen version too low, skipping docs"

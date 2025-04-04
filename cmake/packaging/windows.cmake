@@ -20,6 +20,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
         DESTINATION "scripts"
         COMPONENT assets)
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/path/"
+        DESTINATION "scripts"
+        COMPONENT assets)
 
 # Configurable options for the service
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
@@ -64,6 +67,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         IfSilent +2 0
         ExecShell 'open' 'https://docs.lizardbyte.dev/projects/sunshine'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" add'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-gamepad.bat\\\"'
@@ -78,7 +82,7 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe\\\" --restore-nvprefs-undo'
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove Virtual Gamepad?' \
             /SD IDNO IDNO NoGamepad
@@ -88,16 +92,18 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete
             RMDir /r \\\"$INSTDIR\\\"; skipped if no
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" remove'
         NoDelete:
         ")
 
 # Adding an option for the start menu
-set(CPACK_NSIS_MODIFY_PATH "OFF")
+set(CPACK_NSIS_MODIFY_PATH OFF)
 set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
 # This will be shown on the installed apps Windows settings
 set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
 set(CPACK_NSIS_CREATE_ICONS_EXTRA
         "${CPACK_NSIS_CREATE_ICONS_EXTRA}
+        SetOutPath '\$INSTDIR'
         CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
             '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe' '--shortcut'
         ")
