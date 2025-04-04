@@ -42,6 +42,7 @@ target_locales = [
     'tr',  # Turkish
     'uk',  # Ukrainian
     'zh',  # Chinese
+    'zh_TW',  # Chinese (Traditional)
 ]
 
 
