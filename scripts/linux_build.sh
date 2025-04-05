@@ -105,6 +105,7 @@ function add_debain_based_deps() {
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
     "libevdev-dev"
+    "libgbm-dev"
     "libminiupnpc-dev"
     "libnotify-dev"
     "libnuma-dev"
@@ -175,6 +176,7 @@ function add_fedora_deps() {
     "libXrandr-devel"  # X11
     "libXtst-devel"  # X11
     "mesa-libGL-devel"
+    "mesa-libgbm-devel"
     "miniupnpc-devel"
     "ninja-build"
     "npm"
