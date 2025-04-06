@@ -719,32 +719,38 @@ namespace display_device {
 
   bool
   settings_t::revert_settings() {
+    // 加载持久化设置数据
     if (!persistent_data) {
-      BOOST_LOG(info) << "Loading persistent display device settings.";
+      BOOST_LOG(info) << "加载显示设备持久化设置";
       persistent_data = load_settings(filepath);
     }
 
+    // 如果存在持久化数据，尝试恢复设置
     if (persistent_data) {
-      BOOST_LOG(info) << "Reverting display device settings.";
+      BOOST_LOG(info) << "正在恢复显示设备设置";
 
+      // 尝试恢复设置（仅当未启用VDD偏好时）
       bool data_updated { false };
-      if (!try_revert_settings(*persistent_data, data_updated)) {
+      if (!config::video.preferUseVdd && try_revert_settings(*persistent_data, data_updated)) {
+        // 如果数据已更新，保存设置
         if (data_updated) {
-          save_settings(filepath, *persistent_data);  // Ignoring return value
+          save_settings(filepath, *persistent_data);  // 忽略返回值
         }
 
-        BOOST_LOG(fatal) << "Failed to revert display device settings! 建议立即使用重置记忆术~";
+        BOOST_LOG(fatal) << "恢复显示设备设置失败！建议立即使用重置记忆术~";
       }
 
+      // 清理持久化数据
       remove_file(filepath);
       persistent_data = nullptr;
 
+      // 释放音频数据（如果存在）
       if (audio_data) {
-        BOOST_LOG(debug) << "Releasing captured audio sink";
+        BOOST_LOG(debug) << "释放捕获的音频接收器";
         audio_data = nullptr;
       }
 
-      BOOST_LOG(info) << "Display device configuration reverted.";
+      BOOST_LOG(info) << "显示设备配置已恢复";
     }
 
     auto &session = display_device::session_t::get();
