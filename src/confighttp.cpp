@@ -166,133 +166,85 @@ namespace confighttp {
               << data.str();
   }
 
-  /**
-   * @todo combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
-   */
   void
-  getIndexPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
+  getHtmlPage(resp_https_t response, req_https_t request, const std::string& pageName, bool requireAuth = true) {
+    if (requireAuth && !authenticate(response, request)) return;
 
     print_req(request);
 
-    std::string content = file_handler::read_file(WEB_DIR "index.html");
+    std::string content = file_handler::read_file((std::string(WEB_DIR) + pageName).c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
+    if (pageName == "apps.html") {
+      headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
+    }
     response->write(content, headers);
+  }
+
+  void
+  getIndexPage(resp_https_t response, req_https_t request) {
+    getHtmlPage(response, request, "index.html");
   }
 
   void
   getPinPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "pin.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
+    getHtmlPage(response, request, "pin.html");
   }
 
   void
   getAppsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "apps.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-    response->write(content, headers);
+    getHtmlPage(response, request, "apps.html");
   }
 
   void
   getClientsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "clients.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
+    getHtmlPage(response, request, "clients.html");
   }
 
   void
   getConfigPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "config.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
+    getHtmlPage(response, request, "config.html");
   }
 
   void
   getPasswordPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "password.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
+    getHtmlPage(response, request, "password.html");
   }
 
   void
   getWelcomePage(resp_https_t response, req_https_t request) {
-    print_req(request);
+    getHtmlPage(response, request, "welcome.html", false);
     if (!config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
-      return;
     }
-    std::string content = file_handler::read_file(WEB_DIR "welcome.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
   }
 
   void
   getTroubleshootingPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "troubleshooting.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
+    getHtmlPage(response, request, "troubleshooting.html");
   }
 
   /**
-   * @todo combine function with getSunshineLogoImage and possibly getNodeModules
-   * @todo use mime_types map
+   * 处理静态资源文件
    */
+  void
+  getStaticResource(resp_https_t response, req_https_t request, const std::string& path, const std::string& contentType) {
+    print_req(request);
+
+    std::ifstream in(path, std::ios::binary);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", contentType);
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+  }
+
   void
   getFaviconImage(resp_https_t response, req_https_t request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/x-icon");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    getStaticResource(response, request, WEB_DIR "images/sunshine.ico", "image/x-icon");
   }
 
-  /**
-   * @todo combine function with getFaviconImage and possibly getNodeModules
-   * @todo use mime_types map
-   */
   void
   getSunshineLogoImage(resp_https_t response, req_https_t request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/png");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    getStaticResource(response, request, WEB_DIR "images/logo-sunshine-45.png", "image/png");
   }
 
   bool
@@ -707,11 +659,7 @@ namespace confighttp {
       std::string fpsArray = inputTree.get<std::string>("fps", "[]");
       std::string gpu_name = inputTree.get<std::string>("adapter_name", "");
 
-      if (!saveVddSettings(resArray, fpsArray, gpu_name)) {
-        outputTree.put("status", "false");
-        outputTree.put("error", "Invalid Vdd Settings");
-        return;
-      }
+      saveVddSettings(resArray, fpsArray, gpu_name);
 
       for (const auto &kv : inputTree) {
         std::string value = inputTree.get<std::string>(kv.first);
