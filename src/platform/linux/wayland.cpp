@@ -376,7 +376,7 @@ namespace wl {
     }
 
     // Create GBM buffer
-    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_LINEAR | GBM_BO_USE_RENDERING);
+    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
     if (!current_bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
