@@ -30,7 +30,9 @@ See [Docker](../DOCKER_README.md) for more information.
 
 CUDA is used for NVFBC capture.
 
-@tip{See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.}
+@tip{See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
+The table below applies to packages provided by LizardByte. If you use an official LizardByte package then you do not
+need to install CUDA.}
 
 <table>
     <caption>CUDA Compatibility</caption>
@@ -55,7 +57,7 @@ CUDA is used for NVFBC capture.
     <tr>
         <td rowspan="1">12.0.0</td>
         <td rowspan="2">525.60.13</td>
-        <td rowspan="4">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
+        <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine-debian-bookworm-{arch}.deb</td>
     </tr>
     <tr>
@@ -68,7 +70,12 @@ CUDA is used for NVFBC capture.
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>Sunshine (copr)</td>
+        <td>Sunshine (copr - Fedora 40/41)</td>
+    </tr>
+    <tr>
+        <td rowspan="1">12.8.1</td>
+        <td rowspan="1">570.124.06</td>
+        <td>Sunshine (copr - Fedora 42)</td>
     </tr>
 </table>
 
