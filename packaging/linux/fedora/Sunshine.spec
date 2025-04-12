@@ -17,8 +17,6 @@ Source0: tarball.tar.gz
 
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: cmake >= 3.25.0
-BuildRequires: gcc
-BuildRequires: gcc-c++
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
@@ -54,9 +52,19 @@ BuildRequires: which
 BuildRequires: xorg-x11-server-Xvfb
 
 # Conditional BuildRequires for cuda-gcc based on Fedora version
-%if 0%{?fedora} >= 40
-# this package conflicts with gcc on f39
-BuildRequires: cuda-gcc-c++
+%if 0%{?fedora} >= 40 && 0%{?fedora} <= 41
+#BuildRequires: cuda-gcc-c++  # this package conflicts with gcc on f39, and doesn't work on f42
+BuildRequires: gcc13
+BuildRequires: gcc13-c++
+%global gcc_version 13
+%global cuda_version 12.6.3
+%global cuda_build 560.35.05
+%elif %{?fedora} >= 42
+BuildRequires: gcc14
+BuildRequires: gcc14-c++
+%global gcc_version 14
+%global cuda_version 12.8.1
+%global cuda_build 570.124.06
 %endif
 
 Requires: libcap >= 2.22
@@ -90,17 +98,8 @@ ls -a %{_builddir}/Sunshine
 %build
 # Detect the architecture and Fedora version
 architecture=$(uname -m)
-fedora_version=%{fedora}
 
 cuda_supported_architectures=("x86_64" "aarch64")
-
-# set cuda_version based on Fedora version
-case "$fedora_version" in
-  *)
-    cuda_version="12.6.3"
-    cuda_build="560.35.05"
-    ;;
-esac
 
 # prepare CMAKE args
 cmake_args=(
@@ -121,6 +120,9 @@ cmake_args=(
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
 )
 
+export CC=gcc-%{gcc_version}
+export CXX=g++-%{gcc_version}
+
 function install_cuda() {
   # check if we need to install cuda
   if [ -f "%{_builddir}/cuda/bin/nvcc" ]; then
@@ -130,7 +132,7 @@ function install_cuda() {
 
   if [ "$fedora_version" -ge 40 ]; then
     # update environment variables for CUDA, necessary when using cuda-gcc-c++
-    export NVCC_PREPEND_FLAGS='-ccbin /usr/bin/g++-13'
+    export NVCC_PREPEND_FLAGS='-ccbin /usr/bin/g++-%{gcc_version}'
     export PATH=/usr/bin/cuda:"%{_builddir}/cuda/bin:${PATH}"
     export LD_LIBRARY_PATH="%{_builddir}/cuda/lib64:${LD_LIBRARY_PATH}"
   fi
@@ -141,7 +143,7 @@ function install_cuda() {
     local cuda_suffix="_sbsa"
   fi
 
-  local url="${cuda_prefix}${cuda_version}/local_installers/cuda_${cuda_version}_${cuda_build}_linux${cuda_suffix}.run"
+  local url="${cuda_prefix}%{cuda_version}/local_installers/cuda_%{cuda_version}_%{cuda_build}_linux${cuda_suffix}.run"
   echo "cuda url: ${url}"
   wget \
     "$url" \
@@ -161,19 +163,19 @@ function install_cuda() {
   rm "%{_builddir}/cuda.run"
 }
 
-# we need to clear these flags to avoid linkage errors with cuda-gcc-c++
-export CFLAGS=""
-export CXXFLAGS=""
-export FFLAGS=""
-export FCFLAGS=""
-export LDFLAGS=""
-export CC=gcc-13
-export CXX=g++-13
+if [ -n "%{cuda_version}" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
+  # we need to clear these flags to avoid linkage errors with cuda-gcc-c++
+  export CFLAGS=""
+  export CXXFLAGS=""
+  export FFLAGS=""
+  export FCFLAGS=""
+  export LDFLAGS=""
 
-if [ -n "$cuda_version" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
   install_cuda
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
   cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{_builddir}/cuda/bin/nvcc")
+else
+  cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
 fi
 
 # setup the version
