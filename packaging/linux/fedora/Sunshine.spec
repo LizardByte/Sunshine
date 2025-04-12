@@ -53,8 +53,6 @@ BuildRequires: xorg-x11-server-Xvfb
 
 # Conditional BuildRequires for cuda-gcc based on Fedora version
 %if 0%{?fedora} >= 40 && 0%{?fedora} <= 41
-# this package conflicts with gcc on f39, and doesn't work on f42
-# BuildRequires: cuda-gcc-c++
 BuildRequires: gcc13
 BuildRequires: gcc13-c++
 %global gcc_version 13
@@ -177,13 +175,6 @@ function install_cuda() {
 }
 
 if [ -n "%{cuda_version}" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
-  # we need to clear these flags to avoid linkage errors with cuda-gcc-c++
-  export CFLAGS=""
-  export CXXFLAGS=""
-  export FFLAGS=""
-  export FCFLAGS=""
-  export LDFLAGS=""
-
   install_cuda
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
   cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{cuda_dir}/bin/nvcc")
