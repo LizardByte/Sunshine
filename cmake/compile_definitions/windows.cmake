@@ -38,7 +38,7 @@ if(NOT DEFINED SUNSHINE_ICON_PATH)
     set(SUNSHINE_ICON_PATH "${CMAKE_SOURCE_DIR}/sunshine.ico")
 endif()
 
-configure_file("${CMAKE_SOURCE_DIR}/src/platform/windows/windows.rs.in" windows.rc @ONLY)
+configure_file("${CMAKE_SOURCE_DIR}/src/platform/windows/windows.rc.in" windows.rc @ONLY)
 
 set(PLATFORM_TARGET_FILES
         "${CMAKE_CURRENT_BINARY_DIR}/windows.rc"
