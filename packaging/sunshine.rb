@@ -35,7 +35,6 @@ class @PROJECT_NAME@ < Formula
   depends_on "miniupnpc"
   depends_on "openssl"
   depends_on "opus"
-  depends_on "boost" => :recommended
   depends_on "icu4c" => :recommended
 
   on_linux do
