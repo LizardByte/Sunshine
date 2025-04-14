@@ -2,13 +2,16 @@
 set -e
 
 # install dependencies
-brew install \
-  boost \
-  cmake \
-  miniupnpc \
-  node \
-  opus \
-  pkg-config
+dependencies=(
+  "cmake"
+  "miniupnpc"
+  "ninja"
+  "node"
+  "openssl@3"
+  "opus"
+  "pkg-config"
+)
+brew install "${dependencies[@]}"
 
 # build
 mkdir -p build
