@@ -65,7 +65,7 @@ class @PROJECT_NAME@ < Formula
 
     args = %W[
       -DBUILD_WERROR=ON
-      -DCMAKE_CXX_STANDARD=17
+      -DCMAKE_CXX_STANDARD=20
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
       -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
