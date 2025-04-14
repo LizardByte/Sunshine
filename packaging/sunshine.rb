@@ -51,6 +51,7 @@ class @PROJECT_NAME@ < Formula
     depends_on "libxinerama"
     depends_on "libxrandr"
     depends_on "libxtst"
+    depends_on "mesa"
     depends_on "numactl"
     depends_on "pulseaudio"
     depends_on "systemd"

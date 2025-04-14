@@ -35,6 +35,7 @@ BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: git
 BuildRequires: mesa-libGL-devel
+BuildRequires: mesa-libgbm-devel
 BuildRequires: miniupnpc-devel
 BuildRequires: npm
 BuildRequires: numactl-devel
