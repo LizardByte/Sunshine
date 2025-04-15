@@ -44,19 +44,54 @@
     
         
     </resolutions>
-    <options>
-		<CustomEdid>false</CustomEdid> <!-- Custom Edid should be named "user_edid.bin"! This does not support emulating resolutions!-->
-		<PreventSpoof>false</PreventSpoof> <!--Enable this to prevent manufacturer spoofing when using custom edid. Please only do so if you need to!-->
-		<EdidCeaOverride>false</EdidCeaOverride> <!--Enable this to override or add hard coded cea-extension block to custom Edid support allowing you to enable HDR-->
-		<HardwareCursor>true</HardwareCursor>
-		<SDR10bit>false</SDR10bit>
-		<HDRPlus>false</HDRPlus> <!-- If you have SDR10 bit enabled, HDRPlus wont work - there’s a conflict because the display system cannot simultaneously handle both high dynamic range 12-bit and standard dynamic range 10-bit settings. -->
+	<logging>
+		<SendLogsThroughPipe>true</SendLogsThroughPipe> <!-- Can only send logs through pipe if logging is enabled-->
 		<logging>false</logging>
-        <!-- DEBUG LOGGING FOR EXPERTS ONLY!-->
-        <debuglogging>false</debuglogging> 
-        <!-- DEBUG LOGS CAN GENERATE 1000+ LINES-->
+		<!-- DEBUG LOGGING FOR EXPERTS ONLY!-->
+		<debuglogging>false</debuglogging>
+		<!-- DEBUG LOGS CAN GENERATE 1000+ LINES-->
 		<!-- Warning: Leaving logging on too long can lead to excessive filesize. Especially DebugLogging, which should only be used for short periods to log errors. -->
 		<!-- Logging: Useful to troubleshoot and determine which GPUs are being used, and if displays are working as intended.-->
 		<!-- Debug Logging: Logs local system information with every driver function/event/process. Useful for GitHub Help Tickets.-->
-	</options>
+	</logging>
+	<colour>
+		<SDR10bit>false</SDR10bit>
+		<HDRPlus>false</HDRPlus> <!-- If you have SDR10 bit enabled, HDRPlus wont work - there’s a conflict because the display system cannot simultaneously handle both high dynamic range 12-bit and standard dynamic range 10-bit settings. -->
+		<ColourFormat>RGB</ColourFormat>
+		<!--
+		Supported colour formats:
+		RGB
+		YCbCr444
+		YCbCr422
+		YCbCr420
+		
+		Any invalid colour formats which are used will default to use RGB
+		-->
+	</colour>
+	<cursor>
+		<HardwareCursor>true</HardwareCursor>
+		<!--Whether to display a hardware cursor in the buffer (If disabled streaming apps will use client cursor)-->
+		<CursorMaxY>128</CursorMaxY>
+		<!--The maximum height support for all cursor types. Older intel cpus may be limited to 64x64 -->
+		<CursorMaxX>128</CursorMaxX>
+		<!--The maximum width supported for all supported cursor types.-->
+		<AlphaCursorSupport>true</AlphaCursorSupport>
+		<!--Indicates if the adapter supports the 32-bit alpha cursor format. Most cursors are alpha format.-->
+		<XorCursorSupportLevel>2</XorCursorSupportLevel>
+		<!-- Do not change if you don't know what you're doing -->
+		<!--
+		0 = IDDCX_XOR_CURSOR_SUPPORT_UNINITIALIZED
+		1 = IDDCX_XOR_CURSOR_SUPPORT_NONE
+		2 = IDDCX_XOR_CURSOR_SUPPORT_FULL
+		3 = IDDCX_XOR_CURSOR_SUPPORT_EMULATION
+		-->
+	</cursor>
+	<edid>
+		<CustomEdid>false</CustomEdid>
+		<!-- Custom Edid should be named "user_edid.bin"! This does not support emulating resolutions!-->
+		<PreventSpoof>false</PreventSpoof>
+		<!--Enable this to prevent manufacturer spoofing when using custom edid. Please only do so if you need to!-->
+		<EdidCeaOverride>false</EdidCeaOverride>
+		<!--Enable this to override or add hard coded cea-extension block to custom Edid support allowing you to enable HDR-->
+	</edid>
 </vdd_settings>

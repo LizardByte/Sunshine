@@ -610,18 +610,56 @@ namespace confighttp {
     if (!fs::exists(idd_option_path)) {
         return false;
     }
-
-    pt::ptree monitor_node;
-    monitor_node.put("count", 1);
-
-    pt::ptree gpu_node;
-    gpu_node.put("friendlyname", gpu_name);
-
-    iddOptionTree.add_child("monitors", monitor_node);
-    iddOptionTree.add_child("gpu", gpu_node);
-    iddOptionTree.add_child("resolutions", resolutions_nodes);
-
+    
+    // 先读取现有配置文件
+    pt::ptree existing_root;
     pt::ptree root;
+    
+    try {
+      pt::read_xml(idd_option_path.string(), existing_root);
+      // 如果现有配置文件中已有vdd_settings节点
+      if (existing_root.get_child_optional("vdd_settings")) {
+        // 复制现有配置
+        iddOptionTree = existing_root.get_child("vdd_settings");
+        
+        // 更新需要更改的部分
+        pt::ptree monitor_node;
+        monitor_node.put("count", 1);
+        
+        pt::ptree gpu_node;
+        gpu_node.put("friendlyname", gpu_name);
+        
+        // 替换配置
+        iddOptionTree.put_child("monitors", monitor_node);
+        iddOptionTree.put_child("gpu", gpu_node);
+        iddOptionTree.put_child("resolutions", resolutions_nodes);
+      } else {
+        // 如果没有vdd_settings节点，创建新的
+        pt::ptree monitor_node;
+        monitor_node.put("count", 1);
+        
+        pt::ptree gpu_node;
+        gpu_node.put("friendlyname", gpu_name);
+        
+        iddOptionTree.add_child("monitors", monitor_node);
+        iddOptionTree.add_child("gpu", gpu_node);
+        iddOptionTree.add_child("resolutions", resolutions_nodes);
+      }
+    } catch(...) {
+      // 读取失败，创建新的配置
+      BOOST_LOG(warning) << "读取现有VDD配置失败，创建新配置";
+      
+      pt::ptree monitor_node;
+      monitor_node.put("count", 1);
+      
+      pt::ptree gpu_node;
+      gpu_node.put("friendlyname", gpu_name);
+      
+      iddOptionTree.add_child("monitors", monitor_node);
+      iddOptionTree.add_child("gpu", gpu_node);
+      iddOptionTree.add_child("resolutions", resolutions_nodes);
+    }
+
     root.add_child("vdd_settings", iddOptionTree);
     try {
       auto setting = boost::property_tree::xml_writer_make_settings<std::string>('\t', 1);
