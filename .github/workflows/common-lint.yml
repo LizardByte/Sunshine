@@ -77,7 +77,7 @@ jobs:
 
       - name: C++ - Clang format lint
         if: always() && steps.cpp_files.outputs.found_files
-        uses: DoozyX/clang-format-lint-action@v0.18
+        uses: DoozyX/clang-format-lint-action@v0.20
         with:
           source: ${{ steps.cpp_files.outputs.found_files }}
           extensions: 'c,cpp,h,hpp,m,mm'
