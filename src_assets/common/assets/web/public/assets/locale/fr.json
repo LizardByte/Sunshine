@@ -374,12 +374,12 @@
     "download": "Télécharger",
     "installed_version_not_stable": "Vous utilisez une version pré-publiée de Sunshine. Vous pouvez rencontrer des bugs ou d'autres problèmes. Veuillez signaler tout problème que vous rencontrez. Merci de nous aider à faire de Sunshine un meilleur logiciel!",
     "loading_latest": "Chargement de la dernière version...",
-    "new_pre_release": "Une nouvelle version de pré-version est disponible!",
+    "new_pre_release": "Une nouvelle préversion est disponible !",
     "new_stable": "Une nouvelle version stable est disponible !",
     "startup_errors": "<b>Attention !</b> Sunshine a détecté ces erreurs lors du démarrage. Nous <b>recommandons vivement de</b> les corriger avant de commencer à streamer.",
     "version_dirty": "Merci de contribuer à faire de Sunshine un meilleur logiciel !",
     "version_latest": "Vous utilisez la dernière version de Sunshine",
-    "welcome": "Bonjour, Sunshine!"
+    "welcome": "Bonjour, Sunshine !"
   },
   "navbar": {
     "applications": "Applications",
