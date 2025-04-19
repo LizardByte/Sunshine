@@ -349,8 +349,8 @@ namespace proc {
     return _apps;
   }
 
-  std::vector<ctx_t> &proc_t::get_apps() {
-    return _apps;
+  void proc_t::set_apps(std::vector<ctx_t> apps) {
+    _apps = std::move(apps);
   }
 
   // Gets application image from application list.
@@ -368,6 +368,14 @@ namespace proc {
 
   std::string proc_t::get_last_run_app_name() {
     return _app.name;
+  }
+
+  const boost::process::v1::environment& proc_t::get_env() const {
+    return _env;
+  }
+
+  void proc_t::set_env(boost::process::v1::environment env) {
+    _env = std::move(env);
   }
 
   proc_t::~proc_t() {
@@ -695,10 +703,14 @@ namespace proc {
   }
 
   void refresh(const std::string &file_name) {
-    auto proc_opt = proc::parse(file_name);
+    const auto proc_opt = proc::parse(file_name);
 
     if (proc_opt) {
-      proc = std::move(*proc_opt);
+      // Update the process object with the new environment and apps
+      // And, keep app running status.
+
+      proc.set_env(proc_opt->get_env());
+      proc.set_apps(proc_opt->get_apps());
     }
   }
 }  // namespace proc
