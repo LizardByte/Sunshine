@@ -90,7 +90,7 @@ shift $((OPTIND -1))
 # dependencies array to build out
 dependencies=()
 
-function add_debain_based_deps() {
+function add_debian_based_deps() {
   dependencies+=(
     "bison"  # required if we need to compile doxygen
     "build-essential"
@@ -134,8 +134,8 @@ function add_debain_based_deps() {
   fi
 }
 
-function add_debain_deps() {
-  add_debain_based_deps
+function add_debian_deps() {
+  add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
   )
@@ -147,7 +147,7 @@ function add_ubuntu_deps() {
     ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
   fi
 
-  add_debain_based_deps
+  add_debian_based_deps
   dependencies+=(
     "libappindicator3-dev"
   )
@@ -157,8 +157,8 @@ function add_fedora_deps() {
   dependencies+=(
     "cmake"
     "doxygen"
-    "gcc"
-    "g++"
+    "gcc${gcc_version}"
+    "gcc${gcc_version}-c++"
     "git"
     "graphviz"
     "libappindicator-gtk3-devel"
@@ -304,12 +304,12 @@ function run_install() {
   $package_update_command
 
   if [ "$distro" == "debian" ]; then
-    add_debain_deps
+    add_debian_deps
   elif [ "$distro" == "ubuntu" ]; then
     add_ubuntu_deps
   elif [ "$distro" == "fedora" ]; then
     add_fedora_deps
-    ${sudo_cmd} dnf group install "Development Tools" -y
+    ${sudo_cmd} dnf group install "$dev_tools_group" -y
   fi
 
   # Install the dependencies
@@ -445,24 +445,36 @@ if grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   cuda_build="525.60.13"
   gcc_version="12"
   nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f39\"" /etc/os-release; then
-  distro="fedora"
-  version="39"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.4.0"
-  cuda_build="550.54.14"
-  gcc_version="13"
-  nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f40\"" /etc/os-release; then
   distro="fedora"
   version="40"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=
-  cuda_build=
+  cuda_version=12.6.3
+  cuda_build=560.35.05
   gcc_version="13"
   nvm_node=0
+  dev_tools_group="Development Tools"
+elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
+  distro="fedora"
+  version="41"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version=12.6.3
+  cuda_build=560.35.05
+  gcc_version="13"
+  nvm_node=0
+  dev_tools_group="development-tools"
+elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
+  distro="fedora"
+  version="42"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version=12.8.1
+  cuda_build=570.124.06
+  gcc_version="14"
+  nvm_node=0
+  dev_tools_group="development-tools"
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"

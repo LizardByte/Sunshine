@@ -87,7 +87,16 @@ jobs:
           out-file-path: "pkgbuilds/${{ steps.prep.outputs.pkg_name }}"
           extract: true
 
+      - name: Remove pkg.tar.gz
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        run: |
+          rm -f "pkgbuilds/${{ steps.prep.outputs.pkg_name }}"
+
       - name: Create/Update Pull Request
+        id: create-pr
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true' &&
@@ -105,3 +114,19 @@ jobs:
           labels: |
             auto-approve
             auto-merge
+
+      - name: Automerge PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        run: |
+          gh \
+            pr \
+            merge \
+            --auto \
+            --delete-branch \
+            --squash \
+            "${{ steps.create-pr.outputs.pull-request-number }}"
