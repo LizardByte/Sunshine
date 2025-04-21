@@ -544,7 +544,7 @@ namespace display_device {
 
     const int custom_screen_mode = session.custom_screen_mode;
     // 客户端自定义屏幕模式
-    if (custom_screen_mode != 0) {
+    if (custom_screen_mode != -1) {
       BOOST_LOG(debug) << "客户端自定义屏幕模式: "sv << custom_screen_mode;
       if (custom_screen_mode == static_cast<int>(parsed_config_t::device_prep_e::no_operation)) {
         parsed_config.device_prep = parsed_config_t::device_prep_e::no_operation;
