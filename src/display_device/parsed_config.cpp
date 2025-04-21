@@ -542,6 +542,24 @@ namespace display_device {
     parsed_config.device_prep = static_cast<parsed_config_t::device_prep_e>(config.display_device_prep);
     parsed_config.change_hdr_state = parse_hdr_option(config, session);
 
+    const int custom_screen_mode = session.custom_screen_mode;
+    // 客户端自定义屏幕模式
+    if (custom_screen_mode != 0) {
+      BOOST_LOG(debug) << "客户端自定义屏幕模式: "sv << custom_screen_mode;
+      if (custom_screen_mode == static_cast<int>(parsed_config_t::device_prep_e::no_operation)) {
+        parsed_config.device_prep = parsed_config_t::device_prep_e::no_operation;
+      }
+      else if (custom_screen_mode == static_cast<int>(parsed_config_t::device_prep_e::ensure_active)) {
+        parsed_config.device_prep = parsed_config_t::device_prep_e::ensure_active;
+      }
+      else if (custom_screen_mode == static_cast<int>(parsed_config_t::device_prep_e::ensure_primary)) {
+        parsed_config.device_prep = parsed_config_t::device_prep_e::ensure_primary;
+      }
+      else if (custom_screen_mode == static_cast<int>(parsed_config_t::device_prep_e::ensure_only_display)) {
+        parsed_config.device_prep = parsed_config_t::device_prep_e::ensure_only_display;
+      }
+    }
+
     // 解析分辨率和刷新率配置
     if (!parse_resolution_option(config, session, parsed_config) ||
         !parse_refresh_rate_option(config, session, parsed_config) ||
@@ -551,12 +569,13 @@ namespace display_device {
     }
 
     // 记录解析后的配置信息
-    BOOST_LOG(debug) << "解析后的显示设备配置:\n"
-                     << "设备ID: " << parsed_config.device_id << "\n"
-                     << "设备准备模式: " << static_cast<int>(parsed_config.device_prep) << "\n"
-                     << "HDR状态: " << (parsed_config.change_hdr_state ? (*parsed_config.change_hdr_state ? "启用" : "禁用") : "不变") << "\n"
-                     << "分辨率: " << (parsed_config.resolution ? to_string(*parsed_config.resolution) : "不变") << "\n"
-                     << "刷新率: " << (parsed_config.refresh_rate ? to_string(*parsed_config.refresh_rate) : "不变") << "\n";
+    BOOST_LOG(debug) << "解析后的显示设备配置:\n"sv
+                     << "\n设备ID: "sv << parsed_config.device_id
+                     << "\n设备准备模式: "sv << static_cast<int>(parsed_config.device_prep)
+                     << "\nHDR状态: "sv << (parsed_config.change_hdr_state ? (*parsed_config.change_hdr_state ? "启用" : "禁用") : "不变")
+                     << "\n分辨率: "sv << (parsed_config.resolution ? to_string(*parsed_config.resolution) : "不变")
+                     << "\n刷新率: "sv << (parsed_config.refresh_rate ? to_string(*parsed_config.refresh_rate) : "不变")
+                     << "\n"sv;
 
     // 检查是否需要使用VDD
     const auto requested_device_id = display_device::find_one_of_the_available_devices(config.output_name);
@@ -564,7 +583,7 @@ namespace display_device {
 
     // 如果会话不需要VDD且指定设备存在且不是VDD设备，则跳过VDD准备
     if (!session.use_vdd && !requested_device_id.empty() && !is_vdd_device) {
-      BOOST_LOG(debug) << "输出设备已存在，跳过VDD准备";
+      BOOST_LOG(debug) << "输出设备已存在，跳过VDD准备"sv;
       return parsed_config;
     }
 
