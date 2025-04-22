@@ -129,6 +129,14 @@ function removeCmd(index) {
               v-model="config.notify_pre_releases"
               default="false"
     ></Checkbox>
+
+    <!-- open_webui -->
+    <Checkbox class="mb-3"
+              id="open_webui"
+              locale-prefix="config"
+              v-model="config.open_webui"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 

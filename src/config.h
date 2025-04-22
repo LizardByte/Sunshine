@@ -255,6 +255,7 @@ namespace config {
     std::string log_file;
     bool notify_pre_releases;
     std::vector<prep_cmd_t> prep_cmds;
+    bool open_webui;
   };
 
   extern video_t video;

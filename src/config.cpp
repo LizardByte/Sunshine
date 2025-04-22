@@ -581,7 +581,8 @@ namespace config {
     "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
-    {},  // prep commands
+    {},     // prep commands
+    true,   // open_webui
   };
 
   bool endline(char ch) {
@@ -1227,6 +1228,7 @@ namespace config {
     bool_f(vars, "native_pen_touch", input.native_pen_touch);
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
+    bool_f(vars, "open_webui", sunshine.open_webui);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
@@ -1442,8 +1444,10 @@ namespace config {
         service_ctrl::wait_for_ui_ready();
       }
 
-      // Launch the web UI
-      launch_ui();
+      if (config::sunshine.open_webui) {
+        // Launch the web UI
+        launch_ui();
+      }
 
       // Always return 1 to ensure Sunshine doesn't start normally
       return 1;

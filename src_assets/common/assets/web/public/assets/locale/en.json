@@ -290,6 +290,8 @@
     "nvenc_twopass_quarter_res": "Quarter resolution (faster, default)",
     "nvenc_vbv_increase": "Single-frame VBV/HRD percentage increase",
     "nvenc_vbv_increase_desc": "By default sunshine uses single-frame VBV/HRD, which means any encoded video frame size is not expected to exceed requested bitrate divided by requested frame rate. Relaxing this restriction can be beneficial and act as low-latency variable bitrate, but may also lead to packet loss if the network doesn't have buffer headroom to handle bitrate spikes. Maximum accepted value is 400, which corresponds to 5x increased encoded video frame upper size limit.",
+    "open_webui": "Open web UI on launch",
+    "open_webui_desc": "Whether the web UI is automatically opened in your browser when Sunshine is started from the shortcut",
     "origin_web_ui_allowed": "Origin Web UI Allowed",
     "origin_web_ui_allowed_desc": "The origin of the remote endpoint address that is not denied access to Web UI",
     "origin_web_ui_allowed_lan": "Only those in LAN may access Web UI",
