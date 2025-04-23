@@ -23,25 +23,28 @@ process is killed.}
 
 @tabs{
   @tab{Linux | <!-- -->
-    \| Field             \| Value                                               \|
-    \|-------------------\|-----------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                    \|
-    \| Detached Commands \| @code{}setsid steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                            \|
+    \| Field                        \| Value                                                \|
+    \|------------------------------\|------------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
+    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
+    \| Image                        \| @code{}steam.png@endcode                             \|
   }
   @tab{macOS | <!-- -->
-    \| Field             \| Value                                             \|
-    \|-------------------\|---------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                  \|
-    \| Detached Commands \| @code{}open steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                          \|
+    \| Field                        \| Value                                          \|
+    \|------------------------------\|------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode               \|
+    \| Command Preporations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                       \|
   }
   @tab{Windows | <!-- -->
-    \| Field             \| Value                                  \|
-    \|-------------------\|----------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode       \|
-    \| Detached Commands \| @code{}steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode               \|
+    \| Field                        \| Value                                     \|
+    \|------------------------------\|-------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode          \|
+    \| Command Preporations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                  \|
   }
 }
 
