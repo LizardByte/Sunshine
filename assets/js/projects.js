@@ -1,7 +1,7 @@
 // projects section script
 
 // get project container
-container = document.getElementById("project-container")
+let container = document.getElementById("project-container")
 let org_name = "LizardByte"
 let base_url = `https://app.${org_name.toLowerCase()}.dev`
 let cache_repo = "dashboard"
