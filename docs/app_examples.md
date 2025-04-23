@@ -31,12 +31,12 @@ process is killed.}
     \| Image                        \| @code{}steam.png@endcode                             \|
   }
   @tab{macOS | <!-- -->
-    \| Field                        \| Value                                                \|
-    \|------------------------------\|------------------------------------------------------\|
-    \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
-    \| Command Preporations -> Undo \| @code{}open steam steam://close/bigpicture@endcode   \|
-    \| Detached Commands            \| @code{}open steam steam://open/bigpicture@endcode    \|
-    \| Image                        \| @code{}steam.png@endcode                             \|
+    \| Field                        \| Value                                          \|
+    \|------------------------------\|------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode               \|
+    \| Command Preporations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                       \|
   }
   @tab{Windows | <!-- -->
     \| Field                        \| Value                                     \|

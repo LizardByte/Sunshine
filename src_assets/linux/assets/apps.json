@@ -22,6 +22,12 @@
       "detached": [
         "setsid steam steam://open/bigpicture"
       ],
+      "prep-cmd": [
+        {
+          "do": "",
+          "undo": "setsid steam steam://close/bigpicture"
+        }
+      ],
       "image-path": "steam.png"
     }
   ]
