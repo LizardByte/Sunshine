@@ -80,7 +80,15 @@ namespace proc {
         _apps(std::move(apps)) {
     }
 
-    int execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
+    /**
+     * @brief Check the app's existence and set up environment, but does not actually launch it
+     */
+    int prepare(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session);
+
+    /**
+     * @brief Launch the app after calling `prepare()`
+     */
+    int execute();
 
     /**
      * @return `_app_id` if a process is running, otherwise returns `0`

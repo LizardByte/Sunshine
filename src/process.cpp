@@ -130,21 +130,21 @@ namespace proc {
     return cmd_path.parent_path();
   }
 
-  int proc_t::execute(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
+  int proc_t::prepare(int app_id, std::shared_ptr<rtsp_stream::launch_session_t> launch_session) {
     // Ensure starting from a clean slate
     terminate();
 
-    auto iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
+    auto app_iter = std::find_if(_apps.begin(), _apps.end(), [&app_id](const auto app) {
       return app.id == std::to_string(app_id);
     });
 
-    if (iter == _apps.end()) {
+    if (app_iter == _apps.end()) {
       BOOST_LOG(error) << "Couldn't find app with ID ["sv << app_id << ']';
       return 404;
     }
 
     _app_id = app_id;
-    _app = *iter;
+    _app = *app_iter;
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
 
@@ -187,6 +187,10 @@ namespace proc {
 #endif
     }
 
+    return 0;
+  }
+
+  int proc_t::execute() {
     std::error_code ec;
     // Executed when returning from function
     auto fg = util::fail_guard([&]() {
