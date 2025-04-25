@@ -6,10 +6,15 @@
 # Update changelog on release events.
 
 name: Update changelog
+permissions:
+  contents: read
 
 on:
   release:
-    types: [created, edited, deleted]
+    types:
+      - created
+      - edited
+      - deleted
   workflow_dispatch:
 
 concurrency:
@@ -18,6 +23,7 @@ concurrency:
 
 jobs:
   update-changelog:
+    name: Update Changelog
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (!github.event.release.prerelease && !github.event.release.draft)

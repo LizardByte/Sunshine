@@ -6,6 +6,8 @@
 # Create a blog post for a new release and open a PR to the blog repo
 
 name: Release Notifications
+permissions:
+  contents: read
 
 on:
   release:
@@ -14,8 +16,8 @@ on:
 
 jobs:
   update-blog:
-    if: >-
-      github.repository_owner == 'LizardByte'
+    name: Update blog
+    if: github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
       - name: Check topics
@@ -41,8 +43,7 @@ jobs:
 
       - name: Check if latest GitHub release
         id: check-release
-        if: >-
-          steps.check-label.outputs.hasTopic == 'true'
+        if: steps.check-label.outputs.hasTopic == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -128,9 +129,7 @@ jobs:
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true'
         run: |
-          gh \
-            pr \
-            merge \
+          gh pr merge \
             --auto \
             --delete-branch \
             --repo "LizardByte/LizardByte.github.io" \
