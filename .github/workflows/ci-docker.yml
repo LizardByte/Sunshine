@@ -19,13 +19,20 @@
 #    GitHub runner.
 
 name: CI Docker
+permissions:
+  contents: read
 
 on:
   pull_request:
-    branches: [master]
-    types: [opened, synchronize, reopened]
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
   push:
-    branches: [master]
+    branches:
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -97,10 +104,9 @@ jobs:
       solution: ${{ steps.find_dotnet.outputs.solution }}
 
   setup_release:
-    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
     name: Setup Release
-    needs:
-      - check_dockerfiles
+    if: needs.check_dockerfiles.outputs.dockerfiles
+    needs: check_dockerfiles
     outputs:
       publish_release: ${{ steps.setup_release.outputs.publish_release }}
       release_body: ${{ steps.setup_release.outputs.release_body }}
@@ -121,17 +127,18 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   docker:
-    needs: [check_dockerfiles, setup_release]
-    if: ${{ needs.check_dockerfiles.outputs.dockerfiles }}
-    runs-on: ubuntu-22.04
+    name: Docker${{ matrix.tag }}
+    if: needs.check_dockerfiles.outputs.dockerfiles
+    needs:
+      - check_dockerfiles
+      - setup_release
     permissions:
       packages: write
       contents: write
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.check_dockerfiles.outputs.matrix) }}
-    name: Docker${{ matrix.tag }}
-
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
@@ -256,14 +263,14 @@ jobs:
             Docker-buildx${{ matrix.tag }}-
 
       - name: Log in to Docker Hub
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
+        if: needs.setup_release.outputs.publish_release == 'true'  # PRs do not have access to secrets
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
       - name: Log in to the Container registry
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}  # PRs do not have access to secrets
+        if: needs.setup_release.outputs.publish_release == 'true'  # PRs do not have access to secrets
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -271,7 +278,7 @@ jobs:
           password: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Build artifacts
-        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        if: steps.prepare.outputs.artifacts == 'true'
         id: build_artifacts
         uses: docker/build-push-action@v6
         with:
@@ -314,7 +321,7 @@ jobs:
           no-cache-filters: ${{ steps.prepare.outputs.no_cache_filters }}
 
       - name: Arrange Artifacts
-        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        if: steps.prepare.outputs.artifacts == 'true'
         working-directory: artifacts
         run: |
           # debug directory
@@ -336,14 +343,16 @@ jobs:
           rm -f ./provenance.json
 
       - name: Upload Artifacts
-        if: ${{ steps.prepare.outputs.artifacts == 'true' }}
+        if: steps.prepare.outputs.artifacts == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: Docker${{ matrix.tag }}
           path: artifacts/
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' && steps.prepare.outputs.artifacts == 'true' }}
+        if: >
+          needs.setup_release.outputs.publish_release == 'true' &&
+          steps.prepare.outputs.artifacts == 'true'
         uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true
@@ -356,7 +365,9 @@ jobs:
           token: ${{ secrets.GH_BOT_TOKEN }}
 
       - name: Update Docker Hub Description
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+        if: >
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/master'
         uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
