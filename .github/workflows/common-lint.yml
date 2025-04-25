@@ -6,11 +6,17 @@
 # Common linting.
 
 name: common lint
+permissions:
+  contents: read
 
 on:
   pull_request:
-    branches: [master]
-    types: [opened, synchronize, reopened]
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -263,5 +269,4 @@ jobs:
 
       - name: YAML - log
         if: always() && steps.yamllint.outcome == 'failure'
-        run: |
-          cat "${{ steps.yamllint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY
+        run: cat "${{ steps.yamllint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY

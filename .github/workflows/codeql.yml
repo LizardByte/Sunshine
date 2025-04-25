@@ -6,12 +6,16 @@
 # This workflow will analyze all supported languages in the repository using CodeQL Analysis.
 
 name: "CodeQL"
+permissions:
+  contents: read
 
 on:
   push:
-    branches: ["master"]
+    branches:
+      - master
   pull_request:
-    branches: ["master"]
+    branches:
+      - master
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
@@ -22,14 +26,17 @@ concurrency:
 jobs:
   languages:
     name: Get language matrix
-    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.lang.outputs.result }}
       continue: ${{ steps.continue.outputs.result }}
+    runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Get repo languages
-        uses: actions/github-script@v7
         id: lang
+        uses: actions/github-script@v7
         with:
           script: |
             // CodeQL supports ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
@@ -53,6 +60,21 @@ jobs:
 
             // Track languages we've already added to avoid duplicates
             const addedLanguages = new Set()
+
+            // Check if workflow files exist to determine if we should add actions language
+            const fs = require('fs');
+            const hasYmlFiles = fs.existsSync('.github/workflows') &&
+            fs.readdirSync('.github/workflows').some(file => file.endsWith('.yml') || file.endsWith('.yaml'));
+
+            // Add actions language if workflow files exist
+            if (hasYmlFiles) {
+              console.log('Found GitHub Actions workflow files. Adding actions to the matrix.');
+              matrix['include'].push({
+                "language": "actions",
+                "os": "ubuntu-latest",
+                "name": "actions"
+              });
+            }
 
             for (let [key, value] of Object.entries(response.data)) {
               // remap language
@@ -94,8 +116,8 @@ jobs:
             return matrix
 
       - name: Continue
-        uses: actions/github-script@v7
         id: continue
+        uses: actions/github-script@v7
         with:
           script: |
             // if matrix['include'] is an empty list return false, otherwise true
@@ -109,24 +131,22 @@ jobs:
 
   analyze:
     name: Analyze (${{ matrix.name }})
-    if: ${{ needs.languages.outputs.continue == 'true' }}
+    if: needs.languages.outputs.continue == 'true'
     defaults:
       run:
         shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }}
     env:
       GITHUB_CODEQL_BUILD: true
-    needs: [languages]
-    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
-    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
+    needs: languages
     permissions:
       actions: read
       contents: read
       security-events: write
-
+    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.languages.outputs.matrix) }}
-
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
     steps:
       - name: Maximize build space
         if: >-

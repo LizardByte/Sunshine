@@ -6,12 +6,17 @@
 # Label and un-label actions using `../label-actions.yml`.
 
 name: Issues
+permissions: {}
 
 on:
   issues:
-    types: [labeled, unlabeled]
+    types:
+      - labeled
+      - unlabeled
   discussion:
-    types: [labeled, unlabeled]
+    types:
+      - labeled
+      - unlabeled
 
 jobs:
   label:
