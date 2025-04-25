@@ -1,5 +1,5 @@
 ---
-# This action is centrally managed in https://github.com/<organization>/.github/
+# This workflow is centrally managed in https://github.com/<organization>/.github/
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
@@ -238,4 +238,5 @@ jobs:
         with:
           name: sarif-results-${{ matrix.language }}-${{ runner.os }}
           path: sarif-results
+          if-no-files-found: error
           retention-days: 1
