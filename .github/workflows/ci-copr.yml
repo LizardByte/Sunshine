@@ -1,5 +1,7 @@
 ---
 name: CI Copr
+permissions:
+  contents: read
 
 on:
   pull_request:
