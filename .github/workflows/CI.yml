@@ -40,6 +40,8 @@ jobs:
       release_generate_release_notes: ${{ steps.setup_release.outputs.release_generate_release_notes }}
       release_tag: ${{ steps.setup_release.outputs.release_tag }}
       release_version: ${{ steps.setup_release.outputs.release_version }}
+    permissions:
+      contents: write  # read does not work to check squash and merge details
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
