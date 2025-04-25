@@ -10,10 +10,14 @@
 # Update readthedocs on release events.
 
 name: Update docs
+permissions: {}
 
 on:
   release:
-    types: [created, edited, deleted]
+    types:
+      - created
+      - edited
+      - deleted
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -73,8 +77,7 @@ jobs:
       - name: Update RTD project
         # changing the default branch in readthedocs makes "latest" point to that branch/tag
         # we can also update other properties like description, etc.
-        if: >-
-          steps.check.outputs.isLatestRelease == 'true'
+        if: steps.check.outputs.isLatestRelease == 'true'
         run: |
           json_body=$(jq -n \
             --arg default_branch "${TAG}" \
