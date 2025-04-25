@@ -414,12 +414,7 @@ namespace config {
           auto final_resolution = entry.template get_optional<std::string>("final_resolution"s);
           auto final_refresh_rate = entry.template get_optional<std::string>("final_refresh_rate"s);
 
-          output_field.push_back(video_t::dd_t::mode_remapping_entry_t {
-            requested_resolution.value_or(""),
-            requested_fps.value_or(""),
-            final_resolution.value_or(""),
-            final_refresh_rate.value_or("")
-          });
+          output_field.push_back(video_t::dd_t::mode_remapping_entry_t {requested_resolution.value_or(""), requested_fps.value_or(""), final_resolution.value_or(""), final_refresh_rate.value_or("")});
         }
       }};
 

@@ -186,7 +186,7 @@ namespace net {
 
   std::uint16_t map_port(int port) {
     // calculate the port from the config port
-    auto mapped_port = (std::uint16_t)((int) config::sunshine.port + port);
+    auto mapped_port = (std::uint16_t) ((int) config::sunshine.port + port);
 
     // Ensure port is in the range of 1024-65535
     if (mapped_port < 1024 || mapped_port > 65535) {
