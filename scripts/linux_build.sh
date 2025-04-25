@@ -153,6 +153,54 @@ function add_ubuntu_deps() {
   )
 }
 
+function add_arch_deps() {
+  dependencies+=(
+      # Development tools and build dependencies
+      "bison"
+      "base-devel"       # includes gcc, make, etc., replaces build-essential
+      "cmake"
+      "doxygen"
+      "git"
+      "graphviz"
+      "ninja"
+      "wget"
+      "gcc"
+      "gcc-fortran"     
+      "clang"            
+      "libcap"
+      "libcurl"-compat   
+      "libdrm"
+      "libevdev"
+      "mesa"             # provides libgbm
+      "miniupnpc"
+      "libnotify"
+      "numactl"
+      "opus"
+      "libpulse"
+      "openssl"          # provides libssl
+      "wayland"
+      "libx11"
+      "libxcb"
+      "libxfixes"
+      "libxrandr"
+      "libxtst"
+      "libxshmfence"     # xcb-shm replacement in some contexts
+      "wayland-protocols"
+      "xorgproto"
+      "nodejs"
+      "npm"
+      "systemd-libs"
+      "xorg-server-xvfb"
+
+  )
+
+  if [ "$skip_libva" == 0 ]; then
+    dependencies+=(
+      "libva"  # VA-API
+    )
+  fi
+}
+
 function add_fedora_deps() {
   dependencies+=(
     "cmake"
@@ -189,6 +237,8 @@ function add_fedora_deps() {
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing
   )
+
+
 
   if [ "$skip_libva" == 0 ]; then
     dependencies+=(
@@ -250,6 +300,8 @@ function check_version() {
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
   elif [ "$distro" == "fedora" ]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
+  elif [ "$distro" == "arch" ]; then
+    installed_version=$(pacman -Q "$package_name" | awk '{print $2}' )
   else
     echo "Unsupported Distro"
     return 1
@@ -310,6 +362,8 @@ function run_install() {
   elif [ "$distro" == "fedora" ]; then
     add_fedora_deps
     ${sudo_cmd} dnf group install "$dev_tools_group" -y
+  elif [ "$distro" == "arch" ]; then
+    add_arch_deps
   fi
 
   # Install the dependencies
@@ -492,6 +546,12 @@ elif grep -q "Ubuntu 24.04" /etc/os-release; then
   cuda_version="11.8.0"
   cuda_build="520.61.05"
   gcc_version="11"
+  nvm_node=0
+elif grep -q "Arch Linux" /etc/os-release; then
+  distro="arch"
+  version="rolling/not-needed"
+  package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
+  package_install_command="${sudo_cmd} pacman -Sy"
   nvm_node=0
 else
   echo "Unsupported Distro or Version"
