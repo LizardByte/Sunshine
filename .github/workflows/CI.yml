@@ -1,12 +1,19 @@
 ---
 name: CI
+permissions:
+  contents: read
 
 on:
   pull_request:
-    branches: [master]
-    types: [opened, synchronize, reopened]
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
   push:
-    branches: [master]
+    branches:
+      - master
   workflow_dispatch:
 
 concurrency:
@@ -17,7 +24,6 @@ jobs:
   github_env:
     name: GitHub Env Debug
     runs-on: ubuntu-latest
-
     steps:
       - name: Dump github context
         run: echo "$GITHUB_CONTEXT"
@@ -46,12 +52,12 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
   build_linux_flatpak:
+    name: Linux Flatpak
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       NODE_VERSION: "20"
       PLATFORM_VERSION: "23.08"
-    name: Linux Flatpak
-    needs: [setup_release]
+    needs: setup_release
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
@@ -61,7 +67,6 @@ jobs:
             runner: ubuntu-22.04
           - arch: aarch64
             runner: ubuntu-22.04-arm
-
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
@@ -85,12 +90,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install npm dependencies
-        run: |
-          npm install --package-lock-only
+        run: npm install --package-lock-only
 
       - name: Debug package-lock.json
-        run: |
-          cat package-lock.json
+        run: cat package-lock.json
 
       - name: Setup python
         id: python
@@ -121,12 +124,10 @@ jobs:
 
       - name: flatpak node generator
         # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
-        run: |
-          flatpak-node-generator npm package-lock.json
+        run: flatpak-node-generator npm package-lock.json
 
       - name: Debug generated-sources.json
-        run: |
-          cat generated-sources.json
+        run: cat generated-sources.json
 
       - name: Cache Flatpak build
         uses: actions/cache@v4
@@ -171,8 +172,7 @@ jobs:
 
       - name: Debug Manifest
         working-directory: build
-        run: |
-          cat ${APP_ID}.yml
+        run: cat ${APP_ID}.yml
 
       - name: Build Linux Flatpak
         working-directory: build
@@ -225,7 +225,7 @@ jobs:
 
       - name: Package Flathub repo archive
         # copy files required to generate the Flathub repo
-        if: ${{ matrix.arch == 'x86_64' }}
+        if: matrix.arch == 'x86_64'
         run: |
           mkdir -p flathub/modules
           cp ./build/generated-sources.json ./flathub/
@@ -245,9 +245,10 @@ jobs:
         with:
           name: sunshine-linux-flatpak-${{ matrix.arch }}
           path: artifacts/
+          if-no-files-found: error
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        if: needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true
@@ -261,7 +262,7 @@ jobs:
   build_linux:
     name: Linux ${{ matrix.type }}
     runs-on: ubuntu-${{ matrix.dist }}
-    needs: [setup_release]
+    needs: setup_release
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -269,7 +270,6 @@ jobs:
           - type: AppImage
             EXTRA_ARGS: '--appimage-build'
             dist: 22.04
-
     steps:
       - name: Maximize build space
         uses: easimon/maximize-build-space@v10
@@ -344,14 +344,13 @@ jobs:
             --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
 
       - name: Set AppImage Version
-        if: |
-          matrix.type == 'AppImage'
+        if: matrix.type == 'AppImage'
         run: |
           version=${{ needs.setup_release.outputs.release_tag }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
       - name: Package Linux - AppImage
-        if: ${{ matrix.type == 'AppImage' }}
+        if: matrix.type == 'AppImage'
         working-directory: build
         run: |
           # install sunshine to the DESTDIR
@@ -396,7 +395,7 @@ jobs:
           rm -rf ./build/cuda
 
       - name: Verify AppImage
-        if: ${{ matrix.type == 'AppImage' }}
+        if: matrix.type == 'AppImage'
         run: |
           wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
           chmod +x appimagelint-x86_64.AppImage
@@ -408,6 +407,7 @@ jobs:
         with:
           name: sunshine-linux-${{ matrix.type }}-${{ matrix.dist }}
           path: artifacts/
+          if-no-files-found: error
 
       - name: Install test deps
         run: |
@@ -431,9 +431,9 @@ jobs:
           ./test_sunshine --gtest_color=yes
 
       - name: Generate gcov report
+        id: test_report
         # any except canceled or skipped
         if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        id: test_report
         working-directory: build
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
@@ -461,7 +461,7 @@ jobs:
           verbose: true
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        if: needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true
@@ -473,7 +473,8 @@ jobs:
           token: ${{ secrets.GH_BOT_TOKEN }}
 
   build_homebrew:
-    needs: [setup_release]
+    name: Homebrew (${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }})
+    needs: setup_release
     strategy:
       fail-fast: false  # false to test all, true to fail entire job if any fail
       matrix:
@@ -489,9 +490,7 @@ jobs:
           - os_version: "latest"  # this job will only configure the formula for release, no validation
             os_name: "ubuntu"
             release: true
-    name: Homebrew (${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }})
     runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -579,16 +578,15 @@ jobs:
           cat ./homebrew/sunshine.rb
 
       - name: Upload Artifacts
-        if: ${{ matrix.release }}
+        if: matrix.release
         uses: actions/upload-artifact@v4
         with:
           name: sunshine-homebrew
           path: homebrew/
+          if-no-files-found: error
 
       - name: Setup Xvfb
-        if: |
-          matrix.release != true &&
-          runner.os == 'Linux'
+        if: matrix.release != true && runner.os == 'Linux'
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -601,8 +599,7 @@ jobs:
 
       - name: Validate Homebrew Formula
         id: test
-        if: |
-          matrix.release != true
+        if: matrix.release != true
         uses: LizardByte/homebrew-release-action@v2024.1115.14934
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
@@ -613,6 +610,7 @@ jobs:
           validate: true
 
       - name: Generate gcov report
+        id: test_report
         # any except canceled or skipped
         # TODO: fix coverage, no .gcno files are being created
         # TODO: .gcno files are supposed to be created next to .o files
@@ -621,7 +619,6 @@ jobs:
         #   always() &&
         #   matrix.release != true &&
         #   (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        id: test_report
         run: |
           # if linux
           if [ "${{ runner.os }}" == "Linux" ]; then
@@ -680,8 +677,7 @@ jobs:
       - name: Patch homebrew formula
         # create beta version of the formula
         # don't run this on macOS, as the sed command fails
-        if: >-
-          matrix.release
+        if: matrix.release
         run: |
           # variables
           formula_file="homebrew/sunshine-beta.rb"
@@ -713,9 +709,8 @@ jobs:
 
   build_win:
     name: Windows
+    needs: setup_release
     runs-on: windows-2019
-    needs: [setup_release]
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -931,9 +926,9 @@ jobs:
           ./test_sunshine.exe --gtest_color=yes
 
       - name: Generate gcov report
+        id: test_report
         # any except canceled or skipped
         if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        id: test_report
         shell: msys2 {0}
         working-directory: build
         run: |
@@ -979,9 +974,10 @@ jobs:
         with:
           name: sunshine-windows
           path: artifacts/
+          if-no-files-found: error
 
       - name: Create/Update GitHub Release
-        if: ${{ needs.setup_release.outputs.publish_release == 'true' }}
+        if: needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/create-release-action@v2025.102.13208
         with:
           allowUpdates: true

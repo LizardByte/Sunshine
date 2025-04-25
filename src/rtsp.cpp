@@ -112,7 +112,7 @@ namespace rtsp_stream {
         boost::asio::async_read(sock, boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)), boost::bind(&socket_t::handle_read_encrypted_header, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
       } else {
         sock.async_read_some(
-          boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+          boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
           boost::bind(
             &socket_t::handle_read_plaintext,
             shared_from_this(),
@@ -253,7 +253,7 @@ namespace rtsp_stream {
       }
 
       sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+        boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
         boost::bind(
           &socket_t::handle_plaintext_payload,
           shared_from_this(),
@@ -289,7 +289,7 @@ namespace rtsp_stream {
 
       auto end = socket->begin + bytes;
       msg_t req {new msg_t::element_type {}};
-      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t)(end - socket->msg_buf.data()))) {
+      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t) (end - socket->msg_buf.data()))) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -321,7 +321,7 @@ namespace rtsp_stream {
 
       if (end - socket->crlf >= content_length) {
         if (end - socket->crlf > content_length) {
-          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t)(end - socket->crlf) << " > "sv << content_length;
+          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
         }
 
         fg.disable();
