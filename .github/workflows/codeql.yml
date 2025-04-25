@@ -70,9 +70,10 @@ jobs:
             if (hasYmlFiles) {
               console.log('Found GitHub Actions workflow files. Adding actions to the matrix.');
               matrix['include'].push({
+                "category": "/language:actions",
                 "language": "actions",
-                "os": "ubuntu-latest",
-                "name": "actions"
+                "name": "actions",
+                "os": "ubuntu-latest"
               });
             }
 
@@ -100,11 +101,18 @@ jobs:
                   // set name for matrix
                   let name = osList.length === 1 ? normalizedKey : `${normalizedKey}, ${os}`
 
+                  // set category for matrix
+                  let category = `/language:${normalizedKey}`
+                  if (normalizedKey === 'cpp') {
+                    category = `/language:cpp-${os.split('-')[0]}`
+                  }
+
                   // add to matrix
                   matrix['include'].push({
+                    "category": category,
                     "language": normalizedKey,
-                    "os": os,
-                    "name": name
+                    "name": name,
+                    "os": os
                   })
                 }
               }
@@ -194,8 +202,7 @@ jobs:
               - third-party
 
       # Pre autobuild
-      # create a file named .codeql-prebuild-${{ matrix.language }}.sh in the root of your repository
-      # create a file named .codeql-build-${{ matrix.language }}.sh in the root of your repository
+      # create a file named .codeql-prebuild-${{ matrix.language }}-${{ runner.os }}.sh in the root of your repository
       - name: Prebuild
         id: prebuild
         run: |
@@ -214,7 +221,7 @@ jobs:
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{matrix.language}}"
+          category: "${{ matrix.category }}"
           output: sarif-results
           upload: failure-only
 
@@ -231,6 +238,7 @@ jobs:
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
+          category: "${{ matrix.category }}"
           sarif_file: sarif-results/${{ matrix.language }}.sarif
 
       - name: Upload loc as a Build Artifact
