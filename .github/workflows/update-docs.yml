@@ -1,9 +1,9 @@
 ---
-# This action is centrally managed in https://github.com/<organization>/.github/
+# This workflow is centrally managed in https://github.com/<organization>/.github/
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
-# Use the `rtd` repository label to identify repositories that should trigger have this workflow.
+# To use, add the `rtd` repository label to identify repositories that should trigger this workflow.
 # If the project slug is not the repository name, add a repository variable named `READTHEDOCS_SLUG` with the value of
 # the ReadTheDocs project slug.
 
