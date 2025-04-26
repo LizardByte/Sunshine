@@ -197,7 +197,6 @@ function add_ubuntu_deps() {
   )
 }
 
-
 function add_fedora_deps() {
   dependencies+=(
     "cmake"
@@ -243,6 +242,11 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
+
+  if command -v nvcc >/dev/null 2>&1; then
+    echo "System CUDA found at: $(command -v nvcc)"
+    return
+  fi
   # check if we need to install cuda
   if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
     echo "cuda already installed"
@@ -492,7 +496,6 @@ if grep -q "Arch Linux" /etc/os-release; then
   package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
   package_install_command="${sudo_cmd} pacman -Sy"
   nvm_node=0
-
 elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
