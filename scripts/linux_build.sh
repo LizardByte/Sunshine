@@ -250,6 +250,7 @@ function install_cuda() {
   # check if we need to install cuda
   if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
     nvcc_path="${build_dir}/cuda/bin/nvcc"
+    echo "found local cuda"
     return
   fi
 
