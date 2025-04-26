@@ -495,7 +495,7 @@ if grep -q "Arch Linux" /etc/os-release; then
   distro="arch"
   version=""
   package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
-  package_install_command="${sudo_cmd} pacman -Sy"
+  package_install_command="${sudo_cmd} pacman -Sy --needed"
   nvm_node=0
 elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
