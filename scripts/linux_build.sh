@@ -242,7 +242,7 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
-  nvcc_path=$(command -v nvcc)
+  nvcc_path=$(command -v nvcc 2>/dev/null)
   if [ -n "$nvcc_path" ]; then
     echo "found system cuda"
     return
