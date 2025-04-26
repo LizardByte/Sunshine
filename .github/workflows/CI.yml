@@ -49,7 +49,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2025.102.14715
+        uses: LizardByte/setup-release-action@v2025.426.225
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -251,7 +251,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.102.13208
+        uses: LizardByte/create-release-action@v2025.426.1549
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
@@ -464,7 +464,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.102.13208
+        uses: LizardByte/create-release-action@v2025.426.1549
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
@@ -665,7 +665,7 @@ jobs:
         if: >-
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.102.13208
+        uses: LizardByte/create-release-action@v2025.426.1549
         with:
           allowUpdates: true
           artifacts: '${{ github.workspace }}/homebrew/*'
@@ -980,7 +980,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.102.13208
+        uses: LizardByte/create-release-action@v2025.426.1549
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
