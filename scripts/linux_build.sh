@@ -242,14 +242,14 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
-
-  if command -v nvcc >/dev/null 2>&1; then
-    echo "System CUDA found at: $(command -v nvcc)"
+  nvcc_path=$(command -v nvcc)
+  if [ -n "$nvcc_path" ]; then
+    echo "found system cuda"
     return
   fi
   # check if we need to install cuda
   if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
-    echo "cuda already installed"
+    nvcc_path="${build_dir}/cuda/bin/nvcc"
     return
   fi
 
@@ -286,6 +286,7 @@ function install_cuda() {
   chmod a+x "${build_dir}/cuda.run"
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
   rm "${build_dir}/cuda.run"
+  nvcc_path="${build_dir}/cuda/bin/nvcc"
 }
 
 function check_version() {
@@ -446,10 +447,10 @@ function run_install() {
   fi
 
   # run the cuda install
-  if [ -n "$cuda_version" ] && [ "$skip_cuda" == 0 ]; then
+  if [ "$skip_cuda" == 0 ]; then
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=${build_dir}/cuda/bin/nvcc")
+    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
   fi
 
   # Cmake stuff here
