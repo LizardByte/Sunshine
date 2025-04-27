@@ -123,7 +123,7 @@ namespace system_tray {
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   };
 
-  int system_tray() {
+  int init_tray() {
   #ifdef _WIN32
     // If we're running as SYSTEM, Explorer.exe will not have permission to open our thread handle
     // to monitor for thread termination. If Explorer fails to open our thread, our tray icon
@@ -189,34 +189,25 @@ namespace system_tray {
     if (tray_init(&tray) < 0) {
       BOOST_LOG(warning) << "Failed to create system tray"sv;
       return 1;
-    } else {
-      BOOST_LOG(info) << "System tray created"sv;
     }
 
+    BOOST_LOG(info) << "System tray created"sv;
     tray_initialized = true;
-    while (tray_loop(1) == 0) {
-      BOOST_LOG(debug) << "System tray loop"sv;
-    }
-
     return 0;
   }
 
-  void run_tray() {
-    // create the system tray
-  #if defined(__APPLE__) || defined(__MACH__)
-    // macOS requires that UI elements be created on the main thread
-    // creating tray using dispatch queue does not work, although the code doesn't actually throw any (visible) errors
+  int process_tray_events() {
+    if (!tray_initialized) {
+      return 1;
+    }
 
-    // dispatch_async(dispatch_get_main_queue(), ^{
-    //   system_tray();
-    // });
+    // Process one iteration of the tray loop with non-blocking mode (0)
+    if (const int result = tray_loop(0); result != 0) {
+      BOOST_LOG(warning) << "System tray loop failed"sv;
+      return result;
+    }
 
-    BOOST_LOG(info) << "system_tray() is not yet implemented for this platform."sv;
-  #else  // Windows, Linux
-    // create tray in separate thread
-    std::thread tray_thread(system_tray);
-    tray_thread.detach();
-  #endif
+    return 0;
   }
 
   int end_tray() {

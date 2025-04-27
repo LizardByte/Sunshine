@@ -88,6 +88,43 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 }
 #endif
 
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+constexpr bool tray_is_enabled = true;
+#else
+constexpr bool tray_is_enabled = false;
+#endif
+
+void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+  bool run_loop = false;
+
+  // Conditions that would require the main thread event loop
+  run_loop = tray_is_enabled;
+
+  if (!run_loop) {
+    BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
+    return;
+  }
+
+  // Main thread event loop
+  BOOST_LOG(info) << "Starting main loop"sv;
+  while (true) {
+    if (shutdown_event->peek()) {
+      BOOST_LOG(info) << "Shutdown event detected, breaking main loop"sv;
+      if (tray_is_enabled) {
+        system_tray::end_tray();
+      }
+      break;
+    }
+
+    if (tray_is_enabled) {
+      system_tray::process_tray_events();
+    }
+
+    // Sleep to avoid busy waiting
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+}
+
 int main(int argc, char *argv[]) {
   lifetime::argv = argv;
 
@@ -246,11 +283,6 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  // create tray thread and detach it
-  system_tray::run_tray();
-#endif
-
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
@@ -350,7 +382,14 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  // Wait for shutdown
+  if (tray_is_enabled) {
+    BOOST_LOG(info) << "Starting system tray"sv;
+    system_tray::init_tray();
+  }
+
+  mainThreadLoop(shutdown_event);
+
+  // Wait for shutdown, this is not necessary when we're using the main event loop
   shutdown_event->view();
 
   httpThread.join();
@@ -359,11 +398,6 @@ int main(int argc, char *argv[]) {
 
   task_pool.stop();
   task_pool.join();
-
-  // stop system tray
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  system_tray::end_tray();
-#endif
 
 #ifdef WIN32
   // Restore global NVIDIA control panel settings

@@ -120,7 +120,6 @@ class @PROJECT_NAME@ < Formula
     end
 
     args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
-    args << "-DSUNSHINE_ENABLE_TRAY=OFF" if OS.mac?
 
     system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
             *std_cmake_args,
