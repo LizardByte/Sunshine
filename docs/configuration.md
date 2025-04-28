@@ -1947,7 +1947,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wlr</td>
-        <td>Capture for wlroots based Wayland compositors via DMA-BUF.
+        <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
+            virtual displays in e.g. Hyprland using this method.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
