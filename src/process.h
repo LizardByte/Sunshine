@@ -67,6 +67,27 @@ namespace proc {
     std::chrono::seconds exit_timeout;
   };
 
+  /**
+   * @brief A list of preparation commands
+   */
+  class prep_cmds_t {
+  public:
+    prep_cmds_t(const std::vector<cmd_t> &cmds) :
+      _cmds(cmds),
+      _cmds_it(_cmds.begin()) {}
+    
+    prep_cmds_t() : prep_cmds_t(std::vector<cmd_t>{}) {}
+    
+    int run_do(const std::string &working_dir, const boost::process::v1::environment &env, FILE *output, unsigned int flags = 0);
+    int run_undo(const std::string &working_dir, const boost::process::v1::environment &env, FILE *output);
+
+    static const unsigned int FLAG_IGNORE_PERMISSION_DENIED = 1;
+
+  private:
+    std::vector<cmd_t> _cmds;
+    std::vector<cmd_t>::const_iterator _cmds_it;
+  };
+
   class proc_t {
   public:
     KITTY_DEFAULT_CONSTR_MOVE_THROW(proc_t)
@@ -118,8 +139,7 @@ namespace proc {
     boost::process::v1::group _process_group;
 
     file_t _pipe;
-    std::vector<cmd_t>::const_iterator _app_prep_it;
-    std::vector<cmd_t>::const_iterator _app_prep_begin;
+    prep_cmds_t _app_prep;
   };
 
   /**

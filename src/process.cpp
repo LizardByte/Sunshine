@@ -95,7 +95,7 @@ namespace proc {
     }
   }
 
-  boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
+  boost::filesystem::path find_working_directory(const std::string &cmd, const boost::process::v1::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
 #ifdef _WIN32
     auto parts = boost::program_options::split_winmain(cmd);
@@ -145,8 +145,7 @@ namespace proc {
 
     _app_id = app_id;
     _app = *app_iter;
-    _app_prep_begin = std::begin(_app.prep_cmds);
-    _app_prep_it = _app_prep_begin;
+    _app_prep = prep_cmds_t(_app.prep_cmds);
 
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);
@@ -197,37 +196,13 @@ namespace proc {
       terminate();
     });
 
-    for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
-      auto &cmd = *_app_prep_it;
-
-      // Skip empty commands
-      if (cmd.do_cmd.empty()) {
-        continue;
-      }
-
-      boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.do_cmd, _env) :
-                                              boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
-      auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
-
-      if (ec) {
-        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
-        // We don't want any prep commands failing launch of the desktop.
-        // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
-        // permission_denied is typically returned when the user impersonation fails, which can happen when user is not signed in yet.
-        if (!(_app.cmd.empty() && ec == std::errc::permission_denied)) {
-          return -1;
-        }
-      }
-
-      child.wait();
-      auto ret = child.exit_code();
-      if (ret != 0 && ec != std::errc::permission_denied) {
-        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
-        return -1;
-      }
-    }
+    int err = _app_prep.run_do(_app.working_dir, _env, _pipe.get(),
+      // We don't want any prep commands failing launch of the desktop.
+      // This is to prevent the issue where users reboot their PC and need to log in with Sunshine.
+      // permission_denied is typically returned when the user impersonation fails, which can happen when user is not signed in yet.
+      _app.cmd.empty() ? prep_cmds_t::FLAG_IGNORE_PERMISSION_DENIED : 0
+    );
+    if (err != 0) return err;
 
     for (auto &cmd : _app.detached) {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
@@ -301,36 +276,12 @@ namespace proc {
   }
 
   void proc_t::terminate() {
-    std::error_code ec;
     placebo = false;
     terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = boost::process::v1::child();
     _process_group = boost::process::v1::group();
 
-    for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
-      auto &cmd = *(_app_prep_it - 1);
-
-      if (cmd.undo_cmd.empty()) {
-        continue;
-      }
-
-      boost::filesystem::path working_dir = _app.working_dir.empty() ?
-                                              find_working_directory(cmd.undo_cmd, _env) :
-                                              boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
-      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
-
-      if (ec) {
-        BOOST_LOG(warning) << "System: "sv << ec.message();
-      }
-
-      child.wait();
-      auto ret = child.exit_code();
-
-      if (ret != 0) {
-        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
-      }
-    }
+    _app_prep.run_undo(_app.working_dir, _env, _pipe.get());
 
     _pipe.reset();
 
@@ -381,6 +332,74 @@ namespace proc {
     // Once we reach this point here, termination must have already happened.
     assert(!placebo);
     assert(!_process.running());
+  }
+
+  int prep_cmds_t::run_do(const std::string &working_dir, const boost::process::v1::environment &env, FILE *output, unsigned int flags) {
+    std::error_code ec;
+    
+    for (; _cmds_it != _cmds.end(); ++_cmds_it) {
+      auto &cmd = *_cmds_it;
+
+      // Skip empty commands
+      if (cmd.do_cmd.empty()) {
+        continue;
+      }
+
+      boost::filesystem::path working_dir_path = working_dir.empty() ?
+                                              find_working_directory(cmd.do_cmd, env) :
+                                              boost::filesystem::path(working_dir);
+      BOOST_LOG(info) << "Executing Do Cmd: ["sv << cmd.do_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd.do_cmd, working_dir_path, env, output, ec, nullptr);
+
+      if (ec) {
+        BOOST_LOG(error) << "Couldn't run ["sv << cmd.do_cmd << "]: System: "sv << ec.message();
+        if (flags & FLAG_IGNORE_PERMISSION_DENIED && ec == std::errc::permission_denied) {
+          continue;
+        } else {
+          return -1;
+        }
+      }
+
+      child.wait();
+      auto ret = child.exit_code();
+      if (ret != 0) {
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
+        return -1;
+      }
+    }
+    
+    return 0;
+  }
+
+  int prep_cmds_t::run_undo(const std::string &working_dir, const boost::process::v1::environment &env, FILE *output) {
+    std::error_code ec;
+    
+    for (; _cmds_it != _cmds.begin(); --_cmds_it) {
+      auto &cmd = *(_cmds_it - 1);
+
+      if (cmd.undo_cmd.empty()) {
+        continue;
+      }
+
+      boost::filesystem::path working_dir_path = working_dir.empty() ?
+                                              find_working_directory(cmd.undo_cmd, env) :
+                                              boost::filesystem::path(working_dir);
+      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir_path, env, output, ec, nullptr);
+
+      if (ec) {
+        BOOST_LOG(warning) << "System: "sv << ec.message();
+      }
+
+      child.wait();
+      auto ret = child.exit_code();
+
+      if (ret != 0) {
+        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+      }
+    }
+
+    return 0;
   }
 
   std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {
