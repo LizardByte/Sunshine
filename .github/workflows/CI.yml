@@ -71,6 +71,7 @@ jobs:
             runner: ubuntu-22.04-arm
     steps:
       - name: Maximize build space
+        if: matrix.arch == 'x86_64'
         uses: easimon/maximize-build-space@v10
         with:
           root-reserve-mb: 10240
