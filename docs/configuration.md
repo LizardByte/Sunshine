@@ -770,6 +770,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### disable_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            This option allows to disable streaming audio completely, useful for streaming of headless displays as second monitors
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            disable_audio = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### install_steam_audio_drivers
 
 <table>
