@@ -90,6 +90,50 @@ shift $((OPTIND -1))
 # dependencies array to build out
 dependencies=()
 
+function add_arch_deps() {
+  dependencies+=(
+    'avahi'
+    'base-devel'
+    'cmake'
+    'curl'
+    'git'
+    'libayatana-appindicator'
+    'libcap'
+    'libdrm'
+    'libevdev'
+    'libmfx'
+    'libnotify'
+    'libpulse'
+    'libva'
+    'libx11'
+    'libxcb'
+    'libxfixes'
+    'libxrandr'
+    'libxtst'
+    'miniupnpc'
+    'ninja'
+    'nodejs'
+    'npm'
+    'numactl'
+    'openssl'
+    'opus'
+    'udev'
+    'wayland'
+  )
+
+  if [ "$skip_libva" == 0 ]; then
+    dependencies+=(
+      "libva"  # VA-API
+    )
+  fi
+
+  if [ "$skip_cuda" == 0 ]; then
+    dependencies+=(
+      "cuda"  # VA-API
+    )
+  fi
+}
+
 function add_debian_based_deps() {
   dependencies+=(
     "bison"  # required if we need to compile doxygen
@@ -198,9 +242,15 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
+  nvcc_path=$(command -v nvcc 2>/dev/null) || true
+  if [ -n "$nvcc_path" ]; then
+    echo "found system cuda"
+    return
+  fi
   # check if we need to install cuda
   if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
-    echo "cuda already installed"
+    nvcc_path="${build_dir}/cuda/bin/nvcc"
+    echo "found local cuda"
     return
   fi
 
@@ -237,6 +287,7 @@ function install_cuda() {
   chmod a+x "${build_dir}/cuda.run"
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
   rm "${build_dir}/cuda.run"
+  nvcc_path="${build_dir}/cuda/bin/nvcc"
 }
 
 function check_version() {
@@ -250,6 +301,8 @@ function check_version() {
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
   elif [ "$distro" == "fedora" ]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
+  elif [ "$distro" == "arch" ]; then
+    installed_version=$(pacman -Q "$package_name" | awk '{print $2}' )
   else
     echo "Unsupported Distro"
     return 1
@@ -303,7 +356,9 @@ function run_install() {
   # Update the package list
   $package_update_command
 
-  if [ "$distro" == "debian" ]; then
+  if [ "$distro" == "arch" ]; then
+    add_arch_deps
+  elif [ "$distro" == "debian" ]; then
     add_debian_deps
   elif [ "$distro" == "ubuntu" ]; then
     add_ubuntu_deps
@@ -393,10 +448,10 @@ function run_install() {
   fi
 
   # run the cuda install
-  if [ -n "$cuda_version" ] && [ "$skip_cuda" == 0 ]; then
+  if [ "$skip_cuda" == 0 ]; then
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=${build_dir}/cuda/bin/nvcc")
+    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
   fi
 
   # Cmake stuff here
@@ -436,7 +491,14 @@ function run_install() {
 
 # Determine the OS and call the appropriate function
 cat /etc/os-release
-if grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
+
+if grep -q "Arch Linux" /etc/os-release; then
+  distro="arch"
+  version=""
+  package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
+  package_install_command="${sudo_cmd} pacman -Sy --needed"
+  nvm_node=0
+elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
