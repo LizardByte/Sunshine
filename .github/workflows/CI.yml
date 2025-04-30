@@ -825,25 +825,58 @@ jobs:
           Get-Content -Path monitor_list.txt
 
       - name: Setup Dependencies Windows
+        # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
         uses: msys2/setup-msys2@v2
         with:
           msystem: ucrt64
           update: true
           install: >-
-            git
-            mingw-w64-ucrt-x86_64-cmake
-            mingw-w64-ucrt-x86_64-cppwinrt
-            mingw-w64-ucrt-x86_64-curl-winssl
-            mingw-w64-ucrt-x86_64-graphviz
-            mingw-w64-ucrt-x86_64-MinHook
-            mingw-w64-ucrt-x86_64-miniupnpc
-            mingw-w64-ucrt-x86_64-nodejs
-            mingw-w64-ucrt-x86_64-nsis
-            mingw-w64-ucrt-x86_64-onevpl
-            mingw-w64-ucrt-x86_64-openssl
-            mingw-w64-ucrt-x86_64-opus
-            mingw-w64-ucrt-x86_64-toolchain
             wget
+
+      - name: Update Windows dependencies
+        env:
+          gcc_version: "14.2.0-3"
+        shell: msys2 {0}
+        run: |
+          broken_deps=(
+            "mingw-w64-ucrt-x86_64-gcc"
+            "mingw-w64-ucrt-x86_64-gcc-libs"
+          )
+
+          tarballs=""
+          for dep in "${broken_deps[@]}"; do
+            tarball="${dep}-${gcc_version}-any.pkg.tar.zst"
+
+            # download and install working version
+            wget https://repo.msys2.org/mingw/ucrt64/${tarball}
+
+            tarballs="${tarballs} ${tarball}"
+          done
+
+          # install broken dependencies
+          if [ -n "$tarballs" ]; then
+            pacman -U --noconfirm ${tarballs}
+          fi
+
+          # install dependencies
+          dependencies=(
+            "git"
+            "mingw-w64-ucrt-x86_64-cmake"
+            "mingw-w64-ucrt-x86_64-cppwinrt"
+            "mingw-w64-ucrt-x86_64-curl-winssl"
+            "mingw-w64-ucrt-x86_64-graphviz"
+            "mingw-w64-ucrt-x86_64-MinHook"
+            "mingw-w64-ucrt-x86_64-miniupnpc"
+            "mingw-w64-ucrt-x86_64-nlohmann-json"
+            "mingw-w64-ucrt-x86_64-nodejs"
+            "mingw-w64-ucrt-x86_64-nsis"
+            "mingw-w64-ucrt-x86_64-onevpl"
+            "mingw-w64-ucrt-x86_64-openssl"
+            "mingw-w64-ucrt-x86_64-opus"
+            "mingw-w64-ucrt-x86_64-toolchain"
+          )
+
+          pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
 
       - name: Install Doxygen
         # GCC compiled doxygen has issues when running graphviz
