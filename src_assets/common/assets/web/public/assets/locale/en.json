@@ -323,6 +323,8 @@
     "resolution_change_windows": "Resolution change",
     "resolutions": "Advertised Resolutions",
     "restart_note": "Sunshine is restarting to apply changes.",
+    "stream_audio": "Stream Audio",
+    "stream_audio_desc": "Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.",
     "sunshine_name": "Sunshine Name",
     "sunshine_name_desc": "The name displayed by Moonlight. If not specified, the PC's hostname is used",
     "sw_preset": "SW Presets",

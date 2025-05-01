@@ -69,6 +69,14 @@ const config = ref(props.config)
       </template>
     </PlatformLayout>
 
+    <!-- Disable Audio -->
+    <Checkbox class="mb-3"
+              id="stream_audio"
+              locale-prefix="config"
+              v-model="config.stream_audio"
+              default="true"
+    ></Checkbox>
+
     <AdapterNameSelector
         :platform="platform"
         :config="config"

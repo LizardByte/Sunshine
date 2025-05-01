@@ -741,7 +741,30 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [install_steam_audio_drivers](https://localhost:47990/config/#install_steam_audio_drivers)
+### stream_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            stream_audio = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### install_steam_audio_drivers
 
 <table>
     <tr>
