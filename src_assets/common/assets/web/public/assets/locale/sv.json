@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Tillåt långsam HEVC-kodning",
     "qsv_slow_hevc_desc": "Detta kan aktivera HEVC-kodning på äldre Intel GPU:er, på bekostnad av högre GPU-användning och sämre prestanda.",
     "restart_note": "Solsken börjar om för att tillämpa förändringar.",
+    "stream_audio": "Strömma ljud",
+    "stream_audio_desc": "Om du vill strömma ljud eller inte. Inaktivera detta kan vara användbart för strömning av headless skärmar som andra skärmar.",
     "sunshine_name": "Solsken Namn",
     "sunshine_name_desc": "Namnet som visas av Moonlight. Om det inte anges används datorns värdnamn",
     "sw_preset": "SW förinställningar",
