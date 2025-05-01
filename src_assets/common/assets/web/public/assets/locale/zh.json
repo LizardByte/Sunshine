@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "允许慢速 HEVC 编码",
     "qsv_slow_hevc_desc": "这可以让英特尔旧的 GPU 上的 HEVC 编码，代价是GPU 使用率更高和性能更差。",
     "restart_note": "正在重启 Sunshine 以应用更改。",
+    "stream_audio": "流音频",
+    "stream_audio_desc": "Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.",
     "sunshine_name": "Sunshine 主机名称",
     "sunshine_name_desc": "在 Moonlight 中显示的名称。如果未指定，则使用 PC 的主机名",
     "sw_preset": "软件编码预设",
