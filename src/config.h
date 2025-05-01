@@ -147,7 +147,7 @@ namespace config {
   struct audio_t {
     std::string sink;
     std::string virtual_sink;
-    bool disable;
+    bool stream;
     bool install_steam_drivers;
   };
 

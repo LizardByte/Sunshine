@@ -65,10 +65,10 @@ const config = ref(props.config)
 
     <!-- Disable Audio -->
     <Checkbox class="mb-3"
-              id="disable_audio"
+              id="stream_audio"
               locale-prefix="config"
-              v-model="config.disable_audio"
-              default="false"
+              v-model="config.stream_audio"
+              default="true"
     ></Checkbox>
 
     <AdapterNameSelector

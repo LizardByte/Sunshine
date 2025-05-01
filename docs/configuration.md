@@ -770,25 +770,25 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### disable_audio
+### stream_audio
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            This option allows to disable streaming audio completely, useful for streaming of headless displays as second monitors
+            Weather to Stream Audio or Not, Disabling this can be useful for streaming headless displays as second monitors.
         </td>
     </tr>
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            disabled
+            enabled
             @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            disable_audio = enabled
+            stream_audio = disabled
             @endcode</td>
     </tr>
 </table>
