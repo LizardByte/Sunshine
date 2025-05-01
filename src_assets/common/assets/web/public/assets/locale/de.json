@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Langsame HEVC Encodierung erlauben",
     "qsv_slow_hevc_desc": "Dies kann HEVC-Kodierung auf älteren Intel GPUs ermöglichen, auf Kosten einer höheren GPU-Nutzung und schlechteren Performance.",
     "restart_note": "Sunshine wird neu gestartet, um Änderungen anzuwenden.",
+    "stream_audio": "Stream Audio",
+    "stream_audio_desc": "Ob Audio gestrahlt werden soll oder nicht. Deaktivieren kann nützlich sein, um kopflose Displays als zweiten Monitor zu streamen.",
     "sunshine_name": "Sunshine Name",
     "sunshine_name_desc": "Der von Mononlight angezeigte Name, falls nicht angegeben, wird der Hostname des PCs verwendet",
     "sw_preset": "SW-Voreinstellungen",
