@@ -227,8 +227,6 @@
     "hevc_mode_desc": "Allows the client to request HEVC Main or HEVC Main10 video streams. HEVC is more CPU-intensive to encode, so enabling this may reduce performance when using software encoding.",
     "high_resolution_scrolling": "High Resolution Scrolling Support",
     "high_resolution_scrolling_desc": "When enabled, Sunshine will pass through high resolution scroll events from Moonlight clients. This can be useful to disable for older applications that scroll too fast with high resolution scroll events.",
-    "stream_audio" : "Stream Audio""
-    "stream_audio_desc" : "Weather to Stream Audio or Not, Disabling this can be useful for streaming headless displays as second monitors.",
     "install_steam_audio_drivers": "Install Steam Audio Drivers",
     "install_steam_audio_drivers_desc": "If Steam is installed, this will automatically install the Steam Streaming Speakers driver to support 5.1/7.1 surround sound and muting host audio.",
     "key_repeat_delay": "Key Repeat Delay",
@@ -331,6 +329,8 @@
     "qsv_slow_hevc": "Allow Slow HEVC Encoding",
     "qsv_slow_hevc_desc": "This can enable HEVC encoding on older Intel GPUs, at the cost of higher GPU usage and worse performance.",
     "restart_note": "Sunshine is restarting to apply changes.",
+    "stream_audio": "Stream Audio",
+    "stream_audio_desc": "Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.",
     "sunshine_name": "Sunshine Name",
     "sunshine_name_desc": "The name displayed by Moonlight. If not specified, the PC's hostname is used",
     "sw_preset": "SW Presets",

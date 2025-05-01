@@ -776,7 +776,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Weather to Stream Audio or Not, Disabling this can be useful for streaming headless displays as second monitors.
+            Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.
         </td>
     </tr>
     <tr>
