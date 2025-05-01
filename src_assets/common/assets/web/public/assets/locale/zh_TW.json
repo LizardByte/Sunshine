@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "允許慢速 HEVC 編碼",
     "qsv_slow_hevc_desc": "這樣可以在較舊的 Intel GPU 上進行 HEVC 編碼，但代價是 GPU 使用量較高，效能較差。",
     "restart_note": "Sunshine 正在重新啟動以套用變更。",
+    "stream_audio": "串流音訊",
+    "stream_audio_desc": "是否串流音訊。停用此功能對於串流無頭顯示器作為第二台顯示器很有用。",
     "sunshine_name": "Sunshine 名稱",
     "sunshine_name_desc": "Moonlight 顯示的名稱。如果未指定，則使用 PC 的主機名稱。",
     "sw_preset": "SW 預設值",
