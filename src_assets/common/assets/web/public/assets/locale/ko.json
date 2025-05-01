@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "느린 HEVC 인코딩 허용",
     "qsv_slow_hevc_desc": "이렇게 하면 구형 인텔 GPU에서 HEVC 인코딩이 가능하지만, GPU 사용량이 증가하고 성능이 저하될 수 있습니다.",
     "restart_note": "변경 사항을 적용하기 위해 Sunshine이 다시 시작됩니다.",
+    "stream_audio": "오디오 스트리밍",
+    "stream_audio_desc": "오디오 스트리밍 여부. 이 옵션을 비활성화하면 헤드리스 디스플레이를 보조 모니터로 스트리밍하는 데 유용할 수 있습니다.",
     "sunshine_name": "Sunshine 이름",
     "sunshine_name_desc": "Moonlight에서 표시되는 이름입니다. 지정하지 않으면 PC의 이름이 사용됩니다.",
     "sw_preset": "소프트웨어 프리셋",
