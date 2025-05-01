@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "低速HEVCエンコーディングを許可する",
     "qsv_slow_hevc_desc": "これにより、GPU 使用率の向上とパフォーマンスの低下を犠牲にして、古い Intel GPU での HEVC エンコーディングを有効にできます。",
     "restart_note": "サンシャインは変更を適用するために再起動しています。",
+    "stream_audio": "音声をストリーミング",
+    "stream_audio_desc": "音声をストリーミングするかどうかを選択します。無効にすると、ヘッドレスディスプレイを第二のモニターとしてストリーミングする場合に便利です。",
     "sunshine_name": "サンシャイン名",
     "sunshine_name_desc": "Moonlight によって表示される名前。指定されていない場合は、PC のホスト名が使用されます",
     "sw_preset": "SWプリセット",
