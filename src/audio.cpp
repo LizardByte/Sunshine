@@ -129,10 +129,10 @@ namespace audio {
 
   void capture(safe::mail_t mail, config_t config, void *channel_data) {
     auto shutdown_event = mail->event<bool>(mail::shutdown);
-    if (!config::audio.stream){
+    if (!config::audio.stream) {
       shutdown_event->view();
       return;
-  }
+    }
     auto stream = stream_configs[map_stream(config.channels, config.flags[config_t::HIGH_QUALITY])];
     if (config.flags[config_t::CUSTOM_SURROUND_PARAMS]) {
       apply_surround_params(stream, config.customStreamParams);
