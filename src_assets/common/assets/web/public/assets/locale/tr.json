@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Yavaş HEVC Kodlamasına İzin Ver",
     "qsv_slow_hevc_desc": "Bu, daha yüksek GPU kullanımı ve daha kötü performans pahasına eski Intel GPU'larda HEVC kodlamasını etkinleştirebilir.",
     "restart_note": "Sunshine değişikleri uygulamak için yeniden başlatılıyor.",
+    "stream_audio": "Ses Akışı",
+    "stream_audio_desc": "Ses akışı yapılıp yapılmayacağı. Bunu devre dışı bırakmak, başsız ekranları ikinci monitör olarak yayınlamak için yararlı olabilir.",
     "sunshine_name": "Günışığı Adı",
     "sunshine_name_desc": "Moonlight tarafından görüntülenen ad. Belirtilmezse, bilgisayarın ana bilgisayar adı kullanılır",
     "sw_preset": "SW Ön Ayarları",
