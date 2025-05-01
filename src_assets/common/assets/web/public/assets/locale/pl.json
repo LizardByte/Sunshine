@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Zezwalaj na wolne kodowanie HEVC",
     "qsv_slow_hevc_desc": "Może to umożliwić kodowanie HEVC na starszych procesorach graficznych Intel, kosztem wyższego wykorzystania GPU i gorszej wydajności.",
     "restart_note": "Sunshine uruchamia się ponownie, aby zastosować zmiany.",
+    "stream_audio": "Strumień audio",
+    "stream_audio_desc": "Wyłączenie tego może być przydatne do odtwarzania strumieniowego wyświetlaczy bezsłuchawkowych jako drugiego monitora.",
     "sunshine_name": "Nazwa Sunshine",
     "sunshine_name_desc": "Nazwa wyświetlana przez Moonlight. Jeśli nie zostanie określona, używana jest nazwa hosta komputera",
     "sw_preset": "Ustawienia wstępne SW",
