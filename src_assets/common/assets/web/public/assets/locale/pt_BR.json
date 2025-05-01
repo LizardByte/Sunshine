@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Permitir codificação lenta de HEVC",
     "qsv_slow_hevc_desc": "Isso pode permitir a codificação HEVC em GPUs Intel mais antigas, ao custo de maior uso da GPU e pior desempenho.",
     "restart_note": "O Sunshine está sendo reiniciado para aplicar as alterações.",
+    "stream_audio": "Transmitir Áudio",
+    "stream_audio_desc": "Se você deseja ou não fazer streaming de áudio. Desativar isso pode ser útil para streaming sem cabeça como monitores secundários.",
     "sunshine_name": "Nome Sunshine",
     "sunshine_name_desc": "O nome exibido pelo Moonlight. Se não for especificado, será usado o nome do host do PC",
     "sw_preset": "Predefinições de SW",
