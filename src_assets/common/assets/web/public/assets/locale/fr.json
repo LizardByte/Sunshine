@@ -329,6 +329,8 @@
     "qsv_slow_hevc": "Autoriser l'encodage Slow HEVC",
     "qsv_slow_hevc_desc": "Cela peut permettre l'encodage HEVC sur les anciens GPU Intel, au prix d'une utilisation plus élevée du GPU et de performances moins élevées.",
     "restart_note": "Sunshine redémarre pour appliquer les changements.",
+    "stream_audio": "Flux audio",
+    "stream_audio_desc": "Que ce soit pour diffuser ou non de l'audio. Désactiver cette option peut être utile pour diffuser en continu des écrans sans tête en tant que deuxième moniteurs.",
     "sunshine_name": "Nom de Sunshine",
     "sunshine_name_desc": "Le nom affiché par Moonlight. S'il n'est pas spécifié, le nom d'hôte du PC est utilisé.",
     "sw_preset": "Préréglages SW",
