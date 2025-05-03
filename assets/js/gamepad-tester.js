@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const gamepadHelper = new GamepadHelper()
+    const gamepadHelperVersion = window.gamepadHelperVersion;
     let gamepads = {};
     let activeGamepadIndex = null;
     let animationFrameId = null;
@@ -8,26 +10,12 @@ document.addEventListener('DOMContentLoaded', function() {
     let gamepadStatus = document.getElementById('gamepad-status');
 
     // Check if the Gamepad API is supported
-    if (!GamepadHelper.isSupported()) {
+    if (!gamepadHelper.isSupported()) {
         gamepadStatus.textContent = 'Gamepad API not supported in this browser';
         gamepadStatus.classList.remove('alert-warning');
         gamepadStatus.classList.add('alert-danger');
         return;
     }
-
-    // Initialize button colors for various states
-    const buttonColors = {
-        'standard': {
-            'inactive': 'btn-outline-primary',
-            'active': 'btn-primary'
-        },
-    };
-
-    // Axis names mapping
-    const axisNames = [
-        'Left Stick X', 'Left Stick Y',
-        'Right Stick X', 'Right Stick Y'
-    ];
 
     // Setup gamepad event listeners
     window.addEventListener("gamepadconnected", function(e) {
@@ -129,27 +117,52 @@ document.addEventListener('DOMContentLoaded', function() {
         const gamepad = navigator.getGamepads()[activeGamepadIndex];
         if (!gamepad) return;
 
-        const controllerType = GamepadHelper.detectControllerType(gamepad.id);
+        const controllerType = gamepadHelper.detectControllerType(gamepad.id);
 
         for (let i = 0; i < gamepad.buttons.length; i++) {
-            const buttonName = GamepadHelper.getButtonName(controllerType, i);
+            const buttonName = gamepadHelper.getButtonName(controllerType, i);
+            const buttonImagePath = gamepadHelper.getButtonImagePath(
+                controllerType,
+                i,
+                `https://cdn.jsdelivr.net/npm/@lizardbyte/gamepad-helper@${gamepadHelperVersion}/assets/img/gamepads/`,
+            );
 
             const buttonDiv = document.createElement('div');
             buttonDiv.className = 'circular-button';
             buttonDiv.id = `button-${i}`;
 
-            buttonDiv.innerHTML = `
-            <span class="progress-left">
-                <span class="progress-bar" id="progress-bar-left-${i}"></span>
-            </span>
-            <span class="progress-right">
-                <span class="progress-bar" id="progress-bar-right-${i}"></span>
-            </span>
-            <div class="button-content">
+            // Create the progress elements
+            const progressLeft = document.createElement('span');
+            progressLeft.className = 'progress-left';
+            progressLeft.innerHTML = `<span class="progress-bar" id="progress-bar-left-${i}"></span>`;
+
+            const progressRight = document.createElement('span');
+            progressRight.className = 'progress-right';
+            progressRight.innerHTML = `<span class="progress-bar" id="progress-bar-right-${i}"></span>`;
+
+            // Create the button content
+            const buttonContent = document.createElement('div');
+            buttonContent.className = 'button-content';
+
+            // Add either image with fallback text, or just text
+            if (buttonImagePath) {
+                buttonContent.innerHTML = `
+                <div class="button-image-container">
+                    <img src="${buttonImagePath}" alt="${buttonName}" class="button-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                    <div class="button-name" style="display: none;">${buttonName}</div>
+                </div>
+                <div class="button-value" id="button-value-${i}">0.00</div>
+            `;
+            } else {
+                buttonContent.innerHTML = `
                 <div class="button-name">${buttonName}</div>
                 <div class="button-value" id="button-value-${i}">0.00</div>
-            </div>
-        `;
+            `;
+            }
+
+            buttonDiv.appendChild(progressLeft);
+            buttonDiv.appendChild(progressRight);
+            buttonDiv.appendChild(buttonContent);
 
             buttonsContainer.appendChild(buttonDiv);
         }
@@ -165,13 +178,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const gamepad = navigator.getGamepads()[activeGamepadIndex];
         if (!gamepad) return;
 
-        const controllerType = GamepadHelper.detectControllerType(gamepad.id);
+        const controllerType = gamepadHelper.detectControllerType(gamepad.id);
 
         for (let i = 0; i < gamepad.axes.length; i++) {
             const colDiv = document.createElement('div');
             colDiv.className = 'col-md-6 col-lg-3 mb-3';
 
-            const axisName = GamepadHelper.getAxisName(controllerType, i);
+            const axisName = gamepadHelper.getAxisName(controllerType, i);
 
             colDiv.innerHTML = `
                 <div class="mb-1">${axisName}: <span id="axis-value-${i}">0.00</span></div>
@@ -201,8 +214,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Update the gamepad info function to include vibration status
     function updateGamepadInfo(gamepad) {
-        const gamepadInfo = GamepadHelper.getGamepadInfo(gamepad.id);
-        const vibrationCapabilities = GamepadHelper.getVibrationCapabilities(gamepad);
+        const gamepadInfo = gamepadHelper.getGamepadInfo(gamepad.id);
+        const vibrationCapabilities = gamepadHelper.getVibrationCapabilities(gamepad);
 
         document.getElementById('gamepad-id').textContent = gamepad.id;
         document.getElementById('gamepad-index').textContent = gamepad.index;
@@ -367,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return `Axis ${index}: ${axis.toFixed(2)}`;
         });
 
-        rawDataElement.textContent = `Gamepad: ${gamepad.id}\nType: ${GamepadHelper.detectControllerType(gamepad.id)}\n\nButtons:\n${buttons.join('\n')}\n\nAxes:\n${axes.join('\n')}`;
+        rawDataElement.textContent = `Gamepad: ${gamepad.id}\nType: ${gamepadHelper.detectControllerType(gamepad.id)}\n\nButtons:\n${buttons.join('\n')}\n\nAxes:\n${axes.join('\n')}`;
     }
 
     // Event listeners for vibration controls
@@ -393,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const gamepad = navigator.getGamepads()[activeGamepadIndex];
             if (!gamepad) return;
 
-            const vibrationCapabilities = GamepadHelper.getVibrationCapabilities(gamepad);
+            const vibrationCapabilities = gamepadHelper.getVibrationCapabilities(gamepad);
             if (!vibrationCapabilities.supported) return;
 
             const duration = parseInt(document.getElementById('vibration-duration').value);
@@ -409,7 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 vibrationOptions.magnitude = magnitude;
             }
 
-            GamepadHelper.vibrate(gamepad, vibrationOptions)
+            gamepadHelper.vibrate(gamepad, vibrationOptions)
                 .then(() => console.log('Vibration started'))
                 .catch(e => console.error('Vibration error:', e));
         }
@@ -420,7 +433,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (activeGamepadIndex !== null) {
             const gamepad = navigator.getGamepads()[activeGamepadIndex];
             if (gamepad) {
-                GamepadHelper.stopVibration(gamepad).catch(e => {
+                gamepadHelper.stopVibration(gamepad).catch(e => {
                     console.error('Stop vibration error:', e);
                 });
             }
