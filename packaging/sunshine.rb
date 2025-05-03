@@ -351,6 +351,7 @@ index 5b3638d..aca9481 100644
     system bin/"sunshine", "--version"
 
     # run the test suite
-    system bin/"test_sunshine", "--gtest_color=yes"
+    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:test_results.xml"
+    assert_path_exists testpath/"test_results.xml"
   end
 end

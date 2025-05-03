@@ -431,12 +431,14 @@ jobs:
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
           sleep 5  # give Xvfb time to start
 
-          ./test_sunshine --gtest_color=yes
+          ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Generate gcov report
         id: test_report
         # any except canceled or skipped
-        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
@@ -447,6 +449,22 @@ jobs:
             --verbose \
             --xml-pretty \
             -o coverage.xml
+
+      - name: Upload test results to Codecov
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
+          startsWith(github.repository, 'LizardByte/')
+        uses: codecov/test-results-action@v1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./build/tests/test_results.xml
+          flags: ${{ runner.os }}
+          handle_no_reports_found: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Upload coverage
         # any except canceled or skipped
@@ -603,7 +621,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/homebrew-release-action@v2024.1115.14934
+        uses: LizardByte/homebrew-release-action@v2025.503.165455
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
@@ -623,15 +641,7 @@ jobs:
         #   matrix.release != true &&
         #   (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         run: |
-          # if linux
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            prefix="/tmp"
-          else
-            prefix="/private/tmp"
-          fi
-
-          brew_dir=$(find ${prefix} -type d -name "sunshine-*" -maxdepth 1 2>/dev/null)
-          cp -rf $brew_dir/build/ ./build/
+          cp -rf ${{ steps.test.outputs.buildpath }}/build/ ./build/
           cd build
           ls -Ra
 
@@ -643,6 +653,23 @@ jobs:
             --verbose \
             --xml-pretty \
             -o coverage.xml
+
+      - name: Upload test results to Codecov
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          matrix.release != true &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
+          startsWith(github.repository, 'LizardByte/')
+        uses: codecov/test-results-action@v1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ${{ steps.test.outputs.testpath }}/test_results.xml
+          flags: ${{ matrix.os_name }}-${{ matrix.os_version }} (Homebrew)
+          handle_no_reports_found: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Upload coverage
         # any except canceled or skipped
@@ -701,7 +728,7 @@ jobs:
           github.repository_owner == 'LizardByte' &&
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/homebrew-release-action@v2024.1115.14934
+        uses: LizardByte/homebrew-release-action@v2025.503.165455
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
@@ -959,7 +986,7 @@ jobs:
         shell: msys2 {0}
         working-directory: build/tests
         run: |
-          ./test_sunshine.exe --gtest_color=yes
+          ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Generate gcov report
         id: test_report
@@ -976,6 +1003,22 @@ jobs:
             --verbose \
             --xml-pretty \
             -o coverage.xml
+
+      - name: Upload test results to Codecov
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
+          startsWith(github.repository, 'LizardByte/')
+        uses: codecov/test-results-action@v1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./build/tests/test_results.xml
+          flags: ${{ runner.os }}
+          handle_no_reports_found: true
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
 
       - name: Upload coverage
         # any except canceled or skipped
