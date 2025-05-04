@@ -3,13 +3,14 @@ import fs from 'fs';
 import { resolve } from 'path'
 import { defineConfig } from 'vite'
 import { ViteEjsPlugin } from "vite-plugin-ejs";
+import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
 import process from 'process'
 
 /**
  * Before actually building the pages with Vite, we do an intermediate build step using ejs
- * Importing this separately and joining them using ejs 
- * allows us to split some repeating HTML that cannot be added 
+ * Importing this separately and joining them using ejs
+ * allows us to split some repeating HTML that cannot be added
  * by Vue itself (e.g. style/script loading, common meta head tags, Widgetbot)
  * The vite-plugin-ejs handles this automatically
  */
@@ -49,7 +50,16 @@ export default defineConfig({
         }
     },
     base: './',
-    plugins: [vue(), ViteEjsPlugin({ header })],
+    plugins: [
+        vue(),
+        ViteEjsPlugin({ header }),
+        // The Codecov vite plugin should be after all other plugins
+        codecovVitePlugin({
+            enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+            bundleName: "sunshine",
+            uploadToken: process.env.CODECOV_TOKEN,
+        }),
+    ],
     root: resolve(assetsSrcPath),
     build: {
         outDir: resolve(assetsDstPath),
