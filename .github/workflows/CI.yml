@@ -952,6 +952,7 @@ jobs:
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           mkdir -p build
