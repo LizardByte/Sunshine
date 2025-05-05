@@ -96,6 +96,8 @@ function add_arch_deps() {
     'base-devel'
     'cmake'
     'curl'
+    "gcc-${gcc_version}"
+    "gcc${gcc_version}-libs"
     'git'
     'libayatana-appindicator'
     'libcap'
@@ -358,6 +360,8 @@ function run_install() {
 
   if [ "$distro" == "arch" ]; then
     add_arch_deps
+    #docs currently broken for arch
+    cmake_args+=("-DBUILD_DOCS=OFF")
   elif [ "$distro" == "debian" ]; then
     add_debian_deps
   elif [ "$distro" == "ubuntu" ]; then
@@ -382,8 +386,11 @@ function run_install() {
     "gcc-ranlib"
   )
 
-  # update alternatives for gcc and g++ if a debian based distro
-  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+  #set gcc version based on distros 
+  if [ "$distro" == "arch" ]; then
+    export CC=gcc-14
+    export CXX=g++-14
+  elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
       if [ -e "$file_path" ]; then
@@ -498,6 +505,7 @@ if grep -q "Arch Linux" /etc/os-release; then
   package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
   package_install_command="${sudo_cmd} pacman -Sy --needed"
   nvm_node=0
+  gcc_version="14"
 elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
