@@ -229,8 +229,6 @@ xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rot
 | Do        | @code{}sh -c "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
-The commands above are valid for an X11 session but won't work for Wayland.
-
 ###### Gnome (Wayland)
 
 | Prep Step | Command                                                                                                                                                                                               |
