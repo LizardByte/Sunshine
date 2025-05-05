@@ -295,6 +295,7 @@ function install_cuda() {
 function check_version() {
   local package_name=$1
   local min_version=$2
+  local max_version=$3
   local installed_version
 
   echo "Checking if $package_name is installed and at least version $min_version"
@@ -315,11 +316,12 @@ function check_version() {
     return 1
   fi
 
-  if [ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)" = "$min_version" ]; then
-    echo "$package_name version $installed_version is at least $min_version"
+if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)" = "$min_version" ]] && \
+   [[ "$(printf '%s\n' "$installed_version" "$max_version" | sort -V | head -n1)" = "$installed_version" ]]; then
+    echo "Installed version is within range"
     return 0
   else
-    echo "$package_name version $installed_version is less than $min_version"
+    echo "$package_name version $installed_version is out of range"
     return 1
   fi
 }
@@ -360,8 +362,6 @@ function run_install() {
 
   if [ "$distro" == "arch" ]; then
     add_arch_deps
-    #docs currently broken for arch
-    cmake_args+=("-DBUILD_DOCS=OFF")
   elif [ "$distro" == "debian" ]; then
     add_debian_deps
   elif [ "$distro" == "ubuntu" ]; then
@@ -409,7 +409,7 @@ function run_install() {
   # compile cmake if the version is too low
   cmake_min="3.25.0"
   target_cmake_version="3.30.1"
-  if ! check_version "cmake" "$cmake_min"; then
+  if ! check_version "cmake" "$cmake_min" "inf"; then
     cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
     if [ "$architecture" == "x86_64" ]; then
       cmake_arch="x86_64"
@@ -427,7 +427,8 @@ function run_install() {
   # compile doxygen if version is too low
   doxygen_min="1.10.0"
   _doxygen_min="1_10_0"
-  if ! check_version "doxygen" "$doxygen_min"; then
+  doxygen_max="1.12.0"
+  if ! check_version "doxygen" "$doxygen_min" "$doxygen_max"; then
     if [ "${SUNSHINE_COMPILE_DOXYGEN}" == "true" ]; then
       echo "Compiling doxygen"
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/doxygen-${doxygen_min}.src.tar.gz"
@@ -439,7 +440,7 @@ function run_install() {
       ninja -C "build" -j"${num_processors}"
       ninja -C "build" install
     else
-      echo "Doxygen version too low, skipping docs"
+      echo "Doxygen version not in range, skipping docs"
       cmake_args+=("-DBUILD_DOCS=OFF")
     fi
   fi
