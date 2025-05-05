@@ -96,7 +96,7 @@ function add_arch_deps() {
     'base-devel'
     'cmake'
     'curl'
-    "gcc-${gcc_version}"
+    "gcc${gcc_version}"
     "gcc${gcc_version}-libs"
     'git'
     'libayatana-appindicator'
