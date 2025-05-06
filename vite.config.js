@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from 'node:url'
 import fs from 'fs';
 import { resolve } from 'path'
 import { defineConfig } from 'vite'
+import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
 import process from 'process'
 
@@ -40,7 +41,15 @@ export default defineConfig({
         }
     },
     base: './',
-    plugins: [vue()],
+    plugins: [
+        vue(),
+        // The Codecov vite plugin should be after all other plugins
+        codecovVitePlugin({
+            enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+            bundleName: "sunshine",
+            uploadToken: process.env.CODECOV_TOKEN,
+        }),
+    ],
     root: resolve(assetsSrcPath),
     server: {
         proxy: {
