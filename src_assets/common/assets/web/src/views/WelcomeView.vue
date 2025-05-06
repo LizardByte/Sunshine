@@ -4,7 +4,7 @@
       <div class="card p-2">
         <header>
           <h1 class="mb-0">
-            <img src="/assets/images/logo-sunshine-45.png" height="45" alt="">
+            <img src="/images/logo-sunshine-45.png" height="45" alt="">
             {{ $t('welcome.greeting') }}
           </h1>
         </header>
