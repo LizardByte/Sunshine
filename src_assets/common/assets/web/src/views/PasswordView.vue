@@ -1,23 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-  <style>
-    .config-page {
-      padding: 1em;
-      border: 1px solid #dee2e6;
-      border-top: none;
-    }
-
-    .buttons {
-      padding: 1em 0;
-    }
-  </style>
-</head>
-
-<body id="app" v-cloak>
-  <Navbar></Navbar>
+<template>
   <div class="container">
     <h1 class="my-4">{{ $t('password.password_change') }}</h1>
     <form @submit.prevent="save">
@@ -64,16 +45,10 @@
       </div>
     </form>
   </div>
-</body>
-<script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
-  import Navbar from './Navbar.vue'
+</template>
 
-  const app = createApp({
-    components: {
-      Navbar
-    },
+<script type="module">
+  export default {
     data() {
       return {
         error: null,
@@ -111,7 +86,17 @@
         });
       },
     },
-  });
-
-  initApp(app);
+  }
 </script>
+
+<style>
+.config-page {
+  padding: 1em;
+  border: 1px solid #dee2e6;
+  border-top: none;
+}
+
+.buttons {
+  padding: 1em 0;
+}
+</style>

@@ -1,23 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-    <style>
-      .config-page {
-        padding: 1em;
-        border: 1px solid #dee2e6;
-        border-top: none;
-      }
-
-      .buttons {
-        padding: 1em 0;
-      }
-    </style>
-</head>
-
-<body id="app" v-cloak>
-  <Navbar></Navbar>
+<template>
   <div class="container">
     <h1 class="my-4">{{ $t('config.configuration') }}</h1>
     <div class="form" v-if="config">
@@ -91,25 +72,21 @@
       <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
     </div>
   </div>
-</body>
+</template>
 
 
 <script type="module">
-  import { computed, createApp } from 'vue'
-  import { initApp } from './init'
-  import Navbar from './Navbar.vue'
-  import General from './configs/tabs/General.vue'
-  import Inputs from './configs/tabs/Inputs.vue'
-  import Network from './configs/tabs/Network.vue'
-  import Files from './configs/tabs/Files.vue'
-  import Advanced from './configs/tabs/Advanced.vue'
-  import AudioVideo from './configs/tabs/AudioVideo.vue'
-  import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
-  import {$tp, usePlatformI18n} from './platform-i18n'
-
-  const app = createApp({
+  import General from '../components/configs/tabs/General.vue'
+  import Inputs from '../components/configs/tabs/Inputs.vue'
+  import Network from '../components/configs/tabs/Network.vue'
+  import Files from '../components/configs/tabs/Files.vue'
+  import Advanced from '../components/configs/tabs/Advanced.vue'
+  import AudioVideo from '../components/configs/tabs/AudioVideo.vue'
+  import ContainerEncoders from '../components/configs/tabs/ContainerEncoders.vue'
+  import {$tp, usePlatformI18n} from '../utils/platform-i18n.js'
+  import {computed} from 'vue';
+  export default {
     components: {
-      Navbar,
       General,
       Inputs,
       Network,
@@ -437,7 +414,17 @@
       // Add hashchange event listener
       window.addEventListener("hashchange", handleHash);
     },
-  });
-
-  initApp(app);
+  }
 </script>
+
+<style>
+      .config-page {
+        padding: 1em;
+        border: 1px solid #dee2e6;
+        border-top: none;
+      }
+
+      .buttons {
+        padding: 1em 0;
+      }
+    </style>

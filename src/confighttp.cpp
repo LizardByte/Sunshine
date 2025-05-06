@@ -142,7 +142,16 @@ namespace confighttp {
 
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
+      if(request->path == "/welcome"){
+        return true;
+      }
       send_redirect(response, request, "/welcome");
+      return false;
+    }
+
+    //Redirect after /welcome to /
+    if(request->path == "/welcome"){
+      send_redirect(response, request, "/");
       return false;
     }
 
@@ -225,171 +234,13 @@ namespace confighttp {
     }
 
     print_req(request);
-
+    if(request->path.starts_with("/api"))return not_found(response,request);
     std::string content = file_handler::read_file(WEB_DIR "index.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);
   }
-
-  /**
-   * @brief Get the PIN page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getPinPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "pin.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the apps page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getAppsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "apps.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the clients page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getClientsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "clients.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the configuration page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getConfigPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "config.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the password page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getPasswordPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "password.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the welcome page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getWelcomePage(resp_https_t response, req_https_t request) {
-    print_req(request);
-    if (!config::sunshine.username.empty()) {
-      send_redirect(response, request, "/");
-      return;
-    }
-    std::string content = file_handler::read_file(WEB_DIR "welcome.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the troubleshooting page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getTroubleshootingPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "troubleshooting.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the favicon image.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @todo combine function with getSunshineLogoImage and possibly getNodeModules
-   * @todo use mime_types map
-   */
-  void getFaviconImage(resp_https_t response, req_https_t request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/x-icon");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-
-  /**
-   * @brief Get the Sunshine logo image.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   * @todo combine function with getFaviconImage and possibly getNodeModules
-   * @todo use mime_types map
-   */
-  void getSunshineLogoImage(resp_https_t response, req_https_t request) {
-    print_req(request);
-
-    std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "image/png");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
-  }
-
+  
   /**
    * @brief Check if a path is a child of another path.
    * @param base The base path.
@@ -1092,15 +943,8 @@ namespace confighttp {
     server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
-    server.default_resource["GET"] = not_found;
+    server.default_resource["GET"] = getIndexPage;
     server.resource["^/$"]["GET"] = getIndexPage;
-    server.resource["^/pin/?$"]["GET"] = getPinPage;
-    server.resource["^/apps/?$"]["GET"] = getAppsPage;
-    server.resource["^/clients/?$"]["GET"] = getClientsPage;
-    server.resource["^/config/?$"]["GET"] = getConfigPage;
-    server.resource["^/password/?$"]["GET"] = getPasswordPage;
-    server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
-    server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/apps$"]["GET"] = getApps;
     server.resource["^/api/logs$"]["GET"] = getLogs;
@@ -1117,8 +961,6 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-    server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
-    server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);

@@ -1,17 +1,10 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
+<template>
   <main role="main" style="max-width: 1200px; margin: 1em auto">
     <div class="d-flex gap-4">
       <div class="card p-2">
         <header>
           <h1 class="mb-0">
-            <img src="./images/logo-sunshine-45.png" height="45" alt="">
+            <img src="/assets/images/logo-sunshine-45.png" height="45" alt="">
             {{ $t('welcome.greeting') }}
           </h1>
         </header>
@@ -38,7 +31,7 @@
           <button type="submit" class="btn btn-primary w-100 mb-2" v-bind:disabled="loading">
             {{ $t('welcome.login') }}
           </button>
-          <div class="alert alert-danger" v-if="error"><b>{{ $t('_common.error') }}</b> {{error}}</div>
+          <div class="alert alert-danger" v-if="error"><b>{{ $t('_common.error') }}</b> {{ error }}</div>
           <div class="alert alert-success" v-if="success">
             <b>{{ $t('_common.success') }}</b> {{ $t('welcome.welcome_success') }}
           </div>
@@ -49,56 +42,52 @@
       </div>
     </div>
   </main>
-</body>
+</template>
 
 <script type="module">
-  import { createApp } from "vue"
-  import ResourceCard from './ResourceCard.vue'
-  import { initApp } from './init'
-
-  let app = createApp({
-    components: {
-      ResourceCard
-    },
-    data() {
-      return {
-        error: null,
-        success: false,
-        loading: false,
-        passwordData: {
-          newUsername: "sunshine",
-          newPassword: "",
-          confirmNewPassword: "",
-        },
-      };
-    },
-    methods: {
-      save() {
-        this.error = null;
-        this.loading = true;
-        fetch("./api/password", {
-          method: "POST",
-          body: JSON.stringify(this.passwordData),
-        }).then((r) => {
-          this.loading = false;
-          if (r.status === 200) {
-            r.json().then((rj) => {
-              this.success = rj.status;
-              if (this.success === true) {
-                setTimeout(() => {
-                  document.location.reload();
-                }, 5000);
-              } else {
-                this.error = rj.error;
-              }
-            });
-          } else {
-            this.error = "Internal Server Error";
-          }
-        });
+import { createApp } from "vue"
+import ResourceCard from '@/components/ResourceCard.vue'
+export default {
+  components: {
+    ResourceCard
+  },
+  data() {
+    return {
+      error: null,
+      success: false,
+      loading: false,
+      passwordData: {
+        newUsername: "sunshine",
+        newPassword: "",
+        confirmNewPassword: "",
       },
+    };
+  },
+  methods: {
+    save() {
+      this.error = null;
+      this.loading = true;
+      fetch("./api/password", {
+        method: "POST",
+        body: JSON.stringify(this.passwordData),
+      }).then((r) => {
+        this.loading = false;
+        if (r.status === 200) {
+          r.json().then((rj) => {
+            this.success = rj.status;
+            if (this.success === true) {
+              setTimeout(() => {
+                document.location.reload();
+              }, 5000);
+            } else {
+              this.error = rj.error;
+            }
+          });
+        } else {
+          this.error = "Internal Server Error";
+        }
+      });
     },
-  });
-
-  initApp(app);
+  },
+}
 </script>

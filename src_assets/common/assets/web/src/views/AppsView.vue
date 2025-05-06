@@ -1,77 +1,4 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-      <%- header %>
-      <style>
-        .precmd-head {
-          width: 200px;
-        }
-
-        .monospace {
-          font-family: monospace;
-        }
-
-        .cover-finder {}
-
-        .cover-finder .cover-results {
-          max-height: 400px;
-          overflow-x: hidden;
-          overflow-y: auto;
-        }
-
-        .cover-finder .cover-results.busy * {
-          cursor: wait !important;
-          pointer-events: none;
-        }
-
-        .cover-container {
-          padding-top: 133.33%;
-          position: relative;
-        }
-
-        .cover-container.result {
-          cursor: pointer;
-        }
-
-        .spinner-border {
-          position: absolute;
-          left: 0;
-          top: 0;
-          right: 0;
-          bottom: 0;
-          margin: auto;
-        }
-
-        .cover-container img {
-          display: block;
-          position: absolute;
-          top: 0;
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
-
-        .config-page {
-          padding: 1em;
-          border: 1px solid #dee2e6;
-          border-top: none;
-        }
-
-        td {
-          padding: 0 0.5em;
-        }
-
-        .env-table td {
-          padding: 0.25em;
-          border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
-          vertical-align: top;
-        }
-      </style>
-</head>
-
-<body id="app" v-cloak>
-  <Navbar></Navbar>
+<template>
   <div class="container">
     <div class="my-4">
       <h1>{{ $t('apps.applications_title') }}</h1>
@@ -356,17 +283,14 @@
       </button>
     </div>
   </div>
-</body>
+</template>
+
 <script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
-  import Navbar from './Navbar.vue'
-  import Checkbox from './Checkbox.vue'
+  import Checkbox from '../components/Checkbox.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
 
-  const app = createApp({
+  export default {
     components: {
-      Navbar,
       Checkbox
     },
     data() {
@@ -561,13 +485,71 @@
         });
       },
     },
-  });
-
-  app.directive('dropdown-show', {
-    mounted: function (el, binding) {
-      el.addEventListener('show.bs.dropdown', binding.value);
-    }
-  });
-
-  initApp(app);
+  }
 </script>
+
+<style>
+  .precmd-head {
+    width: 200px;
+  }
+
+  .monospace {
+    font-family: monospace;
+  }
+
+  .cover-finder {}
+
+  .cover-finder .cover-results {
+    max-height: 400px;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .cover-finder .cover-results.busy * {
+    cursor: wait !important;
+    pointer-events: none;
+  }
+
+  .cover-container {
+    padding-top: 133.33%;
+    position: relative;
+  }
+
+  .cover-container.result {
+    cursor: pointer;
+  }
+
+  .spinner-border {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    margin: auto;
+  }
+
+  .cover-container img {
+    display: block;
+    position: absolute;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .config-page {
+    padding: 1em;
+    border: 1px solid #dee2e6;
+    border-top: none;
+  }
+
+  td {
+    padding: 0 0.5em;
+  }
+
+  .env-table td {
+    padding: 0.25em;
+    border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
+    vertical-align: top;
+  }
+</style>

@@ -1,0 +1,168 @@
+  <template>
+    <div id="content" class="container">
+      <h1 class="my-4">{{ $t('index.welcome') }}</h1>
+      <p>{{ $t('index.description') }}</p>
+      <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+        <div style="line-height: 32px">
+          <i class="fas fa-circle-exclamation" style="font-size: 32px; margin-right: 0.25em"></i>
+          <p v-html="$t('index.startup_errors')"></p>
+          <br />
+        </div>
+        <ul>
+          <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">
+            {{ v.value }}
+          </li>
+        </ul>
+        <a class="btn btn-danger" href="./troubleshooting#logs">View Logs</a>
+      </div>
+      <!-- Version -->
+      <div class="card p-2 my-4">
+        <div class="card-body" v-if="version">
+          <h2>Version {{ version.version }}</h2>
+          <br />
+          <div v-if="loading">{{ $t('index.loading_latest') }}</div>
+          <div class="alert alert-success" v-if="buildVersionIsDirty">
+            {{ $t('index.version_dirty') }} 🌇
+          </div>
+          <div class="alert alert-info" v-if="installedVersionNotStable">
+            {{ $t('index.installed_version_not_stable') }}
+          </div>
+          <div
+            v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
+            <div class="alert alert-success">
+              {{ $t('index.version_latest') }}
+            </div>
+          </div>
+          <div v-if="notifyPreReleases && preReleaseBuildAvailable">
+            <div class="alert alert-warning">
+              <div class="d-flex justify-content-between">
+                <div class="my-2">
+                  <p>{{ $t('index.new_pre_release') }}</p>
+                </div>
+                <a class="btn btn-success m-1" :href="preReleaseVersion.release.html_url" target="_blank">{{
+                  $t('index.download') }}</a>
+              </div>
+              <pre><b>{{ preReleaseVersion.release.name }}</b></pre>
+              <pre>{{ preReleaseVersion.release.body }}</pre>
+            </div>
+          </div>
+          <div v-if="stableBuildAvailable">
+            <div class="alert alert-warning">
+              <div class="d-flex justify-content-between">
+                <div class="my-2">
+                  <p>{{ $t('index.new_stable') }}</p>
+                </div>
+                <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{
+                  $t('index.download') }}</a>
+              </div>
+              <h3>{{ githubVersion.release.name }}</h3>
+              <pre>{{ githubVersion.release.body }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Resources -->
+      <div class="my-4">
+        <Resource-Card></Resource-Card>
+      </div>
+    </div>
+  </template>
+
+<script type="module">
+import { createApp } from "vue";
+import { initApp } from "../utils/init.js";
+import ResourceCard from "../components/ResourceCard.vue";
+import SunshineVersion from "../utils/sunshine_version.js";
+
+export default {
+  components: {
+    ResourceCard
+  },
+  data() {
+    return {
+      version: null,
+      githubVersion: null,
+      notifyPreReleases: false,
+      preReleaseVersion: null,
+      loading: true,
+      logs: null,
+    };
+  },
+  async created() {
+    try {
+      let config = await fetch("./api/config").then((r) => r.json());
+      this.notifyPreReleases = config.notify_pre_releases;
+      this.version = new SunshineVersion(null, config.version);
+      console.log("Version: ", this.version.version);
+      this.githubVersion = new SunshineVersion(
+        await fetch(
+          "https://api.github.com/repos/LizardByte/Sunshine/releases/latest"
+        ).then((r) => r.json()),
+        null
+      );
+      console.log("GitHub Version: ", this.githubVersion.version);
+      this.preReleaseVersion = new SunshineVersion(
+        (
+          await fetch(
+            "https://api.github.com/repos/LizardByte/Sunshine/releases"
+          ).then((r) => r.json())
+        ).find((release) => release.prerelease),
+        null
+      );
+      console.log("Pre-Release Version: ", this.preReleaseVersion.version);
+    } catch (e) {
+      console.error(e);
+    }
+    try {
+      this.logs = await fetch("./api/logs").then((r) => r.text());
+    } catch (e) {
+      console.error(e);
+    }
+    this.loading = false;
+  },
+  computed: {
+    installedVersionNotStable() {
+      if (!this.githubVersion || !this.version) {
+        return false;
+      }
+      return this.version.isGreater(this.githubVersion);
+    },
+    stableBuildAvailable() {
+      if (!this.githubVersion || !this.version) {
+        return false;
+      }
+      return this.githubVersion.isGreater(this.version);
+    },
+    preReleaseBuildAvailable() {
+      if (!this.preReleaseVersion || !this.githubVersion || !this.version) {
+        return false;
+      }
+      return (
+        this.preReleaseVersion.isGreater(this.version) &&
+        this.preReleaseVersion.isGreater(this.githubVersion)
+      );
+    },
+    buildVersionIsDirty() {
+      return (
+        this.version.version?.split(".").length === 5 &&
+        this.version.version.indexOf("dirty") !== -1
+      );
+    },
+    /** Parse the text errors, calculating the text, the timestamp and the level */
+    fancyLogs() {
+      if (!this.logs) return [];
+      let regex = /(\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}]):\s/g;
+      let rawLogLines = this.logs.split(regex).splice(1);
+      let logLines = [];
+      for (let i = 0; i < rawLogLines.length; i += 2) {
+        logLines.push({
+          timestamp: rawLogLines[i],
+          level: rawLogLines[i + 1].split(":")[0],
+          value: rawLogLines[i + 1],
+        });
+      }
+      return logLines;
+    },
+  },
+};
+</script>
