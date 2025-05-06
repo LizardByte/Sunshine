@@ -142,15 +142,15 @@ namespace confighttp {
 
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
-      if(request->path == "/welcome"){
+      if (request->path == "/welcome") {
         return true;
       }
       send_redirect(response, request, "/welcome");
       return false;
     }
 
-    //Redirect after /welcome to /
-    if(request->path == "/welcome"){
+    // Redirect after /welcome to /
+    if (request->path == "/welcome") {
       send_redirect(response, request, "/");
       return false;
     }
@@ -234,13 +234,15 @@ namespace confighttp {
     }
 
     print_req(request);
-    if(request->path.starts_with("/api"))return not_found(response,request);
+    if (request->path.starts_with("/api")) {
+      return not_found(response, request);
+    }
     std::string content = file_handler::read_file(WEB_DIR "index.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);
   }
-  
+
   /**
    * @brief Check if a path is a child of another path.
    * @param base The base path.
