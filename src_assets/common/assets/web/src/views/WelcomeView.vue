@@ -45,7 +45,6 @@
 </template>
 
 <script type="module">
-import { createApp } from "vue"
 import ResourceCard from '@/components/ResourceCard.vue'
 export default {
   components: {

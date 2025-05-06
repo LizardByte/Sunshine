@@ -83,7 +83,6 @@
   import Advanced from '../components/configs/tabs/Advanced.vue'
   import AudioVideo from '../components/configs/tabs/AudioVideo.vue'
   import ContainerEncoders from '../components/configs/tabs/ContainerEncoders.vue'
-  import {$tp, usePlatformI18n} from '../utils/platform-i18n.js'
   import {computed} from 'vue';
   export default {
     components: {

@@ -63,12 +63,10 @@ export default {
 
 .header .nav-link.active {
   color: rgb(0, 0, 0) !important;
-  font-weight: 500;
 }
 
 .header .nav-link:hover {
   color: rgb(0, 0, 0) !important;
-  font-weight: 500;
 }
 
 .header .navbar-toggler {

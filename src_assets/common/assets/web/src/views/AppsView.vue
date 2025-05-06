@@ -497,8 +497,6 @@
     font-family: monospace;
   }
 
-  .cover-finder {}
-
   .cover-finder .cover-results {
     max-height: 400px;
     overflow-x: hidden;

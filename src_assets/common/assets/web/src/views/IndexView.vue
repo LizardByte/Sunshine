@@ -69,8 +69,6 @@
   </template>
 
 <script type="module">
-import { createApp } from "vue";
-import { initApp } from "../utils/init.js";
 import ResourceCard from "../components/ResourceCard.vue";
 import SunshineVersion from "../utils/sunshine_version.js";
 
