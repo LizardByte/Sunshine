@@ -494,6 +494,7 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
 * For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
+* If inputs (mouse, keyboard, gamepads...) aren't working after connecting, add the user running sunshine to the `input` group
 
 ### HDR Support
 Streaming HDR content is officially supported on Windows hosts and experimentally supported for Linux hosts.
