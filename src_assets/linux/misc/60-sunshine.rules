@@ -1,8 +1,8 @@
 # Allows Sunshine to acces /dev/uinput
-KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess", MODE="0660", GROUP="input"
 
 # Allows Sunshine to access /dev/uhid
-KERNEL=="uhid", TAG+="uaccess"
+KERNEL=="uhid", TAG+="uaccess", MODE="0660", GROUP="input"
 
 # Joypads
 KERNEL=="hidraw*" ATTRS{name}=="Sunshine PS5 (virtual) pad" MODE="0660", TAG+="uaccess"
