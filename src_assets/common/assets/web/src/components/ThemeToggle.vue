@@ -1,5 +1,5 @@
 <script setup>
-import { loadAutoTheme, setupThemeToggleListener } from './theme'
+import { loadAutoTheme, setupThemeToggleListener } from '../utils/theme.js'
 import { onMounted } from 'vue'
 
 onMounted(() => {

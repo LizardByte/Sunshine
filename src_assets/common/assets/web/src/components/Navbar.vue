@@ -11,22 +11,22 @@
       <div class="collapse navbar-collapse" id="navbarSupportedContent">
         <ul class="navbar-nav me-auto mb-2 mb-lg-0">
           <li class="nav-item">
-            <a class="nav-link" href="./"><i class="fas fa-fw fa-home"></i> {{ $t('navbar.home') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/"><i class="fas fa-fw fa-home"></i> {{ $t('navbar.home') }}</router-link>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./pin"><i class="fas fa-fw fa-unlock"></i> {{ $t('navbar.pin') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/pin"><i class="fas fa-fw fa-unlock"></i> {{ $t('navbar.pin') }}</router-link>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./apps"><i class="fas fa-fw fa-stream"></i> {{ $t('navbar.applications') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/apps"><i class="fas fa-fw fa-stream"></i> {{ $t('navbar.applications') }}</router-link>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./config"><i class="fas fa-fw fa-cog"></i> {{ $t('navbar.configuration') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/config"><i class="fas fa-fw fa-cog"></i> {{ $t('navbar.configuration') }}</router-link>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./password"><i class="fas fa-fw fa-user-shield"></i> {{ $t('navbar.password') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/password"><i class="fas fa-fw fa-user-shield"></i> {{ $t('navbar.password') }}</router-link>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a>
+            <router-link activeClass="active" class="nav-link" to="/troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</router-link>
           </li>
           <li class="nav-item">
             <ThemeToggle/>
@@ -47,8 +47,6 @@ export default {
     console.log("Header mounted!")
   },
   mounted() {
-    let el = document.querySelector("a[href='" + document.location.pathname + "']");
-    if (el) el.classList.add("active")
     initDiscord();
   }
 }
@@ -65,12 +63,10 @@ export default {
 
 .header .nav-link.active {
   color: rgb(0, 0, 0) !important;
-  font-weight: 500;
 }
 
 .header .nav-link:hover {
   color: rgb(0, 0, 0) !important;
-  font-weight: 500;
 }
 
 .header .navbar-toggler {
