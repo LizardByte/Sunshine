@@ -203,6 +203,8 @@ namespace nvhttp {
     if (!fs::exists(config::nvhttp.file_state)) {
       BOOST_LOG(info) << "File "sv << config::nvhttp.file_state << " doesn't exist"sv;
       http::unique_id = uuid_util::uuid_t::generate().string();
+      BOOST_LOG(info) << "generated new id=" << http::unique_id;
+      save_state();
       return;
     }
 
@@ -366,6 +368,7 @@ namespace nvhttp {
     tree.put("root.paired", 1);
     tree.put("root.plaincert", util::hex_vec(conf_intern.servercert, true));
     tree.put("root.<xmlattr>.status_code", 200);
+    BOOST_LOG(info) << "getservercert=200 paired with client";
   }
 
   void clientchallenge(pair_session_t &sess, pt::ptree &tree, const std::string &challenge) {
@@ -560,6 +563,7 @@ namespace nvhttp {
     if (args.find("uniqueid"s) == std::end(args)) {
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
+      BOOST_LOG(error) << " client ID missing!";
 
       return;
     }
@@ -572,6 +576,7 @@ namespace nvhttp {
         pair_session_t sess;
 
         sess.client.uniqueID = std::move(uniqID);
+        BOOST_LOG(info) << "received client id=" << sess.client.uniqueID;
         sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
 
         BOOST_LOG(debug) << sess.client.cert;
@@ -583,8 +588,11 @@ namespace nvhttp {
 
           std::cout << "Please insert pin: "sv;
           std::getline(std::cin, pin);
+          BOOST_LOG(info) << "entered pin=" << pin;
 
           getservercert(ptr->second, tree, pin);
+          // save_state();
+          return;
         } else {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_require_pin();
@@ -597,14 +605,19 @@ namespace nvhttp {
       } else if (it->second == "pairchallenge"sv) {
         tree.put("root.paired", 1);
         tree.put("root.<xmlattr>.status_code", 200);
+        BOOST_LOG(info) << "sending pair status=200";
+        save_state();
         return;
       }
     }
 
     auto sess_it = map_id_sess.find(uniqID);
+
     if (sess_it == std::end(map_id_sess)) {
+      tree.put("root.paired", 0);
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put("root.<xmlattr>.status_message", "Invalid uniqueid");
+      BOOST_LOG(error) << "received invalid client id=" << uniqID;
 
       return;
     }
@@ -621,6 +634,7 @@ namespace nvhttp {
     } else {
       tree.put("root.<xmlattr>.status_code", 404);
       tree.put("root.<xmlattr>.status_message", "Invalid pairing request");
+      BOOST_LOG(error) << "return 404 invalid pairing request ";
     }
   }
 
@@ -689,7 +703,6 @@ namespace nvhttp {
     auto local_endpoint = request->local_endpoint();
 
     pt::ptree tree;
-
     tree.put("root.<xmlattr>.status_code", 200);
     tree.put("root.hostname", config::nvhttp.sunshine_name);
 
@@ -757,6 +770,7 @@ namespace nvhttp {
     tree.put("root.PairStatus", pair_status);
     tree.put("root.currentgame", current_appid);
     tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
+    BOOST_LOG(info) << "return free if appid=0=" << current_appid;
 
     std::ostringstream data;
 
