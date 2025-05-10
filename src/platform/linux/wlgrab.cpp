@@ -90,7 +90,7 @@ namespace wl {
       auto to = std::chrono::steady_clock::now() + timeout;
 
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.dmabuf_manager, output, cursor);
+      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, output, cursor);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {

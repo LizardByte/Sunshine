@@ -1,10 +1,13 @@
 ---
 name: localize
+permissions:
+  contents: read
 
 on:
   push:
-    branches: [master]
-    paths:  # prevents workflow from running unless these files change
+    branches:
+      - master
+    paths:
       - '.github/workflows/localize.yml'
       - 'src/**'
       - 'locale/sunshine.po'
@@ -54,7 +57,7 @@ jobs:
           python ./scripts/_locale.py --extract
 
       - name: git diff
-        if: ${{ env.new_file == 'false' }}
+        if: env.new_file == 'false'
         run: |
           # disable the pager
           git config --global pager.diff false
@@ -68,7 +71,9 @@ jobs:
 
       - name: git reset
         # only run if a single line changed (date/time) and file already existed
-        if: ${{ env.git_diff == '1 1 locale/sunshine.po' && env.new_file == 'false' }}
+        if: >-
+          env.git_diff == '1 1 locale/sunshine.po' &&
+          env.new_file == 'false'
         run: |
           git reset --hard
 

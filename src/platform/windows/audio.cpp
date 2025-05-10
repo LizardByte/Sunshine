@@ -117,15 +117,26 @@ namespace {
 
   using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
+  /**
+   * @brief List of supported waveformats for an N-channel virtual audio device
+   * @tparam channel_count Number of virtual audio channels
+   * @returns std::vector<WAVEFORMATEXTENSIBLE>
+   * @note The list of virtual formats returned are sorted in preference order and the first valid
+   *       format will be used. All bits-per-sample options are listed because we try to match
+   *       this to the default audio device. See also: set_format() below.
+   */
   template<WORD channel_count>
   virtual_sink_waveformats_t create_virtual_sink_waveformats() {
     if constexpr (channel_count == 2) {
       auto channel_mask = waveformat_mask_stereo;
-      // only choose 24 or 16-bit formats to avoid clobbering existing Dolby/DTS spatial audio settings
+      // The 32-bit formats are a lower priority for stereo because using one will disable Dolby/DTS
+      // spatial audio mode if the user enabled it on the Steam speaker.
       return {
         create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
         create_waveformat(sample_format_e::s24, channel_count, channel_mask),
         create_waveformat(sample_format_e::s16, channel_count, channel_mask),
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
       };
     } else if (channel_count == 6) {
       auto channel_mask1 = waveformat_mask_surround51_with_backspeakers;
@@ -298,6 +309,10 @@ namespace platf::audio {
         auto waveformatext_pointer = reinterpret_cast<const WAVEFORMATEXTENSIBLE *>(mixer_waveformat.get());
         capture_waveformat.dwChannelMask = waveformatext_pointer->dwChannelMask;
       }
+
+      BOOST_LOG(info) << "Audio mixer format is "sv << mixer_waveformat->wBitsPerSample << "-bit, "sv
+                      << mixer_waveformat->nSamplesPerSec << " Hz, "sv
+                      << ((mixer_waveformat->nSamplesPerSec != 48000) ? "will be resampled to 48000 by Windows"sv : "no resampling needed"sv);
     }
 
     status = audio_client->Initialize(
@@ -315,7 +330,7 @@ namespace platf::audio {
       return nullptr;
     }
 
-    BOOST_LOG(info) << "Audio capture format is " << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
+    BOOST_LOG(info) << "Audio capture format is "sv << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
 
     return audio_client;
   }
@@ -793,6 +808,22 @@ namespace platf::audio {
         }
       }
 
+      // When switching to a Steam virtual speaker device, try to retain the bit depth of the
+      // default audio device. Switching from a 16-bit device to a 24-bit one has been known to
+      // cause glitches for some users.
+      int wanted_bits_per_sample = 32;
+      auto current_default_dev = default_device(device_enum);
+      if (current_default_dev) {
+        audio::prop_t prop;
+        prop_var_t current_device_format;
+
+        if (SUCCEEDED(current_default_dev->OpenPropertyStore(STGM_READ, &prop)) && SUCCEEDED(prop->GetValue(PKEY_AudioEngine_DeviceFormat, &current_device_format.prop))) {
+          auto *format = (WAVEFORMATEXTENSIBLE *) current_device_format.prop.blob.pBlobData;
+          wanted_bits_per_sample = format->Samples.wValidBitsPerSample;
+          BOOST_LOG(info) << "Virtual audio device will use "sv << wanted_bits_per_sample << "-bit to match default device"sv;
+        }
+      }
+
       auto &device_id = virtual_sink_info->first;
       auto &waveformats = virtual_sink_info->second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
@@ -801,6 +832,10 @@ namespace platf::audio {
         auto device_id_copy = device_id;
         auto waveformat_copy = waveformat;
         auto waveformat_copy_pointer = reinterpret_cast<WAVEFORMATEX *>(&waveformat_copy);
+
+        if (wanted_bits_per_sample != waveformat.Samples.wValidBitsPerSample) {
+          continue;
+        }
 
         WAVEFORMATEXTENSIBLE p {};
         if (SUCCEEDED(policy->SetDeviceFormat(device_id_copy.c_str(), waveformat_copy_pointer, (WAVEFORMATEX *) &p))) {

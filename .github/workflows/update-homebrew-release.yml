@@ -1,15 +1,20 @@
 ---
-# This action is a candidate to centrally manage in https://github.com/<organization>/.github/
-# If more Homebrew applications are developed, consider moving this action to the organization's .github repository,
-# using the `homebrew-pkg` repository label to identify repositories that should trigger this workflow.
+# This workflow is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# To use, add the `homebrew-pkg` repository label to identify repositories that should trigger this workflow.
 
 # Update Homebrew on release events.
 
 name: Update Homebrew release
+permissions:
+  contents: read
 
 on:
   release:
-    types: [released]
+    types:
+      - released
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -17,14 +22,13 @@ concurrency:
 
 jobs:
   update-homebrew-release:
-    if: >-
-      github.repository_owner == 'LizardByte'
+    if: github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
       - name: Check if Homebrew repo
+        id: check-label
         env:
           TOPIC: homebrew-pkg
-        id: check-label
         uses: actions/github-script@v7
         with:
           script: |
@@ -44,8 +48,7 @@ jobs:
 
       - name: Download release asset
         id: download
-        if: >-
-          steps.check-label.outputs.hasTopic == 'true'
+        if: steps.check-label.outputs.hasTopic == 'true'
         uses: robinraju/release-downloader@v1.12
         with:
           repository: "${{ github.repository }}"

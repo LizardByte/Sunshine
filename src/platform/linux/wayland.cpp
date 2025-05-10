@@ -6,9 +6,14 @@
 #include <cstdlib>
 
 // platform includes
+#include <drm_fourcc.h>
+#include <fcntl.h>
+#include <gbm.h>
 #include <poll.h>
+#include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
+#include <xf86drm.h>
 
 // local includes
 #include "graphics.h"
@@ -36,6 +41,12 @@ namespace wl {
   }
 
 #define CLASS_CALL(c, m) classCall<c, decltype(&c::m), &c::m>
+
+  // Define buffer params listener
+  static const struct zwp_linux_buffer_params_v1_listener params_listener = {
+    .created = dmabuf_t::buffer_params_created,
+    .failed = dmabuf_t::buffer_params_failed
+  };
 
   int display_t::init(const char *display_name) {
     if (!display_name) {
@@ -136,7 +147,13 @@ namespace wl {
     BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
   }
 
-  void monitor_t::wl_mode(wl_output *wl_output, std::uint32_t flags, std::int32_t width, std::int32_t height, std::int32_t refresh) {
+  void monitor_t::wl_mode(
+    wl_output *wl_output,
+    std::uint32_t flags,
+    std::int32_t width,
+    std::int32_t height,
+    std::int32_t refresh
+  ) {
     viewport.width = width;
     viewport.height = height;
 
@@ -151,6 +168,8 @@ namespace wl {
 
   interface_t::interface_t() noexcept
       :
+      screencopy_manager {nullptr},
+      dmabuf_interface {nullptr},
       output_manager {nullptr},
       listener {
         &CLASS_CALL(interface_t, add_interface),
@@ -162,7 +181,12 @@ namespace wl {
     wl_registry_add_listener(registry, &listener, this);
   }
 
-  void interface_t::add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version) {
+  void interface_t::add_interface(
+    wl_registry *registry,
+    std::uint32_t id,
+    const char *interface,
+    std::uint32_t version
+  ) {
     BOOST_LOG(debug) << "Available interface: "sv << interface << '(' << id << ") version "sv << version;
 
     if (!std::strcmp(interface, wl_output_interface.name)) {
@@ -177,11 +201,16 @@ namespace wl {
       output_manager = (zxdg_output_manager_v1 *) wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, version);
 
       this->interface[XDG_OUTPUT] = true;
-    } else if (!std::strcmp(interface, zwlr_export_dmabuf_manager_v1_interface.name)) {
+    } else if (!std::strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
       BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
-      dmabuf_manager = (zwlr_export_dmabuf_manager_v1 *) wl_registry_bind(registry, id, &zwlr_export_dmabuf_manager_v1_interface, version);
+      screencopy_manager = (zwlr_screencopy_manager_v1 *) wl_registry_bind(registry, id, &zwlr_screencopy_manager_v1_interface, version);
 
       this->interface[WLR_EXPORT_DMABUF] = true;
+    } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
+      BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, version);
+
+      this->interface[LINUX_DMABUF] = true;
     }
   }
 
@@ -189,93 +218,305 @@ namespace wl {
     BOOST_LOG(info) << "Delete: "sv << id;
   }
 
+  // Initialize GBM
+  bool dmabuf_t::init_gbm() {
+    if (gbm_device) {
+      return true;
+    }
+
+    // Find render node
+    drmDevice *devices[16];
+    int n = drmGetDevices2(0, devices, 16);
+    if (n <= 0) {
+      BOOST_LOG(error) << "No DRM devices found"sv;
+      return false;
+    }
+
+    int drm_fd = -1;
+    for (int i = 0; i < n; i++) {
+      if (devices[i]->available_nodes & (1 << DRM_NODE_RENDER)) {
+        drm_fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR);
+        if (drm_fd >= 0) {
+          break;
+        }
+      }
+    }
+    drmFreeDevices(devices, n);
+
+    if (drm_fd < 0) {
+      BOOST_LOG(error) << "Failed to open DRM render node"sv;
+      return false;
+    }
+
+    gbm_device = gbm_create_device(drm_fd);
+    if (!gbm_device) {
+      close(drm_fd);
+      BOOST_LOG(error) << "Failed to create GBM device"sv;
+      return false;
+    }
+
+    return true;
+  }
+
+  // Cleanup GBM
+  void dmabuf_t::cleanup_gbm() {
+    if (current_bo) {
+      gbm_bo_destroy(current_bo);
+      current_bo = nullptr;
+    }
+
+    if (current_wl_buffer) {
+      wl_buffer_destroy(current_wl_buffer);
+      current_wl_buffer = nullptr;
+    }
+  }
+
   dmabuf_t::dmabuf_t():
       status {READY},
       frames {},
       current_frame {&frames[0]},
       listener {
-        &CLASS_CALL(dmabuf_t, frame),
-        &CLASS_CALL(dmabuf_t, object),
+        &CLASS_CALL(dmabuf_t, buffer),
+        &CLASS_CALL(dmabuf_t, flags),
         &CLASS_CALL(dmabuf_t, ready),
-        &CLASS_CALL(dmabuf_t, cancel)
+        &CLASS_CALL(dmabuf_t, failed),
+        &CLASS_CALL(dmabuf_t, damage),
+        &CLASS_CALL(dmabuf_t, linux_dmabuf),
+        &CLASS_CALL(dmabuf_t, buffer_done),
       } {
   }
 
-  void dmabuf_t::listen(zwlr_export_dmabuf_manager_v1 *dmabuf_manager, wl_output *output, bool blend_cursor) {
-    auto frame = zwlr_export_dmabuf_manager_v1_capture_output(dmabuf_manager, blend_cursor, output);
-    zwlr_export_dmabuf_frame_v1_add_listener(frame, &listener, this);
+  // Start capture
+  void dmabuf_t::listen(
+    zwlr_screencopy_manager_v1 *screencopy_manager,
+    zwp_linux_dmabuf_v1 *dmabuf_interface,
+    wl_output *output,
+    bool blend_cursor
+  ) {
+    this->dmabuf_interface = dmabuf_interface;
+    // Reset state
+    shm_info.supported = false;
+    dmabuf_info.supported = false;
+
+    // Create new frame
+    auto frame = zwlr_screencopy_manager_v1_capture_output(
+      screencopy_manager,
+      blend_cursor ? 1 : 0,
+      output
+    );
+
+    // Store frame data pointer for callbacks
+    zwlr_screencopy_frame_v1_set_user_data(frame, this);
+
+    // Add listener
+    zwlr_screencopy_frame_v1_add_listener(frame, &listener, this);
 
     status = WAITING;
   }
 
   dmabuf_t::~dmabuf_t() {
+    cleanup_gbm();
+
     for (auto &frame : frames) {
       frame.destroy();
     }
+
+    if (gbm_device) {
+      // We should close the DRM FD, but it's owned by GBM
+      gbm_device_destroy(gbm_device);
+      gbm_device = nullptr;
+    }
   }
 
-  void dmabuf_t::frame(
-    zwlr_export_dmabuf_frame_v1 *frame,
-    std::uint32_t width,
-    std::uint32_t height,
-    std::uint32_t x,
-    std::uint32_t y,
-    std::uint32_t buffer_flags,
-    std::uint32_t flags,
+  // Buffer format callback
+  void dmabuf_t::buffer(
+    zwlr_screencopy_frame_v1 *frame,
+    uint32_t format,
+    uint32_t width,
+    uint32_t height,
+    uint32_t stride
+  ) {
+    shm_info.supported = true;
+    shm_info.format = format;
+    shm_info.width = width;
+    shm_info.height = height;
+    shm_info.stride = stride;
+
+    BOOST_LOG(debug) << "Screencopy supports SHM format: "sv << format;
+  }
+
+  // DMA-BUF format callback
+  void dmabuf_t::linux_dmabuf(
+    zwlr_screencopy_frame_v1 *frame,
     std::uint32_t format,
-    std::uint32_t high,
-    std::uint32_t low,
-    std::uint32_t obj_count
+    std::uint32_t width,
+    std::uint32_t height
   ) {
-    auto next_frame = get_next_frame();
+    dmabuf_info.supported = true;
+    dmabuf_info.format = format;
+    dmabuf_info.width = width;
+    dmabuf_info.height = height;
 
-    next_frame->sd.fourcc = format;
-    next_frame->sd.width = width;
-    next_frame->sd.height = height;
-    next_frame->sd.modifier = (((std::uint64_t) high) << 32) | low;
+    BOOST_LOG(debug) << "Screencopy supports DMA-BUF format: "sv << format;
   }
 
-  void dmabuf_t::object(
-    zwlr_export_dmabuf_frame_v1 *frame,
-    std::uint32_t index,
-    std::int32_t fd,
-    std::uint32_t size,
-    std::uint32_t offset,
-    std::uint32_t stride,
-    std::uint32_t plane_index
-  ) {
-    auto next_frame = get_next_frame();
-
-    next_frame->sd.fds[plane_index] = fd;
-    next_frame->sd.pitches[plane_index] = stride;
-    next_frame->sd.offsets[plane_index] = offset;
+  // Flags callback
+  void dmabuf_t::flags(zwlr_screencopy_frame_v1 *frame, std::uint32_t flags) {
+    y_invert = flags & ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT;
+    BOOST_LOG(debug) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
   }
 
+  // DMA-BUF creation helper
+  void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
+    if (!init_gbm()) {
+      BOOST_LOG(error) << "Failed to initialize GBM"sv;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    // Create GBM buffer
+    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING);
+    if (!current_bo) {
+      BOOST_LOG(error) << "Failed to create GBM buffer"sv;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    // Get buffer info
+    int fd = gbm_bo_get_fd(current_bo);
+    if (fd < 0) {
+      BOOST_LOG(error) << "Failed to get buffer FD"sv;
+      gbm_bo_destroy(current_bo);
+      current_bo = nullptr;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    uint32_t stride = gbm_bo_get_stride(current_bo);
+    uint64_t modifier = gbm_bo_get_modifier(current_bo);
+
+    // Store in surface descriptor for later use
+    auto next_frame = get_next_frame();
+    next_frame->sd.fds[0] = fd;
+    next_frame->sd.pitches[0] = stride;
+    next_frame->sd.offsets[0] = 0;
+    next_frame->sd.modifier = modifier;
+
+    // Create linux-dmabuf buffer
+    auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
+    zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
+
+    // Add listener for buffer creation
+    zwp_linux_buffer_params_v1_add_listener(params, &params_listener, frame);
+
+    // Create Wayland buffer (async - callback will handle copy)
+    zwp_linux_buffer_params_v1_create(params, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, 0);
+  }
+
+  // Buffer done callback - time to create buffer
+  void dmabuf_t::buffer_done(zwlr_screencopy_frame_v1 *frame) {
+    auto next_frame = get_next_frame();
+
+    // Prefer DMA-BUF if supported
+    if (dmabuf_info.supported && dmabuf_interface) {
+      // Store format info first
+      next_frame->sd.fourcc = dmabuf_info.format;
+      next_frame->sd.width = dmabuf_info.width;
+      next_frame->sd.height = dmabuf_info.height;
+
+      // Create and start copy
+      create_and_copy_dmabuf(frame);
+    } else if (shm_info.supported) {
+      // SHM fallback would go here
+      BOOST_LOG(warning) << "SHM capture not implemented"sv;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+    } else {
+      BOOST_LOG(error) << "No supported buffer types"sv;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+    }
+  }
+
+  // Buffer params created callback
+  void dmabuf_t::buffer_params_created(
+    void *data,
+    struct zwp_linux_buffer_params_v1 *params,
+    struct wl_buffer *buffer
+  ) {
+    auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
+    auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
+
+    // Store for cleanup
+    self->current_wl_buffer = buffer;
+
+    // Start the actual copy
+    zwlr_screencopy_frame_v1_copy(frame, buffer);
+  }
+
+  // Buffer params failed callback
+  void dmabuf_t::buffer_params_failed(
+    void *data,
+    struct zwp_linux_buffer_params_v1 *params
+  ) {
+    auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
+    auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
+
+    BOOST_LOG(error) << "Failed to create buffer from params"sv;
+    self->cleanup_gbm();
+
+    zwlr_screencopy_frame_v1_destroy(frame);
+    self->status = REINIT;
+  }
+
+  // Ready callback
   void dmabuf_t::ready(
-    zwlr_export_dmabuf_frame_v1 *frame,
+    zwlr_screencopy_frame_v1 *frame,
     std::uint32_t tv_sec_hi,
     std::uint32_t tv_sec_lo,
     std::uint32_t tv_nsec
   ) {
-    zwlr_export_dmabuf_frame_v1_destroy(frame);
+    BOOST_LOG(debug) << "Frame ready"sv;
 
+    // Frame is ready for use, GBM buffer now contains screen content
     current_frame->destroy();
     current_frame = get_next_frame();
 
+    // Keep the GBM buffer alive but destroy the Wayland objects
+    if (current_wl_buffer) {
+      wl_buffer_destroy(current_wl_buffer);
+      current_wl_buffer = nullptr;
+    }
+
+    cleanup_gbm();
+
+    zwlr_screencopy_frame_v1_destroy(frame);
     status = READY;
   }
 
-  void dmabuf_t::cancel(
-    zwlr_export_dmabuf_frame_v1 *frame,
-    std::uint32_t reason
-  ) {
-    zwlr_export_dmabuf_frame_v1_destroy(frame);
+  // Failed callback
+  void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
+    BOOST_LOG(error) << "Frame capture failed"sv;
 
+    // Clean up resources
+    cleanup_gbm();
     auto next_frame = get_next_frame();
     next_frame->destroy();
 
+    zwlr_screencopy_frame_v1_destroy(frame);
     status = REINIT;
   }
+
+  void dmabuf_t::damage(
+    zwlr_screencopy_frame_v1 *frame,
+    std::uint32_t x,
+    std::uint32_t y,
+    std::uint32_t width,
+    std::uint32_t height
+  ) {};
 
   void frame_t::destroy() {
     for (auto x = 0; x < 4; ++x) {

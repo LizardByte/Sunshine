@@ -1,15 +1,20 @@
 ---
-# This action is a candidate to centrally manage in https://github.com/<organization>/.github/
-# If more Flathub applications are developed, consider moving this action to the organization's .github repository,
-# using the `flathub-pkg` repository label to identify repositories that should trigger this workflow.
+# This workflow is centrally managed in https://github.com/<organization>/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# To use, add the `flathub-pkg` repository label to identify repositories that should trigger this workflow.
 
 # Update Flathub on release events.
 
 name: Update flathub repo
+permissions:
+  contents: read
 
 on:
   release:
-    types: [released]
+    types:
+      - released
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
@@ -19,14 +24,13 @@ jobs:
   update-flathub-repo:
     env:
       FLATHUB_PKG: dev.lizardbyte.app.${{ github.event.repository.name }}
-    if: >-
-      github.repository_owner == 'LizardByte'
+    if: github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
       - name: Check if flathub repo
+        id: check-label
         env:
           TOPIC: flathub-pkg
-        id: check-label
         uses: actions/github-script@v7
         with:
           script: |
@@ -46,8 +50,7 @@ jobs:
 
       - name: Check if latest GitHub release
         id: check-release
-        if: >-
-          steps.check-label.outputs.hasTopic == 'true'
+        if: steps.check-label.outputs.hasTopic == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -114,7 +117,7 @@ jobs:
           out-file-path: "flathub/${{ env.FLATHUB_PKG }}"
           extract: true
 
-      - name: Delete arhive
+      - name: Delete archive
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true'
@@ -172,6 +175,7 @@ jobs:
           git checkout $main_commit
 
       - name: Create/Update Pull Request
+        id: create-pr
         if: >-
           steps.check-label.outputs.hasTopic == 'true' &&
           steps.check-release.outputs.isLatestRelease == 'true' &&
@@ -185,3 +189,18 @@ jobs:
           delete-branch: true
           title: "chore: Update ${{ env.FLATHUB_PKG }} to ${{ github.event.release.tag_name }}"
           body: ${{ github.event.release.body }}
+
+      - name: Automerge PR
+        env:
+          GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+        if: >-
+          steps.check-label.outputs.hasTopic == 'true' &&
+          steps.check-release.outputs.isLatestRelease == 'true' &&
+          fromJson(steps.download.outputs.downloaded_files)[0]
+        run: |
+          gh pr merge \
+            --auto \
+            --delete-branch \
+            --repo "flathub/${{ env.FLATHUB_PKG }}" \
+            --squash \
+            "${{ steps.create-pr.outputs.pull-request-number }}"

@@ -90,7 +90,53 @@ shift $((OPTIND -1))
 # dependencies array to build out
 dependencies=()
 
-function add_debain_based_deps() {
+function add_arch_deps() {
+  dependencies+=(
+    'avahi'
+    'base-devel'
+    'cmake'
+    'curl'
+    "gcc${gcc_version}"
+    "gcc${gcc_version}-libs"
+    'git'
+    'libayatana-appindicator'
+    'libcap'
+    'libdrm'
+    'libevdev'
+    'libmfx'
+    'libnotify'
+    'libpulse'
+    'libva'
+    'libx11'
+    'libxcb'
+    'libxfixes'
+    'libxrandr'
+    'libxtst'
+    'miniupnpc'
+    'ninja'
+    'nodejs'
+    'npm'
+    'numactl'
+    'openssl'
+    'opus'
+    'udev'
+    'wayland'
+  )
+
+  if [ "$skip_libva" == 0 ]; then
+    dependencies+=(
+      "libva"  # VA-API
+    )
+  fi
+
+  if [ "$skip_cuda" == 0 ]; then
+    dependencies+=(
+      "cuda"  # VA-API
+    )
+  fi
+}
+
+function add_debian_based_deps() {
   dependencies+=(
     "bison"  # required if we need to compile doxygen
     "build-essential"
@@ -105,6 +151,7 @@ function add_debain_based_deps() {
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
     "libevdev-dev"
+    "libgbm-dev"
     "libminiupnpc-dev"
     "libnotify-dev"
     "libnuma-dev"
@@ -133,8 +180,8 @@ function add_debain_based_deps() {
   fi
 }
 
-function add_debain_deps() {
-  add_debain_based_deps
+function add_debian_deps() {
+  add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
   )
@@ -146,7 +193,7 @@ function add_ubuntu_deps() {
     ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
   fi
 
-  add_debain_based_deps
+  add_debian_based_deps
   dependencies+=(
     "libappindicator3-dev"
   )
@@ -156,8 +203,8 @@ function add_fedora_deps() {
   dependencies+=(
     "cmake"
     "doxygen"
-    "gcc"
-    "g++"
+    "gcc${gcc_version}"
+    "gcc${gcc_version}-c++"
     "git"
     "graphviz"
     "libappindicator-gtk3-devel"
@@ -175,6 +222,7 @@ function add_fedora_deps() {
     "libXrandr-devel"  # X11
     "libXtst-devel"  # X11
     "mesa-libGL-devel"
+    "mesa-libgbm-devel"
     "miniupnpc-devel"
     "ninja-build"
     "npm"
@@ -196,9 +244,15 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
+  nvcc_path=$(command -v nvcc 2>/dev/null) || true
+  if [ -n "$nvcc_path" ]; then
+    echo "found system cuda"
+    return
+  fi
   # check if we need to install cuda
   if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
-    echo "cuda already installed"
+    nvcc_path="${build_dir}/cuda/bin/nvcc"
+    echo "found local cuda"
     return
   fi
 
@@ -235,11 +289,13 @@ function install_cuda() {
   chmod a+x "${build_dir}/cuda.run"
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
   rm "${build_dir}/cuda.run"
+  nvcc_path="${build_dir}/cuda/bin/nvcc"
 }
 
 function check_version() {
   local package_name=$1
   local min_version=$2
+  local max_version=$3
   local installed_version
 
   echo "Checking if $package_name is installed and at least version $min_version"
@@ -248,6 +304,8 @@ function check_version() {
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
   elif [ "$distro" == "fedora" ]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
+  elif [ "$distro" == "arch" ]; then
+    installed_version=$(pacman -Q "$package_name" | awk '{print $2}' )
   else
     echo "Unsupported Distro"
     return 1
@@ -258,11 +316,12 @@ function check_version() {
     return 1
   fi
 
-  if [ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)" = "$min_version" ]; then
-    echo "$package_name version $installed_version is at least $min_version"
+if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)" = "$min_version" ]] && \
+   [[ "$(printf '%s\n' "$installed_version" "$max_version" | sort -V | head -n1)" = "$installed_version" ]]; then
+    echo "Installed version is within range"
     return 0
   else
-    echo "$package_name version $installed_version is less than $min_version"
+    echo "$package_name version $installed_version is out of range"
     return 1
   fi
 }
@@ -301,13 +360,15 @@ function run_install() {
   # Update the package list
   $package_update_command
 
-  if [ "$distro" == "debian" ]; then
-    add_debain_deps
+  if [ "$distro" == "arch" ]; then
+    add_arch_deps
+  elif [ "$distro" == "debian" ]; then
+    add_debian_deps
   elif [ "$distro" == "ubuntu" ]; then
     add_ubuntu_deps
   elif [ "$distro" == "fedora" ]; then
     add_fedora_deps
-    ${sudo_cmd} dnf group install "Development Tools" -y
+    ${sudo_cmd} dnf group install "$dev_tools_group" -y
   fi
 
   # Install the dependencies
@@ -325,8 +386,11 @@ function run_install() {
     "gcc-ranlib"
   )
 
-  # update alternatives for gcc and g++ if a debian based distro
-  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+  #set gcc version based on distros 
+  if [ "$distro" == "arch" ]; then
+    export CC=gcc-14
+    export CXX=g++-14
+  elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
       if [ -e "$file_path" ]; then
@@ -345,7 +409,7 @@ function run_install() {
   # compile cmake if the version is too low
   cmake_min="3.25.0"
   target_cmake_version="3.30.1"
-  if ! check_version "cmake" "$cmake_min"; then
+  if ! check_version "cmake" "$cmake_min" "inf"; then
     cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
     if [ "$architecture" == "x86_64" ]; then
       cmake_arch="x86_64"
@@ -363,7 +427,8 @@ function run_install() {
   # compile doxygen if version is too low
   doxygen_min="1.10.0"
   _doxygen_min="1_10_0"
-  if ! check_version "doxygen" "$doxygen_min"; then
+  doxygen_max="1.12.0"
+  if ! check_version "doxygen" "$doxygen_min" "$doxygen_max"; then
     if [ "${SUNSHINE_COMPILE_DOXYGEN}" == "true" ]; then
       echo "Compiling doxygen"
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/doxygen-${doxygen_min}.src.tar.gz"
@@ -375,7 +440,7 @@ function run_install() {
       ninja -C "build" -j"${num_processors}"
       ninja -C "build" install
     else
-      echo "Doxygen version too low, skipping docs"
+      echo "Doxygen version not in range, skipping docs"
       cmake_args+=("-DBUILD_DOCS=OFF")
     fi
   fi
@@ -391,10 +456,10 @@ function run_install() {
   fi
 
   # run the cuda install
-  if [ -n "$cuda_version" ] && [ "$skip_cuda" == 0 ]; then
+  if [ "$skip_cuda" == 0 ]; then
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=${build_dir}/cuda/bin/nvcc")
+    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
   fi
 
   # Cmake stuff here
@@ -434,7 +499,15 @@ function run_install() {
 
 # Determine the OS and call the appropriate function
 cat /etc/os-release
-if grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
+
+if grep -q "Arch Linux" /etc/os-release; then
+  distro="arch"
+  version=""
+  package_update_command="${sudo_cmd} pacman -Syu --noconfirm"
+  package_install_command="${sudo_cmd} pacman -Sy --needed"
+  nvm_node=0
+  gcc_version="14"
+elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
@@ -443,24 +516,36 @@ if grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   cuda_build="525.60.13"
   gcc_version="12"
   nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f39\"" /etc/os-release; then
-  distro="fedora"
-  version="39"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.4.0"
-  cuda_build="550.54.14"
-  gcc_version="13"
-  nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f40\"" /etc/os-release; then
   distro="fedora"
   version="40"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=
-  cuda_build=
+  cuda_version=12.6.3
+  cuda_build=560.35.05
   gcc_version="13"
   nvm_node=0
+  dev_tools_group="Development Tools"
+elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
+  distro="fedora"
+  version="41"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version=12.6.3
+  cuda_build=560.35.05
+  gcc_version="13"
+  nvm_node=0
+  dev_tools_group="development-tools"
+elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
+  distro="fedora"
+  version="42"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version=12.8.1
+  cuda_build=570.124.06
+  gcc_version="14"
+  nvm_node=0
+  dev_tools_group="development-tools"
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"

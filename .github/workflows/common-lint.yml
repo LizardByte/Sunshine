@@ -1,16 +1,22 @@
 ---
-# This action is centrally managed in https://github.com/<organization>/.github/
+# This workflow is centrally managed in https://github.com/<organization>/.github/
 # Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
 # the above-mentioned repo.
 
 # Common linting.
 
 name: common lint
+permissions:
+  contents: read
 
 on:
   pull_request:
-    branches: [master]
-    types: [opened, synchronize, reopened]
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -77,9 +83,10 @@ jobs:
 
       - name: C++ - Clang format lint
         if: always() && steps.cpp_files.outputs.found_files
-        uses: DoozyX/clang-format-lint-action@v0.18
+        uses: DoozyX/clang-format-lint-action@v0.20
         with:
           source: ${{ steps.cpp_files.outputs.found_files }}
+          clangFormatVersion: '20'
           extensions: 'c,cpp,h,hpp,m,mm'
           style: file
           inplace: false
@@ -263,5 +270,4 @@ jobs:
 
       - name: YAML - log
         if: always() && steps.yamllint.outcome == 'failure'
-        run: |
-          cat "${{ steps.yamllint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY
+        run: cat "${{ steps.yamllint.outputs.logfile }}" >> $GITHUB_STEP_SUMMARY

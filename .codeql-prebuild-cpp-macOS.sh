@@ -7,7 +7,6 @@ eval "$(/usr/local/bin/brew shellenv)"
 
 # install dependencies
 dependencies=(
-  "boost"
   "cmake"
   "miniupnpc"
   "ninja"

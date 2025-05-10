@@ -3,26 +3,43 @@
 #
 include_guard(GLOBAL)
 
-set(BOOST_VERSION 1.86)
+set(BOOST_VERSION "1.87.0")
 set(BOOST_COMPONENTS
         filesystem
         locale
         log
         program_options
-        system)  # system is not used by Sunshine, but by Simple-Web-Server, added here for convenience
+        system
+)
+# system is not used by Sunshine, but by Simple-Web-Server, added here for convenience
+
+# algorithm, preprocessor, scope, and uuid are not used by Sunshine, but by libdisplaydevice, added here for convenience
+if(WIN32)
+    list(APPEND BOOST_COMPONENTS
+            algorithm
+            preprocessor
+            scope
+            uuid
+    )
+endif()
 
 if(BOOST_USE_STATIC)
     set(Boost_USE_STATIC_LIBS ON)  # cmake-lint: disable=C0103
 endif()
 
-find_package(Boost CONFIG ${BOOST_VERSION} COMPONENTS ${BOOST_COMPONENTS})
+if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
+endif()
+find_package(Boost CONFIG ${BOOST_VERSION} EXACT COMPONENTS ${BOOST_COMPONENTS})
 if(NOT Boost_FOUND)
-    message(STATUS "Boost v${BOOST_VERSION}.x package not found in the system. Falling back to FetchContent.")
+    message(STATUS "Boost v${BOOST_VERSION} package not found in the system. Falling back to FetchContent.")
     include(FetchContent)
 
-    # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
     if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
-        cmake_policy(SET CMP0135 NEW)
+        cmake_policy(SET CMP0135 NEW)  # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24
+    endif()
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.31.0")
+        cmake_policy(SET CMP0174 NEW)  # Handle empty variables
     endif()
 
     # more components required for compiling boost targets
@@ -36,12 +53,9 @@ if(NOT Boost_FOUND)
     set(BOOST_ENABLE_CMAKE ON)
 
     # Limit boost to the required libraries only
-    set(BOOST_INCLUDE_LIBRARIES
-            ${BOOST_COMPONENTS})
-    set(BOOST_URL
-            "https://github.com/boostorg/boost/releases/download/boost-1.86.0/boost-1.86.0-cmake.tar.xz")
-    set(BOOST_HASH
-            "MD5=D02759931CEDC02ADED80402906C5EB6")
+    set(BOOST_INCLUDE_LIBRARIES ${BOOST_COMPONENTS})
+    set(BOOST_URL "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
+    set(BOOST_HASH "SHA256=7da75f171837577a52bbf217e17f8ea576c7c246e4594d617bfde7fafd408be5")
 
     if(CMAKE_VERSION VERSION_LESS "3.24.0")
         FetchContent_Declare(
@@ -72,7 +86,7 @@ if(NOT Boost_FOUND)
 
     set(Boost_FOUND TRUE)  # cmake-lint: disable=C0103
     set(Boost_INCLUDE_DIRS  # cmake-lint: disable=C0103
-            "$<BUILD_INTERFACE:${Boost_SOURCE_DIR}/libs/headers/include>;$<INSTALL_INTERFACE:include/boost-1_85>")
+            "$<BUILD_INTERFACE:${Boost_SOURCE_DIR}/libs/headers/include>")
 
     if(WIN32)
         # Windows build is failing to create .h file in this directory

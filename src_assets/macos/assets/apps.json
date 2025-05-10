@@ -12,6 +12,12 @@
       "detached": [
         "open steam://open/bigpicture"
       ],
+      "prep-cmd": [
+        {
+          "do": "",
+          "undo": "open steam://close/bigpicture"
+        }
+      ],
       "image-path": "steam.png"
     }
   ]
