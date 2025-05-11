@@ -184,7 +184,7 @@ namespace platf {
   }
 
   std::string from_sockaddr(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
+    char data[INET6_ADDRSTRLEN];
 
     auto family = ip_addr->sa_family;
     if (family == AF_INET6) {
@@ -197,7 +197,7 @@ namespace platf {
   }
 
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
-    char data[INET6_ADDRSTRLEN] = {};
+    char data[INET6_ADDRSTRLEN];
 
     auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
@@ -333,7 +333,7 @@ namespace platf {
   }
 
   struct sockaddr_in to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
-    struct sockaddr_in saddr_v4 = {};
+    struct sockaddr_in saddr_v4;
 
     saddr_v4.sin_family = AF_INET;
     saddr_v4.sin_port = htons(port);
@@ -345,7 +345,7 @@ namespace platf {
   }
 
   struct sockaddr_in6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
-    struct sockaddr_in6 saddr_v6 = {};
+    struct sockaddr_in6 saddr_v6;
 
     saddr_v6.sin6_family = AF_INET6;
     saddr_v6.sin6_port = htons(port);
@@ -359,11 +359,11 @@ namespace platf {
 
   bool send_batch(batched_send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
-    struct msghdr msg = {};
+    struct msghdr msg;
 
     // Convert the target address into a sockaddr
-    struct sockaddr_in taddr_v4 = {};
-    struct sockaddr_in6 taddr_v6 = {};
+    struct sockaddr_in taddr_v4;
+    struct sockaddr_in6 taddr_v6;
     if (send_info.target_address.is_v6()) {
       taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
 
@@ -379,7 +379,7 @@ namespace platf {
     union {
       char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
       struct cmsghdr alignment;
-    } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
+    } cmbuf;  // Must be zeroed for CMSG_NXTHDR()
 
     socklen_t cmbuflen = 0;
 
@@ -424,7 +424,7 @@ namespace platf {
       // UDP GSO on Linux currently only supports sending 64K or 64 segments at a time
       size_t seg_index = 0;
       const size_t seg_max = 65536 / 1500;
-      struct iovec iovs[(send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg] = {};
+      struct iovec iovs[(send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg];
       auto msg_size = send_info.header_size + send_info.payload_size;
       while (seg_index < send_info.block_count) {
         int iovlen = 0;
@@ -507,8 +507,8 @@ namespace platf {
 
     {
       // If GSO is not supported, use sendmmsg() instead.
-      struct mmsghdr msgs[send_info.block_count] = {};
-      struct iovec iovs[send_info.block_count * (send_info.headers ? 2 : 1)] = {};
+      struct mmsghdr msgs[send_info.block_count];
+      struct iovec iovs[send_info.block_count * (send_info.headers ? 2 : 1)];
       int iov_idx = 0;
       for (size_t i = 0; i < send_info.block_count; i++) {
         msgs[i].msg_hdr.msg_iov = &iovs[iov_idx];
@@ -564,11 +564,11 @@ namespace platf {
 
   bool send(send_info_t &send_info) {
     auto sockfd = (int) send_info.native_socket;
-    struct msghdr msg = {};
+    struct msghdr msg;
 
     // Convert the target address into a sockaddr
-    struct sockaddr_in taddr_v4 = {};
-    struct sockaddr_in6 taddr_v6 = {};
+    struct sockaddr_in taddr_v4;
+    struct sockaddr_in6 taddr_v6;
     if (send_info.target_address.is_v6()) {
       taddr_v6 = to_sockaddr(send_info.target_address.to_v6(), send_info.target_port);
 
@@ -620,7 +620,7 @@ namespace platf {
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     }
 
-    struct iovec iovs[2] = {};
+    struct iovec iovs[2];
     int iovlen = 0;
     if (send_info.header) {
       iovs[iovlen].iov_base = (void *) send_info.header;
