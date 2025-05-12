@@ -382,6 +382,11 @@ namespace nvhttp {
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
     std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
 
+    // set vdd auto enable sops
+    if (config::video.preferUseVdd) {
+      launch_session->enable_sops = "1";
+    }
+
     launch_session->env["SUNSHINE_CLIENT_ID"] = std::to_string(launch_session->id);
     launch_session->env["SUNSHINE_CLIENT_UNIQUE_ID"] = launch_session->unique_id;
     launch_session->env["SUNSHINE_CLIENT_NAME"] = launch_session->client_name;
