@@ -5,6 +5,7 @@ import { defineConfig } from 'vite'
 import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
 import process from 'process'
+import path from 'path';
 
 let assetsSrcPath = 'src_assets/common/assets/web';
 let assetsDstPath = 'build/assets/web';
@@ -37,7 +38,7 @@ export default defineConfig({
     resolve: {
         alias: {
             vue: 'vue/dist/vue.esm-bundler.js',
-            '@': fileURLToPath(new URL(assetsSrcPath + '/src', import.meta.url))
+            '@': path.resolve(assetsSrcPath, 'src')
         }
     },
     base: './',
