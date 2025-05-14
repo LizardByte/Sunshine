@@ -81,7 +81,7 @@ namespace confighttp {
   void
   send_unauthorized(resp_https_t response, req_https_t request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+    BOOST_LOG(error) << "Web UI: ["sv << address << "] -- not authorized"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
       { "WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")" }
     };
@@ -91,7 +91,7 @@ namespace confighttp {
   void
   send_redirect(resp_https_t response, req_https_t request, const char *path) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
+    BOOST_LOG(error) << "Web UI: ["sv << address << "] -- not authorized, redirect"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
       { "Location", path }
     };
@@ -103,18 +103,10 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto ip_type = net::from_address(address);
 
-    auto user_agent = request->header.find("User-Agent");
-    bool is_scp = user_agent != request->header.end() &&
-                  user_agent->second.find("SunshineControlPanel") != std::string::npos;
-
     if (ip_type > http::origin_web_ui_allowed) {
-      BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
+      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
-    }
-
-    if (ip_type == net::PC || (is_scp && ip_type != net::WAN)) {
-      return true;
     }
 
     // If credentials are shown, redirect the user to a /welcome page
@@ -123,6 +115,10 @@ namespace confighttp {
       return false;
     }
 
+    if (ip_type == net::PC) {
+      return true;
+    }
+  
     auto fg = util::fail_guard([&]() {
       send_unauthorized(response, request);
     });
