@@ -38,7 +38,7 @@
 #include <Shlwapi.h>
 
 // local includes
-#include "misc.h"
+#include "common/misc.h"
 #include "nvprefs/nvprefs_interface.h"
 #include "src/entry_handler.h"
 #include "src/globals.h"

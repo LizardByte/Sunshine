@@ -32,7 +32,7 @@
 
 #ifdef _WIN32
   // from_utf8() string conversion function
-  #include "platform/windows/misc.h"
+  #include "platform/windows/common/misc.h"
 
   // _SH constants for _wfsopen()
   #include <share.h>

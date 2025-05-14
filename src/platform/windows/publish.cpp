@@ -12,7 +12,7 @@
 #include <winerror.h>
 
 // local includes
-#include "misc.h"
+#include "common/misc.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/network.h"
