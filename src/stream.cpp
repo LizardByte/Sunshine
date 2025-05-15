@@ -1263,7 +1263,7 @@ namespace stream {
   void videoBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
-    auto timebase = boost::posix_time::microsec_clock::universal_time();
+    auto video_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1459,13 +1459,19 @@ namespace stream {
 
           size_t next_shard_to_send = 0;
 
+          // RTP video timestamps use a 90 KHz clock and the frame_timestamp from when the frame was captured
+          // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
+          bool frame_is_dupe = false;
+          if (!packet->frame_timestamp) {
+            packet->frame_timestamp = ratecontrol_next_frame_start;
+            frame_is_dupe = true;
+          }
+          using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
+          uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
+
           // set FEC info now that we know for sure what our percentage will be for this frame
           for (auto x = 0; x < shards.size(); ++x) {
             auto *inspect = (video_packet_raw_t *) shards.data(x);
-
-            // RTP video timestamps use a 90 KHz clock
-            auto now = boost::posix_time::microsec_clock::universal_time();
-            auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
 
             inspect->packet.fecInfo =
               (x << 12 |
@@ -1558,11 +1564,11 @@ namespace stream {
 
           frame_network_latency_logger.second_point_now_and_log();
 
-          if (packet->is_idr()) {
-            BOOST_LOG(verbose) << "Key Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv;
-          } else {
-            BOOST_LOG(verbose) << "Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
-          }
+          BOOST_LOG(verbose) << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
+                             << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
+                             << (frame_is_dupe ? " Dupe" : "")
+                             << (packet->is_idr() ? " Key" : "")
+                             << (packet->after_ref_frame_invalidation ? " RFI" : "");
 
           ++blockIndex;
           lowseq += shards.size();
@@ -1622,6 +1628,8 @@ namespace stream {
         break;
       }
 
+      BOOST_LOG(verbose) << "Audio [seq "sv << sequenceNumber << ", pts "sv << timestamp << "] ::  send..."sv;
+
       audio_packet.rtp.sequenceNumber = util::endian::big(sequenceNumber);
       audio_packet.rtp.timestamp = util::endian::big(timestamp);
 
@@ -1641,7 +1649,6 @@ namespace stream {
           session->localAddress,
         };
         platf::send(send_info);
-        BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
         auto &fec_packet = session->audio.fec_packet;
         // initialize the FEC header at the beginning of the FEC block
