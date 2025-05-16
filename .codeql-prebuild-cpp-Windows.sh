@@ -24,13 +24,11 @@ pacman -S --noconfirm "${dependencies[@]}"
 
 # build
 mkdir -p build
+cd build || exit 1
 cmake \
-  -B build \
-  -G Ninja \
-  -S . \
   -DBUILD_DOCS=OFF \
-  -DBUILD_WERROR=ON
-ninja -C build
+  -G "MinGW Makefiles" ..
+mingw32-make -j"$(nproc)"
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"
