@@ -1,18 +1,28 @@
-<!DOCTYPE html>
-<html lang="en" data-bs-theme="auto">
-
-<head>
-  <%- header %>
-</head>
-
-<body id="app" v-cloak>
-  <Navbar></Navbar>
+<template>
   <div id="content" class="container">
     <h1 class="my-4 text-center">{{ $t('pin.pin_pairing') }}</h1>
-    <form class="form d-flex flex-column align-items-center" id="form" @submit.prevent="registerDevice">
+    <form
+      class="form d-flex flex-column align-items-center"
+      id="form"
+      @submit.prevent="registerDevice"
+    >
       <div class="card flex-column d-flex p-4 mb-4">
-        <input type="text" pattern="\d*" :placeholder="`${$t('navbar.pin')}`" autofocus id="pin-input" class="form-control mt-2" required />
-        <input type="text" :placeholder="`${$t('pin.device_name')}`" id="name-input" class="form-control my-4" required />
+        <input
+          type="text"
+          pattern="\d*"
+          :placeholder="`${$t('navbar.pin')}`"
+          autofocus
+          id="pin-input"
+          class="form-control mt-2"
+          required
+        />
+        <input
+          type="text"
+          :placeholder="`${$t('pin.device_name')}`"
+          id="name-input"
+          class="form-control my-4"
+          required
+        />
         <button class="btn btn-primary">{{ $t('pin.send') }}</button>
       </div>
       <div class="alert alert-warning">
@@ -21,42 +31,36 @@
       <div id="status"></div>
     </form>
   </div>
-</body>
-
+</template>
 <script type="module">
-  import { createApp } from 'vue'
-  import { initApp } from './init'
-  import Navbar from './Navbar.vue'
-
-  let app = createApp({
-    components: {
-      Navbar
-    },
-    inject: ['i18n'],
+  export default {
+    inject: ["i18n"],
     methods: {
       registerDevice(e) {
         let pin = document.querySelector("#pin-input").value;
         let name = document.querySelector("#name-input").value;
         document.querySelector("#status").innerHTML = "";
-        let b = JSON.stringify({pin: pin, name: name});
-        fetch("./api/pin", {method: "POST", body: b})
+        let b = JSON.stringify({ pin: pin, name: name });
+        fetch("./api/pin", { method: "POST", body: b })
           .then((response) => response.json())
           .then((response) => {
             if (response.status === true) {
               document.querySelector(
                 "#status"
-              ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t('pin.pair_success')}</div>`;
+              ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t(
+                "pin.pair_success"
+              )}</div>`;
               document.querySelector("#pin-input").value = "";
               document.querySelector("#name-input").value = "";
             } else {
               document.querySelector(
                 "#status"
-              ).innerHTML = `<div class="alert alert-danger" role="alert">${this.i18n.t('pin.pair_failure')}</div>`;
+              ).innerHTML = `<div class="alert alert-danger" role="alert">${this.i18n.t(
+                "pin.pair_failure"
+              )}</div>`;
             }
           });
-      }
-    }
-  });
-
-  initApp(app);
+      },
+    },
+  }
 </script>

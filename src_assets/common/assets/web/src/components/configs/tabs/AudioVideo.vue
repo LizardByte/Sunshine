@@ -1,6 +1,6 @@
 <script setup>
 import {ref} from 'vue'
-import {$tp} from '../../platform-i18n'
+import {$tp} from '@/utils/platform-i18n.js'
 import PlatformLayout from '../../PlatformLayout.vue'
 import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
 import DisplayOutputSelector from './audiovideo/DisplayOutputSelector.vue'
