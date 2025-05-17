@@ -765,6 +765,18 @@ namespace video {
         {"usage"s, &config::video.amd.amd_usage_hevc},
         {"vbaq"s, &config::video.amd.amd_vbaq},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
+        {"level"s, [](const config_t &cfg) {
+           auto size = cfg.width * cfg.height;
+           // For 4K and below, try to use level 5.1 or 5.2 if possible
+           if (size <= 8912896) {
+             if (size * cfg.framerate <= 534773760) {
+               return "5.1"s;
+             } else if (size * cfg.framerate <= 1069547520) {
+               return "5.2"s;
+             }
+           }
+           return "auto"s;
+         }},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -1639,7 +1651,7 @@ namespace video {
       ctx->thread_count = ctx->slices;
 
       AVDictionary *options {nullptr};
-      auto handle_option = [&options](const encoder_t::option_t &option) {
+      auto handle_option = [&options, &config](const encoder_t::option_t &option) {
         std::visit(
           util::overloaded {
             [&](int v) {
@@ -1653,7 +1665,7 @@ namespace video {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
             },
-            [&](std::function<int()> v) {
+            [&](const std::function<int()>& v) {
               av_dict_set_int(&options, option.name.c_str(), v(), 0);
             },
             [&](const std::string &v) {
@@ -1663,6 +1675,9 @@ namespace video {
               if (!v->empty()) {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
+            },
+            [&](const std::function<const std::string(const config_t &cfg)>& v) {
+              av_dict_set(&options, option.name.c_str(), v(config).c_str(), 0);
             }
           },
           option.value
