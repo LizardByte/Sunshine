@@ -9,10 +9,10 @@
   },
   "dependencies": {
     "@lizardbyte/shared-web": "2025.326.11214",
-    "@popperjs/core": "^2.11.8",
+    "@popperjs/core": "2.11.8",
     "vue": "3.5.13",
     "vue-i18n": "11.1.3",
-    "vue-router": "^4.5.1"
+    "vue-router": "4.5.1"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "1.9.0",

@@ -51,34 +51,3 @@ export default {
   }
 }
 </script>
-
-<style>
-.navbar-background {
-  background-color: #ffc400
-}
-
-.header .nav-link {
-  color: rgba(0, 0, 0, .65) !important;
-}
-
-.header .nav-link.active {
-  color: rgb(0, 0, 0) !important;
-}
-
-.header .nav-link:hover {
-  color: rgb(0, 0, 0) !important;
-}
-
-.header .navbar-toggler {
-  color: rgba(var(--bs-dark-rgb), .65) !important;
-  border: var(--bs-border-width) solid rgba(var(--bs-dark-rgb), 0.15) !important;
-}
-
-.header .navbar-toggler-icon {
-  --bs-navbar-toggler-icon-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%2833, 37, 41, 0.75%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e") !important;
-}
-
-.form-control::placeholder {
-  opacity: 0.5;
-}
-</style>
