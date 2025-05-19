@@ -861,30 +861,8 @@ jobs:
             wget
 
       - name: Update Windows dependencies
-        env:
-          gcc_version: "14.2.0-3"
         shell: msys2 {0}
         run: |
-          broken_deps=(
-            "mingw-w64-ucrt-x86_64-gcc"
-            "mingw-w64-ucrt-x86_64-gcc-libs"
-          )
-
-          tarballs=""
-          for dep in "${broken_deps[@]}"; do
-            tarball="${dep}-${gcc_version}-any.pkg.tar.zst"
-
-            # download and install working version
-            wget https://repo.msys2.org/mingw/ucrt64/${tarball}
-
-            tarballs="${tarballs} ${tarball}"
-          done
-
-          # install broken dependencies
-          if [ -n "$tarballs" ]; then
-            pacman -U --noconfirm ${tarballs}
-          fi
-
           # install dependencies
           dependencies=(
             "git"
@@ -903,7 +881,29 @@ jobs:
             "mingw-w64-ucrt-x86_64-toolchain"
           )
 
-          pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
+          pacman -Syu --noconfirm "${dependencies[@]}"
+          
+          # install version-locked dependencies
+          lock_deps=(
+            "mingw-w64-ucrt-x86_64-gcc@14.2.0-3"
+            "mingw-w64-ucrt-x86_64-gcc-libs@14.2.0-3"
+            "mingw-w64-ucrt-x86_64-headers-git@12.0.0.r724.g7e3f2dd90-1"
+          )
+          tarballs=""
+          for dep in "${lock_deps[@]}"; do
+            IFS=@ read -r name version <<< "$dep"
+            tarball="${name}-${version}-any.pkg.tar.zst"
+
+            # download and install working version
+            wget -N https://repo.msys2.org/mingw/ucrt64/${tarball}
+
+            tarballs="${tarballs} ${tarball}"
+          done
+
+          # install broken dependencies
+          if [ -n "$tarballs" ]; then
+            pacman -U --noconfirm ${tarballs}
+          fi
 
       - name: Install Doxygen
         # GCC compiled doxygen has issues when running graphviz
