@@ -11,7 +11,7 @@
       <div class="card p-2">
         <header>
           <h1 class="mb-0">
-            <img src="/images/logo-sunshine-45.png" height="45" alt="">
+            <img src="./images/logo-sunshine-45.png" height="45" alt="">
             {{ $t('welcome.greeting') }}
           </h1>
         </header>
@@ -86,8 +86,8 @@
               if (rj.status.toString() === "true") {
                 this.success = true;
                 setTimeout(() => {
-                  document.location.reload();
-                }, 5000);
+                  window.location.href = "/";
+                }, 2000);
               } else {
                 this.error = rj.error;
               }
