@@ -412,7 +412,9 @@ namespace platf {
         auto props = plane_props(plane_id);
         auto value = prop_value_by_name(props, "rotation"sv);
         if (value) {
-          return *value;
+          BOOST_LOG(info) << "Found panel orientation ["sv << *value << "]";
+          return DRM_MODE_ROTATE_0;
+          //return *value;
         }
 
         BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
