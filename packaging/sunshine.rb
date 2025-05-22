@@ -32,6 +32,7 @@ class @PROJECT_NAME@ < Formula
   depends_on "ninja" => :build
   depends_on "node" => :build
   depends_on "pkg-config" => :build
+  depends_on "gcovr" => :test
   depends_on "curl"
   depends_on "miniupnpc"
   depends_on "openssl"
@@ -353,5 +354,21 @@ index 5b3638d..aca9481 100644
     # run the test suite
     system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:test_results.xml"
     assert_path_exists testpath/"test_results.xml"
+
+    # create gcovr report
+    if ENV["HOMEBREW_BUILDPATH"]
+
+      cd File.join(ENV["HOMEBREW_BUILDPATH"], "build") do
+        system "gcovr", ".",
+          "-r", "../src",
+          "--exclude-noncode-lines",
+          "--exclude-throw-branches",
+          "--exclude-unreachable-branches",
+          "--verbose",
+          "--xml-pretty",
+          "-o=coverage.xml"
+      end
+      assert_path_exists File.join(ENV["HOMEBREW_BUILDPATH"], "build", "coverage.xml")
+    end
   end
 end
