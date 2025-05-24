@@ -52,6 +52,7 @@ jobs:
           
   build_win:
     name: Windows
+    needs: setup_release
     runs-on: windows-2019
     steps:
       - name: Checkout
@@ -116,7 +117,7 @@ jobs:
         shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}.杂鱼
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           mkdir -p build
@@ -173,7 +174,7 @@ jobs:
           if-no-files-found: error
 
       - name: Create/Update GitHub Release
-        # if: needs.setup_release.outputs.publish_release == 'true'
+        if: needs.setup_release.outputs.publish_release == 'true'
         uses: LizardByte/create-release-action@v2025.426.1549
         with:
           allowUpdates: true
