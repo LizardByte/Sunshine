@@ -1,0 +1,185 @@
+name: Build and Release
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }}-${{ github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  github_env:
+    name: GitHub Env Debug
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump github context
+        run: echo "$GITHUB_CONTEXT"
+        shell: bash
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+
+  setup_release:
+    name: Setup Release
+    outputs:
+      publish_release: ${{ steps.setup_release.outputs.publish_release }}
+      release_body: ${{ steps.setup_release.outputs.release_body }}
+      release_commit: ${{ steps.setup_release.outputs.release_commit }}
+      release_generate_release_notes: ${{ steps.setup_release.outputs.release_generate_release_notes }}
+      release_tag: ${{ steps.setup_release.outputs.release_tag }}
+      release_version: ${{ steps.setup_release.outputs.release_version }}
+    permissions:
+      contents: write  # read does not work to check squash and merge details
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Release
+        id: setup_release
+        uses: LizardByte/setup-release-action@v2025.426.225
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          
+  build_win:
+    name: Windows
+    runs-on: windows-2019
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Dependencies Windows
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            wget
+
+      - name: Update Windows dependencies
+        env:
+          gcc_version: '14.2.0-3'
+        shell: msys2 {0}
+        run: |
+          broken_deps=(
+            "mingw-w64-ucrt-x86_64-gcc"
+            "mingw-w64-ucrt-x86_64-gcc-libs"
+          )
+
+          tarballs=""
+          for dep in "${broken_deps[@]}"; do
+            tarball="${dep}-${gcc_version}-any.pkg.tar.zst"
+
+            # download and install working version
+            wget https://repo.msys2.org/mingw/ucrt64/${tarball}
+
+            tarballs="${tarballs} ${tarball}"
+          done
+
+          # install broken dependencies
+          if [ -n "$tarballs" ]; then
+            pacman -U --noconfirm ${tarballs}
+          fi
+
+          # install dependencies
+          dependencies=(
+            "git"
+            "mingw-w64-ucrt-x86_64-cmake"
+            "mingw-w64-ucrt-x86_64-cppwinrt"
+            "mingw-w64-ucrt-x86_64-curl-winssl"
+            "mingw-w64-ucrt-x86_64-graphviz"
+            "mingw-w64-ucrt-x86_64-MinHook"
+            "mingw-w64-ucrt-x86_64-miniupnpc"
+            "mingw-w64-ucrt-x86_64-nlohmann-json"
+            "mingw-w64-ucrt-x86_64-nodejs"
+            "mingw-w64-ucrt-x86_64-nsis"
+            "mingw-w64-ucrt-x86_64-onevpl"
+            "mingw-w64-ucrt-x86_64-openssl"
+            "mingw-w64-ucrt-x86_64-opus"
+            "mingw-w64-ucrt-x86_64-toolchain"
+          )
+
+          pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
+
+      - name: Build Windows
+        shell: msys2 {0}
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          COMMIT: ${{ needs.setup_release.outputs.release_commit }}
+        run: |
+          mkdir -p build
+          cmake \
+            -B build \
+            -G Ninja \
+            -S . \
+            -DBUILD_DOCS=OFF \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+          ninja -C build
+
+      - name: Package Windows
+        shell: msys2 {0}
+        run: |
+          mkdir -p artifacts
+          cd build
+
+          # package
+          cpack -G NSIS
+          cpack -G ZIP
+
+          # move
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
+
+      - name: Package Windows Debug Info
+        working-directory: build
+        run: |
+          # use .dbg file extension for binaries to avoid confusion with real packages
+          Get-ChildItem -File -Recurse | `
+            % { Rename-Item -Path $_.PSPath -NewName $_.Name.Replace(".exe",".dbg") }
+
+          # save the binaries with debug info
+          7z -r `
+            "-xr!CMakeFiles" `
+            "-xr!cpack_artifacts" `
+            a "../artifacts/sunshine-win32-debuginfo.7z" "*.dbg"
+
+      # - name: Upload Artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: sunshine-windows
+      #     path: artifacts/
+      #     if-no-files-found: error
+
+      - name: Upload Single Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-founation
+          path: artifacts/sunshine-windows-installer.exe
+          if-no-files-found: error
+
+      - name: Create/Update GitHub Release
+        if: needs.setup_release.outputs.publish_release == 'true'
+        uses: LizardByte/create-release-action@v2025.426.1549
+        with:
+          allowUpdates: true
+          body: ${{ needs.setup_release.outputs.release_body }}
+          generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
+          name: ${{ needs.setup_release.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.setup_release.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}

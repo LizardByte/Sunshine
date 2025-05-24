@@ -36,9 +36,17 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vdd/"
         DESTINATION "scripts"
         COMPONENT vdd)
-install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd/"
-        DESTINATION "tools"
-        COMPONENT superCmds)
+
+# Check if cmd directory exists
+if(EXISTS "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd")
+    # Convert path to native format for Windows
+    file(TO_NATIVE_PATH "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd" cmd_dir_native)
+    install(DIRECTORY "${cmd_dir_native}/"
+            DESTINATION "tools"
+            COMPONENT superCmds)
+else()
+    message(WARNING "cmd directory not found at ${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd")
+endif()
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
