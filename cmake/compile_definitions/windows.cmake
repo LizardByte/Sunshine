@@ -75,7 +75,6 @@ list(PREPEND PLATFORM_LIBRARIES
         libssp.a
         libstdc++.a
         libwinpthread.a
-        minhook::minhook
         ntdll
         setupapi
         shlwapi
@@ -84,6 +83,12 @@ list(PREPEND PLATFORM_LIBRARIES
         ws2_32
         wsock32
 )
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
+    list(APPEND PLATFORM_LIBRARIES
+            minhook::minhook
+    )
+endif()
 
 if(SUNSHINE_ENABLE_TRAY)
     list(APPEND PLATFORM_TARGET_FILES
