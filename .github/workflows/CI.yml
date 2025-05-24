@@ -524,6 +524,8 @@ jobs:
           rm '/usr/local/bin/idle3'
           rm '/usr/local/bin/idle3.12'
           rm '/usr/local/bin/idle3.13'
+          rm '/usr/local/bin/pip3.12'
+          rm '/usr/local/bin/pip3.13'
           rm '/usr/local/bin/pydoc3'
           rm '/usr/local/bin/pydoc3.12'
           rm '/usr/local/bin/pydoc3.13'
@@ -533,13 +535,7 @@ jobs:
           rm '/usr/local/bin/python3-config'
           rm '/usr/local/bin/python3.12-config'
           rm '/usr/local/bin/python3.13-config'
-          brew install python
-
-      - name: Setup python
-        id: python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+          brew install python3
 
       - name: Configure formula
         run: |
@@ -629,6 +625,12 @@ jobs:
           publish: false
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: true
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Generate gcov report
         id: test_report
