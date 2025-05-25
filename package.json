@@ -8,7 +8,7 @@
     "serve": "serve ./tests/fixtures/http --no-port-switching"
   },
   "dependencies": {
-    "@lizardbyte/shared-web": "2025.326.11214",
+    "@lizardbyte/shared-web": "2025.426.211939",
     "vue": "3.5.14",
     "vue-i18n": "11.1.3"
   },
