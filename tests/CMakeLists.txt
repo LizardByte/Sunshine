@@ -163,4 +163,15 @@ if (WIN32)
     # prefer static libraries since we're linking statically
     # this fixes libcurl linking errors when using non MSYS2 version of CMake
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_SEARCH_START_STATIC 1)
+
+    # Copy minhook-detours DLL to test binary directory for ARM64
+    if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${_MINHOOK_DLL}"
+                "${CMAKE_CURRENT_BINARY_DIR}"
+            COMMENT "Copying minhook-detours DLL to test binary directory"
+            VERBATIM
+        )
+    endif()
 endif ()
