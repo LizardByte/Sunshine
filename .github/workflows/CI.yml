@@ -740,9 +740,26 @@ jobs:
           validate: false
 
   build_win:
-    name: Windows
+    name: ${{ matrix.name }}
     needs: setup_release
-    runs-on: windows-2019
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: msys2 {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows-AMD64
+            os: windows-2019
+            arch: x86_64
+            msystem: ucrt64
+            toolchain: ucrt-x86_64
+          - name: Windows-ARM64
+            os: windows-11-arm
+            arch: aarch64
+            msystem: clangarm64
+            toolchain: clang-aarch64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -752,6 +769,7 @@ jobs:
       - name: Prepare tests
         id: prepare-tests
         if: false  # todo: DirectX11 is not available, so even software encoder fails
+        shell: pwsh
         run: |
           # function to download and extract a zip file
           function DownloadAndExtract {
@@ -854,63 +872,80 @@ jobs:
           Get-Content -Path monitor_list.txt
 
       - name: Setup Dependencies Windows
-        # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
         uses: msys2/setup-msys2@v2
         with:
-          msystem: ucrt64
+          msystem: ${{ matrix.msystem }}
           update: true
-          install: >-
-            wget
 
       - name: Update Windows dependencies
         env:
-          gcc_version: "14.2.0-3"
-        shell: msys2 {0}
+          MSYSTEM: ${{ matrix.msystem }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
         run: |
-          broken_deps=(
-            "mingw-w64-ucrt-x86_64-gcc"
-            "mingw-w64-ucrt-x86_64-gcc-libs"
+          # variables
+          declare -A pinned_deps
+          if [[ ${MSYSTEM} == "ucrt64" ]]; then
+           pinned_deps["mingw-w64-${TOOLCHAIN}-gcc"]="14.2.0-3"
+           pinned_deps["mingw-w64-${TOOLCHAIN}-gcc-libs"]="14.2.0-3"
+          fi
+
+          dependencies=(
+            "git"
+            "mingw-w64-${TOOLCHAIN}-cmake"
+            "mingw-w64-${TOOLCHAIN}-cppwinrt"
+            "mingw-w64-${TOOLCHAIN}-curl-winssl"
+            "mingw-w64-${TOOLCHAIN}-graphviz"
+            "mingw-w64-${TOOLCHAIN}-miniupnpc"
+            "mingw-w64-${TOOLCHAIN}-nlohmann-json"
+            "mingw-w64-${TOOLCHAIN}-nodejs"
+            "mingw-w64-${TOOLCHAIN}-onevpl"
+            "mingw-w64-${TOOLCHAIN}-openssl"
+            "mingw-w64-${TOOLCHAIN}-opus"
+            "mingw-w64-${TOOLCHAIN}-toolchain"
           )
 
+          if [[ ${MSYSTEM} == "ucrt64" ]]; then
+            dependencies+=(
+              "mingw-w64-${TOOLCHAIN}-MinHook"
+              "mingw-w64-${TOOLCHAIN}-nsis"  # TODO: how to create an arm64 installer?
+            )
+          fi
+
+          # do not modify below this line
+
+          ignore_packages=()
           tarballs=""
-          for dep in "${broken_deps[@]}"; do
-            tarball="${dep}-${gcc_version}-any.pkg.tar.zst"
+          for pkg in "${!pinned_deps[@]}"; do
+            ignore_packages+=("${pkg}")
+            version="${pinned_deps[$pkg]}"
+            tarball="${pkg}-${version}-any.pkg.tar.zst"
 
             # download and install working version
-            wget https://repo.msys2.org/mingw/ucrt64/${tarball}
+            wget "https://repo.msys2.org/mingw/${MSYSTEM}/${tarball}"
 
             tarballs="${tarballs} ${tarball}"
           done
 
-          # install broken dependencies
+          # Create the ignore string for pacman
+          ignore_list=$(IFS=,; echo "${ignore_packages[*]}")
+
+          # install pinned dependencies
           if [ -n "$tarballs" ]; then
             pacman -U --noconfirm ${tarballs}
           fi
 
-          # install dependencies
-          dependencies=(
-            "git"
-            "mingw-w64-ucrt-x86_64-cmake"
-            "mingw-w64-ucrt-x86_64-cppwinrt"
-            "mingw-w64-ucrt-x86_64-curl-winssl"
-            "mingw-w64-ucrt-x86_64-graphviz"
-            "mingw-w64-ucrt-x86_64-MinHook"
-            "mingw-w64-ucrt-x86_64-miniupnpc"
-            "mingw-w64-ucrt-x86_64-nlohmann-json"
-            "mingw-w64-ucrt-x86_64-nodejs"
-            "mingw-w64-ucrt-x86_64-nsis"
-            "mingw-w64-ucrt-x86_64-onevpl"
-            "mingw-w64-ucrt-x86_64-openssl"
-            "mingw-w64-ucrt-x86_64-opus"
-            "mingw-w64-ucrt-x86_64-toolchain"
-          )
-
-          pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
+          # Only add --ignore if we have packages to ignore
+          if [ -n "$ignore_list" ]; then
+            pacman -Syu --noconfirm --ignore="${ignore_list}" "${dependencies[@]}"
+          else
+            pacman -Syu --noconfirm "${dependencies[@]}"
+          fi
 
       - name: Install Doxygen
         # GCC compiled doxygen has issues when running graphviz
         env:
           DOXYGEN_VERSION: "1.11.0"
+        shell: pwsh
         run: |
           # Set version variables
           $doxy_ver = $env:DOXYGEN_VERSION
@@ -940,7 +975,6 @@ jobs:
 
       - name: Python Path
         id: python-path
-        shell: msys2 {0}
         run: |
           # replace backslashes with double backslashes
           python_path=$(echo "${{ steps.setup-python.outputs.python-path }}" | sed 's/\\/\\\\/g')
@@ -950,7 +984,6 @@ jobs:
           echo "python-path=${python_path}" >> $GITHUB_OUTPUT
 
       - name: Build Windows
-        shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
@@ -971,7 +1004,6 @@ jobs:
           ninja -C build
 
       - name: Package Windows
-        shell: msys2 {0}
         run: |
           mkdir -p artifacts
           cd build
@@ -981,12 +1013,11 @@ jobs:
           cpack -G ZIP
 
           # move
-          mv ./cpack_artifacts/Sunshine.exe ../artifacts/sunshine-windows-installer.exe
-          mv ./cpack_artifacts/Sunshine.zip ../artifacts/sunshine-windows-portable.zip
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.os }}-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.os }}-portable.zip
 
       - name: Run tests
         id: test
-        shell: msys2 {0}
         working-directory: build/tests
         run: |
           ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
@@ -995,7 +1026,6 @@ jobs:
         id: test_report
         # any except canceled or skipped
         if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        shell: msys2 {0}
         working-directory: build
         run: |
           ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
@@ -1018,7 +1048,7 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
           files: ./build/tests/test_results.xml
-          flags: ${{ runner.os }}
+          flags: ${{ matrix.name }}
           handle_no_reports_found: true
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
@@ -1034,11 +1064,12 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
           files: ./build/coverage.xml
-          flags: ${{ runner.os }}
+          flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
 
       - name: Package Windows Debug Info
+        shell: pwsh
         working-directory: build
         run: |
           # use .dbg file extension for binaries to avoid confusion with real packages
@@ -1049,7 +1080,7 @@ jobs:
           7z -r `
             "-xr!CMakeFiles" `
             "-xr!cpack_artifacts" `
-            a "../artifacts/sunshine-win32-debuginfo.7z" "*.dbg"
+            a "../artifacts/${{ matrix.name }}-debuginfo.7z" "*.dbg"
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
