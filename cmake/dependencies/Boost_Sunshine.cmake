@@ -54,8 +54,19 @@ if(NOT Boost_FOUND)
 
     # Limit boost to the required libraries only
     set(BOOST_INCLUDE_LIBRARIES ${BOOST_COMPONENTS})
-    set(BOOST_URL "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
-    set(BOOST_HASH "SHA256=7da75f171837577a52bbf217e17f8ea576c7c246e4594d617bfde7fafd408be5")
+    # set(BOOST_URL "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
+    # set(BOOST_HASH "SHA256=7da75f171837577a52bbf217e17f8ea576c7c246e4594d617bfde7fafd408be5")
+    
+    # Build Windows Arm64 must backport following:
+    #
+    # context: Support building assembly files for mingw-w64 on arm64 with CMake
+    # Link: https://github.com/boostorg/context/commit/f82483d343c6452c62ec89a48d22a3a7e565373d
+    #
+    # uuid: fix: Disable libatomic link for windows arm64
+    # Link: https://github.com/boostorg/uuid/pull/176
+    #
+    set(BOOST_URL "https://github.com/rbqvq/Sunshine/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
+    set(BOOST_HASH "SHA256=e58510fc9e7c6035e0f83a433be90e0b2043c5665f3e6592533132dafc4a4792")
 
     if(CMAKE_VERSION VERSION_LESS "3.24.0")
         FetchContent_Declare(
