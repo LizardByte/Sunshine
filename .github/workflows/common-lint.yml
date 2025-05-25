@@ -126,7 +126,7 @@ jobs:
           cmake-lint --line-width 120 --tab-size 4 ${{ steps.cmake_files.outputs.found_files }}
 
       - name: Docker - find files
-        id: dokcer_files
+        id: docker_files
         if: always()
         run: |
           found_files=$(find . -type f -iname "Dockerfile" -o -iname "*.dockerfile")
@@ -137,7 +137,7 @@ jobs:
           echo found_files=${found_files} >> $GITHUB_OUTPUT
 
       - name: Docker - hadolint
-        if: always() && steps.dokcer_files.outputs.found_files
+        if: always() && steps.docker_files.outputs.found_files
         run: |
           docker pull hadolint/hadolint
 
@@ -156,7 +156,7 @@ jobs:
           failed=0
           failed_files=""
 
-          for file in ${{ steps.dokcer_files.outputs.found_files }}; do
+          for file in ${{ steps.docker_files.outputs.found_files }}; do
             echo "::group::${file}"
             docker run --rm -i \
               -e "NO_COLOR=0" \
@@ -173,6 +173,45 @@ jobs:
             echo "::error:: hadolint failed for the following files: $failed_files"
             exit 1
           fi
+
+      - name: PowerShell - PSScriptAnalyzer
+        if: always()
+        shell: pwsh
+        run: |
+          # PSScriptAnalyzer is already installed on GitHub runners
+
+          # To see a list of available rules, run the following command:
+          # Get-ScriptAnalyzerRule | Format-List
+
+          # Create PSScriptAnalyzer config file only if it doesn't exist
+          if (-not (Test-Path ./PSScriptAnalyzerSettings.psd1)) {
+              @'
+          @{
+              Severity=@(
+                  'Error',
+                  'Information',
+                  'Warning'
+              )
+              ExcludeRules=@(
+                  'PSAlignAssignmentStatement'
+              )
+          }
+          '@ | Out-File -FilePath ./PSScriptAnalyzerSettings.psd1
+          }
+
+          # Run PSScriptAnalyzer recursively on the whole repository
+          Write-Host "::group::Analyzing PowerShell files"
+          $results = Invoke-ScriptAnalyzer -Path "." -Recurse
+
+          if ($results) {
+              $results | Format-Table -AutoSize
+              Write-Host "::error::PSScriptAnalyzer found issues in PowerShell files"
+              Write-Host "::endgroup::"
+              exit 1
+          } else {
+              Write-Host "No issues found in PowerShell files"
+              Write-Host "::endgroup::"
+          }
 
       - name: Python - flake8
         if: always()
