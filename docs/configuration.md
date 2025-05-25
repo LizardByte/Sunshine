@@ -57,7 +57,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="18">Choices</td>
+        <td rowspan="19">Choices</td>
         <td>bg</td>
         <td>Bulgarian</td>
     </tr>
@@ -128,6 +128,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>zh</td>
         <td>Chinese (Simplified)</td>
+    </tr>
+    <tr>
+        <td>zh_TW</td>
+        <td>Chinese (Traditional)</td>
     </tr>
 </table>
 
