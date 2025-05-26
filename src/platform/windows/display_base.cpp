@@ -12,7 +12,11 @@
 // lib includes
 #include <boost/algorithm/string/join.hpp>
 #include <boost/process/v1.hpp>
-#include <MinHook.h>
+
+// conditional includes
+#if defined(__x86_64__) || defined(__amd64__)
+  #include <MinHook.h>
+#endif
 
 // We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
@@ -407,6 +411,7 @@ namespace platf::dxgi {
     return false;
   }
 
+#if defined(__x86_64__) || defined(__amd64__)
   /**
    * @brief Hook for NtGdiDdDDIGetCachedHybridQueryValue() from win32u.dll.
    * @param gpuPreference A pointer to the location where the preference will be written.
@@ -425,6 +430,7 @@ namespace platf::dxgi {
       return STATUS_INVALID_PARAMETER;
     }
   }
+#endif
 
   int display_base_t::init(const ::video::config_t &config, const std::string &display_name) {
     std::once_flag windows_cpp_once_flag;
@@ -444,12 +450,14 @@ namespace platf::dxgi {
         FreeLibrary(user32);
       }
 
+#if defined(__x86_64__) || defined(__amd64__)
       {
         // We aren't calling MH_Uninitialize(), but that's okay because this hook lasts for the life of the process
         MH_Initialize();
         MH_CreateHookApi(L"win32u.dll", "NtGdiDdDDIGetCachedHybridQueryValue", (void *) NtGdiDdDDIGetCachedHybridQueryValueHook, nullptr);
         MH_EnableHook(MH_ALL_HOOKS);
       }
+#endif
     });
 
     // Get rectangle of full desktop for absolute mouse coordinates
