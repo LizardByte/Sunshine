@@ -37,8 +37,8 @@
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
 
-namespace fs = std::filesystem;
-using namespace std::literals;
+namespace fs = ::std::filesystem;
+using namespace ::std::literals;
 
 #define CA_DIR "credentials"
 #define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
@@ -50,7 +50,7 @@ namespace config {
 
   namespace nv {
 
-    nvenc::nvenc_two_pass twopass_from_view(const std::string_view &preset) {
+    nvenc::nvenc_two_pass twopass_from_view(const ::std::string_view &preset) {
       if (preset == "disabled") {
         return nvenc::nvenc_two_pass::disabled;
       }
@@ -187,7 +187,7 @@ namespace config {
     };
 
     template<class T>
-    std::optional<int> quality_from_view(const std::string_view &quality_type, const std::optional<int>(&original)) {
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (quality_type == #x##sv) \
   return (int) T::x
@@ -199,7 +199,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> rc_from_view(const std::string_view &rc, const std::optional<int>(&original)) {
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (rc == #x##sv) \
   return (int) T::x
@@ -212,7 +212,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> usage_from_view(const std::string_view &usage, const std::optional<int>(&original)) {
+    ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (usage == #x##sv) \
   return (int) T::x
@@ -225,7 +225,7 @@ namespace config {
       return original;
     }
 
-    int coder_from_view(const std::string_view &coder) {
+    int coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
       }
@@ -257,7 +257,7 @@ namespace config {
       disabled = false  ///< Disabled
     };
 
-    std::optional<int> preset_from_view(const std::string_view &preset) {
+    ::std::optional<int> preset_from_view(const ::std::string_view &preset) {
 #define _CONVERT_(x) \
   if (preset == #x##sv) \
   return x
@@ -269,10 +269,10 @@ namespace config {
       _CONVERT_(faster);
       _CONVERT_(veryfast);
 #undef _CONVERT_
-      return std::nullopt;
+      return ::std::nullopt;
     }
 
-    std::optional<int> coder_from_view(const std::string_view &coder) {
+    ::std::optional<int> coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
       }
@@ -282,7 +282,7 @@ namespace config {
       if (coder == "cavlc"sv || coder == "vlc"sv) {
         return enabled;
       }
-      return std::nullopt;
+      return ::std::nullopt;
     }
 
   }  // namespace qsv
@@ -295,7 +295,7 @@ namespace config {
       cavlc  ///< CAVLC
     };
 
-    int coder_from_view(const std::string_view &coder) {
+    int coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
       }
@@ -309,7 +309,7 @@ namespace config {
       return -1;
     }
 
-    int allow_software_from_view(const std::string_view &software) {
+    int allow_software_from_view(const ::std::string_view &software) {
       if (software == "allowed"sv || software == "forced") {
         return 1;
       }
@@ -317,7 +317,7 @@ namespace config {
       return 0;
     }
 
-    int force_software_from_view(const std::string_view &software) {
+    int force_software_from_view(const ::std::string_view &software) {
       if (software == "forced") {
         return 1;
       }
@@ -325,7 +325,7 @@ namespace config {
       return 0;
     }
 
-    int rt_from_view(const std::string_view &rt) {
+    int rt_from_view(const ::std::string_view &rt) {
       if (rt == "disabled" || rt == "off" || rt == "0") {
         return 0;
       }
@@ -336,7 +336,7 @@ namespace config {
   }  // namespace vt
 
   namespace sw {
-    int svtav1_preset_from_view(const std::string_view &preset) {
+    int svtav1_preset_from_view(const ::std::string_view &preset) {
 #define _CONVERT_(x, y) \
   if (preset == #x##sv) \
   return y
@@ -355,7 +355,7 @@ namespace config {
   }  // namespace sw
 
   namespace dd {
-    video_t::dd_t::config_option_e config_option_from_view(const std::string_view value) {
+    video_t::dd_t::config_option_e config_option_from_view(const ::std::string_view value) {
 #define _CONVERT_(x) \
   if (value == #x##sv) \
   return video_t::dd_t::config_option_e::x
@@ -368,7 +368,7 @@ namespace config {
       return video_t::dd_t::config_option_e::disabled;  // Default to this if value is invalid
     }
 
-    video_t::dd_t::resolution_option_e resolution_option_from_view(const std::string_view value) {
+    video_t::dd_t::resolution_option_e resolution_option_from_view(const ::std::string_view value) {
 #define _CONVERT_2_ARG_(str, val) \
   if (value == #str##sv) \
   return video_t::dd_t::resolution_option_e::val
@@ -381,7 +381,7 @@ namespace config {
       return video_t::dd_t::resolution_option_e::disabled;  // Default to this if value is invalid
     }
 
-    video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const std::string_view value) {
+    video_t::dd_t::refresh_rate_option_e refresh_rate_option_from_view(const ::std::string_view value) {
 #define _CONVERT_2_ARG_(str, val) \
   if (value == #str##sv) \
   return video_t::dd_t::refresh_rate_option_e::val
@@ -394,7 +394,7 @@ namespace config {
       return video_t::dd_t::refresh_rate_option_e::disabled;  // Default to this if value is invalid
     }
 
-    video_t::dd_t::hdr_option_e hdr_option_from_view(const std::string_view value) {
+    video_t::dd_t::hdr_option_e hdr_option_from_view(const ::std::string_view value) {
 #define _CONVERT_2_ARG_(str, val) \
   if (value == #str##sv) \
   return video_t::dd_t::hdr_option_e::val
@@ -406,20 +406,20 @@ namespace config {
       return video_t::dd_t::hdr_option_e::disabled;  // Default to this if value is invalid
     }
 
-    video_t::dd_t::mode_remapping_t mode_remapping_from_view(const std::string_view value) {
+    video_t::dd_t::mode_remapping_t mode_remapping_from_view(const ::std::string_view value) {
       const auto parse_entry_list {[](const auto &entry_list, auto &output_field) {
         for (auto &[_, entry] : entry_list) {
-          auto requested_resolution = entry.template get_optional<std::string>("requested_resolution"s);
-          auto requested_fps = entry.template get_optional<std::string>("requested_fps"s);
-          auto final_resolution = entry.template get_optional<std::string>("final_resolution"s);
-          auto final_refresh_rate = entry.template get_optional<std::string>("final_refresh_rate"s);
+          auto requested_resolution = entry.template get_optional<::std::string>("requested_resolution"s);
+          auto requested_fps = entry.template get_optional<::std::string>("requested_fps"s);
+          auto final_resolution = entry.template get_optional<::std::string>("final_resolution"s);
+          auto final_refresh_rate = entry.template get_optional<::std::string>("final_refresh_rate"s);
 
           output_field.push_back(video_t::dd_t::mode_remapping_entry_t {requested_resolution.value_or(""), requested_fps.value_or(""), final_resolution.value_or(""), final_refresh_rate.value_or("")});
         }
       }};
 
       // We need to add a wrapping object to make it valid JSON, otherwise ptree cannot parse it.
-      std::stringstream json_stream;
+      ::std::stringstream json_stream;
       json_stream << "{\"dd_mode_remapping\":" << value << "}";
 
       boost::property_tree::ptree json_tree;
@@ -545,7 +545,7 @@ namespace config {
     },
     -1ms,  // back_button_timeout
     500ms,  // key_repeat_delay
-    std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
+    ::std::chrono::duration<double> {1 / 24.9},  // key_repeat_period
 
     {
       platf::supported_gamepads(nullptr).front().name.data(),
@@ -592,12 +592,12 @@ namespace config {
     return space_tab(ch) || endline(ch);
   }
 
-  std::string to_string(const char *begin, const char *end) {
-    std::string result;
+  ::std::string to_string(const char *begin, const char *end) {
+    ::std::string result;
 
     KITTY_WHILE_LOOP(auto pos = begin, pos != end, {
-      auto comment = std::find(pos, end, '#');
-      auto endl = std::find_if(comment, end, endline);
+      auto comment = ::std::find(pos, end, '#');
+      auto endl = ::std::find_if(comment, end, endline);
 
       result.append(pos, comment);
 
@@ -624,25 +624,25 @@ namespace config {
     return skipper;
   }
 
-  std::pair<
-    std::string_view::const_iterator,
-    std::optional<std::pair<std::string, std::string>>>
-    parse_option(std::string_view::const_iterator begin, std::string_view::const_iterator end) {
-    begin = std::find_if_not(begin, end, whitespace);
-    auto endl = std::find_if(begin, end, endline);
-    auto endc = std::find(begin, endl, '#');
-    endc = std::find_if(std::make_reverse_iterator(endc), std::make_reverse_iterator(begin), std::not_fn(whitespace)).base();
+  ::std::pair<
+    ::std::string_view::const_iterator,
+    ::std::optional<::std::pair<::std::string, ::std::string>>>
+    parse_option(::std::string_view::const_iterator begin, ::std::string_view::const_iterator end) {
+    begin = ::std::find_if_not(begin, end, whitespace);
+    auto endl = ::std::find_if(begin, end, endline);
+    auto endc = ::std::find(begin, endl, '#');
+    endc = ::std::find_if(::std::make_reverse_iterator(endc), ::std::make_reverse_iterator(begin), ::std::not_fn(whitespace)).base();
 
-    auto eq = std::find(begin, endc, '=');
+    auto eq = ::std::find(begin, endc, '=');
     if (eq == endc || eq == begin) {
-      return std::make_pair(endl, std::nullopt);
+      return ::std::make_pair(endl, ::std::nullopt);
     }
 
-    auto end_name = std::find_if_not(std::make_reverse_iterator(eq), std::make_reverse_iterator(begin), space_tab).base();
-    auto begin_val = std::find_if_not(eq + 1, endc, space_tab);
+    auto end_name = ::std::find_if_not(::std::make_reverse_iterator(eq), ::std::make_reverse_iterator(begin), space_tab).base();
+    auto begin_val = ::std::find_if_not(eq + 1, endc, space_tab);
 
     if (begin_val == endl) {
-      return std::make_pair(endl, std::nullopt);
+      return ::std::make_pair(endl, ::std::nullopt);
     }
 
     // Lists might contain newlines
@@ -655,24 +655,24 @@ namespace config {
       // 2. We reached the end but the last character was the matching closing bracket
       if (endl == end && end == begin_val + 1) {
         BOOST_LOG(warning) << "config: Missing ']' in config option: " << to_string(begin, end_name);
-        return std::make_pair(endl, std::nullopt);
+        return ::std::make_pair(endl, ::std::nullopt);
       }
     }
 
-    return std::make_pair(
+    return ::std::make_pair(
       endl,
-      std::make_pair(to_string(begin, end_name), to_string(begin_val, endl))
+      ::std::make_pair(to_string(begin, end_name), to_string(begin_val, endl))
     );
   }
 
-  std::unordered_map<std::string, std::string> parse_config(const std::string_view &file_content) {
-    std::unordered_map<std::string, std::string> vars;
+  ::std::unordered_map<::std::string, ::std::string> parse_config(const ::std::string_view &file_content) {
+    ::std::unordered_map<::std::string, ::std::string> vars;
 
-    auto pos = std::begin(file_content);
-    auto end = std::end(file_content);
+    auto pos = ::std::begin(file_content);
+    auto end = ::std::end(file_content);
 
     while (pos < end) {
-      // auto newline = std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
+      // auto newline = ::std::find_if(pos, end, [](auto ch) { return ch == '\n' || ch == '\r'; });
       TUPLE_2D(endl, var, parse_option(pos, end));
 
       pos = endl;
@@ -684,49 +684,49 @@ namespace config {
         continue;
       }
 
-      vars.emplace(std::move(*var));
+      vars.emplace(::std::move(*var));
     }
 
     return vars;
   }
 
-  void string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  void string_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::string &input) {
     auto it = vars.find(name);
-    if (it == std::end(vars)) {
+    if (it == ::std::end(vars)) {
       return;
     }
 
-    input = std::move(it->second);
+    input = ::std::move(it->second);
 
     vars.erase(it);
   }
 
   template<typename T, typename F>
-  void generic_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, T &input, F &&f) {
-    std::string tmp;
+  void generic_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, T &input, F &&f) {
+    ::std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
       input = f(tmp);
     }
   }
 
-  void string_restricted_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input, const std::vector<std::string_view> &allowed_vals) {
-    std::string temp;
+  void string_restricted_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::string &input, const ::std::vector<::std::string_view> &allowed_vals) {
+    ::std::string temp;
     string_f(vars, name, temp);
 
     for (auto &allowed_val : allowed_vals) {
       if (temp == allowed_val) {
-        input = std::move(temp);
+        input = ::std::move(temp);
         return;
       }
     }
   }
 
-  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
+  void path_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, fs::path &input) {
     // appdata needs to be retrieved once only
     static auto appdata = platf::appdata();
 
-    std::string temp;
+    ::std::string temp;
     string_f(vars, name, temp);
 
     if (!temp.empty()) {
@@ -746,7 +746,7 @@ namespace config {
     }
   }
 
-  void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::string &input) {
+  void path_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::string &input) {
     fs::path temp = input;
 
     path_f(vars, name, temp);
@@ -754,14 +754,14 @@ namespace config {
     input = temp.string();
   }
 
-  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input) {
+  void int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, int &input) {
     auto it = vars.find(name);
 
-    if (it == std::end(vars)) {
+    if (it == ::std::end(vars)) {
       return;
     }
 
-    std::string_view val = it->second;
+    ::std::string_view val = it->second;
 
     // If value is something like: "756" instead of 756
     if (val.size() >= 2 && val[0] == '"') {
@@ -778,14 +778,14 @@ namespace config {
     vars.erase(it);
   }
 
-  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input) {
+  void int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::optional<int> &input) {
     auto it = vars.find(name);
 
-    if (it == std::end(vars)) {
+    if (it == ::std::end(vars)) {
       return;
     }
 
-    std::string_view val = it->second;
+    ::std::string_view val = it->second;
 
     // If value is something like: "756" instead of 756
     if (val.size() >= 2 && val[0] == '"') {
@@ -803,8 +803,8 @@ namespace config {
   }
 
   template<class F>
-  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, F &&f) {
-    std::string tmp;
+  void int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, int &input, F &&f) {
+    ::std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
       input = f(tmp);
@@ -812,15 +812,15 @@ namespace config {
   }
 
   template<class F>
-  void int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::optional<int> &input, F &&f) {
-    std::string tmp;
+  void int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::optional<int> &input, F &&f) {
+    ::std::string tmp;
     string_f(vars, name, tmp);
     if (!tmp.empty()) {
       input = f(tmp);
     }
   }
 
-  void int_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, int &input, const std::pair<int, int> &range) {
+  void int_between_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, int &input, const ::std::pair<int, int> &range) {
     int temp = input;
 
     int_f(vars, name, temp);
@@ -831,9 +831,9 @@ namespace config {
     }
   }
 
-  bool to_bool(std::string &boolean) {
-    std::for_each(std::begin(boolean), std::end(boolean), [](char ch) {
-      return (char) std::tolower(ch);
+  bool to_bool(::std::string &boolean) {
+    ::std::for_each(::std::begin(boolean), ::std::end(boolean), [](char ch) {
+      return (char) ::std::tolower(ch);
     });
 
     return boolean == "true"sv ||
@@ -841,11 +841,11 @@ namespace config {
            boolean == "enable"sv ||
            boolean == "enabled"sv ||
            boolean == "on"sv ||
-           (std::find(std::begin(boolean), std::end(boolean), '1') != std::end(boolean));
+           (::std::find(::std::begin(boolean), ::std::end(boolean), '1') != ::std::end(boolean));
   }
 
-  void bool_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, bool &input) {
-    std::string tmp;
+  void bool_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, bool &input) {
+    ::std::string tmp;
     string_f(vars, name, tmp);
 
     if (tmp.empty()) {
@@ -855,8 +855,8 @@ namespace config {
     input = to_bool(tmp);
   }
 
-  void double_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input) {
-    std::string tmp;
+  void double_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, double &input) {
+    ::std::string tmp;
     string_f(vars, name, tmp);
 
     if (tmp.empty()) {
@@ -864,7 +864,7 @@ namespace config {
     }
 
     char *c_str_p;
-    auto val = std::strtod(tmp.c_str(), &c_str_p);
+    auto val = ::std::strtod(tmp.c_str(), &c_str_p);
 
     if (c_str_p == tmp.c_str()) {
       return;
@@ -873,7 +873,7 @@ namespace config {
     input = val;
   }
 
-  void double_between_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, double &input, const std::pair<double, double> &range) {
+  void double_between_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, double &input, const ::std::pair<double, double> &range) {
     double temp = input;
 
     double_f(vars, name, temp);
@@ -884,8 +884,8 @@ namespace config {
     }
   }
 
-  void list_string_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
-    std::string string;
+  void list_string_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::vector<::std::string> &input) {
+    ::std::string string;
     string_f(vars, name, string);
 
     if (string.empty()) {
@@ -894,25 +894,25 @@ namespace config {
 
     input.clear();
 
-    auto begin = std::cbegin(string);
+    auto begin = ::std::cbegin(string);
     if (*begin == '[') {
       ++begin;
     }
 
-    begin = std::find_if_not(begin, std::cend(string), whitespace);
-    if (begin == std::cend(string)) {
+    begin = ::std::find_if_not(begin, ::std::cend(string), whitespace);
+    if (begin == ::std::cend(string)) {
       return;
     }
 
     auto pos = begin;
-    while (pos < std::cend(string)) {
+    while (pos < ::std::cend(string)) {
       if (*pos == '[') {
-        pos = skip_list(pos + 1, std::cend(string)) + 1;
+        pos = skip_list(pos + 1, ::std::cend(string)) + 1;
       } else if (*pos == ']') {
         break;
       } else if (*pos == ',') {
         input.emplace_back(begin, pos);
-        pos = begin = std::find_if_not(pos + 1, std::cend(string), whitespace);
+        pos = begin = ::std::find_if_not(pos + 1, ::std::cend(string), whitespace);
       } else {
         ++pos;
       }
@@ -923,11 +923,11 @@ namespace config {
     }
   }
 
-  void list_prep_cmd_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<prep_cmd_t> &input) {
-    std::string string;
+  void list_prep_cmd_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::vector<prep_cmd_t> &input) {
+    ::std::string string;
     string_f(vars, name, string);
 
-    std::stringstream jsonStream;
+    ::std::stringstream jsonStream;
 
     // check if string is empty, i.e. when the value doesn't exist in the config file
     if (string.empty()) {
@@ -941,16 +941,16 @@ namespace config {
     boost::property_tree::read_json(jsonStream, jsonTree);
 
     for (auto &[_, prep_cmd] : jsonTree.get_child("prep_cmd"s)) {
-      auto do_cmd = prep_cmd.get_optional<std::string>("do"s);
-      auto undo_cmd = prep_cmd.get_optional<std::string>("undo"s);
+      auto do_cmd = prep_cmd.get_optional<::std::string>("do"s);
+      auto undo_cmd = prep_cmd.get_optional<::std::string>("undo"s);
       auto elevated = prep_cmd.get_optional<bool>("elevated"s);
 
       input.emplace_back(do_cmd.value_or(""), undo_cmd.value_or(""), elevated.value_or(false));
     }
   }
 
-  void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
-    std::vector<std::string> list;
+  void list_int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::vector<int> &input) {
+    ::std::vector<::std::string> list;
     list_string_f(vars, name, list);
 
     // check if list is empty, i.e. when the value doesn't exist in the config file
@@ -963,7 +963,7 @@ namespace config {
     // That is, if you set only 30 fps in the configuration file, it will not work because by default, during initialization the list includes 10, 30, 60, 90 and 120 fps.
     input.clear();
     for (auto &el : list) {
-      std::string_view val = el;
+      ::std::string_view val = el;
 
       // If value is something like: "756" instead of 756
       if (val.size() >= 2 && val[0] == '"') {
@@ -982,8 +982,8 @@ namespace config {
     }
   }
 
-  void map_int_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::unordered_map<int, int> &input) {
-    std::vector<int> list;
+  void map_int_int_f(::std::unordered_map<::std::string, ::std::string> &vars, const ::std::string &name, ::std::unordered_map<int, int> &input) {
+    ::std::vector<int> list;
     list_int_f(vars, name, list);
 
     // The list needs to be a multiple of 2
@@ -1018,7 +1018,7 @@ namespace config {
           config::sunshine.flags[config::flag::UPNP].flip();
           break;
         default:
-          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << std::endl;
+          BOOST_LOG(warning) << "config: Unrecognized flag: ["sv << *line << ']' << ::std::endl;
           ret = -1;
       }
 
@@ -1028,9 +1028,9 @@ namespace config {
     return ret;
   }
 
-  std::vector<std::string_view> &get_supported_gamepad_options() {
+  ::std::vector<::std::string_view> &get_supported_gamepad_options() {
     const auto options = platf::supported_gamepads(nullptr);
-    static std::vector<std::string_view> opts {};
+    static ::std::vector<::std::string_view> opts {};
     opts.reserve(options.size());
     for (auto &opt : options) {
       opts.emplace_back(opt.name);
@@ -1038,7 +1038,7 @@ namespace config {
     return opts;
   }
 
-  void apply_config(std::unordered_map<std::string, std::string> &&vars) {
+  void apply_config(::std::unordered_map<::std::string, ::std::string> &&vars) {
     if (!fs::exists(stream.file_apps.c_str())) {
       fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
     }
@@ -1081,7 +1081,7 @@ namespace config {
     int_f(vars, "qsv_coder", video.qsv.qsv_cavlc, qsv::coder_from_view);
     bool_f(vars, "qsv_slow_hevc", video.qsv.qsv_slow_hevc);
 
-    std::string quality;
+    ::std::string quality;
     string_f(vars, "amd_quality", quality);
     if (!quality.empty()) {
       video.amd.amd_quality_h264 = amd::quality_from_view<amd::quality_h264_e>(quality, video.amd.amd_quality_h264);
@@ -1089,7 +1089,7 @@ namespace config {
       video.amd.amd_quality_av1 = amd::quality_from_view<amd::quality_av1_e>(quality, video.amd.amd_quality_av1);
     }
 
-    std::string rc;
+    ::std::string rc;
     string_f(vars, "amd_rc", rc);
     int_f(vars, "amd_coder", video.amd.amd_coder, amd::coder_from_view);
     if (!rc.empty()) {
@@ -1098,7 +1098,7 @@ namespace config {
       video.amd.amd_rc_av1 = amd::rc_from_view<amd::rc_av1_e>(rc, video.amd.amd_rc_av1);
     }
 
-    std::string usage;
+    ::std::string usage;
     string_f(vars, "amd_usage", usage);
     if (!usage.empty()) {
       video.amd.amd_usage_h264 = amd::usage_from_view<amd::usage_h264_e>(usage, video.amd.amd_usage_h264);
@@ -1130,9 +1130,9 @@ namespace config {
     generic_f(vars, "dd_hdr_option", video.dd.hdr_option, dd::hdr_option_from_view);
     {
       int value = -1;
-      int_between_f(vars, "dd_config_revert_delay", value, {0, std::numeric_limits<int>::max()});
+      int_between_f(vars, "dd_config_revert_delay", value, {0, ::std::numeric_limits<int>::max()});
       if (value >= 0) {
-        video.dd.config_revert_delay = std::chrono::milliseconds {value};
+        video.dd.config_revert_delay = ::std::chrono::milliseconds {value};
       }
     }
     bool_f(vars, "dd_config_revert_on_disconnect", video.dd.config_revert_on_disconnect);
@@ -1140,7 +1140,7 @@ namespace config {
     {
       int value = 0;
       int_between_f(vars, "dd_wa_hdr_toggle_delay", value, {0, 3000});
-      video.dd.wa.hdr_toggle_delay = std::chrono::milliseconds {value};
+      video.dd.wa.hdr_toggle_delay = ::std::chrono::milliseconds {value};
     }
 
     int_between_f(vars, "min_fps_factor", video.min_fps_factor, {1, 3});
@@ -1167,9 +1167,9 @@ namespace config {
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
 
     int to = -1;
-    int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
+    int_between_f(vars, "ping_timeout", to, {-1, ::std::numeric_limits<int>::max()});
     if (to != -1) {
-      stream.ping_timeout = std::chrono::milliseconds(to);
+      stream.ping_timeout = ::std::chrono::milliseconds(to);
     }
 
     int_between_f(vars, "lan_encryption_mode", stream.lan_encryption_mode, {0, 2});
@@ -1189,24 +1189,24 @@ namespace config {
       input.keybindings.emplace(0xA5, 0x5B);
     }
 
-    to = std::numeric_limits<int>::min();
+    to = ::std::numeric_limits<int>::min();
     int_f(vars, "back_button_timeout", to);
 
-    if (to > std::numeric_limits<int>::min()) {
-      input.back_button_timeout = std::chrono::milliseconds {to};
+    if (to > ::std::numeric_limits<int>::min()) {
+      input.back_button_timeout = ::std::chrono::milliseconds {to};
     }
 
     double repeat_frequency {0};
-    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, std::numeric_limits<double>::max()});
+    double_between_f(vars, "key_repeat_frequency", repeat_frequency, {0, ::std::numeric_limits<double>::max()});
 
     if (repeat_frequency > 0) {
-      config::input.key_repeat_period = std::chrono::duration<double> {1 / repeat_frequency};
+      config::input.key_repeat_period = ::std::chrono::duration<double> {1 / repeat_frequency};
     }
 
     to = -1;
     int_f(vars, "key_repeat_delay", to);
     if (to >= 0) {
-      input.key_repeat_delay = std::chrono::milliseconds {to};
+      input.key_repeat_delay = ::std::chrono::milliseconds {to};
     }
 
     string_restricted_f(vars, "gamepad"s, input.gamepad, get_supported_gamepad_options());
@@ -1227,7 +1227,7 @@ namespace config {
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
-    sunshine.port = (std::uint16_t) port;
+    sunshine.port = (::std::uint16_t) port;
 
     string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
 
@@ -1259,7 +1259,7 @@ namespace config {
                                                                    "zh"sv,  // Chinese
                                                                  });
 
-    std::string log_level_string;
+    ::std::string log_level_string;
     string_f(vars, "min_log_level", log_level_string);
 
     if (!log_level_string.empty()) {
@@ -1287,7 +1287,7 @@ namespace config {
     }
 
     auto it = vars.find("flags"s);
-    if (it != std::end(vars)) {
+    if (it != ::std::end(vars)) {
       apply_flags(it->second.c_str());
 
       vars.erase(it);
@@ -1295,13 +1295,13 @@ namespace config {
 
     if (sunshine.min_log_level <= 3) {
       for (auto &[var, _] : vars) {
-        std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << std::endl;
+        ::std::cout << "Warning: Unrecognized configurable option ["sv << var << ']' << ::std::endl;
       }
     }
   }
 
   int parse(int argc, char *argv[]) {
-    std::unordered_map<std::string, std::string> cmd_vars;
+    ::std::unordered_map<::std::string, ::std::string> cmd_vars;
 #ifdef _WIN32
     bool shortcut_launch = false;
     bool service_admin_launch = false;
@@ -1336,7 +1336,7 @@ namespace config {
       } else {
         auto line_end = line + strlen(line);
 
-        auto pos = std::find(line, line_end, '=');
+        auto pos = ::std::find(line, line_end, '=');
         if (pos == line_end) {
           sunshine.config_file = line;
         } else {
@@ -1349,11 +1349,11 @@ namespace config {
           TUPLE_EL_REF(name, 0, *var);
 
           auto it = cmd_vars.find(name);
-          if (it != std::end(cmd_vars)) {
+          if (it != ::std::end(cmd_vars)) {
             cmd_vars.erase(it);
           }
 
-          cmd_vars.emplace(std::move(*var));
+          cmd_vars.emplace(::std::move(*var));
         }
       }
     }
@@ -1365,22 +1365,22 @@ namespace config {
 
       // Create empty config file if it does not exist
       if (!fs::exists(sunshine.config_file)) {
-        std::ofstream {sunshine.config_file};
+        ::std::ofstream {sunshine.config_file};
       }
 
       // Read config file
       auto vars = parse_config(file_handler::read_file(sunshine.config_file.c_str()));
 
       for (auto &[name, value] : cmd_vars) {
-        vars.insert_or_assign(std::move(name), std::move(value));
+        vars.insert_or_assign(::std::move(name), ::std::move(value));
       }
 
       // Apply the config. Note: This will try to create any paths
       // referenced in the config, so we may receive exceptions if
       // the path is incorrect or inaccessible.
-      apply_config(std::move(vars));
+      apply_config(::std::move(vars));
       config_loaded = true;
-    } catch (const std::filesystem::filesystem_error &err) {
+    } catch (const ::std::filesystem::filesystem_error &err) {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
     } catch (const boost::filesystem::filesystem_error &err) {
       BOOST_LOG(fatal) << "Failed to apply config: "sv << err.what();
@@ -1393,7 +1393,7 @@ namespace config {
 
     if (!config_loaded && !shortcut_launch) {
       BOOST_LOG(fatal) << "To relaunch Sunshine successfully, use the shortcut in the Start Menu. Do not run Sunshine.exe manually."sv;
-      std::this_thread::sleep_for(10s);
+      ::std::this_thread::sleep_for(10s);
 #else
     if (!config_loaded) {
 #endif
@@ -1427,7 +1427,7 @@ namespace config {
         shell_exec_info.nShow = SW_NORMAL;
         if (!ShellExecuteExW(&shell_exec_info)) {
           auto winerr = GetLastError();
-          BOOST_LOG(error) << "Failed executing shell command: " << winerr << std::endl;
+          BOOST_LOG(error) << "Failed executing shell command: " << winerr << ::std::endl;
           return 1;
         }
 
