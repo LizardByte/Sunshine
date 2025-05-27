@@ -564,6 +564,15 @@ elif grep -q "Ubuntu 24.04" /etc/os-release; then
   cuda_build="520.61.05"
   gcc_version="11"
   nvm_node=0
+elif grep -q "Ubuntu 25.04" /etc/os-release; then
+  distro="ubuntu"
+  version="25.04"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="12.9.0"
+  cuda_build="575.51.03"
+  gcc_version="12"
+  nvm_node=0
 else
   echo "Unsupported Distro or Version"
   exit 1
