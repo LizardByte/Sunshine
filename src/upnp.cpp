@@ -2,6 +2,9 @@
  * @file src/upnp.cpp
  * @brief Definitions for UPnP port mapping.
  */
+// standard includes
+#include <cstddef>
+
 // lib includes
 #include <miniupnpc/miniupnpc.h>
 #include <miniupnpc/upnpcommands.h>
