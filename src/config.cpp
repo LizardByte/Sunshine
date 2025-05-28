@@ -561,6 +561,7 @@ namespace config {
     true,  // always send scancodes
     true,  // high resolution scrolling
     true,  // native pen/touch support
+    0,  // input rotation
   };
 
   sunshine_t sunshine {
@@ -1222,6 +1223,7 @@ namespace config {
 
     bool_f(vars, "high_resolution_scrolling", input.high_resolution_scrolling);
     bool_f(vars, "native_pen_touch", input.native_pen_touch);
+    int_f(vars, "output_rotation", input.output_rotation);
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
 
