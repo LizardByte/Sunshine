@@ -1113,7 +1113,7 @@ namespace config {
     int_f(vars, "refresh_rate_change", video.refresh_rate_change, display_device::parsed_config_t::refresh_rate_change_from_view);
     string_f(vars, "manual_refresh_rate", video.manual_refresh_rate);
     int_f(vars, "hdr_prep", video.hdr_prep, display_device::parsed_config_t::hdr_prep_from_view);
-    int_between_f(vars, "min_fps_factor", video.min_fps_factor, { 1, 3 });
+    int_between_f(vars, "min_fps_factor", video.min_fps_factor, { 1, 30 });
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
