@@ -270,47 +270,67 @@ namespace display_device {
     prepare_vdd_settings(const parsed_config_t &config) {
       auto is_res_cached = false;
       auto is_fps_cached = false;
-      std::ostringstream res_stream, fps_stream;
+      std::vector<std::string> resolutions, fps_rates;
 
-      res_stream << '[';
-      fps_stream << '[';
-
-      // 检查分辨率是否已缓存
+      // 收集分辨率
       for (const auto &res : config::nvhttp.resolutions) {
-        res_stream << res << ',';
-        if (config.resolution && res == to_string(*config.resolution)) {
-          is_res_cached = true;
+        if (!res.empty()) { // 过滤空字符串
+          resolutions.push_back(res);
+          if (config.resolution && res == to_string(*config.resolution)) {
+            is_res_cached = true;
+          }
         }
       }
 
-      // 检查帧率是否已缓存
+      // 收集帧率
       for (const auto &fps : config::nvhttp.fps) {
-        fps_stream << fps << ',';
-        if (config.refresh_rate && std::to_string(fps) == to_string(*config.refresh_rate)) {
-          is_fps_cached = true;
+        auto fps_str = std::to_string(fps);
+        if (!fps_str.empty()) { // 过滤空字符串
+          fps_rates.push_back(fps_str);
+          if (config.refresh_rate && fps_str == to_string(*config.refresh_rate)) {
+            is_fps_cached = true;
+          }
         }
       }
 
       // 如果需要更新设置
       bool needs_update = (!is_res_cached || !is_fps_cached) && config.resolution;
       if (needs_update) {
-        if (!is_res_cached) {
-          res_stream << to_string(*config.resolution);
+        if (!is_res_cached && config.resolution) {
+          auto res_str = to_string(*config.resolution);
+          if (!res_str.empty()) {
+            resolutions.push_back(res_str);
+          }
         }
-        if (!is_fps_cached) {
-          fps_stream << to_string(*config.refresh_rate);
+        if (!is_fps_cached && config.refresh_rate) {
+          auto fps_str = to_string(*config.refresh_rate);
+          if (!fps_str.empty()) {
+            fps_rates.push_back(fps_str);
+          }
         }
       }
 
-      // 移除最后的逗号并添加结束括号
-      auto res_str = res_stream.str();
-      auto fps_str = fps_stream.str();
-      if (res_str.back() == ',') res_str.pop_back();
-      if (fps_str.back() == ',') fps_str.pop_back();
-      res_str += ']';
-      fps_str += ']';
+      // 构建最终字符串，确保格式正确
+      std::ostringstream res_stream, fps_stream;
+      res_stream << '[';
+      for (size_t i = 0; i < resolutions.size(); ++i) {
+        res_stream << resolutions[i];
+        if (i < resolutions.size() - 1) {
+          res_stream << ',';
+        }
+      }
+      res_stream << ']';
 
-      return { res_str, fps_str, needs_update };
+      fps_stream << '[';
+      for (size_t i = 0; i < fps_rates.size(); ++i) {
+        fps_stream << fps_rates[i];
+        if (i < fps_rates.size() - 1) {
+          fps_stream << ',';
+        }
+      }
+      fps_stream << ']';
+
+      return { res_stream.str(), fps_stream.str(), needs_update };
     }
   }  // namespace vdd_utils
 }  // namespace display_device
