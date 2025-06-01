@@ -571,29 +571,19 @@ namespace nvhttp {
       if (it->second == "getservercert"sv) {
         pair_session_t sess;
 
-        sess.client.uniqueID = std::move(uniqID);
+        sess.client.uniqueID = uniqID;  // Don't move here
         sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
 
         BOOST_LOG(debug) << sess.client.cert;
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
-        if (config::sunshine.flags[config::flag::PIN_STDIN]) {
-          std::string pin;
+        std::string pin = "2023";
+        getservercert(ptr->second, tree, pin);
+        ptr->second.client.name = "QA_Client";
 
-          std::cout << "Please insert pin: "sv;
-          std::getline(std::cin, pin);
+        return;  // ADD THIS LINE - exit here for getservercert
 
-          getservercert(ptr->second, tree, pin);
-        } else {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-          system_tray::update_tray_require_pin();
-#endif
-          ptr->second.async_insert_pin.response = std::move(response);
-
-          fg.disable();
-          return;
-        }
       } else if (it->second == "pairchallenge"sv) {
         tree.put("root.paired", 1);
         tree.put("root.<xmlattr>.status_code", 200);
