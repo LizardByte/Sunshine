@@ -578,13 +578,19 @@ namespace nvhttp {
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
+        
+        // Static PIN for moonlight-qt-patched compatibility
         std::string pin = "2023";
+        BOOST_LOG(info) << "Using static PIN for moonlight-qt-patched client: " << pin;
+        
         getservercert(ptr->second, tree, pin);
         ptr->second.client.name = "QA_Client";
 
-        return;  // ADD THIS LINE - exit here for getservercert
+        return;  // Keep this return - crucial for bypassing normal flow
 
       } else if (it->second == "pairchallenge"sv) {
+        // Moonlight-qt-patched clients should bypass PIN challenge entirely
+        BOOST_LOG(info) << "Bypassing PIN challenge for moonlight-qt-patched client";
         tree.put("root.paired", 1);
         tree.put("root.<xmlattr>.status_code", 200);
         return;
