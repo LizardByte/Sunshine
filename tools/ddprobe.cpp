@@ -276,8 +276,11 @@ main(int argc, char *argv[]) {
     }
     else {
       // Assume any other argument is the display name
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
       std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
       display_name = converter.from_bytes(arg);
+#pragma GCC diagnostic pop
     }
   }
 

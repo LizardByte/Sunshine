@@ -13,6 +13,15 @@ list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-misleading-indentation)
 # see gcc bug 98723
 add_definitions(-DUSE_BOOST_REGEX)
 
+# Fix for GCC 15 C++20 coroutine compatibility with WinRT
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
+    # Add compiler flags to handle WinRT coroutine issues with GCC 15
+    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-template-body)
+    add_definitions(-DWINRT_LEAN_AND_MEAN)
+    # Force using experimental coroutine ABI for compatibility
+    add_definitions(-D_ALLOW_COROUTINE_ABI_MISMATCH)
+endif()
+
 # curl
 add_definitions(-DCURL_STATICLIB)
 include_directories(SYSTEM ${CURL_STATIC_INCLUDE_DIRS})

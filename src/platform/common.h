@@ -4,18 +4,21 @@
  */
 #pragma once
 
+// standard includes
 #include <bitset>
 #include <filesystem>
 #include <functional>
 #include <mutex>
 #include <string>
 
+// lib includes
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
   #include <boost/process.hpp>
 #endif
 
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/thread_safe.h"
@@ -44,9 +47,11 @@ namespace boost {
       class address;
     }  // namespace ip
   }  // namespace asio
+
   namespace filesystem {
     class path;
   }
+
   namespace process::inline v1 {
     class child;
     class group;
@@ -59,6 +64,7 @@ namespace boost {
 namespace video {
   struct config_t;
 }  // namespace video
+
 namespace nvenc {
   class nvenc_encoder;
 }
@@ -100,6 +106,7 @@ namespace platf {
     rumble_triggers,  ///< Rumble triggers
     set_motion_event_state,  ///< Set motion event state
     set_rgb_led,  ///< Set RGB LED
+    set_adaptive_triggers,  ///< Set adaptive triggers
   };
 
   struct gamepad_feedback_msg_t {
@@ -140,26 +147,48 @@ namespace platf {
       return msg;
     }
 
+    static gamepad_feedback_msg_t
+    make_adaptive_triggers(std::uint16_t id, uint8_t event_flags, uint8_t type_left, uint8_t type_right, const std::array<uint8_t, 10> &left, const std::array<uint8_t, 10> &right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_adaptive_triggers;
+      msg.id = id;
+      msg.data.adaptive_triggers = { .event_flags = event_flags, .type_left = type_left, .type_right = type_right, .left = left, .right = right };
+      return msg;
+    }
+
     gamepad_feedback_e type;
     std::uint16_t id;
+
     union {
       struct {
         std::uint16_t lowfreq;
         std::uint16_t highfreq;
       } rumble;
+
       struct {
         std::uint16_t left_trigger;
         std::uint16_t right_trigger;
       } rumble_triggers;
+
       struct {
         std::uint16_t report_rate;
         std::uint8_t motion_type;
       } motion_event_state;
+
       struct {
         std::uint8_t r;
         std::uint8_t g;
         std::uint8_t b;
       } rgb_led;
+
+      struct {
+        uint16_t controllerNumber;
+        uint8_t event_flags;
+        uint8_t type_left;
+        uint8_t type_right;
+        std::array<uint8_t, 10> left;
+        std::array<uint8_t, 10> right;
+      } adaptive_triggers;
     } data;
   };
 
@@ -179,7 +208,8 @@ namespace platf {
     };
 
     constexpr std::uint8_t map_stereo[] {
-      FRONT_LEFT, FRONT_RIGHT
+      FRONT_LEFT,
+      FRONT_RIGHT
     };
     constexpr std::uint8_t map_surround51[] {
       FRONT_LEFT,
@@ -371,6 +401,7 @@ namespace platf {
       std::string surround51;
       std::string surround71;
     };
+
     std::optional<null_t> null;
   };
 
@@ -466,7 +497,9 @@ namespace platf {
     using pull_free_image_cb_t = std::function<bool(std::shared_ptr<img_t> &img_out)>;
 
     display_t() noexcept:
-        offset_x { 0 }, offset_y { 0 } {}
+        offset_x { 0 },
+        offset_y { 0 } {
+    }
 
     /**
      * @brief Capture a frame.
@@ -549,6 +582,14 @@ namespace platf {
 
     virtual std::unique_ptr<mic_t>
     microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
+
+    /**
+     * @brief Check if the audio sink is available in the system.
+     * @param sink Sink to be checked.
+     * @returns True if available, false otherwise.
+     */
+    virtual bool
+    is_sink_available(const std::string &sink) = 0;
 
     virtual std::optional<sink_t>
     sink_info() = 0;
@@ -644,9 +685,14 @@ namespace platf {
 
     // Constructors required for emplace_back() prior to C++20
     buffer_descriptor_t(const char *buffer, size_t size):
-        buffer(buffer), size(size) {}
+        buffer(buffer),
+        size(size) {
+    }
+
     buffer_descriptor_t():
-        buffer(nullptr), size(0) {}
+        buffer(nullptr),
+        size(0) {
+    }
   };
 
   struct batched_send_info_t {
@@ -693,6 +739,7 @@ namespace platf {
       return {};
     }
   };
+
   bool
   send_batch(batched_send_info_t &send_info);
 
@@ -707,6 +754,7 @@ namespace platf {
     uint16_t target_port;
     boost::asio::ip::address &source_address;
   };
+
   bool
   send(send_info_t &send_info);
 

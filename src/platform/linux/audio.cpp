@@ -2,20 +2,21 @@
  * @file src/platform/linux/audio.cpp
  * @brief Definitions for audio control on Linux.
  */
+// standard includes
 #include <bitset>
 #include <sstream>
 #include <thread>
 
+// lib includes
 #include <boost/regex.hpp>
-
 #include <pulse/error.h>
 #include <pulse/pulseaudio.h>
 #include <pulse/simple.h>
 
-#include "src/platform/common.h"
-
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
+#include "src/platform/common.h"
 #include "src/thread_safe.h"
 
 namespace platf {
@@ -92,9 +93,7 @@ namespace platf {
     int status;
 
     mic->mic.reset(
-      pa_simple_new(nullptr, "sunshine",
-        pa_stream_direction_t::PA_STREAM_RECORD, source_name.c_str(),
-        "sunshine-record", &ss, &pa_map, &pa_attr, &status));
+      pa_simple_new(nullptr, "sunshine", pa_stream_direction_t::PA_STREAM_RECORD, source_name.c_str(), "sunshine-record", &ss, &pa_map, &pa_attr, &status));
 
     if (!mic->mic) {
       auto err_str = pa_strerror(status);
@@ -127,6 +126,7 @@ namespace platf {
     pa_free(T *p) {
       pa_xfree(p);
     }
+
     using ctx_t = util::safe_ptr<pa_context, pa_context_unref>;
     using loop_t = util::safe_ptr<pa_mainloop, pa_mainloop_free>;
     using op_t = util::safe_ptr<pa_operation, pa_operation_unref>;
@@ -205,6 +205,7 @@ namespace platf {
       std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;
 
       std::thread worker;
+
       int
       init() {
         events = std::make_unique<safe::event_t<ctx_event_e>>();
@@ -467,10 +468,20 @@ namespace platf {
         // but this happens right after the swap so the default returned by PA was not
         // the new one just set!
         auto sink_name = config::audio.sink;
-        if (sink_name.empty()) sink_name = requested_sink;
-        if (sink_name.empty()) sink_name = get_default_sink_name();
+        if (sink_name.empty()) {
+          sink_name = requested_sink;
+        }
+        if (sink_name.empty()) {
+          sink_name = get_default_sink_name();
+        }
 
         return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
+      }
+
+      bool
+      is_sink_available(const std::string &sink) override {
+        BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+        return true;
       }
 
       int
@@ -480,7 +491,10 @@ namespace platf {
         BOOST_LOG(info) << "Setting default sink to: ["sv << sink << "]"sv;
         op_t op {
           pa_context_set_default_sink(
-            ctx.get(), sink.c_str(), success_cb, alarm.get()),
+            ctx.get(),
+            sink.c_str(),
+            success_cb,
+            alarm.get()),
         };
 
         if (!op) {

@@ -117,7 +117,7 @@ jobs:
         shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}.杂鱼
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           mkdir -p build

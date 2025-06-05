@@ -3,21 +3,20 @@
  * @brief Definitions for Windows audio capture.
  */
 #define INITGUID
-#include <audioclient.h>
-#include <mmdeviceapi.h>
-#include <roapi.h>
 
+// platform includes
+#include <audioclient.h>
+#include <avrt.h>
+#include <mmdeviceapi.h>
+#include <newdev.h>
+#include <roapi.h>
 #include <synchapi.h>
 
-#include <newdev.h>
-
-#include <avrt.h>
-
+// local includes
+#include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-
-#include "misc.h"
 
 // Must be the last included file
 // clang-format off
@@ -119,16 +118,27 @@ namespace {
 
   using virtual_sink_waveformats_t = std::vector<WAVEFORMATEXTENSIBLE>;
 
+  /**
+   * @brief List of supported waveformats for an N-channel virtual audio device
+   * @tparam channel_count Number of virtual audio channels
+   * @returns std::vector<WAVEFORMATEXTENSIBLE>
+   * @note The list of virtual formats returned are sorted in preference order and the first valid
+   *       format will be used. All bits-per-sample options are listed because we try to match
+   *       this to the default audio device. See also: set_format() below.
+   */
   template <WORD channel_count>
   virtual_sink_waveformats_t
   create_virtual_sink_waveformats() {
     if constexpr (channel_count == 2) {
       auto channel_mask = waveformat_mask_stereo;
-      // only choose 24 or 16-bit formats to avoid clobbering existing Dolby/DTS spatial audio settings
+      // The 32-bit formats are a lower priority for stereo because using one will disable Dolby/DTS
+      // spatial audio mode if the user enabled it on the Steam speaker.
       return {
         create_waveformat(sample_format_e::s24in32, channel_count, channel_mask),
         create_waveformat(sample_format_e::s24, channel_count, channel_mask),
         create_waveformat(sample_format_e::s16, channel_count, channel_mask),
+        create_waveformat(sample_format_e::f32, channel_count, channel_mask),
+        create_waveformat(sample_format_e::s32, channel_count, channel_mask),
       };
     }
     else if (channel_count == 6) {
@@ -196,6 +206,7 @@ namespace {
 }  // namespace
 
 using namespace std::literals;
+
 namespace platf::audio {
   template <class T>
   void
@@ -305,13 +316,18 @@ namespace platf::audio {
         auto waveformatext_pointer = reinterpret_cast<const WAVEFORMATEXTENSIBLE *>(mixer_waveformat.get());
         capture_waveformat.dwChannelMask = waveformatext_pointer->dwChannelMask;
       }
+
+      BOOST_LOG(info) << "Audio mixer format is "sv << mixer_waveformat->wBitsPerSample << "-bit, "sv
+                      << mixer_waveformat->nSamplesPerSec << " Hz, "sv
+                      << ((mixer_waveformat->nSamplesPerSec != 48000) ? "will be resampled to 48000 by Windows"sv : "no resampling needed"sv);
     }
 
     status = audio_client->Initialize(
       AUDCLNT_SHAREMODE_SHARED,
       AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK |
         AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM | AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY,  // Enable automatic resampling to 48 KHz
-      0, 0,
+      0,
+      0,
       (LPWAVEFORMATEX) &capture_waveformat,
       nullptr);
 
@@ -320,7 +336,7 @@ namespace platf::audio {
       return nullptr;
     }
 
-    BOOST_LOG(info) << "Audio capture format is " << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
+    BOOST_LOG(info) << "Audio capture format is "sv << logging::bracket(waveformat_to_pretty_string(capture_waveformat));
 
     return audio_client;
   }
@@ -345,7 +361,8 @@ namespace platf::audio {
 
   class audio_notification_t: public ::IMMNotificationClient {
   public:
-    audio_notification_t() {}
+    audio_notification_t() {
+    }
 
     // IUnknown implementation (unused by IMMDeviceEnumerator)
     ULONG STDMETHODCALLTYPE
@@ -386,20 +403,28 @@ namespace platf::audio {
     }
 
     HRESULT STDMETHODCALLTYPE
-    OnDeviceAdded(LPCWSTR pwstrDeviceId) { return S_OK; }
+    OnDeviceAdded(LPCWSTR pwstrDeviceId) {
+      return S_OK;
+    }
 
     HRESULT STDMETHODCALLTYPE
-    OnDeviceRemoved(LPCWSTR pwstrDeviceId) { return S_OK; }
+    OnDeviceRemoved(LPCWSTR pwstrDeviceId) {
+      return S_OK;
+    }
 
     HRESULT STDMETHODCALLTYPE
     OnDeviceStateChanged(
       LPCWSTR pwstrDeviceId,
-      DWORD dwNewState) { return S_OK; }
+      DWORD dwNewState) {
+      return S_OK;
+    }
 
     HRESULT STDMETHODCALLTYPE
     OnPropertyValueChanged(
       LPCWSTR pwstrDeviceId,
-      const PROPERTYKEY key) { return S_OK; }
+      const PROPERTYKEY key) {
+      return S_OK;
+    }
 
     /**
      * @brief Checks if the default rendering device changed and resets the change flag
@@ -606,7 +631,8 @@ namespace platf::audio {
           (BYTE **) &sample_aligned.samples,
           &block_aligned.audio_sample_size,
           &buffer_flags,
-          nullptr, nullptr);
+          nullptr,
+          nullptr);
 
         switch (status) {
           case S_OK:
@@ -722,6 +748,13 @@ namespace platf::audio {
       return sink;
     }
 
+    bool
+    is_sink_available(const std::string &sink) override {
+      const auto match_list = match_all_fields(from_utf8(sink));
+      const auto matched = find_device_id(match_list);
+      return static_cast<bool>(matched);
+    }
+
     /**
      * @brief Extract virtual audio sink information possibly encoded in the sink name.
      * @param sink The sink name
@@ -799,6 +832,22 @@ namespace platf::audio {
         }
       }
 
+      // When switching to a Steam virtual speaker device, try to retain the bit depth of the
+      // default audio device. Switching from a 16-bit device to a 24-bit one has been known to
+      // cause glitches for some users.
+      int wanted_bits_per_sample = 32;
+      auto current_default_dev = default_device(device_enum);
+      if (current_default_dev) {
+        audio::prop_t prop;
+        prop_var_t current_device_format;
+
+        if (SUCCEEDED(current_default_dev->OpenPropertyStore(STGM_READ, &prop)) && SUCCEEDED(prop->GetValue(PKEY_AudioEngine_DeviceFormat, &current_device_format.prop))) {
+          auto *format = (WAVEFORMATEXTENSIBLE *) current_device_format.prop.blob.pBlobData;
+          wanted_bits_per_sample = format->Samples.wValidBitsPerSample;
+          BOOST_LOG(info) << "Virtual audio device will use "sv << wanted_bits_per_sample << "-bit to match default device"sv;
+        }
+      }
+
       auto &device_id = virtual_sink_info->first;
       auto &waveformats = virtual_sink_info->second.get().virtual_sink_waveformats;
       for (const auto &waveformat : waveformats) {
@@ -807,6 +856,10 @@ namespace platf::audio {
         auto device_id_copy = device_id;
         auto waveformat_copy = waveformat;
         auto waveformat_copy_pointer = reinterpret_cast<WAVEFORMATEX *>(&waveformat_copy);
+
+        if (wanted_bits_per_sample != waveformat.Samples.wValidBitsPerSample) {
+          continue;
+        }
 
         WAVEFORMATEXTENSIBLE p {};
         if (SUCCEEDED(policy->SetDeviceFormat(device_id_copy.c_str(), waveformat_copy_pointer, (WAVEFORMATEX *) &p))) {
@@ -1119,7 +1172,8 @@ namespace platf::audio {
       return 0;
     }
 
-    ~audio_control_t() override {}
+    ~audio_control_t() override {
+    }
 
     policy_t policy;
     audio::device_enum_t device_enum;

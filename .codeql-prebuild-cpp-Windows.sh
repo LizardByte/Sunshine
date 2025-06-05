@@ -4,7 +4,7 @@ set -e
 # update pacman
 pacman --noconfirm -Syu
 
-gcc_version="14.2.0-3"
+gcc_version="15.1.0-5"
 
 broken_deps=(
   "mingw-w64-ucrt-x86_64-gcc"
@@ -47,11 +47,13 @@ pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${depende
 
 # build
 mkdir -p build
-cd build || exit 1
 cmake \
+  -B build \
+  -G Ninja \
+  -S . \
   -DBUILD_DOCS=OFF \
-  -G "MinGW Makefiles" ..
-mingw32-make -j"$(nproc)"
+  -DBUILD_WERROR=ON
+ninja -C build
 
 # skip autobuild
 echo "skip_autobuild=true" >> "$GITHUB_OUTPUT"

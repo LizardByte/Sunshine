@@ -69,7 +69,7 @@ namespace audio {
 
   using buffer_t = util::buffer_t<std::uint8_t>;
   using packet_t = std::pair<void *, buffer_t>;
-  using audio_ctx_ref_t = safe::shared_t<audio::audio_ctx_t>::ptr_t;
+  using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
   void
   capture(safe::mail_t mail, config_t config, void *channel_data);
@@ -80,11 +80,27 @@ namespace audio {
    * @note Aside from the configuration purposes, it can be used to extend the
    *       audio sink lifetime to capture sink earlier and restore it later.
    *
-   * EXAMPLES:
-   * ```cpp
+   * @examples
    * audio_ctx_ref_t audio = get_audio_ctx_ref()
-   * ```
+   * @examples_end
    */
   audio_ctx_ref_t
   get_audio_ctx_ref();
+
+  /**
+   * @brief Check if the audio sink held by audio context is available.
+   * @returns True if available (and can probably be restored), false otherwise.
+   * @note Useful for delaying the release of audio context shared pointer (which
+   *       tries to restore original sink).
+   *
+   * @examples
+   * audio_ctx_ref_t audio = get_audio_ctx_ref()
+   * if (audio.get()) {
+   *     return is_audio_ctx_sink_available(*audio.get());
+   * }
+   * return false;
+   * @examples_end
+   */
+  bool
+  is_audio_ctx_sink_available(const audio_ctx_t &ctx);
 }  // namespace audio

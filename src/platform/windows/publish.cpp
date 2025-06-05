@@ -2,13 +2,16 @@
  * @file src/platform/windows/publish.cpp
  * @brief Definitions for Windows mDNS service registration.
  */
+// platform includes
+// winsock2.h must be included before windows.h
+// clang-format off
 #include <winsock2.h>
-
 #include <windows.h>
-
+// clang-format on
 #include <windns.h>
 #include <winerror.h>
 
+// local includes
 #include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
