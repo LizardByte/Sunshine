@@ -35,14 +35,14 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vdd/"
         DESTINATION "scripts"
         COMPONENT vdd)
 
-# Check if cmd directory exists
-if(EXISTS "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd")
-    # Use original path with forward slashes for CMake install command
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd/"
+# Check if helper directory exists
+if(EXISTS "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper")
+    # Install helper directory without trailing slash to avoid Windows path issues
+    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper"
             DESTINATION "tools"
-            COMPONENT superCmds)
+            COMPONENT supercmd)
 else()
-    message(WARNING "cmd directory not found at ${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/cmd")
+    message(WARNING "helper directory not found at ${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper")
 endif()
 
 # Sunshine assets
@@ -75,6 +75,11 @@ set(CPACK_COMPONENT_APPLICATION_GROUP "Core")
 set(CPACK_COMPONENT_APPLICATION_REQUIRED true)
 set(CPACK_COMPONENT_APPLICATION_DEPENDS assets)
 
+# Virtual Display Driver
+set(CPACK_COMPONENT_VDD_DISPLAY_NAME "Zako Display Driver")
+set(CPACK_COMPONENT_VDD_DESCRIPTION "支持HDR的虚拟显示器驱动安装")
+set(CPACK_COMPONENT_VDD_GROUP "Core")
+
 # service auto-start script
 set(CPACK_COMPONENT_AUTOSTART_DISPLAY_NAME "Launch on Startup")
 set(CPACK_COMPONENT_AUTOSTART_DESCRIPTION "If enabled, launches Sunshine automatically on system startup.")
@@ -96,6 +101,11 @@ set(CPACK_COMPONENT_DXGI_DISPLAY_NAME "dxgi-info")
 set(CPACK_COMPONENT_DXGI_DESCRIPTION "CLI tool providing information about graphics cards and displays.")
 set(CPACK_COMPONENT_DXGI_GROUP "Tools")
 
+# superCmds
+set(CPACK_COMPONENT_SUPERCMD_DISPLAY_NAME "super-cmd")
+set(CPACK_COMPONENT_SUPERCMD_DESCRIPTION "Commands that can running on host.")
+set(CPACK_COMPONENT_SUPERCMD_GROUP "Tools")
+
 # firewall scripts
 set(CPACK_COMPONENT_FIREWALL_DISPLAY_NAME "Add Firewall Exclusions")
 set(CPACK_COMPONENT_FIREWALL_DESCRIPTION "Scripts to enable or disable firewall rules.")
@@ -106,11 +116,6 @@ set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
 set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "Scripts to install and uninstall Virtual Gamepad.")
 set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
 
-# Virtual Display Driver
-set(CPACK_COMPONENT_VDD_DISPLAY_NAME "Zako Display Driver")
-set(CPACK_COMPONENT_VDD_DESCRIPTION "支持HDR的虚拟显示器驱动安装")
-set(CPACK_COMPONENT_VDD_REQUIRED OFF)
-set(CPACK_COMPONENT_VDD_GROUP "Scripts")
 
 # include specific packaging
 include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)

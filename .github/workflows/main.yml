@@ -70,7 +70,7 @@ jobs:
 
       - name: Update Windows dependencies
         env:
-          gcc_version: '14.2.0-3'
+          gcc_version: '15.1.0-5'
         shell: msys2 {0}
         run: |
           broken_deps=(
@@ -97,6 +97,7 @@ jobs:
           dependencies=(
             "git"
             "mingw-w64-ucrt-x86_64-cmake"
+            "mingw-w64-ucrt-x86_64-ninja"
             "mingw-w64-ucrt-x86_64-cppwinrt"
             "mingw-w64-ucrt-x86_64-curl-winssl"
             "mingw-w64-ucrt-x86_64-graphviz"
@@ -112,6 +113,15 @@ jobs:
           )
 
           pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
+
+      - name: Verify Build Tools
+        shell: msys2 {0}
+        run: |
+          echo "Verifying build tools are installed..."
+          which cmake || (echo "cmake not found" && exit 1)
+          which ninja || (echo "ninja not found" && exit 1)
+          which gcc || (echo "gcc not found" && exit 1)
+          echo "All build tools verified successfully"
 
       - name: Build Windows
         shell: msys2 {0}
@@ -139,7 +149,7 @@ jobs:
           cd build
 
           # package
-          cpack -G NSIS
+          cpack -G NSIS --verbose
           # cpack -G ZIP
 
           # move
