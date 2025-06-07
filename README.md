@@ -1,59 +1,80 @@
-# Overview
+# Sunshine 基地版
 
-[![GitHub stars](https://img.shields.io/github/stars/lizardbyte/sunshine.svg?logo=github&style=for-the-badge)](https://github.com/LizardByte/Sunshine)
-[![GitHub Releases](https://img.shields.io/github/downloads/lizardbyte/sunshine/total.svg?style=for-the-badge&logo=github)](https://github.com/LizardByte/Sunshine/releases/latest)
-[![Docker](https://img.shields.io/docker/pulls/lizardbyte/sunshine.svg?style=for-the-badge&logo=docker)](https://hub.docker.com/r/lizardbyte/sunshine)
-[![GHCR](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fipitio.github.io%2Fbackage%2FLizardByte%2FSunshine%2Fsunshine.json&query=%24.downloads&label=ghcr%20pulls&style=for-the-badge&logo=github)](https://github.com/LizardByte/Sunshine/pkgs/container/sunshine)
-[![Winget Version](https://img.shields.io/badge/dynamic/json.svg?color=orange&label=Winget&style=for-the-badge&prefix=v&query=$[-1:].name&url=https%3A%2F%2Fapi.github.com%2Frepos%2Fmicrosoft%2Fwinget-pkgs%2Fcontents%2Fmanifests%2Fl%2FLizardByte%2FSunshine&logo=microsoft)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/l/LizardByte/Sunshine)
-[![GitHub Workflow Status (CI)](https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/CI.yml.svg?branch=master&label=CI%20build&logo=github&style=for-the-badge)](https://github.com/LizardByte/Sunshine/actions/workflows/CI.yml?query=branch%3Amaster)
-[![GitHub Workflow Status (localize)](https://img.shields.io/github/actions/workflow/status/lizardbyte/sunshine/localize.yml.svg?branch=master&label=localize%20build&logo=github&style=for-the-badge)](https://github.com/LizardByte/Sunshine/actions/workflows/localize.yml?query=branch%3Amaster)
-[![Read the Docs](https://img.shields.io/readthedocs/sunshinestream.svg?label=Docs&style=for-the-badge&logo=readthedocs)](http://sunshinestream.readthedocs.io)
-[![Codecov](https://img.shields.io/codecov/c/gh/LizardByte/Sunshine?token=SMGXQ5NVMJ&style=for-the-badge&logo=codecov&label=codecov)](https://codecov.io/gh/LizardByte/Sunshine)
+基于LizardByte/Sunshine的分支，提供完整的文档支持 [Read the Docs](https://docs.qq.com/aio/DSGdQc3htbFJjSFdO?p=YTpMj5JNNdB5hEKJhhqlSB)。
 
-LizardByte has the full documentation hosted on [Read the Docs](https://sunshinestream.readthedocs.io).
+## 项目简介
 
-## About
+**Sunshine-Foundation**  is a self-hosted game stream host for Moonlight，本分支版本在原始Sunshine基础上进行了重大改进，专注于提高各种串流终端设备与windows主机接入的游戏串流体验：
 
-Sunshine is a self-hosted game stream host for Moonlight.
-Offering low latency, cloud gaming server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware
-encoding. Software encoding is also available. You can connect to Sunshine from any Moonlight client on a variety of
-devices. A web UI is provided to allow configuration, and client pairing, from your favorite web browser. Pair from
-the local server or any mobile device.
+### 🌟 核心特性
+- **HDR友好支持** - 经过优化的HDR处理管线，提供真正的HDR游戏流媒体体验
+- **集成虚拟显示器** - 内置虚拟显示器管理，无需额外软件即可创建和管理虚拟显示器
+- **高级控制面板** - 直观的Web控制界面，提供实时监控和配置管理
+- **低延迟传输** - 结合最新硬件能力优化的编码处理
+- **智能配对** - 智能管理配对设备的对应配置文件
 
-## System Requirements
+### 🖥️ 虚拟显示器集成
+- 动态虚拟显示器创建和销毁
+- 自定义分辨率和刷新率支持
+- 多显示器配置管理
+- 无需重启的实时配置更改
 
-@warning{These tables are a work in progress. Do not purchase hardware based on this information.}
+
+## 推荐的Moonlight客户端
+
+建议使用以下经过优化的Moonlight客户端获得最佳的串流体验（激活套装属性）：
+
+### 🖥️ Windows(X86_64, Arm64), MacOS, Linux 客户端
+[![Moonlight-PC](https://img.shields.io/badge/Moonlight-PC-red?style=for-the-badge&logo=windows)](https://github.com/qiin2333/moonlight-qt)
+
+### 📱 Android客户端
+[![威力加强版 Moonlight-Android](https://img.shields.io/badge/威力加强版-Moonlight--Android-green?style=for-the-badge&logo=android)](https://github.com/qiin2333/moonlight-android/releases/tag/shortcut)
+[![王冠版 Moonlight-Android](https://img.shields.io/badge/王冠版-Moonlight--Android-blue?style=for-the-badge&logo=android)](https://github.com/WACrown/moonlight-android)
+
+### 📱 iOS客户端
+[![真砖家版 Moonlight-iOS](https://img.shields.io/badge/真砖家版-Moonlight--iOS-lightgrey?style=for-the-badge&logo=apple)](https://github.com/TrueZhuangJia/moonlight-ios-NativeMultiTouchPassthrough)
+
+
+### 🛠️ 其他资源 
+[awesome-sunshine](https://github.com/LizardByte/awesome-sunshine)
+
+## 系统要求
+
+
+> [!WARNING] 
+> 这些表格正在持续更新中。请不要仅基于此信息购买硬件。
+
 
 <table>
-    <caption id="minimum_requirements">Minimum Requirements</caption>
+    <caption id="minimum_requirements">最低配置要求</caption>
     <tr>
-        <th>Component</th>
-        <th>Requirement</th>
+        <th>组件</th>
+        <th>要求</th>
     </tr>
     <tr>
         <td rowspan="3">GPU</td>
-        <td>AMD: VCE 1.0 or higher, see: <a href="https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support">obs-amd hardware support</a></td>
+        <td>AMD: VCE 1.0或更高版本，参见: <a href="https://github.com/obsproject/obs-amd-encoder/wiki/Hardware-Support">obs-amd硬件支持</a></td>
     </tr>
     <tr>
-        <td>Intel: VAAPI-compatible, see: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI hardware support</a></td>
+        <td>Intel: VAAPI兼容，参见: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI硬件支持</a></td>
     </tr>
     <tr>
-        <td>Nvidia: NVENC enabled cards, see: <a href="https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new">nvenc support matrix</a></td>
+        <td>Nvidia: 支持NVENC的显卡，参见: <a href="https://developer.nvidia.com/video-encode-and-decode-gpu-support-matrix-new">nvenc支持矩阵</a></td>
     </tr>
     <tr>
         <td rowspan="2">CPU</td>
-        <td>AMD: Ryzen 3 or higher</td>
+        <td>AMD: Ryzen 3或更高</td>
     </tr>
     <tr>
-        <td>Intel: Core i3 or higher</td>
+        <td>Intel: Core i3或更高</td>
     </tr>
     <tr>
         <td>RAM</td>
-        <td>4GB or more</td>
+        <td>4GB或更多</td>
     </tr>
     <tr>
-        <td rowspan="5">OS</td>
-        <td>Windows: 10+ (Windows Server does not support virtual gamepads)</td>
+        <td rowspan="5">操作系统</td>
+        <td>Windows: 10 22H2+ (Windows Server不支持虚拟游戏手柄)</td>
     </tr>
     <tr>
         <td>macOS: 12+</td>
@@ -68,86 +89,64 @@ the local server or any mobile device.
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>
     </tr>
     <tr>
-        <td rowspan="2">Network</td>
-        <td>Host: 5GHz, 802.11ac</td>
+        <td rowspan="2">网络</td>
+        <td>主机: 5GHz, 802.11ac</td>
     </tr>
     <tr>
-        <td>Client: 5GHz, 802.11ac</td>
+        <td>客户端: 5GHz, 802.11ac</td>
     </tr>
 </table>
 
 <table>
-    <caption id="4k_suggestions">4k Suggestions</caption>
+    <caption id="4k_suggestions">4K推荐配置</caption>
     <tr>
-        <th>Component</th>
-        <th>Requirement</th>
+        <th>组件</th>
+        <th>要求</th>
     </tr>
     <tr>
         <td rowspan="3">GPU</td>
-        <td>AMD: Video Coding Engine 3.1 or higher</td>
+        <td>AMD: Video Coding Engine 3.1或更高</td>
     </tr>
     <tr>
-        <td>Intel: HD Graphics 510 or higher</td>
+        <td>Intel: HD Graphics 510或更高</td>
     </tr>
     <tr>
-        <td>Nvidia: GeForce GTX 1080 or higher</td>
-    </tr>
-    <tr>
-        <td rowspan="2">CPU</td>
-        <td>AMD: Ryzen 5 or higher</td>
-    </tr>
-    <tr>
-        <td>Intel: Core i5 or higher</td>
-    </tr>
-    <tr>
-        <td rowspan="2">Network</td>
-        <td>Host: CAT5e ethernet or better</td>
-    </tr>
-    <tr>
-        <td>Client: CAT5e ethernet or better</td>
-    </tr>
-</table>
-
-<table>
-    <caption id="hdr_suggestions">HDR Suggestions</caption>
-    <tr>
-        <th>Component</th>
-        <th>Requirement</th>
-    </tr>
-    <tr>
-        <td rowspan="3">GPU</td>
-        <td>AMD: Video Coding Engine 3.4 or higher</td>
-    </tr>
-    <tr>
-        <td>Intel: HD Graphics 730 or higher</td>
-    </tr>
-    <tr>
-        <td>Nvidia: Nvidia: Pascal-based GPU (GTX 10-series) or higher</td>
+        <td>Nvidia: GeForce GTX 1080或更高的具有多编码器的型号</td>
     </tr>
     <tr>
         <td rowspan="2">CPU</td>
-        <td>AMD: Ryzen 5 or higher</td>
+        <td>AMD: Ryzen 5或更高</td>
     </tr>
     <tr>
-        <td>Intel: Core i5 or higher</td>
+        <td>Intel: Core i5或更高</td>
     </tr>
     <tr>
-        <td rowspan="2">Network</td>
-        <td>Host: CAT5e ethernet or better</td>
+        <td rowspan="2">网络</td>
+        <td>主机: CAT5e以太网或更好</td>
     </tr>
     <tr>
-        <td>Client: CAT5e ethernet or better</td>
+        <td>客户端: CAT5e以太网或更好</td>
     </tr>
 </table>
 
-## Support
+## 技术支持
 
-Our support methods are listed in our [LizardByte Docs](https://lizardbyte.readthedocs.io/en/latest/about/support.html).
+遇到问题时的解决路径：
+1. 查看 [使用文档](https://docs.qq.com/aio/DSGdQc3htbFJjSFdO?p=YTpMj5JNNdB5hEKJhhqlSB)
+2. 参考官方 [LizardByte文档](https://docs.lizardbyte.dev/projects/sunshine/latest/)
+3. [加入QQ交流群获取帮助](https://qm.qq.com/cgi-bin/qm/qr?k=5qnkzSaLIrIaU4FvumftZH_6Hg7fUuLD&jump_from=webapi)
+4. [使用两个字母！](https://uuyc.163.com/)
 
-<div class="section_buttons">
+**问题反馈标签：**
+- `hdr-support` - HDR相关问题
+- `virtual-display` - 虚拟显示器问题  
+- `config-help` - 配置相关问题
 
-| Previous |                                Next |
-|:---------|------------------------------------:|
-|          | [Overview](docs/getting_started.md) |
+## 加入社区
 
-</div>
+我们欢迎大家参与讨论和贡献代码！
+[![加入QQ群](https://pub.idqqimg.com/wpa/images/group.png '加入QQ群')](https://qm.qq.com/cgi-bin/qm/qr?k=WC2PSZ3Q6Hk6j8U_DG9S7522GPtItk0m&jump_from=webapi&authKey=zVDLFrS83s/0Xg3hMbkMeAqI7xoHXaM3sxZIF/u9JW7qO/D8xd0npytVBC2lOS+z)
+
+---
+
+**Sunshine基地版 - 让游戏串流更简单**

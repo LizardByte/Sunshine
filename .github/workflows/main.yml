@@ -127,7 +127,7 @@ jobs:
         shell: msys2 {0}
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}
+          BUILD_VERSION: ${{ needs.setup_release.outputs.release_tag }}.杂鱼
           COMMIT: ${{ needs.setup_release.outputs.release_commit }}
         run: |
           mkdir -p build
@@ -190,7 +190,7 @@ jobs:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
           generateReleaseNotes: ${{ needs.setup_release.outputs.release_generate_release_notes }}
-          name: ${{ needs.setup_release.outputs.release_tag }}
+          name: ${{ needs.setup_release.outputs.release_tag }}.杂鱼
           prerelease: true
-          tag: ${{ needs.setup_release.outputs.release_tag }}
+          tag: ${{ needs.setup_release.outputs.release_tag }}.杂鱼
           token: ${{ secrets.GH_BOT_TOKEN }}
