@@ -386,7 +386,7 @@ function run_install() {
     "gcc-ranlib"
   )
 
-  #set gcc version based on distros 
+  #set gcc version based on distros
   if [ "$distro" == "arch" ]; then
     export CC=gcc-14
     export CXX=g++-14
@@ -460,6 +460,8 @@ function run_install() {
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
     cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
+  else
+    cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
   fi
 
   # Cmake stuff here
