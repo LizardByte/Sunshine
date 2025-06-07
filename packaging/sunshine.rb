@@ -33,7 +33,6 @@ class @PROJECT_NAME@ < Formula
   depends_on "node" => :build
   depends_on "pkg-config" => :build
   depends_on "curl"
-  depends_on "miniupnpc"
   depends_on "openssl"
   depends_on "opus"
   depends_on "icu4c" => :recommended
@@ -199,6 +198,11 @@ index 5b3638d..aca9481 100644
     end
   end
 
+  resource "miniupnpc" do
+    url "https://github.com/miniupnp/miniupnp.git",
+      revision: "e263ab6f56c382e10fed31347ec68095d691a0e8"
+  end
+
   def install
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
@@ -299,6 +303,23 @@ index 5b3638d..aca9481 100644
         system "ninja", "-C", "build"
         system "ninja", "-C", "build", "install"
       end
+    end
+
+    # Build miniupnpc
+    resource("miniupnpc").stage do
+      # Change to the miniupnpc directory within the repo
+      cd "miniupnpc" do
+        system "make", "INSTALLPREFIX=#{prefix}/miniupnpc", "install"
+      end
+
+      # Copy the shared libraries to the main lib directory
+      # This ensures they're in the library search path at runtime
+      cp Dir["#{prefix}/miniupnpc/lib/libminiupnpc.so*"], "#{lib}/" if OS.linux?
+
+      # Set include and library paths for the custom miniupnpc
+      ENV.prepend_path "PKG_CONFIG_PATH", "#{prefix}/miniupnpc/lib/pkgconfig"
+      ENV.prepend "CPPFLAGS", "-I#{prefix}/miniupnpc/include"
+      ENV.prepend "LDFLAGS", "-L#{prefix}/miniupnpc/lib"
     end
 
     system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
