@@ -39,13 +39,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            // CodeQL supports ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
-            // Use only 'java' to analyze code written in Java, Kotlin or both
-            // Use only 'javascript' to analyze code written in JavaScript, TypeScript or both
+            // CodeQL supports the following:
+            // ['actions', 'c', 'cpp', 'csharp', 'go', 'java', 'javascript', 'kotlin', 'python', 'ruby', 'swift']
+
             // Learn more about CodeQL language support at https://aka.ms/codeql-docs/language-support
-            const supported_languages = ['cpp', 'csharp', 'go', 'java', 'javascript', 'python', 'ruby', 'swift']
+            const supported_languages = [
+              'cpp',
+              'csharp',
+              'go',
+              'java',
+              'javascript',
+              'python',
+              'ruby',
+              'swift',
+            ]
 
             const remap_languages = {
+              'c': 'cpp',
               'c++': 'cpp',
               'c#': 'csharp',
               'kotlin': 'java',
@@ -73,7 +83,8 @@ jobs:
                 "category": "/language:actions",
                 "language": "actions",
                 "name": "actions",
-                "os": "ubuntu-latest"
+                "os": "ubuntu-latest",
+                "build-mode": "none",
               });
             }
 
@@ -94,8 +105,6 @@ jobs:
                 let osList = ['ubuntu-latest'];
                 if (normalizedKey === 'swift') {
                   osList = ['macos-latest'];
-                } else if (normalizedKey === 'cpp') {
-                  osList = ['macos-latest', 'ubuntu-latest', 'windows-latest'];
                 }
                 for (let os of osList) {
                   // set name for matrix
@@ -103,8 +112,21 @@ jobs:
 
                   // set category for matrix
                   let category = `/language:${normalizedKey}`
-                  if (normalizedKey === 'cpp') {
-                    category = `/language:cpp-${os.split('-')[0]}`
+                  let build_mode = 'none';
+
+                  // Set build mode based on language
+                  switch (normalizedKey) {
+                    case 'csharp':
+                      build_mode = 'autobuild'
+                      break
+                    case 'go':
+                      build_mode = 'autobuild'
+                      break
+                    case 'java':
+                      build_mode = 'autobuild'
+                      break
+                    default:
+                      build_mode = 'none'
                   }
 
                   // add to matrix
@@ -112,7 +134,8 @@ jobs:
                     "category": category,
                     "language": normalizedKey,
                     "name": name,
-                    "os": os
+                    "os": os,
+                    "build-mode": build_mode,
                   })
                 }
               }
@@ -140,9 +163,6 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.name }})
     if: needs.languages.outputs.continue == 'true'
-    defaults:
-      run:
-        shell: ${{ matrix.os == 'windows-latest' && 'msys2 {0}' || 'bash' }}
     env:
       GITHUB_CODEQL_BUILD: true
     needs: languages
@@ -154,34 +174,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.languages.outputs.matrix) }}
-    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 360 }}
+    timeout-minutes: ${{ (matrix.language == 'swift' && 120) || 60 }}
     steps:
-      - name: Maximize build space
-        if: >-
-          runner.os == 'Linux' &&
-          matrix.language == 'cpp'
-        uses: easimon/maximize-build-space@v10
-        with:
-          root-reserve-mb: 30720
-          remove-dotnet: ${{ (matrix.language == 'csharp' && 'false') || 'true' }}
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'false'
-          remove-docker-images: 'true'
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Setup msys2
-        if: >-
-          runner.os == 'Windows' &&
-          matrix.language == 'cpp'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: ucrt64
-          update: true
 
       # Initializes the CodeQL tools for scanning.
       - name: Initialize CodeQL
@@ -200,22 +198,11 @@ jobs:
               - build
               - node_modules
               - third-party
-
-      # Pre autobuild
-      # create a file named .codeql-prebuild-${{ matrix.language }}-${{ runner.os }}.sh in the root of your repository
-      - name: Prebuild
-        id: prebuild
-        run: |
-          # check if prebuild script exists
-          filename=".codeql-prebuild-${{ matrix.language }}-${{ runner.os }}.sh"
-          if [ -f "./${filename}" ]; then
-            echo "Running prebuild script: ${filename}"
-            ./${filename}
-          fi
+          build-mode: ${{ matrix.build-mode || 'none' }}
 
       # Autobuild attempts to build any compiled languages (C/C++, C#, Go, Java, or Swift).
       - name: Autobuild
-        if: steps.prebuild.outputs.skip_autobuild != 'true'
+        if: matrix.build-mode == 'autobuild'
         uses: github/codeql-action/autobuild@v3
 
       - name: Perform CodeQL Analysis
