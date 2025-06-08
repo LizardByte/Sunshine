@@ -138,9 +138,12 @@ function add_arch_deps() {
 
 function add_debian_based_deps() {
   dependencies+=(
+    "appstream"
+    "appstream-util"
     "bison"  # required if we need to compile doxygen
     "build-essential"
     "cmake"
+    "desktop-file-utils"
     "doxygen"
     "flex"  # required if we need to compile doxygen
     "gcc-${gcc_version}"
@@ -201,13 +204,16 @@ function add_ubuntu_deps() {
 
 function add_fedora_deps() {
   dependencies+=(
+    "appstream"
     "cmake"
+    "desktop-file-utils"
     "doxygen"
     "gcc${gcc_version}"
     "gcc${gcc_version}-c++"
     "git"
     "graphviz"
     "libappindicator-gtk3-devel"
+    "libappstream-glib"
     "libcap-devel"
     "libcurl-devel"
     "libdrm-devel"
@@ -469,6 +475,16 @@ function run_install() {
   echo "cmake args:"
   echo "${cmake_args[@]}"
   cmake "${cmake_args[@]}"
+
+  # Run appstream validation, etc.
+  appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
+  if [ "$appimage_build" == 0 ]; then
+    desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
+  fi
+
+  # Build the project
   ninja -C "build"
 
   # Create the package

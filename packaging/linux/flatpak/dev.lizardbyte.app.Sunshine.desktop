@@ -1,5 +1,5 @@
 [Desktop Entry]
-Categories=AudioVideo;Network;RemoteAccess;
+Categories=RemoteAccess;Network;
 Comment=@PROJECT_DESCRIPTION@
 Exec=sunshine.sh
 Icon=@SUNSHINE_DESKTOP_ICON@
