@@ -264,6 +264,8 @@ jobs:
 
   build_linux:
     name: Linux ${{ matrix.type }}
+    env:
+      APP_ID: dev.lizardbyte.app.Sunshine
     runs-on: ubuntu-${{ matrix.dist }}
     needs: setup_release
     strategy:
@@ -364,7 +366,7 @@ jobs:
           chmod +x ./AppDir/AppRun
 
           # variables
-          DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
+          DESKTOP_FILE="${DESKTOP_FILE:-${APP_ID}.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
 
           # AppImage

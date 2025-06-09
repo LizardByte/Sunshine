@@ -133,30 +133,11 @@ jobs:
           xml_file="flathub/${{ env.FLATHUB_PKG }}/${{ env.FLATHUB_PKG }}.metainfo.xml"
 
           # Extract release information
-          version="${{ github.event.release.tag_name }}" && version="${version#v}"
-          date="${{ github.event.release.published_at }}" && date="${date%%T*}"
           changelog="${{ github.event.release.body }}" && changelog="${changelog//&/&amp;}" && \
             changelog="${changelog//</&lt;}" && changelog="${changelog//>/&gt;}"
 
-          # Store the old release information into a temp file to be used for precise replacement
-          tmpfile=$(mktemp)
-
-          # Match the existing <release> block, replace it with the new data
-          awk -v version="$version" -v date="$date" -v changelog="$changelog" '
-          BEGIN { replaced = 0 }
-          /<release version=.*>/ {
-            if (!replaced) {
-              print "    <release version=\"" version "\" date=\"" date "\">"
-              print "      <description><p>" changelog "</p></description>"
-              print "    </release>"
-              replaced = 1
-            }
-          }
-          !/<release version=.*>/ && !/<\/release>/ { print $0 }
-          ' "$xml_file" > "$tmpfile"
-
-          # Move the updated file back to the original location
-          mv "$tmpfile" "$xml_file"
+          # Replace changelog placeholder with actual changelog
+          sed -i "s|<!-- changelog -->|$changelog|g" "$xml_file"
 
       - name: Update submodule
         if: >-

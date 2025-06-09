@@ -1,0 +1,15 @@
+[Desktop Entry]
+Actions=RunInTerminal;
+Categories=RemoteAccess;Network;
+Comment=@PROJECT_DESCRIPTION@
+Exec=/usr/bin/env systemctl start --u sunshine
+Icon=@SUNSHINE_DESKTOP_ICON@
+Keywords=gamestream;stream;moonlight;remote play;
+Name=@PROJECT_NAME@
+Type=Application
+Version=1.0
+
+[Desktop Action RunInTerminal]
+Exec=gio launch @CMAKE_INSTALL_FULL_DATAROOTDIR@/applications/@PROJECT_FQDN@.terminal.desktop
+Icon=application-x-executable
+Name=Run in Terminal
