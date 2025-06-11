@@ -508,6 +508,8 @@ jobs:
             os_name: "macos"
           - os_version: "14"
             os_name: "macos"
+          - os_version: "15"
+            os_name: "macos"
           - os_version: "latest"
             os_name: "ubuntu"
           - os_version: "latest"  # this job will only configure the formula for release, no validation
