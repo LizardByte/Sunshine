@@ -1,0 +1,30 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: CodeQL
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  schedule:
+    - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  call-codeql:
+    name: CodeQL
+    uses: LizardByte/.github/.github/workflows/__call-codeql.yml@master
+    if: ${{ github.repository != 'LizardByte/.github' }}

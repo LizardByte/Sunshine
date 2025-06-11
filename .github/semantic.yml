@@ -12,3 +12,4 @@ titleAndCommits: false
 anyCommit: false
 allowMergeCommits: false
 allowRevertCommits: false
+targetUrl: https://docs.lizardbyte.dev/latest/developers/contributing.html#creating-a-pull-request

@@ -1,0 +1,27 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: common lint
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Common Lint
+    uses: LizardByte/.github/.github/workflows/__call-common-lint.yml@master
+    if: ${{ github.repository != 'LizardByte/.github' }}
