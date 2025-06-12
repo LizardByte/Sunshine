@@ -123,7 +123,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2025.426.225
+        uses: LizardByte/setup-release-action@v2025.612.30126
         with:
           dotnet: ${{ needs.check_dockerfiles.outputs.dotnet }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -356,7 +356,7 @@ jobs:
         if: >
           needs.setup_release.outputs.publish_release == 'true' &&
           steps.prepare.outputs.artifacts == 'true'
-        uses: LizardByte/create-release-action@v2025.426.1549
+        uses: LizardByte/create-release-action@v2025.612.13419
         with:
           allowUpdates: true
           artifacts: "*artifacts/*"
