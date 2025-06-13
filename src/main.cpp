@@ -95,6 +95,10 @@ int main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Avoid searching the PATH in case a user has configured their system insecurely
+  // by placing a user-writable directory in the system-wide PATH variable.
+  SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
   setlocale(LC_ALL, "C");
 #endif
 
