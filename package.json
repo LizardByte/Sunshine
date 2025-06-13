@@ -13,10 +13,10 @@
     "vue-i18n": "11.1.5"
   },
   "devDependencies": {
-    "@codecov/vite-plugin": "1.9.0",
-    "@vitejs/plugin-vue": "4.6.2",
-    "serve": "14.2.3",
+    "@codecov/vite-plugin": "1.9.1",
+    "@vitejs/plugin-vue": "5.2.4",
+    "serve": "14.2.4",
     "vite": "4.5.14",
-    "vite-plugin-ejs": "1.6.4"
+    "vite-plugin-ejs": "1.7.0"
   }
 }
