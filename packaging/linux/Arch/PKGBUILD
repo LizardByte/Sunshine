@@ -10,7 +10,7 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL-3.0-only')
 install=sunshine.install
 
-_gcc_version=13
+_gcc_version=14
 
 depends=(
   'avahi'
