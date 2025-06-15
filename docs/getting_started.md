@@ -56,13 +56,9 @@ need to install CUDA.}
     </tr>
     <tr>
         <td rowspan="1">12.0.0</td>
-        <td rowspan="2">525.60.13</td>
+        <td rowspan="1">525.60.13</td>
         <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine-debian-bookworm-{arch}.deb</td>
-    </tr>
-    <tr>
-        <td rowspan="1">12.5.1</td>
-        <td>sunshine.pkg.tar.zst</td>
     </tr>
     <tr>
         <td rowspan="2">12.6.2</td>
@@ -70,12 +66,17 @@ need to install CUDA.}
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>Sunshine (copr - Fedora 40/41)</td>
+        <td>Sunshine (copr - Fedora 41)</td>
     </tr>
     <tr>
         <td rowspan="1">12.8.1</td>
         <td rowspan="1">570.124.06</td>
         <td>Sunshine (copr - Fedora 42)</td>
+    </tr>
+    <tr>
+        <td rowspan="1">12.9.1</td>
+        <td rowspan="1">575.57.08</td>
+        <td>sunshine.pkg.tar.zst</td>
     </tr>
 </table>
 
