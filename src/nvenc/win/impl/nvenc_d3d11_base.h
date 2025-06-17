@@ -28,13 +28,11 @@ namespace nvenc {
    */
   class nvenc_d3d11_base: public nvenc_base, virtual public nvenc_d3d11 {
   public:
-    nvenc_d3d11_base(NV_ENC_DEVICE_TYPE device_type, shared_dll dll):
-        nvenc_base(device_type),
-        dll(dll) {}
-
+    explicit nvenc_d3d11_base(NV_ENC_DEVICE_TYPE device_type, shared_dll dll);
+    ~nvenc_d3d11_base();
   protected:
-    bool
-    init_library() override;
+    bool init_library() override;
+    bool wait_for_async_event(uint32_t timeout_ms) override;
 
   private:
     shared_dll dll;

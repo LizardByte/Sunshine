@@ -281,6 +281,7 @@ namespace video {
     REF_FRAMES_INVALIDATION = 1 << 8,  ///< Support reference frames invalidation
     ALWAYS_REPROBE = 1 << 9,  ///< This is an encoder of last resort and we want to aggressively probe for a better one
     YUV444_SUPPORT = 1 << 10,  ///< Encoder may support 4:4:4 chroma sampling depending on hardware
+    ASYNC_TEARDOWN = 1 << 11,  ///< Encoder supports async teardown on a different thread
   };
 
   class avcodec_encode_session_t: public encode_session_t {
@@ -483,7 +484,7 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
-    PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT  // flags
+    PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN // flags
   };
 #elif !defined(__APPLE__)
   encoder_t nvenc {
@@ -1795,6 +1796,23 @@ namespace video {
     if (!session) {
       return;
     }
+
+    // As a workaround for NVENC hangs and to generally speed up encoder reinit,
+    // we will complete the encoder teardown in a separate thread if supported.
+    // This will move expensive processing off the encoder thread to allow us
+    // to restart encoding as soon as possible. For cases where the NVENC driver
+    // hang occurs, this thread may probably never exit, but it will allow
+    // streaming to continue without requiring a full restart of Sunshine.
+    auto fail_guard = util::fail_guard([&encoder, &session] {
+      if (encoder.flags & ASYNC_TEARDOWN) {
+        std::thread encoder_teardown_thread {[session = std::move(session)]() mutable {
+          BOOST_LOG(info) << "Starting async encoder teardown";
+          session.reset();
+          BOOST_LOG(info) << "Async encoder teardown complete";
+        }};
+        encoder_teardown_thread.detach();
+      }
+    });
 
     // set minimum frame time, avoiding violation of client-requested target framerate
     auto minimum_frame_time = std::chrono::milliseconds(1000 / std::min(config.framerate, (config::video.min_fps_factor * 10)));

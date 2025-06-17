@@ -542,7 +542,7 @@ namespace nvenc {
 
     NV_ENC_LOCK_BITSTREAM lock_bitstream = { NV_ENC_LOCK_BITSTREAM_VER };
     lock_bitstream.outputBitstream = output_bitstream;
-    lock_bitstream.doNotWait = 0;
+    lock_bitstream.doNotWait = async_event_handle ? 1 : 0;
 
     if (async_event_handle && !wait_for_async_event(100)) {
       BOOST_LOG(error) << "NvEnc: frame " << frame_index << " encode wait timeout";
