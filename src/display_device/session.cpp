@@ -12,6 +12,7 @@
 #include "src/rtsp.h"
 #include "to_string.h"
 #include "vdd_utils.h"
+#include "src/platform/windows/display_device/windows_utils.h"
 
 namespace display_device {
 
@@ -337,17 +338,33 @@ namespace display_device {
 
   void
   session_t::restore_state_impl() {
+    // 检测RDP会话
+    if (w_utils::is_any_rdp_session_active()) {
+      BOOST_LOG(info) << "Detected RDP remote session, disabling display settings recovery";
+      timer->setup_timer(nullptr); // 禁用定时器
+      return;
+    }
+
     if (!settings.is_changing_settings_going_to_fail() && settings.revert_settings()) {
       timer->setup_timer(nullptr);
     }
     else {
       if (settings.is_changing_settings_going_to_fail()) {
-        BOOST_LOG(warning) << "Reverting display settings will fail - retrying later...";
+        BOOST_LOG(warning) << "Try reverting display settings will fail - retrying later...";
       }
+
+      // 限制重试次数，避免无限循环
+      static int retry_count = 0;
+      const int max_retries = 20;
 
       timer->setup_timer([this]() {
         if (settings.is_changing_settings_going_to_fail()) {
-          BOOST_LOG(warning) << "Reverting display settings will still fail - retrying later...";
+          retry_count++;
+          if (retry_count >= max_retries) {
+            BOOST_LOG(warning) << "已达到最大重试次数，停止尝试恢复显示设置";
+            return true; // 返回true停止重试
+          }
+          BOOST_LOG(warning) << "Timer: Reverting display settings will still fail - retrying later... (Count: " << retry_count << "/" << max_retries << ")";
           return false;
         }
 
@@ -360,6 +377,6 @@ namespace display_device {
   }
 
   session_t::session_t():
-      timer { std::make_unique<StateRetryTimer>(mutex) } {
+    timer { std::make_unique<StateRetryTimer>(mutex) } {
   }
 }  // namespace display_device

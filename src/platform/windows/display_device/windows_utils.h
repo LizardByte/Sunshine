@@ -493,4 +493,16 @@ namespace display_device::w_utils {
 
   bool
   togglePnpDeviceByFriendlyName(const std::string &friendlyName, const bool &stat);
+
+  /**
+   * @brief Check whether any RDP session is active.
+   * @returns True if it's detected that any RDP session is active, false otherwise.
+   *
+   * EXAMPLES:
+   * ```cpp
+   * const bool is_rdp { is_any_rdp_session_active() };
+   * ```
+   */
+  bool
+  is_any_rdp_session_active();
 }  // namespace display_device::w_utils
