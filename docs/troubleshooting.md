@@ -84,9 +84,9 @@ client only 1 Gbit/s or Wi-Fi. Similarly, a 1 Gbps host may be too fast for a
 client having only a 100 Mbps interface.
 
 As a workaround the transmission speed of the host NIC can be reduced: 1 Gbps
-instead of 2.5 or 100 Mbps instead of 1 Gbps. (A technically more advanced
+instead of 2.5 or 100 Mbps instead of 1 Gbps. A technically more advanced
 solution would be to configure traffic shaping rules at the OS-level, so that
-only Sunshine's traffic is slowed down.) 
+only Sunshine's traffic is slowed down.
 
 Such a solution on Linux could look like that:
 ```
