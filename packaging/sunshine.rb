@@ -246,7 +246,6 @@ index 5b3638d..aca9481 100644
     end
 
     args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
-    args << "-DSUNSHINE_ENABLE_TRAY=OFF" if OS.mac?
 
     # Handle system tray on Linux
     if OS.linux?
