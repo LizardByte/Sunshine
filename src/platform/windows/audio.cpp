@@ -13,7 +13,7 @@
 #include <synchapi.h>
 
 // local includes
-#include "common/misc.h"
+#include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"

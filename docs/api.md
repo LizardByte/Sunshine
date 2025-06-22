@@ -9,6 +9,21 @@ basic authentication with the admin username and password.
 <script src="api.js"></script>
 @endhtmlonly
 
+## API Token Security Model and Best Practices
+
+Sunshine API tokens are designed for security and fine-grained access control:
+
+- **Token Creation:** When you generate an API token, Sunshine creates a secure random 32-character string. Only a cryptographic hash of the token is stored on disk and in memory. The raw token is shown to you only once—immediately after creation. If you lose it, you must generate a new token.
+- **Security:** Because only the hash is stored, even if the state file is compromised, attackers cannot recover the original token value.
+- **Principle of Least Privilege:** When creating a token, always grant access only to the specific API paths and HTTP methods required for your use case. Avoid giving broad or unnecessary permissions.
+- **Token Management:**
+  - Store your token securely after creation. Never share or log it.
+  - Revoke tokens immediately if they are no longer needed or if you suspect they are compromised.
+  - Use HTTPS to protect tokens in transit.
+- **Listing and Revocation:** You can list all active tokens (metadata only, not the token value) and revoke any token at any time using the API.
+
+See below for details on token endpoints and usage examples.
+
 ## GET /api/apps
 @copydoc confighttp::getApps()
 

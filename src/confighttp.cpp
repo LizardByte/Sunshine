@@ -1,5 +1,5 @@
 /**
- * @file src/confighttp.cpp
+ * @file src/confightttp.cpp
  * @brief Definitions for the Web UI Config HTTP server.
  *
  * @todo Authentication, better handling of routes common to nvhttp, cleanup
@@ -17,6 +17,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/asio/ssl/context.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/property_tree/json_parser.hpp>
 #include <nlohmann/json.hpp>
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
@@ -39,6 +40,7 @@
 #include "version.h"
 
 using namespace std::literals;
+namespace pt = boost::property_tree;
 
 namespace confighttp {
   namespace fs = std::filesystem;
@@ -1096,6 +1098,23 @@ namespace confighttp {
   }
 
   // --- API Token Generation Endpoint ---
+  /**
+   * @brief Generate a new API token with specified scopes.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/token| POST| {"scopes":[{"path":"/api/apps","methods":["GET"]}]}}
+   *
+   * Request body example:
+   * {
+   *   "scopes": [
+   *     { "path": "/api/apps", "methods": ["GET", "POST"] }
+   *   ]
+   * }
+   *
+   * Response example:
+   * { "token": "..." }
+   */
   void generateApiToken(resp_https_t response, req_https_t request) {
     // Authenticate with Basic Auth only
     if (!authenticate(response, request)) return;
@@ -1124,17 +1143,41 @@ namespace confighttp {
       send_response(response, nlohmann::json{{"error", "Invalid scope value"}});
       return;
     }
-    // Generate token
+    // --- Token Generation and Hashing ---
+    // Generate a random 32-character token (A-Za-z0-9)
+    // Hash the token using the configured hash function and store only the hash in memory and on disk.
+    // The raw token is returned to the user only once and never stored.
+    // This approach ensures that if the state file is compromised, the actual API tokens cannot be recovered.
     std::string token = crypto::rand_alphabet(32);
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
     // Store hash and metadata
     ApiTokenInfo info{token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
     api_tokens[token_hash] = info;
+    save_api_tokens();
     // Return token (only once)
     send_response(response, nlohmann::json{{"token", token}});
   }
 
   // --- List API Tokens ---
+  /**
+   * @brief List all active API tokens and their scopes.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/tokens| GET| null}
+   *
+   * Response example:
+   * [
+   *   {
+   *     "hash": "...",
+   *     "username": "admin",
+   *     "created_at": 1719000000,
+   *     "scopes": [
+   *       { "path": "/api/apps", "methods": ["GET"] }
+   *     ]
+   *   }
+   * ]
+   */
   void listApiTokens(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
     nlohmann::json arr = nlohmann::json::array();
@@ -1153,6 +1196,16 @@ namespace confighttp {
   }
 
   // --- Revoke API Token ---
+  /**
+   * @brief Revoke (delete) an API token by its hash.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/token/abcdef1234567890| DELETE| null}
+   *
+   * Response example:
+   * { "status": true }
+   */
   void revokeApiToken(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) return;
     // Expect /api/token/{hash}
@@ -1164,10 +1217,92 @@ namespace confighttp {
       send_response(response, nlohmann::json{{"error", "Token not found"}});
       return;
     }
+    save_api_tokens();
     send_response(response, nlohmann::json{{"status", true}});
   }
 
+  // --- API Token Persistence ---
+  void save_api_tokens() {
+    nlohmann::json j;
+    for (const auto& [hash, info] : api_tokens) {
+        nlohmann::json obj;
+        obj["hash"] = hash;
+        obj["username"] = info.username;
+        obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+        obj["scopes"] = nlohmann::json::array();
+        for (const auto& [path, methods] : info.path_methods) {
+            obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+        }
+        j.push_back(obj);
+    }
+    // Write to state file under root.api_tokens
+    pt::ptree root;
+    if (fs::exists(config::nvhttp.file_state)) {
+        try {
+            pt::read_json(config::nvhttp.file_state, root);
+        } catch (...) {}
+    }
+    pt::ptree tokens_pt;
+    for (const auto& tok : j) {
+        pt::ptree t;
+        t.put("hash", tok["hash"].get<std::string>());
+        t.put("username", tok["username"].get<std::string>());
+        t.put("created_at", tok["created_at"].get<std::int64_t>());
+        pt::ptree scopes_pt;
+        for (const auto& s : tok["scopes"]) {
+            pt::ptree spt;
+            spt.put("path", s["path"].get<std::string>());
+            pt::ptree mpt;
+            for (const auto& m : s["methods"]) mpt.push_back({"", pt::ptree(m.get<std::string>())});
+            spt.add_child("methods", mpt);
+            scopes_pt.push_back({"", spt});
+        }
+        t.add_child("scopes", scopes_pt);
+        tokens_pt.push_back({"", t});
+    }
+    root.put_child("root.api_tokens", tokens_pt);
+    pt::write_json(config::nvhttp.file_state, root);
+}
+
+void load_api_tokens() {
+    api_tokens.clear();
+    if (!fs::exists(config::nvhttp.file_state)) return;
+    pt::ptree root;
+    try {
+        pt::read_json(config::nvhttp.file_state, root);
+    } catch (...) { return; }
+    auto tokens_opt = root.get_child_optional("root.api_tokens");
+    if (!tokens_opt) return;
+    for (const auto& item : *tokens_opt) {
+        const auto& t = item.second;
+        std::string hash = t.get<std::string>("hash", "");
+        std::string username = t.get<std::string>("username", "");
+        std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
+        std::map<std::string, std::set<std::string>> path_methods;
+        auto scopes_child = t.get_child_optional("scopes");
+        if (scopes_child) {
+            for (const auto& s : *scopes_child) {
+                std::string path = s.second.get<std::string>("path", "");
+                std::set<std::string> methods;
+                auto methods_child = s.second.get_child_optional("methods");
+                if (methods_child) {
+                    for (const auto& m : *methods_child) {
+                        methods.insert(m.second.data());
+                    }
+                }
+                if (!path.empty() && !methods.empty())
+                    path_methods[path] = methods;
+            }
+        }
+        if (!hash.empty()) {
+            ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
+            api_tokens[hash] = info;
+        }
+    }
+}
+
   void start() {
+    load_api_tokens(); // Load persisted API tokens at startup
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -1257,7 +1392,7 @@ namespace confighttp {
       return;
     }
     print_req(request);
-    std::string content = file_handler::read_file(WEB_DIR "token.html");
+    std::string content = file_handler::read_file(WEB_DIR "api-tokens.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);

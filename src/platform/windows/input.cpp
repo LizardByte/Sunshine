@@ -16,7 +16,7 @@
 
 // local includes
 #include "keylayout.h"
-#include "common/misc.h"
+#include "misc.h"
 #include "src/config.h"
 #include "src/globals.h"
 #include "src/logging.h"

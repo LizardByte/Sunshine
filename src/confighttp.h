@@ -38,6 +38,10 @@ namespace confighttp {
   // In-memory token store (hash -> info)
   extern std::unordered_map<std::string, ApiTokenInfo> api_tokens;
 
+  // Persistence helpers
+  void save_api_tokens();
+  void load_api_tokens();
+
   // HTTPS server types
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
