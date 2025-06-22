@@ -22,8 +22,14 @@ namespace confighttp {
   void start();
 
   // API Token scopes
+  /**
+   * @enum TokenScope
+   * @brief Scopes for API tokens.
+   */
   enum class TokenScope {
+    /** @brief Read-only access. */
     Read,
+    /** @brief Read and write access. */
     Write
     // Add more scopes as needed
   };

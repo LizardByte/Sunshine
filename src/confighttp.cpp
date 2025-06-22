@@ -1,5 +1,5 @@
 /**
- * @file src/confightttp.cpp
+ * @file src/confighttp.cpp
  * @brief Definitions for the Web UI Config HTTP server.
  *
  * @todo Authentication, better handling of routes common to nvhttp, cleanup
@@ -177,7 +177,15 @@ namespace confighttp {
           break;
         }
       }
-      if (!allowed) return false;
+      if (!allowed) {
+        fg.disable();
+        nlohmann::json tree;
+        tree["status_code"] = 403;
+        tree["status"] = false;
+        tree["error"] = "Forbidden: Token does not have permission for this path/method.";
+        response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
+        return false;
+      }
       fg.disable();
       return true;
     } else if (rawAuth.rfind("Basic ", 0) == 0) {
@@ -1352,7 +1360,7 @@ void load_api_tokens() {
     server.resource["^/api/token$"]["POST"] = generateApiToken;
     server.resource["^/api/tokens$"]["GET"] = listApiTokens;
     server.resource["^/api/token/([a-fA-F0-9]+)$"]["DELETE"] = revokeApiToken;
-    server.resource["^/token/?$"]["GET"] = getTokenPage;
+    server.resource["^/api-tokens/?$"]["GET"] = getTokenPage;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;

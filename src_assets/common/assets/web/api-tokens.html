@@ -3,107 +3,275 @@
 <head>
   <%- header %>
   <style>
+    :root {
+      --font-base: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --color-bg: #ffffff;
+      --color-bg-alt: #f9fafb;
+      --color-border: #e5e7eb;
+      --color-border-dark: #d1d5db;
+      --color-text: #111827;
+      --color-accent: #2563eb; /* blue-600 */
+      --color-accent-hover: #1e4fcb; /* darker accent */
+      --color-danger: #dc2626; /* red-600 */
+      --color-danger-hover: #b91c1c; /* darker red */
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --radius-lg: 1rem;
+      --radius-md: 0.5rem;
+      --radius-sm: 0.375rem;
+      --spacing-1: 0.25rem;
+      --spacing-2: 0.5rem;
+      --spacing-3: 0.75rem;
+      --spacing-4: 1rem;
+      --spacing-5: 1.5rem;
+      --spacing-6: 2rem;
+    }
+
+    html, body {
+      padding: 0;
+      margin: 0;
+      font-family: var(--font-base);
+      background: var(--color-bg-alt);
+      color: var(--color-text);
+      line-height: 1.6;
+    }
+
+    /* Main Container */
     .token-page {
-      max-width: 700px;
-      margin: 2em auto;
-      font-family: sans-serif;
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-      padding: 2em 2.5em 2.5em 2.5em;
+      max-width: 900px;
+      margin: var(--spacing-5) auto;
+      padding: var(--spacing-4);
     }
-    .token-page h1, .token-page h2 {
-      margin-bottom: 1em;
+
+    .token-page h1 {
+      font-size: 2.25rem;
+      margin-bottom: var(--spacing-5);
+      font-weight: 700;
+      text-align: center;
     }
+
+    .token-page h2 {
+      font-size: 1.5rem;
+      margin-top: var(--spacing-6);
+      margin-bottom: var(--spacing-4);
+      font-weight: 600;
+      border-bottom: 1px solid var(--color-border);
+      padding-bottom: var(--spacing-2);
+    }
+
+    /* Card styling for sections */
+    .card {
+      background: var(--color-bg);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-md);
+      padding: var(--spacing-5);
+      margin-bottom: var(--spacing-5);
+    }
+
+    /* Form wrapper */
     .token-form {
-      background: #f9f9f9;
-      border-radius: 8px;
-      padding: 1.5em 1em 1em 1em;
-      margin-bottom: 2em;
-      border: 1px solid #e0e0e0;
-    }
-    .scopes-list {
-      margin-bottom: 1em;
-    }
-    .scope-row {
       display: flex;
+      flex-direction: column;
+      gap: var(--spacing-4);
+    }
+
+    /* Scope list */
+    .scopes-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-4);
+    }
+
+    .scope-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: var(--spacing-3);
       align-items: center;
-      gap: 0.5em;
-      margin-bottom: 0.5em;
     }
+
+    .scopes-list select,
     .scopes-list input[type=text] {
-      width: 220px;
-      padding: 0.3em 0.5em;
-      border-radius: 4px;
-      border: 1px solid #ccc;
+      border: 1px solid var(--color-border-dark);
+      border-radius: var(--radius-sm);
+      padding: var(--spacing-2) var(--spacing-3);
+      font-size: 0.95rem;
+      background: var(--color-bg);
+      width: 100%;
     }
-    .scopes-list select {
-      width: 140px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      padding: 0.2em 0.5em;
-    }
-    .scopes-list button {
-      margin-left: 0.5em;
-    }
-    .token-form button[type=submit], .token-form button[type=button] {
-      margin-top: 0.5em;
-      margin-right: 0.5em;
-      padding: 0.4em 1.2em;
-      border-radius: 4px;
+
+    .scopes-list button,
+    .token-form button,
+    .token-tester button,
+    .danger-btn {
+      background: var(--color-accent);
+      color: #ffffff;
       border: none;
-      background: #007bff;
-      color: #fff;
+      border-radius: var(--radius-sm);
+      padding: var(--spacing-2) var(--spacing-4);
       font-weight: 500;
-      transition: background 0.2s;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      font-size: 0.95rem;
     }
-    .token-form button[type=submit]:hover, .token-form button[type=button]:hover {
-      background: #0056b3;
+
+    .scopes-list button:hover,
+    .token-form button:hover,
+    .token-tester button:hover,
+    .danger-btn:hover {
+      background: var(--color-accent-hover);
     }
+
+    .scope-row button,
+    .danger-btn {
+      background-color: var(--color-danger);
+    }
+    .scope-row button:hover,
+    .danger-btn:hover {
+      background-color: var(--color-danger-hover);
+    }
+    
+    .token-form button[type=submit] {
+        align-self: flex-end;
+        padding: var(--spacing-2) var(--spacing-5);
+        font-weight: 600;
+    }
+
+    /* Token result box */
     .token-box {
-      background: #f8f8f8;
-      border: 1px solid #ccc;
-      padding: 1em;
-      margin: 1em 0;
+      background: var(--color-bg-alt);
+      border: 1px solid var(--color-border);
+      padding: var(--spacing-4);
+      border-radius: var(--radius-md);
+      margin-top: var(--spacing-4);
+      font-size: 1rem;
       word-break: break-all;
-      border-radius: 6px;
-      font-size: 1.1em;
     }
+
     .token-warning {
-      color: #b00;
-      font-weight: bold;
-      margin-bottom: 0.5em;
+      color: var(--color-danger);
+      font-weight: 600;
       display: block;
+      margin-bottom: var(--spacing-2);
     }
+    
+    /* Token Table */
+    .token-table-wrapper {
+        overflow-x: auto;
+        width: 100%;
+        min-width: 0;
+    }
+
     .token-table {
       width: 100%;
+      min-width: 700px;
       border-collapse: collapse;
-      margin-top: 2em;
-      background: #fafbfc;
-      border-radius: 8px;
+      margin-top: var(--spacing-4);
+      background: var(--color-bg);
+      border-radius: var(--radius-md);
       overflow: hidden;
+      font-size: 0.9rem;
+      border: 1px solid var(--color-border);
+      table-layout: auto;
     }
-    .token-table th, .token-table td {
-      border: 1px solid #e0e0e0;
-      padding: 0.6em 0.8em;
+
+    .token-table th,
+    .token-table td {
+      border-bottom: 1px solid var(--color-border);
+      padding: var(--spacing-3) var(--spacing-4);
       text-align: left;
+      vertical-align: middle;
     }
+
     .token-table th {
-      background: #f3f4f6;
+      background: var(--color-bg-alt);
       font-weight: 600;
     }
-    .token-table td button {
-      background: #dc3545;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      padding: 0.3em 0.9em;
-      font-size: 0.95em;
-      cursor: pointer;
-      transition: background 0.2s;
+    
+    .token-table tbody tr:last-child th,
+    .token-table tbody tr:last-child td {
+        border-bottom: none;
     }
+
+    .token-table td button {
+      background: var(--color-danger);
+      padding: var(--spacing-1) var(--spacing-3);
+      font-size: 0.85rem;
+    }
+
     .token-table td button:hover {
-      background: #a71d2a;
+      background: var(--color-danger-hover);
+    }
+
+    /* Token tester */
+    .token-tester form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--spacing-4);
+    }
+
+    .token-tester label {
+      display: block;
+      margin-bottom: var(--spacing-2);
+      font-weight: 500;
+    }
+
+    .token-tester select,
+    .token-tester input {
+      border: 1px solid var(--color-border-dark);
+      border-radius: var(--radius-sm);
+      padding: var(--spacing-2) var(--spacing-3);
+      font-size: 0.95rem;
+      background: var(--color-bg);
+      width: 100%;
+    }
+
+    .token-tester button[type=submit] {
+      align-self: flex-start;
+      padding: var(--spacing-2) var(--spacing-5);
+    }
+
+    .token-tester pre {
+        background: var(--color-bg-alt);
+        border: 1px solid var(--color-border);
+        padding: var(--spacing-3);
+        border-radius: var(--radius-md);
+        max-height: 300px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    
+    .alert-danger {
+        color: var(--color-danger);
+        background-color: #fef2f2;
+        border: 1px solid var(--color-danger);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-3);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .scope-row {
+            grid-template-columns: 1fr;
+        }
+        .token-form button[type=submit] {
+            align-self: stretch;
+        }
+    }
+
+    @media (max-width: 600px) {
+      .token-page {
+        padding: var(--spacing-2);
+        margin: var(--spacing-2) auto;
+      }
+      .card {
+        padding: var(--spacing-4);
+      }
+      .token-page h1 {
+        font-size: 1.75rem;
+      }
+      .token-page h2 {
+          font-size: 1.25rem;
+      }
     }
   </style>
 </head>
@@ -111,69 +279,82 @@
   <Navbar></Navbar>
   <div class="token-page">
     <h1>API Token Management</h1>
-    <form @submit.prevent="generateToken" class="token-form">
-      <h2>Generate New Token</h2>
-      <div class="scopes-list">
-        <div v-for="(scope, idx) in scopes" :key="idx" class="scope-row">
-          <select v-model="scope.path" @change="scope.methods = []" required>
-            <option value="" disabled>Select API Path</option>
-            <option v-for="route in apiRoutes" :key="route.path" :value="route.path">{{ route.path }}</option>
-          </select>
-          <select v-model="scope.methods" multiple size="3" :disabled="!scope.path">
-            <option v-for="m in getMethodsForPath(scope.path)" :key="m" :value="m">{{ m }}</option>
-          </select>
-          <button type="button" @click="removeScope(idx)">Remove</button>
+
+    <div id="generate-token-section" class="card">
+        <h2>Generate New Token</h2>
+        <form @submit.prevent="generateToken" class="token-form">
+          <div class="scopes-list">
+            <div v-for="(scope, idx) in scopes" :key="idx" class="scope-row">
+              <select v-model="scope.path" @change="scope.methods = []" required>
+                <option value="" disabled>Select API Path</option>
+                <option v-for="route in apiRoutes" :key="route.path" :value="route.path">{{ route.path }}</option>
+              </select>
+              <select v-model="scope.methods" multiple size="3" :disabled="!scope.path" required>
+                <option v-for="m in getMethodsForPath(scope.path)" :key="m" :value="m">{{ m }}</option>
+              </select>
+              <button type="button" @click="removeScope(idx)">Remove</button>
+            </div>
+          </div>
+          <button type="button" @click="addScope">Add Scope</button>
+          <button type="submit">Generate Token</button>
+        </form>
+        <div v-if="tokenResult" class="token-box">
+          <span class="token-warning">Success! Copy this token now as you will not see it again:</span>
+          <code>{{ tokenResult }}</code>
         </div>
-        <button type="button" @click="addScope">Add Scope</button>
-      </div>
-      <button type="submit">Generate Token</button>
-    </form>
-    <div v-if="tokenResult" class="token-box">
-      <span class="token-warning">Copy this token now! You will not see it again:</span>
-      <code>{{ tokenResult }}</code>
     </div>
-    <h2>Active Tokens</h2>
-    <table class="token-table">
-      <thead>
-        <tr><th>Hash</th><th>Username</th><th>Created</th><th>Scopes</th><th>Revoke</th></tr>
-      </thead>
-      <tbody>
-        <tr v-for="t in tokens" :key="t.hash">
-          <td>{{ t.hash }}</td>
-          <td>{{ t.username }}</td>
-          <td>{{ formatDate(t.created_at) }}</td>
-          <td>
-            <span v-for="(s, i) in t.scopes" :key="i">
-              {{ s.path }}: [{{ s.methods.join(', ') }}]<br />
-            </span>
-          </td>
-          <td><button @click="revokeToken(t.hash)">Revoke</button></td>
-        </tr>
-      </tbody>
-    </table>
-    <h2>Test API Token</h2>
-    <div class="token-tester card p-3 mb-4">
-      <form @submit.prevent="testToken">
-        <div class="mb-2">
-          <label for="testPath">API Path:</label>
-          <select id="testPath" v-model="testPath" required>
-            <option value="" disabled>Select API Path</option>
-            <option v-for="route in apiRoutes.filter(r => r.methods.includes('GET'))" :key="route.path" :value="route.path">{{ route.path }}</option>
-          </select>
+    
+    <div id="active-tokens-section" class="card">
+        <h2>Active Tokens</h2>
+        <div class="token-table-wrapper">
+            <table class="token-table">
+              <thead>
+                <tr><th>Hash</th><th>Username</th><th>Created</th><th>Scopes</th><th></th></tr>
+              </thead>
+              <tbody>
+                <tr v-if="!tokens.length"><td colspan="5" style="text-align: center;">No active tokens.</td></tr>
+                <tr v-for="t in tokens" :key="t.hash">
+                  <td>{{ t.hash.substring(0, 8) }}...</td>
+                  <td>{{ t.username }}</td>
+                  <td>{{ formatDate(t.created_at) }}</td>
+                  <td>
+                    <span v-for="(s, i) in t.scopes" :key="i">
+                      {{ s.path }}: [{{ s.methods.join(', ') }}]<br />
+                    </span>
+                  </td>
+                  <td><button class="danger-btn" @click="revokeToken(t.hash)">Revoke</button></td>
+                </tr>
+              </tbody>
+            </table>
         </div>
-        <div class="mb-2">
-          <label for="testTokenInput">Token:</label>
-          <input id="testTokenInput" v-model="testTokenInput" type="password" autocomplete="off" placeholder="Paste API token here" required style="width: 320px;" />
+    </div>
+    
+    <div id="test-token-section" class="card">
+        <h2>Test API Token</h2>
+        <div class="token-tester">
+          <form @submit.prevent="testToken">
+            <div>
+              <label for="testPath">API Path (GET requests only)</label>
+              <select id="testPath" v-model="testPath" required>
+                <option value="" disabled>Select API Path to Test</option>
+                <option v-for="route in apiRoutes.filter(r => r.methods.includes('GET'))" :key="route.path" :value="route.path">{{ route.path }}</option>
+              </select>
+            </div>
+            <div>
+              <label for="testTokenInput">Token</label>
+              <input id="testTokenInput" v-model="testTokenInput" type="password" autocomplete="off" placeholder="Paste API token here" required />
+            </div>
+            <button type="submit">Test Token</button>
+          </form>
+          <div v-if="testResult || testError" class="mt-4">
+            <b>Result:</b>
+            <div v-if="testError" class="alert alert-danger mt-2">{{ testError }}</div>
+            <pre v-if="testResult" class="mt-2">{{ testResult }}</pre>
+          </div>
         </div>
-        <button type="submit">Test Token</button>
-      </form>
-      <div v-if="testResult" class="mt-3">
-        <b>Result:</b>
-        <pre style="background:#f8f8f8;border:1px solid #ccc;padding:1em;border-radius:6px;max-height:300px;overflow:auto;">{{ testResult }}</pre>
-      </div>
-      <div v-if="testError" class="alert alert-danger mt-2">{{ testError }}</div>
     </div>
   </div>
+
   <script type="module">
     import { createApp } from 'vue';
     import { initApp } from './init';
@@ -220,7 +401,9 @@
           this.scopes.push({ path: '', methods: [] });
         },
         removeScope(idx) {
-          this.scopes.splice(idx, 1);
+          if (this.scopes.length > 1) {
+            this.scopes.splice(idx, 1);
+          }
         },
         getMethodsForPath(path) {
           const found = this.apiRoutes.find(r => r.path === path);
@@ -229,34 +412,52 @@
         async generateToken() {
           const filtered = this.scopes.filter(s => s.path && s.methods.length);
           if (!filtered.length) {
-            alert('Please specify at least one path and method.');
+            alert('Please specify at least one path and corresponding method(s).');
             return;
           }
-          // No username/password prompt, just call the API
-          const res = await fetch('/api/token', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            credentials: 'same-origin',
-            body: JSON.stringify({ scopes: filtered })
-          });
-          const data = await res.json();
-          if (data.token) {
-            this.tokenResult = data.token;
-            this.loadTokens();
-          } else {
-            this.tokenResult = data.error || 'Failed to generate token.';
+          try {
+            const res = await fetch('/api/token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ scopes: filtered })
+            });
+            const data = await res.json();
+            if (res.ok && data.token) {
+              this.tokenResult = data.token;
+              this.loadTokens();
+            } else {
+              this.tokenResult = `Error: ${data.error || 'Failed to generate token.'}`;
+            }
+          } catch(e) {
+              this.tokenResult = `Request failed: ${e.message}`;
           }
         },
         async loadTokens() {
-          const res = await fetch('/api/tokens', { credentials: 'same-origin' });
-          this.tokens = await res.json();
+          try {
+            const res = await fetch('/api/tokens');
+            if(res.ok) {
+                this.tokens = await res.json();
+            } else {
+                console.error("Failed to load tokens");
+                this.tokens = [];
+            }
+          } catch(e) {
+              console.error("Error fetching tokens:", e);
+              this.tokens = [];
+          }
         },
         async revokeToken(hash) {
-          if (!confirm('Revoke this token?')) return;
-          await fetch(`/api/token/${hash}`, { method: 'DELETE', credentials: 'same-origin' });
-          this.loadTokens();
+          if (!confirm('Are you sure you want to revoke this token? This action cannot be undone.')) return;
+          try {
+            const res = await fetch(`/api/token/${hash}`, { method: 'DELETE' });
+            if(res.ok) {
+                this.loadTokens();
+            } else {
+                alert("Failed to revoke token.");
+            }
+          } catch(e) {
+              alert(`Error revoking token: ${e.message}`);
+          }
         },
         formatDate(ts) {
           return new Date(ts * 1000).toLocaleString();
@@ -265,22 +466,39 @@
           this.testResult = '';
           this.testError = '';
           if (!this.testPath || !this.testTokenInput) {
-            this.testError = 'Please select a path and enter a token.';
+            this.testError = 'Please select an API path and provide a token.';
             return;
           }
           try {
             const res = await fetch(this.testPath, {
               method: 'GET',
-              headers: { 'Authorization': 'Bearer ' + this.testTokenInput },
-              credentials: 'same-origin'
+              headers: {
+                'Authorization': 'Bearer ' + this.testTokenInput
+              },
+              credentials: 'omit'
             });
-            const text = await res.text();
-            this.testResult = text;
+
+            const contentType = res.headers.get("content-type");
+            let bodyText = await res.text();
+            let isJson = contentType && contentType.indexOf("application/json") !== -1 && bodyText;
+            if (isJson) {
+              try {
+                this.testResult = JSON.stringify(JSON.parse(bodyText), null, 2);
+              } catch {
+                this.testResult = bodyText;
+              }
+            } else {
+              this.testResult = bodyText;
+            }
+
             if (!res.ok) {
               this.testError = `HTTP ${res.status}: ${res.statusText}`;
+            } else {
+              this.testError = '';
             }
+
           } catch (e) {
-            this.testError = 'Request failed: ' + e;
+            this.testError = `Request failed: ${e.message}`;
           }
         }
       },

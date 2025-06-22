@@ -29,7 +29,7 @@
             <a class="nav-link" href="./troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./token"><i class="fas fa-fw fa-key"></i> Token Management</a>
+            <a class="nav-link" href="./api-tokens"><i class="fas fa-fw fa-key"></i> API Tokens</a>
           </li>
           <li class="nav-item">
             <ThemeToggle/>
