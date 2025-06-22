@@ -15,8 +15,11 @@ License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
 
+BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: cmake >= 3.25.0
+BuildRequires: desktop-file-utils
+BuildRequires: libappstream-glib
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
@@ -197,6 +200,11 @@ cmake "${cmake_args[@]}"
 make -j$(nproc) -C "%{_builddir}/Sunshine/build"
 
 %check
+# validate the metainfo file
+appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
+
 # run tests
 cd %{_builddir}/Sunshine/build
 xvfb-run ./tests/test_sunshine
@@ -252,14 +260,14 @@ rm -f /usr/lib/modules-load.d/uhid.conf
 %{_modulesloaddir}/uhid.conf
 
 # Desktop entries
-%{_datadir}/applications/sunshine*.desktop
+%{_datadir}/applications/*.desktop
 
 # Icons
 %{_datadir}/icons/hicolor/scalable/apps/sunshine.svg
 %{_datadir}/icons/hicolor/scalable/status/sunshine*.svg
 
 # Metainfo
-%{_datadir}/metainfo/sunshine.appdata.xml
+%{_datadir}/metainfo/*.metainfo.xml
 
 # Assets
 %{_datadir}/sunshine/**

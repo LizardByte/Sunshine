@@ -1,13 +1,13 @@
 [Desktop Entry]
-Type=Application
-Name=@PROJECT_NAME@
-Exec=sunshine
-Version=1.0
+Categories=RemoteAccess;Network;
 Comment=@PROJECT_DESCRIPTION@
+Exec=sunshine
 Icon=sunshine
 Keywords=gamestream;stream;moonlight;remote play;
-Categories=AudioVideo;Network;RemoteAccess;
+Name=@PROJECT_NAME@
 Terminal=true
+Type=Application
+Version=1.0
+X-AppImage-Arch=x86_64
 X-AppImage-Name=sunshine
 X-AppImage-Version=@PROJECT_VERSION@
-X-AppImage-Arch=x86_64

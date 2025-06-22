@@ -138,9 +138,12 @@ function add_arch_deps() {
 
 function add_debian_based_deps() {
   dependencies+=(
+    "appstream"
+    "appstream-util"
     "bison"  # required if we need to compile doxygen
     "build-essential"
     "cmake"
+    "desktop-file-utils"
     "doxygen"
     "flex"  # required if we need to compile doxygen
     "gcc-${gcc_version}"
@@ -201,13 +204,16 @@ function add_ubuntu_deps() {
 
 function add_fedora_deps() {
   dependencies+=(
+    "appstream"
     "cmake"
+    "desktop-file-utils"
     "doxygen"
     "gcc${gcc_version}"
     "gcc${gcc_version}-c++"
     "git"
     "graphviz"
     "libappindicator-gtk3-devel"
+    "libappstream-glib"
     "libcap-devel"
     "libcurl-devel"
     "libdrm-devel"
@@ -386,7 +392,7 @@ function run_install() {
     "gcc-ranlib"
   )
 
-  #set gcc version based on distros 
+  #set gcc version based on distros
   if [ "$distro" == "arch" ]; then
     export CC=gcc-14
     export CXX=g++-14
@@ -460,6 +466,8 @@ function run_install() {
     install_cuda
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
     cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
+  else
+    cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
   fi
 
   # Cmake stuff here
@@ -467,6 +475,16 @@ function run_install() {
   echo "cmake args:"
   echo "${cmake_args[@]}"
   cmake "${cmake_args[@]}"
+
+  # Run appstream validation, etc.
+  appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+  desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
+  if [ "$appimage_build" == 0 ]; then
+    desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
+  fi
+
+  # Build the project
   ninja -C "build"
 
   # Create the package
@@ -558,6 +576,15 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"
   version="24.04"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="11.8.0"
+  cuda_build="520.61.05"
+  gcc_version="11"
+  nvm_node=0
+elif grep -q "Ubuntu 25.04" /etc/os-release; then
+  distro="ubuntu"
+  version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
   cuda_version="11.8.0"

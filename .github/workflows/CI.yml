@@ -49,7 +49,7 @@ jobs:
 
       - name: Setup Release
         id: setup_release
-        uses: LizardByte/setup-release-action@v2025.426.225
+        uses: LizardByte/setup-release-action@v2025.612.120948
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -252,7 +252,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.426.1549
+        uses: LizardByte/create-release-action@v2025.612.13419
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
@@ -264,6 +264,8 @@ jobs:
 
   build_linux:
     name: Linux ${{ matrix.type }}
+    env:
+      APP_ID: dev.lizardbyte.app.Sunshine
     runs-on: ubuntu-${{ matrix.dist }}
     needs: setup_release
     strategy:
@@ -364,7 +366,7 @@ jobs:
           chmod +x ./AppDir/AppRun
 
           # variables
-          DESKTOP_FILE="${DESKTOP_FILE:-sunshine.desktop}"
+          DESKTOP_FILE="${DESKTOP_FILE:-${APP_ID}.desktop}"
           ICON_FILE="${ICON_FILE:-sunshine.png}"
 
           # AppImage
@@ -483,7 +485,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.426.1549
+        uses: LizardByte/create-release-action@v2025.612.13419
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
@@ -506,6 +508,8 @@ jobs:
             os_name: "macos"
           - os_version: "14"
             os_name: "macos"
+          - os_version: "15"
+            os_name: "macos"
           - os_version: "latest"
             os_name: "ubuntu"
           - os_version: "latest"  # this job will only configure the formula for release, no validation
@@ -524,6 +528,8 @@ jobs:
           rm '/usr/local/bin/idle3'
           rm '/usr/local/bin/idle3.12'
           rm '/usr/local/bin/idle3.13'
+          rm '/usr/local/bin/pip3.12'
+          rm '/usr/local/bin/pip3.13'
           rm '/usr/local/bin/pydoc3'
           rm '/usr/local/bin/pydoc3.12'
           rm '/usr/local/bin/pydoc3.13'
@@ -533,13 +539,7 @@ jobs:
           rm '/usr/local/bin/python3-config'
           rm '/usr/local/bin/python3.12-config'
           rm '/usr/local/bin/python3.13-config'
-          brew install python
-
-      - name: Setup python
-        id: python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
+          brew install python3
 
       - name: Configure formula
         run: |
@@ -621,7 +621,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/homebrew-release-action@v2025.503.165455
+        uses: LizardByte/homebrew-release-action@v2025.612.123332
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
@@ -629,6 +629,12 @@ jobs:
           publish: false
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: true
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
 
       - name: Generate gcov report
         id: test_report
@@ -693,7 +699,7 @@ jobs:
         if: >-
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.426.1549
+        uses: LizardByte/create-release-action@v2025.612.13419
         with:
           allowUpdates: true
           artifacts: '${{ github.workspace }}/homebrew/*'
@@ -728,7 +734,7 @@ jobs:
           github.repository_owner == 'LizardByte' &&
           matrix.release &&
           needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/homebrew-release-action@v2025.503.165455
+        uses: LizardByte/homebrew-release-action@v2025.612.123332
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
@@ -740,7 +746,7 @@ jobs:
   build_win:
     name: Windows
     needs: setup_release
-    runs-on: windows-2019
+    runs-on: windows-2022
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -862,48 +868,61 @@ jobs:
 
       - name: Update Windows dependencies
         env:
-          gcc_version: "14.2.0-3"
+          MSYSTEM: "ucrt64"
+          TOOLCHAIN: "ucrt-x86_64"
         shell: msys2 {0}
         run: |
-          broken_deps=(
-            "mingw-w64-ucrt-x86_64-gcc"
-            "mingw-w64-ucrt-x86_64-gcc-libs"
+          # variables
+          declare -A pinned_deps
+
+          # dependencies
+          dependencies=(
+            "git"
+            "mingw-w64-${TOOLCHAIN}-cmake"
+            "mingw-w64-${TOOLCHAIN}-cppwinrt"
+            "mingw-w64-${TOOLCHAIN}-curl-winssl"
+            "mingw-w64-${TOOLCHAIN}-gcc"
+            "mingw-w64-${TOOLCHAIN}-graphviz"
+            "mingw-w64-${TOOLCHAIN}-MinHook"
+            "mingw-w64-${TOOLCHAIN}-miniupnpc"
+            "mingw-w64-${TOOLCHAIN}-nlohmann-json"
+            "mingw-w64-${TOOLCHAIN}-nodejs"
+            "mingw-w64-${TOOLCHAIN}-nsis"
+            "mingw-w64-${TOOLCHAIN}-onevpl"
+            "mingw-w64-${TOOLCHAIN}-openssl"
+            "mingw-w64-${TOOLCHAIN}-opus"
+            "mingw-w64-${TOOLCHAIN}-toolchain"
           )
 
-          tarballs=""
-          for dep in "${broken_deps[@]}"; do
-            tarball="${dep}-${gcc_version}-any.pkg.tar.zst"
+          # do not modify below this line
 
-            # download and install working version
-            wget https://repo.msys2.org/mingw/ucrt64/${tarball}
+          ignore_packages=()
+          tarballs=""
+          for pkg in "${!pinned_deps[@]}"; do
+            ignore_packages+=("${pkg}")
+            version="${pinned_deps[$pkg]}"
+            tarball="${pkg}-${version}-any.pkg.tar.zst"
+
+            # download working version
+            wget "https://repo.msys2.org/mingw/${MSYSTEM}/${tarball}"
 
             tarballs="${tarballs} ${tarball}"
           done
 
-          # install broken dependencies
+          # Create the ignore string for pacman
+          ignore_list=$(IFS=,; echo "${ignore_packages[*]}")
+
+          # install pinned dependencies
           if [ -n "$tarballs" ]; then
             pacman -U --noconfirm ${tarballs}
           fi
 
-          # install dependencies
-          dependencies=(
-            "git"
-            "mingw-w64-ucrt-x86_64-cmake"
-            "mingw-w64-ucrt-x86_64-cppwinrt"
-            "mingw-w64-ucrt-x86_64-curl-winssl"
-            "mingw-w64-ucrt-x86_64-graphviz"
-            "mingw-w64-ucrt-x86_64-MinHook"
-            "mingw-w64-ucrt-x86_64-miniupnpc"
-            "mingw-w64-ucrt-x86_64-nlohmann-json"
-            "mingw-w64-ucrt-x86_64-nodejs"
-            "mingw-w64-ucrt-x86_64-nsis"
-            "mingw-w64-ucrt-x86_64-onevpl"
-            "mingw-w64-ucrt-x86_64-openssl"
-            "mingw-w64-ucrt-x86_64-opus"
-            "mingw-w64-ucrt-x86_64-toolchain"
-          )
-
-          pacman -Syu --noconfirm --ignore="$(IFS=,; echo "${broken_deps[*]}")" "${dependencies[@]}"
+          # Only add --ignore if we have packages to ignore
+          if [ -n "$ignore_list" ]; then
+            pacman -Syu --noconfirm --ignore="${ignore_list}" "${dependencies[@]}"
+          else
+            pacman -Syu --noconfirm "${dependencies[@]}"
+          fi
 
       - name: Install Doxygen
         # GCC compiled doxygen has issues when running graphviz
@@ -1058,7 +1077,7 @@ jobs:
 
       - name: Create/Update GitHub Release
         if: needs.setup_release.outputs.publish_release == 'true'
-        uses: LizardByte/create-release-action@v2025.426.1549
+        uses: LizardByte/create-release-action@v2025.612.13419
         with:
           allowUpdates: true
           body: ${{ needs.setup_release.outputs.release_body }}
