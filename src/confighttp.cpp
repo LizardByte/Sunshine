@@ -128,6 +128,57 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
 
+  // Helper for Bearer token authentication
+  bool authenticate_bearer(resp_https_t response, req_https_t request, const std::string& rawAuth, auto& fg) {
+    std::string token = rawAuth.substr(7);
+    std::string token_hash = util::hex(crypto::hash(token)).to_string();
+    auto it = api_tokens.find(token_hash);
+    if (it == api_tokens.end()) return false;
+    // Check if token allows this path and method
+    std::string req_path = request->path;
+    std::string req_method = boost::to_upper_copy(request->method);
+    auto is_method_allowed = [&](const std::vector<std::string>& methods) {
+      return std::ranges::any_of(methods, [&](const std::string& m){ return boost::iequals(m, req_method); });
+    };
+    for (const auto& [scope_path, methods] : it->second.path_methods) {
+      std::vector<std::string> methods_vec(methods.begin(), methods.end());
+      // Exact match
+      if (boost::iequals(req_path, scope_path) && is_method_allowed(methods_vec)) {
+        fg.disable();
+        return true;
+      }
+      // Prefix match only if scope_path ends with '/'
+      if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && is_method_allowed(methods_vec)) {
+        fg.disable();
+        return true;
+      }
+    }
+    fg.disable();
+    nlohmann::json tree;
+    tree["status_code"] = 403;
+    tree["status"] = false;
+    tree["error"] = "Forbidden: Token does not have permission for this path/method.";
+    response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
+    return false;
+  }
+
+  // Helper for Basic authentication
+  bool authenticate_basic(resp_https_t response, req_https_t request, const std::string& rawAuth, auto& fg) {
+    auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
+    int index = authData.find(':');
+    if (index < 0 || index >= authData.size() - 1) {
+      return false;
+    }
+    auto username = authData.substr(0, index);
+    auto password = authData.substr(index + 1);
+    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+      return false;
+    }
+    fg.disable();
+    return true;
+  }
+
   /**
    * @brief Authenticate the user or API token for a specific path/method.
    * @param response The HTTP response object.
@@ -150,59 +201,16 @@ namespace confighttp {
     auto fg = util::fail_guard([&]() {
       send_unauthorized(response, request);
     });
-    if (auto auth = request->header.find("authorization"); auth == request->header.end()) {
+    auto auth = request->header.find("authorization");
+    if (auth == request->header.end()) {
       return false;
-    } else {
-      const auto &rawAuth = auth->second;
-      if (rawAuth.rfind("Bearer ", 0) == 0) {
-        // Bearer token auth
-        std::string token = rawAuth.substr(7);
-        std::string token_hash = util::hex(crypto::hash(token)).to_string();
-        auto it = api_tokens.find(token_hash);
-        if (it == api_tokens.end()) return false;
-        // Check if token allows this path and method
-        std::string req_path = request->path;
-        std::string req_method = boost::to_upper_copy(request->method);
-        bool allowed = false;
-        for (const auto& [scope_path, methods] : it->second.path_methods) {
-          // Exact match
-          if (boost::iequals(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
-            allowed = true;
-            break;
-          }
-          // Prefix match only if scope_path ends with '/'
-          if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
-            allowed = true;
-            break;
-          }
-        }
-        if (!allowed) {
-          fg.disable();
-          nlohmann::json tree;
-          tree["status_code"] = 403;
-          tree["status"] = false;
-          tree["error"] = "Forbidden: Token does not have permission for this path/method.";
-          response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
-          return false;
-        }
-        fg.disable();
-        return true;
-      } else if (rawAuth.rfind("Basic ", 0) == 0) {
-        // Basic auth
-        auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
-        int index = authData.find(':');
-        if (index >= authData.size() - 1) {
-          return false;
-        }
-        auto username = authData.substr(0, index);
-        auto password = authData.substr(index + 1);
-        auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-          return false;
-        }
-        fg.disable();
-        return true;
-      }
+    }
+    const auto &rawAuth = auth->second;
+    if (rawAuth.rfind("Bearer ", 0) == 0) {
+      return authenticate_bearer(response, request, rawAuth, fg);
+    }
+    if (rawAuth.rfind("Basic ", 0) == 0) {
+      return authenticate_basic(response, request, rawAuth, fg);
     }
     return false;
   }
@@ -1123,6 +1131,15 @@ namespace confighttp {
    * Response example:
    * { "token": "..." }
    */
+  // Dedicated exception for invalid scope
+  class InvalidScopeException : public std::exception {
+  public:
+    explicit InvalidScopeException(const std::string& msg) : message_(msg) {}
+    const char* what() const noexcept override { return message_.c_str(); }
+  private:
+    std::string message_;
+  };
+
   void generateApiToken(resp_https_t response, req_https_t request) {
     // Authenticate with Basic Auth only
     if (!authenticate(response, request)) return;
@@ -1130,25 +1147,25 @@ namespace confighttp {
     nlohmann::json input;
     try {
       request->content >> input;
-    } catch (const std::exception&) {
-      send_response(response, nlohmann::json{{"error", "Invalid JSON"}});
+    } catch (const nlohmann::json::exception& e) {
+      send_response(response, nlohmann::json{{"error", std::string("Invalid JSON: ") + e.what()}});
       return;
     }
     if (!input.contains("scopes") || !input["scopes"].is_array()) {
       send_response(response, nlohmann::json{{"error", "Missing scopes array"}});
       return;
     }
-    std::map<std::string, std::set<std::string>> path_methods;
+    std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     try {
       for (const auto& s : input["scopes"]) {
-        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) throw std::runtime_error("Invalid scope object");
+        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) throw InvalidScopeException("Invalid scope object");
         std::string path = s["path"].get<std::string>();
-        std::set<std::string> methods;
+        std::set<std::string, std::less<>> methods;
         for (const auto& m : s["methods"]) methods.insert(boost::to_upper_copy(m.get<std::string>()));
         path_methods[path] = methods;
       }
-    } catch (const std::exception&) {
-      send_response(response, nlohmann::json{{"error", "Invalid scope value"}});
+    } catch (const InvalidScopeException& e) {
+      send_response(response, nlohmann::json{{"error", std::string("Invalid scope value: ") + e.what()}});
       return;
     }
     // --- Token Generation and Hashing ---
@@ -1239,9 +1256,7 @@ namespace confighttp {
     }
     pt::ptree root;
     if (fs::exists(config::nvhttp.file_state)) {
-        try {
-            pt::read_json(config::nvhttp.file_state, root);
-        } catch (const std::exception&) {}
+        pt::read_json(config::nvhttp.file_state, root);
     }
     pt::ptree tokens_pt;
     for (const auto& tok : j) {
@@ -1269,27 +1284,29 @@ void load_api_tokens() {
     api_tokens.clear();
     if (!fs::exists(config::nvhttp.file_state)) return;
     pt::ptree root;
-    try {
-        pt::read_json(config::nvhttp.file_state, root);
-    } catch (const std::exception&) { return; }
+    pt::read_json(config::nvhttp.file_state, root);
+    auto parse_scope = [](const pt::ptree& s) -> std::pair<std::string, std::set<std::string, std::less<>>> {
+        std::string path = s.get<std::string>("path", "");
+        std::set<std::string, std::less<>> methods;
+        if (auto methods_child = s.get_child_optional("methods")) {
+            for (const auto& m : *methods_child) {
+                methods.insert(m.second.data());
+            }
+        }
+        return {path, methods};
+    };
     if (auto tokens_opt = root.get_child_optional("root.api_tokens")) {
         for (const auto& item : *tokens_opt) {
             const auto& t = item.second;
             std::string hash = t.get<std::string>("hash", "");
             std::string username = t.get<std::string>("username", "");
             std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
-            std::map<std::string, std::set<std::string>> path_methods;
+            std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
             if (auto scopes_child = t.get_child_optional("scopes")) {
                 for (const auto& s : *scopes_child) {
-                    std::string path = s.second.get<std::string>("path", "");
-                    std::set<std::string> methods;
-                    if (auto methods_child = s.second.get_child_optional("methods")) {
-                        for (const auto& m : *methods_child) {
-                            methods.insert(m.second.data());
-                        }
-                    }
+                    auto [path, methods] = parse_scope(s.second);
                     if (!path.empty() && !methods.empty())
-                        path_methods[path] = methods;
+                        path_methods[path] = std::move(methods);
                 }
             }
             if (!hash.empty()) {

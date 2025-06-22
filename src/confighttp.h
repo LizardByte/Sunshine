@@ -37,7 +37,7 @@ namespace confighttp {
 
   struct ApiTokenInfo {
     std::string token_hash; // SHA-256 hex
-    std::map<std::string, std::set<std::string>> path_methods; // path -> allowed HTTP methods
+    std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods; // path -> allowed HTTP methods
     std::string username;
     std::chrono::system_clock::time_point created_at;
   };
