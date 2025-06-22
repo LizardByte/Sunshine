@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+<head>
+  <%- header %>
+  <style>
+    .token-page {
+      max-width: 700px;
+      margin: 2em auto;
+      font-family: sans-serif;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      padding: 2em 2.5em 2.5em 2.5em;
+    }
+    .token-page h1, .token-page h2 {
+      margin-bottom: 1em;
+    }
+    .token-form {
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 1.5em 1em 1em 1em;
+      margin-bottom: 2em;
+      border: 1px solid #e0e0e0;
+    }
+    .scopes-list {
+      margin-bottom: 1em;
+    }
+    .scope-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: 0.5em;
+    }
+    .scopes-list input[type=text] {
+      width: 220px;
+      padding: 0.3em 0.5em;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    .scopes-list select {
+      width: 140px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      padding: 0.2em 0.5em;
+    }
+    .scopes-list button {
+      margin-left: 0.5em;
+    }
+    .token-form button[type=submit], .token-form button[type=button] {
+      margin-top: 0.5em;
+      margin-right: 0.5em;
+      padding: 0.4em 1.2em;
+      border-radius: 4px;
+      border: none;
+      background: #007bff;
+      color: #fff;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .token-form button[type=submit]:hover, .token-form button[type=button]:hover {
+      background: #0056b3;
+    }
+    .token-box {
+      background: #f8f8f8;
+      border: 1px solid #ccc;
+      padding: 1em;
+      margin: 1em 0;
+      word-break: break-all;
+      border-radius: 6px;
+      font-size: 1.1em;
+    }
+    .token-warning {
+      color: #b00;
+      font-weight: bold;
+      margin-bottom: 0.5em;
+      display: block;
+    }
+    .token-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 2em;
+      background: #fafbfc;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .token-table th, .token-table td {
+      border: 1px solid #e0e0e0;
+      padding: 0.6em 0.8em;
+      text-align: left;
+    }
+    .token-table th {
+      background: #f3f4f6;
+      font-weight: 600;
+    }
+    .token-table td button {
+      background: #dc3545;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 0.3em 0.9em;
+      font-size: 0.95em;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .token-table td button:hover {
+      background: #a71d2a;
+    }
+  </style>
+</head>
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div class="token-page">
+    <h1>API Token Management</h1>
+    <form @submit.prevent="generateToken" class="token-form">
+      <h2>Generate New Token</h2>
+      <div class="scopes-list">
+        <div v-for="(scope, idx) in scopes" :key="idx" class="scope-row">
+          <select v-model="scope.path" @change="scope.methods = []" required>
+            <option value="" disabled>Select API Path</option>
+            <option v-for="route in apiRoutes" :key="route.path" :value="route.path">{{ route.path }}</option>
+          </select>
+          <select v-model="scope.methods" multiple size="3" :disabled="!scope.path">
+            <option v-for="m in getMethodsForPath(scope.path)" :key="m" :value="m">{{ m }}</option>
+          </select>
+          <button type="button" @click="removeScope(idx)">Remove</button>
+        </div>
+        <button type="button" @click="addScope">Add Scope</button>
+      </div>
+      <button type="submit">Generate Token</button>
+    </form>
+    <div v-if="tokenResult" class="token-box">
+      <span class="token-warning">Copy this token now! You will not see it again:</span>
+      <code>{{ tokenResult }}</code>
+    </div>
+    <h2>Active Tokens</h2>
+    <table class="token-table">
+      <thead>
+        <tr><th>Hash</th><th>Username</th><th>Created</th><th>Scopes</th><th>Revoke</th></tr>
+      </thead>
+      <tbody>
+        <tr v-for="t in tokens" :key="t.hash">
+          <td>{{ t.hash }}</td>
+          <td>{{ t.username }}</td>
+          <td>{{ formatDate(t.created_at) }}</td>
+          <td>
+            <span v-for="(s, i) in t.scopes" :key="i">
+              {{ s.path }}: [{{ s.methods.join(', ') }}]<br />
+            </span>
+          </td>
+          <td><button @click="revokeToken(t.hash)">Revoke</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <h2>Test API Token</h2>
+    <div class="token-tester card p-3 mb-4">
+      <form @submit.prevent="testToken">
+        <div class="mb-2">
+          <label for="testPath">API Path:</label>
+          <select id="testPath" v-model="testPath" required>
+            <option value="" disabled>Select API Path</option>
+            <option v-for="route in apiRoutes.filter(r => r.methods.includes('GET'))" :key="route.path" :value="route.path">{{ route.path }}</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label for="testTokenInput">Token:</label>
+          <input id="testTokenInput" v-model="testTokenInput" type="password" autocomplete="off" placeholder="Paste API token here" required style="width: 320px;" />
+        </div>
+        <button type="submit">Test Token</button>
+      </form>
+      <div v-if="testResult" class="mt-3">
+        <b>Result:</b>
+        <pre style="background:#f8f8f8;border:1px solid #ccc;padding:1em;border-radius:6px;max-height:300px;overflow:auto;">{{ testResult }}</pre>
+      </div>
+      <div v-if="testError" class="alert alert-danger mt-2">{{ testError }}</div>
+    </div>
+  </div>
+  <script type="module">
+    import { createApp } from 'vue';
+    import { initApp } from './init';
+    import Navbar from './Navbar.vue';
+
+    // List of API routes and methods
+    const apiRoutes = [
+      { path: "/api/pin", methods: ["POST"] },
+      { path: "/api/apps", methods: ["GET", "POST"] },
+      { path: "/api/logs", methods: ["GET"] },
+      { path: "/api/config", methods: ["GET", "POST"] },
+      { path: "/api/configLocale", methods: ["GET"] },
+      { path: "/api/restart", methods: ["POST"] },
+      { path: "/api/reset-display-device-persistence", methods: ["POST"] },
+      { path: "/api/password", methods: ["POST"] },
+      { path: "/api/apps/([0-9]+)", methods: ["DELETE"] },
+      { path: "/api/clients/unpair-all", methods: ["POST"] },
+      { path: "/api/clients/list", methods: ["GET"] },
+      { path: "/api/clients/unpair", methods: ["POST"] },
+      { path: "/api/apps/close", methods: ["POST"] },
+      { path: "/api/covers/upload", methods: ["POST"] },
+      { path: "/api/token", methods: ["POST"] },
+      { path: "/api/tokens", methods: ["GET"] },
+      { path: "/api/token/([a-fA-F0-9]+)", methods: ["DELETE"] }
+    ];
+
+    const app = createApp({
+      components: { Navbar },
+      data() {
+        return {
+          scopes: [{ path: '', methods: [] }],
+          tokenResult: '',
+          tokens: [],
+          apiRoutes,
+          // Token tester state
+          testPath: '',
+          testTokenInput: '',
+          testResult: '',
+          testError: ''
+        };
+      },
+      methods: {
+        addScope() {
+          this.scopes.push({ path: '', methods: [] });
+        },
+        removeScope(idx) {
+          this.scopes.splice(idx, 1);
+        },
+        getMethodsForPath(path) {
+          const found = this.apiRoutes.find(r => r.path === path);
+          return found ? found.methods : ["GET", "POST", "DELETE", "PATCH", "PUT"];
+        },
+        async generateToken() {
+          const filtered = this.scopes.filter(s => s.path && s.methods.length);
+          if (!filtered.length) {
+            alert('Please specify at least one path and method.');
+            return;
+          }
+          // No username/password prompt, just call the API
+          const res = await fetch('/api/token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ scopes: filtered })
+          });
+          const data = await res.json();
+          if (data.token) {
+            this.tokenResult = data.token;
+            this.loadTokens();
+          } else {
+            this.tokenResult = data.error || 'Failed to generate token.';
+          }
+        },
+        async loadTokens() {
+          const res = await fetch('/api/tokens', { credentials: 'same-origin' });
+          this.tokens = await res.json();
+        },
+        async revokeToken(hash) {
+          if (!confirm('Revoke this token?')) return;
+          await fetch(`/api/token/${hash}`, { method: 'DELETE', credentials: 'same-origin' });
+          this.loadTokens();
+        },
+        formatDate(ts) {
+          return new Date(ts * 1000).toLocaleString();
+        },
+        async testToken() {
+          this.testResult = '';
+          this.testError = '';
+          if (!this.testPath || !this.testTokenInput) {
+            this.testError = 'Please select a path and enter a token.';
+            return;
+          }
+          try {
+            const res = await fetch(this.testPath, {
+              method: 'GET',
+              headers: { 'Authorization': 'Bearer ' + this.testTokenInput },
+              credentials: 'same-origin'
+            });
+            const text = await res.text();
+            this.testResult = text;
+            if (!res.ok) {
+              this.testError = `HTTP ${res.status}: ${res.statusText}`;
+            }
+          } catch (e) {
+            this.testError = 'Request failed: ' + e;
+          }
+        }
+      },
+      mounted() {
+        this.loadTokens();
+      }
+    });
+    initApp(app);
+  </script>
+</body>
+</html>

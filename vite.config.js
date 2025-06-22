@@ -72,6 +72,7 @@ export default defineConfig({
                 pin: resolve(assetsSrcPath, 'pin.html'),
                 troubleshooting: resolve(assetsSrcPath, 'troubleshooting.html'),
                 welcome: resolve(assetsSrcPath, 'welcome.html'),
+                token: resolve(assetsSrcPath, 'token.html'),
             },
         },
     },

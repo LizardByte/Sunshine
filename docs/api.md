@@ -57,6 +57,47 @@ basic authentication with the admin username and password.
 ## POST /api/restart
 @copydoc confighttp::restart()
 
+## Authentication
+
+All API calls require authentication. You can use either:
+- **Basic Authentication**: Use your admin username and password.
+- **API Token (recommended for automation)**: Use a generated token with fine-grained access control.
+
+### Generating an API Token
+
+**POST /api/token**
+
+Authenticate with Basic Auth. The request body should specify the allowed API paths and HTTP methods for the token:
+
+```json
+{
+  "scopes": [
+    { "path": "/api/apps", "methods": ["GET", "POST"] },
+    { "path": "/api/logs", "methods": ["GET"] }
+  ]
+}
+```
+
+**Response:**
+```json
+{ "token": "...your-new-token..." }
+```
+> The token is only shown once. Store it securely.
+
+### Using an API Token
+
+Send the token in the `Authorization` header:
+```
+Authorization: Bearer <token>
+```
+
+The token grants access only to the specified paths and HTTP methods.
+
+### Managing API Tokens
+
+- **List tokens:** `GET /api/tokens` (shows metadata, not token values)
+- **Revoke token:** `DELETE /api/token/{hash}`
+
 <div class="section_buttons">
 
 | Previous                                    |                                  Next |

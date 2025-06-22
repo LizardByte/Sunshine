@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <fstream>
 #include <set>
+#include <unordered_map>
+#include <chrono>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -125,54 +127,74 @@ namespace confighttp {
   }
 
   /**
-   * @brief Authenticate the user.
+   * @brief Authenticate the user or API token for a specific path/method.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @return True if the user is authenticated, false otherwise.
+   * @return True if authenticated and authorized, false otherwise.
    */
   bool authenticate(resp_https_t response, req_https_t request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto ip_type = net::from_address(address);
-
     if (ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
     }
-
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");
       return false;
     }
-
     auto fg = util::fail_guard([&]() {
       send_unauthorized(response, request);
     });
-
     auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
       return false;
     }
-
     auto &rawAuth = auth->second;
-    auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
-
-    int index = authData.find(':');
-    if (index >= authData.size() - 1) {
-      return false;
+    if (rawAuth.rfind("Bearer ", 0) == 0) {
+      // Bearer token auth
+      std::string token = rawAuth.substr(7);
+      std::string token_hash = util::hex(crypto::hash(token)).to_string();
+      auto it = api_tokens.find(token_hash);
+      if (it == api_tokens.end()) return false;
+      // Check if token allows this path and method
+      std::string req_path = request->path;
+      std::string req_method = boost::to_upper_copy(request->method);
+      bool allowed = false;
+      for (const auto& [scope_path, methods] : it->second.path_methods) {
+        // Exact match
+        if (boost::iequals(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
+          allowed = true;
+          break;
+        }
+        // Prefix match only if scope_path ends with '/'
+        if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
+          allowed = true;
+          break;
+        }
+      }
+      if (!allowed) return false;
+      fg.disable();
+      return true;
+    } else if (rawAuth.rfind("Basic ", 0) == 0) {
+      // Basic auth
+      auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
+      int index = authData.find(':');
+      if (index >= authData.size() - 1) {
+        return false;
+      }
+      auto username = authData.substr(0, index);
+      auto password = authData.substr(index + 1);
+      auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+      if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+        return false;
+      }
+      fg.disable();
+      return true;
     }
-
-    auto username = authData.substr(0, index);
-    auto password = authData.substr(index + 1);
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-
-    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
-    }
-
-    fg.disable();
-    return true;
+    return false;
   }
 
   /**
@@ -1073,6 +1095,78 @@ namespace confighttp {
     platf::restart();
   }
 
+  // --- API Token Generation Endpoint ---
+  void generateApiToken(resp_https_t response, req_https_t request) {
+    // Authenticate with Basic Auth only
+    if (!authenticate(response, request)) return;
+    // Parse JSON body for path/method scopes
+    nlohmann::json input;
+    try {
+      request->content >> input;
+    } catch (...) {
+      send_response(response, nlohmann::json{{"error", "Invalid JSON"}});
+      return;
+    }
+    if (!input.contains("scopes") || !input["scopes"].is_array()) {
+      send_response(response, nlohmann::json{{"error", "Missing scopes array"}});
+      return;
+    }
+    std::map<std::string, std::set<std::string>> path_methods;
+    try {
+      for (const auto& s : input["scopes"]) {
+        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) throw std::runtime_error("Invalid scope object");
+        std::string path = s["path"].get<std::string>();
+        std::set<std::string> methods;
+        for (const auto& m : s["methods"]) methods.insert(boost::to_upper_copy(m.get<std::string>()));
+        path_methods[path] = methods;
+      }
+    } catch (...) {
+      send_response(response, nlohmann::json{{"error", "Invalid scope value"}});
+      return;
+    }
+    // Generate token
+    std::string token = crypto::rand_alphabet(32);
+    std::string token_hash = util::hex(crypto::hash(token)).to_string();
+    // Store hash and metadata
+    ApiTokenInfo info{token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
+    api_tokens[token_hash] = info;
+    // Return token (only once)
+    send_response(response, nlohmann::json{{"token", token}});
+  }
+
+  // --- List API Tokens ---
+  void listApiTokens(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+    nlohmann::json arr = nlohmann::json::array();
+    for (const auto& [hash, info] : api_tokens) {
+      nlohmann::json obj;
+      obj["hash"] = hash;
+      obj["username"] = info.username;
+      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+      obj["scopes"] = nlohmann::json::array();
+      for (const auto& [path, methods] : info.path_methods) {
+        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+      }
+      arr.push_back(obj);
+    }
+    send_response(response, arr);
+  }
+
+  // --- Revoke API Token ---
+  void revokeApiToken(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) return;
+    // Expect /api/token/{hash}
+    std::string hash;
+    if (request->path_match.size() > 1) {
+      hash = request->path_match[1];
+    }
+    if (hash.empty() || api_tokens.erase(hash) == 0) {
+      send_response(response, nlohmann::json{{"error", "Token not found"}});
+      return;
+    }
+    send_response(response, nlohmann::json{{"status", true}});
+  }
+
   void start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -1120,6 +1214,10 @@ namespace confighttp {
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
+    server.resource["^/api/token$"]["POST"] = generateApiToken;
+    server.resource["^/api/tokens$"]["GET"] = listApiTokens;
+    server.resource["^/api/token/([a-fA-F0-9]+)$"]["DELETE"] = revokeApiToken;
+    server.resource["^/token/?$"]["GET"] = getTokenPage;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
@@ -1148,5 +1246,20 @@ namespace confighttp {
     server.stop();
 
     tcp.join();
+  }
+
+  // Define api_tokens at the top level of the namespace
+  std::unordered_map<std::string, ApiTokenInfo> api_tokens;
+
+  // Implement getTokenPage with the exact signature as in the header
+  void getTokenPage(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    std::string content = file_handler::read_file(WEB_DIR "token.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(content, headers);
   }
 }  // namespace confighttp
