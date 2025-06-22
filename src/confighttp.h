@@ -10,6 +10,7 @@
 #include <set>
 #include <chrono>
 #include <map>
+#include <functional>
 
 // local includes
 #include "thread_safe.h"

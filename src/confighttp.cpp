@@ -150,59 +150,59 @@ namespace confighttp {
     auto fg = util::fail_guard([&]() {
       send_unauthorized(response, request);
     });
-    auto auth = request->header.find("authorization");
-    if (auth == request->header.end()) {
+    if (auto auth = request->header.find("authorization"); auth == request->header.end()) {
       return false;
-    }
-    auto &rawAuth = auth->second;
-    if (rawAuth.rfind("Bearer ", 0) == 0) {
-      // Bearer token auth
-      std::string token = rawAuth.substr(7);
-      std::string token_hash = util::hex(crypto::hash(token)).to_string();
-      auto it = api_tokens.find(token_hash);
-      if (it == api_tokens.end()) return false;
-      // Check if token allows this path and method
-      std::string req_path = request->path;
-      std::string req_method = boost::to_upper_copy(request->method);
-      bool allowed = false;
-      for (const auto& [scope_path, methods] : it->second.path_methods) {
-        // Exact match
-        if (boost::iequals(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
-          allowed = true;
-          break;
+    } else {
+      const auto &rawAuth = auth->second;
+      if (rawAuth.rfind("Bearer ", 0) == 0) {
+        // Bearer token auth
+        std::string token = rawAuth.substr(7);
+        std::string token_hash = util::hex(crypto::hash(token)).to_string();
+        auto it = api_tokens.find(token_hash);
+        if (it == api_tokens.end()) return false;
+        // Check if token allows this path and method
+        std::string req_path = request->path;
+        std::string req_method = boost::to_upper_copy(request->method);
+        bool allowed = false;
+        for (const auto& [scope_path, methods] : it->second.path_methods) {
+          // Exact match
+          if (boost::iequals(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
+            allowed = true;
+            break;
+          }
+          // Prefix match only if scope_path ends with '/'
+          if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
+            allowed = true;
+            break;
+          }
         }
-        // Prefix match only if scope_path ends with '/'
-        if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && std::any_of(methods.begin(), methods.end(), [&](const std::string& m){ return boost::iequals(m, req_method); })) {
-          allowed = true;
-          break;
+        if (!allowed) {
+          fg.disable();
+          nlohmann::json tree;
+          tree["status_code"] = 403;
+          tree["status"] = false;
+          tree["error"] = "Forbidden: Token does not have permission for this path/method.";
+          response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
+          return false;
         }
-      }
-      if (!allowed) {
         fg.disable();
-        nlohmann::json tree;
-        tree["status_code"] = 403;
-        tree["status"] = false;
-        tree["error"] = "Forbidden: Token does not have permission for this path/method.";
-        response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
-        return false;
+        return true;
+      } else if (rawAuth.rfind("Basic ", 0) == 0) {
+        // Basic auth
+        auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
+        int index = authData.find(':');
+        if (index >= authData.size() - 1) {
+          return false;
+        }
+        auto username = authData.substr(0, index);
+        auto password = authData.substr(index + 1);
+        auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+        if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+          return false;
+        }
+        fg.disable();
+        return true;
       }
-      fg.disable();
-      return true;
-    } else if (rawAuth.rfind("Basic ", 0) == 0) {
-      // Basic auth
-      auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
-      int index = authData.find(':');
-      if (index >= authData.size() - 1) {
-        return false;
-      }
-      auto username = authData.substr(0, index);
-      auto password = authData.substr(index + 1);
-      auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-      if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-        return false;
-      }
-      fg.disable();
-      return true;
     }
     return false;
   }
@@ -1130,7 +1130,7 @@ namespace confighttp {
     nlohmann::json input;
     try {
       request->content >> input;
-    } catch (...) {
+    } catch (const std::exception&) {
       send_response(response, nlohmann::json{{"error", "Invalid JSON"}});
       return;
     }
@@ -1147,22 +1147,16 @@ namespace confighttp {
         for (const auto& m : s["methods"]) methods.insert(boost::to_upper_copy(m.get<std::string>()));
         path_methods[path] = methods;
       }
-    } catch (...) {
+    } catch (const std::exception&) {
       send_response(response, nlohmann::json{{"error", "Invalid scope value"}});
       return;
     }
     // --- Token Generation and Hashing ---
-    // Generate a random 32-character token (A-Za-z0-9)
-    // Hash the token using the configured hash function and store only the hash in memory and on disk.
-    // The raw token is returned to the user only once and never stored.
-    // This approach ensures that if the state file is compromised, the actual API tokens cannot be recovered.
     std::string token = crypto::rand_alphabet(32);
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
-    // Store hash and metadata
     ApiTokenInfo info{token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
     api_tokens[token_hash] = info;
     save_api_tokens();
-    // Return token (only once)
     send_response(response, nlohmann::json{{"token", token}});
   }
 
@@ -1243,12 +1237,11 @@ namespace confighttp {
         }
         j.push_back(obj);
     }
-    // Write to state file under root.api_tokens
     pt::ptree root;
     if (fs::exists(config::nvhttp.file_state)) {
         try {
             pt::read_json(config::nvhttp.file_state, root);
-        } catch (...) {}
+        } catch (const std::exception&) {}
     }
     pt::ptree tokens_pt;
     for (const auto& tok : j) {
@@ -1278,33 +1271,31 @@ void load_api_tokens() {
     pt::ptree root;
     try {
         pt::read_json(config::nvhttp.file_state, root);
-    } catch (...) { return; }
-    auto tokens_opt = root.get_child_optional("root.api_tokens");
-    if (!tokens_opt) return;
-    for (const auto& item : *tokens_opt) {
-        const auto& t = item.second;
-        std::string hash = t.get<std::string>("hash", "");
-        std::string username = t.get<std::string>("username", "");
-        std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
-        std::map<std::string, std::set<std::string>> path_methods;
-        auto scopes_child = t.get_child_optional("scopes");
-        if (scopes_child) {
-            for (const auto& s : *scopes_child) {
-                std::string path = s.second.get<std::string>("path", "");
-                std::set<std::string> methods;
-                auto methods_child = s.second.get_child_optional("methods");
-                if (methods_child) {
-                    for (const auto& m : *methods_child) {
-                        methods.insert(m.second.data());
+    } catch (const std::exception&) { return; }
+    if (auto tokens_opt = root.get_child_optional("root.api_tokens")) {
+        for (const auto& item : *tokens_opt) {
+            const auto& t = item.second;
+            std::string hash = t.get<std::string>("hash", "");
+            std::string username = t.get<std::string>("username", "");
+            std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
+            std::map<std::string, std::set<std::string>> path_methods;
+            if (auto scopes_child = t.get_child_optional("scopes")) {
+                for (const auto& s : *scopes_child) {
+                    std::string path = s.second.get<std::string>("path", "");
+                    std::set<std::string> methods;
+                    if (auto methods_child = s.second.get_child_optional("methods")) {
+                        for (const auto& m : *methods_child) {
+                            methods.insert(m.second.data());
+                        }
                     }
+                    if (!path.empty() && !methods.empty())
+                        path_methods[path] = methods;
                 }
-                if (!path.empty() && !methods.empty())
-                    path_methods[path] = methods;
             }
-        }
-        if (!hash.empty()) {
-            ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
-            api_tokens[hash] = info;
+            if (!hash.empty()) {
+                ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
+                api_tokens[hash] = info;
+            }
         }
     }
 }
