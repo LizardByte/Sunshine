@@ -1359,8 +1359,7 @@ namespace confighttp {
       return std::make_pair(path, std::move(methods));
     };
 
-    auto build_scope_map = [&](const pt::ptree &scopes_node)
-      -> std::map<std::string, std::set<std::string, std::less<>>, std::less<>> {
+    auto build_scope_map = [&](const pt::ptree &scopes_node) {
       std::map<std::string, std::set<std::string, std::less<>>, std::less<>> out;
       for (const auto &[_, scope_tree] : scopes_node) {
         if (auto parsed = parse_scope(scope_tree)) {
