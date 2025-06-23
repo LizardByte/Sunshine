@@ -473,12 +473,7 @@
           testPath: '',
           testTokenInput: '',
           testResult: '',
-          testError: '',
-          // DELETE tester state
-          deleteAppIndex: '',
-          deleteAppToken: '',
-          deleteAppResult: '',
-          deleteAppError: ''
+          testError: ''
         };
       },
       methods: {
@@ -584,43 +579,6 @@
 
           } catch (e) {
             this.testError = `Request failed: ${e.message}`;
-          }
-        },
-        async testDeleteApp() {
-          this.deleteAppResult = '';
-          this.deleteAppError = '';
-          if (this.deleteAppIndex === '' || !this.deleteAppToken) {
-            this.deleteAppError = 'Please provide an app index and a token.';
-            return;
-          }
-          try {
-            const res = await fetch(`/api/apps/${this.deleteAppIndex}`, {
-              method: 'DELETE',
-              headers: {
-                'Authorization': 'Bearer ' + this.deleteAppToken,
-                'Accept': 'application/json'
-              },
-              credentials: 'omit'
-            });
-            const contentType = res.headers.get("content-type");
-            let bodyText = await res.text();
-            let isJson = contentType && contentType.indexOf("application/json") !== -1 && bodyText;
-            if (isJson) {
-              try {
-                this.deleteAppResult = JSON.stringify(JSON.parse(bodyText), null, 2);
-              } catch {
-                this.deleteAppResult = bodyText;
-              }
-            } else {
-              this.deleteAppResult = bodyText;
-            }
-            if (!res.ok) {
-              this.deleteAppError = `HTTP ${res.status}: ${res.statusText}`;
-            } else {
-              this.deleteAppError = '';
-            }
-          } catch (e) {
-            this.deleteAppError = `Request failed: ${e.message}`;
           }
         }
       },
