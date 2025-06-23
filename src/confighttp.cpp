@@ -7,11 +7,11 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <set>
 #include <unordered_map>
-#include <chrono>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -55,6 +55,8 @@ namespace confighttp {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
   };
+
+  std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
 
   /**
    * @brief Log the request details.
@@ -129,18 +131,22 @@ namespace confighttp {
   }
 
   // Helper for Bearer token authentication
-  bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto& fg) {
+  bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto &fg) {
     std::string token = std::string(rawAuth.substr(7));
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
     auto it = api_tokens.find(token_hash);
-    if (it == api_tokens.end()) return false;
+    if (it == api_tokens.end()) {
+      return false;
+    }
     // Check if token allows this path and method
     std::string req_path = request->path;
     std::string req_method = boost::to_upper_copy(request->method);
-    auto is_method_allowed = [&](const std::vector<std::string>& methods) {
-      return std::ranges::any_of(methods, [&](const std::string& m){ return boost::iequals(m, req_method); });
+    auto is_method_allowed = [&](const std::vector<std::string> &methods) {
+      return std::ranges::any_of(methods, [&](const std::string &m) {
+        return boost::iequals(m, req_method);
+      });
     };
-    for (const auto& [scope_path, methods] : it->second.path_methods) {
+    for (const auto &[scope_path, methods] : it->second.path_methods) {
       std::vector<std::string> methods_vec(methods.begin(), methods.end());
       // Exact match
       if (boost::iequals(req_path, scope_path) && is_method_allowed(methods_vec)) {
@@ -163,7 +169,7 @@ namespace confighttp {
   }
 
   // Helper for Basic authentication
-  bool authenticate_basic(const std::string_view rawAuth, auto& fg) {
+  bool authenticate_basic(const std::string_view rawAuth, auto &fg) {
     std::string base64 = std::string(rawAuth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
     int index = authData.find(':');
@@ -1114,7 +1120,6 @@ namespace confighttp {
     platf::restart();
   }
 
-  // --- API Token Generation Endpoint ---
   /**
    * @brief Generate a new API token with specified scopes.
    * @param response The HTTP response object.
@@ -1132,53 +1137,64 @@ namespace confighttp {
    * Response example:
    * { "token": "..." }
    */
-  // Dedicated exception for invalid scope
-  class InvalidScopeException : public std::exception {
+
+  // Dedicated exception for invalid scopes on token (sonarcube suggestion)
+  class InvalidScopeException: public std::exception {
   public:
-    explicit InvalidScopeException(const std::string& msg) : message_(msg) {}
-    const char* what() const noexcept override { return message_.c_str(); }
+    explicit InvalidScopeException(const std::string &msg):
+        message_(msg) {}
+
+    const char *what() const noexcept override {
+      return message_.c_str();
+    }
+
   private:
     std::string message_;
   };
 
   void generateApiToken(resp_https_t response, req_https_t request) {
     // Authenticate with Basic Auth only
-    if (!authenticate(response, request)) return;
+    if (!authenticate(response, request)) {
+      return;
+    }
     // Parse JSON body for path/method scopes
     nlohmann::json input;
     try {
       request->content >> input;
-    } catch (const nlohmann::json::exception& e) {
-      send_response(response, nlohmann::json{{"error", std::string("Invalid JSON: ") + e.what()}});
+    } catch (const nlohmann::json::exception &e) {
+      send_response(response, nlohmann::json {{"error", std::string("Invalid JSON: ") + e.what()}});
       return;
     }
     if (!input.contains("scopes") || !input["scopes"].is_array()) {
-      send_response(response, nlohmann::json{{"error", "Missing scopes array"}});
+      send_response(response, nlohmann::json {{"error", "Missing scopes array"}});
       return;
     }
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     try {
-      for (const auto& s : input["scopes"]) {
-        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) throw InvalidScopeException("Invalid scope object");
+      for (const auto &s : input["scopes"]) {
+        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) {
+          throw InvalidScopeException("Invalid scopes configured on API Token, missing 'path' or 'methods' array");
+        }
         std::string path = s["path"].get<std::string>();
         std::set<std::string, std::less<>> methods;
-        for (const auto& m : s["methods"]) methods.insert(boost::to_upper_copy(m.get<std::string>()));
+        for (const auto &m : s["methods"]) {
+          methods.insert(boost::to_upper_copy(m.get<std::string>()));
+        }
         path_methods[path] = methods;
       }
-    } catch (const InvalidScopeException& e) {
-      send_response(response, nlohmann::json{{"error", std::string("Invalid scope value: ") + e.what()}});
+    } catch (const InvalidScopeException &e) {
+      send_response(response, nlohmann::json {{"error", std::string("Invalid scope value: ") + e.what()}});
       return;
     }
-    // --- Token Generation and Hashing ---
+
     std::string token = crypto::rand_alphabet(32);
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
-    ApiTokenInfo info{token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
+    ApiTokenInfo info {token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
     api_tokens[token_hash] = info;
     save_api_tokens();
-    send_response(response, nlohmann::json{{"token", token}});
+    send_response(response, nlohmann::json {{"token", token}});
   }
 
-  // --- List API Tokens ---
   /**
    * @brief List all active API tokens and their scopes.
    * @param response The HTTP response object.
@@ -1199,23 +1215,24 @@ namespace confighttp {
    * ]
    */
   void listApiTokens(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
+    if (!authenticate(response, request)) {
+      return;
+    }
     nlohmann::json arr = nlohmann::json::array();
-    for (const auto& [hash, info] : api_tokens) {
-        nlohmann::json obj;
-        obj["hash"] = hash;
-        obj["username"] = info.username;
-        obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-        obj["scopes"] = nlohmann::json::array();
-        for (const auto& [path, methods] : info.path_methods) {
-            obj["scopes"].push_back({{"path", path}, {"methods", methods}});
-        }
-        arr.push_back(obj);
+    for (const auto &[hash, info] : api_tokens) {
+      nlohmann::json obj;
+      obj["hash"] = hash;
+      obj["username"] = info.username;
+      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+      obj["scopes"] = nlohmann::json::array();
+      for (const auto &[path, methods] : info.path_methods) {
+        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+      }
+      arr.push_back(obj);
     }
     send_response(response, arr);
   }
 
-  // --- Revoke API Token ---
   /**
    * @brief Revoke (delete) an API token by its hash.
    * @param response The HTTP response object.
@@ -1227,99 +1244,143 @@ namespace confighttp {
    * { "status": true }
    */
   void revokeApiToken(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) return;
+    if (!authenticate(response, request)) {
+      return;
+    }
     // Expect /api/token/{hash}
     std::string hash;
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
     }
     if (hash.empty() || api_tokens.erase(hash) == 0) {
-      send_response(response, nlohmann::json{{"error", "Token not found"}});
+      send_response(response, nlohmann::json {{"error", "Token not found"}});
       return;
     }
     save_api_tokens();
-    send_response(response, nlohmann::json{{"status", true}});
+    send_response(response, nlohmann::json {{"status", true}});
   }
 
-  // --- API Token Persistence ---
+  /**
+   * @brief Saves the current API tokens to the configuration state file in JSON format.
+   *
+   * This function serializes the `api_tokens` data structure into a JSON array,
+   * then converts it into a Boost property tree for compatibility with the configuration
+   * file format. Each API token includes its hash, username, creation timestamp, and
+   * associated scopes (paths and allowed HTTP methods). The resulting structure is
+   * written to the file specified by `config::nvhttp.file_state` under the
+   * "root.api_tokens" key. If the file already exists, its contents are loaded and
+   * updated; otherwise, a new file is created.
+   *
+   */
   void save_api_tokens() {
     nlohmann::json j;
-    for (const auto& [hash, info] : api_tokens) {
-        nlohmann::json obj;
-        obj["hash"] = hash;
-        obj["username"] = info.username;
-        obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-        obj["scopes"] = nlohmann::json::array();
-        for (const auto& [path, methods] : info.path_methods) {
-            obj["scopes"].push_back({{"path", path}, {"methods", methods}});
-        }
-        j.push_back(obj);
+    for (const auto &[hash, info] : api_tokens) {
+      nlohmann::json obj;
+      obj["hash"] = hash;
+      obj["username"] = info.username;
+      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+      obj["scopes"] = nlohmann::json::array();
+      for (const auto &[path, methods] : info.path_methods) {
+        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+      }
+      j.push_back(obj);
     }
     pt::ptree root;
     if (fs::exists(config::nvhttp.file_state)) {
-        pt::read_json(config::nvhttp.file_state, root);
+      pt::read_json(config::nvhttp.file_state, root);
     }
     pt::ptree tokens_pt;
-    for (const auto& tok : j) {
-        pt::ptree t;
-        t.put("hash", tok["hash"].get<std::string>());
-        t.put("username", tok["username"].get<std::string>());
-        t.put("created_at", tok["created_at"].get<std::int64_t>());
-        pt::ptree scopes_pt;
-        for (const auto& s : tok["scopes"]) {
-            pt::ptree spt;
-            spt.put("path", s["path"].get<std::string>());
-            pt::ptree mpt;
-            for (const auto& m : s["methods"]) mpt.push_back({"", pt::ptree(m.get<std::string>())});
-            spt.add_child("methods", mpt);
-            scopes_pt.push_back({"", spt});
+    for (const auto &tok : j) {
+      pt::ptree t;
+      t.put("hash", tok["hash"].get<std::string>());
+      t.put("username", tok["username"].get<std::string>());
+      t.put("created_at", tok["created_at"].get<std::int64_t>());
+      pt::ptree scopes_pt;
+      for (const auto &s : tok["scopes"]) {
+        pt::ptree spt;
+        spt.put("path", s["path"].get<std::string>());
+        pt::ptree mpt;
+        for (const auto &m : s["methods"]) {
+          mpt.push_back({"", pt::ptree(m.get<std::string>())});
         }
-        t.add_child("scopes", scopes_pt);
-        tokens_pt.push_back({"", t});
+        spt.add_child("methods", mpt);
+        scopes_pt.push_back({"", spt});
+      }
+      t.add_child("scopes", scopes_pt);
+      tokens_pt.push_back({"", t});
     }
     root.put_child("root.api_tokens", tokens_pt);
     pt::write_json(config::nvhttp.file_state, root);
-}
+  }
 
-void load_api_tokens() {
+  /**
+   * @brief Loads API tokens from a JSON configuration file into the api_tokens map.
+   *
+   * This function clears the existing api_tokens map and attempts to read API token information
+   * from the JSON file specified by config::nvhttp.file_state. If the file does not exist,
+   * the function returns immediately.
+   *
+   * The function expects the JSON to contain a "root.api_tokens" array, where each entry describes
+   * an API token with the following fields:
+   *   - "hash": The token hash (string, required)
+   *   - "username": The associated username (string, optional)
+   *   - "created_at": The creation timestamp (int64, optional)
+   *   - "scopes": An array of scope objects, each with:
+   *       - "path": The API path (string)
+   *       - "methods": An array of HTTP methods (strings)
+   *
+   * Only tokens with a non-empty "hash" and at least one valid scope are loaded.
+   * Each loaded token is stored in the api_tokens map, keyed by its hash.
+   *
+   * @note If the configuration file or required fields are missing, the function silently skips loading.
+   */
+  void load_api_tokens() {
     api_tokens.clear();
-    if (!fs::exists(config::nvhttp.file_state)) return;
+    if (!fs::exists(config::nvhttp.file_state)) {
+      return;
+    }
     pt::ptree root;
     pt::read_json(config::nvhttp.file_state, root);
-    auto parse_scope = [](const pt::ptree& s) -> std::pair<std::string, std::set<std::string, std::less<>>> {
-        std::string path = s.get<std::string>("path", "");
-        std::set<std::string, std::less<>> methods;
-        if (auto methods_child = s.get_child_optional("methods")) {
-            for (const auto& [key, value] : *methods_child) {
-                methods.insert(value.data());
-            }
+    auto parse_scope = [](const pt::ptree &s) -> std::pair<std::string, std::set<std::string, std::less<>>> {
+      std::string path = s.get<std::string>("path", "");
+      std::set<std::string, std::less<>> methods;
+      if (auto methods_child = s.get_child_optional("methods")) {
+        for (const auto &[key, value] : *methods_child) {
+          methods.insert(value.data());
         }
-        return {path, methods};
+      }
+      return {path, methods};
     };
     auto tokens_opt = root.get_child_optional("root.api_tokens");
-    if (!tokens_opt) return;
-    for (const auto& item : *tokens_opt) {
-        const auto& t = item.second;
-        std::string hash = t.get<std::string>("hash", "");
-        std::string username = t.get<std::string>("username", "");
-        std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
-        std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
-        auto scopes_child = t.get_child_optional("scopes");
-        if (scopes_child) {
-            for (const auto& s : *scopes_child) {
-                auto [path, methods] = parse_scope(s.second);
-                if (path.empty() || methods.empty()) continue;
-                path_methods[path] = std::move(methods);
-            }
-        }
-        if (hash.empty()) continue;
-        ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
-        api_tokens[hash] = info;
+    if (!tokens_opt) {
+      return;
     }
-}
+    for (const auto &item : *tokens_opt) {
+      const auto &t = item.second;
+      std::string hash = t.get<std::string>("hash", "");
+      std::string username = t.get<std::string>("username", "");
+      std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
+      std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
+      auto scopes_child = t.get_child_optional("scopes");
+      if (scopes_child) {
+        for (const auto &s : *scopes_child) {
+          auto [path, methods] = parse_scope(s.second);
+          if (path.empty() || methods.empty()) {
+            continue;
+          }
+          path_methods[path] = std::move(methods);
+        }
+      }
+      if (hash.empty()) {
+        continue;
+      }
+      ApiTokenInfo info {hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
+      api_tokens[hash] = info;
+    }
+  }
 
   void start() {
-    load_api_tokens(); // Load persisted API tokens at startup
+    load_api_tokens();  // Load persisted API tokens at startup
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -1400,10 +1461,16 @@ void load_api_tokens() {
     tcp.join();
   }
 
-  // Define api_tokens at the top level of the namespace
-  std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
-
-  // Implement getTokenPage with the exact signature as in the header
+  /**
+   * @brief Handles the HTTP request to serve the API token management page.
+   *
+   * This function authenticates the incoming request and, if successful,
+   * reads the "api-tokens.html" file from the web directory and sends its
+   * contents as an HTTP response with the appropriate content type.
+   *
+   * @param response The HTTP response object used to send data back to the client.
+   * @param request The HTTP request object containing client request data.
+   */
   void getTokenPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
@@ -1415,12 +1482,24 @@ void load_api_tokens() {
     response->write(content, headers);
   }
 
+  /**
+   * @brief Converts a string representation of a token scope to its corresponding TokenScope enum value.
+   *
+   * This function takes a string view and returns the matching TokenScope enum value.
+   * Supported string values are "Read", "read", "Write", and "write".
+   * If the input string does not match any known scope, an std::invalid_argument exception is thrown.
+   *
+   * @param s The string view representing the token scope.
+   * @return TokenScope The corresponding TokenScope enum value.
+   * @throws std::invalid_argument If the input string does not match any known scope.
+   */
   TokenScope scope_from_string(std::string_view s) {
-    if (s == "Read" || s == "read")
+    if (s == "Read" || s == "read") {
       return TokenScope::Read;
-    if (s == "Write" || s == "write")
+    }
+    if (s == "Write" || s == "write") {
       return TokenScope::Write;
-    // Add more scopes as needed, or throw/return a default
+    }
     throw std::invalid_argument("Unknown TokenScope: " + std::string(s));
   }
 }  // namespace confighttp
