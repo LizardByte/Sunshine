@@ -132,7 +132,7 @@ namespace confighttp {
 
   // Helper for Bearer token authentication
   bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto &fg) {
-    std::string token = std::string(rawAuth.substr(7));
+    auto token = std::string(rawAuth.substr(7));
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
     auto it = api_tokens.find(token_hash);
     if (it == api_tokens.end()) {
@@ -170,7 +170,7 @@ namespace confighttp {
 
   // Helper for Basic authentication
   bool authenticate_basic(const std::string_view rawAuth, auto &fg) {
-    std::string base64 = std::string(rawAuth.substr(6));
+    auto base64 = std::string(rawAuth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
     int index = authData.find(':');
     if (index < 0 || index >= static_cast<int>(authData.size()) - 1) {
@@ -1247,7 +1247,6 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-    // Expect /api/token/{hash}
     std::string hash;
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
@@ -1339,56 +1338,63 @@ namespace confighttp {
     if (!fs::exists(config::nvhttp.file_state)) {
       return;
     }
-    pt::ptree root;
-    pt::read_json(config::nvhttp.file_state, root);
 
-    auto parse_scope = [](const pt::ptree &scope_tree) -> std::pair<std::string, std::set<std::string, std::less<>>> {
-      std::string path = scope_tree.get<std::string>("path", "");
+    auto parse_scope = [](const pt::ptree &scope_tree)
+      -> std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> {
+      const std::string path = scope_tree.get<std::string>("path", "");
+      if (path.empty()) {
+        return std::nullopt;
+      }
+
       std::set<std::string, std::less<>> methods;
-      if (auto methods_child = scope_tree.get_child_optional("methods")) {
-        for (const auto &[_, method_node] : *methods_child) {
-          methods.insert(method_node.data());
+      if (auto m_child = scope_tree.get_child_optional("methods")) {
+        for (const auto &m : *m_child) {
+          methods.insert(m.second.data());
         }
       }
-      return {path, methods};
+
+      if (methods.empty()) {
+        return std::nullopt;
+      }
+      return std::make_pair(path, std::move(methods));
     };
 
+    pt::ptree root;
+    pt::read_json(config::nvhttp.file_state, root);
     auto api_tokens_node = root.get_child_optional("root.api_tokens");
     if (!api_tokens_node) {
       return;
     }
 
-    for (const auto &[_, token_tree] : *api_tokens_node) {
-      std::string hash = token_tree.get<std::string>("hash", "");
+    for (const auto &t : *api_tokens_node) {
+      const auto &token_tree = t.second;
+      const std::string hash = token_tree.get<std::string>("hash", "");
       if (hash.empty()) {
         continue;
       }
-      std::string username = token_tree.get<std::string>("username", "");
-      std::int64_t created_at_seconds = token_tree.get<std::int64_t>("created_at", 0);
-      std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
 
-      auto scopes_node = token_tree.get_child_optional("scopes");
-      if (scopes_node) {
-        for (const auto &[_, scope_tree] : *scopes_node) {
-          auto [scope_path, allowed_methods] = parse_scope(scope_tree);
-          if (!scope_path.empty() && !allowed_methods.empty()) {
-            path_methods[scope_path] = std::move(allowed_methods);
+      ApiTokenInfo info {
+        hash,
+        {},  // path_methods (filled below)
+        token_tree.get<std::string>("username", ""),
+        std::chrono::system_clock::time_point {
+          std::chrono::seconds(token_tree.get<std::int64_t>("created_at", 0))
+        }
+      };
+
+      if (auto scopes_node = token_tree.get_child_optional("scopes")) {
+        for (const auto &s : *scopes_node) {  // 3-deep
+          if (auto parsed = parse_scope(s.second)) {
+            info.path_methods.emplace(parsed->first, std::move(parsed->second));
           }
         }
       }
 
-      ApiTokenInfo token_info {
-        hash,
-        path_methods,
-        username,
-        std::chrono::system_clock::time_point(std::chrono::seconds(created_at_seconds))
-      };
-      api_tokens[hash] = token_info;
+      api_tokens.emplace(hash, std::move(info));
     }
   }
 
   void start() {
-    
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -1460,7 +1466,7 @@ namespace confighttp {
       }
     };
     std::thread tcp {accept_and_run, &server};
-    
+
     load_api_tokens();
 
     // Wait for any event
