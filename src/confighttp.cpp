@@ -130,7 +130,20 @@ namespace confighttp {
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
 
-  // Helper for Bearer token authentication
+  /**
+   * @brief Authenticates an HTTP request using a Bearer token.
+   *
+   * This function checks if the provided Bearer token is valid and whether it grants
+   * permission for the requested HTTP path and method. If authentication succeeds,
+   * the provided guard is disabled. If authentication fails, a 403 Forbidden response
+   * is sent with a JSON error message.
+   *
+   * @param response The HTTPS response object to write to in case of failure.
+   * @param request The HTTPS request object containing path and method information.
+   * @param rawAuth The raw Authorization header value (expected to start with "Bearer ").
+   * @param fg A guard object that will be disabled upon successful authentication.
+   * @return true if authentication and authorization succeed, false otherwise.
+   */
   bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto &fg) {
     auto token = std::string(rawAuth.substr(7));
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
@@ -168,7 +181,19 @@ namespace confighttp {
     return false;
   }
 
-  // Helper for Basic authentication
+
+  /**
+   * @brief Authenticates a user using HTTP Basic Authentication.
+   *
+   * This function decodes the provided Base64-encoded HTTP Basic Auth string,
+   * extracts the username and password, hashes the password with a configured salt,
+   * and compares the credentials against the configured username and password hash.
+   * If authentication is successful, the provided feature guard is disabled.
+   *
+   * @param rawAuth The raw "Authorization" header value (expected to start with "Basic ").
+   * @param fg A feature guard object that will be disabled upon successful authentication.
+   * @return true if authentication succeeds, false otherwise.
+   */
   bool authenticate_basic(const std::string_view rawAuth, auto &fg) {
     auto base64 = std::string(rawAuth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
