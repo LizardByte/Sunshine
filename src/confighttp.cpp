@@ -1348,8 +1348,8 @@ namespace confighttp {
 
       std::set<std::string, std::less<>> methods;
       if (auto m_child = scope_tree.get_child_optional("methods")) {
-        for (const auto &m : *m_child) {
-          methods.insert(m.second.data());
+        for (const auto &[_, method_node] : *m_child) {
+          methods.insert(method_node.data());
         }
       }
 
@@ -1359,38 +1359,42 @@ namespace confighttp {
       return std::make_pair(path, std::move(methods));
     };
 
+    auto build_scope_map = [&](const pt::ptree &scopes_node)
+      -> std::map<std::string, std::set<std::string, std::less<>>, std::less<>> {
+      std::map<std::string, std::set<std::string, std::less<>>, std::less<>> out;
+      for (const auto &[_, scope_tree] : scopes_node) {
+        if (auto parsed = parse_scope(scope_tree)) {
+          auto [path, methods] = std::move(*parsed);
+          out.try_emplace(std::move(path), std::move(methods));
+        }
+      }
+      return out;
+    };
+
     pt::ptree root;
     pt::read_json(config::nvhttp.file_state, root);
-    auto api_tokens_node = root.get_child_optional("root.api_tokens");
-    if (!api_tokens_node) {
-      return;
-    }
-
-    for (const auto &t : *api_tokens_node) {
-      const auto &token_tree = t.second;
-      const std::string hash = token_tree.get<std::string>("hash", "");
-      if (hash.empty()) {
-        continue;
-      }
-
-      ApiTokenInfo info {
-        hash,
-        {},  // path_methods (filled below)
-        token_tree.get<std::string>("username", ""),
-        std::chrono::system_clock::time_point {
-          std::chrono::seconds(token_tree.get<std::int64_t>("created_at", 0))
+    if (auto api_tokens_node = root.get_child_optional("root.api_tokens")) {
+      for (const auto &[_, token_tree] : *api_tokens_node) {
+        const std::string hash = token_tree.get<std::string>("hash", "");
+        if (hash.empty()) {
+          continue;
         }
-      };
 
-      if (auto scopes_node = token_tree.get_child_optional("scopes")) {
-        for (const auto &s : *scopes_node) {  // 3-deep
-          if (auto parsed = parse_scope(s.second)) {
-            info.path_methods.emplace(parsed->first, std::move(parsed->second));
+        ApiTokenInfo info {
+          hash,
+          {},  // filled next
+          token_tree.get<std::string>("username", ""),
+          std::chrono::system_clock::time_point {
+            std::chrono::seconds(token_tree.get<std::int64_t>("created_at", 0))
           }
-        }
-      }
+        };
 
-      api_tokens.emplace(hash, std::move(info));
+        if (auto scopes_node = token_tree.get_child_optional("scopes")) {
+          info.path_methods = build_scope_map(*scopes_node);
+        }
+
+        api_tokens.try_emplace(hash, std::move(info));
+      }
     }
   }
 
