@@ -27,6 +27,84 @@
       --spacing-6: 2rem;
     }
 
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --color-bg: #181a20;
+        --color-bg-alt: #232634;
+        --color-border: #353945;
+        --color-border-dark: #444857;
+        --color-text: #f1f1f1;
+        --color-accent: #3b82f6;
+        --color-accent-hover: #2563eb;
+        --color-danger: #f87171;
+        --color-danger-hover: #dc2626;
+        --shadow-md: 0 4px 20px rgba(0,0,0,0.32);
+      }
+      .token-table,
+      .token-table th,
+      .token-table td {
+        background: var(--color-bg) !important;
+        color: var(--color-text) !important;
+        border-color: var(--color-border) !important;
+      }
+      .token-table th {
+        background: var(--color-bg-alt) !important;
+      }
+      select,
+      input[type="text"],
+      input[type="password"],
+      .scopes-list select,
+      .scopes-list input[type="text"],
+      .token-tester select,
+      .token-tester input {
+        background: var(--color-bg) !important;
+        color: var(--color-text) !important;
+        border-color: var(--color-border-dark) !important;
+      }
+      select:disabled,
+      input:disabled {
+        background: #232634 !important;
+        color: #888 !important;
+      }
+    }
+    [data-bs-theme="dark"] {
+      --color-bg: #181a20;
+      --color-bg-alt: #232634;
+      --color-border: #353945;
+      --color-border-dark: #444857;
+      --color-text: #f1f1f1;
+      --color-accent: #3b82f6;
+      --color-accent-hover: #2563eb;
+      --color-danger: #f87171;
+      --color-danger-hover: #dc2626;
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.32);
+    }
+    [data-bs-theme="dark"] .token-table,
+    [data-bs-theme="dark"] .token-table th,
+    [data-bs-theme="dark"] .token-table td {
+      background: var(--color-bg) !important;
+      color: var(--color-text) !important;
+      border-color: var(--color-border) !important;
+    }
+    [data-bs-theme="dark"] .token-table th {
+      background: var(--color-bg-alt) !important;
+    }
+    [data-bs-theme="dark"] select,
+    [data-bs-theme="dark"] input[type="text"],
+    [data-bs-theme="dark"] input[type="password"],
+    [data-bs-theme="dark"] .scopes-list select,
+    [data-bs-theme="dark"] .scopes-list input[type="text"],
+    [data-bs-theme="dark"] .token-tester select,
+    [data-bs-theme="dark"] .token-tester input {
+      background: var(--color-bg) !important;
+      color: var(--color-text) !important;
+      border-color: var(--color-border-dark) !important;
+    }
+    [data-bs-theme="dark"] select:disabled,
+    [data-bs-theme="dark"] input:disabled {
+      background: #232634 !important;
+      color: #888 !important;
+    }
     html, body {
       padding: 0;
       margin: 0;
@@ -43,6 +121,7 @@
       padding: var(--spacing-4);
     }
 
+    
     .token-page h1 {
       font-size: 2.25rem;
       margin-bottom: var(--spacing-5);
@@ -394,7 +473,12 @@
           testPath: '',
           testTokenInput: '',
           testResult: '',
-          testError: ''
+          testError: '',
+          // DELETE tester state
+          deleteAppIndex: '',
+          deleteAppToken: '',
+          deleteAppResult: '',
+          deleteAppError: ''
         };
       },
       methods: {
@@ -500,6 +584,43 @@
 
           } catch (e) {
             this.testError = `Request failed: ${e.message}`;
+          }
+        },
+        async testDeleteApp() {
+          this.deleteAppResult = '';
+          this.deleteAppError = '';
+          if (this.deleteAppIndex === '' || !this.deleteAppToken) {
+            this.deleteAppError = 'Please provide an app index and a token.';
+            return;
+          }
+          try {
+            const res = await fetch(`/api/apps/${this.deleteAppIndex}`, {
+              method: 'DELETE',
+              headers: {
+                'Authorization': 'Bearer ' + this.deleteAppToken,
+                'Accept': 'application/json'
+              },
+              credentials: 'omit'
+            });
+            const contentType = res.headers.get("content-type");
+            let bodyText = await res.text();
+            let isJson = contentType && contentType.indexOf("application/json") !== -1 && bodyText;
+            if (isJson) {
+              try {
+                this.deleteAppResult = JSON.stringify(JSON.parse(bodyText), null, 2);
+              } catch {
+                this.deleteAppResult = bodyText;
+              }
+            } else {
+              this.deleteAppResult = bodyText;
+            }
+            if (!res.ok) {
+              this.deleteAppError = `HTTP ${res.status}: ${res.statusText}`;
+            } else {
+              this.deleteAppError = '';
+            }
+          } catch (e) {
+            this.deleteAppError = `Request failed: ${e.message}`;
           }
         }
       },

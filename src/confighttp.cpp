@@ -7,6 +7,7 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <boost/regex.hpp>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -131,20 +132,42 @@ namespace confighttp {
   }
 
   /**
+   * @brief Authenticates a user using HTTP Basic Authentication.
+   *
+   * This function decodes the provided Base64-encoded HTTP Basic Auth string,
+   * extracts the username and password, hashes the password with a configured salt,
+   * and compares the credentials against the configured username and password hash.
+   *
+   * @param rawAuth The raw "Authorization" header value (expected to start with "Basic ").
+   * @return true if authentication succeeds, false otherwise.
+   */
+  bool authenticate_basic(const std::string_view rawAuth) {
+    auto base64 = std::string(rawAuth.substr(6));
+    auto authData = SimpleWeb::Crypto::Base64::decode(base64);
+    int index = authData.find(':');
+    if (index < 0 || index >= static_cast<int>(authData.size()) - 1) {
+      return false;
+    }
+    auto username = authData.substr(0, index);
+    auto password = authData.substr(index + 1);
+    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * @brief Authenticates an HTTP request using a Bearer token.
    *
    * This function checks if the provided Bearer token is valid and whether it grants
-   * permission for the requested HTTP path and method. If authentication succeeds,
-   * the provided guard is disabled. If authentication fails, a 403 Forbidden response
-   * is sent with a JSON error message.
+   * permission for the requested HTTP path and method.
    *
-   * @param response The HTTPS response object to write to in case of failure.
    * @param request The HTTPS request object containing path and method information.
    * @param rawAuth The raw Authorization header value (expected to start with "Bearer ").
-   * @param fg A guard object that will be disabled upon successful authentication.
    * @return true if authentication and authorization succeed, false otherwise.
    */
-  bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto &fg) {
+  bool authenticate_bearer(req_https_t request, std::string_view rawAuth) {
     auto token = std::string(rawAuth.substr(7));
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
     auto it = api_tokens.find(token_hash);
@@ -159,56 +182,29 @@ namespace confighttp {
         return boost::iequals(m, req_method);
       });
     };
+
+    // Match the scope path against the request path using boost::regex
+    auto regex_path_match = [](const std::string &scope_path, const std::string &req_path) {
+      std::string pattern = scope_path;
+      // Always force the scope path to be a full match, its a best practice for regex scope validation
+      if (pattern.empty() || pattern[0] != '^') {
+        pattern = "^" + pattern;
+      }
+      if (pattern.empty() || pattern.back() != '$') {
+        pattern += "$";
+      }
+      boost::regex re(pattern);
+      return boost::regex_match(req_path, re);
+    };
+
     for (const auto &[scope_path, methods] : it->second.path_methods) {
       std::vector<std::string> methods_vec(methods.begin(), methods.end());
-      // Exact match
-      if (boost::iequals(req_path, scope_path) && is_method_allowed(methods_vec)) {
-        fg.disable();
-        return true;
-      }
-      // Prefix match only if scope_path ends with '/'
-      if (!scope_path.empty() && scope_path.back() == '/' && boost::istarts_with(req_path, scope_path) && is_method_allowed(methods_vec)) {
-        fg.disable();
+      // Regex match (full)
+      if (regex_path_match(scope_path, req_path) && is_method_allowed(methods_vec)) {
         return true;
       }
     }
-    fg.disable();
-    nlohmann::json tree;
-    tree["status_code"] = 403;
-    tree["status"] = false;
-    tree["error"] = "Forbidden: Token does not have permission for this path/method.";
-    response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
     return false;
-  }
-
-
-  /**
-   * @brief Authenticates a user using HTTP Basic Authentication.
-   *
-   * This function decodes the provided Base64-encoded HTTP Basic Auth string,
-   * extracts the username and password, hashes the password with a configured salt,
-   * and compares the credentials against the configured username and password hash.
-   * If authentication is successful, the provided feature guard is disabled.
-   *
-   * @param rawAuth The raw "Authorization" header value (expected to start with "Basic ").
-   * @param fg A feature guard object that will be disabled upon successful authentication.
-   * @return true if authentication succeeds, false otherwise.
-   */
-  bool authenticate_basic(const std::string_view rawAuth, auto &fg) {
-    auto base64 = std::string(rawAuth.substr(6));
-    auto authData = SimpleWeb::Crypto::Base64::decode(base64);
-    int index = authData.find(':');
-    if (index < 0 || index >= static_cast<int>(authData.size()) - 1) {
-      return false;
-    }
-    auto username = authData.substr(0, index);
-    auto password = authData.substr(index + 1);
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
-    }
-    fg.disable();
-    return true;
   }
 
   /**
@@ -238,13 +234,23 @@ namespace confighttp {
       return false;
     }
     const auto &rawAuth = auth->second;
+    bool ok = false;
     if (rawAuth.rfind("Bearer ", 0) == 0) {
-      return authenticate_bearer(response, request, rawAuth, fg);
+      ok = authenticate_bearer(request, rawAuth);
+      if (!ok) {
+        nlohmann::json tree;
+        tree["status_code"] = 403;
+        tree["status"] = false;
+        tree["error"] = "Forbidden: Token does not have permission for this path/method.";
+        response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
+      }
+    } else if (rawAuth.rfind("Basic ", 0) == 0) {
+      ok = authenticate_basic(rawAuth);
     }
-    if (rawAuth.rfind("Basic ", 0) == 0) {
-      return authenticate_basic(rawAuth, fg);
+    if (ok) {
+      fg.disable();
     }
-    return false;
+    return ok;
   }
 
   /**
