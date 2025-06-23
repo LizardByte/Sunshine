@@ -129,8 +129,8 @@ namespace confighttp {
   }
 
   // Helper for Bearer token authentication
-  bool authenticate_bearer(resp_https_t response, req_https_t request, const std::string& rawAuth, auto& fg) {
-    std::string token = rawAuth.substr(7);
+  bool authenticate_bearer(resp_https_t response, req_https_t request, std::string_view rawAuth, auto& fg) {
+    std::string token = std::string(rawAuth.substr(7));
     std::string token_hash = util::hex(crypto::hash(token)).to_string();
     auto it = api_tokens.find(token_hash);
     if (it == api_tokens.end()) return false;
@@ -163,10 +163,11 @@ namespace confighttp {
   }
 
   // Helper for Basic authentication
-  bool authenticate_basic(resp_https_t response, req_https_t request, const std::string& rawAuth, auto& fg) {
-    auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr(6));
+  bool authenticate_basic(const std::string_view rawAuth, auto& fg) {
+    std::string base64 = std::string(rawAuth.substr(6));
+    auto authData = SimpleWeb::Crypto::Base64::decode(base64);
     int index = authData.find(':');
-    if (index < 0 || index >= authData.size() - 1) {
+    if (index < 0 || index >= static_cast<int>(authData.size()) - 1) {
       return false;
     }
     auto username = authData.substr(0, index);
@@ -210,7 +211,7 @@ namespace confighttp {
       return authenticate_bearer(response, request, rawAuth, fg);
     }
     if (rawAuth.rfind("Basic ", 0) == 0) {
-      return authenticate_basic(response, request, rawAuth, fg);
+      return authenticate_basic(rawAuth, fg);
     }
     return false;
   }
@@ -1201,15 +1202,15 @@ namespace confighttp {
     if (!authenticate(response, request)) return;
     nlohmann::json arr = nlohmann::json::array();
     for (const auto& [hash, info] : api_tokens) {
-      nlohmann::json obj;
-      obj["hash"] = hash;
-      obj["username"] = info.username;
-      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-      obj["scopes"] = nlohmann::json::array();
-      for (const auto& [path, methods] : info.path_methods) {
-        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
-      }
-      arr.push_back(obj);
+        nlohmann::json obj;
+        obj["hash"] = hash;
+        obj["username"] = info.username;
+        obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+        obj["scopes"] = nlohmann::json::array();
+        for (const auto& [path, methods] : info.path_methods) {
+            obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+        }
+        arr.push_back(obj);
     }
     send_response(response, arr);
   }
@@ -1289,31 +1290,31 @@ void load_api_tokens() {
         std::string path = s.get<std::string>("path", "");
         std::set<std::string, std::less<>> methods;
         if (auto methods_child = s.get_child_optional("methods")) {
-            for (const auto& m : *methods_child) {
-                methods.insert(m.second.data());
+            for (const auto& [key, value] : *methods_child) {
+                methods.insert(value.data());
             }
         }
         return {path, methods};
     };
-    if (auto tokens_opt = root.get_child_optional("root.api_tokens")) {
-        for (const auto& item : *tokens_opt) {
-            const auto& t = item.second;
-            std::string hash = t.get<std::string>("hash", "");
-            std::string username = t.get<std::string>("username", "");
-            std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
-            std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
-            if (auto scopes_child = t.get_child_optional("scopes")) {
-                for (const auto& s : *scopes_child) {
-                    auto [path, methods] = parse_scope(s.second);
-                    if (!path.empty() && !methods.empty())
-                        path_methods[path] = std::move(methods);
-                }
-            }
-            if (!hash.empty()) {
-                ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
-                api_tokens[hash] = info;
+    auto tokens_opt = root.get_child_optional("root.api_tokens");
+    if (!tokens_opt) return;
+    for (const auto& item : *tokens_opt) {
+        const auto& t = item.second;
+        std::string hash = t.get<std::string>("hash", "");
+        std::string username = t.get<std::string>("username", "");
+        std::int64_t created_at = t.get<std::int64_t>("created_at", 0);
+        std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
+        auto scopes_child = t.get_child_optional("scopes");
+        if (scopes_child) {
+            for (const auto& s : *scopes_child) {
+                auto [path, methods] = parse_scope(s.second);
+                if (path.empty() || methods.empty()) continue;
+                path_methods[path] = std::move(methods);
             }
         }
+        if (hash.empty()) continue;
+        ApiTokenInfo info{hash, path_methods, username, std::chrono::system_clock::time_point(std::chrono::seconds(created_at))};
+        api_tokens[hash] = info;
     }
 }
 
@@ -1400,7 +1401,7 @@ void load_api_tokens() {
   }
 
   // Define api_tokens at the top level of the namespace
-  std::unordered_map<std::string, ApiTokenInfo> api_tokens;
+  std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
 
   // Implement getTokenPage with the exact signature as in the header
   void getTokenPage(resp_https_t response, req_https_t request) {
@@ -1412,5 +1413,14 @@ void load_api_tokens() {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);
+  }
+
+  TokenScope scope_from_string(std::string_view s) {
+    if (s == "Read" || s == "read")
+      return TokenScope::Read;
+    if (s == "Write" || s == "write")
+      return TokenScope::Write;
+    // Add more scopes as needed, or throw/return a default
+    throw std::invalid_argument("Unknown TokenScope: " + std::string(s));
   }
 }  // namespace confighttp

@@ -42,8 +42,15 @@ namespace confighttp {
     std::chrono::system_clock::time_point created_at;
   };
 
+  struct TransparentStringHash {
+    using is_transparent = void;
+    size_t operator()(const std::string& s) const noexcept { return std::hash<std::string>{}(s); }
+    size_t operator()(std::string_view sv) const noexcept { return std::hash<std::string_view>{}(sv); }
+    size_t operator()(const char* s) const noexcept { return std::hash<std::string_view>{}(s); }
+  };
+
   // In-memory token store (hash -> info)
-  extern std::unordered_map<std::string, ApiTokenInfo> api_tokens;
+  extern std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
 
   // Persistence helpers
   void save_api_tokens();
@@ -54,7 +61,7 @@ namespace confighttp {
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
   // Utility for scope string conversion
-  TokenScope scope_from_string(const std::string& s);
+  TokenScope scope_from_string(std::string_view s);
   std::string scope_to_string(TokenScope scope);
 
   // Token management endpoints
