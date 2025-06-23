@@ -2,8 +2,7 @@
 
 Sunshine has a RESTful API which can be used to interact with the service.
 
-Unless otherwise specified, authentication is required for all API calls. You can authenticate using
-basic authentication with the admin username and password.
+Unless otherwise specified, authentication is required for all API calls. You can authenticate using either basic authentication with the admin username and password, or with an API token that provides fine-grained access control.
 
 @htmlonly
 <script src="api.js"></script>
@@ -21,6 +20,8 @@ Sunshine API tokens are designed for security and fine-grained access control:
   - Revoke tokens immediately if they are no longer needed or if you suspect they are compromised.
   - Use HTTPS to protect tokens in transit.
 - **Listing and Revocation:** You can list all active tokens (metadata only, not the token value) and revoke any token at any time using the API.
+
+API Tokens can also be managed in the Web UI under the "API Token" tab in the navigation bar.
 
 See below for details on token endpoints and usage examples.
 
