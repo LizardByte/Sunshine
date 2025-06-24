@@ -5,15 +5,17 @@
 #pragma once
 
 // standard includes
+#include <chrono>
+#include <functional>
+#include <map>
+#include <set>
 #include <string>
 #include <unordered_map>
-#include <set>
-#include <chrono>
-#include <map>
-#include <functional>
 
 // local includes
+#include "http_auth.h"
 #include "thread_safe.h"
+
 #include <Simple-Web-Server/server_https.hpp>
 
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
@@ -35,39 +37,38 @@ namespace confighttp {
     // Add more scopes as needed
   };
 
-  struct ApiTokenInfo {
-    std::string token_hash; // SHA-256 hex
-    std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods; // path -> allowed HTTP methods
-    std::string username;
-    std::chrono::system_clock::time_point created_at;
-  };
-
-  struct TransparentStringHash {
-    using is_transparent = void;
-    size_t operator()(const std::string& s) const noexcept { return std::hash<std::string>{}(s); }
-    size_t operator()(std::string_view sv) const noexcept { return std::hash<std::string_view>{}(sv); }
-    size_t operator()(const char* s) const noexcept { return std::hash<std::string_view>{}(s); }
-  };
-
-  // In-memory token store (hash -> info)
-  extern std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
-
   // Persistence helpers
   void save_api_tokens();
   void load_api_tokens();
-
   // HTTPS server types
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
+  /**
+   * @brief Result of authentication check for testability.
+   */
+  struct AuthResult {
+    bool ok;
+    SimpleWeb::StatusCode code;
+    std::string body;
+    SimpleWeb::CaseInsensitiveMultimap headers;
+  };
+
   // Utility for scope string conversion
   TokenScope scope_from_string(std::string_view s);
   std::string scope_to_string(TokenScope scope);
-
   // Token management endpoints
   void listApiTokens(resp_https_t response, req_https_t request);
   void revokeApiToken(resp_https_t response, req_https_t request);
-  void getTokenPage(resp_https_t response, req_https_t request);
+  void getTokenPage(resp_https_t response, req_https_t request);  // Authentication functions (exposed for testing)
+  bool authenticate_basic(const std::string_view rawAuth);
+  AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth = false, const std::string &location = {});
+  AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method);
+  AuthResult check_basic_auth(const std::string &rawAuth);
+  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, 
+                       const std::string &path, const std::string &method);
+  AuthResult check_auth(const req_https_t &request);
+  bool authenticate(resp_https_t response, req_https_t request);
 }  // namespace confighttp
 
 // mime types map
@@ -85,6 +86,5 @@ const std::map<std::string, std::string> mime_types = {
   {"svg", "image/svg+xml"},
   {"ttf", "font/ttf"},
   {"txt", "text/plain"},
-  {"woff2", "font/woff2"},
-  {"xml", "text/xml"},
+  {"woff2", "font/woff2"},  {"xml", "text/xml"},
 };

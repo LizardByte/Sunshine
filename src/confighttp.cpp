@@ -24,6 +24,7 @@
 #include <Simple-Web-Server/server_https.hpp>
 
 // local includes
+#include "http_auth.h"
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
@@ -46,6 +47,8 @@ namespace pt = boost::property_tree;
 namespace confighttp {
   namespace fs = std::filesystem;
 
+  static ApiTokenManager apiTokenManager;
+
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
@@ -56,8 +59,6 @@ namespace confighttp {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
   };
-
-  std::unordered_map<std::string, ApiTokenInfo, TransparentStringHash, std::equal_to<>> api_tokens;
 
   /**
    * @brief Log the request details.
@@ -157,54 +158,97 @@ namespace confighttp {
     return true;
   }
 
+
   /**
-   * @brief Authenticates an HTTP request using a Bearer token.
-   *
-   * This function checks if the provided Bearer token is valid and whether it grants
-   * permission for the requested HTTP path and method.
-   *
-   * @param request The HTTPS request object containing path and method information.
-   * @param rawAuth The raw Authorization header value (expected to start with "Bearer ").
-   * @return true if authentication and authorization succeed, false otherwise.
+   * @brief Helper to build an AuthResult for error responses.
    */
-  bool authenticate_bearer(req_https_t request, std::string_view rawAuth) {
-    auto token = std::string(rawAuth.substr(7));
-    std::string token_hash = util::hex(crypto::hash(token)).to_string();
-    auto it = api_tokens.find(token_hash);
-    if (it == api_tokens.end()) {
-      return false;
+  AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
+    AuthResult result{false, code, {}, {}};
+    if (!location.empty()) {
+      result.headers.emplace("Location", location);
+      return result;
     }
-    // Check if token allows this path and method
-    std::string req_path = request->path;
-    std::string req_method = boost::to_upper_copy(request->method);
-    auto is_method_allowed = [&](const std::vector<std::string> &methods) {
-      return std::ranges::any_of(methods, [&](const std::string &m) {
-        return boost::iequals(m, req_method);
-      });
-    };
+    nlohmann::json tree;
+    tree["status_code"] = code;
+    tree["status"] = false;
+    tree["error"] = error;
+    result.body = tree.dump();
+    result.headers.emplace("Content-Type", "application/json");
+    if (add_www_auth) {
+      result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
+    }
+    return result;
+  }  /**
+   * @brief Helper to check Bearer authentication.
+   * @param rawAuth The raw authorization header value.
+   * @param path The requested path.
+   * @param method The HTTP method.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
+  AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
+    if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
+      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden,
+        "Forbidden: Token does not have permission for this path/method.");
+    }
+    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+  }
+  /**
+   * @brief Helper to check Basic authentication.
+   * @param rawAuth The raw authorization header value.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
+  AuthResult check_basic_auth(const std::string &rawAuth) {
+    if (!authenticate_basic(rawAuth)) {
+      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized,
+        "Unauthorized", true);
+    }
+    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+  }  /**
+   * @brief Check authentication and authorization with primitive parameters.
+   * @param remote_address The normalized remote address string.
+   * @param auth_header The authorization header value (empty if not present).
+   * @param path The requested path.
+   * @param method The HTTP method.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
+  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, 
+                       const std::string &path, const std::string &method) {
+    auto ip_type = net::from_address(remote_address);
+    if (ip_type > http::origin_web_ui_allowed) {
+      BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
+      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden");
+    }
+    
+    if (config::sunshine.username.empty()) {
+      return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, "/welcome");
+    }
+    
+    if (auth_header.empty()) {
+      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+    }
+    
+    if (auth_header.rfind("Bearer ", 0) == 0) {
+      return check_bearer_auth(auth_header, path, method);
+    }
+    
+    if (auth_header.rfind("Basic ", 0) == 0) {
+      return check_basic_auth(auth_header);
+    }
+    
+    return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+  }
 
-    // Match the scope path against the request path using boost::regex
-    auto regex_path_match = [](const std::string &scope_path, const std::string &request_path) {
-      std::string pattern = scope_path;
-      // Always force the scope path to be a full match, its a best practice for regex scope validation
-      if (pattern.empty() || pattern[0] != '^') {
-        pattern = "^" + pattern;
-      }
-      if (pattern.empty() || pattern.back() != '$') {
-        pattern += "$";
-      }
-      boost::regex re(pattern);
-      return boost::regex_match(request_path, re);
-    };
-
-    return std::ranges::any_of(it->second.path_methods, [&](const auto &pair) {
-      const auto &scope_path = pair.first;
-      const auto &methods = pair.second;
-      std::vector<std::string> methods_vec(methods.begin(), methods.end());
-      // Regex match (full)
-      return regex_path_match(scope_path, req_path) && is_method_allowed(methods_vec);
-    });
-    return false;
+  /**
+   * @brief Check authentication and authorization for an HTTP request.
+   * @param request The HTTP request object.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
+  AuthResult check_auth(const req_https_t &request) {
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    auto auth = request->header.find("authorization");
+    std::string auth_header = (auth != request->header.end()) ? auth->second : "";
+    
+    return check_auth(address, auth_header, request->path, request->method);
   }
 
   /**
@@ -214,43 +258,18 @@ namespace confighttp {
    * @return True if authenticated and authorized, false otherwise.
    */
   bool authenticate(resp_https_t response, req_https_t request) {
-    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    auto ip_type = net::from_address(address);
-    if (ip_type > http::origin_web_ui_allowed) {
-      BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
-      response->write(SimpleWeb::StatusCode::client_error_forbidden);
-      return false;
-    }
-    // If credentials are shown, redirect the user to a /welcome page
-    if (config::sunshine.username.empty()) {
-      send_redirect(response, request, "/welcome");
-      return false;
-    }
-    auto fg = util::fail_guard([&]() {
-      send_unauthorized(response, request);
-    });
-    auto auth = request->header.find("authorization");
-    if (auth == request->header.end()) {
-      return false;
-    }
-    const auto &rawAuth = auth->second;
-    bool ok = false;
-    if (rawAuth.rfind("Bearer ", 0) == 0) {
-      ok = authenticate_bearer(request, rawAuth);
-      if (!ok) {
-        nlohmann::json tree;
-        tree["status_code"] = 403;
-        tree["status"] = false;
-        tree["error"] = "Forbidden: Token does not have permission for this path/method.";
-        response->write(SimpleWeb::StatusCode::client_error_forbidden, tree.dump(), {{"Content-Type", "application/json"}});
+    auto result = check_auth(request);
+    if (!result.ok) {
+      if (result.code == SimpleWeb::StatusCode::redirection_temporary_redirect) {
+        response->write(result.code, result.headers);
+      } else if (!result.body.empty()) {
+        response->write(result.code, result.body, result.headers);
+      } else {
+        response->write(result.code);
       }
-    } else if (rawAuth.rfind("Basic ", 0) == 0) {
-      ok = authenticate_basic(rawAuth);
+      return false;
     }
-    if (ok) {
-      fg.disable();
-    }
-    return ok;
+    return true;
   }
 
   /**
@@ -1167,63 +1186,19 @@ namespace confighttp {
    *
    * Response example:
    * { "token": "..." }
-   */
-
-  // Dedicated exception for invalid scopes on token (sonarcube suggestion)
-  class InvalidScopeException: public std::exception {
-  public:
-    explicit InvalidScopeException(const std::string &msg):
-        message_(msg) {}
-
-    const char *what() const noexcept override {
-      return message_.c_str();
-    }
-
-  private:
-    std::string message_;
-  };
-
-  void generateApiToken(resp_https_t response, req_https_t request) {
-    // Authenticate with Basic Auth only
+   */  void generateApiToken(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
-    // Parse JSON body for path/method scopes
-    nlohmann::json input;
-    try {
-      request->content >> input;
-    } catch (const nlohmann::json::exception &e) {
-      send_response(response, nlohmann::json {{"error", std::string("Invalid JSON: ") + e.what()}});
-      return;
+    
+    std::string request_body;
+    request->content >> request_body;
+    auto result = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
+    if (result) {
+      response->write(*result);
+    } else {
+      response->write(nlohmann::json{{"error", "Internal server error"}}.dump());
     }
-    if (!input.contains("scopes") || !input["scopes"].is_array()) {
-      send_response(response, nlohmann::json {{"error", "Missing scopes array"}});
-      return;
-    }
-    std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
-    try {
-      for (const auto &s : input["scopes"]) {
-        if (!s.contains("path") || !s.contains("methods") || !s["methods"].is_array()) {
-          throw InvalidScopeException("Invalid scopes configured on API Token, missing 'path' or 'methods' array");
-        }
-        std::string path = s["path"].get<std::string>();
-        std::set<std::string, std::less<>> methods;
-        for (const auto &m : s["methods"]) {
-          methods.insert(boost::to_upper_copy(m.get<std::string>()));
-        }
-        path_methods[path] = methods;
-      }
-    } catch (const InvalidScopeException &e) {
-      send_response(response, nlohmann::json {{"error", std::string("Invalid scope value: ") + e.what()}});
-      return;
-    }
-
-    std::string token = crypto::rand_alphabet(32);
-    std::string token_hash = util::hex(crypto::hash(token)).to_string();
-    ApiTokenInfo info {token_hash, path_methods, config::sunshine.username, std::chrono::system_clock::now()};
-    api_tokens[token_hash] = info;
-    save_api_tokens();
-    send_response(response, nlohmann::json {{"token", token}});
   }
 
   /**
@@ -1244,24 +1219,11 @@ namespace confighttp {
    *     ]
    *   }
    * ]
-   */
-  void listApiTokens(resp_https_t response, req_https_t request) {
+   */  void listApiTokens(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
-    nlohmann::json arr = nlohmann::json::array();
-    for (const auto &[hash, info] : api_tokens) {
-      nlohmann::json obj;
-      obj["hash"] = hash;
-      obj["username"] = info.username;
-      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-      obj["scopes"] = nlohmann::json::array();
-      for (const auto &[path, methods] : info.path_methods) {
-        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
-      }
-      arr.push_back(obj);
-    }
-    send_response(response, arr);
+    response->write(apiTokenManager.list_api_tokens_json());
   }
 
   /**
@@ -1273,21 +1235,22 @@ namespace confighttp {
    *
    * Response example:
    * { "status": true }
-   */
-  void revokeApiToken(resp_https_t response, req_https_t request) {
+   */  void revokeApiToken(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
+    
     std::string hash;
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
     }
-    if (hash.empty() || api_tokens.erase(hash) == 0) {
-      send_response(response, nlohmann::json {{"error", "Token not found"}});
-      return;
+    
+    auto result = apiTokenManager.revoke_api_token(hash);
+    if (result) {
+      response->write(*result);
+    } else {
+      response->write(nlohmann::json{{"error", "Internal server error"}}.dump());
     }
-    save_api_tokens();
-    send_response(response, nlohmann::json {{"status", true}});
   }
 
   /**
@@ -1303,44 +1266,7 @@ namespace confighttp {
    *
    */
   void save_api_tokens() {
-    nlohmann::json j;
-    for (const auto &[hash, info] : api_tokens) {
-      nlohmann::json obj;
-      obj["hash"] = hash;
-      obj["username"] = info.username;
-      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-      obj["scopes"] = nlohmann::json::array();
-      for (const auto &[path, methods] : info.path_methods) {
-        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
-      }
-      j.push_back(obj);
-    }
-    pt::ptree root;
-    if (fs::exists(config::nvhttp.file_state)) {
-      pt::read_json(config::nvhttp.file_state, root);
-    }
-    pt::ptree tokens_pt;
-    for (const auto &tok : j) {
-      pt::ptree t;
-      t.put("hash", tok["hash"].get<std::string>());
-      t.put("username", tok["username"].get<std::string>());
-      t.put("created_at", tok["created_at"].get<std::int64_t>());
-      pt::ptree scopes_pt;
-      for (const auto &s : tok["scopes"]) {
-        pt::ptree spt;
-        spt.put("path", s["path"].get<std::string>());
-        pt::ptree mpt;
-        for (const auto &m : s["methods"]) {
-          mpt.push_back({"", pt::ptree(m.get<std::string>())});
-        }
-        spt.add_child("methods", mpt);
-        scopes_pt.push_back({"", spt});
-      }
-      t.add_child("scopes", scopes_pt);
-      tokens_pt.push_back({"", t});
-    }
-    root.put_child("root.api_tokens", tokens_pt);
-    pt::write_json(config::nvhttp.file_state, root);
+    apiTokenManager.save_api_tokens();
   }
 
   /**
@@ -1365,67 +1291,7 @@ namespace confighttp {
    * @note If the configuration file or required fields are missing, the function silently skips loading.
    */
   void load_api_tokens() {
-    api_tokens.clear();
-    if (!fs::exists(config::nvhttp.file_state)) {
-      return;
-    }
-
-    auto parse_scope = [](const pt::ptree &scope_tree)
-      -> std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> {
-      const std::string path = scope_tree.get<std::string>("path", "");
-      if (path.empty()) {
-        return std::nullopt;
-      }
-
-      std::set<std::string, std::less<>> methods;
-      if (auto m_child = scope_tree.get_child_optional("methods")) {
-        for (const auto &[_, method_node] : *m_child) {
-          methods.insert(method_node.data());
-        }
-      }
-
-      if (methods.empty()) {
-        return std::nullopt;
-      }
-      return std::make_pair(path, std::move(methods));
-    };
-
-    auto build_scope_map = [&](const pt::ptree &scopes_node) {
-      std::map<std::string, std::set<std::string, std::less<>>, std::less<>> out;
-      for (const auto &[_, scope_tree] : scopes_node) {
-        if (auto parsed = parse_scope(scope_tree)) {
-          auto [path, methods] = std::move(*parsed);
-          out.try_emplace(std::move(path), std::move(methods));
-        }
-      }
-      return out;
-    };
-
-    pt::ptree root;
-    pt::read_json(config::nvhttp.file_state, root);
-    if (auto api_tokens_node = root.get_child_optional("root.api_tokens")) {
-      for (const auto &[_, token_tree] : *api_tokens_node) {
-        const std::string hash = token_tree.get<std::string>("hash", "");
-        if (hash.empty()) {
-          continue;
-        }
-
-        ApiTokenInfo info {
-          hash,
-          {},  // filled next
-          token_tree.get<std::string>("username", ""),
-          std::chrono::system_clock::time_point {
-            std::chrono::seconds(token_tree.get<std::int64_t>("created_at", 0))
-          }
-        };
-
-        if (auto scopes_node = token_tree.get_child_optional("scopes")) {
-          info.path_methods = build_scope_map(*scopes_node);
-        }
-
-        api_tokens.try_emplace(hash, std::move(info));
-      }
-    }
+    apiTokenManager.load_api_tokens();
   }
 
   void start() {
@@ -1434,7 +1300,8 @@ namespace confighttp {
     auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
-    https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
+    // Fix server initialization to use config::nvhttp.cert and config::nvhttp.pkey
+    https_server_t server(config::nvhttp.cert, config::nvhttp.pkey);
     server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
