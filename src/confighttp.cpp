@@ -24,13 +24,13 @@
 #include <Simple-Web-Server/server_https.hpp>
 
 // local includes
-#include "http_auth.h"
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
 #include "display_device.h"
 #include "file_handler.h"
 #include "globals.h"
+#include "http_auth.h"
 #include "httpcommon.h"
 #include "logging.h"
 #include "network.h"
@@ -158,12 +158,11 @@ namespace confighttp {
     return true;
   }
 
-
   /**
    * @brief Helper to build an AuthResult for error responses.
    */
   AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
-    AuthResult result{false, code, {}, {}};
+    AuthResult result {false, code, {}, {}};
     if (!location.empty()) {
       result.headers.emplace("Location", location);
       return result;
@@ -178,20 +177,21 @@ namespace confighttp {
       result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
     }
     return result;
-  }  /**
-   * @brief Helper to check Bearer authentication.
-   * @param rawAuth The raw authorization header value.
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
+  } /**
+     * @brief Helper to check Bearer authentication.
+     * @param rawAuth The raw authorization header value.
+     * @param path The requested path.
+     * @param method The HTTP method.
+     * @return AuthResult with outcome and response details if not authorized.
+     */
+
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
     if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden,
-        "Forbidden: Token does not have permission for this path/method.");
+      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
     }
     return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
   }
+
   /**
    * @brief Helper to check Basic authentication.
    * @param rawAuth The raw authorization header value.
@@ -199,42 +199,41 @@ namespace confighttp {
    */
   AuthResult check_basic_auth(const std::string &rawAuth) {
     if (!authenticate_basic(rawAuth)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized,
-        "Unauthorized", true);
+      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
     }
     return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
-  }  /**
-   * @brief Check authentication and authorization with primitive parameters.
-   * @param remote_address The normalized remote address string.
-   * @param auth_header The authorization header value (empty if not present).
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
-  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, 
-                       const std::string &path, const std::string &method) {
+  } /**
+     * @brief Check authentication and authorization with primitive parameters.
+     * @param remote_address The normalized remote address string.
+     * @param auth_header The authorization header value (empty if not present).
+     * @param path The requested path.
+     * @param method The HTTP method.
+     * @return AuthResult with outcome and response details if not authorized.
+     */
+
+  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
     auto ip_type = net::from_address(remote_address);
     if (ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
       return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden");
     }
-    
+
     if (config::sunshine.username.empty()) {
       return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, "/welcome");
     }
-    
+
     if (auth_header.empty()) {
       return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
     }
-    
+
     if (auth_header.rfind("Bearer ", 0) == 0) {
       return check_bearer_auth(auth_header, path, method);
     }
-    
+
     if (auth_header.rfind("Basic ", 0) == 0) {
       return check_basic_auth(auth_header);
     }
-    
+
     return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
   }
 
@@ -247,7 +246,7 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     auto auth = request->header.find("authorization");
     std::string auth_header = (auth != request->header.end()) ? auth->second : "";
-    
+
     return check_auth(address, auth_header, request->path, request->method);
   }
 
@@ -258,8 +257,7 @@ namespace confighttp {
    * @return True if authenticated and authorized, false otherwise.
    */
   bool authenticate(resp_https_t response, req_https_t request) {
-    auto result = check_auth(request);
-    if (!result.ok) {
+    if (auto result = check_auth(request); !result.ok) {
       if (result.code == SimpleWeb::StatusCode::redirection_temporary_redirect) {
         response->write(result.code, result.headers);
       } else if (!result.body.empty()) {
@@ -1186,18 +1184,19 @@ namespace confighttp {
    *
    * Response example:
    * { "token": "..." }
-   */  void generateApiToken(resp_https_t response, req_https_t request) {
+   */
+  void generateApiToken(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
-    
+
     std::string request_body;
     request->content >> request_body;
     auto result = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
     if (result) {
       response->write(*result);
     } else {
-      response->write(nlohmann::json{{"error", "Internal server error"}}.dump());
+      response->write(nlohmann::json {{"error", "Internal server error"}}.dump());
     }
   }
 
@@ -1219,7 +1218,8 @@ namespace confighttp {
    *     ]
    *   }
    * ]
-   */  void listApiTokens(resp_https_t response, req_https_t request) {
+   */
+  void listApiTokens(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1235,21 +1235,22 @@ namespace confighttp {
    *
    * Response example:
    * { "status": true }
-   */  void revokeApiToken(resp_https_t response, req_https_t request) {
+   */
+  void revokeApiToken(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
     }
-    
+
     std::string hash;
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
     }
-    
+
     auto result = apiTokenManager.revoke_api_token(hash);
     if (result) {
       response->write(*result);
     } else {
-      response->write(nlohmann::json{{"error", "Internal server error"}}.dump());
+      response->write(nlohmann::json {{"error", "Internal server error"}}.dump());
     }
   }
 
