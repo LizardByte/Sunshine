@@ -184,7 +184,7 @@ namespace confighttp {
     };
 
     // Match the scope path against the request path using boost::regex
-    auto regex_path_match = [](const std::string &scope_path, const std::string &req_path) {
+    auto regex_path_match = [](const std::string &scope_path, const std::string &request_path) {
       std::string pattern = scope_path;
       // Always force the scope path to be a full match, its a best practice for regex scope validation
       if (pattern.empty() || pattern[0] != '^') {
@@ -194,16 +194,16 @@ namespace confighttp {
         pattern += "$";
       }
       boost::regex re(pattern);
-      return boost::regex_match(req_path, re);
+      return boost::regex_match(request_path, re);
     };
 
-    for (const auto &[scope_path, methods] : it->second.path_methods) {
+    return std::ranges::any_of(it->second.path_methods, [&](const auto &pair) {
+      const auto &scope_path = pair.first;
+      const auto &methods = pair.second;
       std::vector<std::string> methods_vec(methods.begin(), methods.end());
       // Regex match (full)
-      if (regex_path_match(scope_path, req_path) && is_method_allowed(methods_vec)) {
-        return true;
-      }
-    }
+      return regex_path_match(scope_path, req_path) && is_method_allowed(methods_vec);
+    });
     return false;
   }
 
