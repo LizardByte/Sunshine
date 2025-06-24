@@ -63,8 +63,7 @@ export default defineConfig({
     root: resolve(assetsSrcPath),
     build: {
         outDir: resolve(assetsDstPath),
-        rollupOptions: {
-            input: {
+        rollupOptions: {            input: {
                 apps: resolve(assetsSrcPath, 'apps.html'),
                 config: resolve(assetsSrcPath, 'config.html'),
                 index: resolve(assetsSrcPath, 'index.html'),
