@@ -1220,3 +1220,204 @@ TEST_F(SessionTokenManagerTest, given_token_when_expired_then_should_not_validat
   // Username lookup should fail
   EXPECT_FALSE(mgr->get_username_for_token(token).has_value());
 }
+
+
+class SessionTokenAPITest : public Test {
+protected:
+    void SetUp() override {
+        // Save original config values
+        original_username = config::sunshine.username;
+        original_password = config::sunshine.password;
+        original_salt = config::sunshine.salt;
+        
+        // Set test config
+        config::sunshine.username = "testuser";
+        config::sunshine.password = util::hex(crypto::hash(std::string("testpass") + "testsalt")).to_string();
+        config::sunshine.salt = "testsalt";
+
+        // Create SessionTokenManager with fake dependencies
+        deps.now = [this]() { return fake_now; };
+        deps.rand_alphabet = [this](std::size_t len) {
+            return "fake_token_" + std::to_string(token_counter++);
+        };
+        
+        session_manager = std::make_unique<SessionTokenManager>(deps);
+        session_api = std::make_unique<SessionTokenAPI>(*session_manager);
+    }
+
+    void TearDown() override {
+        // Restore original config values
+        config::sunshine.username = original_username;
+        config::sunshine.password = original_password;
+        config::sunshine.salt = original_salt;
+    }
+
+    std::string original_username;
+    std::string original_password;
+    std::string original_salt;
+    SessionTokenManagerDependencies deps;
+    std::chrono::system_clock::time_point fake_now = std::chrono::system_clock::now();
+    std::unique_ptr<SessionTokenManager> session_manager;
+    std::unique_ptr<SessionTokenAPI> session_api;
+    int token_counter = 0;
+};
+
+/**
+ * @brief Test successful login with valid credentials.
+ */
+TEST_F(SessionTokenAPITest, given_valid_credentials_when_logging_in_then_should_return_success_with_token) {
+    // When: Logging in with valid credentials
+    auto response = session_api->login("testuser", "testpass");
+
+    // Then: Should return success response with token
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    EXPECT_FALSE(response.body.empty());
+    
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_TRUE(json_response.contains("token"));
+    EXPECT_TRUE(json_response.contains("expires_in"));
+    EXPECT_EQ(json_response["redirect"], "/");
+    
+    // Check content type header
+    auto content_type = response.headers.find("Content-Type");
+    EXPECT_NE(content_type, response.headers.end());
+    EXPECT_EQ(content_type->second, "application/json");
+    
+    // Check session cookie
+    auto cookie = response.headers.find("Set-Cookie");
+    EXPECT_NE(cookie, response.headers.end());
+    EXPECT_THAT(cookie->second, HasSubstr("session_token="));
+    EXPECT_THAT(cookie->second, HasSubstr("HttpOnly"));
+}
+
+/**
+ * @brief Test login with invalid credentials.
+ */
+TEST_F(SessionTokenAPITest, given_invalid_credentials_when_logging_in_then_should_return_unauthorized) {
+    // When: Logging in with invalid credentials
+    auto response = session_api->login("testuser", "wrongpass");
+
+    // Then: Should return unauthorized response
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::client_error_unauthorized);
+    EXPECT_FALSE(response.body.empty());
+    
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_FALSE(json_response["status"]);
+    EXPECT_EQ(json_response["error"], "Invalid credentials");
+}
+
+/**
+ * @brief Test logout functionality.
+ */
+TEST_F(SessionTokenAPITest, given_session_token_when_logging_out_then_should_return_success) {
+    // Given: A valid session token
+    auto login_response = session_api->login("testuser", "testpass");
+    auto login_json = nlohmann::json::parse(login_response.body);
+    std::string token = login_json["token"];
+
+    // When: Logging out
+    auto response = session_api->logout(token);
+
+    // Then: Should return success response
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_EQ(json_response["message"], "Logged out successfully");
+}
+
+/**
+ * @brief Test token refresh functionality.
+ */
+TEST_F(SessionTokenAPITest, given_valid_token_when_refreshing_then_should_return_new_token) {
+    // Given: A valid session token
+    auto login_response = session_api->login("testuser", "testpass");
+    auto login_json = nlohmann::json::parse(login_response.body);
+    std::string old_token = login_json["token"];
+
+    // When: Refreshing the token
+    auto response = session_api->refresh_token(old_token);
+
+    // Then: Should return success response with new token
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_TRUE(json_response.contains("token"));
+    EXPECT_NE(json_response["token"], old_token); // Should be a different token
+}
+
+/**
+ * @brief Test token validation functionality.
+ */
+TEST_F(SessionTokenAPITest, given_valid_token_when_validating_then_should_return_success) {
+    // Given: A valid session token
+    auto login_response = session_api->login("testuser", "testpass");
+    auto login_json = nlohmann::json::parse(login_response.body);
+    std::string token = login_json["token"];
+
+    // When: Validating the token
+    auto response = session_api->validate_session(token);
+
+    // Then: Should return success response
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+}
+
+/**
+ * @brief Test token validation with invalid token.
+ */
+TEST_F(SessionTokenAPITest, given_invalid_token_when_validating_then_should_return_unauthorized) {
+    // When: Validating an invalid token
+    auto response = session_api->validate_session("invalid_token");
+
+    // Then: Should return unauthorized response
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::client_error_unauthorized);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_FALSE(json_response["status"]);
+    EXPECT_EQ(json_response["error"], "Invalid or expired session token");
+}
+
+/**
+ * @brief Test login with a custom safe redirect.
+ */
+TEST_F(SessionTokenAPITest, given_safe_redirect_when_logging_in_then_should_return_custom_redirect) {
+    auto response = session_api->login("testuser", "testpass", "/dashboard");
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_EQ(json_response["redirect"], "/dashboard");
+}
+
+/**
+ * @brief Test login with an unsafe redirect (double slash).
+ */
+TEST_F(SessionTokenAPITest, given_unsafe_redirect_when_logging_in_then_should_return_root_redirect) {
+    auto response = session_api->login("testuser", "testpass", "//malicious");
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_EQ(json_response["redirect"], "/");
+}
+
+/**
+ * @brief Test login with an unsafe redirect (dot dot).
+ */
+TEST_F(SessionTokenAPITest, given_dotdot_redirect_when_logging_in_then_should_return_root_redirect) {
+    auto response = session_api->login("testuser", "testpass", "/../admin");
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_EQ(json_response["redirect"], "/");
+}
+
+/**
+ * @brief Test login with an empty redirect (should default to root).
+ */
+TEST_F(SessionTokenAPITest, given_empty_redirect_when_logging_in_then_should_return_root_redirect) {
+    auto response = session_api->login("testuser", "testpass", "");
+    EXPECT_EQ(response.status_code, SimpleWeb::StatusCode::success_ok);
+    auto json_response = nlohmann::json::parse(response.body);
+    EXPECT_TRUE(json_response["status"]);
+    EXPECT_EQ(json_response["redirect"], "/");
+}

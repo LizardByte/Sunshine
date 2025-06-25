@@ -93,71 +93,49 @@
           rememberMe: false,
           loading: false,
           error: '',
-          isLoggedIn: false
+          isLoggedIn: false,
+          requestedRedirect: '/',
+          safeRedirect: '/'
         }
       },
       mounted() {
-        // Check if already logged in with session token
-        const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
-        if (token) {
-          this.validateExistingToken(token);
-        }
-
-        // Check URL parameters for redirect
+        // Hide redirect from URL, use storage
         const urlParams = new URLSearchParams(window.location.search);
-        this.redirectUrl = urlParams.get('redirect') || '/';
+        const redirectParam = urlParams.get('redirect');
+        if (redirectParam) {
+          sessionStorage.setItem('pending_redirect', redirectParam);
+          urlParams.delete('redirect');
+          const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
+          window.history.replaceState({}, document.title, cleanUrl);
+        }
+        this.requestedRedirect = sessionStorage.getItem('pending_redirect') || '/';
+        this.safeRedirect = '/';
       },
       methods: {
         async validateExistingToken(token) {
-          try {
-            const response = await fetch('./api/config', {
-              headers: {
-                'Authorization': `Session ${token}`
-              }
-            });
-            
-            if (response.ok) {
-              // Token is valid, redirect
-              this.redirectToApp();
-            } else {
-              // Token is invalid, clear it
-              localStorage.removeItem('session_token');
-              sessionStorage.removeItem('session_token');
-            }
-          } catch (error) {
-            console.error('Token validation failed:', error);
-            localStorage.removeItem('session_token');
-            sessionStorage.removeItem('session_token');
-          }
+          // Remove all JS storage usage for session tokens
         },
-
         async login() {
           this.loading = true;
           this.error = '';
-
           try {
-            const response = await fetch('./api/auth/login', {
+            const response = await fetch('/api/auth/login', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
                 username: this.credentials.username,
-                password: this.credentials.password
+                password: this.credentials.password,
+                redirect: encodeURIComponent(this.requestedRedirect)
               })
             });
-
             const data = await response.json();
-
             if (response.ok && data.status) {
-              // Store session token
-              const storage = this.rememberMe ? localStorage : sessionStorage;
-              storage.setItem('session_token', data.token);
-              // Set session_token cookie for backend navigation
-              document.cookie = `session_token=${data.token}; path=/; SameSite=Strict`;
+              // No session token in JS storage, rely on HttpOnly cookie
               this.isLoggedIn = true;
-              
-              // Redirect after short delay
+              this.safeRedirect = data.redirect || '/';
+              sessionStorage.removeItem('pending_redirect');
               setTimeout(() => {
                 this.redirectToApp();
               }, 1000);
@@ -171,10 +149,9 @@
             this.loading = false;
           }
         },
-
         redirectToApp() {
-          // Redirect to the requested page or home
-          window.location.href = this.redirectUrl;
+          // Use encodeURI to prevent XSS on redirect
+          window.location.href = encodeURI(this.safeRedirect);
         }
       }
     });

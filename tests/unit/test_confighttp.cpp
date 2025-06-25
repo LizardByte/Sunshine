@@ -632,4 +632,55 @@ TEST_F(ConfigHttpCheckAuthTest, given_unknown_auth_scheme_and_html_path_when_che
     EXPECT_NE(it, result.headers.end());
     EXPECT_EQ(it->second, "/login?redirect=/index.html");
 }
+
+/**
+ * @brief Test fixture for CORS-related functionality.
+ */
+class ConfigHttpCorsTest : public Test {
+protected:
+    void SetUp() override {
+        // Save original port configuration
+        original_port = config::sunshine.port;
+        // Set a known test port
+        config::sunshine.port = 47990;
+    }
+
+    void TearDown() override {
+        // Restore original port configuration
+        config::sunshine.port = original_port;
+    }
+
+private:
+    std::uint16_t original_port;
+};
+
+TEST_F(ConfigHttpCorsTest, given_auth_error_response_when_creating_then_should_include_correct_cors_headers) {
+    auto result = make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+    
+    auto cors_origin_it = result.headers.find("Access-Control-Allow-Origin");
+    EXPECT_NE(cors_origin_it, result.headers.end());
+    
+    // The CORS origin should use the correct HTTPS port
+    std::uint16_t expected_port = net::map_port(PORT_HTTPS);
+    std::string expected_origin = "https://localhost:" + std::to_string(expected_port);
+    
+    EXPECT_EQ(cors_origin_it->second, expected_origin);
+}
+
+TEST_F(ConfigHttpCorsTest, given_different_auth_error_when_creating_then_should_include_correct_cors_headers) {
+    auto result = make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden", false);
+    
+    auto cors_origin_it = result.headers.find("Access-Control-Allow-Origin");
+    EXPECT_NE(cors_origin_it, result.headers.end());
+    
+    // The CORS origin should use the correct HTTPS port and be https (not http)
+    std::uint16_t expected_port = net::map_port(PORT_HTTPS);
+    std::string expected_origin = "https://localhost:" + std::to_string(expected_port);
+    
+    EXPECT_EQ(cors_origin_it->second, expected_origin);
+    
+    // Verify it's not using http://
+    EXPECT_THAT(cors_origin_it->second, Not(HasSubstr("http://localhost:")));
+}
+
 }  // namespace confighttp

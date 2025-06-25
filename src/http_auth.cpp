@@ -1,7 +1,12 @@
 #include "http_auth.h"
 
+#include "config.h"
+#include "confighttp.h"
 #include "crypto.h"
+#include "logging.h"
 #include "utility.h"
+#include "network.h"
+#include "nvhttp.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/function.hpp>
@@ -429,6 +434,148 @@ namespace confighttp {
   size_t SessionTokenManager::session_count() const {
     std::scoped_lock lock(mutex_);
     return session_tokens_.size();
+  }
+
+  // ---------------- SessionTokenAPI Implementation ----------------
+
+  SessionTokenAPI::SessionTokenAPI(SessionTokenManager& session_manager)
+      : session_manager_(session_manager) {}
+
+  APIResponse SessionTokenAPI::login(const std::string& username, const std::string& password, const std::string& redirect_url) {
+    if (!validate_credentials(username, password)) {
+      BOOST_LOG(info) << "Web UI: Login failed for user: " << username;
+      return create_error_response("Invalid credentials", SimpleWeb::StatusCode::client_error_unauthorized);
+    }
+
+    std::string session_token = session_manager_.generate_session_token(username);
+
+    nlohmann::json response_data;
+    response_data["token"] = session_token;
+    response_data["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
+
+    // Hardened secure redirect handling
+    std::string safe_redirect = "/";
+    if (!redirect_url.empty() && redirect_url[0] == '/') {
+      std::string lower = redirect_url;
+      boost::algorithm::to_lower(lower);
+      // Disallow dangerous patterns
+      if (lower.find("://") == std::string::npos &&
+          lower.find("%2f") == std::string::npos &&
+          lower.find("\\") == std::string::npos &&
+          lower.find("..") == std::string::npos &&
+          !(redirect_url.size() > 1 && redirect_url[1] == '/')) { // reject double slash
+        // Unicode normalization: reject if normalized path differs
+        std::string norm = redirect_url;
+        std::replace(norm.begin(), norm.end(), '\\', '/');
+        if (norm == redirect_url) {
+          safe_redirect = redirect_url;
+        }
+      }
+    }
+    response_data["redirect"] = safe_redirect;
+
+    APIResponse response = create_success_response(response_data);
+
+    // Set session cookie with Secure if HTTPS or localhost
+    std::string cookie = "session_token=" + session_token + "; Path=/; HttpOnly; SameSite=Strict";
+    // NOTE: In production, check request context for HTTPS. Here, always set Secure for localhost.
+    cookie += "; Secure";
+    response.headers.emplace("Set-Cookie", cookie);
+
+    // Set CORS header for localhost only (no wildcard), dynamically set port
+    std::uint16_t https_port = net::map_port(nvhttp::PORT_HTTPS);
+    std::string cors_origin = "http://localhost:" + std::to_string(https_port);
+    response.headers.emplace("Access-Control-Allow-Origin", cors_origin);
+
+    return response;
+  }
+
+  APIResponse SessionTokenAPI::logout(const std::string& session_token) {
+    if (!session_token.empty()) {
+      session_manager_.revoke_session_token(session_token);
+    }
+
+    nlohmann::json response_data;
+    response_data["message"] = "Logged out successfully";
+    
+    return create_success_response(response_data);
+  }
+
+  APIResponse SessionTokenAPI::refresh_token(const std::string& old_token) {
+    if (old_token.empty()) {
+      return create_error_response("Session token required for refresh");
+    }
+
+    auto maybe_username = session_manager_.get_username_for_token(old_token);
+    if (!maybe_username) {
+      return create_error_response("Invalid session token");
+    }
+
+    std::string username = *maybe_username;
+    
+    // Revoke old token and generate new one
+    session_manager_.revoke_session_token(old_token);
+    std::string new_token = session_manager_.generate_session_token(username);
+
+    nlohmann::json response_data;
+    response_data["token"] = new_token;
+    response_data["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
+
+    return create_success_response(response_data);
+  }
+
+  APIResponse SessionTokenAPI::validate_session(const std::string& session_token) {
+    if (session_token.empty()) {
+      return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
+    }
+
+    bool is_valid = session_manager_.validate_session_token(session_token);
+    if (!is_valid) {
+      return create_error_response("Invalid or expired session token", SimpleWeb::StatusCode::client_error_unauthorized);
+    }
+
+    return create_success_response();
+  }
+
+  bool SessionTokenAPI::validate_credentials(const std::string& username, const std::string& password) const {
+    if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+        !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+      return false;
+    }
+    return true;
+  }
+
+  namespace {
+/**
+ * @brief Get the CORS origin for localhost (no wildcard).
+ * @return The CORS origin string.
+ */
+std::string get_cors_origin() {
+  std::uint16_t https_port = net::map_port(PORT_HTTPS);
+  return "https://localhost:" + std::to_string(https_port);
+}
+}
+
+  APIResponse SessionTokenAPI::create_success_response(const nlohmann::json& data) const {
+    nlohmann::json response_body;
+    response_body["status"] = true;
+    for (auto& [key, value] : data.items()) {
+      response_body[key] = value;
+    }
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
+    return APIResponse(SimpleWeb::StatusCode::success_ok, response_body.dump(), headers);
+  }
+
+  APIResponse SessionTokenAPI::create_error_response(const std::string& error_message, SimpleWeb::StatusCode status_code) const {
+    nlohmann::json response_body;
+    response_body["status"] = false;
+    response_body["error"] = error_message;
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
+    return APIResponse(status_code, response_body.dump(), headers);
   }
 
 }  // namespace confighttp

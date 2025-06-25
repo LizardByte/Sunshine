@@ -60,7 +60,8 @@ namespace confighttp {
 
   // Replace static session token storage with SessionTokenManager
   static SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
-  static constexpr std::chrono::hours SESSION_TOKEN_DURATION{24}; // for API compatibility
+  static SessionTokenAPI sessionTokenAPI(sessionTokenManager);
+  static constexpr std::chrono::hours SESSION_TOKEN_DURATION {24};  // for API compatibility
 
   enum class op_e {
     ADD,  ///< Add client
@@ -89,15 +90,42 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the CORS origin for localhost (no wildcard).
+   * @return The CORS origin string.
+   */
+  static std::string get_cors_origin() {
+    std::uint16_t https_port = net::map_port(PORT_HTTPS);
+    return "https://localhost:" + std::to_string(https_port);
+  }
+
+  // Helper to add CORS headers for API responses
+  void add_cors_headers(SimpleWeb::CaseInsensitiveMultimap &headers) {
+    headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
+    headers.emplace("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    headers.emplace("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  }
+
+  /**
    * @brief Send a response.
    * @param response The HTTP response object.
    * @param output_tree The JSON tree to send.
    */
   void send_response(resp_https_t response, const nlohmann::json &output_tree) {
     SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "application/json");
+    headers.emplace("Content-Type", "application/json; charset=utf-8");
+    add_cors_headers(headers);
+    response->write(success_ok, output_tree.dump(), headers);
+  }
 
-    response->write(output_tree.dump(), headers);
+  /**
+   * @brief Write an APIResponse to an HTTP response object.
+   * @param response The HTTP response object.
+   * @param api_response The APIResponse containing the structured response data.
+   */
+  void write_api_response(resp_https_t response, const APIResponse &api_response) {
+    SimpleWeb::CaseInsensitiveMultimap headers = api_response.headers;
+    add_cors_headers(headers);
+    response->write(api_response.status_code, api_response.body, headers);
   }
 
   /**
@@ -116,10 +144,10 @@ namespace confighttp {
     tree["status"] = false;
     tree["error"] = "Unauthorized";
 
-    const SimpleWeb::CaseInsensitiveMultimap headers {
-      {"Content-Type", "application/json"},
-      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"}
-    };
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
+    headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
 
     response->write(code, tree.dump(), headers);
   }
@@ -172,6 +200,7 @@ namespace confighttp {
     AuthResult result {false, code, {}, {}};
     if (!location.empty()) {
       result.headers.emplace("Location", location);
+      result.headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
       return result;
     }
     nlohmann::json tree;
@@ -180,12 +209,13 @@ namespace confighttp {
     tree["error"] = error;
     result.body = tree.dump();
     result.headers.emplace("Content-Type", "application/json");
+    result.headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
     if (add_www_auth) {
       result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
     }
     return result;
   }
-  
+
   /**
    * @brief Helper to check Bearer authentication.
    * @param rawAuth The raw authorization header value.
@@ -212,7 +242,7 @@ namespace confighttp {
     }
     return {true, success_ok, {}, {}};
   }
-  
+
   /**
    * @brief Check authentication and authorization with raw parameters.
    * @param remote_address The normalized remote address string.
@@ -223,6 +253,16 @@ namespace confighttp {
    */
 
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
+    // Strip query string from path for matching
+    auto base_path = path;
+    auto qpos = base_path.find('?');
+    if (qpos != std::string::npos) base_path.resize(qpos);
+
+    // Allow welcome page without authentication
+    if (base_path == "/welcome" || base_path == "/welcome/") {
+        return {true, success_ok, {}, {}};
+    }
+
     if (auto ip_type = net::from_address(remote_address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
       return make_auth_error(client_error_forbidden, "Forbidden");
@@ -232,14 +272,14 @@ namespace confighttp {
       return make_auth_error(redirection_temporary_redirect, {}, false, "/welcome");
     }
 
-    // For login page, don't require authentication
-    if (path == "/login" || path == "/login/") {
+    // For login page, don't require authentication (match path without query)
+    if (base_path == "/login" || base_path == "/login/") {
       return {true, success_ok, {}, {}};
     }
 
     if (auth_header.empty()) {
-      // For HTML page requests, redirect to login instead of showing 401
-      if (is_html_request(path)) {
+      // For HTML page requests, redirect to login instead of showing 401 (use base_path)
+      if (is_html_request(base_path)) {
         std::string login_url = "/login?redirect=" + path;
         return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
       }
@@ -256,11 +296,18 @@ namespace confighttp {
     }
 
     if (auth_header.rfind("Session ", 0) == 0) {
-      return check_session_auth(auth_header);
+      {
+          auto session_res = check_session_auth(auth_header);
+          if (!session_res.ok) {
+              std::string login_url = "/login?redirect=" + path;
+              return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
+          }
+          return session_res;
+      }
     }
 
-    // For HTML page requests, redirect to login instead of showing 401
-    if (is_html_request(path)) {
+    // For HTML page requests, redirect to login instead of showing 401 (use base_path)
+    if (is_html_request(base_path)) {
       std::string login_url = "/login?redirect=" + path;
       return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
     }
@@ -342,6 +389,7 @@ namespace confighttp {
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
+    headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
 
     response->write(code, tree.dump(), headers);
   }
@@ -352,18 +400,12 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Bad Request") {
-    constexpr auto code = client_error_bad_request;
-
-    nlohmann::json tree;
-    tree["status_code"] = code;
-    tree["status"] = false;
-    tree["error"] = error_message;
-
+  void bad_request(resp_https_t response, req_https_t request, const std::string &error_message = "Bad Request") {
     SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "application/json");
-
-    response->write(code, tree.dump(), headers);
+    headers.emplace("Content-Type", "application/json; charset=utf-8");
+    add_cors_headers(headers);
+    nlohmann::json error = {{"error", error_message}};
+    response->write(client_error_bad_request, error.dump(), headers);
   }
 
   /**
@@ -500,7 +542,7 @@ namespace confighttp {
    */
   void getLoginPage(resp_https_t response, req_https_t request) {
     print_req(request);
-    
+
     std::string content = file_handler::read_file(WEB_DIR "login.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
@@ -1265,10 +1307,14 @@ namespace confighttp {
     std::string request_body;
     request->content >> request_body;
     auto result = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
+    nlohmann::json output_tree;
     if (result) {
-      response->write(*result);
+      // Use send_response to return the token in JSON
+      output_tree["token"] = *result;
+      send_response(response, output_tree);
     } else {
-      response->write(nlohmann::json {{"error", "Internal server error"}}.dump());
+      output_tree["error"] = "Internal server error";
+      send_response(response, output_tree);
     }
   }
 
@@ -1295,7 +1341,8 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-    response->write(apiTokenManager.list_api_tokens_json());
+    nlohmann::json output_tree = nlohmann::json::parse(apiTokenManager.list_api_tokens_json());
+    send_response(response, output_tree);
   }
 
   /**
@@ -1312,18 +1359,18 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-
     std::string hash;
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
     }
-
-    auto result = apiTokenManager.revoke_api_token_by_hash(hash);
+    bool result = apiTokenManager.revoke_api_token_by_hash(hash);
+    nlohmann::json output_tree;
     if (result) {
-      response->write(nlohmann::json {{"status", true}}.dump());
+      output_tree["status"] = true;
     } else {
-      response->write(nlohmann::json {{"error", "Internal server error"}}.dump());
+      output_tree["error"] = "Internal server error";
     }
+    send_response(response, output_tree);
   }
 
   /**
@@ -1375,7 +1422,7 @@ namespace confighttp {
 
     // Fix server initialization to use config::nvhttp.cert and config::nvhttp.pkey
     https_server_t server(config::nvhttp.cert, config::nvhttp.pkey);
-    std::thread tcp; // Declare here for correct scope
+    std::thread tcp;  // Declare here for correct scope
     server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
@@ -1443,7 +1490,7 @@ namespace confighttp {
         return;
       }
     };
-    tcp = std::thread{accept_and_run, &server};
+    tcp = std::thread {accept_and_run, &server};
 
     load_api_tokens();
 
@@ -1533,32 +1580,35 @@ namespace confighttp {
     if (rawAuth.rfind("Session ", 0) != 0) {
       return make_auth_error(client_error_unauthorized, "Invalid session token format", true);
     }
-    
-    if (auto token = rawAuth.substr(8); !sessionTokenManager.validate_session_token(token)) {
-      return make_auth_error(client_error_unauthorized, "Invalid or expired session token", true);
+
+    std::string token = rawAuth.substr(8);
+    APIResponse api_response = sessionTokenAPI.validate_session(token);
+
+    if (api_response.status_code == SimpleWeb::StatusCode::success_ok) {
+      return {true, success_ok, {}, {}};
     }
-    
-    return {true, success_ok, {}, {}};
+
+    return make_auth_error(client_error_unauthorized, "Invalid or expired session token", true);
   }
 
   /**
    * @brief User login endpoint to generate session tokens.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * 
+   *
    * Expects JSON body:
    * {
    *   "username": "string",
    *   "password": "string"
    * }
-   * 
+   *
    * Returns:
    * {
    *   "status": true,
    *   "token": "session_token_string",
    *   "expires_in": 86400
    * }
-   * 
+   *
    * @api_examples{/api/auth/login| POST| {"username": "admin", "password": "password"}}
    */
   void loginUser(resp_https_t response, req_https_t request) {
@@ -1566,52 +1616,20 @@ namespace confighttp {
 
     std::stringstream ss;
     ss << request->content.rdbuf();
-    
     try {
       nlohmann::json input_tree = nlohmann::json::parse(ss);
-      
       if (!input_tree.contains("username") || !input_tree.contains("password")) {
         bad_request(response, request, "Missing username or password");
         return;
       }
-      
+
       std::string username = input_tree["username"].get<std::string>();
       std::string password = input_tree["password"].get<std::string>();
-      
-      // Validate credentials using existing basic auth logic
-      if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-          !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-        
-        auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-        BOOST_LOG(info) << "Web UI: ["sv << address << "] -- login failed for user: " << username;
-        
-        nlohmann::json error_tree;
-        error_tree["status"] = false;
-        error_tree["error"] = "Invalid credentials";
-        
-        SimpleWeb::CaseInsensitiveMultimap headers;
-        headers.emplace("Content-Type", "application/json");
-        
-        response->write(client_error_unauthorized, error_tree.dump(), headers);
-        return;
-      }
-      
-      // Generate session token
-      std::string session_token = sessionTokenManager.generate_session_token(username);
-      
-      nlohmann::json output_tree;
-      output_tree["status"] = true;
-      output_tree["token"] = session_token;
-      output_tree["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
-      
-      // Set session cookie
-      SimpleWeb::CaseInsensitiveMultimap headers;
-      headers.emplace("Content-Type", "application/json");
-      std::string cookie = "session_token=" + session_token + "; Path=/; HttpOnly; SameSite=Strict";
-      headers.emplace("Set-Cookie", cookie);
-      response->write(success_ok, output_tree.dump(), headers);
-      return;
-      
+      std::string redirect_url = input_tree.value("redirect", "/");
+
+      APIResponse api_response = sessionTokenAPI.login(username, password, redirect_url);
+      write_api_response(response, api_response);
+
     } catch (const nlohmann::json::exception &e) {
       BOOST_LOG(warning) << "Login JSON error:"sv << e.what();
       bad_request(response, request, "Invalid JSON format");
@@ -1622,30 +1640,27 @@ namespace confighttp {
    * @brief User logout endpoint to revoke session tokens.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * 
+   *
    * @api_examples{/api/auth/logout| POST| null}
    */
   void logoutUser(resp_https_t response, req_https_t request) {
     print_req(request);
 
-    if (auto auth = request->header.find("authorization"); 
+    std::string session_token;
+    if (auto auth = request->header.find("authorization");
         auth != request->header.end() && auth->second.rfind("Session ", 0) == 0) {
-      std::string token = auth->second.substr(8);
-      sessionTokenManager.revoke_session_token(token);
+      session_token = auth->second.substr(8);
     }
 
-    nlohmann::json output_tree;
-    output_tree["status"] = true;
-    output_tree["message"] = "Logged out successfully";
-
-    send_response(response, output_tree);
+    APIResponse api_response = sessionTokenAPI.logout(session_token);
+    write_api_response(response, api_response);
   }
 
   /**
    * @brief Refresh session token endpoint.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * 
+   *
    * @api_examples{/api/auth/refresh| POST| null}
    */
   void refreshSessionToken(resp_https_t response, req_https_t request) {
@@ -1662,23 +1677,8 @@ namespace confighttp {
     }
 
     std::string old_token = auth->second.substr(8);
-    // Get username via SessionTokenManager
-    auto maybe_user = sessionTokenManager.get_username_for_token(old_token);
-    if (!maybe_user) {
-      bad_request(response, request, "Invalid session token");
-      return;
-    }
-    std::string username = *maybe_user;
-
-    // Revoke old token and generate new one
-    sessionTokenManager.revoke_session_token(old_token);
-    std::string new_token = sessionTokenManager.generate_session_token(username);
-
-    nlohmann::json output_tree;
-    output_tree["status"] = true;
-    output_tree["token"] = new_token;
-    output_tree["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
-    send_response(response, output_tree);
+    APIResponse api_response = sessionTokenAPI.refresh_token(old_token);
+    write_api_response(response, api_response);
   }
 
   /**
@@ -1691,12 +1691,22 @@ namespace confighttp {
     if (path.rfind("/api/", 0) == 0) {
       return false;
     }
-    
-    // Asset requests
+
+    // Asset requests in known directories
     if (path.rfind("/assets/", 0) == 0 || path.rfind("/images/", 0) == 0) {
       return false;
     }
-    
+
+    // Static file extensions should not be treated as HTML
+    {
+      std::string ext = std::filesystem::path(path).extension().string();
+      boost::algorithm::to_lower(ext);
+      static const std::vector<std::string> non_html_ext = {".js", ".css", ".map", ".json", ".woff", ".woff2", ".ttf", ".eot", ".ico", ".png", ".jpg", ".jpeg", ".svg"};
+      if (std::find(non_html_ext.begin(), non_html_ext.end(), ext) != non_html_ext.end()) {
+        return false;
+      }
+    }
+
     // Everything else is likely an HTML page request
     return true;
   }
