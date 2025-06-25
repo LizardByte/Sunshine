@@ -55,16 +55,6 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
   };
 
-  /**
-   * @brief Session token information.
-   */
-  struct SessionToken {
-    std::string token;
-    std::string username;
-    std::chrono::system_clock::time_point created_at;
-    std::chrono::system_clock::time_point expires_at;
-  };
-
   // Utility for scope string conversion
   TokenScope scope_from_string(std::string_view s);
   std::string scope_to_string(TokenScope scope);
