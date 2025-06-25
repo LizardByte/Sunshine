@@ -43,6 +43,87 @@ protected:
         test_time = std::chrono::system_clock::now();
     }
 
+    void InjectToken(const std::string& hash, const ApiTokenInfo& token_info) {
+        EXPECT_CALL(*mock_deps, file_exists(_)).WillOnce(Return(true));
+        EXPECT_CALL(*mock_deps, read_json(_, _)).WillOnce(Invoke([hash, token_info](const std::string&, pt::ptree& tree) {
+            pt::ptree tokens_tree;
+            pt::ptree token_tree;
+            token_tree.put("hash", token_info.hash);
+            token_tree.put("username", token_info.username);
+            auto time_t_value = std::chrono::system_clock::to_time_t(token_info.created_at);
+            token_tree.put("created_at", time_t_value);
+            pt::ptree scopes_tree;
+            for (const auto& [path, methods] : token_info.path_methods) {
+                pt::ptree scope_tree;
+                scope_tree.put("path", path);
+                pt::ptree methods_tree;
+                for (const auto& method : methods) {
+                    methods_tree.push_back({"", pt::ptree(method)});
+                }
+                scope_tree.add_child("methods", methods_tree);
+                scopes_tree.push_back({"", scope_tree});
+            }
+            token_tree.add_child("scopes", scopes_tree);
+            tokens_tree.push_back({"", token_tree});
+            tree.put_child("root.api_tokens", tokens_tree);
+        }));
+        manager->load_api_tokens();
+    }
+    void InjectMultipleTokens(const std::vector<std::pair<std::string, ApiTokenInfo>>& tokens) {
+        EXPECT_CALL(*mock_deps, file_exists(_)).WillOnce(Return(true));
+        EXPECT_CALL(*mock_deps, read_json(_, _)).WillOnce(Invoke([tokens](const std::string&, pt::ptree& tree) {
+            pt::ptree tokens_tree;
+            for (const auto& [hash, token_info] : tokens) {
+                pt::ptree token_tree;
+                token_tree.put("hash", token_info.hash);
+                token_tree.put("username", token_info.username);
+                auto time_t_value = std::chrono::system_clock::to_time_t(token_info.created_at);
+                token_tree.put("created_at", time_t_value);
+                pt::ptree scopes_tree;
+                for (const auto& [path, methods] : token_info.path_methods) {
+                    pt::ptree scope_tree;
+                    scope_tree.put("path", path);
+                    pt::ptree methods_tree;
+                    for (const auto& method : methods) {
+                        methods_tree.push_back({"", pt::ptree(method)});
+                    }
+                    scope_tree.add_child("methods", methods_tree);
+                    scopes_tree.push_back({"", scope_tree});
+                }
+                token_tree.add_child("scopes", scopes_tree);
+                tokens_tree.push_back({"", token_tree});
+            }
+            tree.put_child("root.api_tokens", tokens_tree);
+        }));
+        manager->load_api_tokens();
+    }
+    void InjectLargeNumberOfTokens(size_t num_tokens) {
+        EXPECT_CALL(*mock_deps, file_exists(_)).WillOnce(Return(true));
+        EXPECT_CALL(*mock_deps, read_json(_, _)).WillOnce(Invoke([num_tokens, this](const std::string&, pt::ptree& tree) {
+            pt::ptree tokens_tree;
+            for (size_t i = 0; i < num_tokens; ++i) {
+                pt::ptree token_tree;
+                std::string hash = std::format("hash{}", i);
+                std::string username = std::format("user{}", i);
+                token_tree.put("hash", hash);
+                token_tree.put("username", username);
+                auto time_t_value = std::chrono::system_clock::to_time_t(test_time);
+                token_tree.put("created_at", time_t_value);
+                pt::ptree scopes_tree;
+                pt::ptree scope_tree;
+                scope_tree.put("path", "/api/data");
+                pt::ptree methods_tree;
+                methods_tree.push_back({"", pt::ptree("GET")});
+                scope_tree.add_child("methods", methods_tree);
+                scopes_tree.push_back({"", scope_tree});
+                token_tree.add_child("scopes", scopes_tree);
+                tokens_tree.push_back({"", token_tree});
+            }
+            tree.put_child("root.api_tokens", tokens_tree);
+        }));
+        manager->load_api_tokens();
+    }
+
     std::unique_ptr<MockApiTokenManagerDependencies> mock_deps;
     ApiTokenManagerDependencies deps;
     std::unique_ptr<ApiTokenManager> manager;
@@ -58,7 +139,7 @@ TEST_F(ApiTokenManagerTest, given_valid_token_and_matching_scope_when_authentica
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET", "POST"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating with valid token for allowed path and method
     bool result = manager->authenticate_token("valid_token", "/api/data", "GET");
@@ -87,7 +168,7 @@ TEST_F(ApiTokenManagerTest, given_valid_token_but_wrong_method_when_authenticati
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating with POST method (not allowed)
     bool result = manager->authenticate_token("valid_token", "/api/data", "POST");
@@ -104,7 +185,7 @@ TEST_F(ApiTokenManagerTest, given_valid_token_but_wrong_path_when_authenticating
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Accessing different path
     bool result = manager->authenticate_token("valid_token", "/api/admin", "GET");
@@ -121,7 +202,7 @@ TEST_F(ApiTokenManagerTest, given_token_with_regex_path_pattern_when_authenticat
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["^/api/.*"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Accessing path that matches regex
     bool result = manager->authenticate_token("valid_token", "/api/users/123", "GET");
@@ -138,7 +219,7 @@ TEST_F(ApiTokenManagerTest, given_case_insensitive_method_when_authenticating_th
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating with lowercase method
     bool result = manager->authenticate_token("valid_token", "/api/data", "get");
@@ -155,7 +236,7 @@ TEST_F(ApiTokenManagerTest, given_valid_bearer_header_when_authenticating_then_s
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating with Bearer header
     bool result = manager->authenticate_bearer("Bearer valid_token", "/api/data", "GET");
@@ -302,8 +383,11 @@ TEST_F(ApiTokenManagerTest, given_api_tokens_exist_when_listing_tokens_then_shou
     path_methods2["/api/admin"] = {"POST"};
     ApiTokenInfo token2{"hash2", path_methods2, "user2", test_time};
     
-    manager->api_tokens["hash1"] = token1;
-    manager->api_tokens["hash2"] = token2;
+    std::vector<std::pair<std::string, ApiTokenInfo>> tokens = {
+        {"hash1", token1},
+        {"hash2", token2}
+    };
+    InjectMultipleTokens(tokens);
     
     // When: Listing API tokens
     auto result = manager->get_api_tokens_list();
@@ -338,7 +422,7 @@ TEST_F(ApiTokenManagerTest, given_existing_token_hash_when_revoking_token_then_s
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"hash123", path_methods, "test_user", test_time};
-    manager->api_tokens["hash123"] = token_info;
+    InjectToken("hash123", token_info);
     
     EXPECT_CALL(*mock_deps, file_exists(_))
         .WillOnce(Return(false));
@@ -350,7 +434,8 @@ TEST_F(ApiTokenManagerTest, given_existing_token_hash_when_revoking_token_then_s
     
     // Then: Should return true and token should be removed
     EXPECT_TRUE(result);
-    EXPECT_EQ(manager->api_tokens.find("hash123"), manager->api_tokens.end());
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    EXPECT_EQ(tokens.find("hash123"), tokens.end());
 }
 
 TEST_F(ApiTokenManagerTest, given_non_existent_token_hash_when_revoking_token_then_should_return_false) {
@@ -378,7 +463,7 @@ TEST_F(ApiTokenManagerTest, given_existing_token_when_revoking_via_api_then_shou
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"hash123", path_methods, "test_user", test_time};
-    manager->api_tokens["hash123"] = token_info;
+    InjectToken("hash123", token_info);
     
     EXPECT_CALL(*mock_deps, file_exists(_))
         .WillOnce(Return(false));
@@ -414,7 +499,7 @@ TEST_F(ApiTokenManagerTest, given_file_exists_when_loading_tokens_then_should_lo
         .WillOnce(Return(true));
     
     EXPECT_CALL(*mock_deps, read_json(_, _))
-        .WillOnce(Invoke([this](const std::string&, pt::ptree& tree) {
+        .WillOnce(Invoke([](const std::string&, pt::ptree& tree) {
             // Create mock token data
             pt::ptree tokens_tree;
             pt::ptree token_tree;
@@ -437,11 +522,11 @@ TEST_F(ApiTokenManagerTest, given_file_exists_when_loading_tokens_then_should_lo
     
     // When: Loading tokens
     manager->load_api_tokens();
-    
-    // Then: Tokens should be loaded
-    EXPECT_EQ(manager->api_tokens.size(), 1);
-    EXPECT_TRUE(manager->api_tokens.contains("test_hash"));
-    EXPECT_EQ(manager->api_tokens["test_hash"].username, "test_user");
+      // Then: Tokens should be loaded
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    EXPECT_EQ(tokens.size(), 1);
+    EXPECT_TRUE(tokens.contains("test_hash"));
+    EXPECT_EQ(tokens.at("test_hash").username, "test_user");
 }
 
 TEST_F(ApiTokenManagerTest, given_file_does_not_exist_when_loading_tokens_then_should_not_load_any_tokens) {
@@ -451,9 +536,9 @@ TEST_F(ApiTokenManagerTest, given_file_does_not_exist_when_loading_tokens_then_s
     
     // When: Loading tokens
     manager->load_api_tokens();
-    
-    // Then: No tokens should be loaded
-    EXPECT_EQ(manager->api_tokens.size(), 0);
+      // Then: No tokens should be loaded
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    EXPECT_EQ(tokens.size(), 0);
 }
 
 TEST_F(ApiTokenManagerTest, given_tokens_exist_when_saving_tokens_then_should_write_to_file) {
@@ -461,7 +546,7 @@ TEST_F(ApiTokenManagerTest, given_tokens_exist_when_saving_tokens_then_should_wr
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"test_hash", path_methods, "test_user", test_time};
-    manager->api_tokens["test_hash"] = token_info;
+    InjectToken("test_hash", token_info);
     
     EXPECT_CALL(*mock_deps, file_exists(_))
         .WillOnce(Return(false));
@@ -498,7 +583,7 @@ TEST_F(ApiTokenManagerTest, given_complex_regex_pattern_when_authenticating_then
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["^/api/v[0-9]+/users/[0-9]+$"] = {"GET"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When & Then: Should match valid paths
     EXPECT_TRUE(manager->authenticate_token("valid_token", "/api/v1/users/123", "GET"));
@@ -518,7 +603,7 @@ TEST_F(ApiTokenManagerTest, given_multiple_scopes_in_token_when_authenticating_t
     path_methods["/api/users"] = {"GET", "POST"};
     path_methods["/api/admin"] = {"DELETE"};
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When & Then: Should allow access to different scopes
     EXPECT_TRUE(manager->authenticate_token("valid_token", "/api/users", "GET"));
@@ -540,13 +625,13 @@ TEST_F(ApiTokenManagerTest, given_token_with_empty_pattern_when_applying_regex_t
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods[""] = {"GET"};  // Empty pattern
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
-    // When: Authenticating with empty pattern (should add ^ and $)
+    // When: Authenticating with empty pattern (should not match any path)
     bool result = manager->authenticate_token("valid_token", "", "GET");
     
-    // Then: Should match empty path
-    EXPECT_TRUE(result);
+    // Then: Should not match empty path for security
+    EXPECT_FALSE(result);
 }
 
 TEST_F(ApiTokenManagerTest, given_bearer_token_with_exact_minimum_length_when_authenticating_then_should_handle_correctly) {
@@ -580,7 +665,7 @@ TEST_F(ApiTokenManagerTest, given_pattern_starting_with_caret_when_authenticatin
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["^/api/data$"] = {"GET"};  // Already has ^ and $
     ApiTokenInfo token_info{"token_hash_123", path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating (should not double-add ^ and $)
     bool result = manager->authenticate_token("valid_token", "/api/data", "GET");
@@ -598,7 +683,7 @@ TEST_F(ApiTokenManagerTest, given_token_with_no_path_methods_when_authenticating
     
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> empty_path_methods;
     ApiTokenInfo token_info{"token_hash_123", empty_path_methods, "test_user", test_time};
-    manager->api_tokens["token_hash_123"] = token_info;
+    InjectToken("token_hash_123", token_info);
     
     // When: Authenticating with token that has no permissions
     bool result = manager->authenticate_token("valid_token", "/api/data", "GET");
@@ -642,10 +727,10 @@ TEST_F(ApiTokenManagerTest, given_property_tree_with_malformed_token_data_when_l
     
     // When: Loading tokens
     manager->load_api_tokens();
-    
-    // Then: Should load only valid token, skip malformed one
-    EXPECT_EQ(manager->api_tokens.size(), 1);
-    EXPECT_TRUE(manager->api_tokens.contains("valid_hash"));
+      // Then: Should load only valid token, skip malformed one
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    EXPECT_EQ(tokens.size(), 1);
+    EXPECT_TRUE(tokens.contains("valid_hash"));
 }
 
 
@@ -653,12 +738,7 @@ TEST_F(ApiTokenManagerTest, given_property_tree_with_malformed_token_data_when_l
 TEST_F(ApiTokenManagerTest, given_large_number_of_tokens_when_listing_then_should_handle_efficiently) {
     // Given: Large number of tokens
     const size_t num_tokens = 1000;
-    for (size_t i = 0; i < num_tokens; ++i) {
-        std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
-        path_methods["/api/data"] = {"GET"};
-        ApiTokenInfo token_info{"hash" + std::to_string(i), path_methods, "user" + std::to_string(i), test_time};
-        manager->api_tokens["hash" + std::to_string(i)] = token_info;
-    }
+    InjectLargeNumberOfTokens(num_tokens);
     
     // When: Listing all tokens
     auto start = std::chrono::high_resolution_clock::now();
@@ -689,11 +769,11 @@ TEST_F(ApiTokenManagerTest, given_method_with_mixed_case_when_stored_in_token_th
     
     // When: Creating token with mixed case methods
     auto result = manager->create_api_token(scopes, "test_user");
-    
-    // Then: Methods should be normalized to uppercase
+      // Then: Methods should be normalized to uppercase
     ASSERT_TRUE(result.has_value());
-    auto& token_info = manager->api_tokens["test_hash"];
-    const auto& methods = token_info.path_methods["/api/data"];
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    const auto& token_info = tokens.at("test_hash");
+    const auto& methods = token_info.path_methods.at("/api/data");
     EXPECT_TRUE(methods.contains("GET"));
     EXPECT_TRUE(methods.contains("POST"));
     EXPECT_TRUE(methods.contains("DELETE"));
@@ -717,7 +797,7 @@ TEST_F(ApiTokenManagerTest, given_json_response_methods_when_calling_list_api_to
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     path_methods["/api/data"] = {"GET"};
     ApiTokenInfo token_info{"test_hash", path_methods, "test_user", test_time};
-    manager->api_tokens["test_hash"] = token_info;
+    InjectToken("test_hash", token_info);
     
     // When: Getting JSON string representation
     std::string json_str = manager->list_api_tokens_json();
@@ -766,13 +846,13 @@ TEST_F(ApiTokenManagerTest, given_scopes_with_empty_methods_array_when_creating_
     
     // When: Creating token with empty methods via public interface
     auto result = manager->create_api_token(scopes, "test_user");
-    
-    // Then: Should succeed (empty methods array is technically valid)
+      // Then: Should succeed (empty methods array is technically valid)
     EXPECT_TRUE(result.has_value());
     
     // But the token should have no methods for the path
-    ASSERT_TRUE(manager->api_tokens.contains("test_hash"));
-    const auto& token_info = manager->api_tokens["test_hash"];
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    ASSERT_TRUE(tokens.contains("test_hash"));
+    const auto& token_info = tokens.at("test_hash");
     EXPECT_TRUE(token_info.path_methods.contains("/api/data"));
     EXPECT_TRUE(token_info.path_methods.at("/api/data").empty());
 }
@@ -806,50 +886,57 @@ TEST_F(ApiTokenManagerTest, given_malformed_property_tree_during_loading_when_lo
         .WillOnce(Invoke([](const std::string&, pt::ptree& tree) {
             pt::ptree tokens_tree;
             
-            // Add a valid token first
-            pt::ptree valid_token;
-            valid_token.put("hash", "valid_hash");
-            valid_token.put("username", "valid_user");
-            valid_token.put("created_at", 1234567890);
-            pt::ptree valid_scopes;
-            pt::ptree valid_scope;
-            valid_scope.put("path", "/api/data");
-            pt::ptree valid_methods;
-            valid_methods.push_back({"", pt::ptree("GET")});
-            valid_scope.add_child("methods", valid_methods);
-            valid_scopes.push_back({"", valid_scope});
-            valid_token.add_child("scopes", valid_scopes);
-            tokens_tree.push_back({"", valid_token});
-            
+            // Add a token with valid scope
+            auto add_valid_token = [&tokens_tree]() {
+                pt::ptree valid_token;
+                valid_token.put("hash", "valid_hash");
+                valid_token.put("username", "valid_user");
+                valid_token.put("created_at", 1234567890);
+                pt::ptree valid_scopes;
+                pt::ptree valid_scope;
+                valid_scope.put("path", "/api/data");
+                pt::ptree methods;
+                methods.push_back({"", pt::ptree("GET")});
+                valid_scope.add_child("methods", methods);
+                valid_scopes.push_back({"", valid_scope});
+                valid_token.add_child("scopes", valid_scopes);
+                tokens_tree.push_back({"", valid_token});
+            };
+
             // Add a token with malformed scope (empty methods should cause scope to be skipped)
-            pt::ptree malformed_token;
-            malformed_token.put("hash", "malformed_hash");
-            malformed_token.put("username", "malformed_user");
-            malformed_token.put("created_at", 1234567890);
-            pt::ptree malformed_scopes;
-            pt::ptree malformed_scope;
-            malformed_scope.put("path", "/api/data");
-            pt::ptree empty_methods;  // Empty methods - should cause scope to be skipped
-            malformed_scope.add_child("methods", empty_methods);
-            malformed_scopes.push_back({"", malformed_scope});
-            malformed_token.add_child("scopes", malformed_scopes);
-            tokens_tree.push_back({"", malformed_token});
+            auto add_malformed_token = [&tokens_tree]() {
+                pt::ptree malformed_token;
+                malformed_token.put("hash", "malformed_hash");
+                malformed_token.put("username", "malformed_user");
+                malformed_token.put("created_at", 1234567890);
+                pt::ptree malformed_scopes;
+                pt::ptree malformed_scope;
+                malformed_scope.put("path", "/api/data");
+                pt::ptree empty_methods;  // Empty methods - should cause scope to be skipped
+                malformed_scope.add_child("methods", empty_methods);
+                malformed_scopes.push_back({"", malformed_scope});
+                malformed_token.add_child("scopes", malformed_scopes);
+                tokens_tree.push_back({"", malformed_token});
+            };
+
+            add_valid_token();
+            add_malformed_token();
             
             tree.put_child("root.api_tokens", tokens_tree);
         }));
-    
-    // When: Loading tokens with malformed scope data
+      // When: Loading tokens with malformed scope data
     manager->load_api_tokens();
     
     // Then: Should load both tokens, but malformed one should have no valid scopes
-    EXPECT_EQ(manager->api_tokens.size(), 2);
-    EXPECT_TRUE(manager->api_tokens.contains("valid_hash"));
-    EXPECT_TRUE(manager->api_tokens.contains("malformed_hash"));
+    const auto& tokens = manager->retrieve_loaded_api_tokens();
+    EXPECT_EQ(tokens.size(), 2);
+    EXPECT_TRUE(tokens.contains("valid_hash"));
+    EXPECT_TRUE(tokens.contains("malformed_hash"));
     
     // Valid token should have scopes
-    EXPECT_FALSE(manager->api_tokens["valid_hash"].path_methods.empty());
-    EXPECT_TRUE(manager->api_tokens["valid_hash"].path_methods.contains("/api/data"));
+    EXPECT_FALSE(tokens.at("valid_hash").path_methods.empty());
+    EXPECT_TRUE(tokens.at("valid_hash").path_methods.contains("/api/data"));
     
     // Malformed token should have no valid scopes (empty methods were rejected)
-    EXPECT_TRUE(manager->api_tokens["malformed_hash"].path_methods.empty());
+    EXPECT_TRUE(tokens.at("malformed_hash").path_methods.empty());
 }

@@ -28,6 +28,7 @@ namespace fs = std::filesystem;
 namespace confighttp {
 
   /**
+   * @class InvalidScopeException
    * @brief Exception thrown for invalid API token scopes.
    */
   InvalidScopeException::InvalidScopeException(const std::string &msg):
@@ -35,10 +36,16 @@ namespace confighttp {
 
   /**
    * @brief Returns the exception message.
+   * @return The exception message as a C-string.
    */
   const char *InvalidScopeException::what() const noexcept {
     return message_.c_str();
   }
+
+  /**
+   * @class ApiTokenManager
+   * @brief Manages API tokens, their creation, validation, and revocation.
+   */
 
   /**
    * @brief Constructs an ApiTokenManager with dependencies for testability.
@@ -110,7 +117,7 @@ namespace confighttp {
    * @return Optional token string, or nullopt on error.
    */
   std::optional<std::string> ApiTokenManager::create_api_token(const nlohmann::json &scopes_json, const std::string &username) {
-    auto path_methods = parse_scopes_json_core(scopes_json);
+    auto path_methods = parse_json_scopes(scopes_json);
     if (!path_methods) {
       return std::nullopt;
     }
@@ -153,7 +160,7 @@ namespace confighttp {
    * @return Optional map of path to allowed methods.
    */
   std::optional<std::map<std::string, std::set<std::string, std::less<>>, std::less<>>>
-    ApiTokenManager::parse_scopes_json_core(const nlohmann::json &scopes_json) {
+    ApiTokenManager::parse_json_scopes(const nlohmann::json &scopes_json) const {
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
     try {
       for (const auto &s : scopes_json) {
@@ -177,7 +184,7 @@ namespace confighttp {
    * @brief Returns a JSON list of all API tokens.
    * @return JSON array of tokens.
    */
-  nlohmann::json ApiTokenManager::get_api_tokens_list() {
+  nlohmann::json ApiTokenManager::get_api_tokens_list() const {
     nlohmann::json arr = nlohmann::json::array();
     for (const auto &[hash, info] : api_tokens) {
       nlohmann::json obj;
@@ -197,7 +204,7 @@ namespace confighttp {
    * @brief Returns a JSON string of all API tokens.
    * @return JSON string representation of tokens.
    */
-  std::string ApiTokenManager::list_api_tokens_json() {
+  std::string ApiTokenManager::list_api_tokens_json() const {
     return get_api_tokens_list().dump();
   }
 
@@ -219,8 +226,8 @@ namespace confighttp {
    * @param token_hash The token hash to revoke.
    * @return Optional JSON response string.
    */
-  std::optional<std::string> ApiTokenManager::revoke_api_token(const std::string &token_hash) {
-    if (revoke_api_token_by_hash(token_hash)) {
+  std::optional<std::string> ApiTokenManager::revoke_api_token(const std::string &token_hash) const {
+    if (const_cast<ApiTokenManager*>(this)->revoke_api_token_by_hash(token_hash)) {
       return nlohmann::json {{"status", true}}.dump();
     } else {
       return nlohmann::json {{"error", "Token not found"}}.dump();
@@ -230,7 +237,7 @@ namespace confighttp {
   /**
    * @brief Saves all API tokens to persistent storage.
    */
-  void ApiTokenManager::save_api_tokens() {
+  void ApiTokenManager::save_api_tokens() const {
     nlohmann::json j;
     for (const auto &[hash, info] : api_tokens) {
       nlohmann::json obj;
@@ -273,8 +280,10 @@ namespace confighttp {
 
   /**
    * @brief Parses a scope from a property tree.
+   * @param scope_tree The property tree representing a scope.
+   * @return Optional pair of path and set of methods.
    */
-  std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> ApiTokenManager::parse_scope(const pt::ptree &scope_tree) {
+  std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> ApiTokenManager::parse_scope(const pt::ptree &scope_tree) const {
     const std::string path = scope_tree.get<std::string>("path", "");
     if (path.empty()) {
       return std::nullopt;
@@ -293,8 +302,10 @@ namespace confighttp {
 
   /**
    * @brief Builds a map of scopes from a property tree.
+   * @param scopes_node The property tree node containing scopes.
+   * @return Map of path to set of allowed methods.
    */
-  std::map<std::string, std::set<std::string, std::less<>>, std::less<>> ApiTokenManager::build_scope_map(const pt::ptree &scopes_node) {
+  std::map<std::string, std::set<std::string, std::less<>>, std::less<>> ApiTokenManager::build_scope_map(const pt::ptree &scopes_node) const {
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> out;
     for (const auto &[_, scope_tree] : scopes_node) {
       if (auto parsed = parse_scope(scope_tree)) {
@@ -339,6 +350,7 @@ namespace confighttp {
 
   /**
    * @brief Creates and returns the default delegates for ApiTokenManager.
+   * @return Struct of default function dependencies.
    */
   ApiTokenManagerDependencies ApiTokenManager::make_default_dependencies() {
     ApiTokenManagerDependencies dependencies;
@@ -361,6 +373,11 @@ namespace confighttp {
       return util::hex(crypto::hash(input)).to_string();
     };
     return dependencies;
+  }
+
+  /// @brief Retrieves the currently loaded API in a read-only manner.
+  const std::map<std::string, ApiTokenInfo> &ApiTokenManager::retrieve_loaded_api_tokens() const {
+    return api_tokens;
   }
 
 }  // namespace confighttp
