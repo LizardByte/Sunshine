@@ -46,6 +46,9 @@ namespace pt = boost::property_tree;
 
 namespace confighttp {
   namespace fs = std::filesystem;
+  using enum SimpleWeb::StatusCode;
+
+  static ApiTokenManager apiTokenManager;
 
   static ApiTokenManager apiTokenManager;
 
@@ -102,7 +105,7 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
 
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_unauthorized;
+    constexpr auto code = client_error_unauthorized;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -129,7 +132,7 @@ namespace confighttp {
     const SimpleWeb::CaseInsensitiveMultimap headers {
       {"Location", path}
     };
-    response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
+    response->write(redirection_temporary_redirect, headers);
   }
 
   /**
@@ -177,19 +180,21 @@ namespace confighttp {
       result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
     }
     return result;
-  } /**
-     * @brief Helper to check Bearer authentication.
-     * @param rawAuth The raw authorization header value.
-     * @param path The requested path.
-     * @param method The HTTP method.
-     * @return AuthResult with outcome and response details if not authorized.
-     */
+  }
+  
+  /**
+   * @brief Helper to check Bearer authentication.
+   * @param rawAuth The raw authorization header value.
+   * @param path The requested path.
+   * @param method The HTTP method.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
 
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
     if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
+      return make_auth_error(client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
     }
-    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+    return {true, success_ok, {}, {}};
   }
 
   /**
@@ -199,30 +204,32 @@ namespace confighttp {
    */
   AuthResult check_basic_auth(const std::string &rawAuth) {
     if (!authenticate_basic(rawAuth)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+      return make_auth_error(client_error_unauthorized, "Unauthorized", true);
     }
-    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
-  } /**
-     * @brief Check authentication and authorization with primitive parameters.
-     * @param remote_address The normalized remote address string.
-     * @param auth_header The authorization header value (empty if not present).
-     * @param path The requested path.
-     * @param method The HTTP method.
-     * @return AuthResult with outcome and response details if not authorized.
-     */
+    return {true, success_ok, {}, {}};
+  }
+  
+  /**
+   * @brief Check authentication and authorization with raw parameters.
+   * @param remote_address The normalized remote address string.
+   * @param auth_header The authorization header value (empty if not present).
+   * @param path The requested path.
+   * @param method The HTTP method.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
 
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
     if (auto ip_type = net::from_address(remote_address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
-      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden");
+      return make_auth_error(client_error_forbidden, "Forbidden");
     }
 
     if (config::sunshine.username.empty()) {
-      return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, "/welcome");
+      return make_auth_error(redirection_temporary_redirect, {}, false, "/welcome");
     }
 
     if (auth_header.empty()) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+      return make_auth_error(client_error_unauthorized, "Unauthorized", true);
     }
 
     if (auth_header.rfind("Bearer ", 0) == 0) {
@@ -233,7 +240,7 @@ namespace confighttp {
       return check_basic_auth(auth_header);
     }
 
-    return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+    return make_auth_error(client_error_unauthorized, "Unauthorized", true);
   }
 
   /**
@@ -257,7 +264,7 @@ namespace confighttp {
    */
   bool authenticate(resp_https_t response, req_https_t request) {
     if (auto result = check_auth(request); !result.ok) {
-      if (result.code == SimpleWeb::StatusCode::redirection_temporary_redirect) {
+      if (result.code == redirection_temporary_redirect) {
         response->write(result.code, result.headers);
       } else if (!result.body.empty()) {
         response->write(result.code, result.body, result.headers);
@@ -275,7 +282,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    */
   void not_found(resp_https_t response, [[maybe_unused]] req_https_t request) {
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
+    constexpr auto code = client_error_not_found;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -294,7 +301,7 @@ namespace confighttp {
    * @param error_message The error message to include in the response.
    */
   void bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Bad Request") {
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
+    constexpr auto code = client_error_bad_request;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -465,7 +472,7 @@ namespace confighttp {
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/x-icon");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    response->write(success_ok, in, headers);
   }
 
   /**
@@ -481,7 +488,7 @@ namespace confighttp {
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "image/png");
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    response->write(success_ok, in, headers);
   }
 
   /**
@@ -533,7 +540,7 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", mimeType->second);
     std::ifstream in(filePath.string(), std::ios::binary);
-    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    response->write(success_ok, in, headers);
   }
 
   /**
@@ -1011,7 +1018,7 @@ namespace confighttp {
     std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
-    response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+    response->write(success_ok, content, headers);
   }
 
   /**
@@ -1418,5 +1425,21 @@ namespace confighttp {
       return TokenScope::Write;
     }
     throw std::invalid_argument("Unknown TokenScope: " + std::string(s));
+  }
+
+  /**
+   * @brief Converts a TokenScope enum value to its string representation.
+   * @param scope The TokenScope enum value to convert.
+   * @return The string representation of the scope.
+   */
+  std::string scope_to_string(TokenScope scope) {
+    switch (scope) {
+      case TokenScope::Read:
+        return "Read";
+      case TokenScope::Write:
+        return "Write";
+      default:
+        throw std::invalid_argument("Unknown TokenScope enum value");
+    }
   }
 }  // namespace confighttp
