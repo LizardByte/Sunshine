@@ -369,4 +369,66 @@ namespace confighttp {
     return api_tokens;
   }
 
+  // ---------------- SessionTokenManager Implementation ----------------
+
+  SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies)
+      : dependencies_(dependencies) {}
+
+  SessionTokenManagerDependencies SessionTokenManager::make_default_dependencies() {
+    SessionTokenManagerDependencies deps;
+    deps.now = []() { return std::chrono::system_clock::now(); };
+    deps.rand_alphabet = [](std::size_t length) { return crypto::rand_alphabet(length); };
+    return deps;
+  }
+
+  std::string SessionTokenManager::generate_session_token(const std::string &username) {
+    std::scoped_lock lock(mutex_);
+    std::string token = dependencies_.rand_alphabet(64);
+    auto now = dependencies_.now();
+    auto expires = now + SESSION_TOKEN_DURATION;
+    session_tokens_[token] = SessionToken{token, username, now, expires};
+    cleanup_expired_session_tokens();
+    return token;
+  }
+
+  bool SessionTokenManager::validate_session_token(const std::string &token) {
+    std::scoped_lock lock(mutex_);
+    auto it = session_tokens_.find(token);
+    if (it == session_tokens_.end()) {
+      return false;
+    }
+    auto now = dependencies_.now();
+    if (now > it->second.expires_at) {
+      session_tokens_.erase(it);
+      return false;
+    }
+    return true;
+  }
+
+  void SessionTokenManager::revoke_session_token(const std::string &token) {
+    std::scoped_lock lock(mutex_);
+    session_tokens_.erase(token);
+  }
+
+  void SessionTokenManager::cleanup_expired_session_tokens() {
+    auto now = dependencies_.now();
+    std::erase_if(session_tokens_, [now](const auto &pair) {
+      return now > pair.second.expires_at;
+    });
+  }
+
+  std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
+    std::scoped_lock lock(mutex_);
+    auto it = session_tokens_.find(token);
+    if (it != session_tokens_.end() && dependencies_.now() <= it->second.expires_at) {
+      return it->second.username;
+    }
+    return std::nullopt;
+  }
+
+  size_t SessionTokenManager::session_count() const {
+    std::scoped_lock lock(mutex_);
+    return session_tokens_.size();
+  }
+
 }  // namespace confighttp

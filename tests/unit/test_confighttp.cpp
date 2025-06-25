@@ -554,4 +554,82 @@ TEST_F(ConfigHttpCheckAuthTest, given_unsupported_auth_scheme_when_checking_auth
     EXPECT_EQ(json_response["error"], "Unauthorized");
 }
 
+/**
+ * @brief Test is_html_request helper function.
+ */
+TEST(ConfigHttpHelpersTest, given_various_paths_when_checking_is_html_request_then_should_return_expected) {
+    EXPECT_TRUE(is_html_request("/"));
+    EXPECT_TRUE(is_html_request("/index.html"));
+    EXPECT_FALSE(is_html_request("/api/test"));
+    EXPECT_FALSE(is_html_request("/assets/style.css"));
+    EXPECT_FALSE(is_html_request("/images/logo.png"));
+    EXPECT_TRUE(is_html_request("/login"));
+}
+
+/**
+ * @brief Test scope_to_string function.
+ */
+TEST(ConfigHttpHelpersTest, given_token_scope_when_converting_to_string_then_should_return_expected) {
+    EXPECT_EQ(scope_to_string(TokenScope::Read), "Read");
+    EXPECT_EQ(scope_to_string(TokenScope::Write), "Write");
+    EXPECT_THROW(scope_to_string(static_cast<TokenScope>(-1)), std::invalid_argument);
+}
+
+/**
+ * @brief Test check_session_auth with invalid format and invalid token.
+ */
+TEST(ConfigHttpSessionAuthTest, given_invalid_session_format_then_should_return_error) {
+    auto result = check_session_auth("Invalid token");
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, SimpleWeb::StatusCode::client_error_unauthorized);
+    auto json_response = nlohmann::json::parse(result.body);
+    EXPECT_EQ(json_response["error"], "Invalid session token format");
+    auto auth_header = result.headers.find("WWW-Authenticate");
+    EXPECT_NE(auth_header, result.headers.end());
+}
+
+TEST(ConfigHttpSessionAuthTest, given_invalid_session_token_then_should_return_error) {
+    auto result = check_session_auth("Session fake_token");
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, SimpleWeb::StatusCode::client_error_unauthorized);
+    auto json_response = nlohmann::json::parse(result.body);
+    EXPECT_EQ(json_response["error"], "Invalid or expired session token");
+    auto auth_header = result.headers.find("WWW-Authenticate");
+    EXPECT_NE(auth_header, result.headers.end());
+}
+
+/**
+ * @brief Test check_auth for HTML page redirect logic.
+ */
+TEST_F(ConfigHttpCheckAuthTest, given_html_page_request_without_auth_when_checking_auth_then_should_redirect_to_login_with_redirect_param) {
+    auto result = check_auth("127.0.0.1", "", "/home", "GET");
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, SimpleWeb::StatusCode::redirection_temporary_redirect);
+    auto it = result.headers.find("Location");
+    EXPECT_NE(it, result.headers.end());
+    EXPECT_EQ(it->second, "/login?redirect=/home");
+}
+
+TEST_F(ConfigHttpCheckAuthTest, given_login_page_path_when_checking_auth_then_should_allow_without_authentication) {
+    auto result = check_auth("127.0.0.1", "", "/login", "GET");
+    EXPECT_TRUE(result.ok);
+    EXPECT_EQ(result.code, SimpleWeb::StatusCode::success_ok);
+    EXPECT_TRUE(result.body.empty());
+    EXPECT_TRUE(result.headers.empty());
+
+    auto result2 = check_auth("127.0.0.1", "", "/login/", "GET");
+    EXPECT_TRUE(result2.ok);
+    EXPECT_EQ(result2.code, SimpleWeb::StatusCode::success_ok);
+    EXPECT_TRUE(result2.body.empty());
+    EXPECT_TRUE(result2.headers.empty());
+}
+
+TEST_F(ConfigHttpCheckAuthTest, given_unknown_auth_scheme_and_html_path_when_checking_auth_then_should_redirect_to_login) {
+    auto result = check_auth("127.0.0.1", "Digest realm=foo", "/index.html", "GET");
+    EXPECT_FALSE(result.ok);
+    EXPECT_EQ(result.code, SimpleWeb::StatusCode::redirection_temporary_redirect);
+    auto it = result.headers.find("Location");
+    EXPECT_NE(it, result.headers.end());
+    EXPECT_EQ(it->second, "/login?redirect=/index.html");
+}
 }  // namespace confighttp

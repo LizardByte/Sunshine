@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <%- header %>
+  <style>
+    .login-container {
+      max-width: 400px;
+      margin: 2rem auto;
+      padding: 2rem;
+    }
+    .login-form {
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.375rem;
+      padding: 2rem;
+    }
+  </style>
+</head>
+
+<body id="app" v-cloak>
+  <div class="login-container">
+    <div class="login-form">
+      <div class="text-center mb-4">
+        <img src="./images/logo-sunshine-45.png" height="45" alt="Sunshine">
+        <h1 class="h3 mb-3 fw-normal">{{ $t('login.title', 'Sign In') }}</h1>
+      </div>
+
+      <form @submit.prevent="login" v-if="!isLoggedIn">
+        <div class="mb-3">
+          <label for="username" class="form-label">{{ $t('_common.username', 'Username') }}</label>
+          <input 
+            type="text" 
+            class="form-control" 
+            id="username" 
+            v-model="credentials.username" 
+            required
+            autocomplete="username"
+          >
+        </div>
+        
+        <div class="mb-3">
+          <label for="password" class="form-label">{{ $t('_common.password', 'Password') }}</label>
+          <input 
+            type="password" 
+            class="form-control" 
+            id="password" 
+            v-model="credentials.password" 
+            required
+            autocomplete="current-password"
+          >
+        </div>
+
+        <div class="mb-3 form-check">
+          <input type="checkbox" class="form-check-input" id="rememberMe" v-model="rememberMe">
+          <label class="form-check-label" for="rememberMe">
+            {{ $t('login.remember_me', 'Remember me') }}
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-100" :disabled="loading">
+          <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
+          {{ $t('login.sign_in', 'Sign In') }}
+        </button>
+
+        <div v-if="error" class="alert alert-danger mt-3">
+          {{ error }}
+        </div>
+      </form>
+
+      <div v-else class="text-center">
+        <div class="alert alert-success">
+          {{ $t('login.success', 'Login successful! Redirecting...') }}
+        </div>
+        <div class="spinner-border" role="status">
+          <span class="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createApp } from 'vue'
+    import { initApp } from './init.js'
+
+    const app = createApp({
+      data() {
+        return {
+          credentials: {
+            username: '',
+            password: ''
+          },
+          rememberMe: false,
+          loading: false,
+          error: '',
+          isLoggedIn: false
+        }
+      },
+      mounted() {
+        // Check if already logged in with session token
+        const token = localStorage.getItem('session_token') || sessionStorage.getItem('session_token');
+        if (token) {
+          this.validateExistingToken(token);
+        }
+
+        // Check URL parameters for redirect
+        const urlParams = new URLSearchParams(window.location.search);
+        this.redirectUrl = urlParams.get('redirect') || '/';
+      },
+      methods: {
+        async validateExistingToken(token) {
+          try {
+            const response = await fetch('./api/config', {
+              headers: {
+                'Authorization': `Session ${token}`
+              }
+            });
+            
+            if (response.ok) {
+              // Token is valid, redirect
+              this.redirectToApp();
+            } else {
+              // Token is invalid, clear it
+              localStorage.removeItem('session_token');
+              sessionStorage.removeItem('session_token');
+            }
+          } catch (error) {
+            console.error('Token validation failed:', error);
+            localStorage.removeItem('session_token');
+            sessionStorage.removeItem('session_token');
+          }
+        },
+
+        async login() {
+          this.loading = true;
+          this.error = '';
+
+          try {
+            const response = await fetch('./api/auth/login', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                username: this.credentials.username,
+                password: this.credentials.password
+              })
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.status) {
+              // Store session token
+              const storage = this.rememberMe ? localStorage : sessionStorage;
+              storage.setItem('session_token', data.token);
+              // Set session_token cookie for backend navigation
+              document.cookie = `session_token=${data.token}; path=/; SameSite=Strict`;
+              this.isLoggedIn = true;
+              
+              // Redirect after short delay
+              setTimeout(() => {
+                this.redirectToApp();
+              }, 1000);
+            } else {
+              this.error = data.error || 'Login failed';
+            }
+          } catch (error) {
+            console.error('Login error:', error);
+            this.error = 'Network error. Please try again.';
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        redirectToApp() {
+          // Redirect to the requested page or home
+          window.location.href = this.redirectUrl;
+        }
+      }
+    });
+
+    initApp(app);
+  </script>
+</body>
+</html>

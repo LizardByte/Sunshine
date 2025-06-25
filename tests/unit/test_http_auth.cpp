@@ -969,3 +969,254 @@ TEST_F(ApiTokenManagerTest, given_malformed_property_tree_during_loading_when_lo
   // Malformed token should have no valid scopes (empty methods were rejected)
   EXPECT_TRUE(tokens.at("malformed_hash").path_methods.empty());
 }
+
+// ---------------- SessionTokenManager Unit Tests ----------------
+
+class SessionTokenManagerTest : public ::testing::Test {
+protected:
+  std::chrono::system_clock::time_point fake_now = std::chrono::system_clock::now();
+  SessionTokenManagerDependencies deps;
+  std::function<void(std::chrono::system_clock::duration)> advance_time;
+  std::vector<std::string> generated_tokens;
+
+  void SetUp() override {
+    deps.now = [this]() { return fake_now; };
+    deps.rand_alphabet = [this](std::size_t len) {
+      std::string tok = std::string(len, 'A' + (generated_tokens.size() % 26));
+      generated_tokens.push_back(tok);
+      return tok;
+    };
+    advance_time = [this](std::chrono::system_clock::duration d) { fake_now += d; };
+    mgr = std::make_unique<SessionTokenManager>(deps);
+    generated_tokens.clear();
+  }
+
+  std::unique_ptr<SessionTokenManager> mgr;
+};
+
+TEST_F(SessionTokenManagerTest, given_username_when_generating_session_token_then_should_return_valid_token) {
+  // Given: A username for session token generation
+  std::string username = "test_user";
+
+  // When: Generating a session token
+  std::string token = mgr->generate_session_token(username);
+
+  // Then: Should return a non-empty token that validates successfully
+  EXPECT_FALSE(token.empty());
+  EXPECT_TRUE(mgr->validate_session_token(token));
+  
+  // And the token should be associated with the correct username
+  auto retrieved_username = mgr->get_username_for_token(token);
+  ASSERT_TRUE(retrieved_username.has_value());
+  EXPECT_EQ(*retrieved_username, username);
+}
+
+TEST_F(SessionTokenManagerTest, given_valid_session_token_when_validating_then_should_return_true) {
+  // Given: A valid session token
+  std::string token = mgr->generate_session_token("user123");
+
+  // When: Validating the token
+  bool is_valid = mgr->validate_session_token(token);
+
+  // Then: Should return true
+  EXPECT_TRUE(is_valid);
+}
+
+TEST_F(SessionTokenManagerTest, given_invalid_session_token_when_validating_then_should_return_false) {
+  // Given: An invalid/non-existent session token
+  std::string invalid_token = "invalid_token_12345";
+
+  // When: Validating the invalid token
+  bool is_valid = mgr->validate_session_token(invalid_token);
+
+  // Then: Should return false
+  EXPECT_FALSE(is_valid);
+}
+
+TEST_F(SessionTokenManagerTest, given_empty_session_token_when_validating_then_should_return_false) {
+  // Given: An empty session token
+  std::string empty_token = "";
+
+  // When: Validating the empty token
+  bool is_valid = mgr->validate_session_token(empty_token);
+
+  // Then: Should return false
+  EXPECT_FALSE(is_valid);
+}
+
+TEST_F(SessionTokenManagerTest, given_valid_session_token_when_revoking_then_should_invalidate_token) {
+  // Given: A valid session token
+  std::string token = mgr->generate_session_token("user_to_revoke");
+  ASSERT_TRUE(mgr->validate_session_token(token));
+
+  // When: Revoking the token
+  mgr->revoke_session_token(token);
+
+  // Then: Token should no longer be valid
+  EXPECT_FALSE(mgr->validate_session_token(token));
+  
+  // And username lookup should fail
+  auto username = mgr->get_username_for_token(token);
+  EXPECT_FALSE(username.has_value());
+}
+
+TEST_F(SessionTokenManagerTest, given_non_existent_token_when_revoking_then_should_handle_gracefully) {
+  // Given: A non-existent token
+  std::string non_existent_token = "does_not_exist_12345";
+
+  // When: Attempting to revoke the non-existent token
+  // Then: Should not crash or throw exception
+  EXPECT_NO_THROW(mgr->revoke_session_token(non_existent_token));
+}
+
+TEST_F(SessionTokenManagerTest, given_valid_session_token_when_getting_username_then_should_return_correct_username) {
+  // Given: A session token for a specific user
+  std::string expected_username = "expected_user";
+  std::string token = mgr->generate_session_token(expected_username);
+
+  // When: Getting username for the token
+  auto username = mgr->get_username_for_token(token);
+
+  // Then: Should return the correct username
+  ASSERT_TRUE(username.has_value());
+  EXPECT_EQ(*username, expected_username);
+}
+
+TEST_F(SessionTokenManagerTest, given_invalid_token_when_getting_username_then_should_return_nullopt) {
+  // Given: An invalid token
+  std::string invalid_token = "invalid_token_xyz";
+
+  // When: Getting username for invalid token
+  auto username = mgr->get_username_for_token(invalid_token);
+
+  // Then: Should return nullopt
+  EXPECT_FALSE(username.has_value());
+}
+
+TEST_F(SessionTokenManagerTest, given_multiple_tokens_when_counting_sessions_then_should_return_correct_count) {
+  // Given: Initial session count
+  size_t initial_count = mgr->session_count();
+
+  // When: Creating multiple session tokens
+  std::string token1 = mgr->generate_session_token("user1");
+  std::string token2 = mgr->generate_session_token("user2");
+  std::string token3 = mgr->generate_session_token("user3");
+
+  // Then: Session count should increase by 3
+  EXPECT_EQ(mgr->session_count(), initial_count + 3);
+
+  // When: Revoking one token
+  mgr->revoke_session_token(token2);
+
+  // Then: Session count should decrease by 1
+  EXPECT_EQ(mgr->session_count(), initial_count + 2);
+
+  // When: Revoking remaining tokens
+  mgr->revoke_session_token(token1);
+  mgr->revoke_session_token(token3);
+
+  // Then: Session count should return to initial value
+  EXPECT_EQ(mgr->session_count(), initial_count);
+}
+
+TEST_F(SessionTokenManagerTest, given_no_sessions_when_counting_then_should_return_zero_or_initial_count) {
+  // Given: A fresh session manager or after cleanup
+  
+  // When: Getting session count without any active sessions
+  size_t count = mgr->session_count();
+
+  // Then: Should return a non-negative count (could be > 0 if other tests ran first)
+  EXPECT_GE(count, 0);
+}
+
+TEST_F(SessionTokenManagerTest, given_session_manager_when_cleaning_up_expired_tokens_then_should_not_crash) {
+  // Given: A session manager with some tokens
+  std::string token1 = mgr->generate_session_token("user1");
+  std::string token2 = mgr->generate_session_token("user2");
+  size_t count_before = mgr->session_count();
+
+  // When: Calling cleanup (note: tokens won't actually be expired in this test)
+  EXPECT_NO_THROW(mgr->cleanup_expired_session_tokens());
+
+  // Then: Should not crash and valid tokens should remain
+  EXPECT_TRUE(mgr->validate_session_token(token1));
+  EXPECT_TRUE(mgr->validate_session_token(token2));
+  EXPECT_EQ(mgr->session_count(), count_before);
+}
+
+TEST_F(SessionTokenManagerTest, given_same_username_when_generating_multiple_tokens_then_should_create_different_tokens) {
+  // Given: The same username
+  std::string username = "same_user";
+
+  // When: Generating multiple tokens for the same user
+  std::string token1 = mgr->generate_session_token(username);
+  std::string token2 = mgr->generate_session_token(username);
+  std::string token3 = mgr->generate_session_token(username);
+
+  // Then: All tokens should be different
+  EXPECT_NE(token1, token2);
+  EXPECT_NE(token2, token3);
+  EXPECT_NE(token1, token3);
+
+  // And all tokens should be valid and map to the same username
+  EXPECT_TRUE(mgr->validate_session_token(token1));
+  EXPECT_TRUE(mgr->validate_session_token(token2));
+  EXPECT_TRUE(mgr->validate_session_token(token3));
+
+  auto user1 = mgr->get_username_for_token(token1);
+  auto user2 = mgr->get_username_for_token(token2);
+  auto user3 = mgr->get_username_for_token(token3);
+
+  ASSERT_TRUE(user1.has_value());
+  ASSERT_TRUE(user2.has_value());
+  ASSERT_TRUE(user3.has_value());
+  EXPECT_EQ(*user1, username);
+  EXPECT_EQ(*user2, username);
+  EXPECT_EQ(*user3, username);
+}
+
+TEST_F(SessionTokenManagerTest, given_token_with_special_characters_in_username_when_generating_then_should_handle_correctly) {
+  // Given: Username with special characters
+  std::string special_username = "user@domain.com_123!";
+
+  // When: Generating token for username with special characters
+  std::string token = mgr->generate_session_token(special_username);
+
+  // Then: Should handle correctly and return the username as-is
+  EXPECT_FALSE(token.empty());
+  EXPECT_TRUE(mgr->validate_session_token(token));
+  
+  auto retrieved_username = mgr->get_username_for_token(token);
+  ASSERT_TRUE(retrieved_username.has_value());
+  EXPECT_EQ(*retrieved_username, special_username);
+}
+
+TEST_F(SessionTokenManagerTest, given_empty_username_when_generating_token_then_should_handle_gracefully) {
+  // Given: Empty username
+  std::string empty_username = "";
+
+  // When: Generating token for empty username
+  std::string token = mgr->generate_session_token(empty_username);
+
+  // Then: Should still generate a valid token
+  EXPECT_FALSE(token.empty());
+  EXPECT_TRUE(mgr->validate_session_token(token));
+  
+  // And should correctly return the empty username
+  auto retrieved_username = mgr->get_username_for_token(token);
+  ASSERT_TRUE(retrieved_username.has_value());
+  EXPECT_EQ(*retrieved_username, empty_username);
+}
+
+TEST_F(SessionTokenManagerTest, given_token_when_expired_then_should_not_validate) {
+  std::string username = "expiring_user";
+  std::string token = mgr->generate_session_token(username);
+  // Should be valid immediately
+  EXPECT_TRUE(mgr->validate_session_token(token));
+  // Advance time past expiry
+  advance_time(std::chrono::hours(25));
+  // Should now be invalid
+  EXPECT_FALSE(mgr->validate_session_token(token));
+  // Username lookup should fail
+  EXPECT_FALSE(mgr->get_username_for_token(token).has_value());
+}

@@ -11,7 +11,9 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <set>
+#include <thread>
 #include <unordered_map>
 
 // lib includes
@@ -50,13 +52,15 @@ namespace confighttp {
 
   static ApiTokenManager apiTokenManager;
 
-  static ApiTokenManager apiTokenManager;
-
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+
+  // Replace static session token storage with SessionTokenManager
+  static SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
+  static constexpr std::chrono::hours SESSION_TOKEN_DURATION{24}; // for API compatibility
 
   enum class op_e {
     ADD,  ///< Add client
@@ -228,7 +232,18 @@ namespace confighttp {
       return make_auth_error(redirection_temporary_redirect, {}, false, "/welcome");
     }
 
+    // For login page, don't require authentication
+    if (path == "/login" || path == "/login/") {
+      return {true, success_ok, {}, {}};
+    }
+
     if (auth_header.empty()) {
+      // For HTML page requests, redirect to login instead of showing 401
+      if (is_html_request(path)) {
+        std::string login_url = "/login?redirect=" + path;
+        return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
+      }
+      // For API requests, send 401 with WWW-Authenticate header for basic auth
       return make_auth_error(client_error_unauthorized, "Unauthorized", true);
     }
 
@@ -240,7 +255,37 @@ namespace confighttp {
       return check_basic_auth(auth_header);
     }
 
+    if (auth_header.rfind("Session ", 0) == 0) {
+      return check_session_auth(auth_header);
+    }
+
+    // For HTML page requests, redirect to login instead of showing 401
+    if (is_html_request(path)) {
+      std::string login_url = "/login?redirect=" + path;
+      return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
+    }
+
     return make_auth_error(client_error_unauthorized, "Unauthorized", true);
+  }
+
+  /**
+   * @brief Extract session token from Cookie header if present.
+   * @param headers The HTTP headers map.
+   * @return Session token string if found, empty string otherwise.
+   */
+  std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers) {
+    auto cookie_it = headers.find("Cookie");
+    if (cookie_it != headers.end()) {
+      const std::string &cookies = cookie_it->second;
+      const std::string prefix = "session_token=";
+      auto pos = cookies.find(prefix);
+      if (pos != std::string::npos) {
+        pos += prefix.size();
+        auto end = cookies.find(';', pos);
+        return cookies.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+      }
+    }
+    return {};
   }
 
   /**
@@ -250,9 +295,16 @@ namespace confighttp {
    */
   AuthResult check_auth(const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    auto auth = request->header.find("authorization");
-    std::string auth_header = (auth != request->header.end()) ? auth->second : "";
-
+    std::string auth_header;
+    // Try Authorization header
+    if (auto auth_it = request->header.find("authorization"); auth_it != request->header.end()) {
+      auth_header = auth_it->second;
+    } else {
+      std::string token = extract_session_token_from_cookie(request->header);
+      if (!token.empty()) {
+        auth_header = "Session " + token;
+      }
+    }
     return check_auth(address, auth_header, request->path, request->method);
   }
 
@@ -436,6 +488,20 @@ namespace confighttp {
       return;
     }
     std::string content = file_handler::read_file(WEB_DIR "welcome.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    response->write(content, headers);
+  }
+
+  /**
+   * @brief Get the login page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getLoginPage(resp_https_t response, req_https_t request) {
+    print_req(request);
+    
+    std::string content = file_handler::read_file(WEB_DIR "login.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     response->write(content, headers);
@@ -1309,6 +1375,7 @@ namespace confighttp {
 
     // Fix server initialization to use config::nvhttp.cert and config::nvhttp.pkey
     https_server_t server(config::nvhttp.cert, config::nvhttp.pkey);
+    std::thread tcp; // Declare here for correct scope
     server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
@@ -1329,6 +1396,7 @@ namespace confighttp {
     server.resource["^/config/?$"]["GET"] = getConfigPage;
     server.resource["^/password/?$"]["GET"] = getPasswordPage;
     server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
+    server.resource["^/login/?$"]["GET"] = getLoginPage;
     server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/apps$"]["GET"] = getApps;
@@ -1353,6 +1421,9 @@ namespace confighttp {
     server.resource["^/api/tokens$"]["GET"] = listApiTokens;
     server.resource["^/api/token/([a-fA-F0-9]+)$"]["DELETE"] = revokeApiToken;
     server.resource["^/api-tokens/?$"]["GET"] = getTokenPage;
+    server.resource["^/api/auth/login$"]["POST"] = loginUser;
+    server.resource["^/api/auth/logout$"]["POST"] = logoutUser;
+    server.resource["^/api/auth/refresh$"]["POST"] = refreshSessionToken;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
@@ -1367,22 +1438,32 @@ namespace confighttp {
         if (shutdown_event->peek()) {
           return;
         }
-
         BOOST_LOG(fatal) << "Couldn't start Configuration HTTPS server on port ["sv << port_https << "]: "sv << err.what();
         shutdown_event->raise(true);
         return;
       }
     };
-    std::thread tcp {accept_and_run, &server};
+    tcp = std::thread{accept_and_run, &server};
 
     load_api_tokens();
+
+    // Start a background task to clean up expired session tokens every hour
+    std::jthread cleanup_thread([shutdown_event]() {
+      while (!shutdown_event->peek()) {
+        std::this_thread::sleep_for(std::chrono::hours(1));
+        sessionTokenManager.cleanup_expired_session_tokens();
+      }
+    });
 
     // Wait for any event
     shutdown_event->view();
 
     server.stop();
 
-    tcp.join();
+    if (tcp.joinable()) {
+      tcp.join();
+    }
+    // std::jthread auto-joins on destruction, no need for joinable/join
   }
 
   /**
@@ -1441,5 +1522,182 @@ namespace confighttp {
       default:
         throw std::invalid_argument("Unknown TokenScope enum value");
     }
+  }
+
+  /**
+   * @brief Helper to check session token authentication.
+   * @param rawAuth The raw authorization header value.
+   * @return AuthResult with outcome and response details if not authorized.
+   */
+  AuthResult check_session_auth(const std::string &rawAuth) {
+    if (rawAuth.rfind("Session ", 0) != 0) {
+      return make_auth_error(client_error_unauthorized, "Invalid session token format", true);
+    }
+    
+    if (auto token = rawAuth.substr(8); !sessionTokenManager.validate_session_token(token)) {
+      return make_auth_error(client_error_unauthorized, "Invalid or expired session token", true);
+    }
+    
+    return {true, success_ok, {}, {}};
+  }
+
+  /**
+   * @brief User login endpoint to generate session tokens.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * 
+   * Expects JSON body:
+   * {
+   *   "username": "string",
+   *   "password": "string"
+   * }
+   * 
+   * Returns:
+   * {
+   *   "status": true,
+   *   "token": "session_token_string",
+   *   "expires_in": 86400
+   * }
+   * 
+   * @api_examples{/api/auth/login| POST| {"username": "admin", "password": "password"}}
+   */
+  void loginUser(resp_https_t response, req_https_t request) {
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    
+    try {
+      nlohmann::json input_tree = nlohmann::json::parse(ss);
+      
+      if (!input_tree.contains("username") || !input_tree.contains("password")) {
+        bad_request(response, request, "Missing username or password");
+        return;
+      }
+      
+      std::string username = input_tree["username"].get<std::string>();
+      std::string password = input_tree["password"].get<std::string>();
+      
+      // Validate credentials using existing basic auth logic
+      if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+          !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+        
+        auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+        BOOST_LOG(info) << "Web UI: ["sv << address << "] -- login failed for user: " << username;
+        
+        nlohmann::json error_tree;
+        error_tree["status"] = false;
+        error_tree["error"] = "Invalid credentials";
+        
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", "application/json");
+        
+        response->write(client_error_unauthorized, error_tree.dump(), headers);
+        return;
+      }
+      
+      // Generate session token
+      std::string session_token = sessionTokenManager.generate_session_token(username);
+      
+      nlohmann::json output_tree;
+      output_tree["status"] = true;
+      output_tree["token"] = session_token;
+      output_tree["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
+      
+      // Set session cookie
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "application/json");
+      std::string cookie = "session_token=" + session_token + "; Path=/; HttpOnly; SameSite=Strict";
+      headers.emplace("Set-Cookie", cookie);
+      response->write(success_ok, output_tree.dump(), headers);
+      return;
+      
+    } catch (const nlohmann::json::exception &e) {
+      BOOST_LOG(warning) << "Login JSON error:"sv << e.what();
+      bad_request(response, request, "Invalid JSON format");
+    }
+  }
+
+  /**
+   * @brief User logout endpoint to revoke session tokens.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * 
+   * @api_examples{/api/auth/logout| POST| null}
+   */
+  void logoutUser(resp_https_t response, req_https_t request) {
+    print_req(request);
+
+    if (auto auth = request->header.find("authorization"); 
+        auth != request->header.end() && auth->second.rfind("Session ", 0) == 0) {
+      std::string token = auth->second.substr(8);
+      sessionTokenManager.revoke_session_token(token);
+    }
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    output_tree["message"] = "Logged out successfully";
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Refresh session token endpoint.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * 
+   * @api_examples{/api/auth/refresh| POST| null}
+   */
+  void refreshSessionToken(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    auto auth = request->header.find("authorization");
+    if (auth == request->header.end() || auth->second.rfind("Session ", 0) != 0) {
+      bad_request(response, request, "Session token required for refresh");
+      return;
+    }
+
+    std::string old_token = auth->second.substr(8);
+    // Get username via SessionTokenManager
+    auto maybe_user = sessionTokenManager.get_username_for_token(old_token);
+    if (!maybe_user) {
+      bad_request(response, request, "Invalid session token");
+      return;
+    }
+    std::string username = *maybe_user;
+
+    // Revoke old token and generate new one
+    sessionTokenManager.revoke_session_token(old_token);
+    std::string new_token = sessionTokenManager.generate_session_token(username);
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    output_tree["token"] = new_token;
+    output_tree["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Helper to determine if request is for HTML page vs API.
+   * @param path The request path.
+   * @return True if this is a request for an HTML page.
+   */
+  bool is_html_request(const std::string &path) {
+    // API requests start with /api/
+    if (path.rfind("/api/", 0) == 0) {
+      return false;
+    }
+    
+    // Asset requests
+    if (path.rfind("/assets/", 0) == 0 || path.rfind("/images/", 0) == 0) {
+      return false;
+    }
+    
+    // Everything else is likely an HTML page request
+    return true;
   }
 }  // namespace confighttp

@@ -55,6 +55,16 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
   };
 
+  /**
+   * @brief Session token information.
+   */
+  struct SessionToken {
+    std::string token;
+    std::string username;
+    std::chrono::system_clock::time_point created_at;
+    std::chrono::system_clock::time_point expires_at;
+  };
+
   // Utility for scope string conversion
   TokenScope scope_from_string(std::string_view s);
   std::string scope_to_string(TokenScope scope);
@@ -64,15 +74,29 @@ namespace confighttp {
   void revokeApiToken(resp_https_t response, req_https_t request);
   void getTokenPage(resp_https_t response, req_https_t request);
   
+  // Session token endpoints
+  void loginUser(resp_https_t response, req_https_t request);
+  void logoutUser(resp_https_t response, req_https_t request);
+  void refreshSessionToken(resp_https_t response, req_https_t request);
+  void getLoginPage(resp_https_t response, req_https_t request);
+  
   // Authentication functions (exposed for validation)
   bool authenticate_basic(const std::string_view rawAuth);
   AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth = false, const std::string &location = {});
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method);
   AuthResult check_basic_auth(const std::string &rawAuth);
+  AuthResult check_session_auth(const std::string &rawAuth);
+  bool is_html_request(const std::string &path);
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, 
                        const std::string &path, const std::string &method);
   AuthResult check_auth(const req_https_t &request);
   bool authenticate(resp_https_t response, req_https_t request);
+  
+  // Session token management
+  std::string generate_session_token(const std::string &username);
+  bool validate_session_token(const std::string &token);
+  void revoke_session_token(const std::string &token);
+  void cleanup_expired_session_tokens();
 }  // namespace confighttp
 
 // mime types map

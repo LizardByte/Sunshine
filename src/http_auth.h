@@ -11,12 +11,14 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <set>
 #include <Simple-Web-Server/server_https.hpp>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace confighttp {
@@ -83,5 +85,50 @@ namespace confighttp {
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> build_scope_map(const boost::property_tree::ptree &scopes_node) const;
     ApiTokenManagerDependencies dependencies_;
     std::map<std::string, ApiTokenInfo, std::less<>> api_tokens;
+  };
+
+  /**
+   * @brief Session token information.
+   */
+  struct SessionToken {
+    std::string token;
+    std::string username;
+    std::chrono::system_clock::time_point created_at;
+    std::chrono::system_clock::time_point expires_at;
+  };
+
+  /**
+   * @brief Struct holding dependencies for session token management (clock, random).
+   */
+  struct SessionTokenManagerDependencies {
+    boost::function<std::chrono::system_clock::time_point()> now;
+    boost::function<std::string(std::size_t)> rand_alphabet;
+
+    SessionTokenManagerDependencies() = default;
+    SessionTokenManagerDependencies(const SessionTokenManagerDependencies &) = default;
+    SessionTokenManagerDependencies &operator=(const SessionTokenManagerDependencies &) = default;
+    SessionTokenManagerDependencies(SessionTokenManagerDependencies &&) noexcept = default;
+    SessionTokenManagerDependencies &operator=(SessionTokenManagerDependencies &&) noexcept = default;
+  };
+
+  /**
+   * @class SessionTokenManager
+   * @brief Manages session tokens for user authentication.
+   */
+  class SessionTokenManager {
+  public:
+    explicit SessionTokenManager(const SessionTokenManagerDependencies &dependencies = SessionTokenManager::make_default_dependencies());
+    std::string generate_session_token(const std::string &username);
+    bool validate_session_token(const std::string &token);
+    void revoke_session_token(const std::string &token);
+    void cleanup_expired_session_tokens();
+    std::optional<std::string> get_username_for_token(const std::string &token);
+    size_t session_count() const;
+    static SessionTokenManagerDependencies make_default_dependencies();
+  private:
+    SessionTokenManagerDependencies dependencies_;
+    mutable std::mutex mutex_;
+    std::unordered_map<std::string, SessionToken> session_tokens_;
+    static constexpr std::chrono::hours SESSION_TOKEN_DURATION{24};
   };
 }  // namespace confighttp
