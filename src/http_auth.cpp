@@ -20,7 +20,7 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <string>
 #include <vector>
-
+#include "logging.h"
 using namespace std::literals;
 namespace pt = boost::property_tree;
 namespace fs = std::filesystem;
@@ -103,7 +103,7 @@ namespace confighttp {
    * @return true if authenticated, false otherwise.
    */
   bool ApiTokenManager::authenticate_bearer(std::string_view rawAuth, const std::string &path, const std::string &method) {
-    if (rawAuth.length() <= 7 || rawAuth.substr(0, 7) != "Bearer ") {
+    if (rawAuth.length() <= 7 || !rawAuth.starts_with("Bearer ")) {
       return false;
     }
     auto token = std::string(rawAuth.substr(7));
@@ -174,7 +174,8 @@ namespace confighttp {
         }
         path_methods[path] = methods;
       }
-    } catch (const InvalidScopeException &e) {
+    } catch (const InvalidScopeException &) {
+      BOOST_LOG(warning) << "Invalid scope detected in API token, please delete and recreate the token to resolve.";
       return std::nullopt;
     }
     return path_methods;
@@ -221,18 +222,6 @@ namespace confighttp {
     return true;
   }
 
-  /**
-   * @brief Revokes an API token by hash using primitives.
-   * @param token_hash The token hash to revoke.
-   * @return Optional JSON response string.
-   */
-  std::optional<std::string> ApiTokenManager::revoke_api_token(const std::string &token_hash) const {
-    if (const_cast<ApiTokenManager*>(this)->revoke_api_token_by_hash(token_hash)) {
-      return nlohmann::json {{"status", true}}.dump();
-    } else {
-      return nlohmann::json {{"error", "Token not found"}}.dump();
-    }
-  }
 
   /**
    * @brief Saves all API tokens to persistent storage.
@@ -376,7 +365,7 @@ namespace confighttp {
   }
 
   /// @brief Retrieves the currently loaded API in a read-only manner.
-  const std::map<std::string, ApiTokenInfo> &ApiTokenManager::retrieve_loaded_api_tokens() const {
+  const std::map<std::string, ApiTokenInfo, std::less<>> &ApiTokenManager::retrieve_loaded_api_tokens() const {
     return api_tokens;
   }
 

@@ -74,7 +74,7 @@ namespace confighttp {
 
     static ApiTokenManagerDependencies make_default_dependencies();
 
-    const std::map<std::string, ApiTokenInfo> &retrieve_loaded_api_tokens() const;
+    const std::map<std::string, ApiTokenInfo, std::less<>> &retrieve_loaded_api_tokens() const;
 
   private:
     std::optional<std::map<std::string, std::set<std::string, std::less<>>, std::less<>>>
@@ -82,6 +82,6 @@ namespace confighttp {
     std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> parse_scope(const boost::property_tree::ptree &scope_tree) const;
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> build_scope_map(const boost::property_tree::ptree &scopes_node) const;
     ApiTokenManagerDependencies dependencies_;
-    std::map<std::string, ApiTokenInfo> api_tokens;
+    std::map<std::string, ApiTokenInfo, std::less<>> api_tokens;
   };
 }  // namespace confighttp

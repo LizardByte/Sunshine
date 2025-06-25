@@ -52,7 +52,7 @@ protected:
         config::sunshine.salt = original_salt;
     }
 
-    std::string createBasicAuthHeader(const std::string& username, const std::string& password) {
+    std::string createBasicAuthHeader(const std::string& username, const std::string& password) const {
         auto credentials = username + ":" + password;
         auto encoded = SimpleWeb::Crypto::Base64::encode(credentials);
         return "Basic " + encoded;
@@ -312,7 +312,7 @@ protected:
         config::sunshine.salt = original_salt;
     }
 
-    std::string createBasicAuthHeader(const std::string& username, const std::string& password) {
+    std::string createBasicAuthHeader(const std::string& username, const std::string& password) const {
         auto credentials = username + ":" + password;
         auto encoded = SimpleWeb::Crypto::Base64::encode(credentials);
         return "Basic " + encoded;
@@ -419,7 +419,7 @@ protected:
         config::sunshine.salt = original_salt;
     }
 
-    std::string createBasicAuthHeader(const std::string& username, const std::string& password) {
+    std::string createBasicAuthHeader(const std::string& username, const std::string& password) const {
         auto credentials = username + ":" + password;
         auto encoded = SimpleWeb::Crypto::Base64::encode(credentials);
         return "Basic " + encoded;

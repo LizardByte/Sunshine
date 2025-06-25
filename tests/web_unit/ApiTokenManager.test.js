@@ -3,9 +3,9 @@
  * @brief Unit tests for the API Token Manager component
  */
 
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import ApiTokenManager from '@/ApiTokenManager.vue'
-import { flushPromises } from '@vue/test-utils'
+
 
 describe('ApiTokenManager', () => {
   let wrapper
@@ -58,6 +58,18 @@ describe('ApiTokenManager', () => {
       ]))
     })
 
+    /**
+     * Helper function to find a route by path in apiRoutes.
+     * @param {Array} apiRoutes - The list of API routes.
+     * @param {string} path - The path to search for.
+     * @returns {Object|undefined} The found route or undefined.
+     */
+    function findRouteByPath(apiRoutes, path) {
+      return apiRoutes.find(function(route) {
+        return route.path === path;
+      });
+    }
+
     it('should have correct API routes structure', () => {
       const expectedRoutes = [
         { path: "/api/pin", methods: ["POST"] },
@@ -65,13 +77,13 @@ describe('ApiTokenManager', () => {
         { path: "/api/logs", methods: ["GET"] },
         { path: "/api/config", methods: ["GET", "POST"] },
         { path: "/api/configLocale", methods: ["GET"] }
-      ]
+      ];
 
-      expectedRoutes.forEach(expectedRoute => {
-        const foundRoute = wrapper.vm.apiRoutes.find(r => r.path === expectedRoute.path)
-        expect(foundRoute).toBeDefined()
-        expect(foundRoute.methods).toEqual(expectedRoute.methods)
-      })
+      expectedRoutes.forEach(function(expectedRoute) {
+        const foundRoute = findRouteByPath(wrapper.vm.apiRoutes, expectedRoute.path);
+        expect(foundRoute).toBeDefined();
+        expect(foundRoute.methods).toEqual(expectedRoute.methods);
+      });
     })
 
     it('should load tokens on mount', () => {
@@ -703,7 +715,6 @@ describe('ApiTokenManager', () => {
         { path: '/api/logs', methods: [] }
       ]
       
-      const spy = jest.spyOn(wrapper.vm, 'generateToken')
       global.alert = jest.fn()
       
       await wrapper.vm.generateToken()

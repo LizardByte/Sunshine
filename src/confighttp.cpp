@@ -145,14 +145,14 @@ namespace confighttp {
   bool authenticate_basic(const std::string_view rawAuth) {
     auto base64 = std::string(rawAuth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
-    int index = authData.find(':');
-    if (index < 0 || index >= static_cast<int>(authData.size()) - 1) {
+    std::string::size_type index = authData.find(':');
+    if (index == std::string::npos || index >= authData.size() - 1) {
       return false;
     }
     auto username = authData.substr(0, index);
     auto password = authData.substr(index + 1);
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+    if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+        !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
     }
     return true;
@@ -212,8 +212,7 @@ namespace confighttp {
      */
 
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
-    auto ip_type = net::from_address(remote_address);
-    if (ip_type > http::origin_web_ui_allowed) {
+    if (auto ip_type = net::from_address(remote_address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
       return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden");
     }
@@ -1246,9 +1245,9 @@ namespace confighttp {
       hash = request->path_match[1];
     }
 
-    auto result = apiTokenManager.revoke_api_token(hash);
+    auto result = apiTokenManager.revoke_api_token_by_hash(hash);
     if (result) {
-      response->write(*result);
+      response->write(nlohmann::json {{"status", true}}.dump());
     } else {
       response->write(nlohmann::json {{"error", "Internal server error"}}.dump());
     }
