@@ -93,7 +93,10 @@ namespace confighttp {
     return std::format("https://localhost:{}", https_port);
   }
 
-  // Helper to add CORS headers for API responses
+  /**
+   * @brief Helper to add CORS headers for API responses.
+   * @param headers The headers to add CORS to.
+   */
   void add_cors_headers(SimpleWeb::CaseInsensitiveMultimap &headers) {
     headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
     headers.emplace("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
@@ -162,7 +165,7 @@ namespace confighttp {
     response->write(redirection_temporary_redirect, headers);
   }
 
-   /**
+  /**
    * @brief Check authentication and authorization for an HTTP request.
    * @param request The HTTP request object.
    * @return AuthResult with outcome and response details if not authorized.
@@ -182,7 +185,7 @@ namespace confighttp {
     return check_auth(address, auth_header, request->path, request->method);
   }
 
-   /**
+  /**
    * @brief Authenticate the user or API token for a specific path/method.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1114,7 +1117,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
-   * @api_examples{/api/token| POST| {"scopes":[{"path":"/api/apps","methods":["GET"]}]}}
+   * @api_examples{/api/token| POST| {"scopes":[{"path":"/api/apps","methods":["GET"]}]}}}
    *
    * Request body example:
    * {

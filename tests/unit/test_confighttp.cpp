@@ -1,8 +1,3 @@
-/**
- * @file tests/unit/test_confighttp.cpp
- * @brief Unit tests for confighttp authentication methods.
- */
-
 // standard includes
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -29,9 +24,6 @@ using namespace testing;
 
 namespace confighttp {
 
-/**
- * @brief Test fixture for authentication helper functions.
- */
 class ConfigHttpAuthHelpersTest : public Test {
 protected:
     void SetUp() override {
@@ -65,9 +57,6 @@ private:
     std::string original_salt;
 };
 
-/**
- * @brief Test authenticate_basic function with valid credentials.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_valid_basic_auth_credentials_when_authenticating_then_should_return_true) {
     // Given: Valid username and password for basic authentication
     auto auth_header = createBasicAuthHeader("testuser", "testpass");
@@ -79,9 +68,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_valid_basic_auth_credentials_when_authen
     EXPECT_TRUE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with invalid password.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_invalid_password_when_authenticating_then_should_return_false) {
     // Given: Valid username but wrong password
     auto auth_header = createBasicAuthHeader("testuser", "wrongpass");
@@ -93,9 +79,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_invalid_password_when_authenticating_the
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with invalid username.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_invalid_username_when_authenticating_then_should_return_false) {
     // Given: Wrong username but valid password
     auto auth_header = createBasicAuthHeader("wronguser", "testpass");
@@ -107,9 +90,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_invalid_username_when_authenticating_the
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with malformed auth header (no colon).
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_malformed_auth_header_without_colon_when_authenticating_then_should_return_false) {
     // Given: Malformed auth header without colon separator
     auto encoded = SimpleWeb::Crypto::Base64::encode("testusertestpass");
@@ -122,9 +102,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_malformed_auth_header_without_colon_when
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with empty credentials.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_empty_credentials_when_authenticating_then_should_return_false) {
     // Given: Empty username and password
     auto encoded = SimpleWeb::Crypto::Base64::encode(":");
@@ -137,9 +114,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_empty_credentials_when_authenticating_th
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with colon at start.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_empty_username_when_authenticating_then_should_return_false) {
     // Given: Empty username with valid password
     auto encoded = SimpleWeb::Crypto::Base64::encode(":testpass");
@@ -152,9 +126,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_empty_username_when_authenticating_then_
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with colon at end.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_empty_password_when_authenticating_then_should_return_false) {
     // Given: Valid username with empty password
     auto encoded = SimpleWeb::Crypto::Base64::encode("testuser:");
@@ -167,9 +138,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_empty_password_when_authenticating_then_
     EXPECT_FALSE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with case-insensitive username check.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_uppercase_username_when_authenticating_then_should_return_true) {
     // Given: Valid credentials with uppercase username
     auto auth_header = createBasicAuthHeader("TESTUSER", "testpass");
@@ -181,9 +149,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_uppercase_username_when_authenticating_t
     EXPECT_TRUE(result);
 }
 
-/**
- * @brief Test authenticate_basic function with multiple colons.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_password_with_colons_when_authenticating_then_should_return_true) {
     // Given: Valid credentials where password contains colons
     auto credentials = "testuser:pass:with:colons";
@@ -200,9 +165,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_password_with_colons_when_authenticating
     EXPECT_TRUE(result);
 }
 
-/**
- * @brief Test make_auth_error helper function for unauthorized error.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_unauthorized_error_when_making_auth_error_then_should_return_proper_response) {
     // Given: Unauthorized error with WWW-Authenticate header requested
     
@@ -229,9 +191,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_unauthorized_error_when_making_auth_erro
     EXPECT_NE(auth_header, result.headers.end());
 }
 
-/**
- * @brief Test make_auth_error helper function for forbidden error.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_forbidden_error_when_making_auth_error_then_should_return_proper_response) {
     // Given: Forbidden error without WWW-Authenticate header
     
@@ -251,9 +210,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_forbidden_error_when_making_auth_error_t
     EXPECT_EQ(auth_header, result.headers.end());
 }
 
-/**
- * @brief Test make_auth_error helper function with redirect.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_redirect_location_when_making_auth_error_then_should_return_redirect_response) {
     // Given: Redirect error with location header
     
@@ -271,9 +227,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_redirect_location_when_making_auth_error
     EXPECT_EQ(location_header->second, "/welcome");
 }
 
-/**
- * @brief Test make_auth_error helper function with custom error message.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_custom_error_message_when_making_auth_error_then_should_return_response_with_custom_message) {
     // Given: Custom error message for forbidden error
     
@@ -289,9 +242,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_custom_error_message_when_making_auth_er
     EXPECT_EQ(json_response["error"], "Custom error message");
 }
 
-/**
- * @brief Test fixture for check_basic_auth function.
- */
 class ConfigHttpCheckBasicAuthTest : public Test {
 protected:
     void SetUp() override {
@@ -325,9 +275,6 @@ private:
     std::string original_salt;
 };
 
-/**
- * @brief Test check_basic_auth function with valid credentials.
- */
 TEST_F(ConfigHttpCheckBasicAuthTest, given_valid_basic_auth_when_checking_auth_then_should_return_success) {
     // Given: Valid basic authentication credentials
     auto auth_header = createBasicAuthHeader("testuser", "testpass");
@@ -342,9 +289,6 @@ TEST_F(ConfigHttpCheckBasicAuthTest, given_valid_basic_auth_when_checking_auth_t
     EXPECT_TRUE(result.headers.empty());
 }
 
-/**
- * @brief Test check_basic_auth function with invalid credentials.
- */
 TEST_F(ConfigHttpCheckBasicAuthTest, given_invalid_basic_auth_when_checking_auth_then_should_return_unauthorized) {
     // Given: Invalid basic authentication credentials
     auto auth_header = createBasicAuthHeader("testuser", "wrongpass");
@@ -365,9 +309,6 @@ TEST_F(ConfigHttpCheckBasicAuthTest, given_invalid_basic_auth_when_checking_auth
     EXPECT_NE(auth_header_result, result.headers.end());
 }
 
-/**
- * @brief Test fixture for check_bearer_auth function.
- */
 class ConfigHttpCheckBearerAuthTest : public Test {
 protected:
     void SetUp() override {
@@ -376,9 +317,6 @@ protected:
     }
 };
 
-/**
- * @brief Test check_bearer_auth function with invalid token.
- */
 TEST_F(ConfigHttpCheckBearerAuthTest, given_invalid_bearer_token_when_checking_auth_then_should_return_forbidden) {
     // Given: Invalid bearer token for API endpoint
     auto raw_auth = "Bearer invalid_token_123";
@@ -396,9 +334,6 @@ TEST_F(ConfigHttpCheckBearerAuthTest, given_invalid_bearer_token_when_checking_a
     EXPECT_EQ(json_response["error"], "Forbidden: Token does not have permission for this path/method.");
 }
 
-/**
- * @brief Test fixture for check_auth function.
- */
 class ConfigHttpCheckAuthTest : public Test {
 protected:
     void SetUp() override {
@@ -432,9 +367,6 @@ private:
     std::string original_salt;
 };
 
-/**
- * @brief Test check_auth with valid basic authentication.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_valid_basic_auth_when_checking_full_auth_then_should_return_success) {
     // Given: Valid basic authentication credentials and allowed IP
     auto auth_header = createBasicAuthHeader("testuser", "testpass");
@@ -449,9 +381,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_valid_basic_auth_when_checking_full_auth_t
     EXPECT_TRUE(result.headers.empty());
 }
 
-/**
- * @brief Test check_auth with invalid basic authentication.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_invalid_basic_auth_when_checking_full_auth_then_should_return_unauthorized) {
     // Given: Invalid basic authentication credentials
     auto auth_header = createBasicAuthHeader("testuser", "wrongpass");
@@ -467,9 +396,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_invalid_basic_auth_when_checking_full_auth
     EXPECT_EQ(json_response["error"], "Unauthorized");
 }
 
-/**
- * @brief Test check_auth with no authentication header.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_missing_auth_header_when_checking_auth_then_should_return_unauthorized) {
     // Given: No authentication header provided
     
@@ -484,9 +410,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_missing_auth_header_when_checking_auth_the
     EXPECT_EQ(json_response["error"], "Unauthorized");
 }
 
-/**
- * @brief Test check_auth with empty username configuration (should redirect to welcome).
- */
 TEST_F(ConfigHttpCheckAuthTest, given_empty_username_config_when_checking_auth_then_should_redirect_to_welcome) {
     // Given: Empty username configuration (initial setup)
     config::sunshine.username = "";
@@ -503,9 +426,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_empty_username_config_when_checking_auth_t
     EXPECT_EQ(location_header->second, "/welcome");
 }
 
-/**
- * @brief Test check_auth with disallowed IP address.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_disallowed_ip_address_when_checking_auth_then_should_return_forbidden) {
     // Given: Valid credentials but disallowed IP address
     auto auth_header = createBasicAuthHeader("testuser", "testpass");
@@ -521,9 +441,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_disallowed_ip_address_when_checking_auth_t
     EXPECT_EQ(json_response["error"], "Forbidden");
 }
 
-/**
- * @brief Test check_auth with invalid bearer token.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_invalid_bearer_token_when_checking_auth_then_should_return_forbidden) {
     // Given: Invalid bearer token for API access
     
@@ -538,9 +455,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_invalid_bearer_token_when_checking_auth_th
     EXPECT_EQ(json_response["error"], "Forbidden: Token does not have permission for this path/method.");
 }
 
-/**
- * @brief Test check_auth with invalid auth scheme.
- */
 TEST_F(ConfigHttpCheckAuthTest, given_unsupported_auth_scheme_when_checking_auth_then_should_return_unauthorized) {
     // Given: Unsupported authentication scheme (Digest)
     
@@ -555,9 +469,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_unsupported_auth_scheme_when_checking_auth
     EXPECT_EQ(json_response["error"], "Unauthorized");
 }
 
-/**
- * @brief Test is_html_request helper function.
- */
 TEST(ConfigHttpHelpersTest, given_various_paths_when_checking_is_html_request_then_should_return_expected) {
     EXPECT_TRUE(is_html_request("/"));
     EXPECT_TRUE(is_html_request("/index.html"));
@@ -567,18 +478,13 @@ TEST(ConfigHttpHelpersTest, given_various_paths_when_checking_is_html_request_th
     EXPECT_TRUE(is_html_request("/login"));
 }
 
-/**
- * @brief Test scope_to_string function.
- */
 TEST(ConfigHttpHelpersTest, given_token_scope_when_converting_to_string_then_should_return_expected) {
     EXPECT_EQ(scope_to_string(TokenScope::Read), "Read");
     EXPECT_EQ(scope_to_string(TokenScope::Write), "Write");
     EXPECT_THROW(scope_to_string(static_cast<TokenScope>(-1)), std::invalid_argument);
 }
 
-/**
- * @brief Test check_session_auth with invalid format and invalid token.
- */
+
 TEST(ConfigHttpSessionAuthTest, given_invalid_session_format_then_should_return_error) {
     auto result = check_session_auth("Invalid token");
     EXPECT_FALSE(result.ok);
@@ -599,9 +505,7 @@ TEST(ConfigHttpSessionAuthTest, given_invalid_session_token_then_should_return_e
     EXPECT_NE(auth_header, result.headers.end());
 }
 
-/**
- * @brief Test check_auth for HTML page redirect logic.
- */
+
 TEST_F(ConfigHttpCheckAuthTest, given_html_page_request_without_auth_when_checking_auth_then_should_redirect_to_login_with_redirect_param) {
     auto result = check_auth("127.0.0.1", "", "/home", "GET");
     EXPECT_FALSE(result.ok);
@@ -634,9 +538,6 @@ TEST_F(ConfigHttpCheckAuthTest, given_unknown_auth_scheme_and_html_path_when_che
     EXPECT_EQ(it->second, "/login?redirect=/index.html");
 }
 
-/**
- * @brief Test fixture for CORS-related functionality.
- */
 class ConfigHttpCorsTest : public Test {
 protected:
     void SetUp() override {
@@ -684,9 +585,6 @@ TEST_F(ConfigHttpCorsTest, given_different_auth_error_when_creating_then_should_
     EXPECT_THAT(cors_origin_it->second, Not(HasSubstr("http://localhost:")));
 }
 
-/**
- * @brief Test extract_session_token_from_cookie unescapes percent-encoded session tokens.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_percent_encoded_session_token_in_cookie_when_extracting_then_should_unescape_token) {
     // Given: A percent-encoded session token in the Cookie header
     std::string raw_token = "token_with_special%3Bchars%20and%25percent";
@@ -701,9 +599,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_percent_encoded_session_token_in_cookie_
     EXPECT_EQ(extracted, raw_token);
 }
 
-/**
- * @brief Test extract_session_token_from_cookie returns empty string if no session_token present.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_no_session_token_in_cookie_when_extracting_then_should_return_empty_string) {
     // Given: No session_token in the Cookie header
     SimpleWeb::CaseInsensitiveMultimap headers;
@@ -716,9 +611,6 @@ TEST_F(ConfigHttpAuthHelpersTest, given_no_session_token_in_cookie_when_extracti
     EXPECT_TRUE(extracted.empty());
 }
 
-/**
- * @brief Test extract_session_token_from_cookie decodes percent-encoded cookie values.
- */
 TEST_F(ConfigHttpAuthHelpersTest, given_percent_encoded_cookie_when_extracting_token_then_should_return_decoded_token) {
     // Given: A cookie header with a percent-encoded session token
     std::string raw_token = "token with spaces;and%percent";

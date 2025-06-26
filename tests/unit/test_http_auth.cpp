@@ -12,9 +12,6 @@ using namespace confighttp;
 using namespace testing;
 namespace pt = boost::property_tree;
 
-/**
- * @brief Mock dependencies for ApiTokenManager testing.
- */
 class MockApiTokenManagerDependencies {
 public:
   MOCK_METHOD(bool, file_exists, (const std::string &), (const));
@@ -49,7 +46,6 @@ public:
 };
 
 namespace {
-/** @brief Fill property tree with valid and malformed tokens, skipping malformed entries */
 void FillPtreeWithMalformedTokenData(pt::ptree &tree) {
     pt::ptree tokens_tree;
     // Add valid token
@@ -76,7 +72,6 @@ void FillPtreeWithMalformedTokenData(pt::ptree &tree) {
     tree.put_child("root.api_tokens", tokens_tree);
 }
 
-/** @brief Fill property tree with valid and malformed scope data, rejecting empty methods */
 void FillPtreeWithMalformedScopeData(pt::ptree &tree) {
     pt::ptree tokens_tree;
     // Add valid token
@@ -978,7 +973,6 @@ TEST_F(ApiTokenManagerTest, given_malformed_property_tree_during_loading_when_lo
   EXPECT_TRUE(tokens.at("malformed_hash").path_methods.empty());
 }
 
-// ---------------- SessionTokenManager Unit Tests ----------------
 
 class SessionTokenManagerTest : public ::testing::Test {
 public:
@@ -995,7 +989,7 @@ public:
       return tok;
     };
     deps.hash = [](const std::string &input) {
-      return "hash_" + input;  // Simple deterministic hash for testing
+      return "hash_" + input;
     };
     advance_time = [this](std::chrono::system_clock::duration d) { fake_now += d; };
     mgr = std::make_unique<SessionTokenManager>(deps);
@@ -1310,9 +1304,6 @@ public:
     int token_counter = 0;
 };
 
-/**
- * @brief Test successful login with valid credentials.
- */
 TEST_F(SessionTokenAPITest, given_valid_credentials_when_logging_in_then_should_return_success_with_token) {
     // When: Logging in with valid credentials
     auto response = session_api->login("testuser", "testpass");
@@ -1339,9 +1330,6 @@ TEST_F(SessionTokenAPITest, given_valid_credentials_when_logging_in_then_should_
     EXPECT_THAT(cookie->second, HasSubstr("HttpOnly"));
 }
 
-/**
- * @brief Test login with invalid credentials.
- */
 TEST_F(SessionTokenAPITest, given_invalid_credentials_when_logging_in_then_should_return_unauthorized) {
     // When: Logging in with invalid credentials
     auto response = session_api->login("testuser", "wrongpass");
@@ -1355,9 +1343,6 @@ TEST_F(SessionTokenAPITest, given_invalid_credentials_when_logging_in_then_shoul
     EXPECT_EQ(json_response["error"], "Invalid credentials");
 }
 
-/**
- * @brief Test logout functionality.
- */
 TEST_F(SessionTokenAPITest, given_session_token_when_logging_out_then_should_return_success) {
     // Given: A valid session token
     auto login_response = session_api->login("testuser", "testpass");
@@ -1381,9 +1366,6 @@ TEST_F(SessionTokenAPITest, given_session_token_when_logging_out_then_should_ret
     EXPECT_THAT(cookie->second, HasSubstr("HttpOnly"));
 }
 
-/**
- * @brief Test that logout invalidates the session token for subsequent validation.
- */
 TEST_F(SessionTokenAPITest, given_session_token_when_logged_out_then_token_should_be_invalid) {
     // Given: A valid session token
     auto login_response = session_api->login("testuser", "testpass");
@@ -1406,9 +1388,6 @@ TEST_F(SessionTokenAPITest, given_session_token_when_logged_out_then_token_shoul
     EXPECT_EQ(json_response["error"], "Invalid or expired session token");
 }
 
-/**
- * @brief Test logout with empty token still succeeds gracefully.
- */
 TEST_F(SessionTokenAPITest, given_empty_token_when_logging_out_then_should_return_success) {
     // When: Logging out with empty token
     auto response = session_api->logout("");
@@ -1426,9 +1405,6 @@ TEST_F(SessionTokenAPITest, given_empty_token_when_logging_out_then_should_retur
     EXPECT_THAT(cookie->second, HasSubstr("Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
 }
 
-/**
- * @brief Test login sets session cookie with percent-encoded token.
- */
 TEST_F(SessionTokenAPITest, given_token_with_special_chars_when_logging_in_then_cookie_should_be_percent_encoded) {
   // Given: We'll patch the dependencies to generate a token with special characters
   deps.rand_alphabet = [](std::size_t) { return "token with spaces;and%percent"; };
