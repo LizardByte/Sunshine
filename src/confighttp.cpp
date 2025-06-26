@@ -50,17 +50,12 @@ namespace confighttp {
   namespace fs = std::filesystem;
   using enum SimpleWeb::StatusCode;
 
-  static ApiTokenManager apiTokenManager;
-
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
-  // Replace static session token storage with SessionTokenManager
-  static SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
-  static SessionTokenAPI sessionTokenAPI(sessionTokenManager);
   static constexpr std::chrono::hours SESSION_TOKEN_DURATION {24};  // for API compatibility
 
   enum class op_e {
@@ -167,177 +162,7 @@ namespace confighttp {
     response->write(redirection_temporary_redirect, headers);
   }
 
-  /**
-   * @brief Authenticates a user using HTTP Basic Authentication.
-   *
-   * This function decodes the provided Base64-encoded HTTP Basic Auth string,
-   * extracts the username and password, hashes the password with a configured salt,
-   * and compares the credentials against the configured username and password hash.
-   *
-   * @param rawAuth The raw "Authorization" header value (expected to start with "Basic ").
-   * @return true if authentication succeeds, false otherwise.
-   */
-  bool authenticate_basic(const std::string_view rawAuth) {
-    auto base64 = std::string(rawAuth.substr(6));
-    auto authData = SimpleWeb::Crypto::Base64::decode(base64);
-    std::string::size_type index = authData.find(':');
-    if (index == std::string::npos || index >= authData.size() - 1) {
-      return false;
-    }
-    auto username = authData.substr(0, index);
-    auto password = authData.substr(index + 1);
-    if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
-        !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
-      return false;
-    }
-    return true;
-  }
-
-  /**
-   * @brief Helper to build an AuthResult for error responses.
-   */
-  AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
-    AuthResult result {false, code, {}, {}};
-    if (!location.empty()) {
-      result.headers.emplace("Location", location);
-      result.headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
-      return result;
-    }
-    nlohmann::json tree;
-    tree["status_code"] = code;
-    tree["status"] = false;
-    tree["error"] = error;
-    result.body = tree.dump();
-    result.headers.emplace("Content-Type", "application/json");
-    result.headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
-    if (add_www_auth) {
-      result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
-    }
-    return result;
-  }
-
-  /**
-   * @brief Helper to check Bearer authentication.
-   * @param rawAuth The raw authorization header value.
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
-
-  AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
-    if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
-      return make_auth_error(client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
-    }
-    return {true, success_ok, {}, {}};
-  }
-
-  /**
-   * @brief Helper to check Basic authentication.
-   * @param rawAuth The raw authorization header value.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
-  AuthResult check_basic_auth(const std::string &rawAuth) {
-    if (!authenticate_basic(rawAuth)) {
-      return make_auth_error(client_error_unauthorized, "Unauthorized", true);
-    }
-    return {true, success_ok, {}, {}};
-  }
-
-  /**
-   * @brief Check authentication and authorization with raw parameters.
-   * @param remote_address The normalized remote address string.
-   * @param auth_header The authorization header value (empty if not present).
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
-
-  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
-    // Strip query string from path for matching
-    auto base_path = path;
-    auto qpos = base_path.find('?');
-    if (qpos != std::string::npos) base_path.resize(qpos);
-
-    // Allow welcome page without authentication
-    if (base_path == "/welcome" || base_path == "/welcome/") {
-        return {true, success_ok, {}, {}};
-    }
-
-    if (auto ip_type = net::from_address(remote_address); ip_type > http::origin_web_ui_allowed) {
-      BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
-      return make_auth_error(client_error_forbidden, "Forbidden");
-    }
-
-    if (config::sunshine.username.empty()) {
-      return make_auth_error(redirection_temporary_redirect, {}, false, "/welcome");
-    }
-
-    // For login page, don't require authentication (match path without query)
-    if (base_path == "/login" || base_path == "/login/") {
-      return {true, success_ok, {}, {}};
-    }
-
-    if (auth_header.empty()) {
-      // For HTML page requests, redirect to login instead of showing 401 (use base_path)
-      if (is_html_request(base_path)) {
-        std::string login_url = "/login?redirect=" + path;
-        return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
-      }
-      // For API requests, send 401 with WWW-Authenticate header for basic auth
-      return make_auth_error(client_error_unauthorized, "Unauthorized", true);
-    }
-
-    if (auth_header.rfind("Bearer ", 0) == 0) {
-      return check_bearer_auth(auth_header, path, method);
-    }
-
-    if (auth_header.rfind("Basic ", 0) == 0) {
-      return check_basic_auth(auth_header);
-    }
-
-    if (auth_header.rfind("Session ", 0) == 0) {
-      {
-          auto session_res = check_session_auth(auth_header);
-          if (!session_res.ok) {
-              std::string login_url = "/login?redirect=" + path;
-              return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
-          }
-          return session_res;
-      }
-    }
-
-    // For HTML page requests, redirect to login instead of showing 401 (use base_path)
-    if (is_html_request(base_path)) {
-      std::string login_url = "/login?redirect=" + path;
-      return make_auth_error(redirection_temporary_redirect, {}, false, login_url);
-    }
-
-    return make_auth_error(client_error_unauthorized, "Unauthorized", true);
-  }
-
-  /**
-   * @brief Extract session token from Cookie header if present.
-   * @param headers The HTTP headers map.
-   * @return Session token string if found, empty string otherwise.
-   */
-  std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers) {
-    auto cookie_it = headers.find("Cookie");
-    if (cookie_it != headers.end()) {
-      const std::string &cookies = cookie_it->second;
-      const std::string prefix = "session_token=";
-      auto pos = cookies.find(prefix);
-      if (pos != std::string::npos) {
-        pos += prefix.size();
-        auto end = cookies.find(';', pos);
-        // Decode percent-encoded session token
-        auto raw = cookies.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
-        return http::cookie_unescape(raw);
-      }
-    }
-    return {};
-  }
-
-  /**
+   /**
    * @brief Check authentication and authorization for an HTTP request.
    * @param request The HTTP request object.
    * @return AuthResult with outcome and response details if not authorized.
@@ -357,7 +182,7 @@ namespace confighttp {
     return check_auth(address, auth_header, request->path, request->method);
   }
 
-  /**
+   /**
    * @brief Authenticate the user or API token for a specific path/method.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -365,7 +190,7 @@ namespace confighttp {
    */
   bool authenticate(resp_https_t response, req_https_t request) {
     if (auto result = check_auth(request); !result.ok) {
-      if (result.code == redirection_temporary_redirect) {
+      if (result.code == SimpleWeb::StatusCode::redirection_temporary_redirect) {
         response->write(result.code, result.headers);
       } else if (!result.body.empty()) {
         response->write(result.code, result.body, result.headers);
@@ -1573,26 +1398,6 @@ namespace confighttp {
   }
 
   /**
-   * @brief Helper to check session token authentication.
-   * @param rawAuth The raw authorization header value.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
-  AuthResult check_session_auth(const std::string &rawAuth) {
-    if (rawAuth.rfind("Session ", 0) != 0) {
-      return make_auth_error(client_error_unauthorized, "Invalid session token format", true);
-    }
-
-    std::string token = rawAuth.substr(8);
-    APIResponse api_response = sessionTokenAPI.validate_session(token);
-
-    if (api_response.status_code == SimpleWeb::StatusCode::success_ok) {
-      return {true, success_ok, {}, {}};
-    }
-
-    return make_auth_error(client_error_unauthorized, "Invalid or expired session token", true);
-  }
-
-  /**
    * @brief User login endpoint to generate session tokens.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1655,35 +1460,5 @@ namespace confighttp {
 
     APIResponse api_response = sessionTokenAPI.logout(session_token);
     write_api_response(response, api_response);
-  }
-
-  /**
-   * @brief Helper to determine if request is for HTML page vs API.
-   * @param path The request path.
-   * @return True if this is a request for an HTML page.
-   */
-  bool is_html_request(const std::string &path) {
-    // API requests start with /api/
-    if (path.rfind("/api/", 0) == 0) {
-      return false;
-    }
-
-    // Asset requests in known directories
-    if (path.rfind("/assets/", 0) == 0 || path.rfind("/images/", 0) == 0) {
-      return false;
-    }
-
-    // Static file extensions should not be treated as HTML
-    {
-      std::string ext = std::filesystem::path(path).extension().string();
-      boost::algorithm::to_lower(ext);
-      static const std::vector<std::string> non_html_ext = {".js", ".css", ".map", ".json", ".woff", ".woff2", ".ttf", ".eot", ".ico", ".png", ".jpg", ".jpeg", ".svg"};
-      if (std::find(non_html_ext.begin(), non_html_ext.end(), ext) != non_html_ext.end()) {
-        return false;
-      }
-    }
-
-    // Everything else is likely an HTML page request
-    return true;
   }
 }  // namespace confighttp
