@@ -232,4 +232,36 @@ namespace http {
     curl_url_cleanup(curlu);
     return result;
   }
+
+  /**
+   * @brief Escape a string for safe cookie usage, percent-encoding unsafe characters.
+   * @param value The raw string to escape.
+   * @return The escaped string.
+   */
+  std::string cookie_escape(const std::string &value) {
+    char *out = curl_easy_escape(nullptr, value.c_str(), static_cast<int>(value.length()));
+    std::string result;
+    if (out) {
+      result.assign(out);
+      curl_free(out);
+    }
+    return result;
+  }
+
+  /**
+   * @brief Decode a percent-encoded cookie string.
+   * @param value The escaped cookie string.
+   * @return The original unescaped string.
+   */
+  std::string cookie_unescape(const std::string &value) {
+    int outlen = 0;
+    char *out = curl_easy_unescape(nullptr, value.c_str(), static_cast<int>(value.length()), &outlen);
+    std::string result;
+    if (out) {
+      result.assign(out, outlen);
+      curl_free(out);
+    }
+    return result;
+  }
+
 }  // namespace http

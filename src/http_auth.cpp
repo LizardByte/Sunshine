@@ -7,6 +7,7 @@
 #include "utility.h"
 #include "network.h"
 #include "nvhttp.h"
+#include "httpcommon.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/function.hpp>
@@ -484,14 +485,15 @@ namespace confighttp {
     APIResponse response = create_success_response(response_data);
 
     // Set session cookie with Secure if HTTPS or localhost
-    std::string cookie = "session_token=" + session_token + "; Path=/; HttpOnly; SameSite=Strict";
-    // NOTE: In production, check request context for HTTPS. Here, always set Secure for localhost.
+    // Percent-encode token for safe cookie storage
+    std::string encoded = http::cookie_escape(session_token);
+    std::string cookie = "session_token=" + encoded + "; Path=/; HttpOnly; SameSite=Strict";
     cookie += "; Secure";
     response.headers.emplace("Set-Cookie", cookie);
 
     // Set CORS header for localhost only (no wildcard), dynamically set port
     std::uint16_t https_port = net::map_port(nvhttp::PORT_HTTPS);
-    std::string cors_origin = "http://localhost:" + std::to_string(https_port);
+    std::string cors_origin = "https://localhost" + std::to_string(https_port);
     response.headers.emplace("Access-Control-Allow-Origin", cors_origin);
 
     return response;

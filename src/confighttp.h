@@ -86,6 +86,7 @@ namespace confighttp {
   bool validate_session_token(const std::string &token);
   void revoke_session_token(const std::string &token);
   void cleanup_expired_session_tokens();
+  std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers);
 }  // namespace confighttp
 
 // mime types map

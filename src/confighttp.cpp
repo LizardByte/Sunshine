@@ -329,7 +329,9 @@ namespace confighttp {
       if (pos != std::string::npos) {
         pos += prefix.size();
         auto end = cookies.find(';', pos);
-        return cookies.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+        // Decode percent-encoded session token
+        auto raw = cookies.substr(pos, end == std::string::npos ? std::string::npos : end - pos);
+        return http::cookie_unescape(raw);
       }
     }
     return {};

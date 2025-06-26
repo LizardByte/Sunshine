@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include <sstream>
+#include "src/httpcommon.h"
 
 using namespace confighttp;
 using namespace testing;
@@ -1414,3 +1415,27 @@ TEST_F(SessionTokenAPITest, given_empty_token_when_logging_out_then_should_retur
     EXPECT_THAT(cookie->second, HasSubstr("session_token="));
     EXPECT_THAT(cookie->second, HasSubstr("Expires=Thu, 01 Jan 1970 00:00:00 GMT"));
 }
+
+/**
+ * @brief Test login sets session cookie with percent-encoded token.
+ */
+TEST_F(SessionTokenAPITest, given_token_with_special_chars_when_logging_in_then_cookie_should_be_percent_encoded) {
+  // Given: We'll patch the dependencies to generate a token with special characters
+  deps.rand_alphabet = [](std::size_t) { return "token with spaces;and%percent"; };
+  deps.hash = [](const std::string &input) { return input; }; // Make hash return the same string
+  session_manager = std::make_unique<SessionTokenManager>(deps);
+  session_api = std::make_unique<SessionTokenAPI>(*session_manager);
+
+  // When: Logging in
+  auto response = session_api->login("testuser", "testpass");
+
+  // Then: The Set-Cookie header should contain a percent-encoded token
+  auto cookie = response.headers.find("Set-Cookie");
+  ASSERT_NE(cookie, response.headers.end());
+  std::string expected = http::cookie_escape("token with spaces;and%percent");
+  EXPECT_THAT(cookie->second, HasSubstr("session_token=" + expected));
+  // And: The token in the response body should be the raw token
+  auto json_response = nlohmann::json::parse(response.body);
+  EXPECT_EQ(json_response["token"], "token with spaces;and%percent");
+}
+

@@ -23,6 +23,7 @@
 #include "src/crypto.h"
 #include "src/utility.h"
 #include "src/network.h"
+#include "src/httpcommon.h"
 
 using namespace testing;
 
@@ -681,6 +682,55 @@ TEST_F(ConfigHttpCorsTest, given_different_auth_error_when_creating_then_should_
     
     // Verify it's not using http://
     EXPECT_THAT(cors_origin_it->second, Not(HasSubstr("http://localhost:")));
+}
+
+/**
+ * @brief Test extract_session_token_from_cookie unescapes percent-encoded session tokens.
+ */
+TEST_F(ConfigHttpAuthHelpersTest, given_percent_encoded_session_token_in_cookie_when_extracting_then_should_unescape_token) {
+    // Given: A percent-encoded session token in the Cookie header
+    std::string raw_token = "token_with_special%3Bchars%20and%25percent";
+    std::string encoded_token = http::cookie_escape(raw_token);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Cookie", "session_token=" + encoded_token);
+
+    // When: Extracting the session token
+    std::string extracted = extract_session_token_from_cookie(headers);
+
+    // Then: The extracted token should match the original raw token
+    EXPECT_EQ(extracted, raw_token);
+}
+
+/**
+ * @brief Test extract_session_token_from_cookie returns empty string if no session_token present.
+ */
+TEST_F(ConfigHttpAuthHelpersTest, given_no_session_token_in_cookie_when_extracting_then_should_return_empty_string) {
+    // Given: No session_token in the Cookie header
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Cookie", "other_cookie=foo");
+
+    // When: Extracting the session token
+    std::string extracted = extract_session_token_from_cookie(headers);
+
+    // Then: The extracted token should be empty
+    EXPECT_TRUE(extracted.empty());
+}
+
+/**
+ * @brief Test extract_session_token_from_cookie decodes percent-encoded cookie values.
+ */
+TEST_F(ConfigHttpAuthHelpersTest, given_percent_encoded_cookie_when_extracting_token_then_should_return_decoded_token) {
+    // Given: A cookie header with a percent-encoded session token
+    std::string raw_token = "token with spaces;and%percent";
+    std::string encoded_token = http::cookie_escape(raw_token);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Cookie", "session_token=" + encoded_token);
+
+    // When: Extracting the session token
+    std::string extracted = extract_session_token_from_cookie(headers);
+
+    // Then: Should return the decoded token
+    EXPECT_EQ(extracted, raw_token);
 }
 
 }  // namespace confighttp
