@@ -14,7 +14,6 @@
 #include <boost/function.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/regex.hpp>
-#include <algorithm>
 #include <chrono>
 #include <exception>
 #include <filesystem>
@@ -476,10 +475,10 @@ namespace confighttp {
       std::string lower = redirect_url;
       boost::algorithm::to_lower(lower);
       // Disallow dangerous patterns
-      if (lower.find("://") == std::string::npos &&
-          lower.find("%2f") == std::string::npos &&
-          lower.find("\\") == std::string::npos &&
-          lower.find("..") == std::string::npos &&
+      if (!boost::algorithm::contains(lower, "://") &&
+          !boost::algorithm::contains(lower, "%2f") &&
+          !boost::algorithm::contains(lower, "\\") &&
+          !boost::algorithm::contains(lower, "..") &&
           !(redirect_url.size() > 1 && redirect_url[1] == '/')) {  // reject double slash
         // Unicode normalization: reject if normalized path differs
         std::string norm = redirect_url;
@@ -577,8 +576,6 @@ namespace confighttp {
     return APIResponse(status_code, response_body.dump(), headers);
   }
 
-  // ======================== Authentication Functions ========================
-
   /**
    * @brief Authenticates a user using HTTP Basic Authentication.
    *
@@ -616,7 +613,7 @@ namespace confighttp {
       return result;
     }
     nlohmann::json tree;
-    tree["status_code"] = static_cast<int>(code);
+    tree["status_code"] = static_cast<std::underlying_type_t<StatusCode>>(code);
     tree["status"] = false;
     tree["error"] = error;
     result.body = tree.dump();
