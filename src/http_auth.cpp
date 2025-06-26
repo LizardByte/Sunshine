@@ -382,8 +382,17 @@ namespace confighttp {
     return api_tokens;
   }
 
+  /**
+   * @brief Constructs a SessionTokenManager with dependencies for testability.
+   * @param dependencies Struct of function dependencies for clock, random, and hash operations.
+   */
   SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies):
       dependencies_(dependencies) {}
+
+  /**
+   * @brief Creates and returns the default delegates for SessionTokenManager.
+   * @return Struct of default function dependencies.
+   */
 
   SessionTokenManagerDependencies SessionTokenManager::make_default_dependencies() {
     SessionTokenManagerDependencies deps;
@@ -400,6 +409,11 @@ namespace confighttp {
     return deps;
   }
 
+  /**
+   * @brief Generates a new session token for the specified username.
+   * @param username The username to associate with the session token.
+   * @return The generated session token string.
+   */
   std::string SessionTokenManager::generate_session_token(const std::string &username) {
     std::scoped_lock lock(mutex_);
     std::string token = dependencies_.rand_alphabet(64);
@@ -411,6 +425,11 @@ namespace confighttp {
     return token;
   }
 
+  /**
+   * @brief Validates whether a session token is valid and not expired.
+   * @param token The session token to validate.
+   * @return true if the token is valid and not expired, false otherwise.
+   */
   bool SessionTokenManager::validate_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
@@ -425,12 +444,19 @@ namespace confighttp {
     return true;
   }
 
+  /**
+   * @brief Revokes a session token by removing it from the active tokens.
+   * @param token The session token to revoke.
+   */
   void SessionTokenManager::revoke_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
     session_tokens_.erase(token_hash);
   }
 
+  /**
+   * @brief Removes all expired session tokens from storage.
+   */
   void SessionTokenManager::cleanup_expired_session_tokens() {
     auto now = dependencies_.now();
     std::erase_if(session_tokens_, [now](const auto &pair) {
@@ -438,6 +464,11 @@ namespace confighttp {
     });
   }
 
+  /**
+   * @brief Retrieves the username associated with a valid session token.
+   * @param token The session token to look up.
+   * @return Optional username string if token is valid, nullopt otherwise.
+   */
   std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
@@ -447,16 +478,29 @@ namespace confighttp {
     return std::nullopt;
   }
 
+  /**
+   * @brief Returns the current number of active session tokens.
+   * @return The count of active session tokens.
+   */
   size_t SessionTokenManager::session_count() const {
     std::scoped_lock lock(mutex_);
     return session_tokens_.size();
   }
 
-  // ---------------- SessionTokenAPI Implementation ----------------
-
+  /**
+   * @brief Constructs a SessionTokenAPI with a session manager reference.
+   * @param session_manager Reference to the session token manager.
+   */
   SessionTokenAPI::SessionTokenAPI(SessionTokenManager &session_manager):
       session_manager_(session_manager) {}
 
+  /**
+   * @brief Authenticates user credentials and generates a session token.
+   * @param username The username to authenticate.
+   * @param password The password to authenticate.
+   * @param redirect_url The URL to redirect to after successful login.
+   * @return APIResponse containing session token and redirect information.
+   */
   APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url) {
     if (!validate_credentials(username, password)) {
       BOOST_LOG(info) << "Web UI: Login failed for user: " << username;
@@ -507,6 +551,11 @@ namespace confighttp {
     return response;
   }
 
+  /**
+   * @brief Logs out a user by revoking their session token.
+   * @param session_token The session token to revoke.
+   * @return APIResponse confirming successful logout.
+   */
   APIResponse SessionTokenAPI::logout(const std::string &session_token) {
     if (!session_token.empty()) {
       session_manager_.revoke_session_token(session_token);
@@ -523,6 +572,11 @@ namespace confighttp {
     return response;
   }
 
+  /**
+   * @brief Validates whether a session token is valid and not expired.
+   * @param session_token The session token to validate.
+   * @return APIResponse indicating validation result.
+   */
   APIResponse SessionTokenAPI::validate_session(const std::string &session_token) {
     if (session_token.empty()) {
       return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
@@ -535,6 +589,12 @@ namespace confighttp {
     return create_success_response();
   }
 
+  /**
+   * @brief Validates user credentials against configured username and password.
+   * @param username The username to validate.
+   * @param password The password to validate.
+   * @return true if credentials are valid, false otherwise.
+   */
   bool SessionTokenAPI::validate_credentials(const std::string &username, const std::string &password) const {
     if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
         !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
@@ -554,6 +614,11 @@ namespace confighttp {
     }
   }  // namespace
 
+  /**
+   * @brief Creates a standardized success API response with JSON data.
+   * @param data The JSON data to include in the response body.
+   * @return APIResponse with success status and provided data.
+   */
   APIResponse SessionTokenAPI::create_success_response(const nlohmann::json &data) const {
     nlohmann::json response_body;
     response_body["status"] = true;
@@ -566,6 +631,12 @@ namespace confighttp {
     return APIResponse(StatusCode::success_ok, response_body.dump(), headers);
   }
 
+  /**
+   * @brief Creates a standardized error API response with error message.
+   * @param error_message The error message to include in the response.
+   * @param status_code The HTTP status code for the error response.
+   * @return APIResponse with error status and message.
+   */
   APIResponse SessionTokenAPI::create_error_response(const std::string &error_message, StatusCode status_code) const {
     nlohmann::json response_body;
     response_body["status"] = false;
@@ -604,6 +675,11 @@ namespace confighttp {
 
   /**
    * @brief Helper to build an AuthResult for error responses.
+   * @param code The HTTP status code for the error.
+   * @param error The error message to include.
+   * @param add_www_auth Whether to add WWW-Authenticate header.
+   * @param location Optional location header for redirects.
+   * @return AuthResult configured with error response data.
    */
   AuthResult make_auth_error(StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
     AuthResult result {false, code, {}, {}};
