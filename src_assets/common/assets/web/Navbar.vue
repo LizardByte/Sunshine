@@ -62,7 +62,8 @@ export default {
       try {
         await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
       } catch (e) {
-        // ignore errors
+        // Log the error to the console for debugging purposes
+        console.error('Logout failed:', e);
       }
       window.location.href = './login';
     }

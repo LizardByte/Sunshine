@@ -663,7 +663,7 @@ TEST_F(ConfigHttpCorsTest, given_auth_error_response_when_creating_then_should_i
     
     // The CORS origin should use the correct HTTPS port
     std::uint16_t expected_port = net::map_port(PORT_HTTPS);
-    std::string expected_origin = "https://localhost:" + std::to_string(expected_port);
+    std::string expected_origin = std::format("https://localhost:{}", expected_port);
     
     EXPECT_EQ(cors_origin_it->second, expected_origin);
 }
@@ -676,7 +676,7 @@ TEST_F(ConfigHttpCorsTest, given_different_auth_error_when_creating_then_should_
     
     // The CORS origin should use the correct HTTPS port and be https (not http)
     std::uint16_t expected_port = net::map_port(PORT_HTTPS);
-    std::string expected_origin = "https://localhost:" + std::to_string(expected_port);
+    std::string expected_origin = std::format("https://localhost:{}", expected_port);
     
     EXPECT_EQ(cors_origin_it->second, expected_origin);
     

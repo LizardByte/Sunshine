@@ -22,12 +22,13 @@
 #include <vector>
 
 namespace confighttp {
+  using StatusCode = SimpleWeb::StatusCode;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
   struct AuthResult {
     bool ok;
-    SimpleWeb::StatusCode code;
+    StatusCode code;
     std::string body;
     SimpleWeb::CaseInsensitiveMultimap headers;
   };
@@ -115,14 +116,26 @@ namespace confighttp {
   private:
     SessionTokenManagerDependencies dependencies_;
     mutable std::mutex mutex_;
-    std::unordered_map<std::string, SessionToken> session_tokens_;
+    struct TransparentStringHash {
+      using is_transparent = void;
+      std::size_t operator()(std::string_view txt) const noexcept {
+        return std::hash<std::string_view>{}(txt);
+      }
+      std::size_t operator()(const std::string &txt) const noexcept {
+        return std::hash<std::string_view>{}(txt);
+      }
+      std::size_t operator()(const char *txt) const noexcept {
+        return std::hash<std::string_view>{}(txt);
+      }
+    };
+    std::unordered_map<std::string, SessionToken, TransparentStringHash, std::equal_to<>> session_tokens_;
   };
 
   struct APIResponse {
-    SimpleWeb::StatusCode status_code;
+    StatusCode status_code;
     std::string body;
     SimpleWeb::CaseInsensitiveMultimap headers;
-    APIResponse(SimpleWeb::StatusCode code, std::string response_body = "", SimpleWeb::CaseInsensitiveMultimap response_headers = {}):
+    APIResponse(StatusCode code, std::string response_body = "", SimpleWeb::CaseInsensitiveMultimap response_headers = {}):
         status_code(code),
         body(std::move(response_body)),
         headers(std::move(response_headers)) {}
@@ -139,11 +152,11 @@ namespace confighttp {
     static constexpr std::chrono::hours SESSION_TOKEN_DURATION {2};
     bool validate_credentials(const std::string &username, const std::string &password) const;
     APIResponse create_success_response(const nlohmann::json &data = {}) const;
-    APIResponse create_error_response(const std::string &error_message, SimpleWeb::StatusCode status_code = SimpleWeb::StatusCode::client_error_bad_request) const;
+    APIResponse create_error_response(const std::string &error_message, StatusCode status_code = StatusCode::client_error_bad_request) const;
   };
 
   bool authenticate_basic(const std::string_view rawAuth);
-  AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth = false, const std::string &location = {});
+  AuthResult make_auth_error(StatusCode code, const std::string &error, bool add_www_auth = false, const std::string &location = {});
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method);
   AuthResult check_basic_auth(const std::string &rawAuth);
   AuthResult check_session_auth(const std::string &rawAuth);

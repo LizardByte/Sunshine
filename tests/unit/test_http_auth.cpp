@@ -729,32 +729,37 @@ TEST_F(ApiTokenManagerTest, given_property_tree_with_malformed_token_data_when_l
   EXPECT_CALL(*mock_deps, file_exists(_))
     .WillOnce(Return(true));
 
+  // Helper function to fill the ptree with valid and malformed tokens
+  static void FillPtreeWithMalformedTokenData(pt::ptree &tree) {
+    pt::ptree tokens_tree;
+
+    // Add a valid token
+    pt::ptree valid_token;
+    valid_token.put("hash", "valid_hash");
+    valid_token.put("username", "valid_user");
+    valid_token.put("created_at", 1234567890);
+    pt::ptree valid_scopes;
+    pt::ptree valid_scope;
+    valid_scope.put("path", "/api/data");
+    pt::ptree methods;
+    methods.push_back({"", pt::ptree("GET")});
+    valid_scope.add_child("methods", methods);
+    valid_scopes.push_back({"", valid_scope});
+    valid_token.add_child("scopes", valid_scopes);
+    tokens_tree.push_back({"", valid_token});
+
+    // Add malformed token (missing hash)
+    pt::ptree malformed_token;
+    malformed_token.put("username", "malformed_user");
+    malformed_token.put("created_at", 1234567890);
+    tokens_tree.push_back({"", malformed_token});
+
+    tree.put_child("root.api_tokens", tokens_tree);
+  }
+
   EXPECT_CALL(*mock_deps, read_json(_, _))
     .WillOnce(Invoke([](const std::string &, pt::ptree &tree) {
-      pt::ptree tokens_tree;
-
-      // Add a valid token
-      pt::ptree valid_token;
-      valid_token.put("hash", "valid_hash");
-      valid_token.put("username", "valid_user");
-      valid_token.put("created_at", 1234567890);
-      pt::ptree valid_scopes;
-      pt::ptree valid_scope;
-      valid_scope.put("path", "/api/data");
-      pt::ptree methods;
-      methods.push_back({"", pt::ptree("GET")});
-      valid_scope.add_child("methods", methods);
-      valid_scopes.push_back({"", valid_scope});
-      valid_token.add_child("scopes", valid_scopes);
-      tokens_tree.push_back({"", valid_token});
-
-      // Add malformed token (missing hash)
-      pt::ptree malformed_token;
-      malformed_token.put("username", "malformed_user");
-      malformed_token.put("created_at", 1234567890);
-      tokens_tree.push_back({"", malformed_token});
-
-      tree.put_child("root.api_tokens", tokens_tree);
+      FillPtreeWithMalformedTokenData(tree);
     }));
 
   // When: Loading tokens
@@ -912,47 +917,49 @@ TEST_F(ApiTokenManagerTest, given_malformed_property_tree_during_loading_when_lo
   EXPECT_CALL(*mock_deps, file_exists(_))
     .WillOnce(Return(true));
 
+  // Helper function to fill the ptree with valid and malformed tokens for this test
+  static void FillPtreeWithMalformedScopeData(pt::ptree &tree) {
+    pt::ptree tokens_tree;
+
+    // Add a token with valid scope
+    {
+      pt::ptree valid_token;
+      valid_token.put("hash", "valid_hash");
+      valid_token.put("username", "valid_user");
+      valid_token.put("created_at", 1234567890);
+      pt::ptree valid_scopes;
+      pt::ptree valid_scope;
+      valid_scope.put("path", "/api/data");
+      pt::ptree methods;
+      methods.push_back({"", pt::ptree("GET")});
+      valid_scope.add_child("methods", methods);
+      valid_scopes.push_back({"", valid_scope});
+      valid_token.add_child("scopes", valid_scopes);
+      tokens_tree.push_back({"", valid_token});
+    }
+
+    // Add a token with malformed scope (empty methods should cause scope to be skipped)
+    {
+      pt::ptree malformed_token;
+      malformed_token.put("hash", "malformed_hash");
+      malformed_token.put("username", "malformed_user");
+      malformed_token.put("created_at", 1234567890);
+      pt::ptree malformed_scopes;
+      pt::ptree malformed_scope;
+      malformed_scope.put("path", "/api/data");
+      pt::ptree empty_methods;  // Empty methods - should cause scope to be skipped
+      malformed_scope.add_child("methods", empty_methods);
+      malformed_scopes.push_back({"", malformed_scope});
+      malformed_token.add_child("scopes", malformed_scopes);
+      tokens_tree.push_back({"", malformed_token});
+    }
+
+    tree.put_child("root.api_tokens", tokens_tree);
+  }
+
   EXPECT_CALL(*mock_deps, read_json(_, _))
     .WillOnce(Invoke([](const std::string &, pt::ptree &tree) {
-      pt::ptree tokens_tree;
-
-      // Add a token with valid scope
-      auto add_valid_token = [&tokens_tree]() {
-        pt::ptree valid_token;
-        valid_token.put("hash", "valid_hash");
-        valid_token.put("username", "valid_user");
-        valid_token.put("created_at", 1234567890);
-        pt::ptree valid_scopes;
-        pt::ptree valid_scope;
-        valid_scope.put("path", "/api/data");
-        pt::ptree methods;
-        methods.push_back({"", pt::ptree("GET")});
-        valid_scope.add_child("methods", methods);
-        valid_scopes.push_back({"", valid_scope});
-        valid_token.add_child("scopes", valid_scopes);
-        tokens_tree.push_back({"", valid_token});
-      };
-
-      // Add a token with malformed scope (empty methods should cause scope to be skipped)
-      auto add_malformed_token = [&tokens_tree]() {
-        pt::ptree malformed_token;
-        malformed_token.put("hash", "malformed_hash");
-        malformed_token.put("username", "malformed_user");
-        malformed_token.put("created_at", 1234567890);
-        pt::ptree malformed_scopes;
-        pt::ptree malformed_scope;
-        malformed_scope.put("path", "/api/data");
-        pt::ptree empty_methods;  // Empty methods - should cause scope to be skipped
-        malformed_scope.add_child("methods", empty_methods);
-        malformed_scopes.push_back({"", malformed_scope});
-        malformed_token.add_child("scopes", malformed_scopes);
-        tokens_tree.push_back({"", malformed_token});
-      };
-
-      add_valid_token();
-      add_malformed_token();
-
-      tree.put_child("root.api_tokens", tokens_tree);
+      FillPtreeWithMalformedScopeData(tree);
     }));
   // When: Loading tokens with malformed scope data
   manager->load_api_tokens();
@@ -974,7 +981,7 @@ TEST_F(ApiTokenManagerTest, given_malformed_property_tree_during_loading_when_lo
 // ---------------- SessionTokenManager Unit Tests ----------------
 
 class SessionTokenManagerTest : public ::testing::Test {
-protected:
+public:
   std::chrono::system_clock::time_point fake_now = std::chrono::system_clock::now();
   SessionTokenManagerDependencies deps;
   std::function<void(std::chrono::system_clock::duration)> advance_time;
@@ -983,7 +990,7 @@ protected:
   void SetUp() override {
     deps.now = [this]() { return fake_now; };
     deps.rand_alphabet = [this](std::size_t len) {
-      std::string tok = std::string(len, 'A' + (generated_tokens.size() % 26));
+      auto tok = std::string(len, 'A' + (generated_tokens.size() % 26));
       generated_tokens.push_back(tok);
       return tok;
     };
@@ -1258,7 +1265,7 @@ TEST_F(SessionTokenManagerTest, given_token_generated_when_inspecting_storage_th
 
 
 class SessionTokenAPITest : public Test {
-protected:
+public:
     void SetUp() override {
         // Save original config values
         original_username = config::sunshine.username;
@@ -1272,8 +1279,11 @@ protected:
 
         // Create SessionTokenManager with fake dependencies
         deps.now = [this]() { return fake_now; };
-        deps.rand_alphabet = [this](std::size_t len) {
-            return "fake_token_" + std::to_string(token_counter++);
+        deps.rand_alphabet = [this](std::size_t) {
+            int current_token_counter = token_counter;
+            token_counter++;
+            std::string token_str = std::format("fake_token_{}", current_token_counter);
+            return token_str;
         };
         deps.hash = [](const std::string &input) {
             return "hash_" + input;  // Simple deterministic hash for testing

@@ -48,7 +48,7 @@ namespace pt = boost::property_tree;
 
 namespace confighttp {
   namespace fs = std::filesystem;
-  using enum SimpleWeb::StatusCode;
+  using enum confighttp::StatusCode;
 
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
@@ -90,7 +90,7 @@ namespace confighttp {
    */
   static std::string get_cors_origin() {
     std::uint16_t https_port = net::map_port(PORT_HTTPS);
-    return "https://localhost:" + std::to_string(https_port);
+    return std::format("https://localhost:{}", https_port);
   }
 
   // Helper to add CORS headers for API responses
@@ -190,7 +190,7 @@ namespace confighttp {
    */
   bool authenticate(resp_https_t response, req_https_t request) {
     if (auto result = check_auth(request); !result.ok) {
-      if (result.code == SimpleWeb::StatusCode::redirection_temporary_redirect) {
+      if (result.code == StatusCode::redirection_temporary_redirect) {
         response->write(result.code, result.headers);
       } else if (!result.body.empty()) {
         response->write(result.code, result.body, result.headers);
@@ -227,7 +227,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void bad_request(resp_https_t response, req_https_t request, const std::string &error_message = "Bad Request") {
+  void bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Bad Request") {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json; charset=utf-8");
     add_cors_headers(headers);

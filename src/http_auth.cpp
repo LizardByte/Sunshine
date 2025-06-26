@@ -9,6 +9,7 @@
 #include "nvhttp.h"
 #include "utility.h"
 
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/function.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -418,8 +419,7 @@ namespace confighttp {
     if (it == session_tokens_.end()) {
       return false;
     }
-    auto now = dependencies_.now();
-    if (now > it->second.expires_at) {
+    if (auto now = dependencies_.now(); now > it->second.expires_at) {
       session_tokens_.erase(it);
       return false;
     }
@@ -442,8 +442,7 @@ namespace confighttp {
   std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
-    auto it = session_tokens_.find(token_hash);
-    if (it != session_tokens_.end() && dependencies_.now() <= it->second.expires_at) {
+    if (auto it = session_tokens_.find(token_hash); it != session_tokens_.end() && dependencies_.now() <= it->second.expires_at) {
       return it->second.username;
     }
     return std::nullopt;
@@ -462,7 +461,7 @@ namespace confighttp {
   APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url) {
     if (!validate_credentials(username, password)) {
       BOOST_LOG(info) << "Web UI: Login failed for user: " << username;
-      return create_error_response("Invalid credentials", SimpleWeb::StatusCode::client_error_unauthorized);
+      return create_error_response("Invalid credentials", StatusCode::client_error_unauthorized);
     }
 
     std::string session_token = session_manager_.generate_session_token(username);
@@ -484,7 +483,7 @@ namespace confighttp {
           !(redirect_url.size() > 1 && redirect_url[1] == '/')) {  // reject double slash
         // Unicode normalization: reject if normalized path differs
         std::string norm = redirect_url;
-        std::replace(norm.begin(), norm.end(), '\\', '/');
+        std::ranges::replace(norm, '\\', '/');
         if (norm == redirect_url) {
           safe_redirect = redirect_url;
         }
@@ -503,7 +502,7 @@ namespace confighttp {
 
     // Set CORS header for localhost only (no wildcard), dynamically set port
     std::uint16_t https_port = net::map_port(nvhttp::PORT_HTTPS);
-    std::string cors_origin = "https://localhost" + std::to_string(https_port);
+    std::string cors_origin = std::format("https://localhost:{}", https_port);
     response.headers.emplace("Access-Control-Allow-Origin", cors_origin);
 
     return response;
@@ -530,8 +529,7 @@ namespace confighttp {
       return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
     }
 
-    bool is_valid = session_manager_.validate_session_token(session_token);
-    if (!is_valid) {
+    if (bool is_valid = session_manager_.validate_session_token(session_token); !is_valid) {
       return create_error_response("Invalid or expired session token", SimpleWeb::StatusCode::client_error_unauthorized);
     }
 
@@ -553,7 +551,7 @@ namespace confighttp {
      */
     std::string get_cors_origin() {
       std::uint16_t https_port = net::map_port(confighttp::PORT_HTTPS);
-      return "https://localhost:" + std::to_string(https_port);
+      return std::format("https://localhost:{}", https_port);
     }
   }  // namespace
 
@@ -566,10 +564,10 @@ namespace confighttp {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
     headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
-    return APIResponse(SimpleWeb::StatusCode::success_ok, response_body.dump(), headers);
+    return APIResponse(StatusCode::success_ok, response_body.dump(), headers);
   }
 
-  APIResponse SessionTokenAPI::create_error_response(const std::string &error_message, SimpleWeb::StatusCode status_code) const {
+  APIResponse SessionTokenAPI::create_error_response(const std::string &error_message, StatusCode status_code) const {
     nlohmann::json response_body;
     response_body["status"] = false;
     response_body["error"] = error_message;
@@ -610,7 +608,7 @@ namespace confighttp {
   /**
    * @brief Helper to build an AuthResult for error responses.
    */
-  AuthResult make_auth_error(SimpleWeb::StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
+  AuthResult make_auth_error(StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
     AuthResult result {false, code, {}, {}};
     if (!location.empty()) {
       result.headers.emplace("Location", location);
@@ -618,7 +616,7 @@ namespace confighttp {
       return result;
     }
     nlohmann::json tree;
-    tree["status_code"] = code;
+    tree["status_code"] = static_cast<int>(code);
     tree["status"] = false;
     tree["error"] = error;
     result.body = tree.dump();
@@ -639,9 +637,9 @@ namespace confighttp {
    */
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
     if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
+      return make_auth_error(StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
     }
-    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+    return {true, StatusCode::success_ok, {}, {}};
   }
 
   /**
@@ -651,9 +649,9 @@ namespace confighttp {
    */
   AuthResult check_basic_auth(const std::string &rawAuth) {
     if (!authenticate_basic(rawAuth)) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+      return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
     }
-    return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+    return {true, StatusCode::success_ok, {}, {}};
   }
 
   /**
@@ -663,17 +661,16 @@ namespace confighttp {
    */
   AuthResult check_session_auth(const std::string &rawAuth) {
     if (rawAuth.rfind("Session ", 0) != 0) {
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Invalid session token format", true);
+      return make_auth_error(StatusCode::client_error_unauthorized, "Invalid session token format", true);
     }
 
     std::string token = rawAuth.substr(8);
-    APIResponse api_response = sessionTokenAPI.validate_session(token);
 
-    if (api_response.status_code == SimpleWeb::StatusCode::success_ok) {
-      return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+    if (APIResponse api_response = sessionTokenAPI.validate_session(token); api_response.status_code == StatusCode::success_ok) {
+      return {true, StatusCode::success_ok, {}, {}};
     }
 
-    return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Invalid or expired session token", true);
+    return make_auth_error(StatusCode::client_error_unauthorized, "Invalid or expired session token", true);
   }
 
   /**
@@ -697,7 +694,7 @@ namespace confighttp {
       std::string ext = std::filesystem::path(path).extension().string();
       boost::algorithm::to_lower(ext);
       static const std::vector<std::string> non_html_ext = {".js", ".css", ".map", ".json", ".woff", ".woff2", ".ttf", ".eot", ".ico", ".png", ".jpg", ".jpeg", ".svg"};
-      if (std::find(non_html_ext.begin(), non_html_ext.end(), ext) != non_html_ext.end()) {
+      if (std::ranges::find(non_html_ext, ext) != non_html_ext.end()) {
         return false;
       }
     }
@@ -717,36 +714,37 @@ namespace confighttp {
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
     // Strip query string from path for matching
     auto base_path = path;
-    auto qpos = base_path.find('?');
-    if (qpos != std::string::npos) base_path.resize(qpos);
+    if (auto qpos = base_path.find('?'); qpos != std::string::npos) {
+      base_path.resize(qpos);
+    }
 
     // Allow welcome page without authentication
     if (base_path == "/welcome" || base_path == "/welcome/") {
-        return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+      return {true, StatusCode::success_ok, {}, {}};
     }
 
     if (auto ip_type = net::from_address(remote_address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << remote_address << "] -- denied"sv;
-      return make_auth_error(SimpleWeb::StatusCode::client_error_forbidden, "Forbidden");
+      return make_auth_error(StatusCode::client_error_forbidden, "Forbidden");
     }
 
     if (config::sunshine.username.empty()) {
-      return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, "/welcome");
+      return make_auth_error(StatusCode::redirection_temporary_redirect, {}, false, "/welcome");
     }
 
     // For login page, don't require authentication (match path without query)
     if (base_path == "/login" || base_path == "/login/") {
-      return {true, SimpleWeb::StatusCode::success_ok, {}, {}};
+      return {true, StatusCode::success_ok, {}, {}};
     }
 
     if (auth_header.empty()) {
       // For HTML page requests, redirect to login instead of showing 401 (use base_path)
       if (is_html_request(base_path)) {
-        std::string login_url = "/login?redirect=" + path;
-        return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, login_url);
+        std::string login_url = std::format("/login?redirect={}", path);
+        return make_auth_error(StatusCode::redirection_temporary_redirect, {}, false, login_url);
       }
       // For API requests, send 401 with WWW-Authenticate header for basic auth
-      return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+      return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
     }
 
     if (auth_header.rfind("Bearer ", 0) == 0) {
@@ -759,22 +757,22 @@ namespace confighttp {
 
     if (auth_header.rfind("Session ", 0) == 0) {
       {
-          auto session_res = check_session_auth(auth_header);
-          if (!session_res.ok) {
-              std::string login_url = "/login?redirect=" + path;
-              return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, login_url);
-          }
-          return session_res;
+        auto session_res = check_session_auth(auth_header);
+        if (!session_res.ok) {
+          std::string login_url = "/login?redirect=" + path;
+          return make_auth_error(StatusCode::redirection_temporary_redirect, {}, false, login_url);
+        }
+        return session_res;
       }
     }
 
     // For HTML page requests, redirect to login instead of showing 401 (use base_path)
     if (is_html_request(base_path)) {
       std::string login_url = "/login?redirect=" + path;
-      return make_auth_error(SimpleWeb::StatusCode::redirection_temporary_redirect, {}, false, login_url);
+      return make_auth_error(StatusCode::redirection_temporary_redirect, {}, false, login_url);
     }
 
-    return make_auth_error(SimpleWeb::StatusCode::client_error_unauthorized, "Unauthorized", true);
+    return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
   }
 
   /**
@@ -783,8 +781,7 @@ namespace confighttp {
    * @return Session token string if found, empty string otherwise.
    */
   std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers) {
-    auto cookie_it = headers.find("Cookie");
-    if (cookie_it != headers.end()) {
+    if (auto cookie_it = headers.find("Cookie"); cookie_it != headers.end()) {
       const std::string &cookies = cookie_it->second;
       const std::string prefix = "session_token=";
       auto pos = cookies.find(prefix);

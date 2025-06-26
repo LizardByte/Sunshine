@@ -2,6 +2,7 @@
 <html lang="en" data-bs-theme="auto">
 
 <head>
+  <title>Sunshine - Login</title>
   <%- header %>
   <style>
     .login-container {
@@ -67,9 +68,9 @@
         <div class="alert alert-success">
           {{ $t('login.success', 'Login successful! Redirecting...') }}
         </div>
-        <div class="spinner-border" role="status">
+        <output class="spinner-border">
           <span class="visually-hidden">Loading...</span>
-        </div>
+        </output>
       </div>
     </div>
   </div>
