@@ -1203,46 +1203,6 @@ namespace confighttp {
     send_response(response, output_tree);
   }
 
-  /**
-   * @brief Saves the current API tokens to the configuration state file in JSON format.
-   *
-   * This function serializes the `api_tokens` data structure into a JSON array,
-   * then converts it into a Boost property tree for compatibility with the configuration
-   * file format. Each API token includes its hash, username, creation timestamp, and
-   * associated scopes (paths and allowed HTTP methods). The resulting structure is
-   * written to the file specified by `config::nvhttp.file_state` under the
-   * "root.api_tokens" key. If the file already exists, its contents are loaded and
-   * updated; otherwise, a new file is created.
-   *
-   */
-  void save_api_tokens() {
-    apiTokenManager.save_api_tokens();
-  }
-
-  /**
-   * @brief Loads API tokens from a JSON configuration file into the api_tokens map.
-   *
-   * This function clears the existing api_tokens map and attempts to read API token information
-   * from the JSON file specified by config::nvhttp.file_state. If the file does not exist,
-   * the function returns immediately.
-   *
-   * The function expects the JSON to contain a "root.api_tokens" array, where each entry describes
-   * an API token with the following fields:
-   *   - "hash": The token hash (string, required)
-   *   - "username": The associated username (string, optional)
-   *   - "created_at": The creation timestamp (int64, optional)
-   *   - "scopes": An array of scope objects, each with:
-   *       - "path": The API path (string)
-   *       - "methods": An array of HTTP methods (strings)
-   *
-   * Only tokens with a non-empty "hash" and at least one valid scope are loaded.
-   * Each loaded token is stored in the api_tokens map, keyed by its hash.
-   *
-   * @note If the configuration file or required fields are missing, the function silently skips loading.
-   */
-  void load_api_tokens() {
-    apiTokenManager.load_api_tokens();
-  }
 
   void start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1250,9 +1210,8 @@ namespace confighttp {
     auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
-    // Fix server initialization to use config::nvhttp.cert and config::nvhttp.pkey
+
     https_server_t server(config::nvhttp.cert, config::nvhttp.pkey);
-    std::thread tcp;  // Declare here for correct scope
     server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
@@ -1319,9 +1278,9 @@ namespace confighttp {
         return;
       }
     };
-    tcp = std::thread {accept_and_run, &server};
+    std::thread tcp {accept_and_run, &server};
 
-    load_api_tokens();
+    apiTokenManager.load_api_tokens();
 
     // Start a background task to clean up expired session tokens every hour
     std::jthread cleanup_thread([shutdown_event]() {
@@ -1336,10 +1295,8 @@ namespace confighttp {
 
     server.stop();
 
-    if (tcp.joinable()) {
-      tcp.join();
-    }
-    // std::jthread auto-joins on destruction, no need for joinable/join
+    tcp.join();
+    // std::jthread (cleanup_thread) auto-joins on destruction, no need for joinable/join
   }
 
   /**
