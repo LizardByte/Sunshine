@@ -26,13 +26,14 @@
         <h1 class="h3 mb-3 fw-normal">{{ $t('login.title', 'Sign In') }}</h1>
       </div>
 
-      <form @submit.prevent="login" v-if="!isLoggedIn">
+      <form @submit.prevent="login" v-if="!isLoggedIn" autocomplete="on">
         <div class="mb-3">
           <label for="username" class="form-label">{{ $t('_common.username', 'Username') }}</label>
           <input 
             type="text" 
             class="form-control" 
             id="username" 
+            name="username" 
             v-model="credentials.username" 
             required
             autocomplete="username"
@@ -45,17 +46,11 @@
             type="password" 
             class="form-control" 
             id="password" 
+            name="password" 
             v-model="credentials.password" 
             required
             autocomplete="current-password"
           >
-        </div>
-
-        <div class="mb-3 form-check">
-          <input type="checkbox" class="form-check-input" id="rememberMe" v-model="rememberMe">
-          <label class="form-check-label" for="rememberMe">
-            {{ $t('login.remember_me', 'Remember me') }}
-          </label>
         </div>
 
         <button type="submit" class="btn btn-primary w-100" :disabled="loading">
@@ -90,7 +85,6 @@
             username: '',
             password: ''
           },
-          rememberMe: false,
           loading: false,
           error: '',
           isLoggedIn: false,

@@ -1470,7 +1470,6 @@ namespace confighttp {
     server.resource["^/api-tokens/?$"]["GET"] = getTokenPage;
     server.resource["^/api/auth/login$"]["POST"] = loginUser;
     server.resource["^/api/auth/logout$"]["POST"] = logoutUser;
-    server.resource["^/api/auth/refresh$"]["POST"] = refreshSessionToken;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
@@ -1653,31 +1652,6 @@ namespace confighttp {
     }
 
     APIResponse api_response = sessionTokenAPI.logout(session_token);
-    write_api_response(response, api_response);
-  }
-
-  /**
-   * @brief Refresh session token endpoint.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   *
-   * @api_examples{/api/auth/refresh| POST| null}
-   */
-  void refreshSessionToken(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    auto auth = request->header.find("authorization");
-    if (auth == request->header.end() || auth->second.rfind("Session ", 0) != 0) {
-      bad_request(response, request, "Session token required for refresh");
-      return;
-    }
-
-    std::string old_token = auth->second.substr(8);
-    APIResponse api_response = sessionTokenAPI.refresh_token(old_token);
     write_api_response(response, api_response);
   }
 

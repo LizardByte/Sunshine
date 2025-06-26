@@ -91,18 +91,18 @@ namespace confighttp {
    * @brief Session token information.
    */
   struct SessionToken {
-    std::string token;
     std::string username;
     std::chrono::system_clock::time_point created_at;
     std::chrono::system_clock::time_point expires_at;
   };
 
   /**
-   * @brief Struct holding dependencies for session token management (clock, random).
+   * @brief Struct holding dependencies for session token management (clock, random, hash).
    */
   struct SessionTokenManagerDependencies {
     boost::function<std::chrono::system_clock::time_point()> now;
     boost::function<std::string(std::size_t)> rand_alphabet;
+    boost::function<std::string(const std::string &)> hash;
 
     SessionTokenManagerDependencies() = default;
     SessionTokenManagerDependencies(const SessionTokenManagerDependencies &) = default;
@@ -129,7 +129,7 @@ namespace confighttp {
     SessionTokenManagerDependencies dependencies_;
     mutable std::mutex mutex_;
     std::unordered_map<std::string, SessionToken> session_tokens_;
-    static constexpr std::chrono::hours SESSION_TOKEN_DURATION{24};
+    static constexpr std::chrono::seconds SESSION_TOKEN_DURATION{30};
   };
 
   /**
@@ -173,13 +173,6 @@ namespace confighttp {
      * @return APIResponse containing logout result.
      */
     APIResponse logout(const std::string& session_token);
-
-    /**
-     * @brief Process session token refresh request.
-     * @param old_token The existing session token to refresh.
-     * @return APIResponse containing new session token if successful.
-     */
-    APIResponse refresh_token(const std::string& old_token);
 
     /**
      * @brief Validate session token authentication.

@@ -67,7 +67,6 @@ namespace confighttp {
   // Session token endpoints
   void loginUser(resp_https_t response, req_https_t request);
   void logoutUser(resp_https_t response, req_https_t request);
-  void refreshSessionToken(resp_https_t response, req_https_t request);
   void getLoginPage(resp_https_t response, req_https_t request);
   
   // Authentication functions (exposed for validation)

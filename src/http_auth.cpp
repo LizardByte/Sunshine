@@ -374,7 +374,6 @@ namespace confighttp {
     return api_tokens;
   }
 
-  // ---------------- SessionTokenManager Implementation ----------------
 
   SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies)
       : dependencies_(dependencies) {}
@@ -383,22 +382,28 @@ namespace confighttp {
     SessionTokenManagerDependencies deps;
     deps.now = []() { return std::chrono::system_clock::now(); };
     deps.rand_alphabet = [](std::size_t length) { return crypto::rand_alphabet(length); };
+    deps.hash = [](const std::string &input) { 
+      auto hash_result = crypto::hash(input);
+      return util::hex(hash_result).to_string();
+    };
     return deps;
   }
 
   std::string SessionTokenManager::generate_session_token(const std::string &username) {
     std::scoped_lock lock(mutex_);
     std::string token = dependencies_.rand_alphabet(64);
+    std::string token_hash = dependencies_.hash(token);
     auto now = dependencies_.now();
     auto expires = now + SESSION_TOKEN_DURATION;
-    session_tokens_[token] = SessionToken{token, username, now, expires};
+    session_tokens_[token_hash] = SessionToken{username, now, expires};
     cleanup_expired_session_tokens();
     return token;
   }
 
   bool SessionTokenManager::validate_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
-    auto it = session_tokens_.find(token);
+    std::string token_hash = dependencies_.hash(token);
+    auto it = session_tokens_.find(token_hash);
     if (it == session_tokens_.end()) {
       return false;
     }
@@ -412,7 +417,8 @@ namespace confighttp {
 
   void SessionTokenManager::revoke_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
-    session_tokens_.erase(token);
+    std::string token_hash = dependencies_.hash(token);
+    session_tokens_.erase(token_hash);
   }
 
   void SessionTokenManager::cleanup_expired_session_tokens() {
@@ -424,7 +430,8 @@ namespace confighttp {
 
   std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
-    auto it = session_tokens_.find(token);
+    std::string token_hash = dependencies_.hash(token);
+    auto it = session_tokens_.find(token_hash);
     if (it != session_tokens_.end() && dependencies_.now() <= it->second.expires_at) {
       return it->second.username;
     }
@@ -498,30 +505,12 @@ namespace confighttp {
     nlohmann::json response_data;
     response_data["message"] = "Logged out successfully";
     
-    return create_success_response(response_data);
-  }
-
-  APIResponse SessionTokenAPI::refresh_token(const std::string& old_token) {
-    if (old_token.empty()) {
-      return create_error_response("Session token required for refresh");
-    }
-
-    auto maybe_username = session_manager_.get_username_for_token(old_token);
-    if (!maybe_username) {
-      return create_error_response("Invalid session token");
-    }
-
-    std::string username = *maybe_username;
-    
-    // Revoke old token and generate new one
-    session_manager_.revoke_session_token(old_token);
-    std::string new_token = session_manager_.generate_session_token(username);
-
-    nlohmann::json response_data;
-    response_data["token"] = new_token;
-    response_data["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
-
-    return create_success_response(response_data);
+    // Create success response and clear the session cookie so the client no longer retains it
+    APIResponse response = create_success_response(response_data);
+    // Set-Cookie header to clear the session token on client
+    std::string clear_cookie = "session_token=; Path=/; HttpOnly; SameSite=Strict; Expires=Thu, 01 Jan 1970 00:00:00 GMT";
+    response.headers.emplace("Set-Cookie", clear_cookie);
+    return response;
   }
 
   APIResponse SessionTokenAPI::validate_session(const std::string& session_token) {

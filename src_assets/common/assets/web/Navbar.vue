@@ -34,6 +34,9 @@
           <li class="nav-item">
             <ThemeToggle/>
           </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" @click.prevent="logout"><i class="fas fa-fw fa-sign-out-alt"></i> {{ $t('navbar.logout', 'Logout') }}</a>
+          </li>
         </ul>
       </div>
     </div>
@@ -53,6 +56,16 @@ export default {
     let el = document.querySelector("a[href='" + document.location.pathname + "']");
     if (el) el.classList.add("active")
     initDiscord();
+  },
+  methods: {
+    async logout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch (e) {
+        // ignore errors
+      }
+      window.location.href = './login';
+    }
   }
 }
 </script>
