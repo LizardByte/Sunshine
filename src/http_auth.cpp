@@ -3,11 +3,11 @@
 #include "config.h"
 #include "confighttp.h"
 #include "crypto.h"
+#include "httpcommon.h"
 #include "logging.h"
-#include "utility.h"
 #include "network.h"
 #include "nvhttp.h"
-#include "httpcommon.h"
+#include "utility.h"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/function.hpp>
@@ -26,12 +26,14 @@
 #include <Simple-Web-Server/server_https.hpp>
 #include <string>
 #include <vector>
-#include "logging.h"
 using namespace std::literals;
 namespace pt = boost::property_tree;
 namespace fs = std::filesystem;
 
 namespace confighttp {
+
+  // Session token validity duration (
+  constexpr std::chrono::hours SESSION_TOKEN_DURATION {2};
 
   /**
    * @class InvalidScopeException
@@ -228,7 +230,6 @@ namespace confighttp {
     return true;
   }
 
-
   /**
    * @brief Saves all API tokens to persistent storage.
    */
@@ -375,15 +376,18 @@ namespace confighttp {
     return api_tokens;
   }
 
-
-  SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies)
-      : dependencies_(dependencies) {}
+  SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies):
+      dependencies_(dependencies) {}
 
   SessionTokenManagerDependencies SessionTokenManager::make_default_dependencies() {
     SessionTokenManagerDependencies deps;
-    deps.now = []() { return std::chrono::system_clock::now(); };
-    deps.rand_alphabet = [](std::size_t length) { return crypto::rand_alphabet(length); };
-    deps.hash = [](const std::string &input) { 
+    deps.now = []() {
+      return std::chrono::system_clock::now();
+    };
+    deps.rand_alphabet = [](std::size_t length) {
+      return crypto::rand_alphabet(length);
+    };
+    deps.hash = [](const std::string &input) {
       auto hash_result = crypto::hash(input);
       return util::hex(hash_result).to_string();
     };
@@ -396,7 +400,7 @@ namespace confighttp {
     std::string token_hash = dependencies_.hash(token);
     auto now = dependencies_.now();
     auto expires = now + SESSION_TOKEN_DURATION;
-    session_tokens_[token_hash] = SessionToken{username, now, expires};
+    session_tokens_[token_hash] = SessionToken {username, now, expires};
     cleanup_expired_session_tokens();
     return token;
   }
@@ -446,10 +450,10 @@ namespace confighttp {
 
   // ---------------- SessionTokenAPI Implementation ----------------
 
-  SessionTokenAPI::SessionTokenAPI(SessionTokenManager& session_manager)
-      : session_manager_(session_manager) {}
+  SessionTokenAPI::SessionTokenAPI(SessionTokenManager &session_manager):
+      session_manager_(session_manager) {}
 
-  APIResponse SessionTokenAPI::login(const std::string& username, const std::string& password, const std::string& redirect_url) {
+  APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url) {
     if (!validate_credentials(username, password)) {
       BOOST_LOG(info) << "Web UI: Login failed for user: " << username;
       return create_error_response("Invalid credentials", SimpleWeb::StatusCode::client_error_unauthorized);
@@ -471,7 +475,7 @@ namespace confighttp {
           lower.find("%2f") == std::string::npos &&
           lower.find("\\") == std::string::npos &&
           lower.find("..") == std::string::npos &&
-          !(redirect_url.size() > 1 && redirect_url[1] == '/')) { // reject double slash
+          !(redirect_url.size() > 1 && redirect_url[1] == '/')) {  // reject double slash
         // Unicode normalization: reject if normalized path differs
         std::string norm = redirect_url;
         std::replace(norm.begin(), norm.end(), '\\', '/');
@@ -499,14 +503,14 @@ namespace confighttp {
     return response;
   }
 
-  APIResponse SessionTokenAPI::logout(const std::string& session_token) {
+  APIResponse SessionTokenAPI::logout(const std::string &session_token) {
     if (!session_token.empty()) {
       session_manager_.revoke_session_token(session_token);
     }
 
     nlohmann::json response_data;
     response_data["message"] = "Logged out successfully";
-    
+
     // Create success response and clear the session cookie so the client no longer retains it
     APIResponse response = create_success_response(response_data);
     // Set-Cookie header to clear the session token on client
@@ -515,7 +519,7 @@ namespace confighttp {
     return response;
   }
 
-  APIResponse SessionTokenAPI::validate_session(const std::string& session_token) {
+  APIResponse SessionTokenAPI::validate_session(const std::string &session_token) {
     if (session_token.empty()) {
       return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
     }
@@ -528,7 +532,7 @@ namespace confighttp {
     return create_success_response();
   }
 
-  bool SessionTokenAPI::validate_credentials(const std::string& username, const std::string& password) const {
+  bool SessionTokenAPI::validate_credentials(const std::string &username, const std::string &password) const {
     if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
         !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
@@ -537,20 +541,20 @@ namespace confighttp {
   }
 
   namespace {
-/**
- * @brief Get the CORS origin for localhost (no wildcard).
- * @return The CORS origin string.
- */
-std::string get_cors_origin() {
-  std::uint16_t https_port = net::map_port(PORT_HTTPS);
-  return "https://localhost:" + std::to_string(https_port);
-}
-}
+    /**
+     * @brief Get the CORS origin for localhost (no wildcard).
+     * @return The CORS origin string.
+     */
+    std::string get_cors_origin() {
+      std::uint16_t https_port = net::map_port(PORT_HTTPS);
+      return "https://localhost:" + std::to_string(https_port);
+    }
+  }  // namespace
 
-  APIResponse SessionTokenAPI::create_success_response(const nlohmann::json& data) const {
+  APIResponse SessionTokenAPI::create_success_response(const nlohmann::json &data) const {
     nlohmann::json response_body;
     response_body["status"] = true;
-    for (auto& [key, value] : data.items()) {
+    for (auto &[key, value] : data.items()) {
       response_body[key] = value;
     }
     SimpleWeb::CaseInsensitiveMultimap headers;
@@ -559,7 +563,7 @@ std::string get_cors_origin() {
     return APIResponse(SimpleWeb::StatusCode::success_ok, response_body.dump(), headers);
   }
 
-  APIResponse SessionTokenAPI::create_error_response(const std::string& error_message, SimpleWeb::StatusCode status_code) const {
+  APIResponse SessionTokenAPI::create_error_response(const std::string &error_message, SimpleWeb::StatusCode status_code) const {
     nlohmann::json response_body;
     response_body["status"] = false;
     response_body["error"] = error_message;

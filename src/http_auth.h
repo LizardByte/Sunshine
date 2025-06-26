@@ -125,11 +125,11 @@ namespace confighttp {
     std::optional<std::string> get_username_for_token(const std::string &token);
     size_t session_count() const;
     static SessionTokenManagerDependencies make_default_dependencies();
+
   private:
     SessionTokenManagerDependencies dependencies_;
     mutable std::mutex mutex_;
     std::unordered_map<std::string, SessionToken> session_tokens_;
-    static constexpr std::chrono::seconds SESSION_TOKEN_DURATION{30};
   };
 
   /**
@@ -142,9 +142,11 @@ namespace confighttp {
     SimpleWeb::StatusCode status_code;
     std::string body;
     SimpleWeb::CaseInsensitiveMultimap headers;
-    
-    APIResponse(SimpleWeb::StatusCode code, std::string response_body = "", SimpleWeb::CaseInsensitiveMultimap response_headers = {})
-        : status_code(code), body(std::move(response_body)), headers(std::move(response_headers)) {}
+
+    APIResponse(SimpleWeb::StatusCode code, std::string response_body = "", SimpleWeb::CaseInsensitiveMultimap response_headers = {}):
+        status_code(code),
+        body(std::move(response_body)),
+        headers(std::move(response_headers)) {}
   };
 
   /**
@@ -156,7 +158,7 @@ namespace confighttp {
    */
   class SessionTokenAPI {
   public:
-    explicit SessionTokenAPI(SessionTokenManager& session_manager);
+    explicit SessionTokenAPI(SessionTokenManager &session_manager);
 
     /**
      * @brief Process user login request.
@@ -165,25 +167,25 @@ namespace confighttp {
      * @param redirect_url Optional redirect URL after successful login.
      * @return APIResponse containing login result and session token if successful.
      */
-    APIResponse login(const std::string& username, const std::string& password, const std::string& redirect_url = "/");
+    APIResponse login(const std::string &username, const std::string &password, const std::string &redirect_url = "/");
 
     /**
      * @brief Process user logout request.
      * @param session_token The session token to revoke.
      * @return APIResponse containing logout result.
      */
-    APIResponse logout(const std::string& session_token);
+    APIResponse logout(const std::string &session_token);
 
     /**
      * @brief Validate session token authentication.
      * @param session_token The session token to validate.
      * @return APIResponse containing validation result.
      */
-    APIResponse validate_session(const std::string& session_token);
+    APIResponse validate_session(const std::string &session_token);
 
   private:
-    SessionTokenManager& session_manager_;
-    static constexpr std::chrono::hours SESSION_TOKEN_DURATION{24};
+    SessionTokenManager &session_manager_;
+    static constexpr std::chrono::hours SESSION_TOKEN_DURATION {2};
 
     /**
      * @brief Validate user credentials against configuration.
@@ -191,14 +193,14 @@ namespace confighttp {
      * @param password The password to validate.
      * @return True if credentials are valid, false otherwise.
      */
-    bool validate_credentials(const std::string& username, const std::string& password) const;
+    bool validate_credentials(const std::string &username, const std::string &password) const;
 
     /**
      * @brief Create a successful JSON response.
      * @param data Additional data to include in the response.
      * @return APIResponse with success status and JSON body.
      */
-    APIResponse create_success_response(const nlohmann::json& data = {}) const;
+    APIResponse create_success_response(const nlohmann::json &data = {}) const;
 
     /**
      * @brief Create an error JSON response.
@@ -206,7 +208,7 @@ namespace confighttp {
      * @param status_code The HTTP status code (default: 400 Bad Request).
      * @return APIResponse with error status and JSON body.
      */
-    APIResponse create_error_response(const std::string& error_message, SimpleWeb::StatusCode status_code = SimpleWeb::StatusCode::client_error_bad_request) const;
+    APIResponse create_error_response(const std::string &error_message, SimpleWeb::StatusCode status_code = SimpleWeb::StatusCode::client_error_bad_request) const;
   };
 
 }  // namespace confighttp
