@@ -1257,6 +1257,53 @@ TEST_F(SessionTokenManagerTest, given_token_generated_when_inspecting_storage_th
   EXPECT_FALSE(invalid_retrieval.has_value());
 }
 
+TEST_F(SessionTokenManagerTest, given_expired_tokens_when_generating_session_token_then_cleanup_should_occur) {
+  // Given: A session manager with an expired token
+  std::string username1 = "expired_user";
+  std::string username2 = "active_user";
+  std::string expired_token = mgr->generate_session_token(username1);
+
+  // Advance time to expire the first token
+  advance_time(std::chrono::hours(25));
+  EXPECT_FALSE(mgr->validate_session_token(expired_token));
+
+  // When: Generating a new session token (should trigger cleanup)
+  std::string active_token = mgr->generate_session_token(username2);
+
+  // Then: Only the new token should be valid and session count should be 1
+  EXPECT_TRUE(mgr->validate_session_token(active_token));
+  EXPECT_EQ(mgr->session_count(), 1);
+}
+
+TEST_F(SessionTokenManagerTest, given_token_with_expiry_equal_to_now_when_validating_then_should_return_false) {
+  // Given: A session token that will expire
+  std::string username = "boundary_user";
+  std::string token = mgr->generate_session_token(username);
+
+  // Advance time to the token's expiry (24 hours from creation)
+  advance_time(std::chrono::hours(24));
+
+  // When: Validating the token at the exact expiry time
+  bool is_valid = mgr->validate_session_token(token);
+
+  // Then: Should return false (token is expired at boundary)
+  EXPECT_FALSE(is_valid);
+}
+
+TEST_F(SessionTokenManagerTest, given_expired_token_when_validating_then_should_erase_expired_token_from_storage) {
+  // Given: A session token that will expire
+  std::string username = "cleanup_test_user";
+  std::string token = mgr->generate_session_token(username);
+
+  // Advance time to expire the token (past 24h expiry)
+  advance_time(std::chrono::hours(25));
+
+  // When: Validating the expired token (should trigger erase)
+  EXPECT_FALSE(mgr->validate_session_token(token));
+
+  // Then: The token should be removed from storage (session_count should be 0)
+  EXPECT_EQ(mgr->session_count(), 0u);
+}
 
 class SessionTokenAPITest : public Test {
 public:
@@ -1425,3 +1472,111 @@ TEST_F(SessionTokenAPITest, given_token_with_special_chars_when_logging_in_then_
   EXPECT_EQ(json_response["token"], "token with spaces;and%percent");
 }
 
+TEST_F(ApiTokenManagerTest, given_pattern_without_dollar_suffix_when_authenticating_then_should_test_anchoring_boundary) {
+  // Given: Token with a pattern missing the '$' anchor
+  EXPECT_CALL(*mock_deps, hash("test_token"))
+    .WillRepeatedly(Return("token_hash"));
+
+  std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
+  path_methods["/api/data"] = {"GET"};  // Should match exactly /api/data, not /api/data/extra
+  ApiTokenInfo token_info {"token_hash", path_methods, "test_user", test_time};
+  InjectToken(token_info);
+
+  // Should match exact path
+  EXPECT_TRUE(manager->authenticate_token("test_token", "/api/data", "GET")) << "Exact path should match";
+
+  // Should NOT match path with extra suffixes (tests anchoring)
+  EXPECT_FALSE(manager->authenticate_token("test_token", "/api/data/extra", "GET")) << "Path with extra suffix should NOT match";
+  EXPECT_FALSE(manager->authenticate_token("test_token", "/api/data/", "GET")) << "Path with trailing slash should NOT match";
+}
+
+TEST_F(ApiTokenManagerTest, given_path_matches_but_method_disallowed_and_path_mismatch_with_allowed_method_when_authenticating_then_logical_operator_gap) {
+  EXPECT_CALL(*mock_deps, hash("test_token"))
+    .WillRepeatedly(Return("token_hash"));
+
+  std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
+  path_methods["/api/users"] = {"GET"};  // Only GET allowed on /api/users
+  path_methods["/api/admin"] = {"POST"}; // Only POST allowed on /api/admin
+  ApiTokenInfo token_info {"token_hash", path_methods, "test_user", test_time};
+  InjectToken(token_info);
+
+  // Case 1: Path matches but method doesn't - should fail
+  EXPECT_FALSE(manager->authenticate_token("test_token", "/api/users", "POST"));
+
+  // Case 2: Method exists for different path but current path doesn't match - should fail
+  EXPECT_FALSE(manager->authenticate_token("test_token", "/api/nonexistent", "GET"));
+
+  // Case 3: Both path and method match - should succeed
+  EXPECT_TRUE(manager->authenticate_token("test_token", "/api/users", "GET"));
+}
+
+
+TEST_F(ApiTokenManagerTest, given_token_creation_when_returned_token_then_should_be_raw_not_hash) {
+  // Given: Setup deterministic hash for test
+  EXPECT_CALL(*mock_deps, rand_alphabet(_))
+    .WillOnce(Return("raw_token_value"));
+  EXPECT_CALL(*mock_deps, hash("raw_token_value"))
+    .WillOnce(Return("token_hash_value"));
+  EXPECT_CALL(*mock_deps, now())
+    .WillOnce(Return(test_time));
+  EXPECT_CALL(*mock_deps, file_exists(_))
+    .WillOnce(Return(false));
+  EXPECT_CALL(*mock_deps, write_json(_, _))
+    .Times(1);
+
+  std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
+  path_methods["/api/secure"] = {"GET"};
+  nlohmann::json scopes = nlohmann::json::array();
+  nlohmann::json scope;
+  scope["path"] = "/api/secure";
+  scope["methods"] = nlohmann::json::array({"GET"});
+  scopes.push_back(scope);
+  std::string username = "api_user";
+
+  // When: Creating a token
+  auto returned_token_opt = manager->create_api_token(scopes, username);
+  ASSERT_TRUE(returned_token_opt.has_value());
+  std::string returned_token = *returned_token_opt;
+
+  // Then: The returned token should be the raw token, not the hash
+  EXPECT_EQ(returned_token, "raw_token_value");
+  EXPECT_NE(returned_token, "token_hash_value");
+}
+
+TEST_F(ApiTokenManagerTest, given_token_creation_when_creating_token_then_should_persist_immediately) {
+  // Given: Valid scopes JSON (matches production expectations)
+  nlohmann::json scopes = nlohmann::json::array();
+  nlohmann::json scope;
+  scope["path"] = "/api/data";
+  // Ensure 'methods' is a non-empty array of strings
+  scope["methods"] = nlohmann::json::array({"GET"});
+  scopes.push_back(scope);
+
+  EXPECT_CALL(*mock_deps, rand_alphabet(32))
+    .WillOnce(Return("persist_token"));
+  EXPECT_CALL(*mock_deps, hash("persist_token"))
+    .WillOnce(Return("persist_hash"));
+  EXPECT_CALL(*mock_deps, now())
+    .WillOnce(Return(test_time));
+  EXPECT_CALL(*mock_deps, file_exists(_))
+    .WillOnce(Return(false));
+  EXPECT_CALL(*mock_deps, write_json(_, _))
+    .Times(1);
+
+  // When: Creating API token
+  auto result = manager->create_api_token(scopes, "persist_user");
+
+  // Then: Token should be created and persistence should have occurred
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(*result, "persist_token");
+}
+
+TEST_F(ApiTokenManagerTest, given_nonexistent_token_hash_when_revoking_then_should_return_false) {
+  // Given: No tokens in the manager
+
+  // When: Attempting to revoke a token with a hash that does not exist
+  bool result = manager->revoke_api_token_by_hash("nonexistent_hash");
+
+  // Then: Should return false (boundary: erase returns 0)
+  EXPECT_FALSE(result);
+}
