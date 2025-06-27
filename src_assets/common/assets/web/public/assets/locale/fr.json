@@ -256,8 +256,6 @@
     "log_path_desc": "Le fichier où sont stockés les logs actuels de Sunshine.",
     "max_bitrate": "Débit maximum",
     "max_bitrate_desc": "Le débit maximum (en Kbps) auquel Sunshine encode le flux. Si réglé sur 0, il utilisera toujours le débit demandé par Lune.",
-    "min_fps_factor": "Facteur FPS minimum",
-    "min_fps_factor_desc": "Sunshine utilisera ce facteur pour calculer le temps minimum entre les images. Augmenter légèrement cette valeur peut aider lorsque vous streamez du contenu statique. Des valeurs plus élevées consommeront plus de bande passante.",
     "min_threads": "Nombre minimum de threads CPU",
     "min_threads_desc": "Augmenter la valeur réduit légèrement l'efficacité de l'encodage, mais le compromis vaut généralement la peine de gagner l'utilisation de plus de cœurs CPU pour l'encodage. La valeur idéale est la valeur la plus basse qui peut de manière fiable encoder les paramètres de streaming désirés sur votre matériel.",
     "misc": "Options diverses",
