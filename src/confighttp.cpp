@@ -559,19 +559,10 @@ namespace confighttp {
     std::vector<std::string> tokens;
     size_t start = 0, end = 0;
     while ((end = str.find(delimiter, start)) != std::string::npos) {
-      std::string token = str.substr(start, end - start);
-      // 过滤空字符串和仅包含空白字符的字符串
-      boost::algorithm::trim(token);
-      if (!token.empty()) {
-        tokens.push_back(token);
-      }
+      tokens.push_back(str.substr(start, end - start));
       start = end + 1;
     }
-    std::string lastToken = str.substr(start);
-    boost::algorithm::trim(lastToken);
-    if (!lastToken.empty()) {
-      tokens.push_back(lastToken);
-    }
+    tokens.push_back(str.substr(start));
     return tokens;
   }
 
@@ -585,27 +576,18 @@ namespace confighttp {
     char delimiter = ',';
     std::string str = boost::regex_replace(resArray, pattern, "");
     boost::algorithm::trim(str);
-    if (!str.empty()) {
-      for (const auto &resolution : split(str, delimiter)) {
-        auto index = resolution.find('x');
-        if(index == std::string::npos || resolution.empty()) {
-          continue; // 跳过无效的分辨率格式
-        }
-        pt::ptree res_node;
-        res_node.put("width", resolution.substr(0, index));
-        res_node.put("height", resolution.substr(index + 1));
-
-        std::string fpsStr = boost::regex_replace(fpsArray, pattern, "");
-        boost::algorithm::trim(fpsStr);
-        if (!fpsStr.empty()) {
-          for (const auto &fps : split(fpsStr, delimiter)) {
-            if (!fps.empty()) { // 确保fps不为空
-              res_node.add("refresh_rate", fps);
-            }
-          }
-        }
-        resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
+    for (const auto &resolution : split(str, delimiter)) {
+      auto index = resolution.find('x');
+      if(index == std::string::npos) {
+        return false;
       }
+      pt::ptree res_node;
+      res_node.put("width", resolution.substr(0, index));
+      res_node.put("height", resolution.substr(index + 1));
+      for (const auto &fps : split(boost::regex_replace(fpsArray, pattern, ""), delimiter)) {
+        res_node.add("refresh_rate", fps);
+      }
+      resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
     }
 
     char* systemDrive = std::getenv("SystemDrive");
@@ -614,9 +596,9 @@ namespace confighttp {
         return false;
     }
 
-    auto idd_option_path = std::filesystem::path(systemDrive) 
+    auto idd_option_path = std::filesystem::path(systemDrive)
         / "\\"
-        / "VirtualDisplayDriver" 
+        / "VirtualDisplayDriver"
         / "vdd_settings.xml";
 
     BOOST_LOG(info) << "VDD配置文件路径: " << idd_option_path.string();
