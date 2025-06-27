@@ -393,7 +393,9 @@
     "theme_dark": "Dark",
     "theme_light": "Light",
     "toggle_theme": "Theme",
-    "troubleshoot": "Troubleshooting"
+    "troubleshoot": "Troubleshooting",
+    "logout": "Logout",
+    "api_tokens": "API Tokens"
   },
   "password": {
     "confirm_password": "Confirm Password",
@@ -453,5 +455,10 @@
     "greeting": "Welcome to Sunshine!",
     "login": "Login",
     "welcome_success": "This page will reload soon, your browser will ask you for the new credentials"
+  },
+  "login": {
+    "title": "Login",
+    "sign_in": "Sign In",
+    "success": "Login successful! Redirecting..."
   }
 }
