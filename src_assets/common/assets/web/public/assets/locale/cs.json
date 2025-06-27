@@ -256,8 +256,6 @@
     "log_path_desc": "Soubor s aktuálními protokoly sunshine jsou uloženy.",
     "max_bitrate": "Maximální bitrate",
     "max_bitrate_desc": "Maximální bitrate (v Kbps) zakódovaný sunshine streamem. Je-li nastaveno na 0, bude vždy používat bitrate požadovaný Moonlight.",
-    "min_fps_factor": "Minimální faktor FPS",
-    "min_fps_factor_desc": "Sluneční záření použije tento faktor k výpočtu minimálního času mezi snímky. Mírné zvýšení této hodnoty může pomoci při streamování většinou statického obsahu. Vyšší hodnoty budou spotřebovávat větší šířku pásma.",
     "min_threads": "Minimální počet CPU vláken",
     "min_threads_desc": "Zvýšení hodnoty mírně snižuje efektivitu kódování, ale tento kompromis obvykle stojí za to získat více jader CPU pro kódování. Ideální hodnota je nejnižší hodnota, která může spolehlivě kódovat v požadovaném nastavení streamu do vašeho hardwaru.",
     "misc": "Různé možnosti",
