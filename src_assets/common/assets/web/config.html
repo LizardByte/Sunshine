@@ -371,6 +371,9 @@
 
         return fetch("./api/config", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(config),
         }).then((r) => {
           if (r.status === 200) {
@@ -393,7 +396,10 @@
               this.saved = this.restarted = false;
             }, 5000);
             fetch("./api/restart", {
-              method: "POST"
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
             });
           }
         });

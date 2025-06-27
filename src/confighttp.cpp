@@ -214,6 +214,39 @@ namespace confighttp {
   }
 
   /**
+   * @brief Validate the request content type and send bad request when mismatch.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param contentType The expected content type
+   */
+  bool check_content_type(resp_https_t response, req_https_t request, const std::string_view &contentType) {
+    auto requestContentType = request->header.find("content-type");
+    if (requestContentType == request->header.end()) {
+      bad_request(response, request, "Content type not provided");
+      return false;
+    }
+    // Extract the media type part before any parameters (e.g., charset)
+    std::string actualContentType = requestContentType->second;
+    size_t semicolonPos = actualContentType.find(';');
+    if (semicolonPos != std::string::npos) {
+      actualContentType = actualContentType.substr(0, semicolonPos);
+    }
+
+    // Trim whitespace and convert to lowercase for case-insensitive comparison
+    boost::algorithm::trim(actualContentType);
+    boost::algorithm::to_lower(actualContentType);
+
+    std::string expectedContentType(contentType);
+    boost::algorithm::to_lower(expectedContentType);
+
+    if (actualContentType != expectedContentType) {
+      bad_request(response, request, "Content type mismatch");
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * @brief Get the index page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -535,6 +568,9 @@ namespace confighttp {
    * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
    */
   void saveApp(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -602,6 +638,9 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -623,6 +662,9 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -703,6 +745,9 @@ namespace confighttp {
    * @api_examples{/api/unpair| POST| {"uuid":"1234"}}
    */
   void unpair(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -733,6 +778,9 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -809,6 +857,9 @@ namespace confighttp {
    * @api_examples{/api/config| POST| {"key":"value"}}
    */
   void saveConfig(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -855,6 +906,9 @@ namespace confighttp {
    * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
   void uploadCover(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -938,6 +992,9 @@ namespace confighttp {
    * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
   void savePassword(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!config::sunshine.username.empty() && !authenticate(response, request)) {
       return;
     }
@@ -1008,6 +1065,9 @@ namespace confighttp {
    * @api_examples{/api/pin| POST| {"pin":"1234","name":"My PC"}}
    */
   void savePin(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1044,6 +1104,9 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1063,6 +1126,9 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
