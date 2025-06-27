@@ -12,19 +12,17 @@ elseif(UNIX)
     # configure the .desktop file
     set(SUNSHINE_DESKTOP_ICON "sunshine")
     if(${SUNSHINE_BUILD_APPIMAGE})
-        configure_file(packaging/linux/AppImage/sunshine.desktop sunshine.desktop @ONLY)
+        configure_file(packaging/linux/AppImage/${PROJECT_FQDN}.desktop ${PROJECT_FQDN}.desktop @ONLY)
     elseif(${SUNSHINE_BUILD_FLATPAK})
         set(SUNSHINE_DESKTOP_ICON "${PROJECT_FQDN}")
-        configure_file(packaging/linux/flatpak/sunshine.desktop sunshine.desktop @ONLY)
-        configure_file(packaging/linux/flatpak/${PROJECT_FQDN}.metainfo.xml
-                ${PROJECT_FQDN}.metainfo.xml @ONLY)
+        configure_file(packaging/linux/flatpak/${PROJECT_FQDN}.desktop ${PROJECT_FQDN}.desktop @ONLY)
     else()
-        configure_file(packaging/linux/sunshine.desktop sunshine.desktop @ONLY)
-        configure_file(packaging/linux/sunshine_terminal.desktop sunshine_terminal.desktop @ONLY)
+        configure_file(packaging/linux/${PROJECT_FQDN}.desktop ${PROJECT_FQDN}.desktop @ONLY)
+        configure_file(packaging/linux/${PROJECT_FQDN}.terminal.desktop ${PROJECT_FQDN}.terminal.desktop @ONLY)
     endif()
 
     # configure metadata file
-    configure_file(packaging/linux/sunshine.appdata.xml sunshine.appdata.xml @ONLY)
+    configure_file(packaging/linux/${PROJECT_FQDN}.metainfo.xml ${PROJECT_FQDN}.metainfo.xml @ONLY)
 
     # configure service
     configure_file(packaging/linux/sunshine.service.in sunshine.service @ONLY)
@@ -38,8 +36,6 @@ elseif(UNIX)
     # configure the flatpak manifest
     if(${SUNSHINE_CONFIGURE_FLATPAK_MAN})
         configure_file(packaging/linux/flatpak/${PROJECT_FQDN}.yml ${PROJECT_FQDN}.yml @ONLY)
-        configure_file(packaging/linux/flatpak/${PROJECT_FQDN}.metainfo.xml
-                ${PROJECT_FQDN}.metainfo.xml @ONLY)
         file(COPY packaging/linux/flatpak/deps/ DESTINATION ${CMAKE_BINARY_DIR})
         file(COPY packaging/linux/flatpak/modules DESTINATION ${CMAKE_BINARY_DIR})
         file(COPY generated-sources.json DESTINATION ${CMAKE_BINARY_DIR})

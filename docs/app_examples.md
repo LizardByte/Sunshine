@@ -23,25 +23,28 @@ process is killed.}
 
 @tabs{
   @tab{Linux | <!-- -->
-    \| Field             \| Value                                               \|
-    \|-------------------\|-----------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                    \|
-    \| Detached Commands \| @code{}setsid steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                            \|
+    \| Field                        \| Value                                                \|
+    \|------------------------------\|------------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
+    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
+    \| Image                        \| @code{}steam.png@endcode                             \|
   }
   @tab{macOS | <!-- -->
-    \| Field             \| Value                                             \|
-    \|-------------------\|---------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                  \|
-    \| Detached Commands \| @code{}open steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                          \|
+    \| Field                        \| Value                                          \|
+    \|------------------------------\|------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode               \|
+    \| Command Preporations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                       \|
   }
   @tab{Windows | <!-- -->
-    \| Field             \| Value                                  \|
-    \|-------------------\|----------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode       \|
-    \| Detached Commands \| @code{}steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode               \|
+    \| Field                        \| Value                                     \|
+    \|------------------------------\|-------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode          \|
+    \| Command Preporations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                  \|
   }
 }
 
@@ -210,7 +213,7 @@ xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rot
 ```
 }
 
-###### Wayland
+###### Wayland (wlroots, e.g. hyprland)
 
 | Prep Step | Command                                                                                                                                  |
 |-----------|------------------------------------------------------------------------------------------------------------------------------------------|
@@ -219,17 +222,30 @@ xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rot
 
 @hint{`wlr-xrandr` only works with wlroots-based compositors.}
 
-###### Gnome (Wayland, X11)
+###### Gnome (X11)
 
 | Prep Step | Command                                                                                                                               |
 |-----------|---------------------------------------------------------------------------------------------------------------------------------------|
 | Do        | @code{}sh -c "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
-The commands above are valid for an X11 session but won't work for
-Wayland. In that case `xrandr` must be replaced by [gnome-randr.py](https://gitlab.com/Oschowa/gnome-randr).
-This script is intended as a drop-in replacement with the same syntax. (It can be saved in
-`/usr/local/bin` and needs to be made executable.)
+###### Gnome (Wayland)
+
+| Prep Step | Command                                                                                                                                                                                               |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "displayconfig-mutter set --connector HDMI-1 --resolution ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --refresh-rate ${SUNSHINE_CLIENT_FPS} --hdr ${SUNSHINE_CLIENT_HDR}"@endcode |
+| Undo      | @code{}displayconfig-mutter set --connector HDMI-1 --resolution 3840x2160 --refresh-rate 120 --hdr false@endcode                                                                                      |
+
+Installation instructions for displayconfig-mutter can be [found here](https://github.com/eaglesemanation/displayconfig-mutter). Alternatives include
+[gnome-randr-rust](https://github.com/maxwellainatchi/gnome-randr-rust) and [gnome-randr.py](https://gitlab.com/Oschowa/gnome-randr), but both of those are
+unmaintained and do not support newer Mutter features such as HDR and VRR.
+
+@hint{HDR support has been added to Gnome 48, to check if your display supports it you can run this:
+```
+displayconfig-mutter list
+```
+If it doesn't, then remove ``--hdr`` flag from both ``Do`` and ``Undo`` steps.
+}
 
 ###### KDE Plasma (Wayland, X11)
 
@@ -322,9 +338,9 @@ UAC prompt.
 
 <div class="section_buttons">
 
-| Previous                          |                Next |
-|:----------------------------------|--------------------:|
-| [Configuration](configuration.md) | [Guides](guides.md) |
+| Previous                          |                                    Next |
+|:----------------------------------|----------------------------------------:|
+| [Configuration](configuration.md) | [Awesome-Sunshine](awesome_sunshine.md) |
 
 </div>
 

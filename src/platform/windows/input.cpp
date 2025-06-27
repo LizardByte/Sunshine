@@ -92,10 +92,10 @@ namespace platf {
 
   constexpr float EARTH_G = 9.80665f;
 
-#define MPS2_TO_DS4_ACCEL(x) (int32_t)(((x) / EARTH_G) * 8192)
-#define DPS_TO_DS4_GYRO(x) (int32_t)((x) * (1024 / 64))
+#define MPS2_TO_DS4_ACCEL(x) (int32_t) (((x) / EARTH_G) * 8192)
+#define DPS_TO_DS4_GYRO(x) (int32_t) ((x) * (1024 / 64))
 
-#define APPLY_CALIBRATION(val, bias, scale) (int32_t)(((float) (val) + (bias)) / (scale))
+#define APPLY_CALIBRATION(val, bias, scale) (int32_t) (((float) (val) + (bias)) / (scale))
 
   constexpr DS4_TOUCH ds4_touch_unused = {
     .bPacketCounter = 0,

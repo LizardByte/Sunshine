@@ -774,6 +774,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### stream_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            stream_audio = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### install_steam_audio_drivers
 
 <table>
@@ -1340,35 +1363,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             max_bitrate = 5000
-            @endcode</td>
-    </tr>
-</table>
-
-### min_fps_factor
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Sunshine will use this factor to calculate the minimum time between frames. Increasing this value may help
-            when streaming mostly static content.
-            @warning{Higher values will consume more bandwidth.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            1
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1-3</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            min_fps_factor = 1
             @endcode</td>
     </tr>
 </table>
@@ -1951,7 +1945,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wlr</td>
-        <td>Capture for wlroots based Wayland compositors via DMA-BUF.
+        <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
+            virtual displays in e.g. Hyprland using this method.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>

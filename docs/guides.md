@@ -7,9 +7,9 @@ Feel free to contribute your own tips and trips by making a PR to
 
 <div class="section_buttons">
 
-| Previous                        |                                        Next |
-|:--------------------------------|--------------------------------------------:|
-| [App Examples](app_examples.md) | [Performance Tuning](performance_tuning.md) |
+| Previous                                |                                        Next |
+|:----------------------------------------|--------------------------------------------:|
+| [Awesome-Sunshine](awesome_sunshine.md) | [Performance Tuning](performance_tuning.md) |
 
 </div>
 

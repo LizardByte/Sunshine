@@ -48,6 +48,7 @@ extern "C" {
 #define IDX_RUMBLE_TRIGGER_DATA 12
 #define IDX_SET_MOTION_EVENT 13
 #define IDX_SET_RGB_LED 14
+#define IDX_SET_ADAPTIVE_TRIGGERS 15
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -65,6 +66,7 @@ static const short packetTypes[] = {
   0x5500,  // Rumble triggers (Sunshine protocol extension)
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
+  0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -184,6 +186,21 @@ namespace stream {
     std::uint8_t r;
     std::uint8_t g;
     std::uint8_t b;
+  };
+
+  struct control_adaptive_triggers_t {
+    control_header_v2 header;
+
+    std::uint16_t id;
+    /**
+     * 0x04 - Right trigger
+     * 0x08 - Left trigger
+     */
+    std::uint8_t event_flags;
+    std::uint8_t type_left;
+    std::uint8_t type_right;
+    std::uint8_t left[DS_EFFECT_PAYLOAD_SIZE];
+    std::uint8_t right[DS_EFFECT_PAYLOAD_SIZE];
   };
 
   struct control_hdr_mode_t {
@@ -837,6 +854,22 @@ namespace stream {
         encrypted_payload;
 
       payload = encode_control(session, util::view(plaintext), encrypted_payload);
+    } else if (msg.type == platf::gamepad_feedback_e::set_adaptive_triggers) {
+      control_adaptive_triggers_t plaintext;
+      plaintext.header.type = packetTypes[IDX_SET_ADAPTIVE_TRIGGERS];
+      plaintext.header.payloadLength = sizeof(plaintext) - sizeof(control_header_v2);
+
+      plaintext.id = util::endian::little(msg.id);
+      plaintext.event_flags = msg.data.adaptive_triggers.event_flags;
+      plaintext.type_left = msg.data.adaptive_triggers.type_left;
+      std::ranges::copy(msg.data.adaptive_triggers.left, plaintext.left);
+      plaintext.type_right = msg.data.adaptive_triggers.type_right;
+      std::ranges::copy(msg.data.adaptive_triggers.right, plaintext.right);
+
+      std::array<std::uint8_t, sizeof(control_encrypted_t) + crypto::cipher::round_to_pkcs7_padded(sizeof(plaintext)) + crypto::cipher::tag_size>
+        encrypted_payload;
+
+      payload = encode_control(session, util::view(plaintext), encrypted_payload);
     } else {
       BOOST_LOG(error) << "Unknown gamepad feedback message type"sv;
       return -1;
@@ -1230,7 +1263,7 @@ namespace stream {
   void videoBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<video::packet_t>(mail::video_packets);
-    auto timebase = boost::posix_time::microsec_clock::universal_time();
+    auto video_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -1426,13 +1459,19 @@ namespace stream {
 
           size_t next_shard_to_send = 0;
 
+          // RTP video timestamps use a 90 KHz clock and the frame_timestamp from when the frame was captured
+          // When a timestamp isn't available (duplicate frames), the timestamp from rate control is used instead.
+          bool frame_is_dupe = false;
+          if (!packet->frame_timestamp) {
+            packet->frame_timestamp = ratecontrol_next_frame_start;
+            frame_is_dupe = true;
+          }
+          using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
+          uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
+
           // set FEC info now that we know for sure what our percentage will be for this frame
           for (auto x = 0; x < shards.size(); ++x) {
             auto *inspect = (video_packet_raw_t *) shards.data(x);
-
-            // RTP video timestamps use a 90 KHz clock
-            auto now = boost::posix_time::microsec_clock::universal_time();
-            auto timestamp = (now - timebase).total_microseconds() / (1000 / 90);
 
             inspect->packet.fecInfo =
               (x << 12 |
@@ -1525,11 +1564,11 @@ namespace stream {
 
           frame_network_latency_logger.second_point_now_and_log();
 
-          if (packet->is_idr()) {
-            BOOST_LOG(verbose) << "Key Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv;
-          } else {
-            BOOST_LOG(verbose) << "Frame ["sv << packet->frame_index() << "] :: send ["sv << shards.size() << "] shards..."sv << std::endl;
-          }
+          BOOST_LOG(verbose) << "Sent Frame seq ["sv << packet->frame_index() << "] pts ["sv << timestamp
+                             << "] shards ["sv << shards.size() << "/"sv << shards.percentage << "%]"sv
+                             << (frame_is_dupe ? " Dupe" : "")
+                             << (packet->is_idr() ? " Key" : "")
+                             << (packet->after_ref_frame_invalidation ? " RFI" : "");
 
           ++blockIndex;
           lowseq += shards.size();
@@ -1589,6 +1628,8 @@ namespace stream {
         break;
       }
 
+      BOOST_LOG(verbose) << "Audio [seq "sv << sequenceNumber << ", pts "sv << timestamp << "] ::  send..."sv;
+
       audio_packet.rtp.sequenceNumber = util::endian::big(sequenceNumber);
       audio_packet.rtp.timestamp = util::endian::big(timestamp);
 
@@ -1608,7 +1649,6 @@ namespace stream {
           session->localAddress,
         };
         platf::send(send_info);
-        BOOST_LOG(verbose) << "Audio ["sv << sequenceNumber << "] ::  send..."sv;
 
         auto &fec_packet = session->audio.fec_packet;
         // initialize the FEC header at the beginning of the FEC block

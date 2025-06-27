@@ -95,6 +95,10 @@ int main(int argc, char *argv[]) {
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Avoid searching the PATH in case a user has configured their system insecurely
+  // by placing a user-writable directory in the system-wide PATH variable.
+  SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
   setlocale(LC_ALL, "C");
 #endif
 
@@ -106,6 +110,7 @@ int main(int argc, char *argv[]) {
 
   mail::man = std::make_shared<safe::mail_raw_t>();
 
+  // parse config file
   if (config::parse(argc, argv)) {
     return 0;
   }
@@ -122,6 +127,12 @@ int main(int argc, char *argv[]) {
 
   // Log publisher metadata
   log_publisher_data();
+
+  // Log modified_config_settings
+  for (auto &[name, val] : config::modified_config_settings) {
+    BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
+  }
+  config::modified_config_settings.clear();
 
   if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);

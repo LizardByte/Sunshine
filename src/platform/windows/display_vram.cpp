@@ -219,7 +219,7 @@ namespace platf::dxgi {
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
           std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
-            auto alpha = (std::uint8_t)((pixel >> 24) & 0xFF);
+            auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended as is.
             } else if (alpha == 0x00) {
@@ -286,7 +286,7 @@ namespace platf::dxgi {
         {
           util::buffer_t<std::uint8_t> cursor_img = img_data;
           std::for_each((std::uint32_t *) std::begin(cursor_img), (std::uint32_t *) std::end(cursor_img), [](auto &pixel) {
-            auto alpha = (std::uint8_t)((pixel >> 24) & 0xFF);
+            auto alpha = (std::uint8_t) ((pixel >> 24) & 0xFF);
             if (alpha == 0xFF) {
               // Pixels with 0xFF alpha will be XOR-blended by make_cursor_xor_image().
               // We make them transparent for the alpha-blended cursor image.

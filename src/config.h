@@ -16,6 +16,9 @@
 #include "nvenc/nvenc_config.h"
 
 namespace config {
+  // track modified config options
+  inline std::unordered_map<std::string, std::string> modified_config_settings;
+
   struct video_t {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
@@ -137,13 +140,13 @@ namespace config {
       workarounds_t wa;
     } dd;
 
-    int min_fps_factor;  // Minimum fps target, determines minimum frame time
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
   };
 
   struct audio_t {
     std::string sink;
     std::string virtual_sink;
+    bool stream;
     bool install_steam_drivers;
   };
 

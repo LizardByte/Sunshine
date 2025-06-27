@@ -1,2 +1,11 @@
-KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", TAG+="uaccess"
-KERNEL=="uhid", TAG+="uaccess"
+# Allows Sunshine to acces /dev/uinput
+KERNEL=="uinput", SUBSYSTEM=="misc", OPTIONS+="static_node=uinput", GROUP="input", MODE="0660", TAG+="uaccess"
+
+# Allows Sunshine to access /dev/uhid
+KERNEL=="uhid", GROUP="input", MODE="0660", TAG+="uaccess"
+
+# Joypads
+KERNEL=="hidraw*" ATTRS{name}=="Sunshine PS5 (virtual) pad" GROUP="input", MODE="0660", TAG+="uaccess"
+SUBSYSTEMS=="input", ATTRS{name}=="Sunshine X-Box One (virtual) pad", GROUP="input", MODE="0660", TAG+="uaccess"
+SUBSYSTEMS=="input", ATTRS{name}=="Sunshine gamepad (virtual) motion sensors", GROUP="input", MODE="0660", TAG+="uaccess"
+SUBSYSTEMS=="input", ATTRS{name}=="Sunshine Nintendo (virtual) pad", GROUP="input", MODE="0660", TAG+="uaccess"

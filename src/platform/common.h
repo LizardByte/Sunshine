@@ -106,6 +106,7 @@ namespace platf {
     rumble_triggers,  ///< Rumble triggers
     set_motion_event_state,  ///< Set motion event state
     set_rgb_led,  ///< Set RGB LED
+    set_adaptive_triggers,  ///< Set adaptive triggers
   };
 
   struct gamepad_feedback_msg_t {
@@ -142,6 +143,14 @@ namespace platf {
       return msg;
     }
 
+    static gamepad_feedback_msg_t make_adaptive_triggers(std::uint16_t id, uint8_t event_flags, uint8_t type_left, uint8_t type_right, const std::array<uint8_t, 10> &left, const std::array<uint8_t, 10> &right) {
+      gamepad_feedback_msg_t msg;
+      msg.type = gamepad_feedback_e::set_adaptive_triggers;
+      msg.id = id;
+      msg.data.adaptive_triggers = {.event_flags = event_flags, .type_left = type_left, .type_right = type_right, .left = left, .right = right};
+      return msg;
+    }
+
     gamepad_feedback_e type;
     std::uint16_t id;
 
@@ -166,6 +175,15 @@ namespace platf {
         std::uint8_t g;
         std::uint8_t b;
       } rgb_led;
+
+      struct {
+        uint16_t controllerNumber;
+        uint8_t event_flags;
+        uint8_t type_left;
+        uint8_t type_right;
+        std::array<uint8_t, 10> left;
+        std::array<uint8_t, 10> right;
+      } adaptive_triggers;
     } data;
   };
 

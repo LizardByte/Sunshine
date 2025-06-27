@@ -1,5 +1,7 @@
 ---
 name: CI Copr
+permissions:
+  contents: read
 
 on:
   pull_request:
@@ -26,7 +28,7 @@ jobs:
       github_org_owner: LizardByte
       copr_ownername: lizardbyte
       auto_update_package: true
-      job_timeout: 60
+      job_timeout: 90
     secrets:
       COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
       COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
