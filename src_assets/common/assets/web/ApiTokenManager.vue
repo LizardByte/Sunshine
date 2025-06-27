@@ -99,7 +99,8 @@
 import { defineComponent } from 'vue'
 
 /**
- * @brief List of available API routes and their supported methods
+ * List of available API routes and their supported methods
+ * @type {Array<{path: string, methods: string[]}>}
  */
 const API_ROUTES = [
   { path: "/api/pin", methods: ["POST"] },
@@ -138,24 +139,26 @@ export default defineComponent({
   },
   methods: {
     /**
-     * @brief Add a new empty scope to the scopes list
+     * Add a new empty scope to the scopes list
+     * @returns {void}
      */
     addScope() {
       this.scopes.push({ path: '', methods: [] })
     },
-    
+
     /**
-     * @brief Remove a scope from the scopes list
+     * Remove a scope from the scopes list
      * @param {number} idx - Index of the scope to remove
+     * @returns {void}
      */
     removeScope(idx) {
       if (this.scopes.length > 1) {
         this.scopes.splice(idx, 1)
       }
     },
-    
+
     /**
-     * @brief Get available HTTP methods for a given API path
+     * Get available HTTP methods for a given API path
      * @param {string} path - The API path
      * @returns {string[]} Array of HTTP methods
      */
@@ -163,9 +166,10 @@ export default defineComponent({
       const found = this.apiRoutes.find(r => r.path === path)
       return found ? found.methods : ["GET", "POST", "DELETE", "PATCH", "PUT"]
     },
-    
+
     /**
-     * @brief Generate a new API token with selected scopes
+     * Generate a new API token with selected scopes
+     * @returns {Promise<void>}
      */
     async generateToken() {
       const filtered = this.scopes.filter(s => s.path && s.methods.length)
@@ -194,7 +198,8 @@ export default defineComponent({
     },
     
     /**
-     * @brief Load active tokens from the server
+     * Load active tokens from the server
+     * @returns {Promise<void>}
      */
     async loadTokens() {
       try {
@@ -212,8 +217,9 @@ export default defineComponent({
     },
     
     /**
-     * @brief Revoke an active token
+     * Revoke an active token
      * @param {string} hash - The token hash to revoke
+     * @returns {Promise<void>}
      */
     async revokeToken(hash) {
       if (!confirm('Are you sure you want to revoke this token? This action cannot be undone.')) return
@@ -231,7 +237,7 @@ export default defineComponent({
     },
     
     /**
-     * @brief Format timestamp to localized date string
+     * Format timestamp to localized date string
      * @param {number} ts - Unix timestamp
      * @returns {string} Formatted date string
      */
@@ -240,7 +246,8 @@ export default defineComponent({
     },
     
     /**
-     * @brief Test an API token against a selected endpoint
+     * Test an API token against a selected endpoint
+     * @returns {Promise<void>}
      */
     async testToken() {
       this.testResult = ''
@@ -287,7 +294,8 @@ export default defineComponent({
   },
   
   /**
-   * @brief Component mounted lifecycle hook
+   * Component mounted lifecycle hook
+   * @returns {void}
    */
   mounted() {
     this.loadTokens()

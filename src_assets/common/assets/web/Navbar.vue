@@ -29,13 +29,13 @@
             <a class="nav-link" href="./troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="./api-tokens"><i class="fas fa-fw fa-key"></i> API Tokens</a>
+            <a class="nav-link" href="./api-tokens"><i class="fas fa-fw fa-key"></i>{{ $t('navbar.api_tokens') }}</a>
           </li>
           <li class="nav-item">
             <ThemeToggle/>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#" @click.prevent="logout"><i class="fas fa-fw fa-sign-out-alt"></i> {{ $t('navbar.logout', 'Logout') }}</a>
+            <a class="nav-link" href="#" @click.prevent="logout"><i class="fas fa-fw fa-sign-out-alt"></i> {{ $t('navbar.logout') }}</a>
           </li>
         </ul>
       </div>

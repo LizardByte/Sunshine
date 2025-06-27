@@ -26,131 +26,19 @@
         <img src="./images/logo-sunshine-45.png" height="45" alt="Sunshine">
         <h1 class="h3 mb-3 fw-normal">{{ $t('login.title', 'Sign In') }}</h1>
       </div>
-
-      <form @submit.prevent="login" v-if="!isLoggedIn" autocomplete="on">
-        <div class="mb-3">
-          <label for="username" class="form-label">{{ $t('_common.username', 'Username') }}</label>
-          <input 
-            type="text" 
-            class="form-control" 
-            id="username" 
-            name="username" 
-            v-model="credentials.username" 
-            required
-            autocomplete="username"
-          >
-        </div>
-        
-        <div class="mb-3">
-          <label for="password" class="form-label">{{ $t('_common.password', 'Password') }}</label>
-          <input 
-            type="password" 
-            class="form-control" 
-            id="password" 
-            name="password" 
-            v-model="credentials.password" 
-            required
-            autocomplete="current-password"
-          >
-        </div>
-
-        <button type="submit" class="btn btn-primary w-100" :disabled="loading">
-          <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-          {{ $t('login.sign_in', 'Sign In') }}
-        </button>
-
-        <div v-if="error" class="alert alert-danger mt-3">
-          {{ error }}
-        </div>
-      </form>
-
-      <div v-else class="text-center">
-        <div class="alert alert-success">
-          {{ $t('login.success', 'Login successful! Redirecting...') }}
-        </div>
-        <output class="spinner-border">
-          <span class="visually-hidden">Loading...</span>
-        </output>
-      </div>
+      <login v-cloak />
     </div>
   </div>
 
   <script type="module">
-    import { createApp } from 'vue'
-    import { initApp } from './init.js'
+    import { createApp } from 'vue';
+    import { initApp } from './init';
+    import Login from './Login.vue';
 
     const app = createApp({
-      data() {
-        return {
-          credentials: {
-            username: '',
-            password: ''
-          },
-          loading: false,
-          error: '',
-          isLoggedIn: false,
-          requestedRedirect: '/',
-          safeRedirect: '/'
-        }
-      },
-      mounted() {
-        // Hide redirect from URL, use storage
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectParam = urlParams.get('redirect');
-        if (redirectParam) {
-          sessionStorage.setItem('pending_redirect', redirectParam);
-          urlParams.delete('redirect');
-          const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '');
-          window.history.replaceState({}, document.title, cleanUrl);
-        }
-        this.requestedRedirect = sessionStorage.getItem('pending_redirect') || '/';
-        this.safeRedirect = '/';
-      },
-      methods: {
-        async validateExistingToken(token) {
-          // Remove all JS storage usage for session tokens
-        },
-        async login() {
-          this.loading = true;
-          this.error = '';
-          try {
-            const response = await fetch('/api/auth/login', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                username: this.credentials.username,
-                password: this.credentials.password,
-                redirect: encodeURIComponent(this.requestedRedirect)
-              })
-            });
-            const data = await response.json();
-            if (response.ok && data.status) {
-              // No session token in JS storage, rely on HttpOnly cookie
-              this.isLoggedIn = true;
-              this.safeRedirect = data.redirect || '/';
-              sessionStorage.removeItem('pending_redirect');
-              setTimeout(() => {
-                this.redirectToApp();
-              }, 1000);
-            } else {
-              this.error = data.error || 'Login failed';
-            }
-          } catch (error) {
-            console.error('Login error:', error);
-            this.error = 'Network error. Please try again.';
-          } finally {
-            this.loading = false;
-          }
-        },
-        redirectToApp() {
-          // Use encodeURI to prevent XSS on redirect
-          window.location.href = encodeURI(this.safeRedirect);
-        }
-      }
+      components: { Login },
+      template: `<Login />`
     });
-
     initApp(app);
   </script>
 </body>
