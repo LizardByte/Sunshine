@@ -1363,35 +1363,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### min_fps_factor
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Sunshine will use this factor to calculate the minimum time between frames. Increasing this value may help
-            when streaming mostly static content.
-            @warning{Higher values will consume more bandwidth.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            1
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1-3</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            min_fps_factor = 1
-            @endcode</td>
-    </tr>
-</table>
-
 ## Network
 
 ### upnp
