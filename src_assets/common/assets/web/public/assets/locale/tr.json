@@ -256,8 +256,6 @@
     "log_path_desc": "Sunshine'ın geçerli günlüklerinin depolandığı dosya.",
     "max_bitrate": "Maksimum Bit Hızı",
     "max_bitrate_desc": "Sunshine'ın akışı kodlayacağı maksimum bit hızı (Kbps cinsinden). 0 olarak ayarlanırsa, her zaman Moonlight tarafından istenen bit hızını kullanır.",
-    "min_fps_factor": "Minimum FPS Faktörü",
-    "min_fps_factor_desc": "Sunshine, kareler arasındaki minimum süreyi hesaplamak için bu faktörü kullanacaktır. Bu değeri biraz artırmak, çoğunlukla statik içerik akışı yaparken yardımcı olabilir. Daha yüksek değerler daha fazla bant genişliği tüketecektir.",
     "min_threads": "Minimum CPU İplik Sayısı",
     "min_threads_desc": "Değerin artırılması kodlama verimliliğini biraz azaltır, ancak kodlama için daha fazla CPU çekirdeği kullanımı elde etmek için genellikle buna değer. İdeal değer, donanımınızda istediğiniz akış ayarlarında güvenilir bir şekilde kodlama yapabilen en düşük değerdir.",
     "misc": "Çeşitli seçenekler",
