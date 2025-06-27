@@ -256,8 +256,6 @@
     "log_path_desc": "The file where the current logs of Sunshine are stored.",
     "max_bitrate": "Maximum Bitrate",
     "max_bitrate_desc": "The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.",
-    "min_fps_factor": "Minimum FPS Factor",
-    "min_fps_factor_desc": "Sunshine will use this factor to calculate the minimum time between frames. Increasing this value slightly may help when streaming mostly static content. Higher values will consume more bandwidth.",
     "min_threads": "Minimum CPU Thread Count",
     "min_threads_desc": "Increasing the value slightly reduces encoding efficiency, but the tradeoff is usually worth it to gain the use of more CPU cores for encoding. The ideal value is the lowest value that can reliably encode at your desired streaming settings on your hardware.",
     "misc": "Miscellaneous options",
