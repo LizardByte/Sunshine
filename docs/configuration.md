@@ -57,9 +57,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="19">Choices</td>
+        <td rowspan="20">Choices</td>
         <td>bg</td>
         <td>Bulgarian</td>
+    </tr>
+    <tr>
+        <td>cs</td>
+        <td>Czech</td>
     </tr>
     <tr>
         <td>de</td>
