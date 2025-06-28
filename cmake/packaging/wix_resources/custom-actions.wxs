@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?include "WIX/cpack_variables.wxi"?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Fragment>
+    <CustomAction Id='InstallService'
+                 ExeCommand='[INSTALL_ROOT]scripts\\install-service.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='ConfigFirewall'
+                 ExeCommand='[INSTALL_ROOT]scripts\\add-firewall-rule.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='InstallGamepad'
+                 ExeCommand='[INSTALL_ROOT]scripts\\install-gamepad.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='AutostartService'
+                 ExeCommand='[INSTALL_ROOT]scripts\\autostart-service.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='MigrateConfig'
+                 ExeCommand='[INSTALL_ROOT]scripts\\migrate-config.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='UpdatePath'
+                 ExeCommand='[INSTALL_ROOT]scripts\\update-path.bat add'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='UninstallService'
+                 ExeCommand='[INSTALL_ROOT]scripts\\uninstall-service.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='RemoveFirewall'
+                 ExeCommand='[INSTALL_ROOT]scripts\\delete-firewall-rule.bat'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <CustomAction Id='RestoreNvPrefs'
+                 ExeCommand='[INSTALL_ROOT]$(var.CPACK_PACKAGE_NAME).exe --restore-nvprefs-undo'
+                 Directory='INSTALL_ROOT'
+                 Execute='deferred'
+                 Return='check'
+                 Impersonate='no' />
+
+    <InstallExecuteSequence>
+      <Custom Action='MigrateConfig' After='InstallFiles' Condition="NOT Installed" />
+      <Custom Action='UpdatePath' After='MigrateConfig' Condition="NOT Installed" />
+      <Custom Action='ConfigFirewall' After='UpdatePath' Condition="NOT Installed" />
+      <Custom Action='InstallGamepad' After='ConfigFirewall' Condition="NOT Installed" />
+      <Custom Action='InstallService' After='InstallGamepad' Condition="NOT Installed" />
+      <Custom Action='AutostartService' After='InstallService' Condition="NOT Installed" />
+
+      <Custom Action='RemoveFirewall' Before='RemoveFiles' Condition="REMOVE" />
+      <Custom Action='UninstallService' After='RemoveFirewall' Condition="REMOVE" />
+      <Custom Action='RestoreNvPrefs' After='UninstallService' Condition="REMOVE" />
+    </InstallExecuteSequence>
+  </Fragment>
+</Wix>

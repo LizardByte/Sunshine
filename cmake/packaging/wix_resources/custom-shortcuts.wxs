@@ -1,0 +1,23 @@
+<?xml version='1.0' encoding='UTF-8'?>
+
+<?include "WIX/cpack_variables.wxi"?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <StandardDirectory Id='ProgramMenuFolder'>
+      <Directory Id='ApplicationProgramsFolder' Name='$(var.CPACK_PACKAGE_VENDOR)'>
+        <Component Id='ApplicationShortcut' Guid='*'>
+          <Shortcut Id='ApplicationStartMenuShortcut'
+                   Name='$(var.CPACK_PACKAGE_NAME)'
+                   Description='Self-hosted game stream host for Moonlight'
+                   Target='[INSTALL_ROOT]$(var.CPACK_PACKAGE_NAME).exe'
+                   Arguments='--shortcut'
+                   WorkingDirectory='INSTALL_ROOT'/>
+          <RemoveFolder Id='ApplicationProgramsFolder' On='uninstall'/>
+          <RegistryValue Root='HKCU' Key='Software\\LizardByte\\$(var.CPACK_PACKAGE_NAME)'
+                         Name='installed' Type='integer' Value='1' KeyPath='yes'/>
+        </Component>
+      </Directory>
+    </StandardDirectory>
+  </Fragment>
+</Wix>
