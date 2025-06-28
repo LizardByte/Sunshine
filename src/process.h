@@ -10,13 +10,16 @@
 
 // standard includes
 #include <optional>
+#include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 // lib includes
 #include <boost/process/v1.hpp>
 
 // local includes
 #include "config.h"
+#include "event_actions.h"
 #include "platform/common.h"
 #include "rtsp.h"
 #include "utility.h"
@@ -40,6 +43,10 @@ namespace proc {
    */
   struct ctx_t {
     std::vector<cmd_t> prep_cmds;
+
+    // New event-action configuration
+    event_actions::event_actions_t app_event_actions;
+    std::unordered_set<event_actions::stage_e> excluded_global_stages;
 
     /**
      * Some applications, such as Steam, either exit quickly, or keep running indefinitely.
@@ -95,6 +102,13 @@ namespace proc {
     std::string get_last_run_app_name();
     void terminate();
 
+    /**
+     * @brief Execute prep commands for client lifecycle events
+     * @param stage The prep command stage to execute
+     * @param client_count Current number of connected clients
+     */
+    void execute_client_event_actions(event_actions::stage_e stage, int client_count);
+
   private:
     int _app_id;
 
@@ -102,6 +116,9 @@ namespace proc {
     std::vector<ctx_t> _apps;
     ctx_t _app;
     std::chrono::steady_clock::time_point _app_launch_time;
+
+    // Event-action handler
+    event_actions::event_action_handler_t _event_handler;
 
     // If no command associated with _app_id, yet it's still running
     bool placebo {};
@@ -137,6 +154,13 @@ namespace proc {
    * @param exit_timeout The timeout to wait for the process group to gracefully exit.
    */
   void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
+
+  /**
+   * @brief Convert legacy do/undo prep commands to the new event-action format
+   * @param legacy_commands Vector of legacy commands
+   * @return event_actions_t structure with converted commands
+   */
+  event_actions::event_actions_t convert_legacy_commands(const std::vector<cmd_t> &legacy_commands);
 
   extern proc_t proc;
 }  // namespace proc

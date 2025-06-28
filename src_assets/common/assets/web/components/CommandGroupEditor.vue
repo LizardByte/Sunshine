@@ -165,14 +165,30 @@
                               @input="updateCommand(groupIndex, commandIndex, 'timeout_seconds', command.timeout_seconds)"
                               class="form-control form-control-sm" min="1" max="3600" :placeholder="30" />
                           </div>
-                          <div class="col-6" v-if="platform === 'windows'">
+                          <div class="col-6">
                             <label class="form-label command-label">{{ $t('commands.options') }}</label>
-                            <div class="form-check mt-2">
+                            <div v-if="platform === 'windows'" class="form-check mt-1">
                               <input v-model="command.elevated" class="form-check-input" type="checkbox"
                                 @change="updateCommand(groupIndex, commandIndex, 'elevated', command.elevated)"
                                 :id="`elevated-${groupIndex}-${commandIndex}`" />
                               <label class="form-check-label small" :for="`elevated-${groupIndex}-${commandIndex}`">
                                 <i class="fas fa-shield-alt me-1"></i>{{ $t('_common.elevated') }}
+                              </label>
+                            </div>
+                            <div class="form-check mt-1">
+                              <input v-model="command.ignore_error" class="form-check-input" type="checkbox"
+                                @change="updateCommand(groupIndex, commandIndex, 'ignore_error', command.ignore_error)"
+                                :id="`ignore-error-${groupIndex}-${commandIndex}`" />
+                              <label class="form-check-label small" :for="`ignore-error-${groupIndex}-${commandIndex}`">
+                                <i class="fas fa-exclamation-triangle me-1"></i>{{ $t('commands.ignore_error') }}
+                              </label>
+                            </div>
+                            <div class="form-check mt-1">
+                              <input v-model="command.async" class="form-check-input" type="checkbox"
+                                @change="updateCommand(groupIndex, commandIndex, 'async', command.async)"
+                                :id="`async-${groupIndex}-${commandIndex}`" />
+                              <label class="form-check-label small" :for="`async-${groupIndex}-${commandIndex}`">
+                                <i class="fas fa-rocket me-1"></i>{{ $t('commands.async') }}
                               </label>
                             </div>
                           </div>

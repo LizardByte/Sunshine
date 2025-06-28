@@ -117,19 +117,19 @@
             v-model="editForm.output" />
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
-        <!-- Global Prep Commands Settings -->
+        <!-- Global Event-Actions Settings -->
         <Checkbox class="mb-3"
                   id="excludeGlobalPrep"
-                  label="apps.global_prep_name"
-                  desc="apps.global_prep_desc"
-                  v-model="editForm['exclude-global-prep-cmd']"
+                  label="apps.global_event_name"
+                  desc="apps.global_event_desc"
+                  v-model="editForm['exclude-global-event-actions']"
                   default="true"
                   inverse-values
         ></Checkbox>
         <!-- Application Commands -->
         <div class="mb-4">
           <advanced-commands 
-            v-model="editForm['stream-commands']"
+            v-model="editForm['event-actions']"
             :platform="platform"
             :legacy-commands="editForm['prep-cmd']"
             :app-mode="true"
@@ -351,13 +351,13 @@
           output: "",
           cmd: [],
           index: -1,
-          "exclude-global-prep-cmd": false,
+          "exclude-global-event-actions": false,
           elevated: false,
           "auto-detach": true,
           "wait-all": true,
           "exit-timeout": 5,
           "prep-cmd": [],
-          "stream-commands": {},
+          "event-actions": {},
           detached: [],
           "image-path": ""
         };
@@ -369,12 +369,21 @@
         this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
           this.editForm["prep-cmd"] = [];
-        if (this.editForm["stream-commands"] === undefined)
-          this.editForm["stream-commands"] = {};
+        if (this.editForm["event-actions"] === undefined)
+          this.editForm["event-actions"] = {};
+        // Support legacy field names for backward compatibility
+        if (this.editForm["event-actions"] !== undefined) {
+          this.editForm["event-actions"] = this.editForm["event-actions"];
+        }
         if (this.editForm["detached"] === undefined)
           this.editForm["detached"] = [];
-        if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.editForm["exclude-global-prep-cmd"] = false;
+        if (this.editForm["exclude-global-event-actions"] === undefined) {
+          this.editForm["exclude-global-event-actions"] = false;
+          // Support legacy field name
+          if (this.editForm["exclude-global-prep-cmd"] !== undefined) {
+            this.editForm["exclude-global-event-actions"] = this.editForm["exclude-global-prep-cmd"];
+          }
+        }
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
           this.editForm["elevated"] = false;
         }

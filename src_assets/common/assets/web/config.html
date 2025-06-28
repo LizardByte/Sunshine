@@ -134,7 +134,7 @@
               "locale": "en",
               "sunshine_name": "",
               "min_log_level": 2,
-              "global_prep_cmd": [],
+              "global_event_actions": [],
               "notify_pre_releases": "disabled",
             },
           },
@@ -321,7 +321,7 @@
           // TODO: let each tab's Component handle it's own data instead of doing it here
 
           // Parse the special options before population if available
-          const specialOptions = ["dd_mode_remapping", "global_prep_cmd"]
+          const specialOptions = ["dd_mode_remapping", "global_event_actions"]
           for (const optionKey of specialOptions) {
             if (this.config.hasOwnProperty(optionKey)) {
               this.config[optionKey] = JSON.parse(this.config[optionKey]);

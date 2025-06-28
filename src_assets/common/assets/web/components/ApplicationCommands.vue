@@ -280,7 +280,9 @@ export default {
             commands.push({
               cmd: cmd.cmd || '',
               elevated: cmd.elevated || false,
-              timeout_seconds: cmd.timeout_seconds || 30
+              timeout_seconds: cmd.timeout_seconds || 30,
+              ignore_error: cmd.ignore_error || false,
+              async: cmd.async || false
             })
           })
         }
@@ -305,7 +307,9 @@ export default {
         commands: commands.map(cmd => ({
           cmd: cmd.cmd || '',
           elevated: cmd.elevated || false,
-          timeout_seconds: cmd.timeout_seconds || 30
+          timeout_seconds: cmd.timeout_seconds || 30,
+          ignore_error: cmd.ignore_error || false,
+          async: cmd.async || false
         }))
       }
       
@@ -315,7 +319,9 @@ export default {
       const newCommand = {
         cmd: '',
         elevated: false,
-        timeout_seconds: 30
+        timeout_seconds: 30,
+        ignore_error: false,
+        async: false
       }
       const commands = [...this.doCommands, newCommand]
       this.setBasicCommands('PRE_STREAM_START', commands)
@@ -333,7 +339,9 @@ export default {
       const newCommand = {
         cmd: '',
         elevated: false,
-        timeout_seconds: 30
+        timeout_seconds: 30,
+        ignore_error: false,
+        async: false
       }
       const commands = [...this.undoCommands, newCommand]
       this.setBasicCommands('POST_STREAM_STOP', commands)
@@ -355,7 +363,9 @@ export default {
           .map(cmd => ({
             cmd: cmd.trim(),
             elevated: false,
-            timeout_seconds: 30
+            timeout_seconds: 30,
+            ignore_error: false,
+            async: false
           }))
         
         if (detachedCommands.length > 0) {

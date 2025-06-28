@@ -99,6 +99,8 @@ export function useCommandGroupEditor(props, emit) {
       cmd: '',
       elevated: false,
       timeout_seconds: 30,
+      ignore_error: false,
+      async: false,
       showHelp: false
     }
     

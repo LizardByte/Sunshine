@@ -193,19 +193,35 @@ export function useAdvancedCommands(props, emit) {
           setupGroup.commands.push({
             cmd: command.do.trim(),
             elevated: command.elevated || false,
-            timeout_seconds: 30
+            timeout_seconds: 30,
+            ignore_error: false,
+            async: false
           })
         } else {
-          setupGroup.commands.push({ cmd: '', elevated: false, timeout_seconds: 30 })
+          setupGroup.commands.push({ 
+            cmd: '', 
+            elevated: false, 
+            timeout_seconds: 30,
+            ignore_error: false,
+            async: false
+          })
         }
         if (command.undo && command.undo.trim()) {
           cleanupGroup.commands.push({
             cmd: command.undo.trim(),
             elevated: command.elevated || false,
-            timeout_seconds: 30
+            timeout_seconds: 30,
+            ignore_error: false,
+            async: false
           })
         } else {
-          cleanupGroup.commands.push({ cmd: '', elevated: false, timeout_seconds: 30 })
+          cleanupGroup.commands.push({ 
+            cmd: '', 
+            elevated: false, 
+            timeout_seconds: 30,
+            ignore_error: false,
+            async: false
+          })
         }
       })
       const updated = { ...commandsData.value }

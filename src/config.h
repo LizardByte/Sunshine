@@ -13,6 +13,7 @@
 #include <vector>
 
 // local includes
+#include "event_actions.h"
 #include "nvenc/nvenc_config.h"
 
 namespace config {
@@ -256,6 +257,7 @@ namespace config {
     std::string log_file;
     bool notify_pre_releases;
     std::vector<prep_cmd_t> prep_cmds;
+    event_actions::event_actions_t global_event_actions;
   };
 
   extern video_t video;

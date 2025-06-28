@@ -24,6 +24,7 @@
 #include "config.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "event_actions.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "process.h"
@@ -189,10 +190,61 @@ namespace proc {
 
     std::error_code ec;
     // Executed when returning from function
+    // Executed when returning from function on error
     auto fg = util::fail_guard([&]() {
+
+      // 3) Fall back to your existing terminate
       terminate();
     });
 
+    // Execute new event-actions for PRE_STREAM_START stage
+    auto event_env = std::unordered_map<std::string, std::string>();
+    for (const auto &env_entry : _env) {
+      event_env[env_entry.get_name()] = env_entry.to_string();
+    }
+
+    // Initialize the event-action handler with global commands
+    _event_handler.initialize(config::sunshine.global_event_actions);
+
+    // Convert legacy commands to new format for backward compatibility
+    auto legacy_converted = convert_legacy_commands(_app.prep_cmds);
+
+    // Set up app configuration including legacy commands
+    event_actions::app_event_config_t app_config;
+    app_config.commands = _app.app_event_actions;
+    app_config.excluded_global_stages = _app.excluded_global_stages;
+
+    if (_app.app_event_actions.stages.empty()) {
+      BOOST_LOG(info) << "No event-actions configured for app '" << _app.name << "'.";
+    }
+    if (_app.prep_cmds.empty()) {
+      BOOST_LOG(info) << "No legacy prep commands configured for app '" << _app.name << "'.";
+    }
+
+    // Merge in converted legacy commands
+    for (const auto &[stage, stage_commands] : legacy_converted.stages) {
+      for (const auto &group : stage_commands.groups) {
+        app_config.commands.stages[stage].groups.push_back(group);
+      }
+    }
+
+    _event_handler.set_app_commands(_app_id, app_config);
+
+    // Create execution context
+    event_actions::execution_context_t context;
+    context.app_id = std::to_string(_app_id);
+    context.app_name = _app.name;
+    context.client_count = 1;  // Initial client
+    context.current_stage = event_actions::stage_e::PRE_STREAM_START;  // Will be overridden by execute_stage
+    context.env_vars = event_env;
+
+    if (_event_handler.execute_stage(event_actions::stage_e::PRE_STREAM_START, context) != 0) {
+      BOOST_LOG(error) << "Failed to execute PRE_STREAM_START event-actions";
+      return -1;
+    }
+
+    // Execute legacy prep commands (for backward compatibility)
+    bool any_legacy_executed = false;
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
       auto &cmd = *_app_prep_it;
 
@@ -223,8 +275,16 @@ namespace proc {
         BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
         return -1;
       }
+      any_legacy_executed = true;
+    }
+    if (_app.prep_cmds.size() > 0 && !any_legacy_executed) {
+      BOOST_LOG(info) << "No legacy prep commands were executed for app '" << _app.name << "' (all empty or skipped).";
     }
 
+    if (_app.detached.empty()) {
+      BOOST_LOG(info) << "No detached commands configured for app '" << _app.name << "'.";
+    }
+    bool any_detached_executed = false;
     for (auto &cmd : _app.detached) {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(cmd, _env) :
@@ -235,7 +295,11 @@ namespace proc {
         BOOST_LOG(warning) << "Couldn't spawn ["sv << cmd << "]: System: "sv << ec.message();
       } else {
         child.detach();
+        any_detached_executed = true;
       }
+    }
+    if (_app.detached.size() > 0 && !any_detached_executed) {
+      BOOST_LOG(info) << "No detached commands were executed for app '" << _app.name << "' (all failed to spawn).";
     }
 
     if (_app.cmd.empty()) {
@@ -254,6 +318,26 @@ namespace proc {
     }
 
     _app_launch_time = std::chrono::steady_clock::now();
+
+    // Execute new event-actions for POST_STREAM_START stage
+    event_actions::execution_context_t post_context;
+    post_context.app_id = std::to_string(_app_id);
+    post_context.app_name = _app.name;
+    post_context.client_count = 1;  // Initial client
+    post_context.env_vars = event_env;
+
+    
+    try {
+      if (_event_handler.execute_stage(event_actions::stage_e::POST_STREAM_START, post_context) != 0) {
+        BOOST_LOG(warning) << "Failed to execute POST_STREAM_START event-actions";
+        // Don't fail here, as the app is already running
+      }
+    } catch (const std::exception& ex) {
+      BOOST_LOG(error) << "Exception during POST_STREAM_START event-actions: " << ex.what();
+    } catch (...) {
+      BOOST_LOG(error) << "Unknown exception during POST_STREAM_START event-actions";
+    }
+
 
     fg.disable();
 
@@ -299,6 +383,27 @@ namespace proc {
   void proc_t::terminate() {
     std::error_code ec;
     placebo = false;
+
+    // Execute new event-actions for POST_STREAM_STOP stage
+    if (_app_id > 0) {  // Only if we have an active app
+      auto event_env = std::unordered_map<std::string, std::string>();
+      for (const auto &env_entry : _env) {
+        event_env[env_entry.get_name()] = env_entry.to_string();
+      }
+
+      event_actions::execution_context_t context;
+      context.app_id = std::to_string(_app_id);
+      context.app_name = _app.name;
+      context.client_count = 0;  // No clients during termination
+      context.current_stage = event_actions::stage_e::POST_STREAM_STOP;  // Will be overridden by execute_stage
+      context.env_vars = event_env;
+
+      if (_event_handler.execute_stage(event_actions::stage_e::POST_STREAM_STOP, context) != 0) {
+        BOOST_LOG(warning) << "Failed to execute POST_STREAM_STOP event-actions";
+        // Don't fail here, continue with termination
+      }
+    }
+
     terminate_process_group(_process, _process_group, _app.exit_timeout);
     _process = boost::process::v1::child();
     _process_group = boost::process::v1::group();
@@ -370,6 +475,30 @@ namespace proc {
     return _app.name;
   }
 
+  void proc_t::execute_client_event_actions(event_actions::stage_e stage, int client_count) {
+    // Only execute if we have a running app
+    if (!running()) {
+      return;
+    }
+
+    // Create execution context
+    event_actions::execution_context_t context;
+    context.app_id = std::to_string(_app_id);
+    context.app_name = _app.name;
+    context.client_count = client_count;
+    context.current_stage = stage;  // Will be overridden by execute_stage
+
+    // Add environment variables
+    for (const auto &env_entry : _env) {
+      context.env_vars[env_entry.get_name()] = env_entry.to_string();
+    }
+
+    // Execute the event-actions for this stage
+    if (_event_handler.execute_stage(stage, context) != 0) {
+      BOOST_LOG(warning) << "Failed to execute " << event_actions::stage_to_string(stage) << " event-actions for client lifecycle event";
+    }
+  }
+
   proc_t::~proc_t() {
     // It's not safe to call terminate() here because our proc_t is a static variable
     // that may be destroyed after the Boost loggers have been destroyed. Instead,
@@ -377,6 +506,44 @@ namespace proc {
     // Once we reach this point here, termination must have already happened.
     assert(!placebo);
     assert(!_process.running());
+  }
+
+  event_actions::event_actions_t convert_legacy_commands(const std::vector<cmd_t> &legacy_commands) {
+    event_actions::event_actions_t result;
+
+    if (legacy_commands.empty()) {
+      return result;
+    }
+
+    // Create setup commands group
+    event_actions::command_group_t setup_group;
+    setup_group.name = "Legacy Setup Commands";
+    setup_group.failure_policy = event_actions::failure_policy_e::FAIL_FAST;
+
+    // Create cleanup commands group
+    event_actions::command_group_t cleanup_group;
+    cleanup_group.name = "Legacy Cleanup Commands";
+    cleanup_group.failure_policy = event_actions::failure_policy_e::CONTINUE_ON_FAILURE;
+
+    for (const auto &legacy_cmd : legacy_commands) {
+      if (!legacy_cmd.do_cmd.empty()) {
+        setup_group.commands.emplace_back(legacy_cmd.do_cmd, legacy_cmd.elevated, 30, false, false);
+      }
+      if (!legacy_cmd.undo_cmd.empty()) {
+        cleanup_group.commands.emplace_back(legacy_cmd.undo_cmd, legacy_cmd.elevated, 30, false, false);
+      }
+    }
+
+    // Add groups to appropriate stages
+    if (!setup_group.commands.empty()) {
+      result.stages[event_actions::stage_e::PRE_STREAM_START].groups.push_back(setup_group);
+    }
+    if (!cleanup_group.commands.empty()) {
+      result.stages[event_actions::stage_e::POST_STREAM_STOP].groups.push_back(cleanup_group);
+    }
+
+    BOOST_LOG(info) << "Converted " << legacy_commands.size() << " legacy commands to new format";
+    return result;
   }
 
   std::string_view::iterator find_match(std::string_view::iterator begin, std::string_view::iterator end) {
@@ -567,6 +734,9 @@ namespace proc {
     pt::ptree tree;
 
     try {
+      // --------------------------------------------------
+      // Load JSON file into property‑tree
+      // --------------------------------------------------
       pt::read_json(file_name, tree);
 
       auto &apps_node = tree.get_child("apps"s);
@@ -574,19 +744,31 @@ namespace proc {
 
       auto this_env = boost::this_process::environment();
 
-      for (auto &[name, val] : env_vars) {
-        this_env[name] = parse_env_val(this_env, val.get_value<std::string>());
+      // --------------------------------------------------
+      // 1.  Process‑wide environment overrides
+      // --------------------------------------------------
+      for (auto &[k, v] : env_vars) {
+        this_env[k] = parse_env_val(this_env, v.get_value<std::string>());
       }
 
       std::set<std::string> ids;
       std::vector<proc::ctx_t> apps;
-      int i = 0;
+      int index = 0;
+
+      // --------------------------------------------------
+      // 2.  Iterate over <apps>
+      // --------------------------------------------------
       for (auto &[_, app_node] : apps_node) {
         proc::ctx_t ctx;
 
+        // ---- 2.1  Optional values / simple scalars --------------------
         auto prep_nodes_opt = app_node.get_child_optional("prep-cmd"s);
-        auto detached_nodes_opt = app_node.get_child_optional("detached"s);
-        auto exclude_global_prep = app_node.get_optional<bool>("exclude-global-prep-cmd"s);
+        auto detached_opt = app_node.get_child_optional("detached"s);
+        auto excl_global_prep = app_node.get_optional<bool>("exclude-global-prep-cmd"s);
+        auto event_actions_opt = app_node.get_child_optional("event-actions"s);  // *only* new layout
+        // NOTE: key renamed → exclude-global-event-actions (replaces "exclude-global-stages")
+        auto excl_global_ea = app_node.get_child_optional("exclude-global-event-actions"s);
+
         auto output = app_node.get_optional<std::string>("output"s);
         auto name = parse_env_val(this_env, app_node.get<std::string>("name"s));
         auto cmd = app_node.get_optional<std::string>("cmd"s);
@@ -597,66 +779,114 @@ namespace proc {
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
 
+        // ---- 2.2  Build combined <prep‑cmd> list ----------------------
         std::vector<proc::cmd_t> prep_cmds;
-        if (!exclude_global_prep.value_or(false)) {
+        if (!excl_global_prep.value_or(false)) {
           prep_cmds.reserve(config::sunshine.prep_cmds.size());
-          for (auto &prep_cmd : config::sunshine.prep_cmds) {
-            auto do_cmd = parse_env_val(this_env, prep_cmd.do_cmd);
-            auto undo_cmd = parse_env_val(this_env, prep_cmd.undo_cmd);
-
+          for (auto &pc : config::sunshine.prep_cmds) {
             prep_cmds.emplace_back(
-              std::move(do_cmd),
-              std::move(undo_cmd),
-              std::move(prep_cmd.elevated)
+              std::string(parse_env_val(this_env, pc.do_cmd)),
+              std::string(parse_env_val(this_env, pc.undo_cmd)),
+              bool(pc.elevated)
             );
           }
         }
-
         if (prep_nodes_opt) {
-          auto &prep_nodes = *prep_nodes_opt;
-
-          prep_cmds.reserve(prep_cmds.size() + prep_nodes.size());
-          for (auto &[_, prep_node] : prep_nodes) {
-            auto do_cmd = prep_node.get_optional<std::string>("do"s);
-            auto undo_cmd = prep_node.get_optional<std::string>("undo"s);
-            auto elevated = prep_node.get_optional<bool>("elevated");
-
+          for (auto &[_, n] : *prep_nodes_opt) {
             prep_cmds.emplace_back(
-              parse_env_val(this_env, do_cmd.value_or("")),
-              parse_env_val(this_env, undo_cmd.value_or("")),
-              std::move(elevated.value_or(false))
+              std::string(parse_env_val(this_env, n.get<std::string>("do", ""))),
+              std::string(parse_env_val(this_env, n.get<std::string>("undo", ""))),
+              bool(n.get<bool>("elevated", false))
             );
           }
         }
 
-        std::vector<std::string> detached;
-        if (detached_nodes_opt) {
-          auto &detached_nodes = *detached_nodes_opt;
+        // ---- 2.3  Parse <event‑actions> (flat schema) -----------------
+        event_actions::event_actions_t app_events;
+        if (event_actions_opt) {
+          for (auto &[stage_name, groups_node] : *event_actions_opt) {
+            auto stage_e = event_actions::event_action_handler_t::string_to_stage(stage_name);
+            if (!stage_e) {
+              BOOST_LOG(warning) << "Unknown stage '" << stage_name << "' in app '" << name << "'.";
+              continue;
+            }
 
-          detached.reserve(detached_nodes.size());
-          for (auto &[_, detached_val] : detached_nodes) {
-            detached.emplace_back(parse_env_val(this_env, detached_val.get_value<std::string>()));
+            event_actions::stage_commands_t stage_cmds;
+            for (auto &[_, group_node] : groups_node) {
+              event_actions::command_group_t grp;
+
+              grp.name = group_node.get<std::string>("name", "Unnamed Group");
+              auto pol = group_node.get<std::string>("failure_policy", "FAIL_FAST");
+              grp.failure_policy = (pol == "CONTINUE_ON_FAILURE") ?
+                                     event_actions::failure_policy_e::CONTINUE_ON_FAILURE :
+                                     event_actions::failure_policy_e::FAIL_FAST;
+
+              if (auto cmds_opt = group_node.get_child_optional("commands"s)) {
+                for (auto &[_, cmd_node] : *cmds_opt) {
+                  event_actions::command_t c;
+                  c.cmd = parse_env_val(this_env, cmd_node.get<std::string>("cmd", ""));
+                  if (c.cmd.empty()) {
+                    continue;  // skip empties
+                  }
+                  c.elevated = cmd_node.get<bool>("elevated", false);
+                  c.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                  c.ignore_error = cmd_node.get<bool>("ignore_error", false);
+                  c.async = cmd_node.get<bool>("async", false);
+                  grp.commands.push_back(std::move(c));
+                }
+              }
+              if (!grp.commands.empty()) {
+                stage_cmds.groups.push_back(std::move(grp));
+              }
+            }
+            if (!stage_cmds.groups.empty()) {
+              app_events.stages[*stage_e] = std::move(stage_cmds);
+            }
+          }
+          if (!app_events.stages.empty()) {
+            BOOST_LOG(info) << "Loaded " << app_events.stages.size()
+                            << " event‑action stage(s) for app '" << name << "'.";
           }
         }
 
+        // ---- 2.4  Excluded global event‑action stages -----------------
+        std::set<event_actions::stage_e> excl_global;
+        if (excl_global_ea) {
+          for (auto &[_, s] : *excl_global_ea) {
+            auto e = event_actions::event_action_handler_t::string_to_stage(s.get_value<std::string>());
+            if (e) {
+              excl_global.insert(*e);
+            } else {
+              BOOST_LOG(warning) << "Unknown excluded stage '" << s.get_value<std::string>() << "'.";
+            }
+          }
+        }
+        if (excl_global_prep.value_or(false)) {
+          excl_global.insert(event_actions::stage_e::PRE_STREAM_START);
+          excl_global.insert(event_actions::stage_e::POST_STREAM_STOP);
+        }
+
+        // ---- 2.5  Detached executables -------------------------------
+        std::vector<std::string> detached;
+        if (detached_opt) {
+          for (auto &[_, d] : *detached_opt) {
+            detached.emplace_back(parse_env_val(this_env, d.get_value<std::string>()));
+          }
+        }
+
+        // ---- 2.6  Scalar assignments --------------------------------
         if (output) {
           ctx.output = parse_env_val(this_env, *output);
         }
-
         if (cmd) {
           ctx.cmd = parse_env_val(this_env, *cmd);
         }
-
         if (working_dir) {
           ctx.working_dir = parse_env_val(this_env, *working_dir);
 #ifdef _WIN32
-          // The working directory, unlike the command itself, should not be quoted
-          // when it contains spaces. Unlike POSIX, Windows forbids quotes in paths,
-          // so we can safely strip them all out here to avoid confusing the user.
           boost::erase_all(ctx.working_dir, "\"");
 #endif
         }
-
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
         }
@@ -666,29 +896,31 @@ namespace proc {
         ctx.wait_all = wait_all.value_or(true);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
 
-        auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
-        if (ids.count(std::get<0>(possible_ids)) == 0) {
-          // Avoid using index to generate id if possible
-          ctx.id = std::get<0>(possible_ids);
-        } else {
-          // Fallback to include index on collision
-          ctx.id = std::get<1>(possible_ids);
-        }
+        // ---- 2.7  Stable ID -----------------------------------------
+        auto id_pair = calculate_app_id(name, ctx.image_path, index++);
+        ctx.id = ids.count(std::get<0>(id_pair)) ? std::get<1>(id_pair) : std::get<0>(id_pair);
         ids.insert(ctx.id);
 
+        // ---- 2.8  Finalise ctx --------------------------------------
         ctx.name = std::move(name);
         ctx.prep_cmds = std::move(prep_cmds);
         ctx.detached = std::move(detached);
+        ctx.app_event_actions = std::move(app_events);
+        ctx.excluded_global_stages = std::unordered_set<event_actions::stage_e>(
+          excl_global.begin(),
+          excl_global.end()
+        );
 
         apps.emplace_back(std::move(ctx));
       }
 
-      return proc::proc_t {
-        std::move(this_env),
-        std::move(apps)
-      };
-    } catch (std::exception &e) {
-      BOOST_LOG(error) << e.what();
+      // --------------------------------------------------
+      // 3.  Build final proc_t
+      // --------------------------------------------------
+      return proc::proc_t {std::move(this_env), std::move(apps)};
+
+    } catch (const std::exception &ex) {
+      BOOST_LOG(error) << ex.what();
     }
 
     return std::nullopt;

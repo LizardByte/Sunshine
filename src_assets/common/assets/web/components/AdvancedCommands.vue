@@ -4,7 +4,7 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <h5>{{ appMode ? $t('apps.cmd_prep_name') : $t('commands.advanced_title') }}</h5>
-        <div class="form-text">{{ appMode ? $t('commands.advanced_mode_desc') : $t('commands.advanced_desc') }}</div>
+        <div class="form-text">{{ appMode ? $t('commands.event_actions_desc') : $t('commands.advanced_desc') }}</div>
       </div>
       <div class="d-flex gap-2">
         <button class="btn btn-outline-secondary btn-sm" @click="showLegacyMigration = !showLegacyMigration"

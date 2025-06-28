@@ -949,6 +949,73 @@ namespace config {
     }
   }
 
+  void global_event_actions_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, event_actions::event_actions_t &input) {
+    std::string string;
+    string_f(vars, name, string);
+
+    if (string.empty()) {
+      return;
+    }
+
+    std::stringstream jsonStream;
+    jsonStream << "{\"stages\":" << string << "}";
+
+    try {
+      boost::property_tree::ptree jsonTree;
+      boost::property_tree::read_json(jsonStream, jsonTree);
+
+      for (auto &[stage_name, stage_node] : jsonTree.get_child("stages"s)) {
+        auto stage_opt = event_actions::event_action_handler_t::string_to_stage(stage_name);
+        if (!stage_opt) {
+          BOOST_LOG(warning) << "Unknown event-action stage: " << stage_name;
+          continue;
+        }
+
+        event_actions::stage_commands_t stage_commands;
+        
+        if (stage_node.get_child_optional("groups")) {
+          for (auto &[_, group_node] : stage_node.get_child("groups"s)) {
+            event_actions::command_group_t group;
+            
+            group.name = group_node.get<std::string>("name", "Unnamed Group");
+            
+            auto policy_str = group_node.get<std::string>("failure_policy", "FAIL_FAST");
+            group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
+                                   event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
+                                   event_actions::failure_policy_e::FAIL_FAST;
+
+            if (group_node.get_child_optional("commands")) {
+              for (auto &[_, cmd_node] : group_node.get_child("commands"s)) {
+                event_actions::command_t command;
+                command.cmd = cmd_node.get<std::string>("cmd", "");
+                command.elevated = cmd_node.get<bool>("elevated", false);
+                command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                command.ignore_error = cmd_node.get<bool>("ignore_error", false);
+                command.async = cmd_node.get<bool>("async", false);
+                
+                if (!command.cmd.empty()) {
+                  group.commands.push_back(command);
+                }
+              }
+            }
+            
+            if (!group.commands.empty()) {
+              stage_commands.groups.push_back(group);
+            }
+          }
+        }
+        
+        if (!stage_commands.groups.empty()) {
+          input.stages[*stage_opt] = stage_commands;
+        }
+      }
+
+      BOOST_LOG(info) << "Loaded global event-actions for " << input.stages.size() << " stages";
+    } catch (const std::exception &e) {
+      BOOST_LOG(error) << "Failed to parse global event-actions: " << e.what();
+    }
+  }
+
   void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
@@ -1158,6 +1225,10 @@ namespace config {
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
+    // Support new naming
+    global_event_actions_f(vars, "global-event-actions", config::sunshine.global_event_actions);
+    // Support legacy naming for backward compatibility
+    global_event_actions_f(vars, "global-prep-cmd", config::sunshine.global_event_actions);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
