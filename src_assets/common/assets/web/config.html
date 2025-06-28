@@ -173,7 +173,7 @@
                 display_mode_remapping: '[]',
                 resolutions: '[1280x720,1920x1080,2560x1080,2560x1440,2560x1600,3440x1440,3840x2160]',
                 fps: '[60,90,120,144]',
-                min_fps_factor: 1,
+                max_bitrate: 0,
               },
             },
             {
@@ -285,14 +285,12 @@
             const platformExclusions = {
               windows: ['vt', 'vaapi'],
               linux: ['amd', 'qsv', 'vt'],
-              macos: ['amd', 'nv', 'qsv', 'vaapi']
-            };
-            
+              macos: ['amd', 'nv', 'qsv', 'vaapi'],
+            }
+
             this.config = r
             this.platform = this.config.platform
-            this.tabs = this.tabs.filter(tab => 
-              !platformExclusions[this.platform]?.includes(tab.id)
-            );
+            this.tabs = this.tabs.filter((tab) => !platformExclusions[this.platform]?.includes(tab.id))
 
             // remove values we don't want in the config file
             delete this.config.platform
@@ -313,13 +311,10 @@
             this.fps = JSON.parse(this.config.fps)
             // 优化分辨率解析逻辑
             try {
-              this.resolutions = JSON.parse(
-                this.config.resolutions
-                  .replace(/(\d+)x(\d+)/g, '"$1x$2"')
-              );
+              this.resolutions = JSON.parse(this.config.resolutions.replace(/(\d+)x(\d+)/g, '"$1x$2"'))
             } catch (e) {
-              console.error('Error parsing resolutions:', e);
-              this.resolutions = [];
+              console.error('Error parsing resolutions:', e)
+              this.resolutions = []
             }
 
             this.config.global_prep_cmd = this.config.global_prep_cmd || []
@@ -334,56 +329,56 @@
           this.$forceUpdate()
         },
         serialize() {
-          const nl = this.config === 'windows' ? '\r\n' : '\n';
+          const nl = this.config === 'windows' ? '\r\n' : '\n'
           this.config.resolutions = JSON.stringify(this.resolutions)
             .replace(/","/g, `,${nl}    `)
             .replace(/\["/, `[${nl}    `)
-            .replace(/"\]/, `${nl}]`);
+            .replace(/"\]/, `${nl}]`)
 
-          this.fps = this.fps.filter(item => +item >= 30 && +item <= 500);
-          this.config.fps = JSON.stringify(this.fps).replaceAll('"', '');
-          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd);
-          this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping);
+          this.fps = this.fps.filter((item) => +item >= 30 && +item <= 500)
+          this.config.fps = JSON.stringify(this.fps).replaceAll('"', '')
+          this.config.global_prep_cmd = JSON.stringify(this.global_prep_cmd)
+          this.config.display_mode_remapping = JSON.stringify(this.display_mode_remapping)
         },
         async save() {
-          this.saved = false;
-          this.restarted = false;
-          this.serialize();
+          this.saved = false
+          this.restarted = false
+          this.serialize()
 
-          const config = JSON.parse(JSON.stringify(this.config));
-          
+          const config = JSON.parse(JSON.stringify(this.config))
+
           // 使用更清晰的默认值过滤逻辑
-          this.tabs.forEach(tab => {
-            Object.keys(tab.options).forEach(optionKey => {
+          this.tabs.forEach((tab) => {
+            Object.keys(tab.options).forEach((optionKey) => {
               if (this.shouldDeleteDefault(config, tab, optionKey)) {
-                delete config[optionKey];
+                delete config[optionKey]
               }
-            });
-          });
+            })
+          })
 
           try {
             const response = await fetch('/api/config', {
               method: 'POST',
               body: JSON.stringify(config),
-            });
-            this.saved = response.status === 200;
-            return this.saved;
+            })
+            this.saved = response.status === 200
+            return this.saved
           } catch (error) {
-            console.error('Save failed:', error);
-            return false;
+            console.error('Save failed:', error)
+            return false
           }
         },
         shouldDeleteDefault(config, tab, optionKey) {
-          const excludedKeys = ['resolutions', 'fps', 'adapter_name'];
-          if (excludedKeys.includes(optionKey)) return false;
+          const excludedKeys = ['resolutions', 'fps', 'adapter_name']
+          if (excludedKeys.includes(optionKey)) return false
 
-          const currentValue = config[optionKey];
-          const defaultValue = tab.options[optionKey];
-          
+          const currentValue = config[optionKey]
+          const defaultValue = tab.options[optionKey]
+
           try {
-            return JSON.stringify(JSON.parse(currentValue)) === JSON.stringify(JSON.parse(defaultValue));
+            return JSON.stringify(JSON.parse(currentValue)) === JSON.stringify(JSON.parse(defaultValue))
           } catch {
-            return String(currentValue) === String(defaultValue);
+            return String(currentValue) === String(defaultValue)
           }
         },
         apply() {
@@ -406,24 +401,22 @@
       mounted() {
         // 优化哈希处理逻辑
         const handleHash = () => {
-          const hash = window.location.hash.slice(1);
-          if (!hash) return;
+          const hash = window.location.hash.slice(1)
+          if (!hash) return
 
-          const targetTab = this.tabs.find(tab => 
-            tab.id === hash || Object.keys(tab.options).includes(hash)
-          );
+          const targetTab = this.tabs.find((tab) => tab.id === hash || Object.keys(tab.options).includes(hash))
 
           if (targetTab) {
-            this.currentTab = targetTab.id;
+            this.currentTab = targetTab.id
             this.$nextTick(() => {
-              const element = document.getElementById(hash);
-              element?.scrollIntoView({ behavior: 'smooth' });
-            });
+              const element = document.getElementById(hash)
+              element?.scrollIntoView({ behavior: 'smooth' })
+            })
           }
-        };
+        }
 
-        handleHash();
-        window.addEventListener('hashchange', handleHash);
+        handleHash()
+        window.addEventListener('hashchange', handleHash)
       },
     })
 

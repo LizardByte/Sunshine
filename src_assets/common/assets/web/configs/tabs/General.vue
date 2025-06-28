@@ -33,6 +33,8 @@ function removeCmd(index) {
     <div class="mb-3">
       <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
       <select id="locale" class="form-select" v-model="config.locale">
+        <option value="bg">Български (Bulgarian)</option>
+        <option value="cs">Čeština (Czech)</option>
         <option value="de">Deutsch (German)</option>
         <option value="en">English</option>
         <option value="en_GB">English, UK</option>
@@ -46,6 +48,7 @@ function removeCmd(index) {
         <option value="sv">svenska (Swedish)</option>
         <option value="tr">Türkçe (Turkish)</option>
         <option value="zh">简体中文 (Chinese Simplified)</option>
+        <option value="zh_TW">繁體中文 (Chinese Traditional)</option>
       </select>
       <div class="form-text">{{ $t('config.locale_desc') }}</div>
     </div>
