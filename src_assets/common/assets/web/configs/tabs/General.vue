@@ -1,6 +1,7 @@
 <script setup>
 import Checkbox from '../../Checkbox.vue'
-import { ref } from 'vue'
+import AdvancedCommands from '../../components/AdvancedCommands.vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps({
   platform: String,
@@ -10,8 +11,7 @@ const config = ref(props.config)
 
 function addCmd() {
   let template = {
-    do: "",
-    undo: "",
+    do: ""
   };
 
   if (props.platform === 'windows') {
@@ -23,6 +23,20 @@ function addCmd() {
 function removeCmd(index) {
   config.value.global_prep_cmd.splice(index,1)
 }
+
+// Computed properties for advanced commands
+const advancedCommands = computed({
+  get() {
+    return config.value.stream_commands || {}
+  },
+  set(value) {
+    config.value.stream_commands = value
+  }
+})
+
+const legacyCommands = computed(() => {
+  return config.value.global_prep_cmd || []
+})
 </script>
 
 <template>
@@ -84,7 +98,6 @@ function removeCmd(index) {
         <thead>
         <tr>
           <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-          <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
           <th scope="col" v-if="platform === 'windows'">
             <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
           </th>
@@ -95,9 +108,6 @@ function removeCmd(index) {
         <tr v-for="(c, i) in config.global_prep_cmd">
           <td>
             <input type="text" class="form-control monospace" v-model="c.do" />
-          </td>
-          <td>
-            <input type="text" class="form-control monospace" v-model="c.undo" />
           </td>
           <td v-if="platform === 'windows'" class="align-middle">
             <Checkbox :id="'prep-cmd-admin-' + i"
@@ -120,6 +130,16 @@ function removeCmd(index) {
       <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd">
         &plus; {{ $t('config.add') }}
       </button>
+    </div>
+
+    <!-- Advanced Stream Commands -->
+    <div class="mb-4">
+      <hr class="my-4">
+      <AdvancedCommands 
+        v-model="advancedCommands"
+        :platform="platform"
+        :legacy-commands="legacyCommands"
+      />
     </div>
 
     <!-- Notify Pre-Releases -->

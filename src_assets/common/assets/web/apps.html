@@ -12,7 +12,9 @@
           font-family: monospace;
         }
 
-        .cover-finder {}
+        .cover-finder {
+          /* Cover finder styles - placeholder for future enhancements */
+        }
 
         .cover-finder .cover-results {
           max-height: 400px;
@@ -115,7 +117,7 @@
             v-model="editForm.output" />
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
-        <!-- prep-cmd -->
+        <!-- Global Prep Commands Settings -->
         <Checkbox class="mb-3"
                   id="excludeGlobalPrep"
                   label="apps.global_prep_name"
@@ -124,70 +126,14 @@
                   default="true"
                   inverse-values
         ></Checkbox>
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
-          <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
-          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
-            <button class="btn btn-success" @click="addPrepCmd">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.add_cmds') }}
-            </button>
-          </div>
-          <table class="table" v-if="editForm['prep-cmd'].length > 0">
-            <thead>
-              <tr>
-                <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-                <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
-                <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-                </th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in editForm['prep-cmd']">
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.do" />
-                </td>
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.undo" />
-                </td>
-                <td v-if="platform === 'windows'" class="align-middle">
-                  <Checkbox :id="'prep-cmd-admin-' + i"
-                            label="_common.elevated"
-                            desc=""
-                            v-model="c.elevated"
-                  ></Checkbox>
-                </td>
-                <td>
-                  <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                  <button class="btn btn-success" @click="addPrepCmd">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <!-- detached -->
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
-          <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
-            <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
-            <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
-              &times;
-            </button>
-          </div>
-          <div class="d-flex justify-content-between">
-            <button class="btn btn-success" @click="editForm.detached.push('');">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.detached_cmds_add') }}
-            </button>
-          </div>
-          <div class="form-text">
-            {{ $t('apps.detached_cmds_desc') }}<br>
-            <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
-          </div>
+        <!-- Application Commands -->
+        <div class="mb-4">
+          <advanced-commands 
+            v-model="editForm['stream-commands']"
+            :platform="platform"
+            :legacy-commands="editForm['prep-cmd']"
+            :app-mode="true"
+          />
         </div>
         <!-- command -->
         <div class="mb-3">
@@ -362,12 +308,17 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
+  import AdvancedCommands from './components/AdvancedCommands.vue'
+  import CommandGroupEditor from './components/CommandGroupEditor.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
 
   const app = createApp({
     components: {
       Navbar,
-      Checkbox
+      Checkbox,
+      'AdvancedCommands': AdvancedCommands,
+      'advanced-commands': AdvancedCommands,
+      CommandGroupEditor
     },
     data() {
       return {
@@ -406,6 +357,7 @@
           "wait-all": true,
           "exit-timeout": 5,
           "prep-cmd": [],
+          "stream-commands": {},
           detached: [],
           "image-path": ""
         };
@@ -417,6 +369,8 @@
         this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
           this.editForm["prep-cmd"] = [];
+        if (this.editForm["stream-commands"] === undefined)
+          this.editForm["stream-commands"] = {};
         if (this.editForm["detached"] === undefined)
           this.editForm["detached"] = [];
         if (this.editForm["exclude-global-prep-cmd"] === undefined)
@@ -444,18 +398,6 @@
             if (r.status === 200) document.location.reload();
           });
         }
-      },
-      addPrepCmd() {
-        let template = {
-          do: "",
-          undo: ""
-        };
-
-        if (this.platform === 'windows') {
-          template = { ...template, elevated: false };
-        }
-
-        this.editForm["prep-cmd"].push(template);
       },
       showCoverFinder($event) {
         this.coverCandidates = [];
