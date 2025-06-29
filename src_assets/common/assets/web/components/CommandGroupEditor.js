@@ -48,9 +48,40 @@ export function useCommandGroupEditor(props, emit) {
   }
 
   function getStageDescription(stageId) {
-    if (!props.availableStages) return ''
-    const stage = props.availableStages.find(s => s.id === stageId)
-    return stage ? stage.description : ''
+    switch (stageId) {
+      case 'PRE_STREAM_START':
+        return 'Run before the stream starts. Use for setup tasks.'
+      case 'POST_STREAM_START':
+        return 'Run after the stream has started.'
+      case 'PRE_DISPLAY_CHECK':
+        return 'Run before display checks are performed.'
+      case 'POST_DISPLAY_CHECK':
+        return 'Run after display checks are complete.'
+      case 'CLIENT_CONNECT':
+        return 'Run when a client connects.'
+      case 'ADDITIONAL_CLIENT':
+        return 'Run when an additional client connects.'
+      case 'STREAM_RESUME':
+        return 'Run when the stream resumes from pause.'
+      case 'STREAM_PAUSE':
+        return 'Run when the stream is paused.'
+      case 'CLIENT_DISCONNECT':
+        return 'Run when a client disconnects.'
+      case 'PRE_STREAM_STOP':
+        return 'Run before the stream stops.'
+      case 'PRE_DISPLAY_CLEANUP':
+        return 'Run before display cleanup tasks.'
+      case 'POST_DISPLAY_CLEANUP':
+        return 'Run after display cleanup tasks.'
+      case 'POST_STREAM_STOP':
+        return 'Run after the stream has stopped.'
+      case 'ADDITIONAL_CLIENT_DISCONNECT':
+        return 'Run when an additional client disconnects.'
+      case 'STREAM_TERMINATION':
+        return 'Run at the end of the stream (termination).' 
+      default:
+        return ''
+    }
   }
 
   function addGroup() {
@@ -191,10 +222,34 @@ export function useCommandGroupEditor(props, emit) {
     switch (stage) {
       case 'PRE_STREAM_START':
         return 'Before Stream Start'
-      case 'STREAM_TERMINATION':
-        return 'Stream Termination'
       case 'POST_STREAM_START':
         return 'After Stream Start'
+      case 'PRE_DISPLAY_CHECK':
+        return 'Before Display Check'
+      case 'POST_DISPLAY_CHECK':
+        return 'After Display Check'
+      case 'CLIENT_CONNECT':
+        return 'Client Connect'
+      case 'ADDITIONAL_CLIENT':
+        return 'Additional Client Connect'
+      case 'STREAM_RESUME':
+        return 'Stream Resume'
+      case 'STREAM_PAUSE':
+        return 'Stream Pause'
+      case 'CLIENT_DISCONNECT':
+        return 'Client Disconnect'
+      case 'PRE_STREAM_STOP':
+        return 'Before Stream Stop'
+      case 'PRE_DISPLAY_CLEANUP':
+        return 'Before Display Cleanup'
+      case 'POST_DISPLAY_CLEANUP':
+        return 'After Display Cleanup'
+      case 'POST_STREAM_STOP':
+        return 'After Stream Stop'
+      case 'ADDITIONAL_CLIENT_DISCONNECT':
+        return 'Additional Client Disconnect'
+      case 'STREAM_TERMINATION':
+        return 'Stream Termination'
       default:
         return stage || 'Unknown Stage'
     }

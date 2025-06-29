@@ -280,6 +280,17 @@ const {
   width: 75% !important;
 }
 
+/* Advanced view modal */
+.modal-dialog.modal-xl {
+  width: min(90vw, 1440px);
+  max-width: min(90vw, 1440px);
+}
+
+.modal-dialog.modal-xl .modal-body {
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
 .advanced-mode-button {
   text-align: center;
   padding: 2rem;
@@ -412,15 +423,23 @@ const {
   box-shadow: 0 2px 4px rgba(0, 123, 255, 0.1);
 }
 
-.basic-view .monospace {
-  font-family: 'Courier New', monospace;
+.basic-view .monospace,
+.basic-view .form-control {
+  font-family: "Fira Code", 'Courier New', monospace;
   font-size: 0.9em;
 }
 
-.basic-view .form-label.small {
-  font-size: 0.875em;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
+.basic-view .form-control {
+  min-height: 38px;
+  border-radius: 6px;
+}
+
+/* Consistent button styling across all modes */
+.btn, .btn-sm {
+  min-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 6px;
 }
 
 /* Advanced Commands View */
@@ -430,12 +449,20 @@ const {
   padding: 0;
 }
 
+/* Two-column layout - wrap both stage panels */
 .commands-container {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 2rem;
   width: 100%;
   align-items: start;
+}
+
+/* Responsive two-column */
+@media (max-width: 1100px) {
+  .commands-container {
+    grid-template-columns: 1fr;
+  }
 }
 
 .commands-section {
@@ -462,11 +489,11 @@ const {
   box-sizing: border-box;
   padding: 1.25rem 1.5rem;
   color: white;
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  background: #0d6efd; /* solid accent */
 }
 
 .section-header.cleanup-header {
-  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+  background: #6c757d; /* gray variant */
 }
 
 .header-content {
@@ -509,14 +536,33 @@ const {
   min-width: 0;
 }
 
+/* Group cards - inner card spacing and corners */
 .section-body :deep(.cg-group-card) {
   background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 0.5rem;
-  padding: 1.25rem;
-  margin-bottom: 1rem;
+  border: 1px solid #dfe3e8;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-block: 1.25rem;
   width: 100%;
   box-sizing: border-box;
+}
+
+/* Card shadows - startup and cleanup variants */
+.section-body :deep(.cg-group-card) {
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
+.cleanup .section-body :deep(.cg-group-card) {
+  box-shadow: 0 0 0 2px rgba(108, 117, 125, 0.25);
+}
+
+/* Focus & hover states */
+.section-body :deep(.cg-group-card:hover) {
+  background: #f8f9fa;
+}
+
+.section-body :deep(.cg-group-card:focus-within) {
+  outline: 2px solid #0d6efd;
 }
 
 .section-body :deep(.cg-header) {
@@ -543,6 +589,19 @@ const {
   margin-bottom: 0;
 }
 
+/* Form grid - labels/inputs alignment */
+.section-body :deep(.cmd-fields) {
+  display: grid;
+  grid-template-columns: 160px 1fr 160px 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 992px) {
+  .section-body :deep(.cmd-fields) {
+    grid-template-columns: 1fr;
+  }
+}
+
 .section-body :deep(.cg-cell) {
   display: flex;
   align-items: flex-start;
@@ -565,16 +624,29 @@ const {
   font-size: 0.9rem;
 }
 
-.section-body :deep(.cg-cell textarea) {
+/* Command textarea - monospace, resizable height */
+.section-body :deep(.cg-cell textarea),
+.section-body :deep(.cmd-text) {
   resize: vertical;
-  min-height: 76px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  min-height: 6rem;
+  max-height: 40vh;
+  font-family: "Fira Code", monospace;
 }
 
-.section-body :deep(.cg-cell .btn) {
+/* Button sizes & spacing - consistent heights */
+.section-body :deep(.cg-cell .btn),
+.section-body :deep(.btn),
+.section-body :deep(.btn-sm) {
   flex-shrink: 0;
-  min-height: 38px;
-  padding: 0.5rem 0.75rem;
+  min-height: 32px;
+  padding: 0 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 6px;
+}
+
+.section-header .btn,
+.stage-header .btn {
+  margin-left: 0.5rem;
 }
 
 .section-body :deep(.dropdown-menu) {
@@ -583,6 +655,41 @@ const {
   border: 1px solid #ced4da;
   border-radius: 0.375rem;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Badge counters - proper spacing */
+.section-body :deep(.cmd-count) {
+  margin-left: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+/* Icon buttons - consistent hit targets */
+.section-body :deep(.icon-btn) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Checkbox rows - prevent unpredictable wrapping */
+.section-body :deep(.behavior-row) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+/* Responsive footer buttons */
+.section-body :deep(.footer-actions) {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 2rem;
 }
 
 /* Responsive Design */

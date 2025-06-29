@@ -84,7 +84,7 @@
                   :aria-describedby="`stage-help-${groupIndex}`">
                   <option value="" disabled>Select when to run</option>
                   <option v-for="stage in availableStages" :key="stage.id" :value="stage.id">
-                    {{ getAllEnumDisplayName(stage.id, 'stage') }}
+                    {{ getStageDisplayName(stage.id) }}
                   </option>
                 </select>
                 <div class="form-text form-help-text" v-if="group.stage" :id="`stage-help-${groupIndex}`">
