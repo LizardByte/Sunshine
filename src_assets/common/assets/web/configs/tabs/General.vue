@@ -1,30 +1,16 @@
 <script setup>
 import Checkbox from '../../Checkbox.vue'
 import AdvancedCommands from '../../components/AdvancedCommands.vue'
-import { ref, computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   platform: String,
   config: Object
 })
-const config = ref(props.config)
+// Use computed for reactivity and avoid ref(props.config)
+const config = computed(() => props.config)
 
-function addCmd() {
-  let template = {
-    do: ""
-  };
-
-  if (props.platform === 'windows') {
-    template = { ...template, elevated: false };
-  }
-  config.value.global_prep_cmd.push(template);
-}
-
-function removeCmd(index) {
-  config.value.global_prep_cmd.splice(index,1)
-}
-
-// Computed properties for advanced commands
+// Advanced command system for global prep commands
 const advancedCommands = computed({
   get() {
     return config.value.stream_commands || {}
@@ -40,7 +26,7 @@ const legacyCommands = computed(() => {
 </script>
 
 <template>
-  <div id="general" class="config-page">
+  <div v-if="config" id="general" class="config-page">
     <!-- Locale -->
     <div class="mb-3">
       <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
@@ -91,55 +77,12 @@ const legacyCommands = computed(() => {
     </div>
 
     <!-- Global Prep Commands -->
-    <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
+    <div id="global_prep_cmd" class="mb-3">
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-      <table class="table" v-if="config.global_prep_cmd.length > 0">
-        <thead>
-        <tr>
-          <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-          <th scope="col" v-if="platform === 'windows'">
-            <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-          </th>
-          <th scope="col"></th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="(c, i) in config.global_prep_cmd">
-          <td>
-            <input type="text" class="form-control monospace" v-model="c.do" />
-          </td>
-          <td v-if="platform === 'windows'" class="align-middle">
-            <Checkbox :id="'prep-cmd-admin-' + i"
-                      label="_common.elevated"
-                      desc=""
-                      v-model="c.elevated"
-            ></Checkbox>
-          </td>
-          <td>
-            <button class="btn btn-danger" @click="removeCmd(i)">
-              <i class="fas fa-trash"></i>
-            </button>
-            <button class="btn btn-success" @click="addCmd">
-              <i class="fas fa-plus"></i>
-            </button>
-          </td>
-        </tr>
-        </tbody>
-      </table>
-      <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd">
-        &plus; {{ $t('config.add') }}
-      </button>
-    </div>
-
-    <!-- Advanced Stream Commands -->
-    <div class="mb-4">
-      <hr class="my-4">
-      <AdvancedCommands 
-        v-model="advancedCommands"
-        :platform="platform"
-        :legacy-commands="legacyCommands"
-      />
+      <div class="mt-3">
+        <AdvancedCommands v-model="advancedCommands" :platform="platform" :legacy-commands="legacyCommands"/>
+      </div>
     </div>
 
     <!-- Notify Pre-Releases -->
