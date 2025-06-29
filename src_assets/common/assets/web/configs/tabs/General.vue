@@ -13,10 +13,10 @@ const config = computed(() => props.config)
 // Advanced command system for global prep commands
 const advancedCommands = computed({
   get() {
-    return config.value.stream_commands || {}
+    return config.value.global_event_actions || {}
   },
   set(value) {
-    config.value.stream_commands = value
+    config.value.global_event_actions = value
   }
 })
 
@@ -81,7 +81,11 @@ const legacyCommands = computed(() => {
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
       <div class="mt-3">
-        <AdvancedCommands v-model="advancedCommands" :platform="platform" :legacy-commands="legacyCommands"/>
+        <AdvancedCommands
+          v-model="advancedCommands"
+          :platform="platform"
+          :legacy-commands="legacyCommands"
+        />
       </div>
     </div>
 

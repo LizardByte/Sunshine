@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 
 export function useAdvancedCommands(props, emit) {
   // Component state - simplified
@@ -115,6 +115,27 @@ export function useAdvancedCommands(props, emit) {
     return Object.keys(commandsData.value).some(stage => 
       commandsData.value[stage] && commandsData.value[stage].length > 0
     ) || (props.legacyCommands && props.legacyCommands.length > 0)
+  })
+
+  // Detect if advanced commands exist (anything other than basic PRE_STREAM_START and POST_STREAM_STOP)
+  const hasAdvancedCommands = computed(() => {
+    const data = commandsData.value
+    if (!data || Object.keys(data).length === 0) {
+      return false
+    }
+    
+    // If there are any commands at all in the advanced format, consider it advanced
+    return Object.keys(data).some(stage => 
+      data[stage] && data[stage].length > 0
+    )
+  })
+
+  // Initialize advanced mode based on existing data
+  onMounted(() => {
+    // If there are existing advanced commands (not just legacy), start in advanced mode
+    if (hasAdvancedCommands.value) {
+      isAdvancedMode.value = true
+    }
   })
 
   // Basic mode - simplified DO/UNDO interface
@@ -502,6 +523,7 @@ export function useAdvancedCommands(props, emit) {
     hasLegacyCommands,
     commandsData,
     hasAnyCommands,
+    hasAdvancedCommands,
     basicCommands,
     getStageGroups,
     updateStageGroups,
