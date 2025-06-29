@@ -1,12 +1,10 @@
 import { ref, computed, onMounted } from 'vue'
-import CommandGroupEditor from './CommandGroupEditor.vue'
 
 export function useAdvancedCommands(props, emit) {
-  // Component state
-  const viewMode = ref(props.appMode ? 'basic' : 'beginner')
+  // Component state - simplified
   const showLegacyMigration = ref(false)
-  const showAdvancedStages = ref(false)
-  const selectedStage = ref(null)
+  const isAdvancedMode = ref(false) // Track if user has switched to advanced mode
+  const showAdvancedModal = ref(false) // Control modal visibility
 
   // Stage definitions for Start and Cleanup sections
   const startStages = [
@@ -182,7 +180,7 @@ export function useAdvancedCommands(props, emit) {
         commands: []
       }
       newCommands.forEach(command => {
-        if (command.do && command.do.trim()) {
+        if (command.do?.trim()) {
           setupGroup.commands.push({
             cmd: command.do.trim(),
             elevated: command.elevated || false,
@@ -199,7 +197,7 @@ export function useAdvancedCommands(props, emit) {
             async: false
           })
         }
-        if (command.undo && command.undo.trim()) {
+        if (command.undo?.trim()) {
           cleanupGroup.commands.push({
             cmd: command.undo.trim(),
             elevated: command.elevated || false,
@@ -223,24 +221,6 @@ export function useAdvancedCommands(props, emit) {
       commandsData.value = updated
     }
   })
-
-  function setupStage(stageId) {
-    selectedStage.value = stageId
-    viewMode.value = 'simple'
-    if (!getStageGroups(stageId) || getStageGroups(stageId).length === 0) {
-      const isCleanupStage = stageId.includes('STOP') || stageId.includes('CLEANUP')
-      const newGroup = {
-        name: isCleanupStage ? 'Cleanup Commands' : 'Setup Commands',
-        failure_policy: isCleanupStage ? 'CONTINUE_ON_FAILURE' : 'FAIL_FAST',
-        commands: []
-      }
-      updateStageGroups(stageId, [newGroup])
-    }
-  }
-
-  function selectStage(stageId) {
-    selectedStage.value = selectedStage.value === stageId ? null : stageId
-  }
 
   function getStageGroups(stageId) {
     return commandsData.value[stageId] || []
@@ -334,16 +314,6 @@ export function useAdvancedCommands(props, emit) {
       updated[stageId] = groupsByStage[stageId]
     })
     commandsData.value = updated
-  }
-
-  function getStageCommandCount(stageId) {
-    const groups = getStageGroups(stageId)
-    return groups.reduce((total, group) => total + (group.commands?.length || 0), 0)
-  }
-
-  function getStageIcon(stageId) {
-    const stage = [...startStages, ...cleanupStages].find(s => s.id === stageId)
-    return stage ? stage.icon : 'fas fa-cog'
   }
 
   function migrateLegacyCommands() {
@@ -507,34 +477,46 @@ export function useAdvancedCommands(props, emit) {
     }
   }
 
+  // New methods for advanced/basic mode switching
+  function switchToAdvancedMode() {
+    // Convert basic commands to advanced format if they exist
+    if (basicCommands.value && basicCommands.value.length > 0) {
+      migrateLegacyToBasicCommands()
+    }
+    isAdvancedMode.value = true
+    showAdvancedModal.value = true
+  }
+
+  function switchToBasicMode() {
+    // Don't delete existing advanced commands, just switch back to basic view
+    isAdvancedMode.value = false
+    showAdvancedModal.value = false
+  }
+
   return {
-    viewMode,
     showLegacyMigration,
-    showAdvancedStages,
-    selectedStage,
+    isAdvancedMode,
+    showAdvancedModal,
     startStages,
     cleanupStages,
     hasLegacyCommands,
     commandsData,
     hasAnyCommands,
     basicCommands,
-    setupStage,
-    selectStage,
     getStageGroups,
     updateStageGroups,
     getAllStartStageGroups,
     getAllCleanupStageGroups,
     updateAllStartStageGroups,
     updateAllCleanupStageGroups,
-    getStageCommandCount,
-    getStageIcon,
     migrateLegacyCommands,
-    migrateLegacyToBasicCommands,
     addBasicCommand,
     removeBasicCommand,
     updateBasicCommand,
     moveBasicCommand,
     getCommandPlaceholder,
-    getUndoPlaceholder
+    getUndoPlaceholder,
+    switchToAdvancedMode,
+    switchToBasicMode
   }
 }

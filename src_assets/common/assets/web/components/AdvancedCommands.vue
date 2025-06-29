@@ -1,6 +1,6 @@
 <template>
   <div class="advanced-commands">
-    <!-- Header with Mode Toggle -->
+    <!-- Header -->
     <div class="d-flex justify-content-between align-items-center mb-4">
       <div>
         <h5>{{ appMode ? $t('apps.cmd_prep_name') : $t('commands.advanced_title') }}</h5>
@@ -11,20 +11,6 @@
           v-if="hasLegacyCommands">
           <i class="fas fa-arrow-up"></i> {{ $t('commands.migrate_legacy') }}
         </button>
-        <div class="btn-group" role="group">
-          <input type="radio" class="btn-check" id="mode-basic" v-model="viewMode" value="basic" v-if="appMode">
-          <label class="btn btn-outline-primary btn-sm" for="mode-basic" v-if="appMode">
-            <i class="fas fa-list-ul"></i> {{ $t('commands.view_basic') }}
-          </label>
-          <input type="radio" class="btn-check" id="mode-beginner" v-model="viewMode" value="beginner" v-if="!appMode">
-          <label class="btn btn-outline-primary btn-sm" for="mode-beginner" v-if="!appMode">
-            <i class="fas fa-user"></i> {{ $t('commands.view_beginner') }}
-          </label>
-          <input type="radio" class="btn-check" id="mode-simple" v-model="viewMode" value="simple">
-          <label class="btn btn-outline-primary btn-sm" for="mode-simple">
-            <i class="fas fa-cogs"></i> {{ $t('commands.view_advanced') }}
-          </label>
-        </div>
       </div>
     </div>
 
@@ -42,8 +28,8 @@
       </div>
     </div>
 
-    <!-- Basic Mode: Simple DO/UNDO Interface -->
-    <div v-if="viewMode === 'basic'" class="basic-view">
+    <!-- Basic Commands (Default View) -->
+    <div v-if="!isAdvancedMode" class="basic-view">
       <div class="card">
         <div class="card-header">
           <div class="d-flex align-items-center">
@@ -82,7 +68,7 @@
                         :placeholder="getCommandPlaceholder()"></textarea>
                       <div class="form-text">{{ $t('commands.prestream_desc') }}</div>
                     </div>
-                    <!-- Undo Command (restored) -->
+                    <!-- Undo Command -->
                     <div class="col-md-6">
                       <div class="d-flex align-items-center mb-2">
                         <i class="fas fa-undo text-secondary me-2"></i>
@@ -138,7 +124,7 @@
 
           <!-- Advanced mode switch -->
           <div class="mt-4 text-center">
-            <button class="btn btn-outline-secondary btn-sm" @click="viewMode = 'simple'">
+            <button class="btn btn-outline-secondary btn-sm" @click="switchToAdvancedMode">
               <i class="fas fa-cogs"></i> {{ $t('commands.need_more_control') }}
             </button>
           </div>
@@ -146,109 +132,86 @@
       </div>
     </div>
 
-    <!-- Beginner Mode: Guided Setup -->
-    <div v-else-if="viewMode === 'beginner'" class="beginner-view">
-      <div class="card mb-4">
-        <div class="card-body">
-          <h6><i class="fas fa-lightbulb text-warning"></i> {{ $t('commands.beginner_title') }}</h6>
-          <p class="text-muted">{{ $t('commands.beginner_desc') }}</p>
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <div class="border rounded p-3 h-100">
-                <h6 class="text-primary">
-                  <i class="fas fa-play-circle"></i> {{ $t('commands.stage_startup') }}
-                </h6>
-                <p class="text-muted small mb-3">{{ $t('commands.stage_startup_desc') }}</p>
-                <div class="mb-2">
-                  <strong>{{ $t('commands.common_examples') }}:</strong>
-                </div>
-                <ul class="small text-muted mb-3">
-                  <li>{{ $t('commands.example_close_apps') }}</li>
-                  <li>{{ $t('commands.example_change_resolution') }}</li>
-                  <li>{{ $t('commands.example_disable_services') }}</li>
-                </ul>
-                <button class="btn btn-primary btn-sm" @click="setupStage('PRE_STREAM_START')">
-                  <i class="fas fa-plus"></i> {{ $t('commands.setup_startup') }}
-                </button>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <div class="border rounded p-3 h-100">
-                <h6 class="text-secondary">
-                  <i class="fas fa-stop-circle"></i> {{ $t('commands.stage_cleanup') }}
-                </h6>
-                <p class="text-muted small mb-3">{{ $t('commands.stage_cleanup_desc') }}</p>
-                <div class="mb-2">
-                  <strong>{{ $t('commands.common_examples') }}:</strong>
-                </div>
-                <ul class="small text-muted mb-3">
-                  <li>{{ $t('commands.example_restore_resolution') }}</li>
-                  <li>{{ $t('commands.example_restart_services') }}</li>
-                  <li>{{ $t('commands.example_cleanup_files') }}</li>
-                </ul>
-                <button class="btn btn-secondary btn-sm" @click="setupStage('POST_STREAM_STOP')">
-                  <i class="fas fa-plus"></i> {{ $t('commands.setup_cleanup') }}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="text-center mt-4" v-if="hasAnyCommands">
-            <button class="btn btn-outline-primary" @click="viewMode = 'simple'">
-              <i class="fas fa-arrow-right"></i> {{ $t('commands.view_my_commands') }}
-            </button>
-          </div>
-        </div>
+    <!-- Advanced Mode Button (when already in advanced mode) -->
+    <div v-else class="advanced-mode-button">
+      <div class="text-center">
+        <button class="btn btn-primary" @click="showAdvancedModal = true">
+          <i class="fas fa-cogs"></i> {{ $t('commands.view_advanced') }}
+        </button>
+        <div class="form-text mt-2">{{ $t('commands.migrate_legacy_desc') }}</div>
       </div>
     </div>
 
-    <!-- Advanced View Mode: Start and Cleanup Sections -->
-    <div v-else-if="viewMode === 'simple'" class="advanced-commands-view">
-      <div class="commands-container">
-        <!-- Start Commands Section -->
-        <div class="commands-section">
-          <div class="section-card">
-            <div class="section-header start-header">
-              <div class="header-content">
-                <i class="fas fa-play-circle"></i>
-                <h6>{{ $t('commands.startup_commands') }}</h6>
-              </div>
-              <div class="header-description">{{ $t('commands.stage_startup_desc') }}</div>
-            </div>
-            <div class="section-body">
-              <CommandGroupEditor 
-                :groups="getAllStartStageGroups()" 
-                @update="updateAllStartStageGroups($event)"
-                :available-stages="startStages" 
-                :platform="platform" 
-                :simple-mode="false" 
-                :section="'start'" 
-              />
+    <!-- Advanced Commands Modal -->
+    <div v-if="showAdvancedModal" class="modal d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+      <div class="modal-dialog modal-xl" style="max-width: 75%; width: 75%;">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              <i class="fas fa-cogs me-2"></i>{{ $t('commands.view_advanced') }}
+            </h5>
+            <div class="d-flex gap-2">
+              <button class="btn btn-outline-secondary btn-sm" @click="switchToBasicMode">
+                <i class="fas fa-arrow-left"></i> {{ $t('commands.view_simple') }}
+              </button>
+              <button type="button" class="btn-close" @click="showAdvancedModal = false"></button>
             </div>
           </div>
-        </div>
+          <div class="modal-body">
+            <div class="advanced-commands-view">
+              <div class="commands-container">
+                <!-- Start Commands Section -->
+                <div class="commands-section">
+                  <div class="section-card">
+                    <div class="section-header start-header">
+                      <div class="header-content">
+                        <i class="fas fa-play-circle"></i>
+                        <h6>{{ $t('commands.startup_commands') }}</h6>
+                      </div>
+                      <div class="header-description">{{ $t('commands.stage_startup_desc') }}</div>
+                    </div>
+                    <div class="section-body">
+                      <CommandGroupEditor 
+                        :groups="getAllStartStageGroups()" 
+                        @update="updateAllStartStageGroups($event)"
+                        :available-stages="startStages" 
+                        :platform="platform" 
+                        :simple-mode="false" 
+                        :section="'start'" 
+                      />
+                    </div>
+                  </div>
+                </div>
 
-        <!-- Cleanup Commands Section -->
-        <div class="commands-section">
-          <div class="section-card">
-            <div class="section-header cleanup-header">
-              <div class="header-content">
-                <i class="fas fa-stop-circle"></i>
-                <h6>{{ $t('commands.shutdown_commands') }}</h6>
+                <!-- Cleanup Commands Section -->
+                <div class="commands-section">
+                  <div class="section-card">
+                    <div class="section-header cleanup-header">
+                      <div class="header-content">
+                        <i class="fas fa-stop-circle"></i>
+                        <h6>{{ $t('commands.shutdown_commands') }}</h6>
+                      </div>
+                      <div class="header-description">{{ $t('commands.stage_cleanup_desc') }}</div>
+                    </div>
+                    <div class="section-body">
+                      <CommandGroupEditor 
+                        :groups="getAllCleanupStageGroups()" 
+                        @update="updateAllCleanupStageGroups($event)"
+                        :available-stages="cleanupStages" 
+                        :platform="platform" 
+                        :simple-mode="false" 
+                        :section="'cleanup'" 
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="header-description">{{ $t('commands.stage_cleanup_desc') }}</div>
             </div>
-            <div class="section-body">
-              <CommandGroupEditor 
-                :groups="getAllCleanupStageGroups()" 
-                @update="updateAllCleanupStageGroups($event)"
-                :available-stages="cleanupStages" 
-                :platform="platform" 
-                :simple-mode="false" 
-                :section="'cleanup'" 
-              />
-            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="showAdvancedModal = false">
+              {{ $t('_common.close') }}
+            </button>
           </div>
         </div>
       </div>
@@ -281,38 +244,56 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const {
-  viewMode,
   showLegacyMigration,
-  showAdvancedStages,
-  selectedStage,
+  isAdvancedMode,
+  showAdvancedModal,
   startStages,
   cleanupStages,
   hasLegacyCommands,
   commandsData,
   hasAnyCommands,
   basicCommands,
-  setupStage,
-  selectStage,
-  getStageGroups,
-  updateStageGroups,
   getAllStartStageGroups,
   getAllCleanupStageGroups,
   updateAllStartStageGroups,
   updateAllCleanupStageGroups,
-  getStageCommandCount,
-  getStageIcon,
   migrateLegacyCommands,
-  migrateLegacyToBasicCommands,
   addBasicCommand,
   removeBasicCommand,
   updateBasicCommand,
   moveBasicCommand,
   getCommandPlaceholder,
-  getUndoPlaceholder
+  getUndoPlaceholder,
+  switchToAdvancedMode,
+  switchToBasicMode
 } = useAdvancedCommands(props, emit)
 </script>
 
 <style scoped>
+/* Modal styles */
+.modal {
+  z-index: 1055;
+}
+
+.modal-xl {
+  max-width: 75% !important;
+  width: 75% !important;
+}
+
+.advanced-mode-button {
+  text-align: center;
+  padding: 2rem;
+  border: 2px dashed #dee2e6;
+  border-radius: 0.5rem;
+  background-color: #f8f9fa;
+}
+
+.advanced-mode-button:hover {
+  border-color: #007bff;
+  background-color: #f0f8ff;
+}
+
+/* Basic command styles */
 .stage-pair-card {
   display: flex;
   flex-direction: column;
