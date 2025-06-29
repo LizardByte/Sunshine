@@ -480,56 +480,41 @@ namespace stream {
   static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
 
   session_t *control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
-    BOOST_LOG(info) << "Looking up session for peer " << platf::from_sockaddr((sockaddr *) &peer->address.address)
-                    << " with connect_data: " << util::hex(connect_data).to_string_view();
-
     {
       // Fast path - look up existing session by peer
       auto lg = _peer_to_session.lock();
       auto it = _peer_to_session->find(peer);
       if (it != _peer_to_session->end()) {
-        BOOST_LOG(info) << "Found existing session for peer in fast path lookup";
         return it->second;
       }
     }
 
-    BOOST_LOG(info) << "No existing session found, processing new session request";
     // Slow path - process new session
     TUPLE_2D(peer_port, peer_addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
     auto lg = _sessions.lock();
-
-    BOOST_LOG(info) << "Scanning " << _sessions->size() << " existing sessions for match";
     for (auto pos = std::begin(*_sessions); pos != std::end(*_sessions); ++pos) {
       auto session_p = *pos;
 
       // Skip sessions that are already established
       if (session_p->control.peer) {
-        BOOST_LOG(info) << "Skipping session " << session_p << " - already has established peer";
         continue;
       }
 
       // Identify the connection by the unique connect data if the client supports it.
       // Only fall back to IP address matching for clients without session ID support.
       if (session_p->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) {
-        BOOST_LOG(info) << "Checking session " << session_p << " for connect_data match: "
-                        << util::hex(session_p->control.connect_data).to_string_view()
-                        << " vs " << util::hex(connect_data).to_string_view();
         if (session_p->control.connect_data != connect_data) {
           continue;
         } else {
           BOOST_LOG(debug) << "Initialized new control stream session by connect data match [v2]"sv;
         }
       } else {
-        BOOST_LOG(info) << "Checking session " << session_p << " for address match: '"
-                        << session_p->control.expected_peer_address << "' vs '" << peer_addr << "'";
         if (session_p->control.expected_peer_address != peer_addr) {
           continue;
         } else {
           BOOST_LOG(debug) << "Initialized new control stream session by IP address match [v1]"sv;
         }
       }
-
-      BOOST_LOG(info) << "Successfully matched session " << session_p << " for peer " << peer_addr;
 
       // Once the control stream connection is established, RTSP session state can be torn down
       rtsp_stream::launch_session_clear(session_p->launch_session_id);
@@ -548,12 +533,9 @@ namespace stream {
       // Insert this into the map for O(1) lookups in the future
       auto ptslg = _peer_to_session.lock();
       _peer_to_session->emplace(peer, session_p);
-      BOOST_LOG(info) << "Added session " << session_p << " to peer mapping for fast lookup";
       return session_p;
     }
 
-    BOOST_LOG(info) << "No matching session found for peer " << peer_addr << " with connect_data "
-                    << util::hex(connect_data).to_string_view();
     return nullptr;
   }
 
@@ -565,10 +547,6 @@ namespace stream {
    * @param reinjected `true` if this message is being reprocessed after decryption.
    */
   void control_server_t::call(std::uint16_t type, session_t *session, const std::string_view &payload, bool reinjected) {
-    BOOST_LOG(info) << "Processing control message: type=" << util::hex(type).to_string_view()
-                    << ", session=" << session << ", payload_size=" << payload.size()
-                    << ", reinjected=" << (reinjected ? "true" : "false");
-
     // If we are using the encrypted control stream protocol, drop any messages that come off the wire unencrypted
     if (session->config.controlProtocolType == 13 && !reinjected && type != packetTypes[IDX_ENCRYPTED]) {
       BOOST_LOG(error) << "Dropping unencrypted message on encrypted control stream: "sv << util::hex(type).to_string_view();
@@ -583,9 +561,7 @@ namespace stream {
         << util::hex_vec(payload) << std::endl
         << "---end data---"sv;
     } else {
-      // BOOST_LOG(info) << "Found handler for message type " << util::hex(type).to_string_view() << ", executing";
       cb->second(session, payload);
-      // BOOST_LOG(info) << "Handler execution completed for message type " << util::hex(type).to_string_view();
     }
   }
 
@@ -594,17 +570,14 @@ namespace stream {
     auto res = enet_host_service(_host.get(), &event, timeout.count());
 
     if (res > 0) {
-      BOOST_LOG(info) << "ENet event received: type=" << event.type << ", peer=" << event.peer;
       auto session = get_session(event.peer, event.data);
       if (!session) {
-        auto peer_addr = platf::from_sockaddr((sockaddr *) &event.peer->address.address);
-        BOOST_LOG(warning) << "Rejected connection from ["sv << peer_addr << "]: it's not properly set up"sv;
+        BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
         enet_peer_disconnect_now(event.peer, 0);
 
         return;
       }
 
-      // BOOST_LOG(info) << "Session found for event: " << session << ", updating ping timeout";
       session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
       switch (event.type) {
@@ -615,8 +588,6 @@ namespace stream {
             auto type = *(std::uint16_t *) packet->data;
             std::string_view payload {(char *) packet->data + sizeof(type), packet->dataLength - sizeof(type)};
 
-            BOOST_LOG(info) << "Received packet: type=" << util::hex(type).to_string_view()
-                            << ", payload_size=" << payload.size() << ", session=" << session;
             call(type, session, payload, false);
           }
           break;
@@ -646,32 +617,16 @@ namespace stream {
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
           {
-            auto client_count = --stream::connected_clients;  // Decrement and get new count
-            BOOST_LOG(info) << "CLIENT DISCONNECTED - Session: " << session << ", Peer: " << platf::from_sockaddr((sockaddr *) &event.peer->address.address);
-            
-            if (client_count > 0) {
-              // This was an additional client disconnecting (not the last one)
-              BOOST_LOG(info) << "Executing ADDITIONAL_CLIENT_DISCONNECT prep commands with client_count=" << client_count;
-              try {
-                proc::proc.execute_client_event_actions(event_actions::stage_e::ADDITIONAL_CLIENT_DISCONNECT, client_count);
-                BOOST_LOG(info) << "ADDITIONAL_CLIENT_DISCONNECT prep commands completed successfully";
-              } catch (const std::exception &e) {
-                BOOST_LOG(error) << "ADDITIONAL_CLIENT_DISCONNECT prep commands failed: " << e.what();
-              }
-            }
-            
+            --stream::connected_clients;
+
             // If no prep commands were configured/executed, log it
             // (Again, proc::proc logs this, but we surface it here for ENet context)
             if (!session) {
               BOOST_LOG(warning) << "No session object available after client disconnect event (should not happen).";
             }
-            // No more clients to send video data to ^_^
-            if (session->state == session::state_e::RUNNING) {
-              BOOST_LOG(info) << "Session is RUNNING, stopping session after client disconnect";
+          // No more clients to send video data to ^_^
+          if (session->state == session::state_e::RUNNING) {
               session::stop(*session);
-            } else {
-              BOOST_LOG(info) << "Session state is not RUNNING (" << (int) session->state.load() << "), not stopping session";
-              BOOST_LOG(debug) << "Session not stopped after disconnect because it was not RUNNING.";
             }
           }
           break;
@@ -1135,55 +1090,44 @@ namespace stream {
 
     // This thread handles latency-sensitive control messages
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
-    BOOST_LOG(info) << "Control broadcast thread started with critical priority";
 
     // Check for both the full shutdown event and the shutdown event for this
     // broadcast to ensure we can inform connected clients of our graceful
     // termination when we shut down.
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
     auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
-    BOOST_LOG(info) << "Control broadcast thread entering main loop";
-
     while (!shutdown_event->peek() && !broadcast_shutdown_event->peek()) {
       bool has_session_awaiting_peer = false;
 
       {
         auto lg = server->_sessions.lock();
+
         auto now = std::chrono::steady_clock::now();
-        int active_sessions = 0;
-        int waiting_sessions = 0;
-        int stopping_sessions = 0;
 
         KITTY_WHILE_LOOP(auto pos = std::begin(*server->_sessions), pos != std::end(*server->_sessions), {
           // Don't perform additional session processing if we're shutting down
           if (shutdown_event->peek() || broadcast_shutdown_event->peek()) {
-            BOOST_LOG(info) << "Shutdown requested, breaking from session processing loop";
             break;
           }
 
           auto session = *pos;
-          active_sessions++;
 
           if (now > session->pingTimeout) {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
-            BOOST_LOG(info) << address << ": Ping Timeout - stopping session " << session;
+            BOOST_LOG(info) << address << ": Ping Timeout"sv;
             session::stop(*session);
           }
 
           if (session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
-            BOOST_LOG(info) << "Removing stopping session " << session << " from session list";
-            stopping_sessions++;
             pos = server->_sessions->erase(pos);
 
             if (session->control.peer) {
               {
                 auto ptslg = server->_peer_to_session.lock();
-                auto erased = server->_peer_to_session->erase(session->control.peer);
-                BOOST_LOG(info) << "Removed " << erased << " peer mapping(s) for session " << session;
+                server->_peer_to_session->erase(session->control.peer);
               }
 
               enet_peer_disconnect_now(session->control.peer, 0);
-              BOOST_LOG(info) << "Disconnected peer for session " << session;
             }
 
             session->controlEnd.raise(true);
@@ -1195,60 +1139,34 @@ namespace stream {
           // the app terminates before they finish connecting.
           if (!session->control.peer) {
             has_session_awaiting_peer = true;
-            waiting_sessions++;
-            BOOST_LOG(info) << "Session " << session << " is waiting for peer connection";
           } else {
             auto &feedback_queue = session->control.feedback_queue;
-            int feedback_msgs = 0;
             while (feedback_queue->peek()) {
               auto feedback_msg = feedback_queue->pop();
-              feedback_msgs++;
 
-              int result = send_feedback_msg(session, *feedback_msg);
-              if (result != 0) {
-                BOOST_LOG(info) << "Failed to send feedback message " << feedback_msgs << " to session " << session;
-              }
-            }
-            if (feedback_msgs > 0) {
-              BOOST_LOG(info) << "Processed " << feedback_msgs << " feedback messages for session " << session;
+              send_feedback_msg(session, *feedback_msg);
             }
 
             auto &hdr_queue = session->control.hdr_queue;
-            int hdr_msgs = 0;
             while (session->control.peer && hdr_queue->peek()) {
               auto hdr_info = hdr_queue->pop();
-              hdr_msgs++;
 
-              int result = send_hdr_mode(session, std::move(hdr_info));
-              if (result != 0) {
-                BOOST_LOG(info) << "Failed to send HDR mode message " << hdr_msgs << " to session " << session;
-              }
-            }
-            if (hdr_msgs > 0) {
-              BOOST_LOG(info) << "Processed " << hdr_msgs << " HDR mode messages for session " << session;
+              send_hdr_mode(session, std::move(hdr_info));
             }
           }
 
           ++pos;
         })
-
-        if (active_sessions > 0) {
-          BOOST_LOG(info) << "Session summary: total=" << active_sessions
-                          << ", waiting=" << waiting_sessions
-                          << ", stopping=" << stopping_sessions;
-        }
       }
 
       // Don't break until any pending sessions either expire or connect
       if (proc::proc.running() == 0 && !has_session_awaiting_peer) {
-        BOOST_LOG(info) << "Process terminated and no sessions awaiting connection - exiting control loop"sv;
+        BOOST_LOG(info) << "Process terminated"sv;
         break;
       }
 
       server->iterate(150ms);
     }
-
-    BOOST_LOG(info) << "Control broadcast thread exiting - preparing termination messages";
 
     // Let all remaining connections know the server is shutting down
     // reason: graceful termination
@@ -1263,11 +1181,6 @@ namespace stream {
       encrypted_payload;
 
     auto lg = server->_sessions.lock();
-    int termination_messages_sent = 0;
-    int sessions_without_peer = 0;
-
-    BOOST_LOG(info) << "Sending termination messages to " << server->_sessions->size() << " remaining sessions";
-
     for (auto pos = std::begin(*server->_sessions); pos != std::end(*server->_sessions); ++pos) {
       auto session = *pos;
 
@@ -1278,24 +1191,14 @@ namespace stream {
         if (server->send(payload, session->control.peer)) {
           TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &session->control.peer->address.address));
           BOOST_LOG(warning) << "Couldn't send termination code to ["sv << addr << ':' << port << ']';
-        } else {
-          BOOST_LOG(info) << "Sent termination message to session " << session;
-          termination_messages_sent++;
         }
-      } else {
-        BOOST_LOG(info) << "Session " << session << " has no peer connection, skipping termination message";
-        sessions_without_peer++;
       }
 
       session->shutdown_event->raise(true);
       session->controlEnd.raise(true);
     }
 
-    BOOST_LOG(info) << "Termination summary: sent=" << termination_messages_sent
-                    << ", no_peer=" << sessions_without_peer;
-
     server->flush();
-    BOOST_LOG(info) << "Control broadcast thread shutdown complete";
   }
 
   void recvThread(broadcast_ctx_t &ctx) {
@@ -1711,6 +1614,8 @@ namespace stream {
         std::this_thread::sleep_for(100ms);
       }
     }
+
+    shutdown_event->raise(true);
   }
 
   void audioBroadcastThread(udp::socket &sock) {
