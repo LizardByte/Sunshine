@@ -2,7 +2,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 
 export function useAdvancedCommands(props, emit) {
   // Component state - simplified
-  const showLegacyMigration = ref(false)
   const isAdvancedMode = ref(false) // Track if user has switched to advanced mode
   const showAdvancedModal = ref(false) // Control modal visibility
 
@@ -132,8 +131,10 @@ export function useAdvancedCommands(props, emit) {
 
   // Initialize advanced mode based on existing data
   onMounted(() => {
-    // If there are existing advanced commands (not just legacy), start in advanced mode
-    if (hasAdvancedCommands.value) {
+    // Only switch to advanced mode if there are truly advanced commands 
+    // (not just auto-migrated legacy commands)
+    // For Global tab, we want to show legacy commands in basic view
+    if (hasAdvancedCommands.value && !hasLegacyCommands.value) {
       isAdvancedMode.value = true
     }
   })
@@ -166,30 +167,40 @@ export function useAdvancedCommands(props, emit) {
           undo: '',
           elevated: false
         }
+        
+        // Find the setup command at the current index
+        let currentSetupIndex = setupIndex
         for (const group of setupGroups) {
-          if (setupIndex < (group.commands?.length || 0)) {
-            const setupCmd = group.commands[setupIndex]
+          const groupSize = group.commands?.length || 0
+          if (currentSetupIndex < groupSize) {
+            const setupCmd = group.commands[currentSetupIndex]
             command.do = setupCmd.cmd || ''
             command.elevated = setupCmd.elevated || false
-            setupIndex++
             break
           }
-          setupIndex -= (group.commands?.length || 0)
+          currentSetupIndex -= groupSize
         }
+        setupIndex++
+        
+        // Find the cleanup command at the current index
+        let currentCleanupIndex = cleanupIndex
         for (const group of cleanupGroups) {
-          if (cleanupIndex < (group.commands?.length || 0)) {
-            const cleanupCmd = group.commands[cleanupIndex]
+          const groupSize = group.commands?.length || 0
+          if (currentCleanupIndex < groupSize) {
+            const cleanupCmd = group.commands[currentCleanupIndex]
             command.undo = cleanupCmd.cmd || ''
-            cleanupIndex++
             break
           }
-          cleanupIndex -= (group.commands?.length || 0)
+          currentCleanupIndex -= groupSize
         }
+        cleanupIndex++
+        
         commands.push(command)
       }
       return commands
     },
     set(newCommands) {
+      console.log('basicCommands setter called with:', newCommands)
       const setupGroup = {
         name: 'Application Setup Commands',
         failure_policy: 'FAIL_FAST',
@@ -200,7 +211,9 @@ export function useAdvancedCommands(props, emit) {
         failure_policy: 'CONTINUE_ON_FAILURE',
         commands: []
       }
-      newCommands.forEach(command => {
+      // Add setup commands in order
+      newCommands.forEach((command, index) => {
+        console.log(`Processing setup command ${index}:`, command.do)
         if (command.do?.trim()) {
           setupGroup.commands.push({
             cmd: command.do.trim(),
@@ -218,6 +231,14 @@ export function useAdvancedCommands(props, emit) {
             async: false
           })
         }
+      })
+      console.log('Setup commands final:', setupGroup.commands)
+      
+      // Add cleanup (undo) commands in reverse order
+      console.log('Processing cleanup commands in reverse order:')
+      for (let i = newCommands.length - 1; i >= 0; i--) {
+        const command = newCommands[i];
+        console.log(`Processing cleanup command ${i}:`, command.undo)
         if (command.undo?.trim()) {
           cleanupGroup.commands.push({
             cmd: command.undo.trim(),
@@ -235,10 +256,13 @@ export function useAdvancedCommands(props, emit) {
             async: false
           })
         }
-      })
+      }
+      console.log('Cleanup commands final:', cleanupGroup.commands)
+      
       const updated = { ...commandsData.value }
       updated.PRE_STREAM_START = [setupGroup]
       updated.POST_STREAM_STOP = [cleanupGroup]
+      console.log('About to set commandsData to:', updated)
       commandsData.value = updated
     }
   })
@@ -337,54 +361,6 @@ export function useAdvancedCommands(props, emit) {
     commandsData.value = updated
   }
 
-  function migrateLegacyCommands() {
-    const updated = { ...commandsData.value }
-    if (props.legacyCommands && props.legacyCommands.length > 0) {
-      const setupCommands = []
-      const teardownCommands = []
-      props.legacyCommands.forEach(cmd => {
-        if (cmd.do) {
-          setupCommands.push({
-            cmd: cmd.do,
-            elevated: cmd.elevated || false,
-            timeout_seconds: 30
-          })
-        }
-        if (cmd.undo) {
-          teardownCommands.push({
-            cmd: cmd.undo,
-            elevated: cmd.elevated || false,
-            timeout_seconds: 30
-          })
-        }
-      })
-      if (setupCommands.length > 0) {
-        const setupGroup = {
-          name: 'Migrated Setup Commands',
-          failure_policy: 'FAIL_FAST',
-          commands: setupCommands
-        }
-        if (!updated.PRE_STREAM_START) {
-          updated.PRE_STREAM_START = []
-        }
-        updated.PRE_STREAM_START.push(setupGroup)
-      }
-      if (teardownCommands.length > 0) {
-        const teardownGroup = {
-          name: 'Migrated Teardown Commands',
-          failure_policy: 'CONTINUE_ON_FAILURE',
-          commands: teardownCommands
-        }
-        if (!updated.POST_STREAM_STOP) {
-          updated.POST_STREAM_STOP = []
-        }
-        updated.POST_STREAM_STOP.push(teardownGroup)
-      }
-    }
-    commandsData.value = updated
-    showLegacyMigration.value = false
-  }
-
   function migrateLegacyToBasicCommands() {
     if (props.legacyCommands && props.legacyCommands.length > 0) {
       const setupGroup = {
@@ -397,18 +373,26 @@ export function useAdvancedCommands(props, emit) {
         failure_policy: 'CONTINUE_ON_FAILURE',
         commands: []
       }
+      
+      // Process setup commands in order
       props.legacyCommands.forEach(cmd => {
         setupGroup.commands.push({
           cmd: cmd.do ? cmd.do.trim() : '',
           elevated: cmd.elevated || false,
           timeout_seconds: 30
         })
+      })
+      
+      // Process cleanup commands in reverse order (undo should happen in reverse)
+      for (let i = props.legacyCommands.length - 1; i >= 0; i--) {
+        const cmd = props.legacyCommands[i]
         cleanupGroup.commands.push({
           cmd: cmd.undo ? cmd.undo.trim() : '',
           elevated: cmd.elevated || false,
           timeout_seconds: 30
         })
-      })
+      }
+      
       const updated = { ...commandsData.value }
       updated.PRE_STREAM_START = [setupGroup]
       updated.POST_STREAM_STOP = [cleanupGroup]
@@ -417,37 +401,6 @@ export function useAdvancedCommands(props, emit) {
     }
   }
 
-  onMounted(() => {
-    if (props.legacyCommands && props.legacyCommands.length > 0) {
-      const setupGroup = {
-        name: 'Application Setup Commands',
-        failure_policy: 'FAIL_FAST',
-        commands: []
-      }
-      const cleanupGroup = {
-        name: 'Application Cleanup Commands',
-        failure_policy: 'CONTINUE_ON_FAILURE',
-        commands: []
-      }
-      props.legacyCommands.forEach(cmd => {
-        setupGroup.commands.push({
-          cmd: cmd.do ? cmd.do.trim() : '',
-          elevated: cmd.elevated || false,
-          timeout_seconds: 30
-        })
-        cleanupGroup.commands.push({
-          cmd: cmd.undo ? cmd.undo.trim() : '',
-          elevated: cmd.elevated || false,
-          timeout_seconds: 30
-        })
-      })
-      const updated = { ...commandsData.value }
-      updated.PRE_STREAM_START = [setupGroup]
-      updated.POST_STREAM_STOP = [cleanupGroup]
-      commandsData.value = updated
-      props.legacyCommands.length = 0
-    }
-  })
 
   function addBasicCommand() {
     const newCommand = {
@@ -502,7 +455,13 @@ export function useAdvancedCommands(props, emit) {
   function switchToAdvancedMode() {
     // Convert basic commands to advanced format if they exist
     if (basicCommands.value && basicCommands.value.length > 0) {
-      migrateLegacyToBasicCommands()
+      console.log('switchToAdvancedMode: Converting commands:', basicCommands.value)
+      // Force conversion by setting the basicCommands value to itself
+      // This will trigger the setter which properly handles reverse order for undo commands
+      const currentCommands = [...basicCommands.value]
+      console.log('switchToAdvancedMode: About to set basicCommands with:', currentCommands)
+      basicCommands.value = currentCommands
+      console.log('switchToAdvancedMode: After setting, commandsData is:', commandsData.value)
     }
     isAdvancedMode.value = true
     showAdvancedModal.value = true
@@ -515,7 +474,6 @@ export function useAdvancedCommands(props, emit) {
   }
 
   return {
-    showLegacyMigration,
     isAdvancedMode,
     showAdvancedModal,
     startStages,
@@ -531,7 +489,6 @@ export function useAdvancedCommands(props, emit) {
     getAllCleanupStageGroups,
     updateAllStartStageGroups,
     updateAllCleanupStageGroups,
-    migrateLegacyCommands,
     addBasicCommand,
     removeBasicCommand,
     updateBasicCommand,

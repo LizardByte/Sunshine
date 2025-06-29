@@ -21,7 +21,20 @@ const advancedCommands = computed({
 })
 
 const legacyCommands = computed(() => {
-  return config.value.global_prep_cmd || []
+  // If global_event_actions exists, do not use legacy/basic/global_prep_cmd
+  if (config.value.global_event_actions) {
+    return []
+  }
+  let result = config.value.global_prep_cmd || []
+
+  // If global_prep_cmd is a string (JSON), parse it into an array
+
+  if (typeof result === 'string') {
+    result = JSON.parse(result)
+  }
+
+
+  return result
 })
 </script>
 
@@ -57,7 +70,7 @@ const legacyCommands = computed(() => {
     <div class="mb-3">
       <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
       <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
-             v-model="config.sunshine_name" />
+        v-model="config.sunshine_name" />
       <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
     </div>
 
@@ -81,24 +94,14 @@ const legacyCommands = computed(() => {
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
       <div class="mt-3">
-        <AdvancedCommands
-          v-model="advancedCommands"
-          :platform="platform"
-          :legacy-commands="legacyCommands"
-        />
+        <AdvancedCommands v-model="advancedCommands" :platform="platform" :legacy-commands="legacyCommands" />
       </div>
     </div>
 
     <!-- Notify Pre-Releases -->
-    <Checkbox class="mb-3"
-              id="notify_pre_releases"
-              locale-prefix="config"
-              v-model="config.notify_pre_releases"
-              default="false"
-    ></Checkbox>
+    <Checkbox class="mb-3" id="notify_pre_releases" locale-prefix="config" v-model="config.notify_pre_releases"
+      default="false"></Checkbox>
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>

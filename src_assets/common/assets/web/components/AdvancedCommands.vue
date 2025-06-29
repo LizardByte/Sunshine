@@ -7,24 +7,6 @@
         <div class="form-text">{{ appMode ? $t('commands.event_actions_desc') : $t('commands.advanced_desc') }}</div>
       </div>
       <div class="d-flex gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="showLegacyMigration = !showLegacyMigration"
-          v-if="hasLegacyCommands">
-          <i class="fas fa-arrow-up"></i> {{ $t('commands.migrate_legacy') }}
-        </button>
-      </div>
-    </div>
-
-    <!-- Legacy Migration Panel -->
-    <div v-if="showLegacyMigration" class="alert alert-info mb-4">
-      <h6><i class="fas fa-info-circle"></i> {{ $t('commands.migrate_legacy_title') }}</h6>
-      <p>{{ $t('commands.migrate_legacy_desc') }}</p>
-      <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" @click="migrateLegacyCommands">
-          <i class="fas fa-magic"></i> {{ $t('commands.migrate_now') }}
-        </button>
-        <button class="btn btn-secondary btn-sm" @click="showLegacyMigration = false">
-          {{ $t('_common.cancel') }}
-        </button>
       </div>
     </div>
 
@@ -244,7 +226,6 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const {
-  showLegacyMigration,
   isAdvancedMode,
   showAdvancedModal,
   startStages,
@@ -257,7 +238,6 @@ const {
   getAllCleanupStageGroups,
   updateAllStartStageGroups,
   updateAllCleanupStageGroups,
-  migrateLegacyCommands,
   addBasicCommand,
   removeBasicCommand,
   updateBasicCommand,
