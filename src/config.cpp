@@ -973,7 +973,9 @@ namespace config {
 
         event_actions::stage_commands_t stage_commands;
         
+        // Handle both new format (with "groups" object) and legacy format (direct array)
         if (stage_node.get_child_optional("groups")) {
+          // New format: stages -> stage_name -> groups -> [array of groups]
           for (auto &[_, group_node] : stage_node.get_child("groups"s)) {
             event_actions::command_group_t group;
             
@@ -1002,6 +1004,41 @@ namespace config {
             if (!group.commands.empty()) {
               stage_commands.groups.push_back(group);
             }
+          }
+        } else {
+          // Legacy format: stages -> stage_name -> [array of groups]
+          try {
+            for (auto &[_, group_node] : stage_node) {
+              event_actions::command_group_t group;
+              
+              group.name = group_node.get<std::string>("name", "Unnamed Group");
+              
+              auto policy_str = group_node.get<std::string>("failure_policy", "FAIL_FAST");
+              group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
+                                     event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
+                                     event_actions::failure_policy_e::FAIL_FAST;
+
+              if (group_node.get_child_optional("commands")) {
+                for (auto &[_, cmd_node] : group_node.get_child("commands"s)) {
+                  event_actions::command_t command;
+                  command.cmd = cmd_node.get<std::string>("cmd", "");
+                  command.elevated = cmd_node.get<bool>("elevated", false);
+                  command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                  command.ignore_error = cmd_node.get<bool>("ignore_error", false);
+                  command.async = cmd_node.get<bool>("async", false);
+                  
+                  if (!command.cmd.empty()) {
+                    group.commands.push_back(command);
+                  }
+                }
+              }
+              
+              if (!group.commands.empty()) {
+                stage_commands.groups.push_back(group);
+              }
+            }
+          } catch (const std::exception &e) {
+            BOOST_LOG(warning) << "Failed to parse legacy format for stage " << stage_name << ": " << e.what();
           }
         }
         
@@ -1225,10 +1262,8 @@ namespace config {
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
-    // Support new naming
-    global_event_actions_f(vars, "global-event-actions", config::sunshine.global_event_actions);
-    // Support legacy naming for backward compatibility
-    global_event_actions_f(vars, "global-prep-cmd", config::sunshine.global_event_actions);
+    // Support current naming with underscores
+    global_event_actions_f(vars, "global_event_actions", config::sunshine.global_event_actions);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);

@@ -52,7 +52,7 @@ namespace event_actions {
       BOOST_LOG(debug) << "Debug: Entered " << stage_to_string(stage) 
                << " stage for app " << context.app_name << " (ID: " << context.app_id << ")";
 
-        volatile int debug_breakpoint = 0; // Place breakpoint here if needed
+        [[maybe_unused]] volatile int debug_breakpoint = 0; // Place breakpoint here if needed
     }
     // Create a mutable copy of the context to set the stage
     execution_context_t stage_context = context;
