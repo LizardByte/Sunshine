@@ -869,12 +869,34 @@ namespace proc {
         // ---- 2.4  Excluded global event‑action stages -----------------
         std::set<event_actions::stage_e> excl_global;
         if (excl_global_ea) {
-          for (auto &[_, s] : *excl_global_ea) {
-            auto e = event_actions::event_action_handler_t::string_to_stage(s.get_value<std::string>());
-            if (e) {
-              excl_global.insert(*e);
-            } else {
-              BOOST_LOG(warning) << "Unknown excluded stage '" << s.get_value<std::string>() << "'.";
+          // Check if exclude-global-event-actions is a boolean (common case from web UI)
+          try {
+            bool exclude_all = excl_global_ea->get_value<bool>();
+            if (exclude_all) {
+              // Exclude all stages if the boolean is true
+              excl_global.insert(event_actions::stage_e::PRE_STREAM_START);
+              excl_global.insert(event_actions::stage_e::POST_STREAM_START);
+              excl_global.insert(event_actions::stage_e::PRE_DISPLAY_CHECK);
+              excl_global.insert(event_actions::stage_e::POST_DISPLAY_CHECK);
+              excl_global.insert(event_actions::stage_e::ADDITIONAL_CLIENT);
+              excl_global.insert(event_actions::stage_e::STREAM_RESUME);
+              excl_global.insert(event_actions::stage_e::STREAM_PAUSE);
+              excl_global.insert(event_actions::stage_e::PRE_STREAM_STOP);
+              excl_global.insert(event_actions::stage_e::PRE_DISPLAY_CLEANUP);
+              excl_global.insert(event_actions::stage_e::POST_DISPLAY_CLEANUP);
+              excl_global.insert(event_actions::stage_e::POST_STREAM_STOP);
+              excl_global.insert(event_actions::stage_e::ADDITIONAL_CLIENT_DISCONNECT);
+            }
+            // If exclude_all is false, don't exclude any global stages (allow merging)
+          } catch (const boost::property_tree::ptree_bad_data &) {
+            // Not a boolean, try parsing as array of stage names (advanced usage)
+            for (auto &[_, s] : *excl_global_ea) {
+              auto e = event_actions::event_action_handler_t::string_to_stage(s.get_value<std::string>());
+              if (e) {
+                excl_global.insert(*e);
+              } else {
+                BOOST_LOG(warning) << "Unknown excluded stage '" << s.get_value<std::string>() << "'.";
+              }
             }
           }
         }
