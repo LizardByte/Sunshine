@@ -63,43 +63,36 @@ export function useAdvancedCommands(props, emit) {
       description: 'Commands executed when stream is paused'
     },
     { 
-      id: 'CLIENT_DISCONNECT', 
-      order: 1, 
-      icon: 'fas fa-user-minus text-secondary',
-      name: 'Client Disconnect',
-      description: 'Commands executed when a client disconnects'
-    },
-    { 
       id: 'PRE_STREAM_STOP', 
-      order: 2, 
+      order: 1, 
       icon: 'fas fa-pause-circle text-warning',
       name: 'Before Stream Stop',
       description: 'Commands executed before the stream stops'
     },
     { 
       id: 'PRE_DISPLAY_CLEANUP', 
-      order: 3, 
+      order: 2, 
       icon: 'fas fa-broom text-warning',
       name: 'Before Display Cleanup',
       description: 'Commands executed before display cleanup'
     },
     { 
       id: 'POST_DISPLAY_CLEANUP', 
-      order: 4, 
+      order: 3, 
       icon: 'fas fa-desktop text-secondary',
       name: 'After Display Cleanup',
       description: 'Commands executed after display cleanup'
     },
     { 
       id: 'POST_STREAM_STOP', 
-      order: 5, 
+      order: 4, 
       icon: 'fas fa-stop-circle text-secondary',
       name: 'After Stream Stop',
       description: 'Commands executed after the stream has stopped'
     },
     { 
       id: 'ADDITIONAL_CLIENT_DISCONNECT', 
-      order: 6, 
+      order: 5, 
       icon: 'fas fa-user-slash text-danger',
       name: 'Additional Client Disconnect',
       description: 'Commands executed when an additional client disconnects'

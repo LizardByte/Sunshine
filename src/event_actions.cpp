@@ -41,6 +41,13 @@ namespace event_actions {
     BOOST_LOG(info) << "Executing event-action stage: " << stage_to_string(stage) 
                     << " for app " << context.app_name << " (ID: " << context.app_id << ")";
 
+    // Only execute event-actions when there's an active app session
+    // Global actions should only run in the context of an app
+    if (context.app_id.empty() || context.app_id == "-1") {
+      BOOST_LOG(debug) << "No active app session, skipping event-action stage: " << stage_to_string(stage);
+      return 0;
+    }
+
     if(stage == stage_e::STREAM_PAUSE || stage == stage_e::STREAM_RESUME){
       BOOST_LOG(debug) << "Debug: Entered " << stage_to_string(stage) 
                << " stage for app " << context.app_name << " (ID: " << context.app_id << ")";
@@ -240,11 +247,9 @@ namespace event_actions {
       case stage_e::POST_STREAM_START:        return "POST_STREAM_START";
       case stage_e::PRE_DISPLAY_CHECK:        return "PRE_DISPLAY_CHECK";
       case stage_e::POST_DISPLAY_CHECK:       return "POST_DISPLAY_CHECK";
-      case stage_e::CLIENT_CONNECT:           return "CLIENT_CONNECT";
       case stage_e::ADDITIONAL_CLIENT:        return "ADDITIONAL_CLIENT";
       case stage_e::STREAM_RESUME:            return "STREAM_RESUME";
       case stage_e::STREAM_PAUSE:             return "STREAM_PAUSE";
-      case stage_e::CLIENT_DISCONNECT:        return "CLIENT_DISCONNECT";
       case stage_e::PRE_STREAM_STOP:          return "PRE_STREAM_STOP";
       case stage_e::PRE_DISPLAY_CLEANUP:      return "PRE_DISPLAY_CLEANUP";
       case stage_e::POST_DISPLAY_CLEANUP:     return "POST_DISPLAY_CLEANUP";
@@ -260,11 +265,9 @@ namespace event_actions {
       {"POST_STREAM_START", stage_e::POST_STREAM_START},
       {"PRE_DISPLAY_CHECK", stage_e::PRE_DISPLAY_CHECK},
       {"POST_DISPLAY_CHECK", stage_e::POST_DISPLAY_CHECK},
-      {"CLIENT_CONNECT", stage_e::CLIENT_CONNECT},
       {"ADDITIONAL_CLIENT", stage_e::ADDITIONAL_CLIENT},
       {"STREAM_RESUME", stage_e::STREAM_RESUME},
       {"STREAM_PAUSE", stage_e::STREAM_PAUSE},
-      {"CLIENT_DISCONNECT", stage_e::CLIENT_DISCONNECT},
       {"PRE_STREAM_STOP", stage_e::PRE_STREAM_STOP},
       {"PRE_DISPLAY_CLEANUP", stage_e::PRE_DISPLAY_CLEANUP},
       {"POST_DISPLAY_CLEANUP", stage_e::POST_DISPLAY_CLEANUP},
@@ -309,10 +312,6 @@ namespace event_actions {
 
     int execute_stream_pause(const execution_context_t &context) {
       return event_handler.execute_stage(stage_e::STREAM_PAUSE, context);
-    }
-
-    int execute_client_disconnect(const execution_context_t &context) {
-      return event_handler.execute_stage(stage_e::CLIENT_DISCONNECT, context);
     }
 
     int execute_pre_stream_stop(const execution_context_t &context) {

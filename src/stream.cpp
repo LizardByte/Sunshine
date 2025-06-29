@@ -583,9 +583,9 @@ namespace stream {
         << util::hex_vec(payload) << std::endl
         << "---end data---"sv;
     } else {
-      BOOST_LOG(info) << "Found handler for message type " << util::hex(type).to_string_view() << ", executing";
+      // BOOST_LOG(info) << "Found handler for message type " << util::hex(type).to_string_view() << ", executing";
       cb->second(session, payload);
-      BOOST_LOG(info) << "Handler execution completed for message type " << util::hex(type).to_string_view();
+      // BOOST_LOG(info) << "Handler execution completed for message type " << util::hex(type).to_string_view();
     }
   }
 
@@ -604,7 +604,7 @@ namespace stream {
         return;
       }
 
-      BOOST_LOG(info) << "Session found for event: " << session << ", updating ping timeout";
+      // BOOST_LOG(info) << "Session found for event: " << session << ", updating ping timeout";
       session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
 
       switch (event.type) {
@@ -625,17 +625,8 @@ namespace stream {
             auto client_count = ++stream::connected_clients;  // Increment and get new count
             BOOST_LOG(info) << "CLIENT CONNECTED - Session: " << session << ", Peer: " << platf::from_sockaddr((sockaddr *) &event.peer->address.address);
             
-            if (client_count == 1) {
-              // This is the first client connecting
-              BOOST_LOG(info) << "Executing CLIENT_CONNECT prep commands with client_count=" << client_count;
-              try {
-                proc::proc.execute_client_event_actions(event_actions::stage_e::CLIENT_CONNECT, client_count);
-                BOOST_LOG(info) << "CLIENT_CONNECT prep commands completed successfully";
-              } catch (const std::exception &e) {
-                BOOST_LOG(error) << "CLIENT_CONNECT prep commands failed: " << e.what();
-              }
-            } else {
-              // This is an additional client connecting
+            if (client_count > 1) {
+              // This is an additional client connecting (not the first)
               BOOST_LOG(info) << "Executing ADDITIONAL_CLIENT prep commands with client_count=" << client_count;
               try {
                 proc::proc.execute_client_event_actions(event_actions::stage_e::ADDITIONAL_CLIENT, client_count);
@@ -658,16 +649,7 @@ namespace stream {
             auto client_count = --stream::connected_clients;  // Decrement and get new count
             BOOST_LOG(info) << "CLIENT DISCONNECTED - Session: " << session << ", Peer: " << platf::from_sockaddr((sockaddr *) &event.peer->address.address);
             
-            if (client_count == 0) {
-              // This was the last client disconnecting
-              BOOST_LOG(info) << "Executing CLIENT_DISCONNECT prep commands with client_count=" << client_count;
-              try {
-                proc::proc.execute_client_event_actions(event_actions::stage_e::CLIENT_DISCONNECT, client_count);
-                BOOST_LOG(info) << "CLIENT_DISCONNECT prep commands completed successfully";
-              } catch (const std::exception &e) {
-                BOOST_LOG(error) << "CLIENT_DISCONNECT prep commands failed: " << e.what();
-              }
-            } else {
+            if (client_count > 0) {
               // This was an additional client disconnecting (not the last one)
               BOOST_LOG(info) << "Executing ADDITIONAL_CLIENT_DISCONNECT prep commands with client_count=" << client_count;
               try {

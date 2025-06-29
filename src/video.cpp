@@ -22,6 +22,7 @@ extern "C" {
 #include "cbs.h"
 #include "config.h"
 #include "display_device.h"
+#include "event_actions.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"

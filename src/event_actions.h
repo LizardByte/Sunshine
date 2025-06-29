@@ -23,13 +23,11 @@ namespace event_actions {
     POST_STREAM_START,      ///< After the stream has started successfully
     PRE_DISPLAY_CHECK,      ///< Before display validation
     POST_DISPLAY_CHECK,     ///< After display has been validated
-    CLIENT_CONNECT,         ///< When a client connects
     ADDITIONAL_CLIENT,      ///< When an additional client connects
     STREAM_RESUME,          ///< When stream resumes from pause
 
     // Application/Stream cleanup stages  
     STREAM_PAUSE,           ///< When stream is paused
-    CLIENT_DISCONNECT,      ///< When a client disconnects
     PRE_STREAM_STOP,        ///< Before the stream stops
     PRE_DISPLAY_CLEANUP,    ///< Before display cleanup
     POST_DISPLAY_CLEANUP,   ///< After display cleanup
@@ -202,7 +200,6 @@ namespace event_actions {
     int execute_additional_client(const execution_context_t &context);
     int execute_stream_resume(const execution_context_t &context);
     int execute_stream_pause(const execution_context_t &context);
-    int execute_client_disconnect(const execution_context_t &context);
     int execute_pre_stream_stop(const execution_context_t &context);
     int execute_pre_display_cleanup(const execution_context_t &context);
     int execute_post_display_cleanup(const execution_context_t &context);

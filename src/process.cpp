@@ -30,6 +30,7 @@
 #include "process.h"
 #include "system_tray.h"
 #include "utility.h"
+#include "video.h"
 
 #ifdef _WIN32
   // from_utf8() string conversion function
@@ -235,8 +236,26 @@ namespace proc {
     context.app_id = std::to_string(_app_id);
     context.app_name = _app.name;
     context.client_count = 1;  // Initial client
-    context.current_stage = event_actions::stage_e::PRE_STREAM_START;  // Will be overridden by execute_stage
+    context.current_stage = event_actions::stage_e::PRE_DISPLAY_CHECK;  // Will be overridden by execute_stage
     context.env_vars = event_env;
+
+    // Execute PRE_DISPLAY_CHECK before any app preparation
+    if (_event_handler.execute_stage(event_actions::stage_e::PRE_DISPLAY_CHECK, context) != 0) {
+      BOOST_LOG(error) << "Failed to execute PRE_DISPLAY_CHECK event-actions";
+      return -1;
+    }
+
+    // Validate encoder/display for this app launch
+    if (video::probe_encoders()) {
+      BOOST_LOG(error) << "Failed to initialize video capture/encoding for app launch";
+      return -1;
+    }
+
+    // Execute POST_DISPLAY_CHECK after successful encoder validation
+    if (_event_handler.execute_stage(event_actions::stage_e::POST_DISPLAY_CHECK, context) != 0) {
+      BOOST_LOG(error) << "Failed to execute POST_DISPLAY_CHECK event-actions";
+      return -1;
+    }
 
     if (_event_handler.execute_stage(event_actions::stage_e::PRE_STREAM_START, context) != 0) {
       BOOST_LOG(error) << "Failed to execute PRE_STREAM_START event-actions";
@@ -319,25 +338,6 @@ namespace proc {
 
     _app_launch_time = std::chrono::steady_clock::now();
 
-    // Execute new event-actions for POST_STREAM_START stage
-    event_actions::execution_context_t post_context;
-    post_context.app_id = std::to_string(_app_id);
-    post_context.app_name = _app.name;
-    post_context.client_count = 1;  // Initial client
-    post_context.env_vars = event_env;
-
-    
-    try {
-      if (_event_handler.execute_stage(event_actions::stage_e::POST_STREAM_START, post_context) != 0) {
-        BOOST_LOG(warning) << "Failed to execute POST_STREAM_START event-actions";
-        // Don't fail here, as the app is already running
-      }
-    } catch (const std::exception& ex) {
-      BOOST_LOG(error) << "Exception during POST_STREAM_START event-actions: " << ex.what();
-    } catch (...) {
-      BOOST_LOG(error) << "Unknown exception during POST_STREAM_START event-actions";
-    }
-
 
     fg.disable();
 
@@ -384,22 +384,22 @@ namespace proc {
     std::error_code ec;
     placebo = false;
 
-    // Execute new event-actions for POST_STREAM_STOP stage
+    // Execute PRE_STREAM_STOP event-actions before terminating
     if (_app_id > 0) {  // Only if we have an active app
       auto event_env = std::unordered_map<std::string, std::string>();
       for (const auto &env_entry : _env) {
         event_env[env_entry.get_name()] = env_entry.to_string();
       }
 
-      event_actions::execution_context_t context;
-      context.app_id = std::to_string(_app_id);
-      context.app_name = _app.name;
-      context.client_count = 0;  // No clients during termination
-      context.current_stage = event_actions::stage_e::POST_STREAM_STOP;  // Will be overridden by execute_stage
-      context.env_vars = event_env;
+      event_actions::execution_context_t pre_context;
+      pre_context.app_id = std::to_string(_app_id);
+      pre_context.app_name = _app.name;
+      pre_context.client_count = 0;  // No clients during termination
+      pre_context.current_stage = event_actions::stage_e::PRE_STREAM_STOP;  // Will be overridden by execute_stage
+      pre_context.env_vars = event_env;
 
-      if (_event_handler.execute_stage(event_actions::stage_e::POST_STREAM_STOP, context) != 0) {
-        BOOST_LOG(warning) << "Failed to execute POST_STREAM_STOP event-actions";
+      if (_event_handler.execute_stage(event_actions::stage_e::PRE_STREAM_STOP, pre_context) != 0) {
+        BOOST_LOG(warning) << "Failed to execute PRE_STREAM_STOP event-actions";
         // Don't fail here, continue with termination
       }
     }
@@ -408,6 +408,7 @@ namespace proc {
     _process = boost::process::v1::child();
     _process_group = boost::process::v1::group();
 
+    // Execute legacy prep commands cleanup
     for (; _app_prep_it != _app_prep_begin; --_app_prep_it) {
       auto &cmd = *(_app_prep_it - 1);
 
@@ -418,24 +419,40 @@ namespace proc {
       boost::filesystem::path working_dir = _app.working_dir.empty() ?
                                               find_working_directory(cmd.undo_cmd, _env) :
                                               boost::filesystem::path(_app.working_dir);
-      BOOST_LOG(info) << "Executing Undo Cmd: ["sv << cmd.undo_cmd << ']';
-      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, _pipe.get(), ec, nullptr);
 
-      if (ec) {
-        BOOST_LOG(warning) << "System: "sv << ec.message();
-      }
+      BOOST_LOG(debug) << "Executing legacy undo command: [" << cmd.undo_cmd << "]";
 
-      child.wait();
-      auto ret = child.exit_code();
-
-      if (ret != 0) {
-        BOOST_LOG(warning) << "Return code ["sv << ret << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd.undo_cmd, working_dir, _env, nullptr, ec, nullptr);
+      if (!child.running()) {
+        BOOST_LOG(warning) << "Failed to run [" << cmd.undo_cmd << "], likely not harmful: " << ec.message();
+      } else {
+        child.wait();
       }
     }
 
     _pipe.reset();
 
     bool has_run = _app_id > 0;
+
+    // Execute POST_STREAM_STOP event-actions after cleanup
+    if (has_run) {
+      auto event_env = std::unordered_map<std::string, std::string>();
+      for (const auto &env_entry : _env) {
+        event_env[env_entry.get_name()] = env_entry.to_string();
+      }
+
+      event_actions::execution_context_t post_context;
+      post_context.app_id = std::to_string(_app_id);
+      post_context.app_name = _app.name;
+      post_context.client_count = 0;  // No clients during termination
+      post_context.current_stage = event_actions::stage_e::POST_STREAM_STOP;  // Will be overridden by execute_stage
+      post_context.env_vars = event_env;
+
+      if (_event_handler.execute_stage(event_actions::stage_e::POST_STREAM_STOP, post_context) != 0) {
+        BOOST_LOG(warning) << "Failed to execute POST_STREAM_STOP event-actions";
+        // Don't fail here, termination is already complete
+      }
+    }
 
     // Only show the Stopped notification if we actually have an app to stop
     // Since terminate() is always run when a new app has started

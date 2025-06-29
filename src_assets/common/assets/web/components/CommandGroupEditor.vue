@@ -25,20 +25,22 @@
               <div class="group-expand-btn">
                 <button class="btn btn-link p-0 text-decoration-none" @click="toggleGroupExpanded(groupIndex)"
                   :aria-expanded="isGroupExpanded(groupIndex)"
-                  :aria-label="isGroupExpanded(groupIndex) ? $t('commands.collapse') : $t('commands.expand')">
+                  :aria-label="isGroupExpanded(groupIndex) ? $t('commands.collapse') : $t('commands.expand')"
+                  :title="isGroupExpanded(groupIndex) ? 'Collapse group' : 'Expand group'">
                   <i class="fas expand-icon"
-                    :class="isGroupExpanded(groupIndex) ? 'fa-chevron-down' : 'fa-chevron-right'"></i>
+                    :class="isGroupExpanded(groupIndex) ? 'fa-caret-down' : 'fa-caret-right'"></i>
                 </button>
               </div>
               <div class="group-title-input">
                 <input v-model="group.name" class="form-control group-name-input"
                   @input="updateGroup(groupIndex, 'name', group.name)"
-                  :placeholder="$t('commands.group_name_placeholder')" :aria-label="$t('commands.group_name')" />
+                  :placeholder="$t('commands.group_name_placeholder')" :aria-label="$t('commands.group_name')" 
+                  :title="group.name" />
               </div>
               <div class="group-info">
-                <span class="commands-count" v-if="group.commands?.length > 0">
+                <span class="commands-count" v-if="group.commands?.length > 0" :title="formatCommandsCount(group.commands?.length)">
                   <i class="fas fa-terminal me-1"></i>
-                  {{ group.commands?.length }} {{ $t('commands.commands') }}
+                  <span class="count-number">{{ formatCommandsCount(group.commands?.length) }}</span>
                 </span>
               </div>
             </div>
@@ -49,45 +51,58 @@
                   :title="$t('commands.add_command')" :aria-label="$t('commands.add_command')">
                   <i class="fas fa-plus"></i>
                 </button>
-                <button class="btn btn-outline-danger btn-sm" @click="removeGroup(groupIndex)"
-                  :title="$t('commands.remove_group')" :aria-label="$t('commands.remove_group')">
-                  <i class="fas fa-trash"></i>
-                </button>
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary btn-sm dropdown-toggle" 
+                    type="button" 
+                    data-bs-toggle="dropdown" 
+                    aria-expanded="false"
+                    :title="'More actions'"
+                    :aria-label="'More actions'">
+                    <i class="fas fa-ellipsis-v"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <button class="dropdown-item text-danger" @click="removeGroup(groupIndex)">
+                        <i class="fas fa-trash me-2"></i>{{ $t('commands.remove_group') }}
+                      </button>
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>
 
           <!-- Group Configuration -->
           <div class="group-config" v-if="isGroupExpanded(groupIndex)">
-            <div class="row g-3">
+            <div class="row g-4">
               <div class="col-md-6" v-if="availableStages.length > 0">
                 <label class="form-label config-label">
-                  <i class="fas fa-layer-group me-1"></i>{{ $t('commands.execution_stage') }}
+                  <i class="fas fa-clock me-2"></i>Execution stage
                 </label>
-                <select v-model="group.stage" class="form-select form-select-sm"
+                <select v-model="group.stage" class="form-select"
                   @change="updateGroup(groupIndex, 'stage', group.stage)"
                   :aria-describedby="`stage-help-${groupIndex}`">
-                  <option value="" disabled>{{ $t('commands.select_stage') }}</option>
+                  <option value="" disabled>Select when to run</option>
                   <option v-for="stage in availableStages" :key="stage.id" :value="stage.id">
-                    {{ stage.name }}
+                    {{ getAllEnumDisplayName(stage.id, 'stage') }}
                   </option>
                 </select>
-                <div class="form-text" v-if="group.stage" :id="`stage-help-${groupIndex}`">
+                <div class="form-text form-help-text" v-if="group.stage" :id="`stage-help-${groupIndex}`">
                   {{ getStageDescription(group.stage) }}
                 </div>
               </div>
               <div class="col-md-6" v-if="!simpleMode">
                 <label class="form-label config-label">
-                  <i class="fas fa-exclamation-triangle me-1"></i>{{ $t('commands.failure_policy') }}
+                  <i class="fas fa-exclamation-triangle me-2"></i>Failure policy
                 </label>
-                <select v-model="group.failure_policy" class="form-select form-select-sm"
+                <select v-model="group.failure_policy" class="form-select"
                   @change="updateGroup(groupIndex, 'failure_policy', group.failure_policy)"
                   :aria-describedby="`policy-help-${groupIndex}`">
-                  <option value="FAIL_FAST">{{ $t('commands.policy_fail_fast') }}</option>
-                  <option value="CONTINUE_ON_FAILURE">{{ $t('commands.policy_continue') }}</option>
-                  <option value="FAIL_STAGE_ON_ANY">{{ $t('commands.policy_fail_stage') }}</option>
+                  <option value="FAIL_FAST">{{ getAllEnumDisplayName('FAIL_FAST', 'policy') }}</option>
+                  <option value="CONTINUE_ON_FAILURE">{{ getAllEnumDisplayName('CONTINUE_ON_FAILURE', 'policy') }}</option>
+                  <option value="FAIL_STAGE_ON_ANY">{{ getAllEnumDisplayName('FAIL_STAGE_ON_ANY', 'policy') }}</option>
                 </select>
-                <div class="form-text" :id="`policy-help-${groupIndex}`">
+                <div class="form-text form-help-text" :id="`policy-help-${groupIndex}`">
                   {{ getPolicyDescription(group.failure_policy) }}
                 </div>
               </div>
@@ -118,12 +133,14 @@
                     <span class="command-number">{{ commandIndex + 1 }}</span>
                     <div class="command-actions ms-auto">
                       <div class="btn-group" role="group" :aria-label="$t('commands.command_actions')">
-                        <button class="btn btn-sm btn-outline-light" @click="moveCommand(groupIndex, commandIndex, -1)"
+                        <button v-if="group.commands.length > 1" class="btn btn-sm btn-outline-light" 
+                          @click="moveCommand(groupIndex, commandIndex, -1)"
                           :disabled="commandIndex === 0" :title="$t('commands.move_up')"
                           :aria-label="$t('commands.move_up')">
                           <i class="fas fa-chevron-up"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-light" @click="moveCommand(groupIndex, commandIndex, 1)"
+                        <button v-if="group.commands.length > 1" class="btn btn-sm btn-outline-light" 
+                          @click="moveCommand(groupIndex, commandIndex, 1)"
                           :disabled="commandIndex === group.commands.length - 1" :title="$t('commands.move_down')"
                           :aria-label="$t('commands.move_down')">
                           <i class="fas fa-chevron-down"></i>
@@ -133,20 +150,33 @@
                           :class="{ 'active': command.showHelp }">
                           <i class="fas fa-question-circle"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" @click="removeCommand(groupIndex, commandIndex)"
-                          :title="$t('commands.remove_command')" :aria-label="$t('commands.remove_command')">
-                          <i class="fas fa-trash"></i>
-                        </button>
+                        <div class="dropdown">
+                          <button class="btn btn-sm btn-outline-light dropdown-toggle" 
+                            type="button" 
+                            data-bs-toggle="dropdown" 
+                            aria-expanded="false"
+                            :title="'More actions'"
+                            :aria-label="'More actions'">
+                            <i class="fas fa-ellipsis-v"></i>
+                          </button>
+                          <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                              <button class="dropdown-item text-danger" @click="removeCommand(groupIndex, commandIndex)">
+                                <i class="fas fa-trash me-2"></i>{{ $t('commands.remove_command') }}
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div class="command-body">
-                    <div class="row g-3">
+                    <div class="row g-4">
                       <!-- Command Input -->
-                      <div class="col-12 col-lg-8">
+                      <div class="col-12">
                         <label class="form-label command-label">
-                          <i class="fas fa-terminal me-1"></i>{{ $t('commands.command') }}
+                          <i class="fas fa-terminal me-2"></i>Command
                         </label>
                         <input v-model="command.cmd" type="text" class="form-control command-input"
                           @input="updateCommand(groupIndex, commandIndex, 'cmd', command.cmd)"
@@ -154,42 +184,63 @@
                           :aria-describedby="`cmd-help-${groupIndex}-${commandIndex}`" />
                       </div>
 
-                      <!-- Timeout and Options -->
-                      <div class="col-12 col-lg-4">
-                        <div class="row g-2">
-                          <div class="col-6">
-                            <label class="form-label command-label">
-                              <i class="fas fa-clock me-1"></i>{{ $t('commands.timeout_s') }}
-                            </label>
-                            <input v-model.number="command.timeout_seconds" type="number"
-                              @input="updateCommand(groupIndex, commandIndex, 'timeout_seconds', command.timeout_seconds)"
-                              class="form-control form-control-sm" min="1" max="3600" :placeholder="30" />
+                      <!-- Options Section -->
+                      <div class="col-12">
+                        <div class="options-section">
+                          <h6 class="options-heading">
+                            <i class="fas fa-cog me-2"></i>Options
+                          </h6>
+                          
+                          <!-- Timeout Row -->
+                          <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                              <label class="form-label command-label">
+                                <i class="fas fa-clock me-2"></i>Timeout
+                              </label>
+                              <div class="input-group">
+                                <input v-model.number="command.timeout_seconds" type="number"
+                                  @input="updateCommand(groupIndex, commandIndex, 'timeout_seconds', command.timeout_seconds)"
+                                  class="form-control" min="1" max="3600" placeholder="30" />
+                                <span class="input-group-text">sec</span>
+                              </div>
+                            </div>
                           </div>
-                          <div class="col-6">
-                            <label class="form-label command-label">{{ $t('commands.options') }}</label>
-                            <div v-if="platform === 'windows'" class="form-check mt-1">
-                              <input v-model="command.elevated" class="form-check-input" type="checkbox"
-                                @change="updateCommand(groupIndex, commandIndex, 'elevated', command.elevated)"
-                                :id="`elevated-${groupIndex}-${commandIndex}`" />
-                              <label class="form-check-label small" :for="`elevated-${groupIndex}-${commandIndex}`">
-                                <i class="fas fa-shield-alt me-1"></i>{{ $t('_common.elevated') }}
+                          
+                          <!-- Behavior Row -->
+                          <div class="row">
+                            <div class="col-12">
+                              <label class="form-label command-label">
+                                <i class="fas fa-sliders-h me-2"></i>Behavior
                               </label>
-                            </div>
-                            <div class="form-check mt-1">
-                              <input v-model="command.ignore_error" class="form-check-input" type="checkbox"
-                                @change="updateCommand(groupIndex, commandIndex, 'ignore_error', command.ignore_error)"
-                                :id="`ignore-error-${groupIndex}-${commandIndex}`" />
-                              <label class="form-check-label small" :for="`ignore-error-${groupIndex}-${commandIndex}`">
-                                <i class="fas fa-exclamation-triangle me-1"></i>{{ $t('commands.ignore_error') }}
-                              </label>
-                            </div>
-                            <div class="form-check mt-1">
-                              <input v-model="command.async" class="form-check-input" type="checkbox"
-                                @change="updateCommand(groupIndex, commandIndex, 'async', command.async)"
-                                :id="`async-${groupIndex}-${commandIndex}`" />
-                              <label class="form-check-label small" :for="`async-${groupIndex}-${commandIndex}`">
-                                <i class="fas fa-rocket me-1"></i>{{ $t('commands.async') }}
-                              </label>
+                              <div class="options-grid">
+                                <div v-if="platform === 'windows'" class="form-check">
+                                  <input v-model="command.elevated" class="form-check-input" type="checkbox"
+                                    @change="updateCommand(groupIndex, commandIndex, 'elevated', command.elevated)"
+                                    :id="`elevated-${groupIndex}-${commandIndex}`" 
+                                    title="Run with administrator privileges" />
+                                  <label class="form-check-label" :for="`elevated-${groupIndex}-${commandIndex}`">
+                                    <i class="fas fa-shield-alt me-1"></i>Run as administrator
+                                  </label>
+                                </div>
+                                <div class="form-check">
+                                  <input v-model="command.ignore_error" class="form-check-input" type="checkbox"
+                                    @change="updateCommand(groupIndex, commandIndex, 'ignore_error', command.ignore_error)"
+                                    :id="`ignore-error-${groupIndex}-${commandIndex}`"
+                                    title="Continue even if this command fails" />
+                                  <label class="form-check-label" :for="`ignore-error-${groupIndex}-${commandIndex}`">
+                                    <i class="fas fa-exclamation-triangle me-1"></i>Ignore errors
+                                  </label>
+                                </div>
+                                <div class="form-check">
+                                  <input v-model="command.async" class="form-check-input" type="checkbox"
+                                    @change="updateCommand(groupIndex, commandIndex, 'async', command.async)"
+                                    :id="`async-${groupIndex}-${commandIndex}`"
+                                    title="Run this command in the background without waiting for it to finish" />
+                                  <label class="form-check-label" :for="`async-${groupIndex}-${commandIndex}`">
+                                    <i class="fas fa-rocket me-1"></i>Run asynchronously
+                                  </label>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -257,7 +308,7 @@
               </div>
 
               <!-- Add Command Button -->
-              <div class="add-command-section text-center mt-4">
+              <div class="add-command-section text-center">
                 <button class="btn btn-outline-primary" @click="addCommand(groupIndex)"
                   :aria-label="$t('commands.add_command')">
                   <i class="fas fa-plus me-2"></i>{{ $t('commands.add_command') }}
@@ -321,7 +372,12 @@ const {
   getStageDisplayName,
   getDefaultFailurePolicy,
   getCommandPlaceholder,
-  getPolicyDescription
+  getPolicyDescription,
+  getFriendlyStageNames,
+  getFriendlyPolicyNames,
+  formatCommandsCount,
+  getPolicyDisplayName,
+  getAllEnumDisplayName
 } = useCommandGroupEditor(props, emit)
 </script>
 
@@ -373,18 +429,18 @@ const {
 
 /* Group Card Styling */
 .command-group {
-  border: 2px solid #e9ecef;
+  border: 1px solid #e9ecef;
   border-radius: 12px;
   background: #ffffff;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   transition: all 0.3s ease;
   overflow: hidden;
+  margin-bottom: 1.5rem;
 }
 
 .command-group:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
   border-color: #007bff;
-  transform: translateY(-2px);
 }
 
 .group-expanded {
@@ -401,7 +457,7 @@ const {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1.25rem 1.5rem;
+  padding: 1.5rem 2rem;
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   border-bottom: 1px solid #dee2e6;
   min-height: 80px;
@@ -452,6 +508,8 @@ const {
   padding: 0.75rem 1rem;
   border-radius: 8px;
   transition: all 0.2s ease;
+  min-width: 200px;
+  max-width: 350px;
 }
 
 .group-name-input:focus {
@@ -474,6 +532,11 @@ const {
   font-size: 0.875rem;
   font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 123, 255, 0.3);
+  transition: all 0.3s ease;
+}
+
+.count-number {
+  transition: all 0.3s ease;
 }
 
 .group-actions .btn-group {
@@ -492,34 +555,39 @@ const {
 .group-actions .btn-outline-success {
   background: linear-gradient(135deg, #28a745, #218838);
   color: white;
+  border: none;
+  border-radius: 8px;
 }
 
 .group-actions .btn-outline-success:hover {
   background: linear-gradient(135deg, #218838, #1e7e34);
-  transform: translateY(-2px);
+  transform: translateY(-1px);
 }
 
-.group-actions .btn-outline-danger {
-  background: linear-gradient(135deg, #dc3545, #c82333);
-  color: white;
+.group-actions .btn-outline-secondary {
+  background: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
 }
 
-.group-actions .btn-outline-danger:hover {
-  background: linear-gradient(135deg, #c82333, #bd2130);
-  transform: translateY(-2px);
+.group-actions .btn-outline-secondary:hover {
+  background: #e9ecef;
+  color: #495057;
+  transform: translateY(-1px);
 }
 
 /* Group Configuration */
 .group-config {
-  padding: 1.5rem;
+  padding: 2rem;
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
   border-bottom: 1px solid #dee2e6;
 }
 
 .config-label {
-  font-weight: 700;
+  font-weight: 600;
   color: #495057;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   font-size: 0.95rem;
@@ -527,12 +595,12 @@ const {
 
 .config-label i {
   color: #007bff;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 /* Commands Container */
 .commands-container {
-  padding: 1.5rem;
+  padding: 2rem;
   background: #fafbfc;
 }
 
@@ -631,9 +699,9 @@ const {
 }
 
 .command-label {
-  font-weight: 700;
+  font-weight: 600;
   color: #495057;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.5rem;
   display: flex;
   align-items: center;
   font-size: 0.95rem;
@@ -641,7 +709,7 @@ const {
 
 .command-label i {
   color: #007bff;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
 .command-input {
@@ -660,6 +728,161 @@ const {
   box-shadow: 0 0 0 4px rgba(0, 123, 255, 0.25);
   transform: scale(1.01);
 }
+
+/* Options Section */
+.options-section {
+  border-top: 1px solid #e9ecef;
+  padding-top: 1.5rem;
+  margin-top: 1rem;
+}
+
+.options-heading {
+  font-weight: 600;
+  color: #495057;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #e9ecef;
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+}
+
+.options-heading i {
+  color: #007bff;
+  font-size: 1.1rem;
+}
+
+.options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+@media (min-width: 768px) {
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+  }
+}
+
+/* Form Help Text with Better Contrast */
+.form-help-text {
+  color: #6b7280 !important;
+  font-weight: 500;
+}
+
+/* Improved Button States */
+.btn-outline-light:not(:disabled):not(.disabled) {
+  background: #ffffff;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.btn-outline-light:not(:disabled):not(.disabled):hover {
+  background: #007bff;
+  color: white;
+  transform: translateY(-1px);
+}
+
+/* Dropdown Styling */
+.dropdown-menu {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-item.text-danger:hover {
+  background-color: #dc3545;
+  color: white;
+}
+
+/* Animation Classes */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes countUp {
+  from {
+    transform: scale(1.2);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.command-item {
+  animation: slideIn 0.3s ease-out;
+}
+
+.count-number {
+  animation: countUp 0.3s ease-out;
+}
+
+/* Input Group Styling */
+.input-group-text {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  color: #6c757d;
+  font-weight: 600;
+}
+
+/* Form Check Styling */
+.form-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.form-check-label {
+  font-weight: 500;
+  color: #495057;
+  cursor: pointer;
+  margin-bottom: 0;
+  display: flex;
+  align-items: center;
+}
+
+.form-check-input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.form-check-input:checked {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+/* Expand Icon Animation */
+.expand-icon {
+  transition: transform 0.2s ease;
+  font-size: 1.2rem;
+}
+
+/* Commands Count Animation - Remove duplicate */
+
+/* Improved Contrast for Disabled Buttons */
+.btn:disabled,
+.btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn-outline-light:disabled,
+.btn-outline-light.disabled {
+  background: #f8f9fa;
+  border-color: #e9ecef;
+  color: #adb5bd;
+}
+
+/* Group Name Input Improvements - Remove duplicate */
 
 /* Command Help */
 .command-help {
@@ -734,7 +957,13 @@ const {
 }
 
 /* Add Sections */
-.add-command-section,
+.add-command-section {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e9ecef;
+  background: rgba(248, 249, 250, 0.5);
+}
+
 .add-group-section {
   margin-top: 2rem;
   padding: 1.5rem;
@@ -790,11 +1019,17 @@ const {
     flex-direction: column;
     gap: 1rem;
     align-items: stretch;
-    padding: 1rem;
+    padding: 1.5rem 1rem;
   }
 
   .group-title-section {
     justify-content: center;
+    gap: 0.75rem;
+  }
+
+  .group-name-input {
+    min-width: auto;
+    max-width: none;
   }
 
   .group-info {
@@ -806,6 +1041,7 @@ const {
     flex-direction: column;
     gap: 0.75rem;
     align-items: stretch;
+    padding: 1rem;
   }
 
   .command-actions {
@@ -814,6 +1050,15 @@ const {
 
   .command-group-editor {
     padding: 0.5rem;
+  }
+
+  .group-config,
+  .commands-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .options-grid {
+    grid-template-columns: 1fr;
   }
 }
 

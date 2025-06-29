@@ -146,19 +146,6 @@ export function useCommandGroupEditor(props, emit) {
     return expandedGroups.value.has(groupIndex)
   }
 
-  function getStageDisplayName() {
-    switch (props.stage) {
-      case 'PRE_STREAM_START':
-        return 'Startup Commands'
-      case 'STREAM_TERMINATION':
-        return 'Cleanup Commands'
-      case 'POST_STREAM_START':
-        return 'Post-Start Commands'
-      default:
-        return `${props.stage} Commands`
-    }
-  }
-
   function getDefaultFailurePolicy() {
     // Use continue for cleanup, fail fast for others
     return props.stage === 'STREAM_TERMINATION' ? 'CONTINUE_ON_FAILURE' : 'FAIL_FAST'
@@ -185,6 +172,63 @@ export function useCommandGroupEditor(props, emit) {
     }
   }
 
+  function formatCommandsCount(count) {
+    if (!count || count === 0) return '0'
+    return count === 1 ? '1 command' : `${count} commands`
+  }
+
+  function getAllEnumDisplayName(value, type) {
+    if (type === 'stage') {
+      return getStageDisplayName(value)
+    } else if (type === 'policy') {
+      return getPolicyDisplayName(value)
+    }
+    return value
+  }
+
+  function getStageDisplayName(stageId = null) {
+    const stage = stageId || props.stage
+    switch (stage) {
+      case 'PRE_STREAM_START':
+        return 'Before Stream Start'
+      case 'STREAM_TERMINATION':
+        return 'Stream Termination'
+      case 'POST_STREAM_START':
+        return 'After Stream Start'
+      default:
+        return stage || 'Unknown Stage'
+    }
+  }
+
+  function getPolicyDisplayName(policy) {
+    switch (policy) {
+      case 'FAIL_FAST':
+        return 'Fail Fast'
+      case 'CONTINUE_ON_FAILURE':
+        return 'Continue on Failure'
+      case 'FAIL_STAGE_ON_ANY':
+        return 'Fail Stage on Any Failure'
+      default:
+        return policy || 'Unknown Policy'
+    }
+  }
+
+  function getFriendlyStageNames() {
+    return {
+      'PRE_STREAM_START': 'Before Stream Start',
+      'STREAM_TERMINATION': 'Stream Termination', 
+      'POST_STREAM_START': 'After Stream Start'
+    }
+  }
+
+  function getFriendlyPolicyNames() {
+    return {
+      'FAIL_FAST': 'Fail Fast',
+      'CONTINUE_ON_FAILURE': 'Continue on Failure',
+      'FAIL_STAGE_ON_ANY': 'Fail Stage on Any Failure'
+    }
+  }
+
   return {
     expandedGroups,
     showCommandHelp,
@@ -199,9 +243,14 @@ export function useCommandGroupEditor(props, emit) {
     moveCommand,
     toggleGroupExpanded,
     isGroupExpanded,
-    getStageDisplayName,
     getDefaultFailurePolicy,
     getCommandPlaceholder,
-    getPolicyDescription
+    getPolicyDescription,
+    formatCommandsCount,
+    getAllEnumDisplayName,
+    getStageDisplayName,
+    getPolicyDisplayName,
+    getFriendlyStageNames,
+    getFriendlyPolicyNames
   }
 }
