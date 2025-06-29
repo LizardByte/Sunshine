@@ -12,6 +12,7 @@
 #include "confighttp.h"
 #include "display_device.h"
 #include "entry_handler.h"
+#include "event_actions.h"
 #include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
@@ -133,6 +134,9 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
   }
   config::modified_config_settings.clear();
+
+  // Initialize global event-action handler
+  event_actions::event_handler.initialize(config::sunshine.global_event_actions);
 
   if (!config::sunshine.cmd.name.empty()) {
     auto fn = cmd_to_func.find(config::sunshine.cmd.name);

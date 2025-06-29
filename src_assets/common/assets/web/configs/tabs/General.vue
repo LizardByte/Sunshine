@@ -1,32 +1,45 @@
 <script setup>
 import Checkbox from '../../Checkbox.vue'
-import { ref } from 'vue'
+import AdvancedCommands from '../../components/AdvancedCommands.vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   platform: String,
   config: Object
 })
-const config = ref(props.config)
+// Use computed for reactivity and avoid ref(props.config)
+const config = computed(() => props.config)
 
-function addCmd() {
-  let template = {
-    do: "",
-    undo: "",
-  };
-
-  if (props.platform === 'windows') {
-    template = { ...template, elevated: false };
+// Advanced command system for global prep commands
+const advancedCommands = computed({
+  get() {
+    return config.value.global_event_actions || {}
+  },
+  set(value) {
+    config.value.global_event_actions = value
   }
-  config.value.global_prep_cmd.push(template);
-}
+})
 
-function removeCmd(index) {
-  config.value.global_prep_cmd.splice(index,1)
-}
+const legacyCommands = computed(() => {
+  // If global_event_actions exists, do not use legacy/basic/global_prep_cmd
+  if (config.value.global_event_actions) {
+    return []
+  }
+  let result = config.value.global_prep_cmd || []
+
+  // If global_prep_cmd is a string (JSON), parse it into an array
+
+  if (typeof result === 'string') {
+    result = JSON.parse(result)
+  }
+
+
+  return result
+})
 </script>
 
 <template>
-  <div id="general" class="config-page">
+  <div v-if="config" id="general" class="config-page">
     <!-- Locale -->
     <div class="mb-3">
       <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
@@ -59,7 +72,7 @@ function removeCmd(index) {
     <div class="mb-3">
       <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
       <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
-             v-model="config.sunshine_name" />
+        v-model="config.sunshine_name" />
       <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
     </div>
 
@@ -79,61 +92,18 @@ function removeCmd(index) {
     </div>
 
     <!-- Global Prep Commands -->
-    <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
+    <div id="global_prep_cmd" class="mb-3">
       <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
       <div class="form-text">{{ $t('config.global_prep_cmd_desc') }}</div>
-      <table class="table" v-if="config.global_prep_cmd.length > 0">
-        <thead>
-        <tr>
-          <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-          <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
-          <th scope="col" v-if="platform === 'windows'">
-            <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-          </th>
-          <th scope="col"></th>
-        </tr>
-        </thead>
-        <tbody>
-        <tr v-for="(c, i) in config.global_prep_cmd">
-          <td>
-            <input type="text" class="form-control monospace" v-model="c.do" />
-          </td>
-          <td>
-            <input type="text" class="form-control monospace" v-model="c.undo" />
-          </td>
-          <td v-if="platform === 'windows'" class="align-middle">
-            <Checkbox :id="'prep-cmd-admin-' + i"
-                      label="_common.elevated"
-                      desc=""
-                      v-model="c.elevated"
-            ></Checkbox>
-          </td>
-          <td>
-            <button class="btn btn-danger" @click="removeCmd(i)">
-              <i class="fas fa-trash"></i>
-            </button>
-            <button class="btn btn-success" @click="addCmd">
-              <i class="fas fa-plus"></i>
-            </button>
-          </td>
-        </tr>
-        </tbody>
-      </table>
-      <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd">
-        &plus; {{ $t('config.add') }}
-      </button>
+      <div class="mt-3">
+        <AdvancedCommands v-model="advancedCommands" :platform="platform" :legacy-commands="legacyCommands" />
+      </div>
     </div>
 
     <!-- Notify Pre-Releases -->
-    <Checkbox class="mb-3"
-              id="notify_pre_releases"
-              locale-prefix="config"
-              v-model="config.notify_pre_releases"
-              default="false"
-    ></Checkbox>
+    <Checkbox class="mb-3" id="notify_pre_releases" locale-prefix="config" v-model="config.notify_pre_releases"
+      default="false"></Checkbox>
   </div>
 </template>
 
-<style scoped>
-
-</style>
+<style scoped></style>
