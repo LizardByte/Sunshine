@@ -1,0 +1,275 @@
+---
+name: CI
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  github-env:
+    name: GitHub Env Debug
+    uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
+
+  release-setup:
+    name: Release Setup
+    outputs:
+      publish_release: ${{ steps.release-setup.outputs.publish_release }}
+      release_body: ${{ steps.release-setup.outputs.release_body }}
+      release_commit: ${{ steps.release-setup.outputs.release_commit }}
+      release_generate_release_notes: ${{ steps.release-setup.outputs.release_generate_release_notes }}
+      release_tag: ${{ steps.release-setup.outputs.release_tag }}
+      release_version: ${{ steps.release-setup.outputs.release_version }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Release Setup
+        id: release-setup
+        uses: LizardByte/actions/actions/release_setup@v2025.627.30023
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docker:
+    name: Docker
+    needs: release-setup
+    permissions:
+      contents: read
+      packages: write
+    uses: LizardByte/.github/.github/workflows/__call-docker.yml@feat/docker/adjust-artifact-and-release-logic  # TODO
+    with:
+      maximize_build_space: true
+      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      GH_BOT_NAME: ${{ secrets.GH_BOT_NAME }}
+      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build_homebrew:
+    name: Homebrew
+    needs: release-setup
+    uses: ./.github/workflows/ci-homebrew.yml
+    with:
+      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+      GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GIT_USERNAME: ${{ secrets.GH_BOT_NAME }}
+
+  build_linux_flatpak:
+    name: Linux Flatpak
+    needs: release-setup
+    uses: ./.github/workflows/ci-flatpak.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+
+  build_linux:
+    name: Linux
+    needs: release-setup
+    uses: ./.github/workflows/ci-linux.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+
+  build_windows:
+    name: Windows
+    needs: release-setup
+    uses: ./.github/workflows/ci-windows.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+
+  coverage:
+    name: Coverage-${{ matrix.flag }}
+    if: >-
+      always() &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - build_linux
+      - build_linux_flatpak
+      - build_homebrew
+      - build_windows
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux-AppImage
+            flag: Linux
+          - name: Homebrew-macos-13
+            flag: Homebrew-macOS-13
+            coverage: false
+          - name: Homebrew-macos-14
+            flag: Homebrew-macOS-14
+            coverage: false
+          - name: Homebrew-macos-15
+            flag: Homebrew-macOS-15
+            coverage: false
+          - name: Homebrew-ubuntu-latest
+            flag: Homebrew-Ubuntu-Latest
+            coverage: false
+          - name: Windows-AMD64
+            flag: Windows-AMD64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-${{ matrix.name }}
+          path: _coverage
+
+      - name: Upload test results
+        uses: codecov/test-results-action@v1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./_coverage/tests/test_results.xml
+          flags: ${{ matrix.flag }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        if: matrix.coverage != false
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./_coverage/coverage.xml
+          flags: ${{ matrix.flag }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+  release:
+    name: Release
+    # TODO
+#    if:
+#      needs.release-setup.outputs.publish_release == 'true' &&
+#      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - release-setup
+      - build-docker
+      - build_linux
+      - build_linux_flatpak
+      - build_homebrew
+      - build_windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact (Docker-archlinux)
+        uses: actions/download-artifact@v4
+        with:
+          name: Docker-archlinux
+          path: build-Docker-archlinux
+
+      - name: Download build artifact (Docker-debian-bookworm)
+        uses: actions/download-artifact@v4
+        with:
+          name: Docker-debian-bookworm
+          path: build-Docker-debian-bookworm
+
+      - name: Download build artifact (Docker-ubuntu-22.04)
+        uses: actions/download-artifact@v4
+        with:
+          name: Docker-ubuntu-22.04
+          path: build-Docker-ubuntu-22.04
+
+      - name: Download build artifact (Docker-ubuntu-24.04)
+        uses: actions/download-artifact@v4
+        with:
+          name: Docker-ubuntu-24.04
+          path: build-Docker-ubuntu-24.04
+
+      - name: Download build artifact (Homebrew)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-Homebrew
+          path: build-Homebrew
+
+      - name: Download build artifact (Linux-AppImage)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-Linux-AppImage
+          path: build-Linux-AppImage
+
+      - name: Download build artifact (Linux-Flatpak-x86_64)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-Linux-Flatpak-x86_64
+          path: build-Linux-Flatpak-x86_64
+
+      - name: Download build artifact (Linux-Flatpak-aarch64)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-Linux-Flatpak-aarch64
+          path: build-Linux-Flatpak-aarch64
+      - name: Download build artifact (Windows-AMD64)
+        uses: actions/download-artifact@v4
+        with:
+          name: build-Windows-AMD64
+          path: build-Windows-AMD64
+
+      - name: Prepare artifacts
+        run: |
+          artifact_dirs=(
+            build-Docker-archlinux
+            build-Docker-debian-bookworm
+            build-Docker-ubuntu-22.04
+            build-Docker-ubuntu-24.04
+            build-Homebrew
+            build-Linux-AppImage
+            build-Linux-Flatpak-x86_64
+            build-Linux-Flatpak-aarch64
+            build-Windows-AMD64
+          )
+
+          echo "::group::Moving artifacts"
+          mkdir -p artifacts
+          for dir in "${artifact_dirs[@]}"; do
+            echo "moving artifacts from $dir"
+            mv -f "$dir"/* artifacts/
+          done
+          echo "::endgroup::"
+
+          echo "::group::Debug artifacts"
+          ls -l artifacts
+          echo "::endgroup::"
+
+      - name: Create/Update GitHub Release
+        # TODO
+        if: false  # needs.release-setup.outputs.publish_release == 'true'
+        uses: LizardByte/actions/actions/release_create@v2025.627.30023
+        with:
+          allowUpdates: false
+          body: ${{ needs.release-setup.outputs.release_body }}
+          generateReleaseNotes: ${{ needs.release-setup.outputs.release_generate_release_notes }}
+          name: ${{ needs.release-setup.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.release-setup.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
