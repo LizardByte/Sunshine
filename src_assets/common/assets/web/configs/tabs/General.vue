@@ -1,255 +1,88 @@
-
-<script>
+<script setup>
 import Checkbox from '../../Checkbox.vue'
-import EventActionsSection from '../../components/EventActionsSection.vue'
+import EventActionsEditor from './EventActionsEditor.vue'
+import { ref, computed } from 'vue'
+import { convertPrepCmdsToEventActions } from '../../utils/convertPrepCmd.js'
 
-export default {
-  name: 'General',
-  components: {
-    Checkbox,
-    EventActionsSection
-  },
-  props: {
-    platform: String,
-    config: Object
-  },
-  mounted() {
-    // Debugging: log config and event actions model
-    console.info('[General.vue] mounted debug', {
-      config: this.config,
-      eventActionsModel: this.config?.global_event_actions,
-      legacyCommands: this.config?.global_prep_cmd
-    })
-  },
-  computed: {
-    // Event actions model for the component (using stage-based format)
-    eventActionsModel: {
-      get() {
-        // Parse global_event_actions JSON string or use existing object, handle Vue Proxy/reactivity
-        let eventActions = undefined
-        try {
-          if (this.config.global_event_actions) {
-            if (typeof this.config.global_event_actions === 'string') {
-              eventActions = JSON.parse(this.config.global_event_actions)
-            } else if (typeof this.config.global_event_actions === 'object') {
-              // Defensive: de-proxy if needed
-              eventActions = JSON.parse(JSON.stringify(this.config.global_event_actions))
-            }
-          }
-        } catch (e) {
-          console.error('[General.vue] Failed to parse global_event_actions:', e, this.config.global_event_actions)
-          eventActions = undefined
-        }
+const props = defineProps({
+  platform: String,
+  config: Object
+})
+const config = ref(props.config)
 
-        // Debug: log type and content
-        console.info('[General.vue] eventActionsModel.get: eventActions type', typeof eventActions, eventActions)
+// Track if we're showing the conversion notice
+const showConversionNotice = computed(() => {
+  return config.value.global_prep_cmd && 
+         config.value.global_prep_cmd.length > 0 && 
+         (!config.value.global_event_actions || Object.keys(config.value.global_event_actions).length === 0)
+})
 
-        // If eventActions is a direct stages object (not wrapped in {stages: ...}), return it
-        if (eventActions && typeof eventActions === 'object') {
-          if (Object.prototype.hasOwnProperty.call(eventActions, 'stages')) {
-            // Wrapped format
-            const stages = eventActions.stages || {}
-            console.info('[General.vue] eventActionsModel.get: returning eventActions.stages (wrapped)', { eventActions, stages, stageKeys: Object.keys(stages) })
-            return stages
-          } else {
-            // Direct format: check for known stage keys or at least any keys
-            const keys = Object.keys(eventActions)
-            const knownStageKeys = ['PRE_STREAM_START', 'POST_STREAM_STOP', 'PRE_STREAM_STOP', 'POST_STREAM_START']
-            const hasStageKey = keys.some(k => knownStageKeys.includes(k)) || keys.length > 0
-            if (hasStageKey) {
-              console.info('[General.vue] eventActionsModel.get: returning eventActions as direct stages object', { eventActions, stageKeys: keys })
-              return eventActions
-            }
-          }
-        }
+// Track if we should show the event actions editor
+const showEventActionsEditor = computed(() => {
+  return config.value.global_event_actions && Array.isArray(config.value.global_event_actions) && config.value.global_event_actions.length >= 0
+})
 
-        // Fallback: Parse legacy commands ONLY if neither format is present
-        let legacyCommands = []
-        try {
-          if (this.config.global_prep_cmd) {
-            if (Array.isArray(this.config.global_prep_cmd)) {
-              legacyCommands = this.config.global_prep_cmd
-            } else {
-              legacyCommands = JSON.parse(this.config.global_prep_cmd)
-            }
-          }
-        } catch (e) {
-          console.error('[General.vue] Failed to parse global_prep_cmd JSON:', e, this.config.global_prep_cmd)
-          legacyCommands = []
-        }
-        const stages = this.convertLegacyToStages(legacyCommands)
-        console.info('[General.vue] eventActionsModel.get: returning legacy-converted stages', { legacyCommands, stages })
-        return stages
-      },
-      set(value) {
-        // Update global_event_actions with the new stages
-        console.info('[General.vue] eventActionsModel.set called', value)
-        // Save as JSON string - value is now the stages object directly
-        this.config.global_event_actions = JSON.stringify({ stages: value || {} })
-        // Remove legacy format when new format is used
-        if (value && Object.keys(value).length > 0) {
-          delete this.config.global_prep_cmd
-          console.info('[General.vue] Legacy global_prep_cmd removed after eventActionsModel.set')
-        }
-      }
-    },
+const converting = ref(false)
+const conversionError = ref('')
 
-    // Check if there are legacy commands to migrate
-    hasLegacyCommands() {
-      let legacyCommands = []
-      try {
-        if (this.config.global_prep_cmd) {
-          if (Array.isArray(this.config.global_prep_cmd)) {
-            legacyCommands = this.config.global_prep_cmd
-          } else {
-            legacyCommands = JSON.parse(this.config.global_prep_cmd)
-          }
-        }
-      } catch (e) {
-        console.error('[General.vue] Failed to parse global_prep_cmd JSON:', e, this.config.global_prep_cmd)
-        legacyCommands = []
-      }
-      if (!legacyCommands || legacyCommands.length === 0) {
-        console.info('[General.vue] hasLegacyCommands: No legacy commands found')
-        return false
-      }
+function addCmd() {
+  let template = {
+    do: "",
+    undo: "",
+  };
 
-      // Check if event actions exist in either format
-      let eventActions = undefined
-      try {
-        if (this.config.global_event_actions) {
-          if (typeof this.config.global_event_actions === 'string') {
-            eventActions = JSON.parse(this.config.global_event_actions)
-          } else if (typeof this.config.global_event_actions === 'object') {
-            eventActions = this.config.global_event_actions
-          }
-        }
-      } catch (e) {
-        console.error('[General.vue] Failed to parse global_event_actions JSON:', e, this.config.global_event_actions)
-        eventActions = undefined
-      }
-
-      let hasEventActions = false
-      if (eventActions && typeof eventActions === 'object') {
-        if (Object.prototype.hasOwnProperty.call(eventActions, 'stages')) {
-          // Wrapped format
-          const stages = eventActions.stages || {}
-          hasEventActions = Object.keys(stages).length > 0
-        } else {
-          // Direct format
-          const keys = Object.keys(eventActions)
-          const knownStageKeys = ['PRE_STREAM_START', 'POST_STREAM_STOP', 'PRE_STREAM_STOP', 'POST_STREAM_START']
-          hasEventActions = keys.some(k => knownStageKeys.includes(k)) || keys.length > 0
-        }
-      }
-      const result = !hasEventActions
-      console.info('[General.vue] hasLegacyCommands:', {
-        legacyCommands,
-        eventActions,
-        hasEventActions,
-        result
-      })
-      return result
-    }
-  },
-  methods: {
-    // Convert legacy commands to stage-based format
-    convertLegacyToStages(legacyCommands) {
-      // Ensure legacyCommands is always an array
-      if (!Array.isArray(legacyCommands)) {
-        if (!legacyCommands) {
-          legacyCommands = []
-        } else if (typeof legacyCommands === 'object') {
-          // If it's an object but not an array, wrap it in an array
-          legacyCommands = [legacyCommands]
-        } else {
-          // If it's something else (string, number), ignore
-          legacyCommands = []
-        }
-      }
-      if (legacyCommands.length === 0) {
-        console.info('[General.vue] convertLegacyToStages: No legacy commands to convert')
-        return {}
-      }
-
-      const stages = {}
-      // Create startup commands in PRE_STREAM_START stage
-      const startupCommands = legacyCommands
-        .filter(cmd => cmd && cmd.do_cmd && cmd.do_cmd.trim())
-        .map(cmd => ({
-          cmd: cmd.do_cmd.trim(),
-          elevated: cmd.elevated || false,
-          timeout_seconds: 30,
-          ignore_error: false,
-          async: false
-        }))
-      if (startupCommands.length > 0) {
-        stages.PRE_STREAM_START = [{
-          name: 'Legacy Setup Commands',
-          failure_policy: 'FAIL_FAST',
-          commands: startupCommands
-        }]
-      }
-      // Create cleanup commands in POST_STREAM_STOP stage
-      const cleanupCommands = legacyCommands
-        .filter(cmd => cmd && cmd.undo_cmd && cmd.undo_cmd.trim())
-        .map(cmd => ({
-          cmd: cmd.undo_cmd.trim(),
-          elevated: cmd.elevated || false,
-          timeout_seconds: 30,
-          ignore_error: false,
-          async: false
-        }))
-      if (cleanupCommands.length > 0) {
-        stages.POST_STREAM_STOP = [{
-          name: 'Legacy Cleanup Commands',
-          failure_policy: 'CONTINUE_ON_FAILURE',
-          commands: cleanupCommands
-        }]
-      }
-      console.info('[General.vue] convertLegacyToStages result', {
-        legacyCommands,
-        startupCommands,
-        cleanupCommands,
-        stages
-      })
-      return stages
-    },
-
-    migrateLegacyCommands() {
-      let legacyCommands = []
-      try {
-        if (this.config.global_prep_cmd) {
-          // Check if it's already an array or a JSON string
-          if (Array.isArray(this.config.global_prep_cmd)) {
-            legacyCommands = this.config.global_prep_cmd
-          } else {
-            legacyCommands = JSON.parse(this.config.global_prep_cmd)
-          }
-        }
-      } catch (e) {
-        console.error('[General.vue] Failed to parse global_prep_cmd JSON:', e, this.config.global_prep_cmd)
-        legacyCommands = []
-      }
-      console.info('[General.vue] migrateLegacyCommands called', { legacyCommands })
-      const stages = this.convertLegacyToStages(legacyCommands)
-      // Update the config with new format (as JSON string)
-      this.config.global_event_actions = JSON.stringify({ stages })
-      // Clear legacy commands
-      delete this.config.global_prep_cmd
-      console.info('[General.vue] Legacy commands migrated to stages', { stages, config: this.config })
-    }
+  if (props.platform === 'windows') {
+    template = { ...template, elevated: false };
   }
+  config.value.global_prep_cmd.push(template);
+}
+
+function removeCmd(index) {
+  config.value.global_prep_cmd.splice(index,1)
+}
+
+async function convertToEventActions() {
+  if (converting.value) return
+  
+  converting.value = true
+  conversionError.value = ''
+  
+  try {
+    // Use frontend conversion utility instead of backend API
+    const prepCmds = config.value.global_prep_cmd.map(cmd => ({
+      do_cmd: cmd.do || '',
+      undo_cmd: cmd.undo || '',
+      elevated: cmd.elevated || false
+    }))
+    const result = convertPrepCmdsToEventActions(prepCmds)
+    if (result && Array.isArray(result) && result.length > 0) {
+      config.value.global_event_actions = result
+      config.value.global_prep_cmd = []
+      alert('Successfully converted global preparation commands to the new event actions format!')
+    } else {
+      conversionError.value = 'Conversion failed: No commands to convert.'
+    }
+  } catch (error) {
+    console.error('Conversion error:', error)
+    conversionError.value = 'Failed to convert commands: ' + error.message
+  } finally {
+    converting.value = false
+  }
+}
+
+function onEventActionsChange(newActions) {
+  config.value.global_event_actions = newActions
 }
 </script>
 
 <template>
-  <div v-if="config" id="general" class="config-page">
+  <div id="general" class="config-page">
     <!-- Locale -->
     <div class="mb-3">
       <label for="locale" class="form-label">{{ $t('config.locale') }}</label>
       <select id="locale" class="form-select" v-model="config.locale">
         <option value="bg">Български (Bulgarian)</option>
+        <option value="cs">Čeština (Czech)</option>
         <option value="de">Deutsch (German)</option>
         <option value="en">English</option>
         <option value="en_GB">English, UK</option>
@@ -267,6 +100,7 @@ export default {
         <option value="tr">Türkçe (Turkish)</option>
         <option value="uk">Українська (Ukranian)</option>
         <option value="zh">简体中文 (Chinese Simplified)</option>
+        <option value="zh_TW">繁體中文 (Chinese Traditional)</option>
       </select>
       <div class="form-text">{{ $t('config.locale_desc') }}</div>
     </div>
@@ -275,7 +109,7 @@ export default {
     <div class="mb-3">
       <label for="sunshine_name" class="form-label">{{ $t('config.sunshine_name') }}</label>
       <input type="text" class="form-control" id="sunshine_name" placeholder="Sunshine"
-        v-model="config.sunshine_name" />
+             v-model="config.sunshine_name" />
       <div class="form-text">{{ $t('config.sunshine_name_desc') }}</div>
     </div>
 
@@ -294,32 +128,104 @@ export default {
       <div class="form-text">{{ $t('config.log_level_desc') }}</div>
     </div>
 
-    <!-- Global Event Actions -->
-    <EventActionsSection 
-      v-model="eventActionsModel" 
-      :platform="platform"
-    />
-
-    <!-- Legacy Commands Migration Alert -->
-    <div v-if="hasLegacyCommands" class="alert alert-warning">
-      <div class="d-flex align-items-center">
-        <i class="fas fa-exclamation-triangle me-2"></i>
+    <!-- Global Event Actions / Prep Commands -->
+    <div id="global_prep_cmd" class="mb-3 d-flex flex-column">
+      <!-- Only show label for legacy commands -->
+      <label v-if="!showEventActionsEditor" class="form-label">{{ $t('config.global_prep_cmd') }} + OK</label>
+      
+      <!-- Conversion Notice -->
+      <div v-if="showConversionNotice" class="alert alert-warning d-flex align-items-center" role="alert">
+        <i class="fas fa-exchange-alt me-2"></i>
         <div class="flex-grow-1">
-          <strong>{{ $t('_commands.migrate_legacy_title', 'Legacy Commands Detected') }}</strong>
-          <p class="mb-0">{{ $t('_commands.migrate_legacy_desc', 'Convert your existing prep commands into the new advanced command system.') }}</p>
+          <strong>Old Command Format Detected</strong><br/>
+          You are currently using the old format for commands. We recommend converting to the new format for improved flexibility and future compatibility.<br/>
+          <span class="text-muted">You can continue editing your old commands below, or click the button to convert them automatically.</span>
         </div>
-        <button class="btn btn-outline-warning" @click="migrateLegacyCommands">
-          {{ $t('_commands.migrate_now', 'Migrate Now') }}
+        <button class="btn btn-primary ms-3" @click="convertToEventActions" :disabled="converting">
+          <i class="fas fa-magic" :class="{'fa-spin': converting}"></i>
+          {{ converting ? 'Converting...' : 'Convert to New Command Syntax' }}
         </button>
       </div>
+      
+      <!-- Conversion Error -->
+      <div v-if="conversionError" class="alert alert-danger" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>
+        {{ conversionError }}
+      </div>
+
+      <!-- Legacy Global Prep Commands Table (show when not using event actions) -->
+      <div v-if="!showEventActionsEditor">
+        <div class="form-text mb-3">{{ $t('config.global_prep_cmd_desc') }}</div>
+        <table class="table">
+          <thead>
+          <tr>
+            <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
+            <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
+            <th scope="col" v-if="platform === 'windows'">
+              <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
+            </th>
+            <th scope="col"></th>
+          </tr>
+          </thead>
+          <tbody>
+          <tr v-if="!config.global_prep_cmd || config.global_prep_cmd.length === 0">
+            <td colspan="4" class="text-center text-muted">{{ $t('config.no_prep_cmds') }}</td>
+          </tr>
+          <tr v-for="(c, i) in config.global_prep_cmd" :key="i">
+            <td>
+              <input type="text" class="form-control monospace" v-model="c.do" />
+            </td>
+            <td>
+              <input type="text" class="form-control monospace" v-model="c.undo" />
+            </td>
+            <td v-if="platform === 'windows'" class="align-middle">
+              <Checkbox :id="'prep-cmd-admin-' + i"
+                        label="_common.elevated"
+                        desc=""
+                        v-model="c.elevated"
+              ></Checkbox>
+            </td>
+            <td>
+              <button class="btn btn-danger" @click="removeCmd(i)">
+                <i class="fas fa-trash"></i>
+              </button>
+              <button class="btn btn-success" @click="addCmd">
+                <i class="fas fa-plus"></i>
+              </button>
+            </td>
+          </tr>
+          </tbody>
+        </table>
+        <button class="ms-0 mt-2 btn btn-success" style="margin: 0 auto" @click="addCmd">
+          &plus; {{ $t('config.add') }}
+        </button>
+      </div>
+
+      <!-- Event Actions Editor (show when using event actions) -->
+      <EventActionsEditor 
+        v-if="showEventActionsEditor"
+        :model-value="config.global_event_actions" 
+        @update:model-value="onEventActionsChange"
+      >
+        <template #header>
+          <label class="form-label">{{ $t('config.global_prep_cmd') }}</label>
+        </template>
+        <template #description>
+          <div class="form-text mb-3">{{ $t('config.global_prep_cmd_desc') }}</div>
+        </template>
+      </EventActionsEditor>
     </div>
 
     <!-- Notify Pre-Releases -->
-    <Checkbox class="mb-3" id="notify_pre_releases" locale-prefix="config" v-model="config.notify_pre_releases"
-      default="false"></Checkbox>
+    <Checkbox class="mb-3"
+              id="notify_pre_releases"
+              locale-prefix="config"
+              v-model="config.notify_pre_releases"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 
 <style scoped>
-/* Additional styling can be added here if needed */
+
 </style>

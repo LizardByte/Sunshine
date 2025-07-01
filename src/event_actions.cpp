@@ -251,8 +251,6 @@ namespace event_actions {
       case stage_e::STREAM_RESUME:            return "STREAM_RESUME";
       case stage_e::STREAM_PAUSE:             return "STREAM_PAUSE";
       case stage_e::PRE_STREAM_STOP:          return "PRE_STREAM_STOP";
-      case stage_e::PRE_DISPLAY_CLEANUP:      return "PRE_DISPLAY_CLEANUP";
-      case stage_e::POST_DISPLAY_CLEANUP:     return "POST_DISPLAY_CLEANUP";
       case stage_e::POST_STREAM_STOP:         return "POST_STREAM_STOP";
       case stage_e::ADDITIONAL_CLIENT_DISCONNECT: return "ADDITIONAL_CLIENT_DISCONNECT";
       default:                                return "UNKNOWN";
@@ -269,8 +267,6 @@ namespace event_actions {
       {"STREAM_RESUME", stage_e::STREAM_RESUME},
       {"STREAM_PAUSE", stage_e::STREAM_PAUSE},
       {"PRE_STREAM_STOP", stage_e::PRE_STREAM_STOP},
-      {"PRE_DISPLAY_CLEANUP", stage_e::PRE_DISPLAY_CLEANUP},
-      {"POST_DISPLAY_CLEANUP", stage_e::POST_DISPLAY_CLEANUP},
       {"POST_STREAM_STOP", stage_e::POST_STREAM_STOP},
       {"ADDITIONAL_CLIENT_DISCONNECT", stage_e::ADDITIONAL_CLIENT_DISCONNECT}
     };
@@ -316,14 +312,6 @@ namespace event_actions {
 
     int execute_pre_stream_stop(const execution_context_t &context) {
       return event_handler.execute_stage(stage_e::PRE_STREAM_STOP, context);
-    }
-
-    int execute_pre_display_cleanup(const execution_context_t &context) {
-      return event_handler.execute_stage(stage_e::PRE_DISPLAY_CLEANUP, context);
-    }
-
-    int execute_post_display_cleanup(const execution_context_t &context) {
-      return event_handler.execute_stage(stage_e::POST_DISPLAY_CLEANUP, context);
     }
 
     int execute_post_stream_stop(const execution_context_t &context) {

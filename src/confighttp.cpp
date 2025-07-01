@@ -1073,6 +1073,187 @@ namespace confighttp {
     platf::restart();
   }
 
+  /**
+   * @brief Save global event actions configuration.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the post request should be JSON serialized in the following format:
+   * @code{.json}
+   * [{
+   *   "name": "Run Scripts",
+   *   "action": {
+   *     "startup_stage": "PRE_STREAM_START",
+   *     "shutdown_stage": "POST_STREAM_STOP",
+   *     "startup_commands": {
+   *       "failure_policy": "FAIL_FAST",
+   *       "commands": [
+   *         {
+   *           "cmd": "command to execute",
+   *           "elevated": false,
+   *           "timeout_seconds": 30,
+   *           "ignore_error": false,
+   *           "async": false
+   *         }
+   *       ]
+   *     },
+   *     "cleanup_commands": {
+   *       "failure_policy": "CONTINUE_ON_FAILURE",
+   *       "commands": [
+   *         {
+   *           "cmd": "cleanup command",
+   *           "elevated": false,
+   *           "timeout_seconds": 30,
+   *           "ignore_error": true,
+   *           "async": false
+   *         }
+   *       ]
+   *     }
+   *   }
+   * }]
+   * @endcode
+   *
+   * @api_examples{/api/global-event-actions| POST| [{"name": "Test Action", "action": {"startup_stage": "PRE_STREAM_START", "shutdown_stage": "POST_STREAM_STOP", "startup_commands": {"failure_policy": "FAIL_FAST", "commands": [{"cmd": "echo test", "elevated": false, "timeout_seconds": 30, "ignore_error": false, "async": false}]}, "cleanup_commands": {"failure_policy": "CONTINUE_ON_FAILURE", "commands": []}}}]}
+   */
+  void saveGlobalEventActions(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      nlohmann::json output_tree;
+      nlohmann::json input_tree = nlohmann::json::parse(ss);
+
+      // Parse and validate the input - expecting array of action objects
+      event_actions::event_actions_t new_actions;
+      
+      if (input_tree.is_array()) {
+        for (const auto &action_json : input_tree) {
+          if (!action_json.contains("name") || !action_json.contains("action")) {
+            continue;
+          }
+          
+          std::string action_name = action_json["name"];
+          const auto &action_block = action_json["action"];
+          
+          // Process startup commands
+          if (action_block.contains("startup_commands") && action_block.contains("startup_stage")) {
+            std::string startup_stage = action_block["startup_stage"];
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(startup_stage);
+            if (!stage_opt) {
+              bad_request(response, request, "Invalid startup_stage: " + startup_stage);
+              return;
+            }
+
+            const auto &startup_cmds = action_block["startup_commands"];
+            event_actions::command_group_t group;
+            group.name = action_name;
+            
+            std::string policy = startup_cmds.value("failure_policy", "FAIL_FAST");
+            group.failure_policy = (policy == "CONTINUE_ON_FAILURE") ?
+                                   event_actions::failure_policy_e::CONTINUE_ON_FAILURE :
+                                   event_actions::failure_policy_e::FAIL_FAST;
+
+            if (startup_cmds.contains("commands")) {
+              for (const auto &cmd_json : startup_cmds["commands"]) {
+                event_actions::command_t command;
+                command.cmd = cmd_json.value("cmd", "");
+                command.elevated = cmd_json.value("elevated", false);
+                command.timeout_seconds = cmd_json.value("timeout_seconds", 30);
+                command.ignore_error = cmd_json.value("ignore_error", false);
+                command.async = cmd_json.value("async", false);
+                
+                if (!command.cmd.empty()) {
+                  group.commands.push_back(command);
+                }
+              }
+            }
+            
+            if (!group.commands.empty()) {
+              new_actions.stages[*stage_opt].groups.push_back(group);
+            }
+          }
+          
+          // Process cleanup commands
+          if (action_block.contains("cleanup_commands") && action_block.contains("shutdown_stage")) {
+            std::string shutdown_stage = action_block["shutdown_stage"];
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(shutdown_stage);
+            if (!stage_opt) {
+              bad_request(response, request, "Invalid shutdown_stage: " + shutdown_stage);
+              return;
+            }
+
+            const auto &cleanup_cmds = action_block["cleanup_commands"];
+            event_actions::command_group_t group;
+            group.name = action_name + " (cleanup)";
+            
+            std::string policy = cleanup_cmds.value("failure_policy", "CONTINUE_ON_FAILURE");
+            group.failure_policy = (policy == "CONTINUE_ON_FAILURE") ?
+                                   event_actions::failure_policy_e::CONTINUE_ON_FAILURE :
+                                   event_actions::failure_policy_e::FAIL_FAST;
+
+            if (cleanup_cmds.contains("commands")) {
+              for (const auto &cmd_json : cleanup_cmds["commands"]) {
+                event_actions::command_t command;
+                command.cmd = cmd_json.value("cmd", "");
+                command.elevated = cmd_json.value("elevated", false);
+                command.timeout_seconds = cmd_json.value("timeout_seconds", 30);
+                command.ignore_error = cmd_json.value("ignore_error", true); // Default to true for cleanup
+                command.async = cmd_json.value("async", false);
+                
+                if (!command.cmd.empty()) {
+                  group.commands.push_back(command);
+                }
+              }
+            }
+            
+            if (!group.commands.empty()) {
+              new_actions.stages[*stage_opt].groups.push_back(group);
+            }
+          }
+        }
+      }
+
+      // Update global configuration
+      config::sunshine.global_event_actions = new_actions;
+
+      // Save to config file
+      std::string existing_config = file_handler::read_file(config::sunshine.config_file.c_str());
+      std::stringstream final_config;
+      std::istringstream existing_stream(existing_config);
+      std::string line;
+      bool found_global_event = false;
+
+      while (std::getline(existing_stream, line)) {
+        if (line.find("global_event_actions") == 0) {
+          found_global_event = true;
+          final_config << "global_event_actions = " << input_tree.dump() << std::endl;
+        } else {
+          final_config << line << std::endl;
+        }
+      }
+
+      // Add global_event_actions if it wasn't found in config
+      if (!found_global_event) {
+        final_config << "global_event_actions = " << input_tree.dump() << std::endl;
+      }
+
+      file_handler::write_file(config::sunshine.config_file.c_str(), final_config.str());
+
+      output_tree["status"] = true;
+      output_tree["message"] = "Global event actions saved successfully";
+      send_response(response, output_tree);
+
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "SaveGlobalEventActions: " << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+
   void start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -1110,6 +1291,7 @@ namespace confighttp {
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
+    server.resource["^/api/global-event-actions$"]["POST"] = saveGlobalEventActions;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;

@@ -1,8 +1,6 @@
-
 <script setup>
 import { ref } from 'vue'
 import PlatformLayout from '../../PlatformLayout.vue'
-import AdvancedCommands from '../../components/AdvancedCommands.vue'
 
 const props = defineProps([
   'platform',
@@ -15,8 +13,6 @@ const config = ref(props.config)
 
 <template>
   <div class="config-page">
-    <!-- Advanced Commands UI -->
-    <AdvancedCommands :platform="platform" :modelValue="config" />
     <!-- FEC Percentage -->
     <div class="mb-3">
       <label for="fec_percentage" class="form-label">{{ $t('config.fec_percentage') }}</label>

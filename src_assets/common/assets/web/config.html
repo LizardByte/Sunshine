@@ -30,11 +30,11 @@
       </ul>
 
       <!-- General Tab -->
-      <General
+      <general
         v-if="currentTab === 'general'"
         :config="config"
         :platform="platform">
-      </General>
+      </general>
 
       <!-- Input Tab -->
       <inputs
@@ -134,7 +134,8 @@
               "locale": "en",
               "sunshine_name": "",
               "min_log_level": 2,
-              "global_event_actions": [],
+              "global_prep_cmd": [],
+              "global_event_actions": {},
               "notify_pre_releases": "disabled",
             },
           },
@@ -178,7 +179,6 @@
               "dd_config_revert_on_disconnect": "disabled",
               "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
               "dd_wa_hdr_toggle_delay": 0,
-              "min_fps_factor": 1,
               "max_bitrate": 0,
             },
           },
@@ -321,10 +321,12 @@
           // TODO: let each tab's Component handle it's own data instead of doing it here
 
           // Parse the special options before population if available
-          const specialOptions = ["dd_mode_remapping", "global_event_actions"]
+          const specialOptions = ["dd_mode_remapping", "global_prep_cmd", "global_event_actions"]
           for (const optionKey of specialOptions) {
             if (this.config.hasOwnProperty(optionKey)) {
-              this.config[optionKey] = JSON.parse(this.config[optionKey]);
+              if (typeof this.config[optionKey] === 'string') {
+                this.config[optionKey] = JSON.parse(this.config[optionKey]);
+              }
             }
           }
 
@@ -371,6 +373,9 @@
 
         return fetch("./api/config", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(config),
         }).then((r) => {
           if (r.status === 200) {
@@ -393,7 +398,10 @@
               this.saved = this.restarted = false;
             }, 5000);
             fetch("./api/restart", {
-              method: "POST"
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
             });
           }
         });

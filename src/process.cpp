@@ -882,8 +882,6 @@ namespace proc {
               excl_global.insert(event_actions::stage_e::STREAM_RESUME);
               excl_global.insert(event_actions::stage_e::STREAM_PAUSE);
               excl_global.insert(event_actions::stage_e::PRE_STREAM_STOP);
-              excl_global.insert(event_actions::stage_e::PRE_DISPLAY_CLEANUP);
-              excl_global.insert(event_actions::stage_e::POST_DISPLAY_CLEANUP);
               excl_global.insert(event_actions::stage_e::POST_STREAM_STOP);
               excl_global.insert(event_actions::stage_e::ADDITIONAL_CLIENT_DISCONNECT);
             }

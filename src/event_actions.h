@@ -29,8 +29,6 @@ namespace event_actions {
     // Application/Stream cleanup stages  
     STREAM_PAUSE,           ///< When stream is paused
     PRE_STREAM_STOP,        ///< Before the stream stops
-    PRE_DISPLAY_CLEANUP,    ///< Before display cleanup
-    POST_DISPLAY_CLEANUP,   ///< After display cleanup
     POST_STREAM_STOP,       ///< After the stream has stopped
     ADDITIONAL_CLIENT_DISCONNECT  ///< When an additional client disconnects
   };
@@ -201,8 +199,6 @@ namespace event_actions {
     int execute_stream_resume(const execution_context_t &context);
     int execute_stream_pause(const execution_context_t &context);
     int execute_pre_stream_stop(const execution_context_t &context);
-    int execute_pre_display_cleanup(const execution_context_t &context);
-    int execute_post_display_cleanup(const execution_context_t &context);
     int execute_post_stream_stop(const execution_context_t &context);
     int execute_additional_client_disconnect(const execution_context_t &context);
   }

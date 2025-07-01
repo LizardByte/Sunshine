@@ -207,7 +207,11 @@
         },
         closeApp() {
           this.closeAppPressed = true;
-          fetch("./api/apps/close", { method: "POST" })
+          fetch("./api/apps/close", { 
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            } })
             .then((r) => r.json())
             .then((r) => {
               this.closeAppPressed = false;
@@ -219,7 +223,12 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("./api/clients/unpair-all", { method: "POST" })
+          fetch("./api/clients/unpair-all", { 
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+           })
             .then((r) => r.json())
             .then((r) => {
               this.unpairAllPressed = false;
@@ -231,7 +240,13 @@
             });
         },
         unpairSingle(uuid) {
-          fetch("./api/clients/unpair", { method: "POST", body: JSON.stringify({ uuid }) }).then(() => {
+          fetch("./api/clients/unpair", { 
+            method: "POST", 
+            headers: {
+              'Content-Type': 'application/json'
+            }, 
+            body: JSON.stringify({ uuid }) 
+          }).then(() => {
             this.showApplyMessage = true;
             this.refreshClients();
           });
@@ -263,11 +278,19 @@
           }, 5000);
           fetch("./api/restart", {
             method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
           });
         },
         ddResetPersistence() {
           this.ddResetPressed = true;
-          fetch("/api/reset-display-device-persistence", { method: "POST" })
+          fetch("/api/reset-display-device-persistence", { 
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json" 
+            } 
+          })
             .then((r) => r.json())
             .then((r) => {
               this.ddResetPressed = false;

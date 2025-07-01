@@ -1,0 +1,664 @@
+
+<template>
+  <Navbar />
+  <div class="container">
+    <div class="card p-4">
+      <table class="table">
+        <thead>
+          <tr>
+            <th scope="col">{{ $t('apps.name') }}</th>
+            <th scope="col">{{ $t('apps.actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(app,i) in apps" :key="i">
+            <td>{{app.name}}</td>
+            <td>
+              <button class="btn btn-primary mx-1" @click="editApp(i)">
+                <i class="fas fa-edit"></i> {{ $t('apps.edit') }}
+              </button>
+              <button class="btn btn-danger mx-1" @click="showDeleteForm(i)">
+                <i class="fas fa-trash"></i> {{ $t('apps.delete') }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-if="showEditForm && editForm" class="edit-form card mt-2 p-4">
+      <!-- Application Name -->
+      <div class="mb-3">
+        <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
+        <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name" />
+        <div id="appNameHelp" class="form-text">{{ $t('apps.app_name_desc') }}</div>
+      </div>
+      <!-- output -->
+      <div class="mb-3">
+        <label for="appOutput" class="form-label">{{ $t('apps.output_name') }}</label>
+        <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
+          v-model="editForm.output" />
+        <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
+      </div>
+      <!-- prep-cmd and Event Actions Editor: show one or the other in the same spot -->
+      <div>
+        <div class="mb-3">
+          <!-- Only show label for legacy commands -->
+          <label v-if="!showAppEventActionsEditor" for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
+          
+          <!-- Event Actions Editor (when using event actions) -->
+          <EventActionsEditor
+            v-if="showAppEventActionsEditor"
+            :modelValue="editForm['event-actions']"
+            @update:modelValue="editForm['event-actions'] = $event"
+          >
+            <template #header>
+              <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
+            </template>
+            <template #description>
+              <div class="form-text mb-3">{{ $t('apps.cmd_prep_desc') }}</div>
+            </template>
+          </EventActionsEditor>
+          
+          <!-- Legacy Prep Commands (when using old format) -->
+          <div v-else>
+            <div class="form-text mb-3">{{ $t('apps.cmd_prep_desc') }}</div>
+            
+            <Checkbox class="mb-3"
+                      id="excludeGlobalPrep"
+                      label="apps.global_prep_name"
+                      desc="apps.global_prep_desc"
+                      v-model="editForm['exclude-global-prep-cmd']"
+                      default="true"
+                      inverse-values
+            ></Checkbox>
+            
+            <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm && prepCmds.length === 0">
+              <button class="btn btn-success" @click="addPrepCmd">
+                <i class="fas fa-plus mr-1"></i> {{ $t('apps.add_cmds') }}
+              </button>
+            </div>
+            <table class="table" v-if="editForm && prepCmds.length > 0">
+              <thead>
+                <tr>
+                  <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
+                  <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
+                  <th scope="col" v-if="platform === 'windows'">
+                    <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
+                  </th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(c, i) in prepCmds">
+                  <td>
+                    <input type="text" class="form-control monospace" v-model="c.do" />
+                  </td>
+                  <td>
+                    <input type="text" class="form-control monospace" v-model="c.undo" />
+                  </td>
+                  <td v-if="platform === 'windows'" class="align-middle">
+                    <Checkbox :id="'prep-cmd-admin-' + i"
+                              label="_common.elevated"
+                              desc=""
+                              v-model="c.elevated"
+                    ></Checkbox>
+                  </td>
+                  <td>
+                    <button class="btn btn-danger" @click="editForm && prepCmds ? prepCmds.splice(i,1) : null">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                    <button class="btn btn-success" @click="addPrepCmd">
+                      <i class="fas fa-plus"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+            <div class="mb-3" v-if="editForm && prepCmds.length > 0">
+              <div class="alert alert-warning d-flex align-items-center mb-2" role="alert">
+                <i class="fas fa-exchange-alt me-2"></i>
+                <div class="flex-grow-1">
+                  <strong>Old Command Format Detected</strong><br/>
+                  This application is using the legacy preparation commands. We recommend converting to the new Event Actions format for improved flexibility and future compatibility.<br/>
+                  <span class="text-muted">You can continue editing your old commands below, or click the button to convert them automatically.</span>
+                </div>
+                <button class="btn btn-primary ms-3" @click="convertAppPrepCmdToEventActions">
+                  <i class="fas fa-magic"></i> Convert to Event Actions
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- detached -->
+      <div class="mb-3">
+        <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
+        <div v-for="(c,i) in (editForm && editForm.detached ? editForm.detached : [])" class="d-flex justify-content-between my-2">
+          <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
+          <button class="btn btn-danger mx-2" @click="editForm && editForm.detached ? editForm.detached.splice(i,1) : null">
+            &times;
+          </button>
+        </div>
+        <div class="d-flex justify-content-between">
+          <button class="btn btn-success" @click="editForm && editForm.detached ? editForm.detached.push('') : null">
+            <i class="fas fa-plus mr-1"></i> {{ $t('apps.detached_cmds_add') }}
+          </button>
+        </div>
+        <div class="form-text">
+          {{ $t('apps.detached_cmds_desc') }}<br>
+          <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
+        </div>
+      </div>
+      <!-- command -->
+      <div class="mb-3">
+        <label for="appCmd" class="form-label">{{ $t('apps.cmd') }}</label>
+        <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
+          v-model="editForm.cmd" />
+        <div id="appCmdHelp" class="form-text">
+          {{ $t('apps.cmd_desc') }}<br>
+          <b>{{ $t('_common.note') }}</b> {{ $t('apps.cmd_note') }}
+        </div>
+      </div>
+      <!-- working dir -->
+      <div class="mb-3">
+        <label for="appWorkingDir" class="form-label">{{ $t('apps.working_dir') }}</label>
+        <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
+          v-model="editForm['working-dir']" />
+        <div id="appWorkingDirHelp" class="form-text">{{ $t('apps.working_dir_desc') }}</div>
+      </div>
+      <!-- elevation -->
+      <Checkbox v-if="platform === 'windows'"
+                class="mb-3"
+                id="appElevation"
+                label="_common.run_as"
+                desc="apps.run_as_desc"
+                v-model="editForm.elevated"
+                default="false"
+      ></Checkbox>
+      <!-- auto-detach -->
+      <Checkbox class="mb-3"
+                id="autoDetach"
+                label="apps.auto_detach"
+                desc="apps.auto_detach_desc"
+                v-model="editForm['auto-detach']"
+                default="true"
+      ></Checkbox>
+      <!-- wait for all processes -->
+      <Checkbox class="mb-3"
+                id="waitAll"
+                label="apps.wait_all"
+                desc="apps.wait_all_desc"
+                v-model="editForm['wait-all']"
+                default="true"
+      ></Checkbox>
+      <!-- exit timeout -->
+      <div class="mb-3">
+        <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
+        <input type="number" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
+               v-model="editForm['exit-timeout']" min="0" placeholder="5" />
+        <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
+      </div>
+      <div class="mb-3">
+        <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
+        <div class="input-group dropup">
+          <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
+            v-model="editForm['image-path']" />
+          <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle"
+            aria-expanded="false" @click="showCoverFinder" ref="coverFinderDropdown">
+            {{ $t('apps.find_cover') }}
+          </button>
+          <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
+            aria-labelledby="findCoverToggle">
+            <div class="modal-header px-2">
+              <h4 class="modal-title">{{ $t('apps.covers_found') }}</h4>
+              <button type="button" class="btn-close mr-2" aria-label="Close" @click="closeCoverFinder"></button>
+            </div>
+            <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
+              <div class="row">
+                <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                  <div class="cover-container">
+                    <div class="spinner-border" role="status">
+                      <span class="visually-hidden">{{ $t('apps.loading') }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-for="(cover,i) in coverCandidates" :key="'i'" class="col-12 col-sm-6 col-lg-4 mb-3"
+                  @click="useCover(cover)">
+                  <div class="cover-container result">
+                    <img class="rounded" :src="cover.url" />
+                  </div>
+                  <label class="d-block text-nowrap text-center text-truncate">
+                    {{cover.name}}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="appImagePathHelp" class="form-text">{{ $t('apps.image_desc') }}</div>
+      </div>
+      <div class="env-hint alert alert-info">
+        <div class="form-text">
+          <h4>{{ $t('apps.env_vars_about') }}</h4>
+          {{ $t('apps.env_vars_desc') }}
+        </div>
+        <table class="env-table">
+          <tr>
+            <td><b>{{ $t('apps.env_var_name') }}</b></td>
+            <td><b></b></td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_APP_ID</td>
+            <td>{{ $t('apps.env_app_id') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_APP_NAME</td>
+            <td>{{ $t('apps.env_app_name') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td>
+            <td>{{ $t('apps.env_client_width') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td>
+            <td>{{ $t('apps.env_client_height') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td>
+            <td>{{ $t('apps.env_client_fps') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td>
+            <td>{{ $t('apps.env_client_hdr') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td>
+            <td>{{ $t('apps.env_client_gcmap') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td>
+            <td>{{ $t('apps.env_client_host_audio') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td>
+            <td>{{ $t('apps.env_client_enable_sops') }}</td>
+          </tr>
+          <tr>
+            <td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td>
+            <td>{{ $t('apps.env_client_audio_config') }}</td>
+          </tr>
+        </table>
+        <div class="form-text" v-if="platform === 'windows'"><b>{{ $t('apps.env_qres_example') }}</b>
+          <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT% /R:%SUNSHINE_CLIENT_FPS%</pre>
+        </div>
+        <div class="form-text" v-else-if="platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
+          <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"</pre>
+        </div>
+        <div class="form-text" v-else-if="platform === 'macos'"><b>{{ $t('apps.env_displayplacer_example') }}</b>
+          <pre>sh -c "displayplacer \"id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0\""</pre>
+        </div>
+        <div class="form-text"><a
+            href="https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2app__examples.html"
+            target="_blank">{{ $t('_common.see_more') }}</a></div>
+      </div>
+      <!-- Save buttons -->
+      <div class="d-flex">
+        <button @click="showEditForm = false" class="btn btn-secondary m-2">
+          {{ $t('_common.cancel') }}
+        </button>
+        <button class="btn btn-primary m-2" @click="save">{{ $t('_common.save') }}</button>
+      </div>
+    </div>
+    <div v-else class="mt-2">
+      <button class="btn btn-primary" @click="newApp">
+        <i class="fas fa-plus"></i> {{ $t('apps.add_new') }}
+      </button>
+    </div>
+  </div>
+</template>
+
+<script>
+import { ref, computed } from 'vue';
+import Navbar from '../web/Navbar.vue';
+import Checkbox from '../web/Checkbox.vue';
+import { Dropdown } from 'bootstrap/dist/js/bootstrap';
+import { convertPrepCmdsToEventActions } from '../web/utils/convertPrepCmd.js';
+import EventActionsEditor from '../web/configs/tabs/EventActionsEditor.vue';
+
+export default {
+  name: 'Apps',
+  components: {
+    Navbar,
+    Checkbox,
+    EventActionsEditor
+  },
+  data() {
+    return {
+      apps: [],
+      showEditForm: false,
+      editForm: null,
+      detachedCmd: '',
+      coverSearching: false,
+      coverFinderBusy: false,
+      coverCandidates: [],
+      platform: '',
+    };
+  },
+  computed: {
+    showAppConversionNotice() {
+      // Only show migration notice if there are legacy prep-cmds and no event actions
+      if (!this.editForm) return false;
+      const hasLegacyPrepCmds = Array.isArray(this.editForm['prep-cmd']) && this.editForm['prep-cmd'].length > 0;
+      const hasEventActions = Array.isArray(this.editForm['event-actions']) && this.editForm['event-actions'].length > 0;
+      return hasLegacyPrepCmds && !hasEventActions;
+    },
+    showAppEventActionsEditor() {
+      // Show Event Actions editor if:
+      // - There are event actions (array with length > 0)
+      // - OR there are no legacy prep-cmds and no event actions (new app)
+      if (!this.editForm) return false;
+      const hasEventActions = Array.isArray(this.editForm['event-actions']) && this.editForm['event-actions'].length > 0;
+      const hasLegacyPrepCmds = Array.isArray(this.editForm['prep-cmd']) && this.editForm['prep-cmd'].length > 0;
+      if (hasEventActions) return true;
+      if (!hasLegacyPrepCmds && !hasEventActions) return true;
+      return false;
+    },
+    prepCmds() {
+      return (this.editForm && Array.isArray(this.editForm['prep-cmd'])) ? this.editForm['prep-cmd'] : [];
+    }
+  },
+  created() {
+    fetch('./api/apps')
+      .then((r) => r.json())
+      .then((r) => {
+        this.apps = r.apps;
+      });
+    fetch('./api/config')
+      .then((r) => r.json())
+      .then((r) => {
+        this.platform = r.platform;
+      });
+  },
+  methods: {
+    newApp() {
+      this.editForm = {
+        name: '',
+        output: '',
+        // Always use a string for cmd in the UI
+        cmd: '',
+        index: -1,
+        'exclude-global-prep-cmd': false,
+        elevated: false,
+        'auto-detach': true,
+        'wait-all': true,
+        'exit-timeout': 5,
+        'prep-cmd': [],
+        'event-actions': [],
+        detached: [],
+        'image-path': ''
+      };
+      this.showEditForm = true;
+    },
+    editApp(id) {
+      this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
+      this.editForm.index = id;
+      // Convert cmd array to string for UI
+      if (Array.isArray(this.editForm.cmd)) {
+        this.editForm.cmd = this.editForm.cmd.join(' && ');
+      } else if (typeof this.editForm.cmd !== 'string') {
+        this.editForm.cmd = '';
+      }
+      if (this.editForm['prep-cmd'] === undefined) {
+        this.editForm['prep-cmd'] = [];
+      }
+      if (this.editForm['detached'] === undefined)
+        this.editForm['detached'] = [];
+      if (this.editForm['exclude-global-prep-cmd'] === undefined)
+        this.editForm['exclude-global-prep-cmd'] = false;
+      if (this.editForm['elevated'] === undefined && this.platform === 'windows') {
+        this.editForm['elevated'] = false;
+      }
+      if (this.editForm['auto-detach'] === undefined) {
+        this.editForm['auto-detach'] = true;
+      }
+      if (this.editForm['wait-all'] === undefined) {
+        this.editForm['wait-all'] = true;
+      }
+      if (this.editForm['exit-timeout'] === undefined) {
+        this.editForm['exit-timeout'] = 5;
+      }
+      this.showEditForm = true;
+    },
+    showDeleteForm(id) {
+      let resp = confirm('Are you sure to delete ' + this.apps[id].name + '?');
+      if (resp) {
+        fetch('./api/apps/' + id, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        }).then((r) => {
+          if (r.status === 200) location.reload();
+        });
+      }
+    },
+    addPrepCmd() {
+      if (!this.editForm || !this.editForm['prep-cmd']) {
+        return;
+      }
+      let template = {
+        do: '',
+        undo: ''
+      };
+      if (this.platform === 'windows') {
+        template = { ...template, elevated: false };
+      }
+      this.editForm['prep-cmd'].push(template);
+    },
+    showCoverFinder($event) {
+      this.coverCandidates = [];
+      this.coverSearching = true;
+      const ref = this.$refs.coverFinderDropdown;
+      if (!ref) {
+        return;
+      }
+      this.coverFinderDropdown = Dropdown.getInstance(ref);
+      if (!this.coverFinderDropdown) {
+        this.coverFinderDropdown = new Dropdown(ref);
+        if (!this.coverFinderDropdown) {
+          return;
+        }
+      }
+      this.coverFinderDropdown.show();
+      function getSearchBucket(name) {
+        let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d]/g, '');
+        if (!bucket) {
+          return '@';
+        }
+        return bucket;
+      }
+      function searchCovers(name) {
+        if (!name) {
+          return Promise.resolve([]);
+        }
+        let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
+        let dbUrl = 'https://raw.githubusercontent.com/LizardByte/GameDB/gh-pages';
+        let bucket = getSearchBucket(name);
+        return fetch(`${dbUrl}/buckets/${bucket}.json`).then(function (r) {
+          if (!r.ok) throw new Error('Failed to search covers');
+          return r.json();
+        }).then(maps => Promise.all(Object.keys(maps).map(id => {
+          let item = maps[id];
+          if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
+            return fetch(`${dbUrl}/games/${id}.json`).then(function (r) {
+              return r.json();
+            }).catch(() => null);
+          }
+          return null;
+        }).filter(item => item)))
+          .then(results => results
+            .filter(item => item && item.cover && item.cover.url)
+            .map(game => {
+              const thumb = game.cover.url;
+              const dotIndex = thumb.lastIndexOf('.');
+              const slashIndex = thumb.lastIndexOf('/');
+              if (dotIndex < 0 || slashIndex < 0) {
+                return null;
+              }
+              const slug = thumb.substring(slashIndex + 1, dotIndex);
+              return {
+                name: game.name,
+                key: `igdb_${game.id}`,
+                url: `https://images.igdb.com/igdb/image/upload/t_cover_big/${slug}.jpg`,
+                saveUrl: `https://images.igdb.com/igdb/image/upload/t_cover_big_2x/${slug}.png`,
+              }
+            }).filter(item => item));
+      }
+      searchCovers(this.editForm['name'].toString())
+        .then(list => {
+          this.coverCandidates = list;
+        })
+        .catch(() => {})
+        .finally(() => {
+          this.coverSearching = false;
+        });
+    },
+    closeCoverFinder() {
+      const ref = this.$refs.coverFinderDropdown;
+      if (!ref) {
+        return;
+      }
+      const dropdown = this.coverFinderDropdown = Dropdown.getInstance(ref);
+      if (!dropdown) {
+        return;
+      }
+      dropdown.hide();
+    },
+    useCover(cover) {
+      this.coverFinderBusy = true;
+      fetch('./api/covers/upload', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          key: cover.key,
+          url: cover.saveUrl,
+        })
+      }).then(r => {
+        if (!r.ok) throw new Error('Failed to download covers');
+        return r.json();
+      }).then(body => {
+        this.editForm['image-path'] = body.path;
+      })
+        .then(() => this.closeCoverFinder())
+        .finally(() => {
+          this.coverFinderBusy = false;
+        });
+    },
+    save() {
+      this.editForm['image-path'] = this.editForm['image-path'].toString().replace(/"/g, '');
+      // Convert cmd string to array if it contains '&&' or ';', else keep as string
+      if (typeof this.editForm.cmd === 'string') {
+        const trimmed = this.editForm.cmd.trim();
+        if (trimmed.includes('&&')) {
+          this.editForm.cmd = trimmed.split('&&').map(s => s.trim()).filter(Boolean);
+        } else if (trimmed.includes(';')) {
+          this.editForm.cmd = trimmed.split(';').map(s => s.trim()).filter(Boolean);
+        } else if (trimmed.length > 0) {
+          this.editForm.cmd = trimmed;
+        } else {
+          this.editForm.cmd = '';
+        }
+      }
+      fetch('./api/apps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(this.editForm),
+      }).then((r) => {
+        if (r.status === 200) document.location.reload();
+      });
+    },
+    convertAppPrepCmdToEventActions() {
+      if (!this.editForm || !Array.isArray(this.editForm['prep-cmd']) || this.editForm['prep-cmd'].length === 0) {
+        alert('No preparation commands to convert.');
+        return;
+      }
+      // Always include 'elevated' property for each prep-cmd, defaulting to false if missing
+      const prepCmds = this.editForm['prep-cmd'].map(cmd => ({
+        do_cmd: cmd.do || '',
+        undo_cmd: cmd.undo || '',
+        elevated: typeof cmd.elevated === 'boolean' ? cmd.elevated : false
+      }));
+      try {
+        const result = convertPrepCmdsToEventActions(prepCmds);
+        if (result && Array.isArray(result) && result.length > 0) {
+          this.editForm['event-actions'] = result;
+          this.editForm['prep-cmd'] = [];
+          // Do not hide the edit form after conversion
+          alert('Successfully converted prep commands to event actions!');
+        } else {
+          alert('Conversion failed: No commands to convert.');
+        }
+      } catch (e) {
+        alert('Conversion failed: ' + (e && e.message ? e.message : e));
+      }
+    },
+  },
+};
+</script>
+
+<style scoped>
+.precmd-head {
+  width: 200px;
+}
+.monospace {
+  font-family: monospace;
+}
+.cover-finder .cover-results {
+  max-height: 400px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.cover-finder .cover-results.busy * {
+  cursor: wait !important;
+  pointer-events: none;
+}
+.cover-container {
+  padding-top: 133.33%;
+  position: relative;
+}
+.cover-container.result {
+  cursor: pointer;
+}
+.spinner-border {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  margin: auto;
+}
+.cover-container img {
+  display: block;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.config-page {
+  padding: 1em;
+  border: 1px solid #dee2e6;
+  border-top: none;
+}
+td {
+  padding: 0 0.5em;
+}
+.env-table td {
+  padding: 0.25em;
+  border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
+  vertical-align: top;
+}
+</style>

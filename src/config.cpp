@@ -958,74 +958,42 @@ namespace config {
     }
 
     std::stringstream jsonStream;
-    jsonStream << "{\"stages\":" << string << "}";
+    jsonStream << string;
 
     try {
       boost::property_tree::ptree jsonTree;
       boost::property_tree::read_json(jsonStream, jsonTree);
 
-      for (auto &[stage_name, stage_node] : jsonTree.get_child("stages"s)) {
-        auto stage_opt = event_actions::event_action_handler_t::string_to_stage(stage_name);
-        if (!stage_opt) {
-          BOOST_LOG(warning) << "Unknown event-action stage: " << stage_name;
-          continue;
-        }
-
-        event_actions::stage_commands_t stage_commands;
+      // New format: array of action objects with "action" containing stages and commands
+      for (auto &[_, action_node] : jsonTree) {
+        std::string action_name = action_node.get<std::string>("name", "Unnamed Action");
         
-        // Handle both new format (with "groups" object) and legacy format (direct array)
-        if (stage_node.get_child_optional("groups")) {
-          // New format: stages -> stage_name -> groups -> [array of groups]
-          for (auto &[_, group_node] : stage_node.get_child("groups"s)) {
-            event_actions::command_group_t group;
+        if (action_node.get_child_optional("action")) {
+          auto action_block = action_node.get_child("action");
+          
+          // Process startup commands
+          if (action_block.get_child_optional("startup_commands")) {
+            auto startup_node = action_block.get_child("startup_commands");
+            std::string startup_stage = action_block.get<std::string>("startup_stage", "");
             
-            group.name = group_node.get<std::string>("name", "Unnamed Group");
-            
-            auto policy_str = group_node.get<std::string>("failure_policy", "FAIL_FAST");
-            group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
-                                   event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
-                                   event_actions::failure_policy_e::FAIL_FAST;
-
-            if (group_node.get_child_optional("commands")) {
-              for (auto &[_, cmd_node] : group_node.get_child("commands"s)) {
-                event_actions::command_t command;
-                command.cmd = cmd_node.get<std::string>("cmd", "");
-                command.elevated = cmd_node.get<bool>("elevated", false);
-                command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
-                command.ignore_error = cmd_node.get<bool>("ignore_error", false);
-                command.async = cmd_node.get<bool>("async", false);
-                
-                if (!command.cmd.empty()) {
-                  group.commands.push_back(command);
-                }
-              }
-            }
-            
-            if (!group.commands.empty()) {
-              stage_commands.groups.push_back(group);
-            }
-          }
-        } else {
-          // Legacy format: stages -> stage_name -> [array of groups]
-          try {
-            for (auto &[_, group_node] : stage_node) {
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(startup_stage);
+            if (stage_opt) {
               event_actions::command_group_t group;
+              group.name = action_name;
               
-              group.name = group_node.get<std::string>("name", "Unnamed Group");
-              
-              auto policy_str = group_node.get<std::string>("failure_policy", "FAIL_FAST");
+              auto policy_str = startup_node.get<std::string>("failure_policy", "FAIL_FAST");
               group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
                                      event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
                                      event_actions::failure_policy_e::FAIL_FAST;
 
-              if (group_node.get_child_optional("commands")) {
-                for (auto &[_, cmd_node] : group_node.get_child("commands"s)) {
+              if (startup_node.get_child_optional("commands")) {
+                for (auto &[_, cmd_node] : startup_node.get_child("commands")) {
                   event_actions::command_t command;
                   command.cmd = cmd_node.get<std::string>("cmd", "");
                   command.elevated = cmd_node.get<bool>("elevated", false);
                   command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
-                  command.ignore_error = cmd_node.get<bool>("ignore_error", false);
                   command.async = cmd_node.get<bool>("async", false);
+                  command.ignore_error = cmd_node.get<bool>("ignore_error", false);
                   
                   if (!command.cmd.empty()) {
                     group.commands.push_back(command);
@@ -1034,16 +1002,50 @@ namespace config {
               }
               
               if (!group.commands.empty()) {
-                stage_commands.groups.push_back(group);
+                input.stages[*stage_opt].groups.push_back(group);
               }
+            } else {
+              BOOST_LOG(warning) << "Unknown event-action startup_stage: " << startup_stage;
             }
-          } catch (const std::exception &e) {
-            BOOST_LOG(warning) << "Failed to parse legacy format for stage " << stage_name << ": " << e.what();
           }
-        }
-        
-        if (!stage_commands.groups.empty()) {
-          input.stages[*stage_opt] = stage_commands;
+          
+          // Process cleanup commands
+          if (action_block.get_child_optional("cleanup_commands")) {
+            auto cleanup_node = action_block.get_child("cleanup_commands");
+            std::string shutdown_stage = action_block.get<std::string>("shutdown_stage", "");
+            
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(shutdown_stage);
+            if (stage_opt) {
+              event_actions::command_group_t group;
+              group.name = action_name + " (cleanup)";
+              
+              auto policy_str = cleanup_node.get<std::string>("failure_policy", "CONTINUE_ON_FAILURE");
+              group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
+                                     event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
+                                     event_actions::failure_policy_e::FAIL_FAST;
+
+              if (cleanup_node.get_child_optional("commands")) {
+                for (auto &[_, cmd_node] : cleanup_node.get_child("commands")) {
+                  event_actions::command_t command;
+                  command.cmd = cmd_node.get<std::string>("cmd", "");
+                  command.elevated = cmd_node.get<bool>("elevated", false);
+                  command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                  command.async = cmd_node.get<bool>("async", false);
+                  command.ignore_error = cmd_node.get<bool>("ignore_error", true); // Default to true for cleanup
+                  
+                  if (!command.cmd.empty()) {
+                    group.commands.push_back(command);
+                  }
+                }
+              }
+              
+              if (!group.commands.empty()) {
+                input.stages[*stage_opt].groups.push_back(group);
+              }
+            } else {
+              BOOST_LOG(warning) << "Unknown event-action shutdown_stage: " << shutdown_stage;
+            }
+          }
         }
       }
 
