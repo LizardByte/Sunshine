@@ -126,13 +126,25 @@
                   default="true"
                   inverse-values
         ></Checkbox>
-        <!-- Application Commands -->
-        <div class="mb-4">
-          <advanced-commands 
+        <!-- Application Event Actions -->
+        <div class="mb-3">
+          <!-- Legacy Commands Migration Alert -->
+          <div v-if="hasAppLegacyCommands" class="alert alert-warning mb-3">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <div class="flex-grow-1">
+                <strong>{{ $t('_commands.migrate_legacy_title', 'Legacy Commands Detected') }}</strong>
+                <p class="mb-0">{{ $t('_commands.migrate_legacy_desc', 'Convert your existing prep commands into the new advanced command system.') }}</p>
+              </div>
+              <button class="btn btn-outline-warning" @click="migrateAppLegacyCommands">
+                {{ $t('_commands.migrate_now', 'Migrate Now') }}
+              </button>
+            </div>
+          </div>
+          
+          <event-actions-section
             v-model="editForm['event-actions']"
             :platform="platform"
-            :legacy-commands="editForm['prep-cmd']"
-            :app-mode="true"
           />
         </div>
         <!-- command -->
@@ -308,17 +320,15 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
-  import AdvancedCommands from './components/AdvancedCommands.vue'
-  import CommandGroupEditor from './components/CommandGroupEditor.vue'
+  import EventActionsSection from './components/EventActionsSection.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
 
   const app = createApp({
     components: {
       Navbar,
       Checkbox,
-      'AdvancedCommands': AdvancedCommands,
-      'advanced-commands': AdvancedCommands,
-      CommandGroupEditor
+      'EventActionsSection': EventActionsSection,
+      'event-actions-section': EventActionsSection
     },
     data() {
       return {
@@ -331,6 +341,21 @@
         coverCandidates: [],
         platform: "",
       };
+    },
+    computed: {
+      hasAppLegacyCommands() {
+        if (!this.editForm) return false;
+        
+        const legacyCommands = this.editForm['prep-cmd'] || [];
+        if (legacyCommands.length === 0) return false;
+        
+        // Check if event actions are empty or don't exist
+        const eventActions = this.editForm['event-actions'] || {};
+        if (Object.keys(eventActions).length === 0) return true;
+        
+        // Check if event actions stages are empty
+        return !eventActions.stages || Object.keys(eventActions.stages).length === 0;
+      }
     },
     created() {
       fetch("./api/apps")
@@ -371,10 +396,6 @@
           this.editForm["prep-cmd"] = [];
         if (this.editForm["event-actions"] === undefined)
           this.editForm["event-actions"] = {};
-        // Support legacy field names for backward compatibility
-        if (this.editForm["event-actions"] !== undefined) {
-          this.editForm["event-actions"] = this.editForm["event-actions"];
-        }
         if (this.editForm["detached"] === undefined)
           this.editForm["detached"] = [];
         if (this.editForm["exclude-global-event-actions"] === undefined) {
@@ -397,6 +418,84 @@
           this.editForm["exit-timeout"] = 5;
         }
         this.showEditForm = true;
+      },
+      migrateAppLegacyCommands() {
+        if (!this.editForm || !this.editForm['prep-cmd']) return;
+        
+        const legacyCommands = this.editForm['prep-cmd'] || [];
+        const convertedActions = this.convertLegacyCommands(legacyCommands);
+        
+        // Merge with existing event actions if any
+        const existingActions = this.editForm['event-actions'] || { stages: {} };
+        const mergedActions = {
+          stages: {
+            ...existingActions.stages,
+            ...convertedActions.stages
+          }
+        };
+        
+        // Update the form
+        this.editForm['event-actions'] = mergedActions;
+        
+        // Clear legacy commands
+        this.editForm['prep-cmd'] = [];
+        
+        console.log('App legacy commands migrated to event actions:', mergedActions);
+      },
+      convertLegacyCommands(legacyCommands) {
+        if (!legacyCommands || legacyCommands.length === 0) {
+          return { stages: {} };
+        }
+
+        const eventActions = { stages: {} };
+        
+        // Create startup group
+        const startupGroup = {
+          name: 'Legacy Setup Commands',
+          failure_policy: 'FAIL_FAST',
+          commands: []
+        };
+        
+        // Create cleanup group  
+        const cleanupGroup = {
+          name: 'Legacy Cleanup Commands',
+          failure_policy: 'CONTINUE_ON_FAILURE',
+          commands: []
+        };
+
+        // Process legacy commands
+        legacyCommands.forEach(cmd => {
+          if (cmd.do_cmd && cmd.do_cmd.trim()) {
+            startupGroup.commands.push({
+              cmd: cmd.do_cmd.trim(),
+              elevated: cmd.elevated || false,
+              timeout_seconds: 30,
+              ignore_error: false,
+              async: false
+            });
+          }
+          
+          if (cmd.undo_cmd && cmd.undo_cmd.trim()) {
+            cleanupGroup.commands.push({
+              cmd: cmd.undo_cmd.trim(), 
+              elevated: cmd.elevated || false,
+              timeout_seconds: 30,
+              ignore_error: false,
+              async: false
+            });
+          }
+        });
+
+        // Add groups to appropriate stages if they have commands
+        if (startupGroup.commands.length > 0) {
+          eventActions.stages.PRE_STREAM_START = { groups: [startupGroup] };
+        }
+        
+        if (cleanupGroup.commands.length > 0) {
+          eventActions.stages.POST_STREAM_STOP = { groups: [cleanupGroup] };
+        }
+
+        return eventActions;
       },
       showDeleteForm(id) {
         let resp = confirm(
