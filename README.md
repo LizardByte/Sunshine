@@ -132,8 +132,8 @@
 ## 技术支持
 
 遇到问题时的解决路径：
-1. 查看 [使用文档](https://docs.qq.com/aio/DSGdQc3htbFJjSFdO?p=YTpMj5JNNdB5hEKJhhqlSB)
-2. 参考官方 [LizardByte文档](https://docs.lizardbyte.dev/projects/sunshine/latest/)
+1. 查看 [使用文档](https://docs.qq.com/aio/DSGdQc3htbFJjSFdO?p=YTpMj5JNNdB5hEKJhhqlSB) [LizardByte文档](https://docs.lizardbyte.dev/projects/sunshine/latest/)
+2. 在设置中打开详细的日志等级找到相关信息
 3. [加入QQ交流群获取帮助](https://qm.qq.com/cgi-bin/qm/qr?k=5qnkzSaLIrIaU4FvumftZH_6Hg7fUuLD&jump_from=webapi)
 4. [使用两个字母！](https://uuyc.163.com/)
 
@@ -146,6 +146,10 @@
 
 我们欢迎大家参与讨论和贡献代码！
 [![加入QQ群](https://pub.idqqimg.com/wpa/images/group.png '加入QQ群')](https://qm.qq.com/cgi-bin/qm/qr?k=WC2PSZ3Q6Hk6j8U_DG9S7522GPtItk0m&jump_from=webapi&authKey=zVDLFrS83s/0Xg3hMbkMeAqI7xoHXaM3sxZIF/u9JW7qO/D8xd0npytVBC2lOS+z)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=qiin2333/Sunshine-Foundation&type=Date)](https://www.star-history.com/#qiin2333/Sunshine-Foundation&Date)
 
 ---
 
