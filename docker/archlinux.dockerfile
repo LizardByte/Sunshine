@@ -114,14 +114,13 @@ rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
-FROM scratch AS artifacts
-
-COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
-COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
-
 FROM sunshine-base AS sunshine
 
-COPY --link --from=artifacts /sunshine.pkg.tar.zst /
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+
+# artifacts to be extracted in CI
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /artifacts/sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /artifacts/sunshine.pkg.tar.gz
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

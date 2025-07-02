@@ -51,16 +51,17 @@ Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes
 _TEST
 
-FROM scratch AS artifacts
+FROM sunshine-base AS sunshine
+
 ARG BASE
 ARG TAG
 ARG TARGETARCH
-COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
-FROM sunshine-base AS sunshine
+# artifacts to be extracted in CI
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /artifacts/sunshine-${BASE}-${TAG}-${TARGETARCH}.deb
 
 # copy deb from builder
-COPY --link --from=artifacts /sunshine*.deb /sunshine.deb
+COPY --link --from=sunshine-build /build/sunshine/build/cpack_artifacts/Sunshine.deb /sunshine.deb
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
