@@ -76,13 +76,13 @@ jobs:
         run: |
           # variables for formula
           branch="${{ github.head_ref }}"
+          build_version=${{ inputs.release_version }}
           commit=${{ inputs.release_commit }}
 
           # check the branch variable
           if [ -z "$branch" ]
           then
             echo "This is a PUSH event"
-            build_version=${{ inputs.release_tag }}
             clone_url=${{ github.event.repository.clone_url }}
             branch="${{ github.ref_name }}"
             default_branch="${{ github.event.repository.default_branch }}"
@@ -90,35 +90,31 @@ jobs:
             if [ "${{ matrix.release }}" == "true" ]; then
               # we will publish the formula with the release tag
               tag="${{ inputs.release_tag }}"
-              version="${{ inputs.release_version }}"
             else
               tag="${{ github.ref_name }}"
-              version="0.0.${{ github.run_number }}"
             fi
           else
             echo "This is a PR event"
-            build_version="0.0.${{ github.event.number }}"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
             branch="${{ github.event.pull_request.head.ref }}"
             default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
             tag="${{ github.event.pull_request.head.ref }}"
-            version="0.0.${{ github.event.number }}"
           fi
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
           echo "Tag: ${tag}"
 
+          export BRANCH=${branch}
+          export BUILD_VERSION=${build_version}
+          export CLONE_URL=${clone_url}
+          export COMMIT=${commit}
+          export TAG=${tag}
+
           mkdir -p build
           cmake \
             -B build \
             -S . \
-            -DBUILD_VERSION="${build_version}" \
-            -DFORMULA_VERSION="${version}" \
-            -DGITHUB_BRANCH="${branch}" \
-            -DGITHUB_COMMIT="${commit}" \
-            -DGITHUB_CLONE_URL="${clone_url}" \
             -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
-            -DGITHUB_TAG="${tag}" \
             -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON
 

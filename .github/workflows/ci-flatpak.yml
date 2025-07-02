@@ -9,7 +9,7 @@ on:
       release_commit:
         required: true
         type: string
-      release_tag:
+      release_version:
         required: true
         type: string
 
@@ -104,6 +104,7 @@ jobs:
         run: |
           # variables for manifest
           branch="${{ github.head_ref }}"
+          build_version=${{ inputs.release_version }}
           commit=${{ inputs.release_commit }}
 
           # check the branch variable
@@ -111,7 +112,6 @@ jobs:
           then
             echo "This is a PUSH event"
             branch=${{ github.ref_name }}
-            build_version=${{ inputs.release_tag }}
             clone_url=${{ github.event.repository.clone_url }}
           else
             echo "This is a PR event"
@@ -121,15 +121,17 @@ jobs:
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
 
+          export BRANCH=${branch}
+          export BUILD_VERSION=${build_version}
+          export CLONE_URL=${clone_url}
+          export COMMIT=${commit}
+
           mkdir -p build
           mkdir -p artifacts
 
           cmake -DGITHUB_CLONE_URL=${clone_url} \
             -B build \
             -S . \
-            -DBUILD_VERSION=${build_version} \
-            -DGITHUB_BRANCH=${branch} \
-            -DGITHUB_COMMIT=${commit} \
             -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
             -DSUNSHINE_CONFIGURE_ONLY=ON
 

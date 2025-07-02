@@ -16,7 +16,6 @@
 #include "logging.h"
 #include "network.h"
 #include "platform/common.h"
-#include "version.h"
 
 extern "C" {
 #ifdef _WIN32
