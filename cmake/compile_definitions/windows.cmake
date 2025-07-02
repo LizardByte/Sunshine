@@ -9,10 +9,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 # gcc complains about misleading indentation in some mingw includes
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-misleading-indentation)
 
-# gcc15 complains about non-template type 'coroutine_handle' used as a template in Windows.Foundation.h
-# can remove after https://gcc.gnu.org/bugzilla/show_bug.cgi?id=120495 is available in mingw-w64
-list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-template-body)
-
 # see gcc bug 98723
 add_definitions(-DUSE_BOOST_REGEX)
 
