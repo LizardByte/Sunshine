@@ -1,23 +1,24 @@
 ---
-name: CI Copr
+name: CI-Copr
 permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - master
-    types:
-      - opened
-      - synchronize
-      - reopened
   release:
     types:
       - prereleased
       - released
+  workflow_call:
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN:
+        required: false
+      COPR_STABLE_WEBHOOK_TOKEN:
+        required: false
+      COPR_CLI_CONFIG:
+        required: false
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: "_${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:

@@ -67,7 +67,7 @@ jobs:
       GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build_homebrew:
+  build-homebrew:
     name: Homebrew
     needs: release-setup
     uses: ./.github/workflows/ci-homebrew.yml
@@ -81,15 +81,7 @@ jobs:
       GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
       GIT_USERNAME: ${{ secrets.GH_BOT_NAME }}
 
-  build_linux_flatpak:
-    name: Linux Flatpak
-    needs: release-setup
-    uses: ./.github/workflows/ci-flatpak.yml
-    with:
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_tag: ${{ needs.release-setup.outputs.release_tag }}
-
-  build_linux:
+  build-linux:
     name: Linux
     needs: release-setup
     uses: ./.github/workflows/ci-linux.yml
@@ -97,7 +89,24 @@ jobs:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
 
-  build_windows:
+  build-linux-copr:
+    name: Linux Copr
+    needs: release-setup
+    uses: ./.github/workflows/ci-copr.yml
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
+      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
+      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+
+  build-linux-flatpak:
+    name: Linux Flatpak
+    needs: release-setup
+    uses: ./.github/workflows/ci-flatpak.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+
+  build-windows:
     name: Windows
     needs: release-setup
     uses: ./.github/workflows/ci-windows.yml
@@ -114,10 +123,10 @@ jobs:
       !cancelled() &&
       startsWith(github.repository, 'LizardByte/')
     needs:
-      - build_linux
-      - build_linux_flatpak
-      - build_homebrew
-      - build_windows
+      - build-linux
+      - build-linux-flatpak
+      - build-homebrew
+      - build-windows
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -174,10 +183,11 @@ jobs:
     needs:
       - release-setup
       - build-docker
-      - build_linux
-      - build_linux_flatpak
-      - build_homebrew
-      - build_windows
+      - build-linux
+      - build-linux-copr
+      - build-linux-flatpak
+      - build-homebrew
+      - build-windows
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
