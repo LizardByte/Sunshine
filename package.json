@@ -10,7 +10,7 @@
   "dependencies": {
     "@lizardbyte/shared-web": "2025.626.181239",
     "vue": "3.5.17",
-    "vue-i18n": "11.1.7"
+    "vue-i18n": "11.1.9"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "1.9.1",
