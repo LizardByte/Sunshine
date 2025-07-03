@@ -9,7 +9,7 @@ on:
       release_commit:
         required: true
         type: string
-      release_tag:
+      release_version:
         required: true
         type: string
 
@@ -87,7 +87,7 @@ jobs:
       - name: Build Linux
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
-          BUILD_VERSION: ${{ inputs.release_tag }}
+          BUILD_VERSION: ${{ inputs.release_version }}
           COMMIT: ${{ inputs.release_commit }}
         run: |
           chmod +x ./scripts/linux_build.sh
@@ -102,7 +102,7 @@ jobs:
       - name: Set AppImage Version
         if: matrix.name == 'AppImage'
         run: |
-          version=${{ inputs.release_tag }}
+          version=${{ inputs.release_version }}
           echo "VERSION=${version}" >> $GITHUB_ENV
 
       - name: Package Linux - AppImage

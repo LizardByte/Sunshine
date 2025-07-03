@@ -6,7 +6,7 @@ class @PROJECT_NAME@ < Formula
   homepage "@PROJECT_HOMEPAGE_URL@"
   url "@GITHUB_CLONE_URL@",
     tag: "@GITHUB_TAG@"
-  version "@FORMULA_VERSION@"
+  version "@BUILD_VERSION@"
   license all_of: ["GPL-3.0-only"]
   head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
 
