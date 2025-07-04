@@ -178,7 +178,6 @@
               "dd_config_revert_on_disconnect": "disabled",
               "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
               "dd_wa_hdr_toggle_delay": 0,
-              "min_fps_factor": 1,
               "max_bitrate": 0,
             },
           },
@@ -371,6 +370,9 @@
 
         return fetch("./api/config", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(config),
         }).then((r) => {
           if (r.status === 200) {
@@ -393,7 +395,10 @@
               this.saved = this.restarted = false;
             }, 5000);
             fetch("./api/restart", {
-              method: "POST"
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
             });
           }
         });
