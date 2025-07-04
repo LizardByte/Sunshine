@@ -129,6 +129,11 @@ jobs:
           # Clean up
           Remove-Item -Path doxygen-setup.exe
 
+      - name: Setup dotnet  # needed for wix
+        uses: actions/setup-dotnet@baa11fbfe1d6520db94683bd5c7a3818018e4309  # v5.1.0
+        with:
+          dotnet-version: '10.x'
+
       - name: Setup python
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
@@ -176,11 +181,18 @@ jobs:
 
           # package
           cpack -G NSIS
+          cpack -G WIX
           cpack -G ZIP
 
           # move
           mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
+          mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
+
+      - name: Debug wix
+        if: always()
+        shell: msys2 {0}
+        run: cat ./build/cpack_artifacts/_CPack_Packages/win64/WIX/wix.log || true
 
       - name: Run tests
         id: test
