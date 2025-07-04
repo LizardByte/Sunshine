@@ -4,7 +4,7 @@
   "scripts": {
     "build": "vite build --debug",
     "build-clean": "vite build --debug --emptyOutDir",
-    "dev": "vite build --watch",
+    "dev": "vite build --watch --sourcemap --minify false",
     "serve": "serve ./tests/fixtures/http --no-port-switching"
   },
   "dependencies": {

@@ -12,7 +12,9 @@
           font-family: monospace;
         }
 
-        .cover-finder {}
+        .cover-finder {
+          /* Cover finder styles - placeholder for future enhancements */
+        }
 
         .cover-finder .cover-results {
           max-height: 400px;
@@ -115,79 +117,35 @@
             v-model="editForm.output" />
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
-        <!-- prep-cmd -->
+        <!-- Global Event-Actions Settings -->
         <Checkbox class="mb-3"
                   id="excludeGlobalPrep"
-                  label="apps.global_prep_name"
-                  desc="apps.global_prep_desc"
-                  v-model="editForm['exclude-global-prep-cmd']"
+                  label="apps.global_event_name"
+                  desc="apps.global_event_desc"
+                  v-model="editForm['exclude-global-event-actions']"
                   default="true"
                   inverse-values
         ></Checkbox>
+        <!-- Application Event Actions -->
         <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
-          <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
-          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
-            <button class="btn btn-success" @click="addPrepCmd">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.add_cmds') }}
-            </button>
+          <!-- Legacy Commands Migration Alert -->
+          <div v-if="hasAppLegacyCommands" class="alert alert-warning mb-3">
+            <div class="d-flex align-items-center">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <div class="flex-grow-1">
+                <strong>{{ $t('_commands.migrate_legacy_title', 'Legacy Commands Detected') }}</strong>
+                <p class="mb-0">{{ $t('_commands.migrate_legacy_desc', 'Convert your existing prep commands into the new advanced command system.') }}</p>
+              </div>
+              <button class="btn btn-outline-warning" @click="migrateAppLegacyCommands">
+                {{ $t('_commands.migrate_now', 'Migrate Now') }}
+              </button>
+            </div>
           </div>
-          <table class="table" v-if="editForm['prep-cmd'].length > 0">
-            <thead>
-              <tr>
-                <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-                <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
-                <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-                </th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in editForm['prep-cmd']">
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.do" />
-                </td>
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.undo" />
-                </td>
-                <td v-if="platform === 'windows'" class="align-middle">
-                  <Checkbox :id="'prep-cmd-admin-' + i"
-                            label="_common.elevated"
-                            desc=""
-                            v-model="c.elevated"
-                  ></Checkbox>
-                </td>
-                <td>
-                  <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                  <button class="btn btn-success" @click="addPrepCmd">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <!-- detached -->
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
-          <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
-            <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
-            <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
-              &times;
-            </button>
-          </div>
-          <div class="d-flex justify-content-between">
-            <button class="btn btn-success" @click="editForm.detached.push('');">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.detached_cmds_add') }}
-            </button>
-          </div>
-          <div class="form-text">
-            {{ $t('apps.detached_cmds_desc') }}<br>
-            <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
-          </div>
+          
+          <event-actions-section
+            v-model="editForm['event-actions']"
+            :platform="platform"
+          />
         </div>
         <!-- command -->
         <div class="mb-3">
@@ -362,12 +320,15 @@
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
+  import EventActionsSection from './components/EventActionsSection.vue'
   import { Dropdown } from 'bootstrap/dist/js/bootstrap'
 
   const app = createApp({
     components: {
       Navbar,
-      Checkbox
+      Checkbox,
+      'EventActionsSection': EventActionsSection,
+      'event-actions-section': EventActionsSection
     },
     data() {
       return {
@@ -380,6 +341,21 @@
         coverCandidates: [],
         platform: "",
       };
+    },
+    computed: {
+      hasAppLegacyCommands() {
+        if (!this.editForm) return false;
+        
+        const legacyCommands = this.editForm['prep-cmd'] || [];
+        if (legacyCommands.length === 0) return false;
+        
+        // Check if event actions are empty or don't exist
+        const eventActions = this.editForm['event-actions'] || {};
+        if (Object.keys(eventActions).length === 0) return true;
+        
+        // Check if event actions stages are empty
+        return !eventActions.stages || Object.keys(eventActions.stages).length === 0;
+      }
     },
     created() {
       fetch("./api/apps")
@@ -400,12 +376,13 @@
           output: "",
           cmd: [],
           index: -1,
-          "exclude-global-prep-cmd": false,
+          "exclude-global-event-actions": false,
           elevated: false,
           "auto-detach": true,
           "wait-all": true,
           "exit-timeout": 5,
           "prep-cmd": [],
+          "event-actions": {},
           detached: [],
           "image-path": ""
         };
@@ -417,10 +394,17 @@
         this.editForm.index = id;
         if (this.editForm["prep-cmd"] === undefined)
           this.editForm["prep-cmd"] = [];
+        if (this.editForm["event-actions"] === undefined)
+          this.editForm["event-actions"] = {};
         if (this.editForm["detached"] === undefined)
           this.editForm["detached"] = [];
-        if (this.editForm["exclude-global-prep-cmd"] === undefined)
-          this.editForm["exclude-global-prep-cmd"] = false;
+        if (this.editForm["exclude-global-event-actions"] === undefined) {
+          this.editForm["exclude-global-event-actions"] = false;
+          // Support legacy field name
+          if (this.editForm["exclude-global-prep-cmd"] !== undefined) {
+            this.editForm["exclude-global-event-actions"] = this.editForm["exclude-global-prep-cmd"];
+          }
+        }
         if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
           this.editForm["elevated"] = false;
         }
@@ -434,6 +418,84 @@
           this.editForm["exit-timeout"] = 5;
         }
         this.showEditForm = true;
+      },
+      migrateAppLegacyCommands() {
+        if (!this.editForm || !this.editForm['prep-cmd']) return;
+        
+        const legacyCommands = this.editForm['prep-cmd'] || [];
+        const convertedActions = this.convertLegacyCommands(legacyCommands);
+        
+        // Merge with existing event actions if any
+        const existingActions = this.editForm['event-actions'] || { stages: {} };
+        const mergedActions = {
+          stages: {
+            ...existingActions.stages,
+            ...convertedActions.stages
+          }
+        };
+        
+        // Update the form
+        this.editForm['event-actions'] = mergedActions;
+        
+        // Clear legacy commands
+        this.editForm['prep-cmd'] = [];
+        
+        console.log('App legacy commands migrated to event actions:', mergedActions);
+      },
+      convertLegacyCommands(legacyCommands) {
+        if (!legacyCommands || legacyCommands.length === 0) {
+          return { stages: {} };
+        }
+
+        const eventActions = { stages: {} };
+        
+        // Create startup group
+        const startupGroup = {
+          name: 'Legacy Setup Commands',
+          failure_policy: 'FAIL_FAST',
+          commands: []
+        };
+        
+        // Create cleanup group  
+        const cleanupGroup = {
+          name: 'Legacy Cleanup Commands',
+          failure_policy: 'CONTINUE_ON_FAILURE',
+          commands: []
+        };
+
+        // Process legacy commands
+        legacyCommands.forEach(cmd => {
+          if (cmd.do_cmd && cmd.do_cmd.trim()) {
+            startupGroup.commands.push({
+              cmd: cmd.do_cmd.trim(),
+              elevated: cmd.elevated || false,
+              timeout_seconds: 30,
+              ignore_error: false,
+              async: false
+            });
+          }
+          
+          if (cmd.undo_cmd && cmd.undo_cmd.trim()) {
+            cleanupGroup.commands.push({
+              cmd: cmd.undo_cmd.trim(), 
+              elevated: cmd.elevated || false,
+              timeout_seconds: 30,
+              ignore_error: false,
+              async: false
+            });
+          }
+        });
+
+        // Add groups to appropriate stages if they have commands
+        if (startupGroup.commands.length > 0) {
+          eventActions.stages.PRE_STREAM_START = { groups: [startupGroup] };
+        }
+        
+        if (cleanupGroup.commands.length > 0) {
+          eventActions.stages.POST_STREAM_STOP = { groups: [cleanupGroup] };
+        }
+
+        return eventActions;
       },
       showDeleteForm(id) {
         let resp = confirm(
@@ -449,18 +511,6 @@
             if (r.status === 200) document.location.reload();
           });
         }
-      },
-      addPrepCmd() {
-        let template = {
-          do: "",
-          undo: ""
-        };
-
-        if (this.platform === 'windows') {
-          template = { ...template, elevated: false };
-        }
-
-        this.editForm["prep-cmd"].push(template);
       },
       showCoverFinder($event) {
         this.coverCandidates = [];
