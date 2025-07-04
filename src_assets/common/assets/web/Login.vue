@@ -3,7 +3,7 @@
     <div class="login-form">
       <div class="text-center mb-4">
         <img src="/images/logo-sunshine-45.png" height="45" alt="Sunshine">
-        <h1 class="h3 mb-3 fw-normal">{{ $t('login.title') }}</h1>
+        <h1 class="h3 mb-3 fw-normal">{{ $t('auth.login_title') }}</h1>
       </div>
       <form @submit.prevent="login" v-if="!isLoggedIn" autocomplete="on">
         <div class="mb-3">
@@ -32,7 +32,7 @@
         </div>
         <button type="submit" class="btn btn-primary w-100" :disabled="loading">
           <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-          {{ $t('login.sign_in') }}
+          {{ $t('auth.login_sign_in') }}
         </button>
         <div v-if="error" class="alert alert-danger mt-3">
           {{ error }}
@@ -40,10 +40,10 @@
       </form>
       <div v-else class="text-center">
         <div class="alert alert-success">
-          {{ $t('login.success') }}
+          {{ $t('auth.login_success') }}
         </div>
         <output class="spinner-border">
-          <span class="visually-hidden">Loading...</span>
+          <span class="visually-hidden">{{$t('auth.login_loading')}}</span>
         </output>
       </div>
     </div>
@@ -63,6 +63,9 @@ const safeRedirect = ref('/')
 const { t } = useI18n ? useI18n() : { t: (k, d) => d || k }
 
 onMounted(() => {
+  // Set the document title using the localized string
+  document.title = `Sunshine - ${t('auth.login_title')}`
+
   const urlParams = new URLSearchParams(window.location.search)
   const redirectParam = urlParams.get('redirect')
   if (redirectParam) {
@@ -103,11 +106,11 @@ async function login() {
         redirectToApp()
       }, 1000)
     } else {
-      error.value = data.error || 'Login failed'
+      error.value = data.error || t('auth.login_failed')
     }
   } catch (e) {
     console.error('Login error:', e)
-    error.value = 'Network error. Please try again.'
+    error.value = t('auth.login_network_error')
   } finally {
     loading.value = false
   }

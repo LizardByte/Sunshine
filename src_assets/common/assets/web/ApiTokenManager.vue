@@ -4,15 +4,15 @@
  */
 <template>
   <div class="token-page">
-    <h1>API Token Management</h1>
+    <h1>{{$t('auth.title')}}</h1>
 
     <div id="generate-token-section" class="card">
-      <h2>Generate New Token</h2>
+      <h2>{{$t('auth.generate_new_token')}}</h2>
       <form @submit.prevent="generateToken" class="token-form">
         <div class="scopes-list">
           <div v-for="(scope, idx) in scopes" :key="idx" class="scope-row">
             <select v-model="scope.path" @change="scope.methods = []" required>
-              <option value="" disabled>Select API Path</option>
+              <option value="" disabled>{{$t('auth.select_api_path')}}</option>
               <option v-for="route in apiRoutes" :key="route.path" :value="route.path">
                 {{ route.path }}
               </option>
@@ -22,27 +22,27 @@
                 {{ m }}
               </option>
             </select>
-            <button type="button" @click="removeScope(idx)">Remove</button>
+            <button type="button" @click="removeScope(idx)">{{$t('auth.remove')}}</button>
           </div>
         </div>
-        <button type="button" @click="addScope">Add Scope</button>
-        <button type="submit">Generate Token</button>
+        <button type="button" @click="addScope">{{$t('auth.add_scope')}}</button>
+        <button type="submit">{{$t('auth.generate_token')}}</button>
       </form>
       <div v-if="tokenResult" class="token-box">
-        <span class="token-warning">Success! Copy this token now as you will not see it again:</span>
+        <span class="token-warning">{{$t('auth.token_success')}}</span>
         <code>{{ tokenResult }}</code>
       </div>
     </div>
     
     <div id="active-tokens-section" class="card">
-      <h2>Active Tokens</h2>
+      <h2>{{$t('auth.active_tokens')}}</h2>
       <div class="token-table-wrapper">
         <table class="token-table">
           <thead>
-            <tr><th>Hash</th><th>Username</th><th>Created</th><th>Scopes</th><th></th></tr>
+            <tr><th>{{$t('auth.hash')}}</th><th>{{$t('auth.username')}}</th><th>{{$t('auth.created')}}</th><th>{{$t('auth.scopes')}}</th><th></th></tr>
           </thead>
           <tbody>
-            <tr v-if="!tokens.length"><td colspan="5" style="text-align: center;">No active tokens.</td></tr>
+            <tr v-if="!tokens.length"><td colspan="5" style="text-align: center;">{{$t('auth.no_active_tokens')}}</td></tr>
             <tr v-for="t in tokens" :key="t.hash">
               <td>{{ t.hash.substring(0, 8) }}...</td>
               <td>{{ t.username }}</td>
@@ -52,7 +52,7 @@
                   {{ s.path }}: [{{ s.methods.join(', ') }}]<br />
                 </span>
               </td>
-              <td><button class="danger-btn" @click="revokeToken(t.hash)">Revoke</button></td>
+              <td><button class="danger-btn" @click="revokeToken(t.hash)">{{$t('auth.revoke')}}</button></td>
             </tr>
           </tbody>
         </table>
@@ -60,33 +60,33 @@
     </div>
     
     <div id="test-token-section" class="card">
-      <h2>Test API Token</h2>
+      <h2>{{$t('auth.test_api_token')}}</h2>
       <div class="token-tester">
         <form @submit.prevent="testToken">
           <div>
-            <label for="testPath">API Path (GET requests only)</label>
+            <label for="testPath">{{$t('auth.api_path_get_only')}}</label>
             <select id="testPath" v-model="testPath" required>
-              <option value="" disabled>Select API Path to Test</option>
+            <option value="" disabled>{{$t('auth.select_api_path_to_test')}}</option>
               <option v-for="route in apiRoutes.filter(r => r.methods.includes('GET'))" :key="route.path" :value="route.path">
                 {{ route.path }}
               </option>
             </select>
           </div>
           <div>
-            <label for="testTokenInput">Token</label>
+            <label for="testTokenInput">{{$t('auth.token')}}</label>
             <input 
               id="testTokenInput" 
               v-model="testTokenInput" 
               type="password" 
               autocomplete="off" 
-              placeholder="Paste API token here" 
+              :placeholder="$t('auth.paste_token_here')" 
               required 
             />
           </div>
-          <button type="submit">Test Token</button>
+          <button type="submit">{{$t('auth.test_token')}}</button>
         </form>
         <div v-if="testResult || testError" class="mt-4">
-          <b>Result:</b>
+          <b>{{$t('auth.result')}}</b>
           <div v-if="testError" class="alert alert-danger mt-2">{{ testError }}</div>
           <pre v-if="testResult" class="mt-2">{{ testResult }}</pre>
         </div>
@@ -174,7 +174,7 @@ export default defineComponent({
     async generateToken() {
       const filtered = this.scopes.filter(s => s.path && s.methods.length)
       if (!filtered.length) {
-        alert('Please specify at least one path and corresponding method(s).')
+        alert(this.$t('auth.please_specify_scope'))
         return
       }
       
@@ -190,10 +190,10 @@ export default defineComponent({
           this.tokenResult = data.token
           this.loadTokens()
         } else {
-          this.tokenResult = `Error: ${data.error || 'Failed to generate token.'}`
+          this.tokenResult = `Error: ${data.error || this.$t('auth.failed_to_generate_token')}`
         }
       } catch(e) {
-        this.tokenResult = `Request failed: ${e.message}`
+        this.tokenResult = `${this.$t('auth.request_failed')}: ${e.message}`
       }
     },
     
@@ -222,17 +222,17 @@ export default defineComponent({
      * @returns {Promise<void>}
      */
     async revokeToken(hash) {
-      if (!confirm('Are you sure you want to revoke this token? This action cannot be undone.')) return
+      if (!confirm(this.$t('auth.confirm_revoke'))) return
       
       try {
         const res = await fetch(`/api/token/${hash}`, { method: 'DELETE' })
         if(res.ok) {
           this.loadTokens()
         } else {
-          alert("Failed to revoke token.")
+          alert(this.$t('auth.failed_to_revoke_token'))
         }
       } catch(e) {
-        alert(`Error revoking token: ${e.message}`)
+        alert(`${this.$t('auth.error_revoking_token')}: ${e.message}`)
       }
     },
     
@@ -254,7 +254,7 @@ export default defineComponent({
       this.testError = ''
       
       if (!this.testPath || !this.testTokenInput) {
-        this.testError = 'Please select an API path and provide a token.'
+      this.testError = this.$t('auth.select_api_path_and_token')
         return
       }
       
@@ -288,7 +288,7 @@ export default defineComponent({
         }
 
       } catch (e) {
-        this.testError = `Request failed: ${e.message}`
+        this.testError = `${this.$t('auth.request_failed')}: ${e.message}`
       }
     }
   },
@@ -298,7 +298,21 @@ export default defineComponent({
    * @returns {void}
    */
   mounted() {
-    this.loadTokens()
+    this.loadTokens();
+    // Set the document title on mount
+    if (this.$t) {
+      document.title = this.$t('auth.title');
+    }
+    // Watch for locale changes and update title
+    if (this.$i18n && this.$i18n.watchLocale) {
+      this.$i18n.watchLocale(() => {
+        document.title = this.$t('auth.title');
+      });
+    } else if (this.$i18n && this.$i18n.locale) {
+      this.$watch(() => this.$i18n.locale, () => {
+        document.title = this.$t('auth.title');
+      });
+    }
   }
 })
 </script>

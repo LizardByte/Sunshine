@@ -1,4 +1,5 @@
 {
+  
   "_common": {
     "apply": "Apply",
     "auto": "Automatic",
@@ -456,9 +457,41 @@
     "login": "Login",
     "welcome_success": "This page will reload soon, your browser will ask you for the new credentials"
   },
-  "login": {
-    "title": "Login",
-    "sign_in": "Sign In",
-    "success": "Login successful! Redirecting..."
+  
+  "auth": {
+    "title": "API Token Management",
+    "generate_new_token": "Generate New Token",
+    "select_api_path": "Select API Path",
+    "remove": "Remove",
+    "add_scope": "Add Scope",
+    "generate_token": "Generate Token",
+    "token_success": "Success! Copy this token now as you will not see it again:",
+    "active_tokens": "Active Tokens",
+    "hash": "Hash",
+    "username": "Username",
+    "created": "Created",
+    "scopes": "Scopes",
+    "no_active_tokens": "No active tokens.",
+    "revoke": "Revoke",
+    "test_api_token": "Test API Token",
+    "api_path_get_only": "API Path (GET requests only)",
+    "select_api_path_to_test": "Select API Path to Test",
+    "token": "Token",
+    "paste_token_here": "Paste API token here",
+    "test_token": "Test Token",
+    "result": "Result:",
+    "please_specify_scope": "Please specify at least one path and corresponding method(s).",
+    "failed_to_generate_token": "Failed to generate token.",
+    "request_failed": "Request failed",
+    "confirm_revoke": "Are you sure you want to revoke this token? This action cannot be undone.",
+    "failed_to_revoke_token": "Failed to revoke token.",
+    "error_revoking_token": "Error revoking token",
+    "select_api_path_and_token": "Please select an API path and provide a token.",
+    "login_title": "Login",
+    "login_sign_in": "Sign In",
+    "login_loading": "Loading...",
+    "login_failed": "Login failed",
+    "login_network_error": "Network error. Please try again.",
+    "login_success": "Login successful! Redirecting..."
   }
 }
