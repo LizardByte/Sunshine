@@ -126,6 +126,12 @@ namespace test_utils {
   #define IS_MACOS false
 #endif
 
+#ifdef __FreeBSD__
+  #define IS_FREEBSD true
+#else
+  #define IS_FREEBSD false
+#endif
+
 struct PlatformTestSuite: testing::Test {
   static void SetUpTestSuite() {
     ASSERT_FALSE(platf_deinit);
