@@ -520,7 +520,12 @@ namespace stream {
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
-      session_p->localAddress = boost::asio::ip::make_address(local_address);
+      try {
+        session_p->localAddress = boost::asio::ip::make_address(local_address);
+      } catch (const boost::system::system_error &e) {
+        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        throw;
+      }
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';

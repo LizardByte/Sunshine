@@ -32,6 +32,173 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 * [Stable Docs](https://docs.lizardbyte.dev/projects/sunshine/latest/)
 * [Beta Docs](https://docs.lizardbyte.dev/projects/sunshine/master/)
 
+## 🎮 Feature Compatibility
+
+<table>
+    <caption id="feature_compatibility">Platform Feature Support</caption>
+    <tr>
+        <th>Feature</th>
+        <th>FreeBSD</th>
+        <th>Linux</th>
+        <th>macOS</th>
+        <th>Windows</th>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>Gamepad Emulation</b><br>
+        What type of gamepads can be emulated on the host.<br>
+        Clients may support other gamepads.
+        </td>
+    </tr>
+    <tr>
+        <td>Xbox 360</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>Xbox One/Series</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>Nintendo Switch Pro</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>PlayStation (DS4)</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>PlayStation (DS5)</td>
+        <td>🟡</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Touchpad Support</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>GPU Encoding</b></td>
+    </tr>
+    <tr>
+        <td>AMD/AMF</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>Intel QuickSync</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>NVIDIA NVENC</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>Screen Capture</b></td>
+    </tr>
+    <tr>
+        <td>DXGI</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>KMS</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>NVIDIA NvFBC</td>
+        <td>➖</td>
+        <td>🟡</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ X11 Support</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Wayland Support</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Video Toolbox</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Wayland</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Windows.Graphics.Capture</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>🟡</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Portable</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Service</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>X11</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+</table>
+
+**Legend:** ✅ Supported | 🟡 Partial Support | ❌ Not Yet Supported | ➖ Not Applicable
+
 ## 🖥️ System Requirements
 
 > [!WARNING]

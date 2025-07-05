@@ -34,9 +34,33 @@ else()
     endif()
 endif()
 
+# RPM specific
+set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
+
+# FreeBSD specific
+set(CPACK_FREEBSD_PACKAGE_MAINTAINER "${CPACK_PACKAGE_VENDOR}")
+set(CPACK_FREEBSD_PACKAGE_ORIGIN "misc/${CPACK_PACKAGE_NAME}")
+set(CPACK_FREEBSD_PACKAGE_LICENSE "GPLv3")
+
 # Post install
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
+
+# FreeBSD post install/deinstall scripts
+if(FREEBSD)
+    # Note: CPack's FreeBSD generator does NOT natively support install/deinstall scripts
+    # like CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA or CPACK_RPM_POST_INSTALL_SCRIPT_FILE.
+    # This is a known limitation of the CPack FREEBSD generator.
+    #
+    # Workaround: Use CPACK_POST_BUILD_SCRIPTS to extract the generated .pkg file,
+    # add the install/deinstall scripts, and repack the package. This ensures they are
+    # recognized as package control scripts rather than installed files.
+    set(CPACK_FREEBSD_PACKAGE_SCRIPTS
+        "${SUNSHINE_SOURCE_ASSETS_DIR}/bsd/misc/+POST_INSTALL"
+        "${SUNSHINE_SOURCE_ASSETS_DIR}/bsd/misc/+PRE_DEINSTALL"
+    )
+    list(APPEND CPACK_POST_BUILD_SCRIPTS "${CMAKE_MODULE_PATH}/packaging/freebsd_custom_cpack.cmake")
+endif()
 
 # Apply setcap for RPM
 # https://github.com/coreos/rpm-ostree/discussions/5036#discussioncomment-10291071
@@ -77,6 +101,15 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             openssl >= 3.0.2, \
             pulseaudio-libs >= 10.0, \
             which >= 2.21")
+list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+        audio/opus
+        ftp/curl
+        devel/libevdev
+        net/avahi
+        x11/libX11
+        net/miniupnpc
+        security/openssl
+)
 
 if(NOT BOOST_USE_STATIC)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
@@ -91,6 +124,9 @@ if(NOT BOOST_USE_STATIC)
                 boost-locale >= ${Boost_VERSION}, \
                 boost-log >= ${Boost_VERSION}, \
                 boost-program-options >= ${Boost_VERSION}")
+    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+            devel/boost-libs
+    )
 endif()
 
 # This should automatically figure out dependencies on packages
@@ -142,6 +178,10 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     set(CPACK_RPM_PACKAGE_REQUIRES "\
                     ${CPACK_RPM_PACKAGE_REQUIRES}, \
                     libappindicator-gtk3 >= 12.10.0")
+    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+            devel/libayatana-appindicator
+            devel/libnotify
+    )
 endif()
 
 # desktop file

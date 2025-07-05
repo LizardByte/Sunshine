@@ -8,7 +8,7 @@ and release artifacts may be missing when merging changes on a faster cadence.
 
 ## Binaries
 
-Binaries of Sunshine are created for each release. They are available for Linux, macOS, and Windows.
+Binaries of Sunshine are created for each release. They are available for FreeBSD, Linux, macOS, and Windows.
 Binaries can be found in the [latest release][latest-release].
 
 > [!NOTE]
@@ -28,7 +28,28 @@ and [ghcr.io](https://github.com/orgs/LizardByte/packages?repo_name=sunshine).
 
 See [Docker](../DOCKER_README.md) for more information.
 
+### FreeBSD
+
+#### Install
+1. Download the appropriate package for your architecture
+
+   | Architecture  | Package                                                                                                                                |
+   |---------------|----------------------------------------------------------------------------------------------------------------------------------------|
+   | amd64/x86_64  | [Sunshine-FreeBSD-14.3-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
+   | arm64/aarch64 | [Sunshine-FreeBSD-14.3-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
+
+2. Open terminal and run the following command.
+   ```sh
+   sudo pkg install ./Sunshine-FreeBSD-14.3-{arch}.pkg
+   ```
+
+#### Uninstall
+```sh
+sudo pkg delete Sunshine
+```
+
 ### Linux
+
 **CUDA Compatibility**
 
 CUDA is used for NVFBC capture.
@@ -380,6 +401,22 @@ overflow menu. Different versions of Windows may provide slightly different step
 ## Initial Setup
 After installation, some initial setup is required.
 
+### FreeBSD
+
+#### Virtual Input Devices
+
+> [!IMPORTANT]
+> To use virtual input devices (keyboard, mouse, gamepads), you must add your user to the `input` group.
+
+The installation process creates the `input` group and configures permissions for `/dev/uinput`.
+To allow your user to create virtual input devices, run:
+
+```bash
+pw groupmod input -m $USER
+```
+
+After adding yourself to the group, log out and log back in for the changes to take effect.
+
 ### Linux
 
 #### KMS Capture
@@ -542,7 +579,16 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
 * For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
-* If inputs (mouse, keyboard, gamepads...) aren't working after connecting, add the user running sunshine to the `input` group.
+* If inputs (mouse, keyboard, gamepads...) aren't working after connecting:
+
+  * On FreeBSD/Linux, add the user running sunshine to the `input` group.
+
+* The FreeBSD version of Sunshine is missing some features that are present on Linux.
+  The following are known limitations.
+
+  * Only X11 and Wayland capture are supported
+  * DualSense5 emulation is limited due to missing uhid features
+
 
 ### HDR Support
 Streaming HDR content is officially supported on Windows hosts and experimentally supported for Linux hosts.

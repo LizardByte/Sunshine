@@ -24,6 +24,10 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build." FORCE)
 endif()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(FREEBSD ON)
+endif()
+
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
