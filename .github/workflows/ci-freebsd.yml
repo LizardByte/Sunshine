@@ -1,0 +1,105 @@
+---
+name: CI-FreeBSD
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+
+jobs:
+  build_freebsd:
+    name: ${{ matrix.arch }}-${{ matrix.bsd_release }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - bsd_release: "14.3"
+            arch: x86_64
+            runner: ubuntu-latest
+          - bsd_release: "14.3"
+            arch: aarch64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare VM
+        id: vm
+        uses: vmactions/freebsd-vm@v1.2.1
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ inputs.release_version }}
+          COMMIT: ${{ inputs.release_commit }}
+        with:
+          arch: ${{ matrix.arch }}
+          envs: 'BRANCH BUILD_VERSION COMMIT'
+          # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
+          prepare: |
+            pkg install -y \
+              audio/opus \
+              devel/cmake \
+              devel/freebsd-gcc14 \
+              devel/git \
+              devel/libayatana-appindicator \
+              devel/libevdev \
+              devel/libnotify \
+              devel/ninja \
+              devel/pkgconf \
+              ftp/curl \
+              graphics/wayland \
+              net/miniupnpc \
+              security/openssl \
+              www/npm \
+              x11/libX11 \
+              x11/libxcb \
+              x11/libXfixes \
+              x11/libXrandr \
+              x11/libXtst
+
+      - name: Build FreeBSD
+        shell: freebsd {0}
+        run: |
+          set -e
+          cd $GITHUB_WORKSPACE
+          mkdir -p build
+          cmake \
+            -B build \
+            -G Ninja \
+            -S . \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DSUNSHINE_ASSETS_DIR=share/assets \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
+            -DSUNSHINE_ENABLE_CUDA=OFF \
+            -DSUNSHINE_ENABLE_DRM=OFF \
+            -DSUNSHINE_ENABLE_WAYLAND=ON \
+            -DSUNSHINE_ENABLE_X11=ON \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+          ninja -C build
+
+          cpack -G FreeBSD
+
+          # move compiled files to artifacts
+          mkdir -p artifacts
+          mv build/Sunshine* artifacts/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.arch }}
+          path: artifacts/
+          if-no-files-found: error
