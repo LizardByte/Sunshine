@@ -68,6 +68,14 @@ jobs:
       GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-freebsd:
+    name: FreeBSD
+    needs: release-setup
+    uses: ./.github/workflows/ci-freebsd.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
   build-homebrew:
     name: Homebrew
     needs: release-setup
