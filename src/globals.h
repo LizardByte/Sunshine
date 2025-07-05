@@ -48,6 +48,7 @@ namespace mail {
   MAIL(video_packets);
   MAIL(audio_packets);
   MAIL(switch_display);
+  MAIL(wgc_switch); // Added for WGC backend switching event
 
   // Local mail
   MAIL(touch_port);
