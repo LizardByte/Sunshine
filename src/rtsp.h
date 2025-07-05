@@ -59,6 +59,8 @@ namespace rtsp_stream {
    */
   void terminate_sessions();
 
-  void rtpThread();
-
+  /**
+   * @brief Runs the RTSP server loop.
+   */
+  void start();
 }  // namespace rtsp_stream
