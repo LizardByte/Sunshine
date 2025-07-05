@@ -230,6 +230,7 @@ namespace platf {
     system,  ///< System memory
     vaapi,  ///< VAAPI
     dxgi,  ///< DXGI
+    wgc,  ///< Windows Graphics Capture
     cuda,  ///< CUDA
     videotoolbox,  ///< VideoToolbox
     unknown  ///< Unknown
@@ -457,7 +458,9 @@ namespace platf {
     reinit,  ///< Need to reinitialize
     timeout,  ///< Timeout
     interrupted,  ///< Capture was interrupted
-    error  ///< Error
+    error,  ///< Error
+    swap_capture  ///< Swap capture method, used for prototyping the concept of swapping capture methods during stream.
+
   };
 
   class display_t {

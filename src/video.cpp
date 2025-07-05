@@ -1125,6 +1125,7 @@ namespace video {
     });
 
     auto switch_display_event = mail::man->event<int>(mail::switch_display);
+    auto swap_capture_event = mail::man->event<bool>(mail::wgc_switch);
 
     // Wait for the initial capture context or a request to stop the queue
     auto initial_capture_ctx = capture_ctx_queue->pop();
@@ -1137,8 +1138,9 @@ namespace video {
     // get the most up-to-date list available monitors
     std::vector<std::string> display_names;
     int display_p = -1;
-    refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
-    auto disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
+    platf::mem_type_e dev_type = encoder.platform_formats->dev_type;
+    refresh_displays(dev_type, display_names, display_p);
+    auto disp = platf::display(dev_type, display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
       return;
     }
@@ -1287,6 +1289,75 @@ namespace video {
       }
 
       switch (status) {
+        case platf::capture_e::swap_capture:
+          {
+            if (swap_capture_event->peek()) {
+              dev_type = platf::mem_type_e::wgc;
+              BOOST_LOG(info) << "Switching to WGC capture"sv;
+              swap_capture_event->pop(); // Consume the event after using it
+            } else {
+              dev_type = platf::mem_type_e::dxgi;
+              BOOST_LOG(info) << "Switching to DXGI capture"sv;
+            }
+            reinit_event.raise(true);
+
+            // Some classes of images contain references to the display --> display won't delete unless img is deleted
+            for (auto &img : imgs) {
+              img.reset();
+            }
+
+            // display_wp is modified in this thread only
+            // Wait for the other shared_ptr's of display to be destroyed.
+            // New displays will only be created in this thread.
+            while (display_wp->use_count() != 1) {
+              // Free images that weren't consumed by the encoders. These can reference the display and prevent
+              // the ref count from reaching 1. We do this here rather than on the encoder thread to avoid race
+              // conditions where the encoding loop might free a good frame after reinitializing if we capture
+              // a new frame here before the encoder has finished reinitializing.
+              KITTY_WHILE_LOOP(auto capture_ctx = std::begin(capture_ctxs), capture_ctx != std::end(capture_ctxs), {
+                if (!capture_ctx->images->running()) {
+                  capture_ctx = capture_ctxs.erase(capture_ctx);
+                  continue;
+                }
+
+                while (capture_ctx->images->peek()) {
+                  capture_ctx->images->pop();
+                }
+
+                ++capture_ctx;
+              });
+
+              std::this_thread::sleep_for(20ms);
+            }
+
+            while (capture_ctx_queue->running()) {
+              // Release the display before reenumerating displays, since some capture backends
+              // only support a single display session per device/application.
+              disp.reset();
+
+              // Refresh display names since a display removal might have caused the reinitialization
+              refresh_displays(dev_type, display_names, display_p);
+
+              // Process any pending display switch with the new list of displays
+              if (switch_display_event->peek()) {
+                display_p = std::clamp(*switch_display_event->pop(), 0, (int) display_names.size() - 1);
+              }
+
+              // reset_display() will sleep between retries
+              reset_display(disp, dev_type, display_names[display_p], capture_ctxs.front().config);
+              if (disp) {
+                break;
+              }
+            }
+            if (!disp) {
+              return;
+            }
+
+            display_wp = disp;
+
+            reinit_event.reset();
+            continue;
+          }
         case platf::capture_e::reinit:
           {
             reinit_event.raise(true);
