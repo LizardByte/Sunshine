@@ -34,6 +34,14 @@ else()
     endif()
 endif()
 
+# RPM specific
+set(CPACK_RPM_PACKAGE_LICENSE "GPLv3")
+
+# FreeBSD specific
+set(CPACK_FREEBSD_PACKAGE_MAINTAINER "${CPACK_PACKAGE_VENDOR}")
+set(CPACK_FREEBSD_PACKAGE_ORIGIN "misc/${CPACK_PACKAGE_NAME}")
+set(CPACK_FREEBSD_PACKAGE_LICENSE "GPLv3")
+
 # Post install
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
 set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/postinst")
@@ -77,6 +85,15 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             openssl >= 3.0.2, \
             pulseaudio-libs >= 10.0, \
             which >= 2.21")
+list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+        audio/opus
+        ftp/curl
+        devel/libevdev
+        net/avahi
+        x11/libX11
+        net/miniupnpc
+        security/openssl
+)
 
 if(NOT BOOST_USE_STATIC)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
@@ -91,6 +108,9 @@ if(NOT BOOST_USE_STATIC)
                 boost-locale >= ${Boost_VERSION}, \
                 boost-log >= ${Boost_VERSION}, \
                 boost-program-options >= ${Boost_VERSION}")
+    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+            devel/boost-libs
+    )
 endif()
 
 # This should automatically figure out dependencies, doesn't work with the current config
@@ -141,6 +161,10 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
     set(CPACK_RPM_PACKAGE_REQUIRES "\
                     ${CPACK_RPM_PACKAGE_REQUIRES}, \
                     libappindicator-gtk3 >= 12.10.0")
+    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+            devel/libayatana-appindicator
+            devel/libnotify
+    )
 endif()
 
 # desktop file

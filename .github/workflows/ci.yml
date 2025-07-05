@@ -69,6 +69,14 @@ jobs:
       GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  build-freebsd:
+    name: FreeBSD
+    needs: release-setup
+    uses: ./.github/workflows/ci-freebsd.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
   build-homebrew:
     name: Homebrew
     needs: release-setup
@@ -128,6 +136,7 @@ jobs:
       !cancelled() &&
       startsWith(github.repository, 'LizardByte/')
     needs:
+      - build-freebsd
       - build-linux
       - build-linux-flatpak
       - build-homebrew
@@ -137,29 +146,53 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: FreeBSD-14.3-amd64
+            coverage: true
+            pr: true
+          - name: FreeBSD-14.3-aarch64
+            coverage: true
+            pr: false
           - name: Linux-AppImage
             coverage: true
+            pr: true
           - name: Homebrew-macos-14
             coverage: false
+            pr: true
           - name: Homebrew-macos-15
             coverage: false
+            pr: true
           - name: Homebrew-macos-26
             coverage: false
+            pr: true
           - name: Homebrew-ubuntu-latest
             coverage: false
+            pr: true
           - name: Windows-AMD64
             coverage: true
+            pr: true
     steps:
+      - name: Should run
+        id: should_run
+        run: |
+          if [ ${{ github.event_name }} != 'pull_request' ] || [ ${{ matrix.pr }} == 'true' ]; then
+            echo "SHOULD_RUN=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "SHOULD_RUN=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Checkout
+        if: steps.should_run.outputs.SHOULD_RUN == 'true'
         uses: actions/checkout@v5
 
       - name: Download coverage artifact
+        if: steps.should_run.outputs.SHOULD_RUN == 'true'
         uses: actions/download-artifact@v5
         with:
           name: coverage-${{ matrix.name }}
           path: _coverage
 
       - name: Upload test results
+        if: steps.should_run.outputs.SHOULD_RUN == 'true'
         uses: codecov/test-results-action@v1
         with:
           disable_search: true
@@ -170,8 +203,8 @@ jobs:
           verbose: true
 
       - name: Upload coverage
+        if: steps.should_run.outputs.SHOULD_RUN == 'true' && matrix.coverage != false
         uses: codecov/codecov-action@v5
-        if: matrix.coverage != false
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -188,6 +221,7 @@ jobs:
     needs:
       - release-setup
       - build-docker
+      - build-freebsd
       - build-linux
       - build-linux-flatpak
       - build-homebrew
