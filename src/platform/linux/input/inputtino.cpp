@@ -34,9 +34,26 @@ namespace platf {
     delete input;
   }
 
+  std::pair<int, int> rotate_delta(int delta_x, int delta_y, int rotation) {
+    switch (rotation) {
+      case 0:
+        return {delta_x, delta_y};
+      case 90:
+        return {delta_y, -delta_x};
+      case 180:
+        return {-delta_x, -delta_y};
+      case 270:
+        return {-delta_y, delta_x};
+      default:
+        return {delta_x, delta_y};
+    }
+  }
+
   void move_mouse(input_t &input, int deltaX, int deltaY) {
     auto raw = (input_raw_t *) input.get();
-    platf::mouse::move(raw, deltaX, deltaY);
+
+    auto rotated = rotate_delta(deltaX, deltaY, config::input.output_rotation);
+    platf::mouse::move(raw, rotated.first, rotated.second);
   }
 
   void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
