@@ -340,6 +340,7 @@ int main(int argc, char *argv[]) {
 
   std::thread httpThread {nvhttp::start};
   std::thread configThread {confighttp::start};
+  std::thread rtspThread {rtsp_stream::start};
 
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user
@@ -349,10 +350,12 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  rtsp_stream::rtpThread();
+  // Wait for shutdown
+  shutdown_event->view();
 
   httpThread.join();
   configThread.join();
+  rtspThread.join();
 
   task_pool.stop();
   task_pool.join();
