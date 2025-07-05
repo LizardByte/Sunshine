@@ -59,6 +59,6 @@ namespace rtsp_stream {
    */
   void terminate_sessions();
 
-  void rtpThread();
+  void start();
 
 }  // namespace rtsp_stream
