@@ -24,6 +24,7 @@ namespace video {
     int width;  // Video width in pixels
     int height;  // Video height in pixels
     int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
+    int framerateX100;  // Optional field for streaming at NTSC or similar rates e.g. 59.94 = 5994
     int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
     int slicesPerFrame;  // Number of slices per frame
     int numRefFrames;  // Max number of reference frames
@@ -352,4 +353,25 @@ namespace video {
    * @warning This is only safe to call when there is no client actively streaming.
    */
   int probe_encoders();
+
+  // Several NTSC standard refresh rates are hardcoded here, because their
+  // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could
+  // reduce 29.97 to 2997/100 but this would be slightly wrong. We also include
+  // support for 23.976 film in case someone wants to stream a film at the perfect
+  // framerate.
+  inline AVRational framerateX100_to_rational(const int framerateX100) {
+    switch (framerateX100) {
+      case 11988:
+        return AVRational {120000, 1001};
+      case 5994:
+        return AVRational {60000, 1001};
+      case 2997:
+        return AVRational {30000, 1001};
+      case 2397:  // assume these mean 23.976 film
+      case 2398:
+        return AVRational {24000, 1001};
+      default:
+        return av_d2q((double) framerateX100 / 100.0f, 1 << 26);
+    }
+  }
 }  // namespace video
