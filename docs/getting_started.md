@@ -8,7 +8,7 @@ and release artifacts may be missing when merging changes on a faster cadence.
 
 ## Binaries
 
-Binaries of Sunshine are created for each release. They are available for Linux, macOS, and Windows.
+Binaries of Sunshine are created for each release. They are available for FreeBSD, Linux, macOS, and Windows.
 Binaries can be found in the [latest release][latest-release].
 
 @tip{Some third party packages also exist.
@@ -24,6 +24,9 @@ Docker images are available on [Dockerhub.io](https://hub.docker.com/repository/
 and [ghcr.io](https://github.com/orgs/LizardByte/packages?repo_name=sunshine).
 
 See [Docker](../DOCKER_README.md) for more information.
+
+### FreeBSD
+@todo{Document this.}
 
 ### Linux
 **CUDA Compatibility**
@@ -494,6 +497,12 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
 * The "Desktop" app works the same as any other application except it has no commands. It does not start an application,
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
+* The FreeBSD version of Sunshine is missing some features that are present on Linux.
+  The following are known limitations.
+
+  * Only x11 is working
+  * DualSense5 emulation is limited due to missing uhid features
+
 * For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
 * If inputs (mouse, keyboard, gamepads...) aren't working after connecting, add the user running sunshine to the `input` group.
 
