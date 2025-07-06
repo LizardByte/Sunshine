@@ -34,3 +34,31 @@ jobs:
       COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
       COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
       COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+
+  release:
+    name: Release
+    if:
+      github.event_name == 'release' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - call-copr-ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Debug artifacts
+        run: ls -l artifacts
+
+      - name: Update GitHub Release
+        uses: LizardByte/actions/actions/release_create@v2025.703.21447
+        with:
+          allowUpdates: true
+          name: ${{ github.event.release.name }}
+          prerelease: true
+          tag: ${{ github.event.release.tag_name }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
