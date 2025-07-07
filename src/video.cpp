@@ -1665,7 +1665,7 @@ namespace video {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
             },
-            [&](const std::function<int()>& v) {
+            [&](const std::function<int()> &v) {
               av_dict_set_int(&options, option.name.c_str(), v(), 0);
             },
             [&](const std::string &v) {
@@ -1676,7 +1676,7 @@ namespace video {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
             },
-            [&](const std::function<const std::string(const config_t &cfg)>& v) {
+            [&](const std::function<const std::string(const config_t &cfg)> &v) {
               av_dict_set(&options, option.name.c_str(), v(config).c_str(), 0);
             }
           },
