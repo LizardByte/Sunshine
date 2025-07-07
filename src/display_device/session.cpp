@@ -9,10 +9,10 @@
 #include "src/confighttp.h"
 #include "src/globals.h"
 #include "src/platform/common.h"
+#include "src/platform/windows/display_device/windows_utils.h"
 #include "src/rtsp.h"
 #include "to_string.h"
 #include "vdd_utils.h"
-#include "src/platform/windows/display_device/windows_utils.h"
 
 namespace display_device {
 
@@ -341,7 +341,7 @@ namespace display_device {
     // 检测RDP会话
     if (w_utils::is_any_rdp_session_active()) {
       BOOST_LOG(info) << "Detected RDP remote session, disabling display settings recovery";
-      timer->setup_timer(nullptr); // 禁用定时器
+      timer->setup_timer(nullptr);  // 禁用定时器
       return;
     }
 
@@ -362,7 +362,7 @@ namespace display_device {
           retry_count++;
           if (retry_count >= max_retries) {
             BOOST_LOG(warning) << "已达到最大重试次数，停止尝试恢复显示设置";
-            return true; // 返回true停止重试
+            return true;  // 返回true停止重试
           }
           BOOST_LOG(warning) << "Timer: Reverting display settings will still fail - retrying later... (Count: " << retry_count << "/" << max_retries << ")";
           return false;
@@ -377,6 +377,6 @@ namespace display_device {
   }
 
   session_t::session_t():
-    timer { std::make_unique<StateRetryTimer>(mutex) } {
+      timer { std::make_unique<StateRetryTimer>(mutex) } {
   }
 }  // namespace display_device
