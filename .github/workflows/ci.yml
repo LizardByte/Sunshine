@@ -92,6 +92,7 @@ jobs:
 
   build-linux-copr:
     name: Linux Copr
+    if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
     needs: release-setup
     uses: ./.github/workflows/ci-copr.yml
     secrets:
