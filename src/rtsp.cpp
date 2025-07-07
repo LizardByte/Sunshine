@@ -9,13 +9,18 @@ extern "C" {
 #include <moonlight-common-c/src/Rtsp.h>
 }
 
+// standard includes
 #include <array>
 #include <cctype>
+#include <set>
+#include <unordered_map>
 #include <utility>
 
+// lib includes
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 
+// local includes
 #include "config.h"
 #include "globals.h"
 #include "input.h"
@@ -25,9 +30,6 @@ extern "C" {
 #include "stream.h"
 #include "sync.h"
 #include "video.h"
-
-#include <set>
-#include <unordered_map>
 
 namespace asio = boost::asio;
 
@@ -93,7 +95,9 @@ namespace rtsp_stream {
   class socket_t: public std::enable_shared_from_this<socket_t> {
   public:
     socket_t(boost::asio::io_context &io_context, std::function<void(tcp::socket &sock, launch_session_t &, msg_t &&)> &&handle_data_fn):
-        handle_data_fn { std::move(handle_data_fn) }, sock { io_context } {}
+        handle_data_fn { std::move(handle_data_fn) },
+        sock { io_context } {
+    }
 
     /**
      * @brief Queue an asynchronous read to begin the next message.
@@ -113,18 +117,14 @@ namespace rtsp_stream {
 
       if (session->rtsp_cipher) {
         // For encrypted RTSP, we will read the the entire header first
-        boost::asio::async_read(sock,
-          boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)),
-          boost::bind(
-            &socket_t::handle_read_encrypted_header, shared_from_this(),
-            boost::asio::placeholders::error,
-            boost::asio::placeholders::bytes_transferred));
+        boost::asio::async_read(sock, boost::asio::buffer(begin, sizeof(encrypted_rtsp_header_t)), boost::bind(&socket_t::handle_read_encrypted_header, shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
       }
       else {
         sock.async_read_some(
-          boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+          boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
           boost::bind(
-            &socket_t::handle_read_plaintext, shared_from_this(),
+            &socket_t::handle_read_plaintext,
+            shared_from_this(),
             boost::asio::placeholders::error,
             boost::asio::placeholders::bytes_transferred));
       }
@@ -177,12 +177,7 @@ namespace rtsp_stream {
       sock_close.disable();
 
       // Read the remainder of the header and full encrypted payload
-      boost::asio::async_read(socket->sock,
-        boost::asio::buffer(socket->begin + bytes, payload_length),
-        boost::bind(
-          &socket_t::handle_read_encrypted_message, socket->shared_from_this(),
-          boost::asio::placeholders::error,
-          boost::asio::placeholders::bytes_transferred));
+      boost::asio::async_read(socket->sock, boost::asio::buffer(socket->begin + bytes, payload_length), boost::bind(&socket_t::handle_read_encrypted_message, socket->shared_from_this(), boost::asio::placeholders::error, boost::asio::placeholders::bytes_transferred));
     }
 
     /**
@@ -268,9 +263,10 @@ namespace rtsp_stream {
       }
 
       sock.async_read_some(
-        boost::asio::buffer(begin, (std::size_t)(std::end(msg_buf) - begin)),
+        boost::asio::buffer(begin, (std::size_t) (std::end(msg_buf) - begin)),
         boost::bind(
-          &socket_t::handle_plaintext_payload, shared_from_this(),
+          &socket_t::handle_plaintext_payload,
+          shared_from_this(),
           boost::asio::placeholders::error,
           boost::asio::placeholders::bytes_transferred));
     }
@@ -302,7 +298,7 @@ namespace rtsp_stream {
 
       auto end = socket->begin + bytes;
       msg_t req { new msg_t::element_type {} };
-      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t)(end - socket->msg_buf.data()))) {
+      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t) (end - socket->msg_buf.data()))) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -323,7 +319,9 @@ namespace rtsp_stream {
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
           std::string_view content { option->content };
-          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) { return (bool) std::isdigit(ch); });
+          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
+            return (bool) std::isdigit(ch);
+          });
 
           content_length = util::from_chars(begin, std::end(content));
           break;
@@ -332,7 +330,7 @@ namespace rtsp_stream {
 
       if (end - socket->crlf >= content_length) {
         if (end - socket->crlf > content_length) {
-          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t)(end - socket->crlf) << " > "sv << content_length;
+          BOOST_LOG(warning) << "(end - socket->crlf) > content_length -- "sv << (std::size_t) (end - socket->crlf) << " > "sv << content_length;
         }
 
         fg.disable();
@@ -446,12 +444,6 @@ namespace rtsp_stream {
       return 0;
     }
 
-    template <class T, class X>
-    void
-    iterate(std::chrono::duration<T, X> timeout) {
-      io_context.run_one_for(timeout);
-    }
-
     void
     handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
       auto func = _map_cmd_cb.find(req->message.request.command);
@@ -515,15 +507,24 @@ namespace rtsp_stream {
      */
     void
     session_raise(std::shared_ptr<launch_session_t> launch_session) {
-      auto now = std::chrono::steady_clock::now();
-
       // If a launch event is still pending, don't overwrite it.
-      if (raised_timeout > now && launch_event.peek()) {
+      if (launch_event.view(0s)) {
         return;
       }
-      raised_timeout = now + config::stream.ping_timeout;
 
+      // Raise the new launch session to prepare for the RTSP handshake
       launch_event.raise(std::move(launch_session));
+
+      // Arm the timer to expire this launch session if the client times out
+      raised_timer.expires_after(config::stream.ping_timeout);
+      raised_timer.async_wait([this](const boost::system::error_code &ec) {
+        if (!ec) {
+          auto discarded = launch_event.pop(0s);
+          if (discarded) {
+            BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
+          }
+        }
+      });
     }
 
     /**
@@ -540,6 +541,7 @@ namespace rtsp_stream {
           BOOST_LOG(error) << "Attempted to clear unexpected session: "sv << launch_session_id << " vs "sv << launch_session->id;
         }
         else {
+          raised_timer.cancel();
           launch_event.pop();
         }
       }
@@ -566,14 +568,6 @@ namespace rtsp_stream {
      */
     void
     clear(bool all = true) {
-      // if a launch event timed out --> Remove it.
-      if (raised_timeout < std::chrono::steady_clock::now()) {
-        auto discarded = launch_event.pop(0s);
-        if (discarded) {
-          BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
-        }
-      }
-
       auto lg = _session_slots.lock();
 
       for (auto i = _session_slots->begin(); i != _session_slots->end();) {
@@ -611,15 +605,39 @@ namespace rtsp_stream {
       BOOST_LOG(info) << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
     }
 
+    /**
+     * @brief Runs an iteration of the RTSP server loop
+     */
+    void
+    iterate() {
+      // If we have a session, we will return to the server loop every
+      // 500ms to allow session cleanup to happen.
+      if (session_count() > 0) {
+        io_context.run_one_for(500ms);
+      }
+      else {
+        io_context.run_one();
+      }
+    }
+
+    /**
+     * @brief Stop the RTSP server.
+     */
+    void
+    stop() {
+      acceptor.close();
+      io_context.stop();
+      clear();
+    }
+
   private:
     std::unordered_map<std::string_view, cmd_func_t> _map_cmd_cb;
 
     sync_util::sync_t<std::set<std::shared_ptr<stream::session_t>>> _session_slots;
 
-    std::chrono::steady_clock::time_point raised_timeout;
-
     boost::asio::io_context io_context;
     tcp::acceptor acceptor { io_context };
+    boost::asio::steady_timer raised_timer { io_context };
 
     std::shared_ptr<socket_t> next_socket;
   };
@@ -935,7 +953,9 @@ namespace rtsp_stream {
         if (whitespace(*pos++)) {
           lines.emplace_back(begin, pos - begin - 1);
 
-          while (pos != std::end(payload) && whitespace(*pos)) { ++pos; }
+          while (pos != std::end(payload) && whitespace(*pos)) {
+            ++pos;
+          }
           begin = pos;
         }
       }
@@ -1136,9 +1156,8 @@ namespace rtsp_stream {
   }
 
   void
-  rtpThread() {
+  start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
     server.map("OPTIONS"sv, &cmd_option);
     server.map("DESCRIBE"sv, &cmd_describe);
@@ -1154,19 +1173,30 @@ namespace rtsp_stream {
       return;
     }
 
-    while (!shutdown_event->peek()) {
-      server.iterate(std::min(500ms, config::stream.ping_timeout));
+    std::thread rtsp_thread { [&shutdown_event] {
+      auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
-      if (broadcast_shutdown_event->peek()) {
-        server.clear();
-      }
-      else {
-        // cleanup all stopped sessions
-        server.clear(false);
-      }
-    }
+      while (!shutdown_event->peek()) {
+        server.iterate();
 
-    server.clear();
+        if (broadcast_shutdown_event->peek()) {
+          server.clear();
+        }
+        else {
+          // cleanup all stopped sessions
+          server.clear(false);
+        }
+      }
+
+      server.clear();
+    } };
+
+    // Wait for shutdown
+    shutdown_event->view();
+
+    // Stop the server and join the server thread
+    server.stop();
+    rtsp_thread.join();
   }
 
   void
