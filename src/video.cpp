@@ -1815,7 +1815,7 @@ namespace video {
     });
 
     // set minimum frame time based on client-requested target framerate
-    std::chrono::duration<double, std::milli> minimum_frame_time {1000.0 / config.framerate};
+    std::chrono::duration<double, std::milli> minimum_frame_time {2000.0 / config.framerate};
     BOOST_LOG(info) << "Minimum frame time set to "sv << minimum_frame_time.count() << "ms, based on client-requested target framerate "sv << config.framerate << "."sv;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);

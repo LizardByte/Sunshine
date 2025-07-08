@@ -272,7 +272,7 @@
     "origin_web_ui_allowed_pc": "只有本地主机才能访问Web UI",
     "origin_web_ui_allowed_wan": "任何人都可以访问 Web UI",
     "output_name_desc_unix": "在 Sunshine 启动过程中，您将看到检测到的显示器列表。注意：您需要使用括号内的 ID 值。",
-    "output_name_desc_windows": "手动指定用于捕获的显示设备ID 【display device id】。如果未设置，则捕获主显示器。 注意：如果您在上面指定了GPU，则此显示设备必须连接到该GPU。在Sunshine启动时，您可在日志中查看已检测到的显示器列表。下方为示例，实际输出可在故障排查选项卡中找到。",
+    "output_name_desc_windows": "指定用于捕获的显示器。如果未设置，则捕获主显示器。 注意：如果您在上面指定了GPU，则此显示必须连接到该GPU。",
     "output_name_unix": "显示器编号",
     "output_name_windows": "输出显示器指定",
     "ping_timeout": "Ping 超时",
