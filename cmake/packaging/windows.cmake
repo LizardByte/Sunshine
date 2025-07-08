@@ -35,15 +35,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/vdd/"
         DESTINATION "scripts"
         COMPONENT vdd)
 
-# Check if helper directory exists
-if(EXISTS "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper")
-    # Install helper directory without trailing slash to avoid Windows path issues
-    install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper"
-            DESTINATION "tools"
-            COMPONENT supercmd)
-else()
-    message(WARNING "helper directory not found at ${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper")
-endif()
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/helper/"
+        DESTINATION "tools"
+        COMPONENT assets)
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
