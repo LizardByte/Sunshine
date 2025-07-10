@@ -71,3 +71,38 @@ INSTANTIATE_TEST_SUITE_P(
     std::make_tuple(URL_2, "hello-redirect.txt")
   )
 );
+
+// Tests for cookie escaping and unescaping
+struct CookieEscapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+
+TEST_P(CookieEscapeTest, Escape) {
+  const auto &[input, expected] = GetParam();
+  ASSERT_EQ(http::cookie_escape(input), expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  CookieEscapeTests,
+  CookieEscapeTest,
+  testing::Values(
+    std::make_tuple("simpleToken123", "simpleToken123"),
+    std::make_tuple("token with spaces", "token%20with%20spaces"),
+    std::make_tuple("symbols&=%\"", "symbols%26%3D%25%22")
+  )
+);
+
+struct CookieUnescapeTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
+
+TEST_P(CookieUnescapeTest, Unescape) {
+  const auto &[expected, input] = GetParam();
+  ASSERT_EQ(http::cookie_unescape(input), expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  CookieUnescapeTests,
+  CookieUnescapeTest,
+  testing::Values(
+    std::make_tuple("simpleToken123", "simpleToken123"),
+    std::make_tuple("token with spaces", "token%20with%20spaces"),
+    std::make_tuple("symbols&=%\"", "symbols%26%3D%25%22")
+  )
+);
