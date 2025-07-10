@@ -201,6 +201,7 @@ namespace config {
 
     bool high_resolution_scrolling;
     bool native_pen_touch;
+    int output_rotation;
   };
 
   namespace flag {
