@@ -400,6 +400,7 @@ public:
     int init(const ::video::config_t &config, const std::string &display_name);
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
     void lazy_init();
+    int dummy_img(platf::img_t *img_base) override;
 
 protected:
     capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) override;
