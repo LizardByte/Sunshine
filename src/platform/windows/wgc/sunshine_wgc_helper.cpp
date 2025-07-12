@@ -87,6 +87,17 @@ struct SharedHandleData {
 };
 
 
+// Structure for config data received from main process
+struct ConfigData {
+    int framerate;
+    int dynamicRange;
+    wchar_t displayName[32]; // Display device name (e.g., "\\.\\DISPLAY1")
+};
+
+// Global config data received from main process
+ConfigData g_config = {0, 0, L""};
+bool g_config_received = false;
+
 #include <fstream>
 
 int main()
@@ -108,9 +119,15 @@ int main()
     // Create named pipe for communication with main process
     AsyncNamedPipe communicationPipe(L"\\\\.\\pipe\\SunshineWGCHelper", true);
     
+
     auto onMessage = [&](const std::vector<uint8_t>& message) {
         std::wcout << L"[WGC Helper] Received message from main process, size: " << message.size() << std::endl;
-        // Handle any commands from main process if needed
+        // Handle config data message
+        if (message.size() == sizeof(ConfigData) && !g_config_received) {
+            memcpy(&g_config, message.data(), sizeof(ConfigData));
+            g_config_received = true;
+            std::wcout << L"[WGC Helper] Received config data: fps: " << g_config.framerate << L", hdr: " << g_config.dynamicRange << L", display: '" << g_config.displayName << L"'" << std::endl;
+        }
     };
     
     auto onError = [&](const std::string& error) {
@@ -154,17 +171,44 @@ int main()
     }
     auto winrtDevice = interopDevice.as<IDirect3DDevice>();
 
-    // Get primary monitor
-    HMONITOR monitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+
+    // Select monitor by display name if provided, else use primary
+    HMONITOR monitor = nullptr;
+    MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
+    if (g_config_received && g_config.displayName[0] != L'\0') {
+        // Enumerate monitors to find one matching displayName
+        struct EnumData {
+            const wchar_t* targetName;
+            HMONITOR foundMonitor;
+        } enumData = { g_config.displayName, nullptr };
+        auto enumProc = [](HMONITOR hMon, HDC, LPRECT, LPARAM lParam) -> BOOL {
+            EnumData* data = reinterpret_cast<EnumData*>(lParam);
+            MONITORINFOEXW info = { sizeof(MONITORINFOEXW) };
+            if (GetMonitorInfoW(hMon, &info)) {
+                if (wcsncmp(info.szDevice, data->targetName, 32) == 0) {
+                    data->foundMonitor = hMon;
+                    return FALSE; // Stop enumeration
+                }
+            }
+            return TRUE;
+        };
+        EnumDisplayMonitors(nullptr, nullptr, enumProc, reinterpret_cast<LPARAM>(&enumData));
+        monitor = enumData.foundMonitor;
+        if (!monitor) {
+            std::wcerr << L"[WGC Helper] Could not find monitor with name '" << g_config.displayName << L"', falling back to primary." << std::endl;
+        }
+    }
     if (!monitor) {
-        std::wcerr << L"[WGC Helper] Failed to get primary monitor" << std::endl;
-        device->Release();
-        context->Release();
-        return 1;
+        monitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+        if (!monitor) {
+            std::wcerr << L"[WGC Helper] Failed to get primary monitor" << std::endl;
+            device->Release();
+            context->Release();
+            return 1;
+        }
     }
 
     // Get monitor info for size
-    MONITORINFO monitorInfo = { sizeof(MONITORINFO) };
     if (!GetMonitorInfo(monitor, &monitorInfo)) {
         std::wcerr << L"[WGC Helper] Failed to get monitor info" << std::endl;
         device->Release();
@@ -173,6 +217,20 @@ int main()
     }
     UINT width = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
     UINT height = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
+
+    // Check if config data was received, but don't block too long
+    std::wcout << L"[WGC Helper] Checking for config data from main process..." << std::endl;
+    int config_wait_count = 0;
+    while (!g_config_received && config_wait_count < 10) {  // 1 second max
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        config_wait_count++;
+    }
+
+    if (g_config_received) {
+        std::wcout << L"[WGC Helper] Config received: fps: " << g_config.framerate << L", HDR: " << g_config.dynamicRange << std::endl;
+    } else {
+        std::wcout << L"[WGC Helper] No config data received within timeout." << std::endl;
+    }
 
     // Create GraphicsCaptureItem for monitor using interop
     auto activationFactory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
@@ -185,13 +243,19 @@ int main()
         return 1;
     }
 
+    // Choose format based on config.dynamicRange
+    DXGI_FORMAT captureFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
+    if (g_config_received && g_config.dynamicRange) {
+        captureFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    }
+
     // Create shared texture with keyed mutex
     D3D11_TEXTURE2D_DESC texDesc = {};
     texDesc.Width = width;
     texDesc.Height = height;
     texDesc.MipLevels = 1;
     texDesc.ArraySize = 1;
-    texDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    texDesc.Format = captureFormat;
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
     texDesc.BindFlags = 0;
@@ -263,12 +327,18 @@ int main()
     }
 
     // Create frame pool
-    auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(winrtDevice, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, SizeInt32{static_cast<int32_t>(width), static_cast<int32_t>(height)});
+    auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+        winrtDevice,
+        (captureFormat == DXGI_FORMAT_R16G16B16A16_FLOAT)
+            ? DirectXPixelFormat::R16G16B16A16Float
+            : DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        2,
+        SizeInt32{static_cast<int32_t>(width), static_cast<int32_t>(height)});
 
     // Attach frame arrived event
     auto token = framePool.FrameArrived([&](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &)
                                         {
-        std::wcout << L"[WGC Helper] Frame arrived" << std::endl;
+        
         auto frame = sender.TryGetNextFrame();
         if (frame) {
             auto surface = frame.Surface();
@@ -291,7 +361,6 @@ int main()
                             context->CopyResource(sharedTexture, frameTexture.get());
                             keyedMutex->ReleaseSync(1);
                             SetEvent(frameEvent);
-                            std::wcout << L"[WGC Helper] Frame copied and event set" << std::endl;
                         }
                     }
                 }
@@ -311,7 +380,7 @@ int main()
     // Keep running until main process disconnects
     while (communicationPipe.isConnected())
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(3));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     std::wcout << L"[WGC Helper] Main process disconnected, shutting down..." << std::endl;

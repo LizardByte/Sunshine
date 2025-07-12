@@ -415,5 +415,7 @@ protected:
     HANDLE _frame_event = nullptr;
     UINT _width = 0;
     UINT _height = 0;
+    ::video::config_t _config;
+    std::string _display_name;
 };
 }  // namespace platf::dxgi
