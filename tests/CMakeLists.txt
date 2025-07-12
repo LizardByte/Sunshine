@@ -50,7 +50,8 @@ list(REMOVE_ITEM SUNSHINE_SOURCES ${CMAKE_SOURCE_DIR}/src/main.cpp)
 
 add_executable(${PROJECT_NAME}
         ${TEST_SOURCES}
-        ${SUNSHINE_SOURCES})
+        ${SUNSHINE_SOURCES}
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/process_handler.cpp)
 
 foreach(dep ${SUNSHINE_TARGET_DEPENDENCIES})
     add_dependencies(${PROJECT_NAME} ${dep})  # compile these before sunshine

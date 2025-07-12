@@ -68,8 +68,7 @@ auto deadlock_protection = [](auto&& fn) {
 
 TEST(AsyncNamedPipe, ServerClientConnectsAndSendsMessage) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeA";
-        pipeName = L"\\.\\pipe\\testpipeA";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeA";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe server(pipeName, true);
         AsyncNamedPipe client(pipeName, false);
@@ -101,8 +100,7 @@ TEST(AsyncNamedPipe, ServerClientConnectsAndSendsMessage) {
 
 TEST(AsyncNamedPipe, DoubleStartStop) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeB";
-        pipeName = L"\\.\\pipe\\testpipeB";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeB";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe pipe(pipeName, true);
         CallbackFlags flags;
@@ -136,8 +134,7 @@ TEST(AsyncNamedPipe, ServerPipeCreationFailure) {
 
 TEST(AsyncNamedPipe, ClientConnectRetryFailure) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeC";
-        pipeName = L"\\.\\pipe\\testpipeC";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeC";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe pipe(pipeName, false);
         CallbackFlags flags;
@@ -154,8 +151,7 @@ TEST(AsyncNamedPipe, ClientConnectRetryFailure) {
 
 TEST(AsyncNamedPipe, SendReceiveRoundtrip) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeD";
-        pipeName = L"\\.\\pipe\\testpipeD";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeD";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe server(pipeName, true);
         AsyncNamedPipe client(pipeName, false);
@@ -186,8 +182,7 @@ TEST(AsyncNamedPipe, SendReceiveRoundtrip) {
 
 TEST(AsyncNamedPipe, SendFailsIfNotConnected) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeE";
-        pipeName = L"\\.\\pipe\\testpipeE";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeE";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe pipe(pipeName, true);
         // Not started, not connected
@@ -198,8 +193,7 @@ TEST(AsyncNamedPipe, SendFailsIfNotConnected) {
 
 TEST(AsyncNamedPipe, ErrorCallbackOnPipeError) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeF";
-        pipeName = L"\\.\\pipe\\testpipeF";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeF";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe server(pipeName, true);
         CallbackFlags flags;
@@ -214,8 +208,7 @@ TEST(AsyncNamedPipe, ErrorCallbackOnPipeError) {
 
 TEST(AsyncNamedPipe, BufferSizeLimit) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeG";
-        pipeName = L"\\.\\pipe\\testpipeG";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeG";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe server(pipeName, true);
         CallbackFlags flags;
@@ -248,14 +241,20 @@ TEST(AsyncNamedPipe, BufferSizeLimit) {
 
 TEST(AsyncNamedPipe, CallbackExceptionSafety) {
     deadlock_protection([&] {
-        std::wstring pipeName = L"\\.\\pipe\\sunshineTestPipeH";
-        pipeName = L"\\.\\pipe\\testpipeH";
+        std::wstring pipeName = L"\\\\.\\pipe\\testpipeH";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
         AsyncNamedPipe pipe(pipeName, true);
         pipe.start(
-            [&](const std::vector<uint8_t>&){ throw std::runtime_error("fail"); },
-            [&](const std::string&){ throw std::runtime_error("fail"); }
+            [&](const std::vector<uint8_t>&){ 
+                std::wcout << L"[TEST] Message callback called, throwing exception" << std::endl;
+                throw std::runtime_error("fail"); 
+            },
+            [&](const std::string&){ 
+                std::wcout << L"[TEST] Error callback called, throwing exception" << std::endl;
+                throw std::runtime_error("fail"); 
+            }
         );
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
         pipe.stop();
     });
 }
