@@ -123,6 +123,7 @@ endif()
 # wayland
 if(${SUNSHINE_ENABLE_WAYLAND})
     find_package(Wayland REQUIRED)
+    find_package(LIBDRM REQUIRED)
 else()
     set(WAYLAND_FOUND OFF)
 endif()
@@ -143,10 +144,11 @@ if(WAYLAND_FOUND)
     include_directories(
             SYSTEM
             ${WAYLAND_INCLUDE_DIRS}
+            ${LIBDRM_INCLUDE_DIRS}
             ${CMAKE_BINARY_DIR}/generated-src
     )
 
-    list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES} gbm)
+    list(APPEND PLATFORM_LIBRARIES ${WAYLAND_LIBRARIES} ${LIBDRM_LIBRARIES} gbm)
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/wlgrab.cpp"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland.h"
