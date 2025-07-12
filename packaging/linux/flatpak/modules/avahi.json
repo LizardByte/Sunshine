@@ -32,15 +32,12 @@
   "sources": [
     {
       "type": "git",
-      "url": "https://salsa.debian.org/utopia-team/avahi.git",
-      "commit": "1412c015d348166d58ea9c192239b00769eae24e",
-      "tag": "debian/0.8-13",
+      "url": "https://github.com/avahi/avahi.git",
+      "commit": "f060abee2807c943821d88839c013ce15db17b58",
+      "tag": "v0.8",
       "x-checker-data": {
         "type": "git",
-        "tag-pattern": "^debian\\/(\\d.+)$",
-        "versions": {
-          "<": "0.9"
-        }
+        "tag-pattern": "^v([\\d.]+)$"
       }
     },
     {

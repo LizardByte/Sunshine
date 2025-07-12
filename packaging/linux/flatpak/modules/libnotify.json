@@ -11,15 +11,12 @@
   "sources": [
     {
       "type": "git",
-      "url": "https://salsa.debian.org/gnome-team/libnotify.git",
-      "commit": "ccf2f62ef0a4b264dd4eff32cab70a3e213ceb1a",
-      "tag": "debian/0.8.1-1",
+      "url": "https://github.com/LizardByte-infrastructure/libnotify.git",
+      "commit": "131aad01ff5f563b4863becbb6ed84dac6e75d5a",
+      "tag": "0.8.6",
       "x-checker-data": {
         "type": "git",
-        "tag-pattern": "^debian\\/(\\d.+)$",
-        "versions": {
-          "<": "0.8.2"
-        }
+        "tag-pattern": "^([\\d.]+)$"
       }
     }
   ]
