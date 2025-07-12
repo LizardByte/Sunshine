@@ -86,9 +86,22 @@ struct SharedHandleData {
     UINT height;
 };
 
+
+#include <fstream>
+
 int main()
 {
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
+
+    // Redirect wcout and wcerr to a file
+    std::wofstream logFile(L"sunshine_wgc_helper.log", std::ios::out | std::ios::trunc);
+    if (logFile.is_open()) {
+        std::wcout.rdbuf(logFile.rdbuf());
+        std::wcerr.rdbuf(logFile.rdbuf());
+    } else {
+        // If log file can't be opened, print error to default wcerr
+        std::wcerr << L"[WGC Helper] Failed to open log file for output!" << std::endl;
+    }
 
     std::wcout << L"[WGC Helper] Starting Windows Graphics Capture helper process..." << std::endl;
 
@@ -298,7 +311,7 @@ int main()
     // Keep running until main process disconnects
     while (communicationPipe.isConnected())
     {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::milliseconds(3));
     }
 
     std::wcout << L"[WGC Helper] Main process disconnected, shutting down..." << std::endl;
@@ -313,5 +326,6 @@ int main()
     sharedTexture->Release();
     context->Release();
     device->Release();
+    // logFile will be closed automatically when it goes out of scope
     return 0;
 }

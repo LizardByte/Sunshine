@@ -1000,7 +1000,7 @@ namespace platf {
    */
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type == mem_type_e::dxgi) {
-      auto disp = std::make_shared<dxgi::display_ddup_vram_decorator_t>();
+      auto disp = std::make_shared<dxgi::display_ipc_wgc_t>();
 
       if (!disp->init(config, display_name)) {
         return disp;

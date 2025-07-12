@@ -5,7 +5,6 @@
 #include <future>
 #include <iostream>
 #include <d3d11.h>
-#include "src/platform/windows/wgc/display_ipc_wgc_t.cpp"
 #include "src/platform/windows/display_vram.h"
 
 using namespace platf::dxgi;
@@ -69,7 +68,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
         std::string display_name = "";
 
         // Temporarily rename or remove the helper exe to simulate failure
-        std::filesystem::path exe_path = std::filesystem::current_path() / "tools" / "sunshine-wgc-helper.exe";
+        std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
         std::filesystem::path fake_path = exe_path;
         fake_path += ".bak";
         if (std::filesystem::exists(exe_path)) {
@@ -101,7 +100,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, PipeTimeout) {
         std::string display_name = "";
 
         // Simulate pipe timeout by running without the helper process (rename helper exe)
-        std::filesystem::path exe_path = std::filesystem::current_path() / "tools" / "sunshine-wgc-helper.exe";
+        std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
         std::filesystem::path fake_path = exe_path;
         fake_path += ".bak";
         if (std::filesystem::exists(exe_path)) {
@@ -157,7 +156,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameAcquisitionTimeout) {
         EXPECT_EQ(result, 0);
 
         // Simulate no frame event by not running the helper process
-        std::filesystem::path exe_path = std::filesystem::current_path() / "tools" / "sunshine-wgc-helper.exe";
+        std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
         std::filesystem::path fake_path = exe_path;
         fake_path += ".bak";
         if (std::filesystem::exists(exe_path)) {
@@ -205,7 +204,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, RepeatedSnapshotCalls) {
 TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupAfterError) {
     deadlock_protection([&] {
         // Simulate helper process failure
-        std::filesystem::path exe_path = std::filesystem::current_path() / "tools" / "sunshine-wgc-helper.exe";
+        std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
         std::filesystem::path fake_path = exe_path;
         fake_path += ".bak";
         if (std::filesystem::exists(exe_path)) {
@@ -275,7 +274,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNoSharedTexture) {
         int result = display.init(config, display_name);
         EXPECT_EQ(result, 0);
         // Simulate helper process failure so no shared texture is set up
-        std::filesystem::path exe_path = std::filesystem::current_path() / "tools" / "sunshine-wgc-helper.exe";
+        std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
         std::filesystem::path fake_path = exe_path;
         fake_path += ".bak";
         if (std::filesystem::exists(exe_path)) {

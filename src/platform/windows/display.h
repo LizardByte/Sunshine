@@ -18,6 +18,8 @@
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include "src/video.h"
+#include "src/platform/windows/wgc/process_handler.h"
+#include "src/platform/windows/wgc/shared_memory.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -388,4 +390,30 @@ namespace platf::dxgi {
     // Virtual method to acquire the next frame - can be overridden by derived classes
     virtual capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
   };
+
+
+  class display_ipc_wgc_t : public display_wgc_vram_t {
+public:
+    display_ipc_wgc_t();
+    ~display_ipc_wgc_t() override;
+
+    int init(const ::video::config_t &config, const std::string &display_name);
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    void lazy_init();
+
+protected:
+    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) override;
+    capture_e release_snapshot() override;
+    void cleanup();
+    bool setup_shared_texture(HANDLE shared_handle, UINT width, UINT height);
+
+    std::unique_ptr<ProcessHandler> _process_helper;
+    std::unique_ptr<AsyncNamedPipe> _pipe;
+    bool _initialized = false;
+    texture2d_t _shared_texture;
+    IDXGIKeyedMutex* _keyed_mutex = nullptr;
+    HANDLE _frame_event = nullptr;
+    UINT _width = 0;
+    UINT _height = 0;
+};
 }  // namespace platf::dxgi
