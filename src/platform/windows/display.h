@@ -419,4 +419,24 @@ protected:
     ::video::config_t _config;
     std::string _display_name;
 };
+
+/**
+ * Display backend that uses DXGI duplication for secure desktop scenarios.
+ * This display can detect when secure desktop is no longer active and swap back to WGC.
+ */
+class display_secure_desktop_dxgi_t : public display_ddup_vram_t {
+private:
+    std::chrono::steady_clock::time_point _last_check_time;
+    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
+    
+public:
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+private:
+    bool is_secure_desktop_active();
+};
+
+// Helper functions for secure desktop swap management
+bool is_secure_desktop_swap_requested();
+void reset_secure_desktop_swap_flag();
+
 }  // namespace platf::dxgi
