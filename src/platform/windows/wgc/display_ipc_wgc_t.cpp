@@ -93,14 +93,13 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[display_ipc_wgc_t] Cannot lazy_init without proper initialization";
       return;
     }
-    // Start the helper process
-    std::filesystem::path exe_path = std::filesystem::current_path() / "build" / "tools" / "sunshine-wgc-helper.exe";
-    // Fallback to tools directory for different working directory scenarios
-    if (!std::filesystem::exists(exe_path)) {
-      exe_path = std::filesystem::path("D:/sources/sunshine/build/tools") / "sunshine-wgc-helper.exe";
-    }
+    // Get the directory of the main executable
+    wchar_t exePathBuffer[MAX_PATH] = {0};
+    GetModuleFileNameW(nullptr, exePathBuffer, MAX_PATH);
+    std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
+    std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to start helper process at: " << exe_path.wstring();
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to start capture process at: " << exe_path.wstring();
       return;
     }
     BOOST_LOG(info) << "[display_ipc_wgc_t] Started helper process: " << exe_path.wstring();
