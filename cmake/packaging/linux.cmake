@@ -136,26 +136,13 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
 endif()
 
 # desktop file
-# todo - validate desktop files with `desktop-file-validate`
-if(NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
-else()
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
-            RENAME "${PROJECT_FQDN}.desktop")
-endif()
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.desktop"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 if(NOT ${SUNSHINE_BUILD_APPIMAGE} AND NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.terminal.desktop"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 endif()
 
 # metadata file
-# todo - validate file with `appstream-util validate-relax`
-if(NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.appdata.xml"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
-else()
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
-endif()
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")

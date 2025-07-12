@@ -8,14 +8,15 @@
     "serve": "serve ./tests/fixtures/http --no-port-switching"
   },
   "dependencies": {
-    "@lizardbyte/shared-web": "2025.321.1458",
-    "vue": "3.5.13",
-    "vue-i18n": "11.1.2"
+    "@lizardbyte/shared-web": "2025.626.181239",
+    "vue": "3.5.17",
+    "vue-i18n": "11.1.9"
   },
   "devDependencies": {
+    "@codecov/vite-plugin": "1.9.1",
     "@vitejs/plugin-vue": "4.6.2",
-    "serve": "14.2.3",
-    "vite": "4.5.9",
+    "serve": "14.2.4",
+    "vite": "4.5.14",
     "vite-plugin-ejs": "1.6.4"
   }
 }

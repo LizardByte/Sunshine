@@ -9,7 +9,7 @@ function generateExamples(endpoint, method, body = null) {
   }
 
   return {
-    cURL: `curl -u user:pass -X ${method.trim()} -k https://localhost:47990${endpoint.trim()}${curlBodyString}`,
+    cURL: `curl -u user:pass -H "Content-Type: application/json" -X ${method.trim()} -k https://localhost:47990${endpoint.trim()}${curlBodyString}`,
     Python: `import json
 import requests
 from requests.auth import HTTPBasicAuth
@@ -30,6 +30,7 @@ requests.${method.trim().toLowerCase()}(
 .then(data => console.log(data));`,
     PowerShell: `Invoke-RestMethod \`
   -SkipCertificateCheck \`
+  -ContentType 'application/json' \`
   -Uri 'https://localhost:47990${endpoint.trim()}' \`
   -Method ${method.trim()} \`
   -Headers @{Authorization = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('user:pass'))}

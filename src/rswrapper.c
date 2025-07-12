@@ -39,7 +39,7 @@
 #define gemm DECORATE_FUNC(gemm, ISA_SUFFIX)
 #define invert_mat DECORATE_FUNC(invert_mat, ISA_SUFFIX)
 
-#if defined(__x86_64__) || defined(__i386__)
+#if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
 
   // Compile a variant for SSSE3
   #if defined(__clang__)
@@ -122,7 +122,7 @@ reed_solomon_decode_t reed_solomon_decode_fn;
  * @details The streaming code will directly invoke these function pointers during encoding.
  */
 void reed_solomon_init(void) {
-#if defined(__x86_64__) || defined(__i386__)
+#if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
   if (__builtin_cpu_supports("avx512f") && __builtin_cpu_supports("avx512bw")) {
     reed_solomon_new_fn = reed_solomon_new_avx512;
     reed_solomon_release_fn = reed_solomon_release_avx512;

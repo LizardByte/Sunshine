@@ -42,7 +42,6 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
-  #include "version.h"
 
 using namespace std::literals;
 

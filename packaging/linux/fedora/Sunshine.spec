@@ -15,10 +15,11 @@ License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
 
+BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: cmake >= 3.25.0
-BuildRequires: gcc
-BuildRequires: gcc-c++
+BuildRequires: desktop-file-utils
+BuildRequires: libappstream-glib
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
@@ -37,6 +38,7 @@ BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: git
 BuildRequires: mesa-libGL-devel
+BuildRequires: mesa-libgbm-devel
 BuildRequires: miniupnpc-devel
 BuildRequires: npm
 BuildRequires: numactl-devel
@@ -54,10 +56,21 @@ BuildRequires: which
 BuildRequires: xorg-x11-server-Xvfb
 
 # Conditional BuildRequires for cuda-gcc based on Fedora version
-%if 0%{?fedora} >= 40
-# this package conflicts with gcc on f39
-BuildRequires: cuda-gcc-c++
+%if 0%{?fedora} >= 40 && 0%{?fedora} <= 41
+BuildRequires: gcc13
+BuildRequires: gcc13-c++
+%global gcc_version 13
+%global cuda_version 12.6.3
+%global cuda_build 560.35.05
+%elif %{?fedora} >= 42
+BuildRequires: gcc14
+BuildRequires: gcc14-c++
+%global gcc_version 14
+%global cuda_version 12.8.1
+%global cuda_build 570.124.06
 %endif
+
+%global cuda_dir %{_builddir}/cuda
 
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
@@ -88,19 +101,13 @@ ls -a %{_builddir}/Sunshine
 %autopatch -p1
 
 %build
+# exit on error
+set -e
+
 # Detect the architecture and Fedora version
 architecture=$(uname -m)
-fedora_version=%{fedora}
 
 cuda_supported_architectures=("x86_64" "aarch64")
-
-# set cuda_version based on Fedora version
-case "$fedora_version" in
-  *)
-    cuda_version="12.6.3"
-    cuda_build="560.35.05"
-    ;;
-esac
 
 # prepare CMAKE args
 cmake_args=(
@@ -121,18 +128,14 @@ cmake_args=(
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
 )
 
+export CC=gcc-%{gcc_version}
+export CXX=g++-%{gcc_version}
+
 function install_cuda() {
   # check if we need to install cuda
-  if [ -f "%{_builddir}/cuda/bin/nvcc" ]; then
+  if [ -f "%{cuda_dir}/bin/nvcc" ]; then
     echo "cuda already installed"
     return
-  fi
-
-  if [ "$fedora_version" -ge 40 ]; then
-    # update environment variables for CUDA, necessary when using cuda-gcc-c++
-    export NVCC_PREPEND_FLAGS='-ccbin /usr/bin/g++-13'
-    export PATH=/usr/bin/cuda:"%{_builddir}/cuda/bin:${PATH}"
-    export LD_LIBRARY_PATH="%{_builddir}/cuda/lib64:${LD_LIBRARY_PATH}"
   fi
 
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
@@ -141,7 +144,7 @@ function install_cuda() {
     local cuda_suffix="_sbsa"
   fi
 
-  local url="${cuda_prefix}${cuda_version}/local_installers/cuda_${cuda_version}_${cuda_build}_linux${cuda_suffix}.run"
+  local url="${cuda_prefix}%{cuda_version}/local_installers/cuda_%{cuda_version}_%{cuda_build}_linux${cuda_suffix}.run"
   echo "cuda url: ${url}"
   wget \
     "$url" \
@@ -157,23 +160,31 @@ function install_cuda() {
     --override \
     --silent \
     --toolkit \
-    --toolkitpath="%{_builddir}/cuda"
+    --toolkitpath="%{cuda_dir}"
   rm "%{_builddir}/cuda.run"
+
+  # we need to patch math_functions.h on fedora 42
+  # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
+  if [ "%{?fedora}" -eq 42 ]; then
+    echo "Original math_functions.h:"
+    find "%{cuda_dir}" -name math_functions.h -exec cat {} \;
+
+    # Apply the patch
+    patch -p2 \
+      --backup \
+      --directory="%{cuda_dir}" \
+      --verbose \
+      < "%{_builddir}/Sunshine/packaging/linux/fedora/patches/f42/${architecture}/01-math_functions.patch"
+  fi
 }
 
-# we need to clear these flags to avoid linkage errors with cuda-gcc-c++
-export CFLAGS=""
-export CXXFLAGS=""
-export FFLAGS=""
-export FCFLAGS=""
-export LDFLAGS=""
-export CC=gcc-13
-export CXX=g++-13
-
-if [ -n "$cuda_version" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
+if [ -n "%{cuda_version}" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
   install_cuda
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-  cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{_builddir}/cuda/bin/nvcc")
+  cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{cuda_dir}/bin/nvcc")
+  cmake_args+=("-DCMAKE_CUDA_HOST_COMPILER=gcc-%{gcc_version}")
+else
+  cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
 fi
 
 # setup the version
@@ -189,6 +200,11 @@ cmake "${cmake_args[@]}"
 make -j$(nproc) -C "%{_builddir}/Sunshine/build"
 
 %check
+# validate the metainfo file
+appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
+
 # run tests
 cd %{_builddir}/Sunshine/build
 xvfb-run ./tests/test_sunshine
@@ -244,14 +260,14 @@ rm -f /usr/lib/modules-load.d/uhid.conf
 %{_modulesloaddir}/uhid.conf
 
 # Desktop entries
-%{_datadir}/applications/sunshine*.desktop
+%{_datadir}/applications/*.desktop
 
 # Icons
 %{_datadir}/icons/hicolor/scalable/apps/sunshine.svg
 %{_datadir}/icons/hicolor/scalable/status/sunshine*.svg
 
 # Metainfo
-%{_datadir}/metainfo/sunshine.appdata.xml
+%{_datadir}/metainfo/*.metainfo.xml
 
 # Assets
 %{_datadir}/sunshine/**

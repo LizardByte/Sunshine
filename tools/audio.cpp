@@ -3,8 +3,8 @@
  * @brief Handles collecting audio device information from Windows.
  */
 #define INITGUID
-#include "src/utility.h"
 
+// platform includes
 #include <audioclient.h>
 #include <codecvt>
 #include <iostream>
@@ -12,6 +12,12 @@
 #include <mmdeviceapi.h>
 #include <roapi.h>
 #include <synchapi.h>
+
+// lib includes
+#include <boost/locale.hpp>
+
+// local includes
+#include "src/utility.h"
 
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
@@ -43,8 +49,6 @@ namespace audio {
   using wstring_t = util::safe_ptr<WCHAR, co_task_free<WCHAR>>;
 
   using handle_t = util::safe_ptr_v2<void, BOOL, CloseHandle>;
-
-  static std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>, wchar_t> converter;
 
   class prop_var_t {
   public:
@@ -204,7 +208,7 @@ namespace audio {
       // so we can take the first match as the current format to display.
       auto audio_client = make_audio_client(device, format);
       if (audio_client) {
-        current_format = converter.from_bytes(format.name.data());
+        current_format = boost::locale::conv::utf_to_utf<wchar_t>(format.name.data());
         break;
       }
     }

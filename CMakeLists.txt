@@ -27,6 +27,9 @@ endif()
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 
+# export compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # set version info for this build
 include(${CMAKE_MODULE_PATH}/prep/build_version.cmake)
 

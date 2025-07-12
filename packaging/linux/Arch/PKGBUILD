@@ -10,7 +10,7 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL-3.0-only')
 install=sunshine.install
 
-_gcc_version=13
+_gcc_version=14
 
 depends=(
   'avahi'
@@ -36,7 +36,10 @@ depends=(
 )
 
 makedepends=(
+  'appstream'
+  'appstream-glib'
   'cmake'
+  'desktop-file-utils'
   'cuda'
   "gcc${_gcc_version}"
   'git'
@@ -64,7 +67,7 @@ prepare() {
 
 build() {
     export BRANCH="@GITHUB_BRANCH@"
-    export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
+    export BUILD_VERSION="@BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"
 
     export CC="gcc-${_gcc_version}"
@@ -85,6 +88,11 @@ build() {
         -D SUNSHINE_PUBLISHER_NAME='LizardByte' \
         -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
         -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+
+    appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+    appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
+    desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
+    desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
 
     make -C build
 }
