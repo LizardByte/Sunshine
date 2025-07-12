@@ -64,7 +64,7 @@ namespace platf::dxgi {
     }
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      std::wcerr << L"[display_ipc_wgc_t] Cannot lazy_init without proper initialization" << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Cannot lazy_init without proper initialization";
       return;
     }
     // Start the helper process
@@ -74,28 +74,28 @@ namespace platf::dxgi {
       exe_path = std::filesystem::path("D:/sources/sunshine/build/tools") / "sunshine-wgc-helper.exe";
     }
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      std::wcerr << L"[display_ipc_wgc_t] Failed to start helper process at: " << exe_path.wstring() << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to start helper process at: " << exe_path.wstring();
       return;
     }
-    std::wcout << L"[display_ipc_wgc_t] Started helper process: " << exe_path.wstring() << std::endl;
+    BOOST_LOG(info) << "[display_ipc_wgc_t] Started helper process: " << exe_path.wstring();
     // Create and start the named pipe (client mode)
     _pipe = std::make_unique<AsyncNamedPipe>(L"\\\\.\\pipe\\SunshineWGCHelper", false);
     bool handle_received = false;
     auto onMessage = [this, &handle_received](const std::vector<uint8_t> &msg) {
-      std::wcout << L"[display_ipc_wgc_t] Received message, size: " << msg.size() << std::endl;
+      BOOST_LOG(info) << "[display_ipc_wgc_t] Received message, size: " << msg.size();
       if (msg.size() == sizeof(SharedHandleData)) {
         SharedHandleData handleData;
         memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
-        std::wcout << L"[display_ipc_wgc_t] Received handle data: " << std::hex
+        BOOST_LOG(info) << "[display_ipc_wgc_t] Received handle data: " << std::hex
                    << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
-                   << L", " << handleData.width << L"x" << handleData.height << std::endl;
+                   << ", " << handleData.width << "x" << handleData.height;
         if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
           handle_received = true;
         }
       }
     };
     auto onError = [](const std::string &err) {
-      std::wcout << L"[display_ipc_wgc_t] Pipe error: " << err.c_str() << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Pipe error: " << err.c_str();
     };
     _pipe->start(onMessage, onError);
     
@@ -115,12 +115,15 @@ namespace platf::dxgi {
     }
     std::vector<uint8_t> configMessage(sizeof(ConfigData));
     memcpy(configMessage.data(), &configData, sizeof(ConfigData));
-    std::wcout << L"[display_ipc_wgc_t] Config data prepared: " << configData.width << L"x" << configData.height
-               << L", fps: " << configData.framerate << L", hdr: " << configData.dynamicRange
-               << L", display: '" << configData.displayName << L"'" << std::endl;
+    // Convert displayName to std::string for logging
+    std::wstring ws_display(configData.displayName);
+    std::string display_str(ws_display.begin(), ws_display.end());
+    BOOST_LOG(info) << "[display_ipc_wgc_t] Config data prepared: " << configData.width << "x" << configData.height
+               << ", fps: " << configData.framerate << ", hdr: " << configData.dynamicRange
+               << ", display: '" << display_str << "'";
     
     // Wait for connection and handle data
-    std::wcout << L"[display_ipc_wgc_t] Waiting for helper process to connect..." << std::endl;
+    BOOST_LOG(info) << "[display_ipc_wgc_t] Waiting for helper process to connect...";
     int wait_count = 0;
     bool config_sent = false;
     while (!handle_received && wait_count < 100) {  // 10 seconds max
@@ -128,16 +131,16 @@ namespace platf::dxgi {
       if (!config_sent && _pipe->isConnected()) {
         _pipe->asyncSend(configMessage);
         config_sent = true;
-        std::wcout << L"[display_ipc_wgc_t] Config data sent to helper process" << std::endl;
+        BOOST_LOG(info) << "[display_ipc_wgc_t] Config data sent to helper process";
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       wait_count++;
     }
     if (handle_received) {
       _initialized = true;
-      std::wcout << L"[display_ipc_wgc_t] Successfully initialized IPC WGC capture" << std::endl;
+      BOOST_LOG(info) << "[display_ipc_wgc_t] Successfully initialized IPC WGC capture";
     } else {
-      std::wcerr << L"[display_ipc_wgc_t] Failed to receive handle data from helper process" << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to receive handle data from helper process";
       cleanup();
     }
   }
@@ -202,7 +205,7 @@ namespace platf::dxgi {
     ID3D11Texture2D *texture = nullptr;
     hr = device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &texture);
     if (FAILED(hr)) {
-      std::wcerr << L"[display_ipc_wgc_t] Failed to open shared texture: " << hr << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to open shared texture: " << hr;
       return false;
     }
     _shared_texture.reset(texture);
@@ -212,13 +215,13 @@ namespace platf::dxgi {
     // Get the keyed mutex
     hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &_keyed_mutex);
     if (FAILED(hr)) {
-      std::wcerr << L"[display_ipc_wgc_t] Failed to get keyed mutex: " << hr << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to get keyed mutex: " << hr;
       return false;
     }
     // Open the frame event
     _frame_event = OpenEventW(SYNCHRONIZE, FALSE, L"Local\\SunshineWGCFrame");
     if (!_frame_event) {
-      std::wcerr << L"[display_ipc_wgc_t] Failed to open frame event: " << GetLastError() << std::endl;
+      BOOST_LOG(error) << "[display_ipc_wgc_t] Failed to open frame event: " << GetLastError();
       return false;
     }
     _width = width;
@@ -228,8 +231,8 @@ namespace platf::dxgi {
     this->width_before_rotation = width;
     this->height_before_rotation = height;
     this->capture_format = desc.Format;
-    std::wcout << L"[display_ipc_wgc_t] Successfully set up shared texture: "
-               << width << L"x" << height << std::endl;
+    BOOST_LOG(info) << "[display_ipc_wgc_t] Successfully set up shared texture: "
+               << width << "x" << height;
     return true;
   }
 
