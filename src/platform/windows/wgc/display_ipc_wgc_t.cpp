@@ -8,6 +8,14 @@
 #include <filesystem>
 #include <iostream>
 #include <thread>
+#include <tlhelp32.h>  // for process enumeration
+
+// WinRT includes for secure desktop detection
+#include <winrt/base.h>
+#include <winrt/windows.foundation.h>
+#include <winrt/windows.graphics.capture.h>
+#include <winrt/windows.graphics.directx.direct3d11.h>
+#include <windows.graphics.capture.interop.h>
 
 namespace platf::dxgi {
 
@@ -26,6 +34,18 @@ namespace platf::dxgi {
     int dynamicRange;
     wchar_t displayName[32]; // Display device name (e.g., "\\.\\DISPLAY1")
   };
+
+  // Global flag to track if secure desktop swap should occur
+  static bool _should_swap_to_dxgi = false;
+
+  // Accessor functions for the swap flag
+  bool is_secure_desktop_swap_requested() {
+    return _should_swap_to_dxgi;
+  }
+
+  void reset_secure_desktop_swap_flag() {
+    _should_swap_to_dxgi = false;
+  }
 
   // Implementation of platf::dxgi::display_ipc_wgc_t methods
 
@@ -49,6 +69,12 @@ namespace platf::dxgi {
   }
 
   capture_e display_ipc_wgc_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    // Check if secure desktop swap was triggered
+    if (_should_swap_to_dxgi) {
+      BOOST_LOG(info) << "[display_ipc_wgc_t] Secure desktop detected, returning swap_capture to switch to DXGI";
+      return capture_e::swap_capture;
+    }
+    
     lazy_init();
     // Strengthen error detection: check all required resources
     if (!_initialized || !_shared_texture || !_frame_event || !_keyed_mutex) {
@@ -92,6 +118,10 @@ namespace platf::dxgi {
         if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
           handle_received = true;
         }
+      } else if (msg.size() == 1 && msg[0] == 0x01) {
+        // secure desktop detected
+        BOOST_LOG(warning) << "[display_ipc_wgc_t] WGC session closed - secure desktop detected, triggering swap to DXGI";
+        _should_swap_to_dxgi = true;
       }
     };
     auto onError = [](const std::string &err) {
@@ -243,6 +273,85 @@ namespace platf::dxgi {
       capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
     }
     return display_vram_t::dummy_img(img_base);
+  }
+
+  // Implementation of display_secure_desktop_dxgi_t
+  
+  capture_e display_secure_desktop_dxgi_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    // Check periodically if secure desktop is still active
+    auto now = std::chrono::steady_clock::now();
+    if (now - _last_check_time >= CHECK_INTERVAL) {
+      _last_check_time = now;
+      if (!is_secure_desktop_active()) {
+        BOOST_LOG(info) << "[display_secure_desktop_dxgi_t] Secure desktop no longer active, returning swap_capture to switch back to WGC";
+        reset_secure_desktop_swap_flag(); // Reset the flag
+        return capture_e::swap_capture;
+      }
+    }
+    
+    // Call parent DXGI duplication implementation
+    return display_ddup_vram_t::snapshot(pull_free_image_cb, img_out, timeout, cursor_visible);
+  }
+  
+  bool display_secure_desktop_dxgi_t::is_secure_desktop_active() {
+    // Check for UAC (consent.exe)
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot != INVALID_HANDLE_VALUE) {
+      PROCESSENTRY32W processEntry = {};
+      processEntry.dwSize = sizeof(processEntry);
+      
+      if (Process32FirstW(snapshot, &processEntry)) {
+        do {
+          if (_wcsicmp(processEntry.szExeFile, L"consent.exe") == 0) {
+            CloseHandle(snapshot);
+            return true; // UAC is active
+          }
+        } while (Process32NextW(snapshot, &processEntry));
+      }
+      CloseHandle(snapshot);
+    }
+    
+    // Check the current desktop name
+    HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId());
+    if (currentDesktop) {
+      wchar_t desktopName[256] = {0};
+      DWORD needed = 0;
+      if (GetUserObjectInformationW(currentDesktop, UOI_NAME, desktopName, sizeof(desktopName), &needed)) {
+        // Secure desktop typically has names like "Winlogon" or "SAD" (Secure Attention Desktop)
+        if (_wcsicmp(desktopName, L"Winlogon") == 0 || _wcsicmp(desktopName, L"SAD") == 0) {
+          return true;
+        }
+      }
+    }
+    
+    // As a fallback, try to create a WGC session to test if WGC is available
+    try {
+      if (!winrt::Windows::Graphics::Capture::GraphicsCaptureSession::IsSupported()) {
+        return true; // WGC not supported, assume secure desktop
+      }
+      
+      // Try to get the primary monitor
+      HMONITOR monitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
+      if (!monitor) {
+        return true; // Can't get monitor, assume secure desktop
+      }
+      
+      // Try to create a test capture item
+      auto activationFactory = winrt::get_activation_factory<winrt::Windows::Graphics::Capture::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
+      winrt::Windows::Graphics::Capture::GraphicsCaptureItem testItem = nullptr;
+      HRESULT hr = activationFactory->CreateForMonitor(monitor, winrt::guid_of<winrt::Windows::Graphics::Capture::GraphicsCaptureItem>(), winrt::put_abi(testItem));
+      
+      if (SUCCEEDED(hr) && testItem) {
+        // Successfully created capture item, secure desktop likely not active
+        return false;
+      } else {
+        // Failed to create capture item, secure desktop likely active
+        return true;
+      }
+    } catch (...) {
+      // Any exception indicates secure desktop is likely still active
+      return true;
+    }
   }
 
 }  // namespace platf::dxgi

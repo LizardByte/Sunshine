@@ -1000,10 +1000,19 @@ namespace platf {
    */
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type == mem_type_e::dxgi) {
-      auto disp = std::make_shared<dxgi::display_ipc_wgc_t>();
-
-      if (!disp->init(config, display_name)) {
-        return disp;
+      // Check if this is a swap due to secure desktop
+      if (dxgi::is_secure_desktop_swap_requested()) {
+        // Use secure desktop fallback display
+        auto disp = std::make_shared<dxgi::display_secure_desktop_dxgi_t>();
+        if (!disp->init(config, display_name)) {
+          return disp;
+        }
+      } else {
+        // Normal DXGI usage - use WGC IPC
+        auto disp = std::make_shared<dxgi::display_ipc_wgc_t>();
+        if (!disp->init(config, display_name)) {
+          return disp;
+        }
       }
     } else if (hwdevice_type == mem_type_e::system) {
       auto disp = std::make_shared<dxgi::display_ddup_ram_t>();

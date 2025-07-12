@@ -10,6 +10,8 @@
 #include <winrt/windows.graphics.directx.direct3d11.h>
 #include <winrt/Windows.System.h>
 #include <inspectable.h> // For IInspectable
+#include <tlhelp32.h> // For process enumeration
+#include <psapi.h> // For GetModuleBaseName
 #include "shared_memory.h"
 // Gross hack to work around MINGW-packages#22160
 #define ____FIReference_1_boolean_INTERFACE_DEFINED__
@@ -100,6 +102,89 @@ struct ConfigData {
 ConfigData g_config = {0, 0, 0, 0, L""};
 bool g_config_received = false;
 
+// Global communication pipe for sending session closed notifications
+AsyncNamedPipe* g_communication_pipe = nullptr;
+
+// Global variables for desktop switch detection
+HWINEVENTHOOK g_desktop_switch_hook = nullptr;
+bool g_secure_desktop_detected = false;
+
+// Function to check if a process with the given name is running
+bool IsProcessRunning(const std::wstring& processName) {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE) {
+        return false;
+    }
+
+    PROCESSENTRY32W processEntry = {};
+    processEntry.dwSize = sizeof(processEntry);
+
+    bool found = false;
+    if (Process32FirstW(snapshot, &processEntry)) {
+        do {
+            if (_wcsicmp(processEntry.szExeFile, processName.c_str()) == 0) {
+                found = true;
+                break;
+            }
+        } while (Process32NextW(snapshot, &processEntry));
+    }
+
+    CloseHandle(snapshot);
+    return found;
+}
+
+// Function to check if we're on the secure desktop
+bool IsSecureDesktop() {
+    // Check for UAC (consent.exe)
+    if (IsProcessRunning(L"consent.exe")) {
+        return true;
+    }
+
+    // Check for login screen by looking for winlogon.exe with specific conditions
+    // or check the current desktop name
+    HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId());
+    if (currentDesktop) {
+        wchar_t desktopName[256] = {0};
+        DWORD needed = 0;
+        if (GetUserObjectInformationW(currentDesktop, UOI_NAME, desktopName, sizeof(desktopName), &needed)) {
+            // Secure desktop typically has names like "Winlogon" or "SAD" (Secure Attention Desktop)
+            if (_wcsicmp(desktopName, L"Winlogon") == 0 || _wcsicmp(desktopName, L"SAD") == 0) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// Desktop switch event hook procedure
+void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime) {
+    if (event == EVENT_SYSTEM_DESKTOPSWITCH) {
+        std::wcout << L"[WGC Helper] Desktop switch detected!" << std::endl;
+        
+        // Small delay to let the system settle
+        Sleep(100);
+        
+        bool isSecure = IsSecureDesktop();
+        std::wcout << L"[WGC Helper] Desktop switch - Secure desktop: " << (isSecure ? L"YES" : L"NO") << std::endl;
+        
+        if (isSecure && !g_secure_desktop_detected) {
+            std::wcout << L"[WGC Helper] Secure desktop detected - sending notification to main process" << std::endl;
+            g_secure_desktop_detected = true;
+            
+            // Send notification to main process
+            if (g_communication_pipe && g_communication_pipe->isConnected()) {
+                std::vector<uint8_t> sessionClosedMessage = {0x01}; // Simple marker for session closed
+                g_communication_pipe->asyncSend(sessionClosedMessage);
+                std::wcout << L"[WGC Helper] Sent secure desktop notification to main process" << std::endl;
+            }
+        } else if (!isSecure && g_secure_desktop_detected) {
+            std::wcout << L"[WGC Helper] Returned to normal desktop" << std::endl;
+            g_secure_desktop_detected = false;
+        }
+    }
+}
+
 #include <fstream>
 
 int main()
@@ -120,8 +205,8 @@ int main()
 
     // Create named pipe for communication with main process
     AsyncNamedPipe communicationPipe(L"\\\\.\\pipe\\SunshineWGCHelper", true);
+    g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
     
-
     auto onMessage = [&](const std::vector<uint8_t>& message) {
         std::wcout << L"[WGC Helper] Received message from main process, size: " << message.size() << std::endl;
         // Handle config data message
@@ -349,7 +434,6 @@ int main()
     // Attach frame arrived event
     auto token = framePool.FrameArrived([&](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &)
                                         {
-        
         auto frame = sender.TryGetNextFrame();
         if (frame) {
             auto surface = frame.Surface();
@@ -382,6 +466,21 @@ int main()
             frame.Close();
         } });
 
+    // Set up desktop switch hook for secure desktop detection
+    std::wcout << L"[WGC Helper] Setting up desktop switch hook..." << std::endl;
+    g_desktop_switch_hook = SetWinEventHook(
+        EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_DESKTOPSWITCH,
+        nullptr, DesktopSwitchHookProc,
+        0, 0,
+        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
+    );
+    
+    if (!g_desktop_switch_hook) {
+        std::wcerr << L"[WGC Helper] Failed to set up desktop switch hook: " << GetLastError() << std::endl;
+    } else {
+        std::wcout << L"[WGC Helper] Desktop switch hook installed successfully" << std::endl;
+    }
+
     // Start capture
     auto session = framePool.CreateCaptureSession(item);
     session.StartCapture();
@@ -389,14 +488,26 @@ int main()
     std::wcout << L"[WGC Helper] Helper process started. Capturing frames using WGC..." << std::endl;
 
     // Keep running until main process disconnects
+    // We need to pump messages for the desktop switch hook to work
+    MSG msg;
     while (communicationPipe.isConnected())
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // Process any pending messages for the hook
+        while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
     std::wcout << L"[WGC Helper] Main process disconnected, shutting down..." << std::endl;
 
     // Cleanup
+    if (g_desktop_switch_hook) {
+        UnhookWinEvent(g_desktop_switch_hook);
+        g_desktop_switch_hook = nullptr;
+    }
     session.Close();
     framePool.FrameArrived(token);
     framePool.Close();
