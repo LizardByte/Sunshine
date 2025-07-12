@@ -89,13 +89,15 @@ struct SharedHandleData {
 
 // Structure for config data received from main process
 struct ConfigData {
+    UINT width;
+    UINT height;
     int framerate;
     int dynamicRange;
     wchar_t displayName[32]; // Display device name (e.g., "\\.\\DISPLAY1")
 };
 
 // Global config data received from main process
-ConfigData g_config = {0, 0, L""};
+ConfigData g_config = {0, 0, 0, 0, L""};
 bool g_config_received = false;
 
 #include <fstream>
@@ -126,7 +128,9 @@ int main()
         if (message.size() == sizeof(ConfigData) && !g_config_received) {
             memcpy(&g_config, message.data(), sizeof(ConfigData));
             g_config_received = true;
-            std::wcout << L"[WGC Helper] Received config data: fps: " << g_config.framerate << L", hdr: " << g_config.dynamicRange << L", display: '" << g_config.displayName << L"'" << std::endl;
+            std::wcout << L"[WGC Helper] Received config data: " << g_config.width << L"x" << g_config.height 
+                       << L", fps: " << g_config.framerate << L", hdr: " << g_config.dynamicRange 
+                       << L", display: '" << g_config.displayName << L"'" << std::endl;
         }
     };
     
@@ -208,29 +212,36 @@ int main()
         }
     }
 
-    // Get monitor info for size
+    // Get monitor info for fallback size
     if (!GetMonitorInfo(monitor, &monitorInfo)) {
         std::wcerr << L"[WGC Helper] Failed to get monitor info" << std::endl;
         device->Release();
         context->Release();
         return 1;
     }
-    UINT width = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
-    UINT height = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
+    UINT fallbackWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
+    UINT fallbackHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
 
-    // Check if config data was received, but don't block too long
+    // Check for config data from main process
     std::wcout << L"[WGC Helper] Checking for config data from main process..." << std::endl;
     int config_wait_count = 0;
-    while (!g_config_received && config_wait_count < 10) {  // 1 second max
+    while (!g_config_received && config_wait_count < 50) {  // Increase to 5 seconds for reliability
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         config_wait_count++;
     }
 
-    if (g_config_received) {
-        std::wcout << L"[WGC Helper] Config received: fps: " << g_config.framerate << L", HDR: " << g_config.dynamicRange << std::endl;
+    UINT width, height;
+    if (g_config_received && g_config.width > 0 && g_config.height > 0) {
+        width = g_config.width;
+        height = g_config.height;
+        std::wcout << L"[WGC Helper] Using config resolution: " << width << L"x" << height << std::endl;
     } else {
-        std::wcout << L"[WGC Helper] No config data received within timeout." << std::endl;
+        width = fallbackWidth;
+        height = fallbackHeight;
+        std::wcout << L"[WGC Helper] No valid config resolution received, falling back to monitor: " << width << L"x" << height << std::endl;
     }
+
+
 
     // Create GraphicsCaptureItem for monitor using interop
     auto activationFactory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
@@ -249,7 +260,7 @@ int main()
         captureFormat = DXGI_FORMAT_R16G16B16A16_FLOAT;
     }
 
-    // Create shared texture with keyed mutex
+    // Create shared texture with keyed mutex (using config/fallback size)
     D3D11_TEXTURE2D_DESC texDesc = {};
     texDesc.Width = width;
     texDesc.Height = height;
@@ -326,7 +337,7 @@ int main()
         return 1;
     }
 
-    // Create frame pool
+    // Create frame pool (using config/fallback size)
     auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
         winrtDevice,
         (captureFormat == DXGI_FORMAT_R16G16B16A16_FLOAT)

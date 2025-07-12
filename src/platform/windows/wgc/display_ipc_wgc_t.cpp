@@ -233,4 +233,13 @@ namespace platf::dxgi {
     return true;
   }
 
+  int display_ipc_wgc_t::dummy_img(platf::img_t *img_base) {
+    // During encoder validation, we need to create dummy textures before WGC is initialized
+    // Set a default capture format if it hasn't been set yet
+    if (capture_format == DXGI_FORMAT_UNKNOWN) {
+      capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    }
+    return display_vram_t::dummy_img(img_base);
+  }
+
 }  // namespace platf::dxgi
