@@ -18,7 +18,17 @@ namespace platf::dxgi {
     UINT height;
   };
 
+  // Structure for config data sent to helper process
+  struct ConfigData {
+    UINT width;
+    UINT height;
+    int framerate;
+    int dynamicRange;
+    wchar_t displayName[32]; // Display device name (e.g., "\\.\\DISPLAY1")
+  };
+
   // Implementation of platf::dxgi::display_ipc_wgc_t methods
+
 
   display_ipc_wgc_t::display_ipc_wgc_t() = default;
 
@@ -28,6 +38,9 @@ namespace platf::dxgi {
 
   int display_ipc_wgc_t::init(const ::video::config_t &config, const std::string &display_name) {
     _process_helper = std::make_unique<ProcessHandler>();
+    // Save the config data for later use
+    _config = config;
+    _display_name = display_name;
     // Initialize the base class first
     if (display_vram_t::init(config, display_name)) {
       return -1;
@@ -85,10 +98,38 @@ namespace platf::dxgi {
       std::wcout << L"[display_ipc_wgc_t] Pipe error: " << err.c_str() << std::endl;
     };
     _pipe->start(onMessage, onError);
+    
+    // Send config data to helper process
+    ConfigData configData = {};
+    configData.width = static_cast<UINT>(_config.width);
+    configData.height = static_cast<UINT>(_config.height);
+    configData.framerate = _config.framerate;
+    configData.dynamicRange = _config.dynamicRange;
+    // Convert display_name (std::string) to wchar_t[32]
+    if (!_display_name.empty()) {
+      std::wstring wdisplay_name(_display_name.begin(), _display_name.end());
+      wcsncpy_s(configData.displayName, wdisplay_name.c_str(), 31);
+      configData.displayName[31] = L'\0';
+    } else {
+      configData.displayName[0] = L'\0';
+    }
+    std::vector<uint8_t> configMessage(sizeof(ConfigData));
+    memcpy(configMessage.data(), &configData, sizeof(ConfigData));
+    std::wcout << L"[display_ipc_wgc_t] Config data prepared: " << configData.width << L"x" << configData.height
+               << L", fps: " << configData.framerate << L", hdr: " << configData.dynamicRange
+               << L", display: '" << configData.displayName << L"'" << std::endl;
+    
     // Wait for connection and handle data
     std::wcout << L"[display_ipc_wgc_t] Waiting for helper process to connect..." << std::endl;
     int wait_count = 0;
+    bool config_sent = false;
     while (!handle_received && wait_count < 100) {  // 10 seconds max
+      // Send config data once we're connected but haven't sent it yet
+      if (!config_sent && _pipe->isConnected()) {
+        _pipe->asyncSend(configMessage);
+        config_sent = true;
+        std::wcout << L"[display_ipc_wgc_t] Config data sent to helper process" << std::endl;
+      }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
       wait_count++;
     }
