@@ -28,3 +28,21 @@ target_link_libraries(sunshinesvc
         wtsapi32
         ${PLATFORM_LIBRARIES})
 target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
+
+# Add sunshine-wgc-helper executable
+add_executable(sunshine-wgc-helper
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/sunshine_wgc_helper.cpp
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp)
+set_target_properties(sunshine-wgc-helper PROPERTIES CXX_STANDARD 20)
+target_link_libraries(sunshine-wgc-helper
+        ${CMAKE_THREAD_LIBS_INIT}
+        d3d11
+        dxgi
+        ole32
+        user32
+        gdi32
+        windowsapp
+        ${PLATFORM_LIBRARIES})
+target_compile_options(sunshine-wgc-helper PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
+# Add WIN32 subsystem specification for the helper
+set_target_properties(sunshine-wgc-helper PROPERTIES LINK_FLAGS "-Wl,--subsystem,windows")

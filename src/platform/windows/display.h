@@ -383,5 +383,9 @@ namespace platf::dxgi {
     int init(const ::video::config_t &config, const std::string &display_name);
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
     capture_e release_snapshot() override;
+
+  protected:
+    // Virtual method to acquire the next frame - can be overridden by derived classes
+    virtual capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
   };
 }  // namespace platf::dxgi
