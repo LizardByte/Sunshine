@@ -483,6 +483,8 @@ int main()
 
     // Start capture
     auto session = framePool.CreateCaptureSession(item);
+    // Disable border/highlight
+    session.IsBorderRequired(false);
     session.StartCapture();
 
     std::wcout << L"[WGC Helper] Helper process started. Capturing frames using WGC..." << std::endl;
