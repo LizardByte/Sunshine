@@ -48,7 +48,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, InitAndSnapshotSuccess) {
 
         // Try to take a snapshot (should trigger lazy_init) with moderate timeout
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
         // Since helper process may not have frames ready immediately, timeout is most likely result
         EXPECT_TRUE(status == platf::capture_e::ok || status == platf::capture_e::timeout || 
@@ -74,7 +77,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
         EXPECT_EQ(result, 0); // init returns 0 even if lazy_init fails
 
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
         EXPECT_EQ(status, platf::capture_e::error);
 
@@ -103,7 +109,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, PipeTimeout) {
         EXPECT_EQ(result, 0);
 
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
         EXPECT_EQ(status, platf::capture_e::error);
 
@@ -153,7 +162,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameAcquisitionTimeout) {
         }
 
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
         EXPECT_TRUE(status == platf::capture_e::error || status == platf::capture_e::timeout);
 
@@ -174,7 +186,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, RepeatedSnapshotCalls) {
         EXPECT_EQ(result, 0);
 
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         // First snapshot (triggers lazy_init)
         auto status1 = display.snapshot(cb, img_out, std::chrono::milliseconds(1000), false);
         // Second snapshot (should not re-init)
@@ -201,7 +216,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupAfterError) {
             int result = display.init(config, display_name);
             EXPECT_EQ(result, 0);
             std::shared_ptr<platf::img_t> img_out;
-            auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+            auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+                img = display.alloc_img(); 
+                return img != nullptr; 
+            };
             auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
             EXPECT_EQ(status, platf::capture_e::error);
             // Cleanup happens automatically when display goes out of scope
@@ -222,7 +240,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameReleaseAfterSnapshot) {
         EXPECT_EQ(result, 0);
 
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(1000), false);
         // After snapshot, we cannot call release_snapshot() directly as it is private.
         // Instead, just check that snapshot does not crash and returns a valid status.
@@ -234,7 +255,11 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNotInitialized) {
     display_ipc_wgc_t display;
     // Do not call init
     std::shared_ptr<platf::img_t> img_out;
-    auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+    auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+        // Note: alloc_img() may not work if not initialized, so we test that case too
+        img = display.alloc_img(); 
+        return img != nullptr; 
+    };
     auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
     EXPECT_EQ(status, platf::capture_e::error);
 }
@@ -254,7 +279,10 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNoSharedTexture) {
             std::filesystem::rename(exe_path, fake_path);
         }
         std::shared_ptr<platf::img_t> img_out;
-        auto cb = [](std::shared_ptr<platf::img_t>&) { return true; };
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
         auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(500), false);
         EXPECT_EQ(status, platf::capture_e::error);
         if (std::filesystem::exists(fake_path)) {
