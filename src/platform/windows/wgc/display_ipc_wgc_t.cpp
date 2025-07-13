@@ -60,9 +60,10 @@ namespace platf::dxgi {
     _config = config;
     _display_name = display_name;
     // Initialize the base class first
-    if (display_wgc_vram_t::init(config, display_name)) {
+    if (display_base_t::init(config, display_name)) {
       return -1;
     }
+    
     return 0;
   }
 
@@ -88,7 +89,7 @@ namespace platf::dxgi {
     }
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Cannot lazy_init without proper initialization";
+      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Cannot lazy_init without proper initialization";
       return;
     }
     // Get the directory of the main executable
@@ -97,7 +98,7 @@ namespace platf::dxgi {
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to start capture process at: " << exe_path.wstring();
+      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
       return;
     }
     BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Started helper process: " << exe_path.wstring();
@@ -167,7 +168,7 @@ namespace platf::dxgi {
       _initialized = true;
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Successfully initialized IPC WGC capture";
     } else {
-      BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to receive handle data from helper process";
+      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Failed to receive handle data from helper process (this is expected when running as service)";
       cleanup();
     }
   }
@@ -265,6 +266,27 @@ namespace platf::dxgi {
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
+    // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
+    
+    // First try to use lazy_init to see if IPC is possible
+    lazy_init();
+    
+    if (!_initialized) {
+      // IPC failed (likely running as service), use DXGI fallback for dummy image creation
+      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] IPC not available for dummy_img, using DXGI fallback";
+      
+      // Create a temporary DXGI display for dummy image creation
+      auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
+      if (temp_dxgi->init(_config, _display_name) == 0) {
+        // Successfully initialized DXGI, use it for dummy image
+        return temp_dxgi->dummy_img(img_base);
+      } else {
+        BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to initialize DXGI fallback for dummy_img";
+        return -1;
+      }
+    }
+    
+    // IPC is available, use normal WGC path
     // Set a default capture format if it hasn't been set yet
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
       capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
@@ -345,7 +367,7 @@ namespace platf::dxgi {
     }
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Cannot lazy_init without proper initialization";
+      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Cannot lazy_init without proper initialization";
       return;
     }
     // Get the directory of the main executable
@@ -354,7 +376,7 @@ namespace platf::dxgi {
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to start capture process at: " << exe_path.wstring();
+      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
       return;
     }
     BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Started helper process: " << exe_path.wstring();
@@ -424,7 +446,7 @@ namespace platf::dxgi {
       _initialized = true;
       BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Successfully initialized IPC WGC capture";
     } else {
-      BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to receive handle data from helper process";
+      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Failed to receive handle data from helper process (this is expected when running as service)";
       cleanup();
     }
   }
@@ -522,6 +544,27 @@ namespace platf::dxgi {
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
+    // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
+    
+    // First try to use lazy_init to see if IPC is possible
+    lazy_init();
+    
+    if (!_initialized) {
+      // IPC failed (likely running as service), use DXGI fallback for dummy image creation
+      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] IPC not available for dummy_img, using DXGI fallback";
+      
+      // Create a temporary DXGI display for dummy image creation
+      auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
+      if (temp_dxgi->init(_config, _display_name) == 0) {
+        // Successfully initialized DXGI, use it for dummy image
+        return temp_dxgi->dummy_img(img_base);
+      } else {
+        BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to initialize DXGI fallback for dummy_img";
+        return -1;
+      }
+    }
+    
+    // IPC is available, use normal WGC path
     // Set a default capture format if it hasn't been set yet
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
       capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
