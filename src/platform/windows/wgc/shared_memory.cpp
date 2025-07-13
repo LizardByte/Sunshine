@@ -217,7 +217,6 @@ void AsyncNamedPipe::workerThread() {
                 _connected = false;
                 break;
             }
-            std::wcout << L"[AsyncNamedPipe] Received " << read << L" bytes on " << _pipeName << std::endl;
             if (_onMessage) {
                 try {
                     _onMessage(std::vector<uint8_t>(buffer.begin(), buffer.begin() + read));
@@ -228,7 +227,7 @@ void AsyncNamedPipe::workerThread() {
             }
         } else {
             // No data available, sleep briefly to avoid busy waiting
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
         }
     }
     if (_pipe != INVALID_HANDLE_VALUE) {

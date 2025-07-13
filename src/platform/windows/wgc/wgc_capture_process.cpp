@@ -64,17 +64,17 @@ constexpr auto __mingw_uuidof<winrt::Windows::Graphics::DirectX::Direct3D11::IDi
 }
 #endif
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <fstream>  // For std::wofstream
 #include <iomanip>  // for std::fixed, std::setprecision
 #include <iostream>
+#include <mutex>
+#include <queue>
 #include <shlobj.h>  // For SHGetFolderPathW and CSIDL_DESKTOPDIRECTORY
 #include <string>
 #include <thread>
-#include <queue>
-#include <mutex>
-#include <condition_variable>
-#include <atomic>
 #include <windows.graphics.capture.interop.h>
 #include <winrt/Windows.Foundation.Metadata.h>  // For ApiInformation
 #include <winrt/windows.graphics.capture.h>
@@ -144,39 +144,43 @@ private:
   std::queue<LogMessage> log_queue;
   std::mutex queue_mutex;
   std::condition_variable cv;
-  std::atomic<bool> should_stop{false};
+  std::atomic<bool> should_stop {false};
   std::thread logger_thread;
-  std::wofstream* log_file = nullptr;
+  std::wofstream *log_file = nullptr;
 
 public:
-  void start(std::wofstream* file) {
+  void start(std::wofstream *file) {
     log_file = file;
     logger_thread = std::thread([this]() {
       while (!should_stop) {
         std::unique_lock<std::mutex> lock(queue_mutex);
-        cv.wait(lock, [this]() { return !log_queue.empty() || should_stop; });
-        
+        cv.wait(lock, [this]() {
+          return !log_queue.empty() || should_stop;
+        });
+
         while (!log_queue.empty()) {
           LogMessage msg = log_queue.front();
           log_queue.pop();
           lock.unlock();
-          
+
           // Write to log file or console
           if (log_file && log_file->is_open()) {
             *log_file << msg.message << std::flush;
           } else {
             std::wcout << msg.message << std::flush;
           }
-          
+
           lock.lock();
         }
       }
     });
   }
 
-  void log(const std::wstring& message) {
-    if (should_stop) return;
-    
+  void log(const std::wstring &message) {
+    if (should_stop) {
+      return;
+    }
+
     std::lock_guard<std::mutex> lock(queue_mutex);
     log_queue.push({message, std::chrono::steady_clock::now()});
     cv.notify_one();
@@ -272,6 +276,8 @@ void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK hWinEventHook, DWORD event, HW
 #include <fstream>
 
 int main() {
+  // Heartbeat mechanism: track last heartbeat time
+  auto last_heartbeat = std::chrono::steady_clock::now();
   // Set DPI awareness to prevent zoomed display issues
   // Try the newer API first (Windows 10 1703+), fallback to older API
   typedef BOOL(WINAPI * SetProcessDpiAwarenessContextFunc)(DPI_AWARENESS_CONTEXT);
@@ -391,7 +397,13 @@ int main() {
   g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
 
   auto onMessage = [&](const std::vector<uint8_t> &message) {
-    std::wcout << L"[WGC Helper] Received message from main process, size: " << message.size() << std::endl;
+    // Heartbeat message: single byte 0x01
+    if (message.size() == 1 && message[0] == 0x01) {
+      last_heartbeat = std::chrono::steady_clock::now();
+      // Optionally log heartbeat receipt
+      // std::wcout << L"[WGC Helper] Heartbeat received" << std::endl;
+      return;
+    }
     // Handle config data message
     if (message.size() == sizeof(ConfigData) && !g_config_received) {
       memcpy(&g_config, message.data(), sizeof(ConfigData));
@@ -699,16 +711,16 @@ int main() {
         if (delivery_count % 300 == 0) {
           auto avg_delivery_ms = total_delivery_time.count() / delivery_count;
           auto expected_ms = (g_config_received && g_config.framerate > 0) ? (1000 / g_config.framerate) : 16;
-          
+
           std::wstringstream ss;
           ss << L"[WGC Helper] Frame delivery timing - "
              << L"Avg interval: " << avg_delivery_ms << L"ms, "
              << L"Expected: " << expected_ms << L"ms, "
              << L"Last: " << delivery_interval.count() << L"ms" << std::endl;
           g_async_logger.log(ss.str());
-          
+
           // Reset counters for next measurement window
-          total_delivery_time = std::chrono::milliseconds{0};
+          total_delivery_time = std::chrono::milliseconds {0};
           delivery_count = 0;
         }
       } else {
@@ -747,7 +759,7 @@ int main() {
                 if ((g_frame_sequence % 600) == 0) {  // every ~5s at 120fps
                   if (lastQpc != 0) {
                     double fps = 600.0 * qpc_freq / double(frame_qpc - lastQpc);
-                    
+
                     std::wstringstream ss;
                     ss << L"[WGC Helper] delivered " << std::fixed << std::setprecision(1) << fps << L" fps (target: "
                        << (g_config_received ? g_config.framerate : 60) << L")" << std::endl;
@@ -781,9 +793,9 @@ int main() {
                   qpc_freq_timing = freq.QuadPart;
                 }
 
-                double arrived_to_copy_us = (double)(timestamp_after_copy - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
-                double copy_to_signal_us = (double)(timestamp_after_set_event - timestamp_after_copy) * 1000000.0 / qpc_freq_timing;
-                double total_frame_us = (double)(timestamp_after_set_event - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
+                double arrived_to_copy_us = (double) (timestamp_after_copy - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
+                double copy_to_signal_us = (double) (timestamp_after_set_event - timestamp_after_copy) * 1000000.0 / qpc_freq_timing;
+                double total_frame_us = (double) (timestamp_after_set_event - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
 
                 std::wstringstream ss;
                 ss << L"[WGC Helper] Frame timing - "
@@ -813,7 +825,7 @@ int main() {
       } catch (const winrt::hresult_error &ex) {
         // Queue error log (non-blocking)
         std::wstringstream ss;
-        ss << L"[WGC Helper] WinRT error in frame processing: " << ex.code() 
+        ss << L"[WGC Helper] WinRT error in frame processing: " << ex.code()
            << L" - " << winrt::to_string(ex.message()).c_str() << std::endl;
         g_async_logger.log(ss.str());
       }
@@ -863,6 +875,14 @@ int main() {
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessageW(&msg);
+    }
+
+    // Heartbeat timeout check
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat);
+    if (elapsed.count() > 5) {
+      std::wcout << L"[WGC Helper] No heartbeat received from main process for 5 seconds, exiting..." << std::endl;
+      _exit(1);
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Reduced from 5ms for lower IPC jitter
