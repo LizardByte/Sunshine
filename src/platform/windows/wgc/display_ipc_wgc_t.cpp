@@ -1,25 +1,25 @@
+#include "helpers.h"  // for is_secure_desktop_active
 #include "process_handler.h"
 #include "shared_memory.h"
-#include "helpers.h"  // for is_secure_desktop_active
+#include "src/config.h"  // for config::video.capture
 #include "src/logging.h"
 #include "src/platform/windows/display.h"
 #include "src/platform/windows/misc.h"  // for qpc_counter
-#include "src/config.h"  // for config::video.capture
-#include <avrt.h> // For MMCSS
 
+#include <avrt.h>  // For MMCSS
 #include <chrono>
 #include <filesystem>
-#include <iostream>
 #include <iomanip>  // for std::fixed, std::setprecision
+#include <iostream>
 #include <thread>
 #include <tlhelp32.h>  // for process enumeration
 
 // WinRT includes for secure desktop detection
+#include <windows.graphics.capture.interop.h>
 #include <winrt/base.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.graphics.capture.h>
 #include <winrt/windows.graphics.directx.direct3d11.h>
-#include <windows.graphics.capture.interop.h>
 
 namespace platf::dxgi {
 
@@ -32,9 +32,9 @@ namespace platf::dxgi {
 
   // Structure for frame metadata shared between processes
   struct FrameMetadata {
-    uint64_t qpc_timestamp;         // QPC timestamp when frame was captured
-    uint32_t frame_sequence;        // Sequential frame number
-    uint32_t suppressed_frames;     // Number of frames suppressed since last signal
+    uint64_t qpc_timestamp;  // QPC timestamp when frame was captured
+    uint32_t frame_sequence;  // Sequential frame number
+    uint32_t suppressed_frames;  // Number of frames suppressed since last signal
   };
 
   // Structure for config data sent to helper process
@@ -43,12 +43,12 @@ namespace platf::dxgi {
     UINT height;
     int framerate;
     int dynamicRange;
-    wchar_t displayName[32]; // Display device name (e.g., "\\.\\DISPLAY1")
+    wchar_t displayName[32];  // Display device name (e.g., "\\.\\DISPLAY1")
   };
 
   // Accessor functions for the swap flag (kept for compatibility but may not be used)
   bool is_secure_desktop_swap_requested() {
-    return false; // Always return false since we use mail events now
+    return false;  // Always return false since we use mail events now
   }
 
   void reset_secure_desktop_swap_flag() {
@@ -72,7 +72,7 @@ namespace platf::dxgi {
     if (display_base_t::init(config, display_name)) {
       return -1;
     }
-    
+
     return 0;
   }
 
@@ -82,7 +82,7 @@ namespace platf::dxgi {
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Secure desktop detected, returning reinit to trigger factory re-selection";
       return capture_e::reinit;
     }
-    
+
     lazy_init();
     // Strengthen error detection: check all required resources
     if (!_initialized || !_shared_texture || !_frame_event || !_keyed_mutex) {
@@ -120,8 +120,8 @@ namespace platf::dxgi {
         SharedHandleData handleData;
         memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
         BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Received handle data: " << std::hex
-                   << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
-                   << ", " << handleData.width << "x" << handleData.height;
+                        << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
+                        << ", " << handleData.width << "x" << handleData.height;
         if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
           handle_received = true;
         }
@@ -135,7 +135,7 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Pipe error: " << err.c_str();
     };
     _pipe->start(onMessage, onError);
-    
+
     // Send config data to helper process
     ConfigData configData = {};
     configData.width = static_cast<UINT>(_config.width);
@@ -156,9 +156,9 @@ namespace platf::dxgi {
     std::wstring ws_display(configData.displayName);
     std::string display_str(ws_display.begin(), ws_display.end());
     BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Config data prepared: " << configData.width << "x" << configData.height
-               << ", fps: " << configData.framerate << ", hdr: " << configData.dynamicRange
-               << ", display: '" << display_str << "'";
-    
+                    << ", fps: " << configData.framerate << ", hdr: " << configData.dynamicRange
+                    << ", display: '" << display_str << "'";
+
     // Wait for connection and handle data
     BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Waiting for helper process to connect...";
     int wait_count = 0;
@@ -189,10 +189,10 @@ namespace platf::dxgi {
       SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
       DWORD taskIdx = 0;
       HANDLE mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
-      (void)mmcss_handle; // Suppress unused variable warning
+      (void) mmcss_handle;  // Suppress unused variable warning
       mmcss_initialized = true;
     }
-    
+
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_frame_event || !_keyed_mutex || !_frame_metadata) {
       return capture_e::error;
@@ -201,23 +201,23 @@ namespace platf::dxgi {
     // Enhanced diagnostic logging: track frame intervals
     static thread_local auto last_frame_time = std::chrono::steady_clock::now();
     static thread_local uint32_t diagnostic_frame_count = 0;
-    static thread_local std::chrono::milliseconds total_interval_time{0};
-    
+    static thread_local std::chrono::milliseconds total_interval_time {0};
+
     auto current_time = std::chrono::steady_clock::now();
     auto frame_interval = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_frame_time);
     total_interval_time += frame_interval;
     diagnostic_frame_count++;
-    
+
     // Log diagnostic info every 120 frames (~2 seconds at 60fps)
     if (diagnostic_frame_count % 120 == 0) {
       auto avg_interval = total_interval_time.count() / diagnostic_frame_count;
       auto expected_interval = (_config.framerate > 0) ? (1000 / _config.framerate) : 16;
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timing diagnostics - "
-                       << "Avg interval: " << avg_interval << "ms, "
-                       << "Expected: " << expected_interval << "ms, "
-                       << "Last interval: " << frame_interval.count() << "ms, "
-                       << "Timeout count: " << _timeout_count;
-      total_interval_time = std::chrono::milliseconds{0};
+                      << "Avg interval: " << avg_interval << "ms, "
+                      << "Expected: " << expected_interval << "ms, "
+                      << "Last interval: " << frame_interval.count() << "ms, "
+                      << "Timeout count: " << _timeout_count;
+      total_interval_time = std::chrono::milliseconds {0};
       diagnostic_frame_count = 0;
     }
 
@@ -228,21 +228,20 @@ namespace platf::dxgi {
       adjusted_timeout = timeout;
     } else if (_config.framerate > 0) {
       // Apply frame rate based timeout adjustment only for non-zero timeouts
-      auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);     // microseconds
-      auto tgt_us = (perfect_us * 120) / 100;                                    // +20% headroom (increased from 10%)
+      auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);  // microseconds
+      auto tgt_us = (perfect_us * 120) / 100;  // +20% headroom (increased from 10%)
       auto target_timeout = std::chrono::microseconds(tgt_us);
-      adjusted_timeout = std::min(timeout,                                       // caller's cap
-                                 std::max(std::chrono::milliseconds(3),          // floor
-                                         std::chrono::duration_cast<
-                                             std::chrono::milliseconds>(target_timeout)));
-                                             
+      adjusted_timeout = std::min(timeout,  // caller's cap
+                                  std::max(std::chrono::milliseconds(3),  // floor
+                                           std::chrono::duration_cast<std::chrono::milliseconds>(target_timeout)));
+
       // Log timeout adjustment for debugging
       static thread_local uint32_t adjustment_log_counter = 0;
-      if (++adjustment_log_counter % 300 == 0) { // Log every 5 seconds at 60fps
+      if (++adjustment_log_counter % 300 == 0) {  // Log every 5 seconds at 60fps
         BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Timeout adjustment: "
-                         << "original=" << timeout.count() << "ms, "
-                         << "adjusted=" << adjusted_timeout.count() << "ms, "
-                         << "fps=" << _config.framerate;
+                        << "original=" << timeout.count() << "ms, "
+                        << "adjusted=" << adjusted_timeout.count() << "ms, "
+                        << "fps=" << _config.framerate;
       }
     }
 
@@ -258,55 +257,55 @@ namespace platf::dxgi {
         // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
         if (adjusted_timeout.count() > 0) {
           // Log timeout with detailed timing info
-          BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timeout #" << _timeout_count 
-                           << ", interval since last frame: " << frame_interval.count() << "ms"
-                           << ", timeout used: " << adjusted_timeout.count() << "ms";
-          
+          BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timeout #" << _timeout_count
+                          << ", interval since last frame: " << frame_interval.count() << "ms"
+                          << ", timeout used: " << adjusted_timeout.count() << "ms";
+
           // Adjust threshold for high framerates - expect more timeouts with very high framerates
           auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
           if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
-            BOOST_LOG(warning) << "[display_wgc_ipc_vram_t] Frequent timeouts detected (" 
+            BOOST_LOG(warning) << "[display_wgc_ipc_vram_t] Frequent timeouts detected ("
                                << _timeout_count << " timeouts), frame delivery may be irregular"
                                << " (framerate: " << _config.framerate << "fps)";
           }
         }
       }
-      last_frame_time = current_time; // Update timing even on timeout
+      last_frame_time = current_time;  // Update timing even on timeout
       return waitResult == WAIT_TIMEOUT ? capture_e::timeout : capture_e::error;
     }
-    
+
     // Reset timeout counter on successful frame
     _timeout_count = 0;
     last_frame_time = current_time;
 
     // Acquire keyed mutex to access shared texture
     // Use infinite wait - the event already guarantees that a frame exists
-    HRESULT hr = _keyed_mutex->AcquireSync(1, 0); // 0 == infinite wait
+    HRESULT hr = _keyed_mutex->AcquireSync(1, 0);  // 0 == infinite wait
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
     if (FAILED(hr)) {
       return capture_e::error;
     }
-    
+
     // Set the shared texture as source by assigning the underlying pointer
     src.reset(_shared_texture.get());
     _shared_texture.get()->AddRef();  // Add reference since both will reference the same texture
-    
+
     // Read frame timestamp from shared memory instead of using current time
-    const FrameMetadata* metadata = static_cast<const FrameMetadata*>(_frame_metadata);
+    const FrameMetadata *metadata = static_cast<const FrameMetadata *>(_frame_metadata);
     frame_qpc = metadata->qpc_timestamp;
-    
+
     // Enhanced suppressed frames logging with more detail
     static uint32_t last_logged_sequence = 0;
     if (metadata->frame_sequence > 0 && (metadata->frame_sequence % 100) == 0 && metadata->frame_sequence != last_logged_sequence) {
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame diagnostics - "
-                       << "Sequence: " << metadata->frame_sequence 
-                       << ", Suppressed in batch: " << metadata->suppressed_frames
-                       << ", Target fps: " << _config.framerate
-                       << ", Recent timeout count: " << _timeout_count;
+                      << "Sequence: " << metadata->frame_sequence
+                      << ", Suppressed in batch: " << metadata->suppressed_frames
+                      << ", Target fps: " << _config.framerate
+                      << ", Recent timeout count: " << _timeout_count;
       last_logged_sequence = metadata->frame_sequence;
     }
-    
+
     // Log high-precision timing deltas every 150 frames for main process timing
     static uint32_t main_timing_log_counter = 0;
     if ((++main_timing_log_counter % 150) == 0) {
@@ -316,17 +315,17 @@ namespace platf::dxgi {
         QueryPerformanceFrequency(&freq);
         qpc_freq_main = freq.QuadPart;
       }
-      
-      double wait_time_us = (double)(timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
-      double mutex_time_us = (double)(timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main;
-      double total_acquire_us = (double)(timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
-      
+
+      double wait_time_us = (double) (timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
+      double mutex_time_us = (double) (timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main;
+      double total_acquire_us = (double) (timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
+
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Acquire timing - "
-                       << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
-                       << "Mutex: " << mutex_time_us << "μs, "
-                       << "Total: " << total_acquire_us << "μs";
+                      << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
+                      << "Mutex: " << mutex_time_us << "μs, "
+                      << "Total: " << total_acquire_us << "μs";
     }
-    
+
     // Note: We don't release the keyed mutex here since the parent class will use the texture
     // We'll release it in release_snapshot
     return capture_e::ok;
@@ -336,6 +335,11 @@ namespace platf::dxgi {
     // Release the keyed mutex after the parent class is done with the texture
     if (_keyed_mutex) {
       _keyed_mutex->ReleaseSync(0);
+    }
+    // Send heartbeat to helper after each frame is released
+    if (_pipe && _pipe->isConnected()) {
+      uint8_t heartbeat_msg = 0x01;
+      _pipe->asyncSend(std::vector<uint8_t> {heartbeat_msg});
     }
     return capture_e::ok;
   }
@@ -417,21 +421,21 @@ namespace platf::dxgi {
     this->height_before_rotation = height;
     this->capture_format = desc.Format;
     BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Successfully set up shared texture: "
-               << width << "x" << height;
+                    << width << "x" << height;
     return true;
   }
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
     // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
-    
+
     // First try to use lazy_init to see if IPC is possible
     lazy_init();
-    
+
     if (!_initialized) {
       // IPC failed (likely running as service), use DXGI fallback for dummy image creation
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] IPC not available for dummy_img, using DXGI fallback";
-      
+
       // Create a temporary DXGI display for dummy image creation
       auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
       if (temp_dxgi->init(_config, _display_name) == 0) {
@@ -442,7 +446,7 @@ namespace platf::dxgi {
         return -1;
       }
     }
-    
+
     // IPC is available, use normal WGC path
     // Set a default capture format if it hasn't been set yet
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
@@ -451,7 +455,7 @@ namespace platf::dxgi {
     return display_vram_t::dummy_img(img_base);
   }
 
-  // Implementation of temp_dxgi_vram_t  
+  // Implementation of temp_dxgi_vram_t
   capture_e temp_dxgi_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     // Check periodically if secure desktop is still active
     auto now = std::chrono::steady_clock::now();
@@ -462,7 +466,7 @@ namespace platf::dxgi {
         return capture_e::reinit;
       }
     }
-    
+
     // Call parent DXGI duplication implementation
     return display_ddup_vram_t::snapshot(pull_free_image_cb, img_out, timeout, cursor_visible);
   }
@@ -478,7 +482,7 @@ namespace platf::dxgi {
         return capture_e::reinit;
       }
     }
-    
+
     // Call parent DXGI duplication implementation
     return display_ddup_ram_t::snapshot(pull_free_image_cb, img_out, timeout, cursor_visible);
   }
@@ -508,7 +512,7 @@ namespace platf::dxgi {
       BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Secure desktop detected, returning reinit to trigger factory re-selection";
       return capture_e::reinit;
     }
-    
+
     lazy_init();
     // Strengthen error detection: check all required resources
     if (!_initialized || !_shared_texture || !_frame_event || !_keyed_mutex) {
@@ -546,8 +550,8 @@ namespace platf::dxgi {
         SharedHandleData handleData;
         memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
         BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Received handle data: " << std::hex
-                   << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
-                   << ", " << handleData.width << "x" << handleData.height;
+                        << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
+                        << ", " << handleData.width << "x" << handleData.height;
         if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
           handle_received = true;
         }
@@ -561,7 +565,7 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Pipe error: " << err.c_str();
     };
     _pipe->start(onMessage, onError);
-    
+
     // Send config data to helper process
     ConfigData configData = {};
     configData.width = static_cast<UINT>(_config.width);
@@ -582,9 +586,9 @@ namespace platf::dxgi {
     std::wstring ws_display(configData.displayName);
     std::string display_str(ws_display.begin(), ws_display.end());
     BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Config data prepared: " << configData.width << "x" << configData.height
-               << ", fps: " << configData.framerate << ", hdr: " << configData.dynamicRange
-               << ", display: '" << display_str << "'";
-    
+                    << ", fps: " << configData.framerate << ", hdr: " << configData.dynamicRange
+                    << ", display: '" << display_str << "'";
+
     // Wait for connection and handle data
     BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Waiting for helper process to connect...";
     int wait_count = 0;
@@ -615,10 +619,10 @@ namespace platf::dxgi {
       SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
       DWORD taskIdx = 0;
       HANDLE mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
-      (void)mmcss_handle; // Suppress unused variable warning
+      (void) mmcss_handle;  // Suppress unused variable warning
       mmcss_initialized = true;
     }
-    
+
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_frame_event || !_keyed_mutex || !_frame_metadata) {
       return capture_e::error;
@@ -627,13 +631,13 @@ namespace platf::dxgi {
     // Enhanced diagnostic logging: track frame intervals
     static thread_local auto last_frame_time = std::chrono::steady_clock::now();
     static thread_local uint32_t diagnostic_frame_count = 0;
-    static thread_local std::chrono::milliseconds total_interval_time{0};
-    
+    static thread_local std::chrono::milliseconds total_interval_time {0};
+
     auto current_time = std::chrono::steady_clock::now();
     auto frame_interval = std::chrono::duration_cast<std::chrono::milliseconds>(current_time - last_frame_time);
     total_interval_time += frame_interval;
     diagnostic_frame_count++;
-    
+
     // Log diagnostic info every 120 frames (~2 seconds at 60fps)
     if (diagnostic_frame_count % 120 == 0) {
       auto avg_interval = total_interval_time.count() / diagnostic_frame_count;
@@ -643,7 +647,7 @@ namespace platf::dxgi {
                        << "Expected: " << expected_interval << "ms, "
                        << "Last interval: " << frame_interval.count() << "ms, "
                        << "Timeout count: " << _timeout_count;
-      total_interval_time = std::chrono::milliseconds{0};
+      total_interval_time = std::chrono::milliseconds {0};
       diagnostic_frame_count = 0;
     }
 
@@ -654,17 +658,16 @@ namespace platf::dxgi {
       adjusted_timeout = timeout;
     } else if (_config.framerate > 0) {
       // Apply frame rate based timeout adjustment only for non-zero timeouts
-      auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);     // microseconds
-      auto tgt_us = (perfect_us * 120) / 100;                                    // +20% headroom (increased from 10%)
+      auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);  // microseconds
+      auto tgt_us = (perfect_us * 120) / 100;  // +20% headroom (increased from 10%)
       auto target_timeout = std::chrono::microseconds(tgt_us);
-      adjusted_timeout = std::min(timeout,                                       // caller's cap
-                                 std::max(std::chrono::milliseconds(3),          // floor
-                                         std::chrono::duration_cast<
-                                             std::chrono::milliseconds>(target_timeout)));
-                                             
+      adjusted_timeout = std::min(timeout,  // caller's cap
+                                  std::max(std::chrono::milliseconds(3),  // floor
+                                           std::chrono::duration_cast<std::chrono::milliseconds>(target_timeout)));
+
       // Log timeout adjustment for debugging
       static thread_local uint32_t adjustment_log_counter = 0;
-      if (++adjustment_log_counter % 300 == 0) { // Log every 5 seconds at 60fps
+      if (++adjustment_log_counter % 300 == 0) {  // Log every 5 seconds at 60fps
         BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Timeout adjustment: "
                          << "original=" << timeout.count() << "ms, "
                          << "adjusted=" << adjusted_timeout.count() << "ms, "
@@ -684,55 +687,55 @@ namespace platf::dxgi {
         // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
         if (adjusted_timeout.count() > 0) {
           // Log timeout with detailed timing info
-          BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame timeout #" << _timeout_count 
+          BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame timeout #" << _timeout_count
                            << ", interval since last frame: " << frame_interval.count() << "ms"
                            << ", timeout used: " << adjusted_timeout.count() << "ms";
-          
+
           // Adjust threshold for high framerates - expect more timeouts with very high framerates
           auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
           if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
-            BOOST_LOG(warning) << "[display_wgc_ipc_ram_t] Frequent timeouts detected (" 
+            BOOST_LOG(warning) << "[display_wgc_ipc_ram_t] Frequent timeouts detected ("
                                << _timeout_count << " timeouts), frame delivery may be irregular"
                                << " (framerate: " << _config.framerate << "fps)";
           }
         }
       }
-      last_frame_time = current_time; // Update timing even on timeout
+      last_frame_time = current_time;  // Update timing even on timeout
       return waitResult == WAIT_TIMEOUT ? capture_e::timeout : capture_e::error;
     }
-    
+
     // Reset timeout counter on successful frame
     _timeout_count = 0;
     last_frame_time = current_time;
 
     // Acquire keyed mutex to access shared texture
     // Use infinite wait - the event already guarantees that a frame exists
-    HRESULT hr = _keyed_mutex->AcquireSync(1, 0); // 0 == infinite wait
+    HRESULT hr = _keyed_mutex->AcquireSync(1, 0);  // 0 == infinite wait
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds (RAM version)
     uint64_t timestamp_after_mutex_ram = qpc_counter();
     if (FAILED(hr)) {
       return capture_e::error;
     }
-    
+
     // Set the shared texture as source by assigning the underlying pointer
     src.reset(_shared_texture.get());
     _shared_texture.get()->AddRef();  // Add reference since both will reference the same texture
-    
+
     // Read frame timestamp from shared memory
-    const FrameMetadata* metadata = static_cast<const FrameMetadata*>(_frame_metadata);
+    const FrameMetadata *metadata = static_cast<const FrameMetadata *>(_frame_metadata);
     frame_qpc = metadata->qpc_timestamp;
-    
+
     // Enhanced suppressed frames logging with more detail
     static uint32_t last_logged_sequence = 0;
     if (metadata->frame_sequence > 0 && (metadata->frame_sequence % 100) == 0 && metadata->frame_sequence != last_logged_sequence) {
       BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame diagnostics - "
-                       << "Sequence: " << metadata->frame_sequence 
+                       << "Sequence: " << metadata->frame_sequence
                        << ", Suppressed in batch: " << metadata->suppressed_frames
                        << ", Target fps: " << _config.framerate
                        << ", Recent timeout count: " << _timeout_count;
       last_logged_sequence = metadata->frame_sequence;
     }
-    
+
     // Log high-precision timing deltas every 150 frames for main process timing (RAM version)
     static uint32_t main_timing_log_counter_ram = 0;
     if ((++main_timing_log_counter_ram % 150) == 0) {
@@ -742,17 +745,17 @@ namespace platf::dxgi {
         QueryPerformanceFrequency(&freq);
         qpc_freq_main_ram = freq.QuadPart;
       }
-      
-      double wait_time_us = (double)(timestamp_after_wait_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
-      double mutex_time_us = (double)(timestamp_after_mutex_ram - timestamp_after_wait_ram) * 1000000.0 / qpc_freq_main_ram;
-      double total_acquire_us = (double)(timestamp_after_mutex_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
-      
+
+      double wait_time_us = (double) (timestamp_after_wait_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      double mutex_time_us = (double) (timestamp_after_mutex_ram - timestamp_after_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      double total_acquire_us = (double) (timestamp_after_mutex_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+
       BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Acquire timing - "
                        << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
                        << "Mutex: " << mutex_time_us << "μs, "
                        << "Total: " << total_acquire_us << "μs";
     }
-    
+
     // Note: We don't release the keyed mutex here since the parent class will use the texture
     // We'll release it in release_snapshot
     return capture_e::ok;
@@ -762,6 +765,11 @@ namespace platf::dxgi {
     // Release the keyed mutex after the parent class is done with the texture
     if (_keyed_mutex) {
       _keyed_mutex->ReleaseSync(0);
+    }
+    // Send heartbeat to helper after each frame is released
+    if (_pipe && _pipe->isConnected()) {
+      uint8_t heartbeat_msg = 0x01;
+      _pipe->asyncSend(std::vector<uint8_t> {heartbeat_msg});
     }
     return capture_e::ok;
   }
@@ -843,21 +851,21 @@ namespace platf::dxgi {
     this->height_before_rotation = height;
     this->capture_format = desc.Format;
     BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Successfully set up shared texture: "
-               << width << "x" << height;
+                    << width << "x" << height;
     return true;
   }
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
     // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
-    
+
     // First try to use lazy_init to see if IPC is possible
     lazy_init();
-    
+
     if (!_initialized) {
       // IPC failed (likely running as service), use DXGI fallback for dummy image creation
       BOOST_LOG(info) << "[display_wgc_ipc_ram_t] IPC not available for dummy_img, using DXGI fallback";
-      
+
       // Create a temporary DXGI display for dummy image creation
       auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
       if (temp_dxgi->init(_config, _display_name) == 0) {
@@ -868,7 +876,7 @@ namespace platf::dxgi {
         return -1;
       }
     }
-    
+
     // IPC is available, use normal WGC path
     // Set a default capture format if it hasn't been set yet
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
@@ -881,7 +889,7 @@ namespace platf::dxgi {
   std::shared_ptr<display_t> display_wgc_ipc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
     bool secure_desktop_active = platf::is_secure_desktop_active();
-    
+
     if (secure_desktop_active) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
@@ -897,14 +905,14 @@ namespace platf::dxgi {
         return disp;
       }
     }
-    
+
     return nullptr;
   }
 
   std::shared_ptr<display_t> display_wgc_ipc_ram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
     bool secure_desktop_active = platf::is_secure_desktop_active();
-    
+
     if (secure_desktop_active) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
@@ -920,7 +928,7 @@ namespace platf::dxgi {
         return disp;
       }
     }
-    
+
     return nullptr;
   }
 
