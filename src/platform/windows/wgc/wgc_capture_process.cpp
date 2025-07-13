@@ -1,9 +1,12 @@
 // sunshine_wgc_helper.cpp
 // Windows Graphics Capture helper process for Sunshine
 
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d3d11.h>
 #include <dxgi1_2.h>
+#include <shellscalingapi.h> // For DPI awareness
+#include <avrt.h> // For MMCSS
 #include <winrt/base.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.metadata.h>
@@ -64,12 +67,20 @@ constexpr auto __mingw_uuidof<winrt::Windows::Graphics::DirectX::Direct3D11::IDi
 #endif
 
 #include <windows.graphics.capture.interop.h>
+#include <shlobj.h> // For SHGetFolderPathW and CSIDL_DESKTOPDIRECTORY
 #include <winrt/windows.graphics.capture.h>
 #include <iostream>
 #include <string>
 #include <thread>
 #include <chrono>
-#include <mutex>
+
+// Function to get QPC counter (similar to main process)
+inline int64_t qpc_counter() {
+    LARGE_INTEGER counter;
+    QueryPerformanceCounter(&counter);
+    return counter.QuadPart;
+}
+
 
 using namespace winrt;
 using namespace winrt::Windows::Foundation;
@@ -79,13 +90,20 @@ using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 using namespace winrt::Windows::System;
 
-std::mutex contextMutex;
+
 
 // Structure for shared handle data sent via named pipe
 struct SharedHandleData {
     HANDLE textureHandle;
     UINT width;
     UINT height;
+};
+
+// Structure for frame metadata shared between processes
+struct FrameMetadata {
+    uint64_t qpc_timestamp;         // QPC timestamp when frame was captured
+    uint32_t frame_sequence;        // Sequential frame number
+    uint32_t suppressed_frames;     // Number of frames suppressed since last signal
 };
 
 
@@ -101,6 +119,11 @@ struct ConfigData {
 // Global config data received from main process
 ConfigData g_config = {0, 0, 0, 0, L""};
 bool g_config_received = false;
+
+// Global variables for frame metadata and rate limiting
+HANDLE g_metadata_mapping = nullptr;
+FrameMetadata* g_frame_metadata = nullptr;
+uint32_t g_frame_sequence = 0;
 
 // Global communication pipe for sending session closed notifications
 AsyncNamedPipe* g_communication_pipe = nullptr;
@@ -189,10 +212,58 @@ void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK hWinEventHook, DWORD event, HW
 
 int main()
 {
+    // Set DPI awareness to prevent zoomed display issues
+    // Try the newer API first (Windows 10 1703+), fallback to older API
+    typedef BOOL(WINAPI* SetProcessDpiAwarenessContextFunc)(DPI_AWARENESS_CONTEXT);
+    typedef HRESULT(WINAPI* SetProcessDpiAwarenessFunc)(PROCESS_DPI_AWARENESS);
+    
+    HMODULE user32 = GetModuleHandleA("user32.dll");
+    bool dpi_set = false;
+    if (user32) {
+        auto setDpiContextFunc = (SetProcessDpiAwarenessContextFunc)GetProcAddress(user32, "SetProcessDpiAwarenessContext");
+        if (setDpiContextFunc) {
+            dpi_set = setDpiContextFunc((DPI_AWARENESS_CONTEXT)-4); // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        }
+    }
+    
+    if (!dpi_set) {
+        // Fallback for older Windows versions
+        if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
+            std::wcerr << L"[WGC Helper] Warning: Failed to set DPI awareness, display scaling issues may occur" << std::endl;
+        }
+    }
+
+    // Increase thread priority to minimize scheduling delay
+    if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST)) {
+        std::wcerr << L"[WGC Helper] Failed to set thread priority: " << GetLastError() << std::endl;
+    }
+
+    // Set MMCSS for real-time scheduling - try "Pro Audio" for lower latency
+    DWORD taskIdx = 0;
+    HANDLE mmcss = AvSetMmThreadCharacteristicsW(L"Pro Audio", &taskIdx);
+    if (!mmcss) {
+        // Fallback to "Games" if "Pro Audio" fails
+        mmcss = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
+        if (!mmcss) {
+            std::wcerr << L"[WGC Helper] Failed to set MMCSS characteristics: " << GetLastError() << std::endl;
+        }
+    }
+
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
 
-    // Redirect wcout and wcerr to a file
-    std::wofstream logFile(L"sunshine_wgc_helper.log", std::ios::out | std::ios::trunc);
+    // Redirect wcout and wcerr to a file on the current user's Desktop
+    wchar_t desktopPath[MAX_PATH] = {0};
+    HRESULT hrDesktop = SHGetFolderPathW(NULL, CSIDL_DESKTOPDIRECTORY, NULL, 0, desktopPath);
+    std::wstring logFilePath;
+    if (SUCCEEDED(hrDesktop)) {
+        logFilePath = desktopPath;
+        if (logFilePath.back() != L'\\') logFilePath += L'\\';
+        logFilePath += L"sunshine_wgc_helper.log";
+    } else {
+        // Fallback to current directory if SHGetFolderPathW fails
+        logFilePath = L"sunshine_wgc_helper.log";
+    }
+    std::wofstream logFile(logFilePath.c_str(), std::ios::out | std::ios::trunc);
     if (logFile.is_open()) {
         std::wcout.rdbuf(logFile.rdbuf());
         std::wcerr.rdbuf(logFile.rdbuf());
@@ -200,6 +271,7 @@ int main()
         // If log file can't be opened, print error to default wcerr
         std::wcerr << L"[WGC Helper] Failed to open log file for output!" << std::endl;
     }
+    std::wcout << L"[WGC Helper] Log file path: " << logFilePath << std::endl;
 
     std::wcout << L"[WGC Helper] Starting Windows Graphics Capture helper process..." << std::endl;
 
@@ -326,8 +398,6 @@ int main()
         std::wcout << L"[WGC Helper] No valid config resolution received, falling back to monitor: " << width << L"x" << height << std::endl;
     }
 
-
-
     // Create GraphicsCaptureItem for monitor using interop
     auto activationFactory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
     GraphicsCaptureItem item = nullptr;
@@ -337,6 +407,31 @@ int main()
         device->Release();
         context->Release();
         return 1;
+    }
+
+    // Get actual WGC item size to ensure we capture full desktop (fixes zoomed display issue)
+    auto item_size = item.Size();
+    UINT wgc_width = static_cast<UINT>(item_size.Width);
+    UINT wgc_height = static_cast<UINT>(item_size.Height);
+    
+    std::wcout << L"[WGC Helper] WGC item reports size: " << wgc_width << L"x" << wgc_height << std::endl;
+    std::wcout << L"[WGC Helper] Monitor logical size: " << fallbackWidth << L"x" << fallbackHeight << std::endl;
+    std::wcout << L"[WGC Helper] Config requested size: " << (g_config_received ? g_config.width : 0) << L"x" << (g_config_received ? g_config.height : 0) << std::endl;
+    
+    // Use physical size from WGC to avoid DPI scaling issues
+    // This ensures we capture the full desktop without cropping/zooming
+    if (wgc_width > 0 && wgc_height > 0) {
+        // Check if there's a significant difference (indicating DPI scaling)
+        bool scaling_detected = (abs(static_cast<int>(wgc_width) - static_cast<int>(fallbackWidth)) > 100) ||
+                               (abs(static_cast<int>(wgc_height) - static_cast<int>(fallbackHeight)) > 100);
+        
+        if (scaling_detected) {
+            std::wcout << L"[WGC Helper] DPI scaling detected - using WGC physical size to avoid zoom issues" << std::endl;
+        }
+        
+        width = wgc_width;
+        height = wgc_height;
+        std::wcout << L"[WGC Helper] Final resolution (physical): " << width << L"x" << height << std::endl;
     }
 
     // Choose format based on config.dynamicRange
@@ -397,6 +492,44 @@ int main()
     std::wcout << L"[WGC Helper] Created shared texture: " << width << L"x" << height 
                << L", handle: " << std::hex << reinterpret_cast<uintptr_t>(sharedHandle) << std::dec << std::endl;
 
+    // Create shared memory for frame metadata
+    g_metadata_mapping = CreateFileMappingW(
+        INVALID_HANDLE_VALUE,
+        nullptr,
+        PAGE_READWRITE,
+        0,
+        sizeof(FrameMetadata),
+        L"Local\\SunshineWGCMetadata"
+    );
+    if (!g_metadata_mapping) {
+        std::wcerr << L"[WGC Helper] Failed to create metadata mapping: " << GetLastError() << std::endl;
+        keyedMutex->Release();
+        sharedTexture->Release();
+        device->Release();
+        context->Release();
+        return 1;
+    }
+
+    g_frame_metadata = static_cast<FrameMetadata*>(MapViewOfFile(
+        g_metadata_mapping,
+        FILE_MAP_ALL_ACCESS,
+        0, 0,
+        sizeof(FrameMetadata)
+    ));
+    if (!g_frame_metadata) {
+        std::wcerr << L"[WGC Helper] Failed to map metadata view: " << GetLastError() << std::endl;
+        CloseHandle(g_metadata_mapping);
+        keyedMutex->Release();
+        sharedTexture->Release();
+        device->Release();
+        context->Release();
+        return 1;
+    }
+
+    // Initialize metadata
+    memset(g_frame_metadata, 0, sizeof(FrameMetadata));
+    std::wcout << L"[WGC Helper] Created frame metadata shared memory" << std::endl;
+
     // Send shared handle data via named pipe to main process
     SharedHandleData handleData = { sharedHandle, width, height };
     std::vector<uint8_t> handleMessage(sizeof(SharedHandleData));
@@ -422,21 +555,49 @@ int main()
         return 1;
     }
 
-    // Create frame pool (using config/fallback size)
+    // Create frame pool with larger buffer for high framerates
+    const uint32_t kPoolFrames = (g_config_received && g_config.framerate >= 120) ? 16 : 8;
     auto framePool = Direct3D11CaptureFramePool::CreateFreeThreaded(
         winrtDevice,
         (captureFormat == DXGI_FORMAT_R16G16B16A16_FLOAT)
             ? DirectXPixelFormat::R16G16B16A16Float
             : DirectXPixelFormat::B8G8R8A8UIntNormalized,
-        2,
+        kPoolFrames,
         SizeInt32{static_cast<int32_t>(width), static_cast<int32_t>(height)});
 
-    // Attach frame arrived event
+    // Attach frame arrived event - process all frames without suppression
     auto token = framePool.FrameArrived([&](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &)
                                         {
         auto frame = sender.TryGetNextFrame();
         if (frame) {
             auto surface = frame.Surface();
+            
+            // Capture QPC timestamp as close to frame processing as possible
+            uint64_t frame_qpc = qpc_counter();
+            
+            // Log frame delivery intervals for debugging (reduced frequency)
+            static auto last_delivery_time = std::chrono::steady_clock::now();
+            auto now = std::chrono::steady_clock::now();
+            auto delivery_interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_delivery_time);
+            static uint32_t delivery_count = 0;
+            static std::chrono::milliseconds total_delivery_time{0};
+            
+            total_delivery_time += delivery_interval;
+            delivery_count++;
+            
+            // Log delivery timing every 300 frames (reduced from 100)
+            if (delivery_count % 300 == 0) {
+                auto avg_delivery_ms = total_delivery_time.count() / delivery_count;
+                auto expected_ms = (g_config_received && g_config.framerate > 0) ? (1000 / g_config.framerate) : 16;
+                std::wcout << L"[WGC Helper] Frame delivery timing - "
+                           << L"Avg interval: " << avg_delivery_ms << L"ms, "
+                           << L"Expected: " << expected_ms << L"ms, "
+                           << L"Last: " << delivery_interval.count() << L"ms" << std::endl;
+                total_delivery_time = std::chrono::milliseconds{0};
+                delivery_count = 0;
+            }
+            last_delivery_time = now;
+            
             try {
                 winrt::com_ptr<IDirect3DDxgiInterfaceAccess> interfaceAccess;
                 hr = surface.as<::IUnknown>()->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), reinterpret_cast<void**>(interfaceAccess.put()));
@@ -448,12 +609,42 @@ int main()
                     if (FAILED(hr)) {
                         std::wcerr << L"[WGC Helper] Failed to get ID3D11Texture2D from interface: " << hr << std::endl;
                     } else {
-                        std::lock_guard<std::mutex> lock(contextMutex);
                         hr = keyedMutex->AcquireSync(0, INFINITE);
                         if (FAILED(hr)) {
                             std::wcerr << L"[WGC Helper] Failed to acquire keyed mutex: " << hr << std::endl;
                         } else {
                             context->CopyResource(sharedTexture, frameTexture.get());
+                            
+                            // Update frame metadata before releasing mutex
+                            if (g_frame_metadata) {
+                                g_frame_metadata->qpc_timestamp = frame_qpc;
+                                g_frame_metadata->frame_sequence = ++g_frame_sequence;
+                                g_frame_metadata->suppressed_frames = 0;  // No suppression - always 0
+                                
+                                // Performance telemetry: emit helper-side instantaneous fps
+                                static uint64_t lastQpc = 0;
+                                static uint64_t qpc_freq = 0;
+                                if (qpc_freq == 0) {
+                                    LARGE_INTEGER freq;
+                                    QueryPerformanceFrequency(&freq);
+                                    qpc_freq = freq.QuadPart;
+                                }
+                                if ((g_frame_sequence % 600) == 0) {  // every ~5s at 120fps
+                                    if (lastQpc != 0) {
+                                        double fps = 600.0 * qpc_freq / double(frame_qpc - lastQpc);
+                                        std::wcout << L"[WGC Helper] delivered " << fps << L" fps (target: " 
+                                                   << (g_config_received ? g_config.framerate : 60) << L")" << std::endl;
+                                    }
+                                    lastQpc = frame_qpc;
+                                }
+                                
+                                // Log performance stats periodically for debugging (reduced frequency)
+                                if ((g_frame_sequence % 1500) == 0) {  // Reduced from 1000 to 1500
+                                    std::wcout << L"[WGC Helper] Frame " << g_frame_sequence 
+                                               << L" processed without suppression" << std::endl;
+                                }
+                            }
+                            
                             keyedMutex->ReleaseSync(1);
                             SetEvent(frameEvent);
                         }
@@ -491,6 +682,7 @@ int main()
 
     // Keep running until main process disconnects
     // We need to pump messages for the desktop switch hook to work
+    // Reduced polling interval to 1ms for more responsive IPC and lower jitter
     MSG msg;
     while (communicationPipe.isConnected())
     {
@@ -500,12 +692,15 @@ int main()
             DispatchMessageW(&msg);
         }
         
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Reduced from 5ms for lower IPC jitter
     }
 
     std::wcout << L"[WGC Helper] Main process disconnected, shutting down..." << std::endl;
 
     // Cleanup
+    if (mmcss) {
+        AvRevertMmThreadCharacteristics(mmcss);
+    }
     if (g_desktop_switch_hook) {
         UnhookWinEvent(g_desktop_switch_hook);
         g_desktop_switch_hook = nullptr;
@@ -515,6 +710,17 @@ int main()
     framePool.Close();
     CloseHandle(frameEvent);
     communicationPipe.stop();
+    
+    // Cleanup metadata mapping
+    if (g_frame_metadata) {
+        UnmapViewOfFile(g_frame_metadata);
+        g_frame_metadata = nullptr;
+    }
+    if (g_metadata_mapping) {
+        CloseHandle(g_metadata_mapping);
+        g_metadata_mapping = nullptr;
+    }
+    
     keyedMutex->Release();
     sharedTexture->Release();
     context->Release();

@@ -5,4 +5,5 @@ find_library(ZLIB ZLIB1)
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         $<TARGET_OBJECTS:sunshine_rc_object>
         Windowsapp.lib
-        Wtsapi32.lib)
+        Wtsapi32.lib
+        avrt.lib)

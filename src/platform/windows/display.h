@@ -383,6 +383,9 @@ namespace platf::dxgi {
    */
   class display_wgc_vram_t: public display_vram_t {
     wgc_capture_t dup;
+    
+    // Cache for frame forwarding when no new frame is available
+    std::shared_ptr<platf::img_t> last_cached_frame;
 
   public:
     int init(const ::video::config_t &config, const std::string &display_name);
@@ -422,11 +425,14 @@ protected:
     texture2d_t _shared_texture;
     IDXGIKeyedMutex* _keyed_mutex = nullptr;
     HANDLE _frame_event = nullptr;
+    HANDLE _metadata_mapping = nullptr;
+    void* _frame_metadata = nullptr;
     UINT _width = 0;
     UINT _height = 0;
     ::video::config_t _config;
     std::string _display_name;
     std::atomic<bool> _should_swap_to_dxgi{false};  // Flag set when helper process detects secure desktop
+    uint32_t _timeout_count = 0;  // Track timeout frequency
 };
 
   /**
@@ -457,36 +463,37 @@ protected:
     texture2d_t _shared_texture;
     IDXGIKeyedMutex* _keyed_mutex = nullptr;
     HANDLE _frame_event = nullptr;
+    HANDLE _metadata_mapping = nullptr;
+    void* _frame_metadata = nullptr;
     UINT _width = 0;
     UINT _height = 0;
     ::video::config_t _config;
     std::string _display_name;
     std::atomic<bool> _should_swap_to_dxgi{false};  // Flag set when helper process detects secure desktop
-};
-
-/**
- * Display backend that uses DXGI duplication for secure desktop scenarios.
- * This display can detect when secure desktop is no longer active and swap back to WGC.
- */
-class temp_dxgi_vram_t : public display_ddup_vram_t {
-private:
+    uint32_t _timeout_count = 0;  // Track timeout frequency
+};  /**
+   * Display backend that uses DXGI duplication for secure desktop scenarios.
+   * This display can detect when secure desktop is no longer active and swap back to WGC.
+   */
+  class temp_dxgi_vram_t : public display_ddup_vram_t {
+  private:
     std::chrono::steady_clock::time_point _last_check_time;
     static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
     
-public:
+  public:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
-};
+  };
 
-/**
- * Display backend that uses DXGI duplication for secure desktop scenarios.
- * This display can detect when secure desktop is no longer active and swap back to WGC.
- */
-class temp_dxgi_ram_t : public display_ddup_ram_t {
-private:
+  /**
+   * Display backend that uses DXGI duplication for secure desktop scenarios.
+   * This display can detect when secure desktop is no longer active and swap back to WGC.
+   */
+  class temp_dxgi_ram_t : public display_ddup_ram_t {
+  private:
     std::chrono::steady_clock::time_point _last_check_time;
     static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
     
-public:
+  public:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 };
 
