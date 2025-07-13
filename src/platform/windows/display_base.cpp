@@ -29,10 +29,10 @@ typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
 } D3DKMT_GPU_PREFERENCE_QUERY_STATE;
 
 #include "display.h"
-#include "display_decorator.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/display_device.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -1000,42 +1000,31 @@ namespace platf {
    */
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type == mem_type_e::dxgi) {
-      // Check if this is a swap due to secure desktop
-      if (dxgi::is_secure_desktop_swap_requested()) {
-        // Use secure desktop fallback display
-        auto disp = std::make_shared<dxgi::display_secure_desktop_dxgi_t>();
-        if (!disp->init(config, display_name)) {
-          return disp;
-        }
+      // Check if WGC is requested in config
+      if (config::video.capture == "wgc") {
+        // Use the WGC factory method which handles secure desktop detection internally
+        return dxgi::display_wgc_ipc_vram_t::create(config, display_name);
       } else {
-        // Normal DXGI usage - use WGC IPC
-        auto disp = std::make_shared<dxgi::display_ipc_wgc_t>();
+        // Use DXGI duplication for hardware encoding (default behavior)
+        auto disp = std::make_shared<dxgi::display_ddup_vram_t>();
         if (!disp->init(config, display_name)) {
           return disp;
         }
       }
     } else if (hwdevice_type == mem_type_e::system) {
-      auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
-
-      if (!disp->init(config, display_name)) {
-        return disp;
+      // Check if WGC is requested in config
+      if (config::video.capture == "wgc") {
+        // Use the WGC factory method which handles secure desktop detection internally  
+        return dxgi::display_wgc_ipc_ram_t::create(config, display_name);
+      } else {
+        // Use DXGI duplication for software encoding (default behavior)
+        auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
+        if (!disp->init(config, display_name)) {
+          return disp;
+        }
       }
     }
 
-    if (hwdevice_type == mem_type_e::wgc) {
-      auto disp = std::make_shared<dxgi::display_wgc_vram_decorator_t>();
-
-      if (!disp->init(config, display_name)) {
-        return disp;
-      }
-    } else if (hwdevice_type == mem_type_e::system) {
-      auto disp = std::make_shared<dxgi::display_wgc_ram_t>();
-
-      if (!disp->init(config, display_name)) {
-        return disp;
-      }
-    }
-    // ddx and wgc failed
     return nullptr;
   }
 
