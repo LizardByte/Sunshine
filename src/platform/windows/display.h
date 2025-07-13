@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <atomic>
+
 // platform includes
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -391,11 +394,16 @@ namespace platf::dxgi {
     virtual capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
   };
 
-
-  class display_ipc_wgc_t : public display_wgc_vram_t {
+  /**
+   * Display backend that uses WGC with IPC helper for hardware encoder.
+   */
+  class display_wgc_ipc_vram_t : public display_wgc_vram_t {
 public:
-    display_ipc_wgc_t();
-    ~display_ipc_wgc_t() override;
+    display_wgc_ipc_vram_t();
+    ~display_wgc_ipc_vram_t() override;
+
+    // Factory method that returns either WGC IPC or secure desktop fallback based on current state
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
 
     int init(const ::video::config_t &config, const std::string &display_name);
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
@@ -418,25 +426,74 @@ protected:
     UINT _height = 0;
     ::video::config_t _config;
     std::string _display_name;
+    std::atomic<bool> _should_swap_to_dxgi{false};  // Flag set when helper process detects secure desktop
+};
+
+  /**
+   * Display backend that uses WGC with IPC helper for software encoder.
+   */
+  class display_wgc_ipc_ram_t : public display_wgc_ram_t {
+public:
+    display_wgc_ipc_ram_t();
+    ~display_wgc_ipc_ram_t() override;
+
+    // Factory method that returns either WGC IPC or secure desktop fallback based on current state
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+
+    int init(const ::video::config_t &config, const std::string &display_name);
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    void lazy_init();
+    int dummy_img(platf::img_t *img_base) override;
+
+protected:
+    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
+    capture_e release_snapshot();
+    void cleanup();
+    bool setup_shared_texture(HANDLE shared_handle, UINT width, UINT height);
+
+    std::unique_ptr<ProcessHandler> _process_helper;
+    std::unique_ptr<AsyncNamedPipe> _pipe;
+    bool _initialized = false;
+    texture2d_t _shared_texture;
+    IDXGIKeyedMutex* _keyed_mutex = nullptr;
+    HANDLE _frame_event = nullptr;
+    UINT _width = 0;
+    UINT _height = 0;
+    ::video::config_t _config;
+    std::string _display_name;
+    std::atomic<bool> _should_swap_to_dxgi{false};  // Flag set when helper process detects secure desktop
 };
 
 /**
  * Display backend that uses DXGI duplication for secure desktop scenarios.
  * This display can detect when secure desktop is no longer active and swap back to WGC.
  */
-class display_secure_desktop_dxgi_t : public display_ddup_vram_t {
+class temp_dxgi_vram_t : public display_ddup_vram_t {
 private:
     std::chrono::steady_clock::time_point _last_check_time;
     static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
     
 public:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
-private:
-    bool is_secure_desktop_active();
 };
 
-// Helper functions for secure desktop swap management
-bool is_secure_desktop_swap_requested();
-void reset_secure_desktop_swap_flag();
+/**
+ * Display backend that uses DXGI duplication for secure desktop scenarios.
+ * This display can detect when secure desktop is no longer active and swap back to WGC.
+ */
+class temp_dxgi_ram_t : public display_ddup_ram_t {
+private:
+    std::chrono::steady_clock::time_point _last_check_time;
+    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
+    
+public:
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+};
+
 
 }  // namespace platf::dxgi
+
+
+
+
+

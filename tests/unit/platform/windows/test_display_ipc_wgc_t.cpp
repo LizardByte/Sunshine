@@ -42,7 +42,7 @@ protected:
 
 TEST_F(DisplayIpcWgcIntegrationTest, InitAndSnapshotSuccess) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -63,7 +63,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, InitAndSnapshotSuccess) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
 
@@ -95,7 +95,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, PipeTimeout) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
 
@@ -127,7 +127,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, PipeTimeout) {
 TEST_F(DisplayIpcWgcIntegrationTest, DoubleCleanupSafe) {
     deadlock_protection([&] {
         {
-            display_ipc_wgc_t display;
+            display_wgc_ipc_vram_t display;
             ::video::config_t config{};
             std::string display_name = "";
             int result = display.init(config, display_name);
@@ -136,7 +136,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, DoubleCleanupSafe) {
         }
         // Test that resources are properly cleaned up by creating another instance
         {
-            display_ipc_wgc_t display2;
+            display_wgc_ipc_vram_t display2;
             ::video::config_t config{};
             std::string display_name = "";
             int result = display2.init(config, display_name);
@@ -149,7 +149,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, DoubleCleanupSafe) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, FrameAcquisitionTimeout) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -181,7 +181,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameAcquisitionTimeout) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, RepeatedSnapshotCalls) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -212,7 +212,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupAfterError) {
         }
 
         {
-            display_ipc_wgc_t display;
+            display_wgc_ipc_vram_t display;
             ::video::config_t config{};
             std::string display_name = "";
             int result = display.init(config, display_name);
@@ -235,7 +235,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupAfterError) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, FrameReleaseAfterSnapshot) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -254,7 +254,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameReleaseAfterSnapshot) {
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNotInitialized) {
-    display_ipc_wgc_t display;
+    display_wgc_ipc_vram_t display;
     // Do not call init
     std::shared_ptr<platf::img_t> img_out;
     auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
@@ -268,7 +268,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNotInitialized) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNoSharedTexture) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -295,7 +295,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotNoSharedTexture) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, CapturedFrameContentValidation) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         std::string display_name = "";
         int result = display.init(config, display_name);
@@ -424,7 +424,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, CapturedFrameContentValidation) {
 
 TEST_F(DisplayIpcWgcIntegrationTest, ConfiguredResolutionTest) {
     deadlock_protection([&] {
-        display_ipc_wgc_t display;
+        display_wgc_ipc_vram_t display;
         ::video::config_t config{};
         
         // Test with a specific resolution that's different from monitor native resolution
