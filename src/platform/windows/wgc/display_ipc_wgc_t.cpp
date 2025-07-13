@@ -10,6 +10,7 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <iomanip>  // for std::fixed, std::setprecision
 #include <thread>
 #include <tlhelp32.h>  // for process enumeration
 
@@ -211,7 +212,7 @@ namespace platf::dxgi {
     if (diagnostic_frame_count % 120 == 0) {
       auto avg_interval = total_interval_time.count() / diagnostic_frame_count;
       auto expected_interval = (_config.framerate > 0) ? (1000 / _config.framerate) : 16;
-      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Frame timing diagnostics - "
+      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timing diagnostics - "
                        << "Avg interval: " << avg_interval << "ms, "
                        << "Expected: " << expected_interval << "ms, "
                        << "Last interval: " << frame_interval.count() << "ms, "
@@ -220,9 +221,13 @@ namespace platf::dxgi {
       diagnostic_frame_count = 0;
     }
 
-    // Increase timeout headroom to +20% as suggested
+    // Timeout adjustment with proper handling of 0ms timeout
     std::chrono::milliseconds adjusted_timeout = timeout;
-    if (_config.framerate > 0) {
+    if (timeout.count() == 0) {
+      // Keep the original behavior for 0ms timeout (immediate return)
+      adjusted_timeout = timeout;
+    } else if (_config.framerate > 0) {
+      // Apply frame rate based timeout adjustment only for non-zero timeouts
       auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);     // microseconds
       auto tgt_us = (perfect_us * 120) / 100;                                    // +20% headroom (increased from 10%)
       auto target_timeout = std::chrono::microseconds(tgt_us);
@@ -234,7 +239,7 @@ namespace platf::dxgi {
       // Log timeout adjustment for debugging
       static thread_local uint32_t adjustment_log_counter = 0;
       if (++adjustment_log_counter % 300 == 0) { // Log every 5 seconds at 60fps
-        BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Timeout adjustment: "
+        BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Timeout adjustment: "
                          << "original=" << timeout.count() << "ms, "
                          << "adjusted=" << adjusted_timeout.count() << "ms, "
                          << "fps=" << _config.framerate;
@@ -242,21 +247,28 @@ namespace platf::dxgi {
     }
 
     // Wait for new frame event
+    // Timestamp #1: Before calling WaitForSingleObject
+    uint64_t timestamp_before_wait = qpc_counter();
     DWORD waitResult = WaitForSingleObject(_frame_event, adjusted_timeout.count());
+    // Timestamp #2: Immediately after WaitForSingleObject returns
+    uint64_t timestamp_after_wait = qpc_counter();
     if (waitResult != WAIT_OBJECT_0) {
       if (waitResult == WAIT_TIMEOUT) {
         _timeout_count++;
-        // Log timeout with detailed timing info
-        BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Frame timeout #" << _timeout_count 
-                         << ", interval since last frame: " << frame_interval.count() << "ms"
-                         << ", timeout used: " << adjusted_timeout.count() << "ms";
-        
-        // Adjust threshold for high framerates - expect more timeouts with very high framerates
-        auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
-        if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
-          BOOST_LOG(warning) << "[display_wgc_ipc_vram_t] Frequent timeouts detected (" 
-                             << _timeout_count << " timeouts), frame delivery may be irregular"
-                             << " (framerate: " << _config.framerate << "fps)";
+        // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
+        if (adjusted_timeout.count() > 0) {
+          // Log timeout with detailed timing info
+          BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timeout #" << _timeout_count 
+                           << ", interval since last frame: " << frame_interval.count() << "ms"
+                           << ", timeout used: " << adjusted_timeout.count() << "ms";
+          
+          // Adjust threshold for high framerates - expect more timeouts with very high framerates
+          auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
+          if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
+            BOOST_LOG(warning) << "[display_wgc_ipc_vram_t] Frequent timeouts detected (" 
+                               << _timeout_count << " timeouts), frame delivery may be irregular"
+                               << " (framerate: " << _config.framerate << "fps)";
+          }
         }
       }
       last_frame_time = current_time; // Update timing even on timeout
@@ -270,6 +282,8 @@ namespace platf::dxgi {
     // Acquire keyed mutex to access shared texture
     // Use infinite wait - the event already guarantees that a frame exists
     HRESULT hr = _keyed_mutex->AcquireSync(1, 0); // 0 == infinite wait
+    // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
+    uint64_t timestamp_after_mutex = qpc_counter();
     if (FAILED(hr)) {
       return capture_e::error;
     }
@@ -285,12 +299,32 @@ namespace platf::dxgi {
     // Enhanced suppressed frames logging with more detail
     static uint32_t last_logged_sequence = 0;
     if (metadata->frame_sequence > 0 && (metadata->frame_sequence % 100) == 0 && metadata->frame_sequence != last_logged_sequence) {
-      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Frame diagnostics - "
+      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame diagnostics - "
                        << "Sequence: " << metadata->frame_sequence 
                        << ", Suppressed in batch: " << metadata->suppressed_frames
                        << ", Target fps: " << _config.framerate
                        << ", Recent timeout count: " << _timeout_count;
       last_logged_sequence = metadata->frame_sequence;
+    }
+    
+    // Log high-precision timing deltas every 150 frames for main process timing
+    static uint32_t main_timing_log_counter = 0;
+    if ((++main_timing_log_counter % 150) == 0) {
+      static uint64_t qpc_freq_main = 0;
+      if (qpc_freq_main == 0) {
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        qpc_freq_main = freq.QuadPart;
+      }
+      
+      double wait_time_us = (double)(timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
+      double mutex_time_us = (double)(timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main;
+      double total_acquire_us = (double)(timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
+      
+      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Acquire timing - "
+                       << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
+                       << "Mutex: " << mutex_time_us << "μs, "
+                       << "Total: " << total_acquire_us << "μs";
     }
     
     // Note: We don't release the keyed mutex here since the parent class will use the texture
@@ -613,9 +647,13 @@ namespace platf::dxgi {
       diagnostic_frame_count = 0;
     }
 
-    // Increase timeout headroom to +20% as suggested
+    // Timeout adjustment with proper handling of 0ms timeout
     std::chrono::milliseconds adjusted_timeout = timeout;
-    if (_config.framerate > 0) {
+    if (timeout.count() == 0) {
+      // Keep the original behavior for 0ms timeout (immediate return)
+      adjusted_timeout = timeout;
+    } else if (_config.framerate > 0) {
+      // Apply frame rate based timeout adjustment only for non-zero timeouts
       auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);     // microseconds
       auto tgt_us = (perfect_us * 120) / 100;                                    // +20% headroom (increased from 10%)
       auto target_timeout = std::chrono::microseconds(tgt_us);
@@ -635,21 +673,28 @@ namespace platf::dxgi {
     }
 
     // Wait for new frame event
+    // Timestamp #1: Before calling WaitForSingleObject (RAM version)
+    uint64_t timestamp_before_wait_ram = qpc_counter();
     DWORD waitResult = WaitForSingleObject(_frame_event, adjusted_timeout.count());
+    // Timestamp #2: Immediately after WaitForSingleObject returns (RAM version)
+    uint64_t timestamp_after_wait_ram = qpc_counter();
     if (waitResult != WAIT_OBJECT_0) {
       if (waitResult == WAIT_TIMEOUT) {
         _timeout_count++;
-        // Log timeout with detailed timing info
-        BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame timeout #" << _timeout_count 
-                         << ", interval since last frame: " << frame_interval.count() << "ms"
-                         << ", timeout used: " << adjusted_timeout.count() << "ms";
-        
-        // Adjust threshold for high framerates - expect more timeouts with very high framerates
-        auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
-        if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
-          BOOST_LOG(warning) << "[display_wgc_ipc_ram_t] Frequent timeouts detected (" 
-                             << _timeout_count << " timeouts), frame delivery may be irregular"
-                             << " (framerate: " << _config.framerate << "fps)";
+        // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
+        if (adjusted_timeout.count() > 0) {
+          // Log timeout with detailed timing info
+          BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame timeout #" << _timeout_count 
+                           << ", interval since last frame: " << frame_interval.count() << "ms"
+                           << ", timeout used: " << adjusted_timeout.count() << "ms";
+          
+          // Adjust threshold for high framerates - expect more timeouts with very high framerates
+          auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
+          if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
+            BOOST_LOG(warning) << "[display_wgc_ipc_ram_t] Frequent timeouts detected (" 
+                               << _timeout_count << " timeouts), frame delivery may be irregular"
+                               << " (framerate: " << _config.framerate << "fps)";
+          }
         }
       }
       last_frame_time = current_time; // Update timing even on timeout
@@ -663,6 +708,8 @@ namespace platf::dxgi {
     // Acquire keyed mutex to access shared texture
     // Use infinite wait - the event already guarantees that a frame exists
     HRESULT hr = _keyed_mutex->AcquireSync(1, 0); // 0 == infinite wait
+    // Timestamp #3: After _keyed_mutex->AcquireSync succeeds (RAM version)
+    uint64_t timestamp_after_mutex_ram = qpc_counter();
     if (FAILED(hr)) {
       return capture_e::error;
     }
@@ -684,6 +731,26 @@ namespace platf::dxgi {
                        << ", Target fps: " << _config.framerate
                        << ", Recent timeout count: " << _timeout_count;
       last_logged_sequence = metadata->frame_sequence;
+    }
+    
+    // Log high-precision timing deltas every 150 frames for main process timing (RAM version)
+    static uint32_t main_timing_log_counter_ram = 0;
+    if ((++main_timing_log_counter_ram % 150) == 0) {
+      static uint64_t qpc_freq_main_ram = 0;
+      if (qpc_freq_main_ram == 0) {
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        qpc_freq_main_ram = freq.QuadPart;
+      }
+      
+      double wait_time_us = (double)(timestamp_after_wait_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      double mutex_time_us = (double)(timestamp_after_mutex_ram - timestamp_after_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      double total_acquire_us = (double)(timestamp_after_mutex_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      
+      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Acquire timing - "
+                       << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
+                       << "Mutex: " << mutex_time_us << "μs, "
+                       << "Total: " << total_acquire_us << "μs";
     }
     
     // Note: We don't release the keyed mutex here since the parent class will use the texture

@@ -899,13 +899,21 @@ namespace platf {
       CloseHandle(user_token);
     });
 
+    // Create environment block with user-specific environment variables
+    bp::environment cloned_env = boost::this_process::environment();
+    if (!merge_user_environment_block(cloned_env, user_token)) {
+      ec = std::make_error_code(std::errc::not_enough_memory);
+      return false;
+    }
+
     // Open the process as the current user account, elevation is handled in the token itself.
     BOOL ret = FALSE;
     ec = impersonate_current_user(user_token, [&]() {
+      std::wstring env_block = create_environment_block(cloned_env);
       std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
       ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, 
                                 !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), 
-                                creation_flags, NULL, start_dir.empty() ? NULL : start_dir.c_str(), 
+                                creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), 
                                 (LPSTARTUPINFOW) &startup_info, &process_info);
     });
 
