@@ -40,6 +40,62 @@ namespace platf {
     }
   };
 
+  struct av_mic_output_t: public mic_output_t {
+    AVAudio *av_audio_output;
+    std::string device_name;
+    bool started = false;
+
+    av_mic_output_t(int channels, std::uint32_t sample_rate, const std::string &dev_name) 
+      : device_name(dev_name) {
+      
+      av_audio_output = [[AVAudio alloc] init];
+      
+      AVCaptureDevice *output_device = nullptr;
+      if (!device_name.empty() && device_name != "default") {
+        output_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:device_name.c_str()]];
+      }
+      
+      if (!output_device) {
+        output_device = [AVCaptureDevice defaultDeviceWithMediaType:AVMediaTypeAudio];
+      }
+      
+      if ([av_audio_output setupMicrophone:output_device sampleRate:sample_rate frameSize:960 channels:channels]) {
+        BOOST_LOG(error) << "Failed to setup microphone output device."sv;
+        [av_audio_output release];
+        av_audio_output = nullptr;
+      }
+    }
+
+    int output_samples(const std::vector<float> &frame_buffer) override {
+      if (!av_audio_output || !started) {
+        return -1;
+      }
+
+      // For macOS, we would need to implement audio output through Core Audio
+      // This is a simplified placeholder - real implementation would need
+      // Audio Queue Services or Audio Unit for output
+      BOOST_LOG(debug) << "Outputting " << frame_buffer.size() << " audio samples"sv;
+      return 0;
+    }
+
+    int start() override {
+      started = av_audio_output != nullptr;
+      return started ? 0 : -1;
+    }
+
+    int stop() override {
+      started = false;
+      return 0;
+    }
+
+    ~av_mic_output_t() override {
+      stop();
+      if (av_audio_output) {
+        [av_audio_output release];
+      }
+    }
+  };
+
   struct macos_audio_control_t: public audio_control_t {
     AVCaptureDevice *audio_capture_device {};
 
@@ -76,6 +132,10 @@ namespace platf {
       }
 
       return mic;
+    }
+
+    std::unique_ptr<mic_output_t> mic_output(int channels, std::uint32_t sample_rate, const std::string &device_name) override {
+      return std::make_unique<av_mic_output_t>(channels, sample_rate, device_name);
     }
 
     bool is_sink_available(const std::string &sink) override {

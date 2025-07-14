@@ -680,6 +680,193 @@ namespace platf::audio {
     HANDLE mmcss_task_handle = NULL;
   };
 
+  class mic_output_wasapi_t: public mic_output_t {
+  public:
+    com_ptr_t<IMMDeviceEnumerator> device_enum;
+    com_ptr_t<IMMDevice> device;
+    com_ptr_t<IAudioClient> audio_client;
+    com_ptr_t<IAudioRenderClient> render_client;
+    WAVEFORMATEX *wave_format = nullptr;
+    HANDLE event_handle = NULL;
+    std::string device_name;
+    bool started = false;
+
+    mic_output_wasapi_t(int channels, std::uint32_t sample_rate, const std::string &dev_name) 
+      : device_name(dev_name) {
+      
+      auto hr = CoCreateInstance(
+        __uuidof(MMDeviceEnumerator),
+        nullptr,
+        CLSCTX_ALL,
+        IID_PPV_ARGS(&device_enum)
+      );
+
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to create device enumerator: "sv << std::hex << hr;
+        return;
+      }
+
+      // Use default device if device_name is empty or "default"
+      if (device_name.empty() || device_name == "default") {
+        hr = device_enum->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+      } else {
+        // Try to find device by name
+        com_ptr_t<IMMDeviceCollection> collection;
+        hr = device_enum->EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE, &collection);
+        if (SUCCEEDED(hr)) {
+          UINT count;
+          collection->GetCount(&count);
+          for (UINT i = 0; i < count && !device; i++) {
+            com_ptr_t<IMMDevice> temp_device;
+            collection->Item(i, &temp_device);
+            
+            com_ptr_t<IPropertyStore> prop_store;
+            temp_device->OpenPropertyStore(STGM_READ, &prop_store);
+            
+            PROPVARIANT prop_var;
+            PropVariantInit(&prop_var);
+            prop_store->GetValue(PKEY_Device_FriendlyName, &prop_var);
+            
+            std::wstring name = prop_var.pwszVal;
+            std::string device_friendly_name(name.begin(), name.end());
+            
+            if (device_friendly_name.find(device_name) != std::string::npos) {
+              device = temp_device;
+            }
+            
+            PropVariantClear(&prop_var);
+          }
+        }
+        
+        if (!device) {
+          hr = device_enum->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+        }
+      }
+
+      if (FAILED(hr) || !device) {
+        BOOST_LOG(error) << "Failed to get audio device: "sv << std::hex << hr;
+        return;
+      }
+
+      hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, (void**)&audio_client);
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to activate audio client: "sv << std::hex << hr;
+        return;
+      }
+
+      // Set up wave format for mono float at specified sample rate
+      WAVEFORMATEXTENSIBLE wave_ex = {};
+      wave_ex.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+      wave_ex.Format.nChannels = channels;
+      wave_ex.Format.nSamplesPerSec = sample_rate;
+      wave_ex.Format.wBitsPerSample = 32;
+      wave_ex.Format.nBlockAlign = channels * sizeof(float);
+      wave_ex.Format.nAvgBytesPerSec = sample_rate * wave_ex.Format.nBlockAlign;
+      wave_ex.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+      wave_ex.Samples.wValidBitsPerSample = 32;
+      wave_ex.dwChannelMask = SPEAKER_FRONT_CENTER;
+      wave_ex.SubFormat = KSDATAFORMAT_SUBTYPE_IEEE_FLOAT;
+
+      wave_format = (WAVEFORMATEX*)&wave_ex;
+
+      event_handle = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+      if (!event_handle) {
+        BOOST_LOG(error) << "Failed to create event handle";
+        return;
+      }
+
+      hr = audio_client->Initialize(
+        AUDCLNT_SHAREMODE_SHARED,
+        AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+        200000, // 20ms buffer
+        0,
+        wave_format,
+        nullptr
+      );
+
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to initialize audio client: "sv << std::hex << hr;
+        return;
+      }
+
+      hr = audio_client->SetEventHandle(event_handle);
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to set event handle: "sv << std::hex << hr;
+        return;
+      }
+
+      hr = audio_client->GetService(IID_PPV_ARGS(&render_client));
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to get render client: "sv << std::hex << hr;
+        return;
+      }
+    }
+
+    int output_samples(const std::vector<float> &frame_buffer) override {
+      if (!audio_client || !render_client || !started) {
+        return -1;
+      }
+
+      UINT32 buffer_frames;
+      audio_client->GetBufferSize(&buffer_frames);
+
+      UINT32 padding;
+      audio_client->GetCurrentPadding(&padding);
+
+      UINT32 available_frames = buffer_frames - padding;
+      UINT32 frames_to_write = std::min(available_frames, (UINT32)frame_buffer.size());
+
+      if (frames_to_write == 0) {
+        return 0;
+      }
+
+      BYTE *buffer_ptr;
+      auto hr = render_client->GetBuffer(frames_to_write, &buffer_ptr);
+      if (FAILED(hr)) {
+        return -1;
+      }
+
+      memcpy(buffer_ptr, frame_buffer.data(), frames_to_write * sizeof(float));
+
+      hr = render_client->ReleaseBuffer(frames_to_write, 0);
+      if (FAILED(hr)) {
+        return -1;
+      }
+
+      return 0;
+    }
+
+    int start() override {
+      if (!audio_client) {
+        return -1;
+      }
+
+      auto hr = audio_client->Start();
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to start audio client: "sv << std::hex << hr;
+        return -1;
+      }
+
+      started = true;
+      return 0;
+    }
+
+    int stop() override {
+      if (audio_client && started) {
+        audio_client->Stop();
+        started = false;
+      }
+      return 0;
+    }
+
+    ~mic_output_wasapi_t() {
+      stop();
+      if (event_handle) {
+        CloseHandle(event_handle);
+      }
+    }
+  };
+
   class audio_control_t: public ::platf::audio_control_t {
   public:
     std::optional<sink_t> sink_info() override {
@@ -776,6 +963,10 @@ namespace platf::audio {
       }
 
       return mic;
+    }
+
+    std::unique_ptr<mic_output_t> mic_output(int channels, std::uint32_t sample_rate, const std::string &device_name) override {
+      return std::make_unique<mic_output_wasapi_t>(channels, sample_rate, device_name);
     }
 
     /**

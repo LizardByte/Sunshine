@@ -146,8 +146,10 @@ namespace config {
   struct audio_t {
     std::string sink;
     std::string virtual_sink;
+    std::string mic_sink;
     bool stream;
     bool install_steam_drivers;
+    bool enable_mic_passthrough;
   };
 
   constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it
