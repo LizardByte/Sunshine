@@ -3,672 +3,492 @@
 
 <head>
   <%- header %>
-    <style>
-      .precmd-head {
-        width: 200px;
-      }
-
-      .monospace {
-        font-family: monospace;
-      }
-
-      .cover-finder {}
-
-      .cover-finder .cover-results {
-        max-height: 400px;
-        overflow-x: hidden;
-        overflow-y: auto;
-      }
-
-      .cover-finder .cover-results.busy * {
-        cursor: wait !important;
-        pointer-events: none;
-      }
-
-      .cover-container {
-        padding-top: 133.33%;
-        position: relative;
-      }
-
-      .cover-container.result {
-        cursor: pointer;
-      }
-
-      .spinner-border {
-        position: absolute;
-        left: 0;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        margin: auto;
-      }
-
-      .cover-container img {
-        display: block;
-        position: absolute;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-      }
-
-      .config-page {
-        padding: 1em;
-        border: 1px solid #dee2e6;
-        border-top: none;
-      }
-
-      td {
-        padding: 0 0.5em;
-      }
-
-      .env-table td {
-        padding: 0.25em;
-        border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
-        vertical-align: top;
-      }
-      .table .item-app {
-        cursor: move;
-      }
-      .table .item-app:hover {
-        background-color: #d38d9d91;
-      }
-    </style>
+  <link rel="stylesheet" href="./styles/apps.css" />
 </head>
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
-  <div class="container">
+  <div class="container-fluid px-4">
     <div class="my-4">
-      <h1>{{ $t('apps.applications_title') }}</h1>
-      <div>{{ $t('apps.applications_desc') }}</div>
+      <h1 class="page-title">{{ $t('apps.applications_title') }}</h1>
+      <p class="page-subtitle">{{ $t('apps.applications_desc') }}</p>
     </div>
-    <div class="card p-4">
-      <table class="table">
-        <thead>
-          <tr>
-            <th scope="col">{{ $t('apps.name') }}</th>
-            <th scope="col">{{ $t('apps.actions') }}</th>
-          </tr>
-        </thead>
-        <tbody is="vue:draggable" v-model="apps" :item-key="key => 'tr-' + $index" tag="tbody">
-          <template #item="{element, index}">
-            <tr class="item-app">
-              <td>{{element.name}}</td>
-              <td>
-                <button class="btn btn-primary mx-1" @click="editApp(index)">
-                  <i class="fas fa-edit"></i> {{ $t('apps.edit') }}
-                </button>
-                <button class="btn btn-danger mx-1" @click="showDeleteForm(index)">
-                  <i class="fas fa-trash"></i> {{ $t('apps.delete') }}
-                </button>
-              </td>
-            </tr>
-          </template>
-        </tbody>
-      </table>
+    
+    <!-- 搜索栏和功能按钮 -->
+    <div class="search-container mb-4">
+      <div class="search-box">
+        <i class="fas fa-search search-icon"></i>
+        <input 
+          type="text" 
+          class="form-control search-input" 
+          :placeholder="$t('apps.search_placeholder')"
+          v-model="searchQuery"
+          @input="debouncedSearch"
+        >
+        <button v-if="searchQuery" class="btn-clear-search" @click="clearSearch">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+      
+      <!-- 功能按钮组 -->
+      <div class="action-buttons">
+        <button 
+          class="cute-btn cute-btn-primary" 
+          @click="newApp"
+          :title="$t('apps.add_new')"
+        >
+          <i class="fas fa-plus"></i>
+        </button>
+        <button 
+          class="cute-btn cute-btn-secondary" 
+          data-bs-toggle="modal" 
+          data-bs-target="#envVarsModal"
+          :title="'环境变量说明'"
+        >
+          <i class="fas fa-info-circle"></i>
+        </button>
+        <button 
+          class="cute-btn cute-btn-success" 
+          @click="save"
+          :title="$t('_common.save')"
+        >
+          <i class="fas fa-save"></i>
+        </button>
+      </div>
     </div>
-    <div class="edit-form card mt-2" v-if="showEditForm">
-      <div class="p-4">
-        <!-- Application Name -->
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
-          <input type="text" class="form-control" id="appName" aria-describedby="appNameHelp" v-model="editForm.name" />
-          <div id="appNameHelp" class="form-text">{{ $t('apps.app_name_desc') }}</div>
+    
+    <!-- 应用卡片列表 -->
+    <div class="apps-grid-container">
+      <draggable 
+        v-if="!searchQuery" 
+        v-model="apps" 
+        item-key="name"
+        class="apps-grid"
+        :animation="300"
+        :delay="0"
+        :disabled="false"
+        ghost-class="app-card-ghost"
+        chosen-class="app-card-chosen"
+        drag-class="app-card-drag"
+        @start="onDragStart"
+        @end="onDragEnd"
+      >
+        <template #item="{element: app, index}">
+          <app-card 
+            :app="app"
+            :draggable="true"
+            :is-drag-result="false"
+            :is-dragging="isDragging"
+            @edit="editApp(index)"
+            @delete="showDeleteForm(index)"
+            @copy-success="handleCopySuccess"
+            @copy-error="handleCopyError"
+          ></app-card>
+        </template>
+      </draggable>
+      
+      <!-- 搜索结果视图（不可拖拽） -->
+      <div v-else class="apps-grid">
+        <app-card 
+          v-for="(app, index) in filteredApps" 
+          :key="'search-' + index"
+          :app="app"
+          :draggable="false"
+          :is-search-result="true"
+          :is-dragging="false"
+          @edit="editApp(getOriginalIndex(app, index))"
+          @delete="showDeleteForm(getOriginalIndex(app, index))"
+          @copy-success="handleCopySuccess"
+          @copy-error="handleCopyError"
+        ></app-card>
+      </div>
+      
+      <!-- 空状态 -->
+      <div v-if="(searchQuery && filteredApps.length === 0) || (!searchQuery && apps.length === 0)" class="empty-state">
+        <div class="empty-icon">
+          <i class="fas fa-rocket"></i>
         </div>
-        <!-- output -->
-        <div class="mb-3">
-          <label for="appOutput" class="form-label">{{ $t('apps.output_name') }}</label>
-          <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
-            v-model="editForm.output" />
-          <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
-        </div>
-        <!-- prep-cmd -->
-        <div class="mb-3">
-          <label for="excludeGlobalPrep" class="form-label">{{ $t('apps.global_prep_name') }}</label>
-          <select id="excludeGlobalPrep" class="form-select" v-model="editForm['exclude-global-prep-cmd']">
-            <option v-for="val in [false, true]" :value="val">
-              {{ !val ? $t('_common.enabled') : $t('_common.disabled') }}
-            </option>
-          </select>
-          <div class="form-text">{{ $t('apps.global_prep_desc') }}</div>
-        </div>
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.cmd_prep_name') }}</label>
-          <div class="form-text">{{ $t('apps.cmd_prep_desc') }}</div>
-          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['prep-cmd'].length === 0">
-            <button class="btn btn-success" @click="addPrepCmd">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.add_cmds') }}
-            </button>
-          </div>
-          <table class="table" v-if="editForm['prep-cmd'].length > 0">
-            <thead>
-              <tr>
-                <th scope="col"><i class="fas fa-play"></i> {{ $t('_common.do_cmd') }}</th>
-                <th scope="col"><i class="fas fa-undo"></i> {{ $t('_common.undo_cmd') }}</th>
-                <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-                </th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in editForm['prep-cmd']">
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.do" />
-                </td>
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.undo" />
-                </td>
-                <td v-if="platform === 'windows'">
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                      true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('_common.elevated') }}</label>
-                  </div>
-                </td>
-                <td>
-                  <button class="btn btn-danger" @click="editForm['prep-cmd'].splice(i,1)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                  <button class="btn btn-success" @click="addPrepCmd">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <h3 class="empty-title">
+          {{ searchQuery ? '未找到匹配的应用' : '暂无应用' }}
+        </h3>
+        <p class="empty-subtitle">
+          {{ searchQuery ? '尝试使用不同的搜索关键词' : '点击下方按钮添加第一个应用' }}
+        </p>
+        <button v-if="!searchQuery" class="btn btn-primary" @click="newApp">
+          <i class="fas fa-plus me-1"></i>{{ $t('apps.add_new') }}
+        </button>
+      </div>
+    </div>
 
-        <!-- menu-cmd -->
-        <div class="mb-3">
-          <label for="appName" class="form-label">炒鸡菜单命令</label>
-          <div class="form-text">配置后在客户端返回菜单中可见，用于在不打断串流的情况下快速执行特定操作，例如调出辅助程序。</div>
-          <div class="form-text">示例：展示名称-关闭你的颠佬；指令-shutdown -s -t 10 </div>
-          <div class="d-flex justify-content-start mb-3 mt-3" v-if="editForm['menu-cmd'].length === 0">
-            <button class="btn btn-success" @click="addMenuCmd">
-              <i class="fas fa-plus mr-1"></i> 添加菜单命令
-            </button>
-          </div>
-          <table class="table" v-if="editForm['menu-cmd'].length > 0">
-            <thead>
-              <tr>
-                <th scope="col"><i class="fas fa-play"></i> 展示名称</th>
-                <th scope="col"><i class="fas fa-undo"></i> 指令</th>
-                <th scope="col" v-if="platform === 'windows'">
-                  <i class="fas fa-shield-alt"></i> {{ $t('_common.run_as') }}
-                </th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(c, i) in editForm['menu-cmd']">
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.name" />
-                </td>
-                <td>
-                  <input type="text" class="form-control monospace" v-model="c.cmd" />
-                </td>
-                <td v-if="platform === 'windows'">
-                  <div class="form-check">
-                    <input type="checkbox" class="form-check-input" :id="'prep-cmd-admin-' + i" v-model="c.elevated"
-                      true-value="true" false-value="false" />
-                    <label :for="'prep-cmd-admin-' + i" class="form-check-label">{{ $t('_common.elevated') }}</label>
-                  </div>
-                </td>
-                <td>
-                  <button class="btn btn-danger" @click="editForm['menu-cmd'].splice(i,1)">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                  <button class="btn btn-success" @click="addMenuCmd">
-                    <i class="fas fa-plus"></i>
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
 
-        <!-- detached -->
-        <div class="mb-3">
-          <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
-          <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between my-2">
-            <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
-            <button class="btn btn-danger mx-2" @click="editForm.detached.splice(i,1)">
-              &times;
-            </button>
+    
+    <!-- 应用编辑器 -->
+    <app-editor 
+      v-if="editingApp"
+      :app="editingApp" 
+      :platform="platform"
+      :disabled="isSaving"
+      @save-app="handleSaveApp"
+      @close="closeAppEditor"
+    ></app-editor>
+
+    <!-- 提示消息 -->
+    <div v-if="message" class="alert-toast" :class="messageClass">
+      <i class="fas" :class="getMessageIcon()"></i>
+      <span>{{ message }}</span>
+      <button class="btn-close-toast" @click="message = ''">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- 环境变量说明模态框 -->
+    <div class="modal fade" id="envVarsModal" tabindex="-1">
+      <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="envVarsModalLabel">
+              <i class="fas fa-info-circle me-2"></i>{{ $t('apps.env_vars_about') }}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
           </div>
-          <div class="d-flex justify-content-between">
-            <button class="btn btn-success" @click="editForm.detached.push('');">
-              <i class="fas fa-plus mr-1"></i> {{ $t('apps.detached_cmds_add') }}
-            </button>
-          </div>
-          <div class="form-text">
-            {{ $t('apps.detached_cmds_desc') }}<br>
-            <b>{{ $t('_common.note') }}</b> {{ $t('apps.detached_cmds_note') }}
-          </div>
-        </div>
-        <!-- command -->
-        <div class="mb-3">
-          <label for="appCmd" class="form-label">{{ $t('apps.cmd') }}</label>
-          <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
-            v-model="editForm.cmd" />
-          <div id="appCmdHelp" class="form-text">
-            {{ $t('apps.cmd_desc') }}<br>
-            <b>{{ $t('_common.note') }}</b> {{ $t('apps.cmd_note') }}
-          </div>
-        </div>
-        <!-- working dir -->
-        <div class="mb-3">
-          <label for="appWorkingDir" class="form-label">{{ $t('apps.working_dir') }}</label>
-          <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
-            v-model="editForm['working-dir']" />
-          <div id="appWorkingDirHelp" class="form-text">{{ $t('apps.working_dir_desc') }}</div>
-        </div>
-        <!-- elevation -->
-        <div class="mb-3 form-check" v-if="platform === 'windows'">
-          <label for="appElevation" class="form-check-label">{{ $t('_common.run_as') }}</label>
-          <input type="checkbox" class="form-check-input" id="appElevation" v-model="editForm.elevated"
-            true-value="true" false-value="false" />
-          <div class="form-text">{{ $t('apps.run_as_desc') }}</div>
-        </div>
-        <!-- auto-detach -->
-        <div class="mb-3 form-check">
-          <label for="autoDetach" class="form-check-label">{{ $t('apps.auto_detach') }}</label>
-          <input type="checkbox" class="form-check-input" id="autoDetach" v-model="editForm['auto-detach']"
-            true-value="true" false-value="false" />
-          <div class="form-text">{{ $t('apps.auto_detach_desc') }}</div>
-        </div>
-        <!-- wait for all processes -->
-        <div class="mb-3 form-check">
-          <label for="waitAll" class="form-check-label">{{ $t('apps.wait_all') }}</label>
-          <input type="checkbox" class="form-check-input" id="waitAll" v-model="editForm['wait-all']" true-value="true"
-            false-value="false" />
-          <div class="form-text">{{ $t('apps.wait_all_desc') }}</div>
-        </div>
-        <!-- exit timeout -->
-        <div class="mb-3">
-          <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
-          <input type="text" class="form-control monospace" id="exitTimeout" aria-describedby="exitTimeoutHelp"
-            v-model="editForm['exit-timeout']" />
-          <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
-        </div>
-        <div class="mb-3">
-          <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
-          <div class="mb-2 form-check">
-            <label for="useDesktopImage" class="form-check-label">{{ $t('apps.use_desktop_image')}}</label>
-            <input type="checkbox" class="form-check-input" id="useDesktopImage" v-model="editForm['image-path']"
-              true-value="desktop" false-value="" />
-          </div>
-          <div class="input-group dropup" v-if="editForm['image-path']!== 'desktop'">
-            <input type="file" class="form-control" @change="handleSelectImg" accept="image/png"
-              style="width: 88px; flex: none;">
-            <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
-              v-model="editForm['image-path']" @dragenter="appImageError = '杂鱼~快放进来呀~'"
-              @dragleave="appImageError = '其他地方不可以！'" @dragover.prevent="" @drop.prevent.stop="handleDropImg" />
-            <button class="btn btn-secondary dropdown-toggle" type="button" id="findCoverToggle" aria-expanded="false"
-              @click="showCoverFinder" ref="coverFinderDropdown">
-              {{ $t('apps.find_cover') }}
-            </button>
-            <div class="dropdown-menu dropdown-menu-end w-50 cover-finder overflow-hidden"
-              aria-labelledby="findCoverToggle">
-              <div class="modal-header px-2">
-                <h4 class="modal-title">{{ $t('apps.covers_found') }}</h4>
-                <button type="button" class="btn-close mr-2" aria-label="Close" @click="closeCoverFinder"></button>
+          <div class="modal-body">
+            <div class="alert alert-info">
+              <div class="form-text">
+                <h6>{{ $t('apps.env_vars_about') }}</h6>
+                {{ $t('apps.env_vars_desc') }}
               </div>
-              <div class="modal-body cover-results px-3 pt-3" :class="{ busy: coverFinderBusy }">
-                <div class="row">
-                  <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
-                    <div class="cover-container">
-                      <div class="spinner-border" role="status">
-                        <span class="visually-hidden">{{ $t('apps.loading') }}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div v-for="(cover,i) in coverCandidates" :key="'i'" class="col-12 col-sm-6 col-lg-4 mb-3"
-                    @click="useCover(cover)">
-                    <div class="cover-container result">
-                      <img class="rounded" :src="cover.url" />
-                    </div>
-                    <label class="d-block text-nowrap text-center text-truncate">
-                      {{cover.name}}
-                    </label>
-                  </div>
-                </div>
+            </div>
+            <div class="env-vars-table">
+              <div class="table-responsive">
+                <table class="table">
+                  <thead>
+                    <tr>
+                      <th><strong>{{ $t('apps.env_var_name') }}</strong></th>
+                      <th><strong>说明</strong></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(desc, varName) in envVars" :key="varName">
+                      <td><code class="env-var-name">{{ varName }}</code></td>
+                      <td>{{ desc }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div class="mt-3">
+              <div class="form-text" v-if="platform === 'windows'">
+                <strong>{{ $t('apps.env_qres_example') }}</strong>
+                <pre class="code-example">cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT% /R:%SUNSHINE_CLIENT_FPS%</pre>
+              </div>
+              <div class="form-text" v-else-if="platform === 'linux'">
+                <strong>{{ $t('apps.env_xrandr_example') }}</strong>
+                <pre class="code-example">sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"</pre>
+              </div>
+              <div class="form-text" v-else-if="platform === 'macos'">
+                <strong>{{ $t('apps.env_displayplacer_example') }}</strong>
+                <pre class="code-example">sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0""</pre>
               </div>
             </div>
           </div>
-          <div class="alert alert-warning" v-if="appImageError">
-            <div class="d-flex justify-content-between">{{ appImageError }}</div>
+          <div class="modal-footer">
+            <a href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html" 
+                target="_blank" class="btn btn-outline-primary">
+              <i class="fas fa-external-link-alt me-1"></i>{{ $t('_common.see_more') }}
+            </a>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <i class="fas fa-times me-1"></i>关闭
+            </button>
           </div>
-          <div id="appImagePathHelp" class="form-text" ref="appImagePathHelp">{{ $t('apps.image_desc') }}</div>
-        </div>
-        <div class="env-hint alert alert-info">
-          <div class="form-text">
-            <h4>{{ $t('apps.env_vars_about') }}</h4>
-            {{ $t('apps.env_vars_desc') }}
-          </div>
-          <table class="env-table">
-            <tr>
-              <td><b>{{ $t('apps.env_var_name') }}</b></td>
-              <td><b></b></td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_APP_ID</td>
-              <td>{{ $t('apps.env_app_id') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_APP_NAME</td>
-              <td>{{ $t('apps.env_app_name') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_NAME</td>
-              <td>{{ $t('apps.env_client_name') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_WIDTH</td>
-              <td>{{ $t('apps.env_client_width') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_HEIGHT</td>
-              <td>{{ $t('apps.env_client_height') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_FPS</td>
-              <td>{{ $t('apps.env_client_fps') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_HDR</td>
-              <td>{{ $t('apps.env_client_hdr') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_GCMAP</td>
-              <td>{{ $t('apps.env_client_gcmap') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_HOST_AUDIO</td>
-              <td>{{ $t('apps.env_client_host_audio') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_ENABLE_SOPS</td>
-              <td>{{ $t('apps.env_client_enable_sops') }}</td>
-            </tr>
-            <tr>
-              <td style="font-family: monospace">SUNSHINE_CLIENT_AUDIO_CONFIGURATION</td>
-              <td>{{ $t('apps.env_client_audio_config') }}</td>
-            </tr>
-          </table>
-          <div class="form-text" v-if="platform === 'windows'"><b>{{ $t('apps.env_qres_example') }}</b>
-            <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT% /R:%SUNSHINE_CLIENT_FPS%</pre>
-          </div>
-          <div class="form-text" v-else-if="platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
-            <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"</pre>
-          </div>
-          <div class="form-text" v-else-if="platform === 'macos'"><b>{{ $t('apps.env_displayplacer_example') }}</b>
-            <pre>sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0""</pre>
-          </div>
-          <div class="form-text"><a
-              href="https://docs.lizardbyte.dev/projects/sunshine/en/latest/about/guides/app_examples.html"
-              target="_blank">{{ $t('_common.see_more') }}</a></div>
-        </div>
-        <!-- Save buttons -->
-        <div class="d-flex">
-          <button @click="showEditForm = false" class="btn btn-secondary m-2">
-            {{ $t('_common.cancel') }}
-          </button>
         </div>
       </div>
-    </div>
-    <div class="mt-2">
-      <button class="btn btn-primary m-2" @click="newApp" :disabled="showEditForm">
-        <i class="fas fa-plus"></i> {{ $t('apps.add_new') }}
-      </button>
-      <button class="btn btn-primary m-2" @click="save">{{ $t('_common.save') }}</button>
     </div>
   </div>
 </body>
 <script type="module">
-  import {createApp} from 'vue'
-  import {initApp} from './init'
-  import Navbar from './Navbar.vue'
-  import {Dropdown} from 'bootstrap/dist/js/bootstrap'
-  import draggable from 'vuedraggable'
-  import {nanoid} from 'nanoid'
+  import { createApp } from 'vue';
+  import { initApp } from './init';
+  import Navbar from './Navbar.vue';
+  import AppEditor from './components/AppEditor.vue';
+  import AppCard from './components/AppCard.vue';
+  import { Modal } from 'bootstrap';
+  import draggable from 'vuedraggable';
+  import { AppService } from './services/appService.js';
+  import { APP_CONSTANTS, ENV_VARS_CONFIG } from './utils/constants.js';
+  import { debounce, deepClone } from './utils/helpers.js';
 
   const app = createApp({
     components: {
       Navbar,
+      AppEditor,
+      AppCard,
       draggable,
     },
     data() {
       return {
         apps: [],
-        showEditForm: false,
-        editForm: null,
-        detachedCmd: "",
-        appImageError: '',
-        coverSearching: false,
-        coverFinderBusy: false,
-        coverCandidates: [],
+        filteredApps: [],
+        searchQuery: '',
+        editingApp: null,
         platform: "",
+        envVarsModal: null,
+        message: '',
+        messageType: 'success',
+        isSaving: false,
+        isDragging: false,
+        envVars: {},
+        debouncedSearch: null
       };
     },
-    created() {
-      fetch("/api/apps")
-        .then((r) => r.json())
-        .then((r) => {
-          console.log(r);
-          this.apps = r.apps;
-        });
-
-      fetch("/api/config")
-        .then(r => r.json())
-        .then(r => this.platform = r.platform);
+    computed: {
+      messageClass() {
+        return {
+          'alert-success': this.messageType === 'success',
+          'alert-error': this.messageType === 'error',
+          'alert-warning': this.messageType === 'warning',
+          'alert-info': this.messageType === 'info'
+        };
+      }
+    },
+    async mounted() {
+      // 初始化环境变量
+      this.initEnvVars();
+      
+      // 初始化防抖搜索
+      this.debouncedSearch = debounce(this.performSearch, APP_CONSTANTS.SEARCH_DEBOUNCE_TIME);
+      
+      // 初始化环境变量模态框
+      try {
+        this.envVarsModal = new Modal(document.getElementById('envVarsModal'));
+      } catch (error) {
+        console.warn('Environment variables modal initialization failed:', error);
+      }
+      
+      // 加载数据
+      await this.loadApps();
+      await this.loadPlatform();
     },
     methods: {
+      // ======================
+      // 生命周期和初始化方法
+      // ======================
+      
+      /**
+       * 初始化环境变量
+       */
+      initEnvVars() {
+        this.envVars = {};
+        for (const [key, translationKey] of Object.entries(ENV_VARS_CONFIG)) {
+          this.envVars[key] = this.$t(translationKey);
+        }
+      },
+      
+      // ======================
+      // 数据加载方法
+      // ======================
+      
+      /**
+       * 加载应用列表
+       */
+      async loadApps() {
+        try {
+          this.apps = await AppService.getApps();
+          this.filteredApps = [...this.apps];
+        } catch (error) {
+          console.error('加载应用失败:', error);
+          this.showMessage('加载应用失败', APP_CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
+      },
+      
+      /**
+       * 加载平台信息
+       */
+      async loadPlatform() {
+        try {
+          this.platform = await AppService.getPlatform();
+        } catch (error) {
+          console.error('加载平台信息失败:', error);
+          this.platform = APP_CONSTANTS.PLATFORMS.WINDOWS; // 默认平台
+        }
+      },
+      
+      // ======================
+      // 搜索相关方法
+      // ======================
+      
+      /**
+       * 执行搜索
+       */
+      performSearch() {
+        this.filteredApps = AppService.searchApps(this.apps, this.searchQuery);
+      },
+      
+      /**
+       * 清除搜索
+       */
+      clearSearch() {
+        this.searchQuery = '';
+        this.performSearch();
+      },
+      
+      /**
+       * 获取原始索引
+       */
+      getOriginalIndex(app, filteredIndex) {
+        return this.apps.findIndex(a => a === app);
+      },
+      
+      // ======================
+      // 应用管理方法
+      // ======================
+      
+      /**
+       * 新增应用
+       */
       newApp() {
-        this.editForm = {
-          name: "",
-          output: "",
-          cmd: [],
-          index: -1,
-          "exclude-global-prep-cmd": false,
-          elevated: false,
-          "auto-detach": true,
-          "wait-all": true,
-          "exit-timeout": 5,
-          "prep-cmd": [],
-          "menu-cmd": [],
-          detached: [],
-          "image-path": ""
+        this.editingApp = {
+          ...APP_CONSTANTS.DEFAULT_APP,
+          index: -1
         };
-        this.editForm.index = -1;
-        this.showEditForm = true;
       },
+      
+      /**
+       * 编辑应用
+       */
       editApp(index) {
-        this.editForm = JSON.parse(JSON.stringify(this.apps[index]));
-        this.editForm.index = index;
-        if (!this.editForm["prep-cmd"]) this.editForm["prep-cmd"] = [];
-        if (!this.editForm["menu-cmd"]) this.editForm["menu-cmd"] = [];
-        if (!this.editForm["detached"]) this.editForm["detached"] = [];
-        if (!this.editForm["exclude-global-prep-cmd"]) this.editForm["exclude-global-prep-cmd"] = [];
-        if (this.editForm["elevated"] === undefined && this.platform === 'windows') {
-          this.editForm["elevated"] = [];
-        }
-        if (this.editForm["auto-detach"] === undefined) {
-          this.editForm["auto-detach"] = true;
-        }
-        if (this.editForm["wait-all"] === undefined) {
-          this.editForm["wait-all"] = true;
-        }
-        if (this.editForm["exit-timeout"] === undefined) {
-          this.editForm["exit-timeout"] = 5;
-        }
-        this.showEditForm = true;
+        this.editingApp = deepClone(this.apps[index]);
+        this.editingApp.index = index;
       },
+      
+      /**
+       * 关闭应用编辑器
+       */
+      closeAppEditor() {
+        this.editingApp = null;
+      },
+      
+      /**
+       * 处理保存应用
+       */
+      async handleSaveApp(appData) {
+        try {
+          await AppService.saveApps(this.apps, appData);
+          await this.loadApps();
+          this.editingApp = null;
+          this.showMessage('应用保存成功', APP_CONSTANTS.MESSAGE_TYPES.SUCCESS);
+        } catch (error) {
+          console.error('保存应用失败:', error);
+          this.showMessage('保存应用失败', APP_CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
+      },
+      
+      /**
+       * 显示删除确认
+       */
       showDeleteForm(index) {
-        let resp = confirm(
-          "Are you sure to delete " + this.apps[index].name + "?"
+        const confirmed = confirm(
+          `确定要删除应用 "${this.apps[index].name}" 吗？`
         );
-        if (resp) {
-          fetch("/api/apps/" + index, {method: "DELETE"}).then((r) => {
-            if (r.status == 200) document.location.reload();
-          });
+        
+        if (confirmed) {
+          this.deleteApp(index);
         }
       },
-      addCommand(type, template) {
-        const cmd = {
-          ...template,
-          ...(this.platform === 'windows' && { elevated: false })
-        }
-        this.editForm[type].push(cmd)
-      },
-      addPrepCmd() {
-        this.addCommand('prep-cmd', { do: "", undo: "" })
-      },
-      addMenuCmd() {
-        this.addCommand('menu-cmd', { id: nanoid(10), name: "", cmd: "" })
-      },
-      showCoverFinder($event) {
-        this.coverCandidates = [];
-        this.coverSearching = true;
-        const ref = this.$refs.coverFinderDropdown;
-        if (!ref) {
-          console.error("Ref not found!");
-          return;
-        }
-        this.coverFinderDropdown = Dropdown.getInstance(ref);
-        if (!this.coverFinderDropdown) {
-          this.coverFinderDropdown = new Dropdown(ref);
-          if (!this.coverFinderDropdown) {
-            return;
-          }
-        }
-        this.coverFinderDropdown.show();
-        function getSearchBucket(name) {
-          let bucket = name.substring(0, Math.min(name.length, 2)).toLowerCase().replaceAll(/[^a-z\d\u4e00-\u9fa5\u3400-\u4DBF\u20000-\u2A6DF]/g, '');
-          if (!bucket) {
-            return '@';
-          }
-          return bucket;
-        }
-
-        function searchCovers(name) {
-          if (!name) {
-            return Promise.resolve([]);
-          }
-          let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
-          let bucket = getSearchBucket(name);
-          return fetch("https://db.lizardbyte.dev/buckets/" + bucket + ".json").then(function (r) {
-            if (!r.ok) throw new Error("Failed to search covers");
-            return r.json();
-          }).then(maps => Promise.all(Object.keys(maps).map(id => {
-            let item = maps[id];
-            if (item.name.replaceAll(/\s+/g, '.').toLowerCase().startsWith(searchName)) {
-              return fetch("https://db.lizardbyte.dev/games/" + id + ".json").then(function (r) {
-                return r.json();
-              }).catch(() => null);
-            }
-            return null;
-          }).filter(item => item)))
-            .then(results => results
-              .filter(item => item && item.cover && item.cover.url)
-              .map(game => {
-                const thumb = game.cover.url;
-                const dotIndex = thumb.lastIndexOf('.');
-                const slashIndex = thumb.lastIndexOf('/');
-                if (dotIndex < 0 || slashIndex < 0) {
-                  return null;
-                }
-                const hash = thumb.substring(slashIndex + 1, dotIndex);
-                return {
-                  name: game.name,
-                  key: "igdb_" + game.id,
-                  url: "https://images.igdb.com/igdb/image/upload/t_cover_big/" + hash + ".jpg",
-                  saveUrl: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/" + hash + ".png",
-                }
-              }).filter(item => item));
-        }
-
-        searchCovers(this.editForm["name"].toString())
-          .then(list => this.coverCandidates = list)
-          .finally(() => this.coverSearching = false);
-      },
-      closeCoverFinder() {
-        const ref = this.$refs.coverFinderDropdown;
-        if (!ref) {
-          return;
-        }
-        const dropdown = this.coverFinderDropdown = Dropdown.getInstance(ref);
-        if (!dropdown) {
-          return;
-        }
-        dropdown.hide();
-      },
-      useCover(cover) {
-        this.coverFinderBusy = true;
-        fetch("/api/covers/upload", {
-          method: "POST",
-          body: JSON.stringify({
-            key: cover.key,
-            url: cover.saveUrl,
-          })
-        }).then(r => {
-          if (!r.ok) throw new Error("Failed to download covers");
-          return r.json();
-        }).then(body => this.editForm["image-path"] = body.path)
-          .then(() => this.closeCoverFinder())
-          .finally(() => this.coverFinderBusy = false);
-      },
-      save() {
-        fetch("/api/apps", {
-          method: "POST",
-          body: JSON.stringify({
-            apps: this.apps,
-            editApp: this.editForm? {
-              ...this.editForm,
-              "image-path": this.editForm["image-path"].toString().replace(/"/g, ''),
-            } : null,
-          }),
-        }).then((r) => {
-          if (r.status == 200) document.location.reload();
-        });
-      },
-      handleSelectImg(e) {
-        const file = e.target.files[0];
-        if (this.validateFile(file)) {
-          this.editForm["image-path"] = electron?.webUtils?.getPathForFile(file);
+      
+      /**
+       * 删除应用
+       */
+      async deleteApp(index) {
+        try {
+          await AppService.deleteApp(index);
+          this.apps.splice(index, 1);
+          this.performSearch(); // 重新搜索
+          this.showMessage('应用删除成功', APP_CONSTANTS.MESSAGE_TYPES.SUCCESS);
+        } catch (error) {
+          console.error('删除应用失败:', error);
+          this.showMessage('删除应用失败', APP_CONSTANTS.MESSAGE_TYPES.ERROR);
         }
       },
-      handleDropImg(e) {
-        e.preventDefault();
-        const file = e.dataTransfer.files[0];
-        if (this.validateFile(file)) {
-          this.editForm["image-path"] = electron?.webUtils?.getPathForFile(file);
+      
+      /**
+       * 保存应用列表
+       */
+      async save() {
+        this.isSaving = true;
+        try {
+          await AppService.saveApps(this.apps, null);
+          this.showMessage('保存成功！', APP_CONSTANTS.MESSAGE_TYPES.SUCCESS);
+        } catch (error) {
+          console.error('保存失败:', error);
+          this.showMessage('保存失败', APP_CONSTANTS.MESSAGE_TYPES.ERROR);
+        }
+        this.isSaving = false;
+      },
+      
+      // ======================
+      // 消息处理方法
+      // ======================
+      
+      /**
+       * 显示消息
+       */
+      showMessage(message, type = APP_CONSTANTS.MESSAGE_TYPES.INFO) {
+        this.message = message;
+        this.messageType = type;
+        
+        // 自动隐藏消息
+        setTimeout(() => {
+          this.message = '';
+        }, APP_CONSTANTS.MESSAGE_AUTO_HIDE_TIME);
+      },
+      
+      /**
+       * 获取消息图标
+       */
+      getMessageIcon() {
+        return APP_CONSTANTS.MESSAGE_ICONS[this.messageType] || APP_CONSTANTS.MESSAGE_ICONS.info;
+      },
+      
+      /**
+       * 处理复制成功
+       */
+      handleCopySuccess(message) {
+        this.showMessage(message, APP_CONSTANTS.MESSAGE_TYPES.SUCCESS);
+      },
+      
+      /**
+       * 处理复制错误
+       */
+      handleCopyError(message) {
+        this.showMessage(message, APP_CONSTANTS.MESSAGE_TYPES.WARNING);
+      },
+      
+      // ======================
+      // 拖拽相关方法
+      // ======================
+      
+      /**
+       * 拖拽开始
+       */
+      onDragStart(event) {
+        this.isDragging = true;
+        console.log('拖拽开始:', event);
+      },
+      
+      /**
+       * 拖拽结束
+       */
+      onDragEnd(event) {
+        this.isDragging = false;
+        console.log('拖拽结束:', event);
+        // 拖拽结束后自动保存
+        if (event.oldIndex !== event.newIndex) {
+          this.save();
         }
       },
-      validateFile(file) {
-        const allowedMimeTypes = ['image/png', 'image/jpg', 'image/jpeg'];
-        const allowedMaxSize = 1024 * 1024 * 10;
-        if (!allowedMimeTypes.includes(file.type)) {
-          this.appImageError = 'Invalid file type. Please upload a PNG image.';
-          return false;
-        }
-        if (file.size > allowedMaxSize) {
-          this.appImageError = 'Zako ~ U are too big! Please upload an image less than 10MB.';
-          return false;
-        }
-        this.appImageError = '';
-        return true;
-      },
-    },
-  });
-
-  app.directive('dropdown-show', {
-    mounted: function (el, binding) {
-      el.addEventListener('show.bs.dropdown', binding.value);
     }
   });
 
   initApp(app);
 </script>
+</html>

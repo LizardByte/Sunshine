@@ -6,6 +6,7 @@
 
 #include "process.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <thread>
@@ -24,6 +25,7 @@
 #include "config.h"
 #include "crypto.h"
 #include "display_device/session.h"
+#include "httpcommon.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "system_tray.h"
@@ -525,50 +527,81 @@ namespace proc {
       return DEFAULT_APP_IMAGE_PATH;
     }
 
-    // get the image extension and convert it to lowercase
-    auto image_extension = std::filesystem::path(app_image_path).extension().string();
-    boost::to_lower(image_extension);
+    // 处理网络图片下载
+    if (app_image_path.find("http://") == 0 || app_image_path.find("https://") == 0) {
+      try {
+        std::string original_url = app_image_path;
+        
+        // 移除查询参数
+        size_t query_start = app_image_path.find('?');
+        if (query_start != std::string::npos) {
+          app_image_path = app_image_path.substr(0, query_start);
+        }
+        
+        // 从URL提取文件名
+        auto hash = std::hash<std::string>{}(original_url);
+        auto ext = std::filesystem::path(app_image_path).extension().string();
+        std::string filename = "url_" + std::to_string(hash) + (ext.empty() ? ".png" : ext);
+        
+        // 保存到本地assets目录
+        auto local_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / filename;
+        
+        // 如果文件不存在则下载
+        if (!std::filesystem::exists(local_path)) {
+          BOOST_LOG(info) << "Downloading image from URL: " << original_url;
+          if (!http::download_file(original_url, local_path.string())) {
+            BOOST_LOG(warning) << "Failed to download image from URL: " << original_url;
+            return DEFAULT_APP_IMAGE_PATH;
+          }
+        }
+        
+        app_image_path = local_path.string();
+      } catch (const std::exception& e) {
+        BOOST_LOG(warning) << "Error processing image URL: " << e.what();
+        return DEFAULT_APP_IMAGE_PATH;
+      }
+    }
 
+    // 特殊处理：桌面壁纸
     if (app_image_path == "desktop") {
+#ifdef _WIN32
       char wallpaperPath[MAX_PATH];
       SystemParametersInfo(SPI_GETDESKWALLPAPER, MAX_PATH, wallpaperPath, 0);
       BOOST_LOG(info) << "Use desktop image ["sv << wallpaperPath << ']';
-
-      // int width, height, channels;
-      // unsigned char *data = stbi_load((LPCSTR) wallpaperPath, &width, &height, &channels, 0);
-      // if (data) {
-      //   stbi_write_png(SUNSHINE_ASSETS_DIR "desktop.png", width, height, channels, data, width * channels);
-      //   stbi_image_free(data);
-      // }
       return wallpaperPath;
+#else
+      BOOST_LOG(warning) << "Desktop wallpaper path not supported on this platform";
+      return DEFAULT_APP_IMAGE_PATH;
+#endif
     }
 
-    // return the default box image if extension is not "png"
-    if (image_extension != ".png" && image_extension != ".jpg") {
+    // 检查图像扩展名是否支持
+    auto image_extension = std::filesystem::path(app_image_path).extension().string();
+    boost::to_lower(image_extension);
+    if (image_extension != ".png" && image_extension != ".jpg" && image_extension != ".jpeg") {
+      BOOST_LOG(warning) << "Unsupported image extension: " << image_extension;
       return DEFAULT_APP_IMAGE_PATH;
     }
 
-    // check if image is in assets directory
-    auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
-    if (std::filesystem::exists(full_image_path)) {
-      return full_image_path.string();
+    // 检查各种可能的图像路径
+    std::vector<std::string> paths_to_check = {
+      // 1. 检查assets目录中的相对路径
+      (std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path).string(),
+      // 2. 处理旧的steam默认图像定义
+      app_image_path == "./assets/steam.png" ? SUNSHINE_ASSETS_DIR "/steam.png" : "",
+      // 3. 检查绝对路径
+      app_image_path
+    };
+    
+    for (const auto& path : paths_to_check) {
+      if (!path.empty() && std::filesystem::exists(path)) {
+        return path;
+      }
     }
-    else if (app_image_path == "./assets/steam.png") {
-      // handle old default steam image definition
-      return SUNSHINE_ASSETS_DIR "/steam.png";
-    }
-
-    // check if specified image exists
-    std::error_code code;
-    if (!std::filesystem::exists(app_image_path, code)) {
-      // return default box image if image does not exist
-      BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
-      return DEFAULT_APP_IMAGE_PATH;
-    }
-
-    // image is a png, and not in assets directory
-    // return only "content-type" http header compatible image type
-    return app_image_path;
+    
+    // 如果所有路径都不存在，返回默认图像
+    BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
+    return DEFAULT_APP_IMAGE_PATH;
   }
 
   std::optional<std::string>

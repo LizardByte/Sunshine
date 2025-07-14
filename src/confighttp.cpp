@@ -10,6 +10,8 @@
 
 #include <filesystem>
 #include <set>
+#include <ctime>
+#include <cstdio>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -241,6 +243,41 @@ namespace confighttp {
   void
   getSunshineLogoImage(resp_https_t response, req_https_t request) {
     getStaticResource(response, request, WEB_DIR "images/logo-sunshine-45.png", "image/png");
+  }
+
+  void
+  getBoxArt(resp_https_t response, req_https_t request) {
+    print_req(request);
+
+    // 从请求路径中提取图片文件名
+    std::string path = request->path;
+    if (path.find("/boxart/") == 0) {
+      path = path.substr(7); // 移除"/boxart"前缀
+    }
+
+    // 构建完整的图片文件路径
+    std::string imagePath = SUNSHINE_ASSETS_DIR "" + path;
+
+    // 检查文件是否存在
+    if (!fs::exists(imagePath)) {
+      // 如果图片不存在,返回默认图片
+      imagePath = SUNSHINE_ASSETS_DIR "box.png";
+    }
+
+    // 获取文件扩展名确定Content-Type
+    std::string ext = fs::path(imagePath).extension().string().substr(1);
+    auto mimeType = mime_types.find(ext);
+    std::string contentType = "image/png"; // 默认类型
+
+    if (mimeType != mime_types.end()) {
+      contentType = mimeType->second;
+    }
+
+    // 返回图片资源
+    std::ifstream in(imagePath, std::ios::binary);
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", contentType);
+    response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
 
   bool
@@ -941,6 +978,114 @@ namespace confighttp {
   }
 
   void
+  proxySteamApi(resp_https_t response, req_https_t request) {
+    // 不需要认证，Steam API是公开的
+    print_req(request);
+
+    // 提取请求路径，移除/steam-api前缀
+    std::string path = request->path;
+    if (path.find("/steam-api") == 0) {
+      path = path.substr(10); // 移除"/steam-api"前缀
+    }
+
+    // 构建目标URL
+    std::string targetUrl = "https://api.steampowered.com" + path;
+    
+    // 添加查询参数
+    if (!request->query_string.empty()) {
+      targetUrl += "?" + request->query_string;
+    }
+
+    BOOST_LOG(info) << "Steam API代理请求: " << targetUrl;
+
+    // 使用http模块下载数据
+    std::string tempFile = platf::appdata().string() + "/temp_steam_api_" + std::to_string(std::time(nullptr));
+    
+    try {
+      if (http::download_file(targetUrl, tempFile)) {
+        // 读取文件内容
+        std::ifstream file(tempFile, std::ios::binary);
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        
+        // 设置响应头
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", "application/json");
+        headers.emplace("Access-Control-Allow-Origin", "*");
+        headers.emplace("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        headers.emplace("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        
+        response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+        
+        // 清理临时文件
+        std::remove(tempFile.c_str());
+      } else {
+        BOOST_LOG(error) << "Steam API请求失败: " << targetUrl;
+        response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Steam API请求失败");
+      }
+    } catch (const std::exception& e) {
+      BOOST_LOG(error) << "Steam API代理异常: " << e.what();
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Steam API代理异常");
+      
+      // 清理临时文件
+      std::remove(tempFile.c_str());
+    }
+  }
+
+  void
+  proxySteamStore(resp_https_t response, req_https_t request) {
+    // 不需要认证，Steam Store API是公开的
+    print_req(request);
+
+    // 提取请求路径，移除/steam-store前缀
+    std::string path = request->path;
+    if (path.find("/steam-store") == 0) {
+      path = path.substr(12); // 移除"/steam-store"前缀
+    }
+
+    // 构建目标URL
+    std::string targetUrl = "https://store.steampowered.com" + path;
+    
+    // 添加查询参数
+    if (!request->query_string.empty()) {
+      targetUrl += "?" + request->query_string;
+    }
+
+    BOOST_LOG(info) << "Steam Store代理请求: " << targetUrl;
+
+    // 使用http模块下载数据
+    std::string tempFile = platf::appdata().string() + "/temp_steam_store_" + std::to_string(std::time(nullptr));
+    
+    try {
+      if (http::download_file(targetUrl, tempFile)) {
+        // 读取文件内容
+        std::ifstream file(tempFile, std::ios::binary);
+        std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+        
+        // 设置响应头
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", "application/json");
+        headers.emplace("Access-Control-Allow-Origin", "*");
+        headers.emplace("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+        headers.emplace("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        
+        response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+        
+        // 清理临时文件
+        std::remove(tempFile.c_str());
+      } else {
+        BOOST_LOG(error) << "Steam Store请求失败: " << targetUrl;
+        response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Steam Store请求失败");
+      }
+    } catch (const std::exception& e) {
+      BOOST_LOG(error) << "Steam Store代理异常: " << e.what();
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Steam Store代理异常");
+      
+      // 清理临时文件
+      std::remove(tempFile.c_str());
+    }
+  }
+
+  void
   start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
@@ -976,8 +1121,11 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/steam-api/.+$"]["GET"] = proxySteamApi;
+    server.resource["^/steam-store/.+$"]["GET"] = proxySteamStore;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
+    server.resource["^/boxart/.+$"]["GET"] = getBoxArt;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);

@@ -2,7 +2,10 @@
   "scripts": {
     "build": "vite build --debug",
     "build-clean": "vite build --debug --emptyOutDir",
-    "dev": "vite build --watch"
+    "dev": "vite build --watch",
+    "dev-server": "vite serve --config vite.dev.config.js",
+    "dev-full": "node dev-server.js",
+    "preview": "vite preview --host 0.0.0.0 --port 3000"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "6.6.0",
@@ -15,7 +18,9 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "4.6.2",
+    "express": "^4.18.2",
     "vite": "4.5.2",
-    "vite-plugin-ejs": "1.6.4"
+    "vite-plugin-ejs": "1.6.4",
+    "vite-plugin-mkcert": "^1.17.8"
   }
 }

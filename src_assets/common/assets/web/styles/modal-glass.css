@@ -1,0 +1,446 @@
+/* 统一模态框样式 */
+:root {
+  --modal-backdrop-bg: rgba(0, 0, 0, 0.6);
+  --modal-content-bg: rgba(255, 255, 255, 0.1);
+  --modal-border-color: rgba(255, 255, 255, 0.2);
+  --modal-text-color: #ffffff;
+  --modal-shadow-color: rgba(0, 0, 0, 0.3);
+  --modal-footer-bg: rgba(255, 255, 255, 0.1);
+  --btn-primary-gradient-start: #667eea;
+  --btn-primary-gradient-end: #764ba2;
+
+  /* 按钮颜色变量 */
+  --btn-secondary-bg: rgba(108, 117, 125, 0.3);
+  --btn-secondary-hover-bg: rgba(108, 117, 125, 0.5);
+  --btn-outline-primary-bg: rgba(0, 123, 255, 0.1);
+  --btn-outline-primary-border: rgba(0, 123, 255, 0.5);
+  --btn-outline-primary-hover-bg: rgba(0, 123, 255, 0.3);
+  --btn-outline-primary-hover-border: rgba(0, 123, 255, 0.7);
+  --btn-danger-gradient-start: #dc3545;
+  --btn-danger-gradient-end: #c82333;
+  --btn-success-gradient-start: #28a745;
+  --btn-success-gradient-end: #20c997;
+  --btn-warning-gradient-start: #ffc107;
+  --btn-warning-gradient-end: #ff8c00;
+  --btn-info-gradient-start: #17a2b8;
+  --btn-info-gradient-end: #138496;
+
+  /* 表单元素颜色变量 */
+  --form-control-bg: rgba(255, 255, 255, 0.1);
+  --form-control-border: rgba(255, 255, 255, 0.3);
+  --form-control-focus-bg: rgba(255, 255, 255, 0.2);
+  --form-control-focus-border: rgba(255, 255, 255, 0.5);
+  --form-control-focus-shadow: rgba(255, 255, 255, 0.25);
+  --form-control-placeholder: rgba(255, 255, 255, 0.6);
+
+  /* 警告框颜色变量 */
+  --alert-bg: rgba(255, 255, 255, 0.1);
+  --alert-border: rgba(255, 255, 255, 0.3);
+  --alert-info-bg: rgba(23, 162, 184, 0.2);
+  --alert-info-border: rgba(23, 162, 184, 0.5);
+  --alert-warning-bg: rgba(255, 193, 7, 0.2);
+  --alert-warning-border: rgba(255, 193, 7, 0.5);
+  --alert-danger-bg: rgba(220, 53, 69, 0.2);
+  --alert-danger-border: rgba(220, 53, 69, 0.5);
+  --alert-success-bg: rgba(40, 167, 69, 0.2);
+  --alert-success-border: rgba(40, 167, 69, 0.5);
+
+  /* 选项卡颜色变量 */
+  --nav-tabs-border: rgba(255, 255, 255, 0.3);
+  --nav-tabs-link-bg: rgba(255, 255, 255, 0.1);
+  --nav-tabs-link-border: rgba(255, 255, 255, 0.2);
+  --nav-tabs-link-color: rgba(255, 255, 255, 0.7);
+  --nav-tabs-link-hover-bg: rgba(255, 255, 255, 0.2);
+  --nav-tabs-link-hover-border: rgba(255, 255, 255, 0.3);
+  --nav-tabs-link-active-bg: rgba(255, 255, 255, 0.3);
+  --nav-tabs-link-active-border: rgba(255, 255, 255, 0.5);
+
+  /* 手风琴颜色变量 */
+  --accordion-item-bg: rgba(255, 255, 255, 0.1);
+  --accordion-item-border: rgba(255, 255, 255, 0.2);
+  --accordion-button-bg: rgba(0, 0, 0, 0.1);
+  --accordion-button-active-bg: rgba(0, 0, 0, 0.2);
+  --accordion-button-focus-border: rgba(0, 0, 0, 0.5);
+  --accordion-button-focus-shadow: rgba(255, 255, 255, 0.25);
+  --accordion-body-bg: rgba(0, 0, 0, 0.7);
+
+  /* 代码块颜色变量 */
+  --code-bg: rgba(0, 0, 0, 0.4);
+  --code-border: rgba(255, 255, 255, 0.2);
+
+  /* 表格颜色变量 */
+  --table-th-bg: rgba(255, 255, 255, 0.2);
+  --table-th-border: rgba(255, 255, 255, 0.2);
+  --table-td-border: rgba(255, 255, 255, 0.1);
+
+  /* 下拉菜单颜色变量 */
+  --dropdown-item-hover-bg: rgba(255, 255, 255, 0.2);
+
+  /* 分页颜色变量 */
+  --pagination-link-bg: rgba(255, 255, 255, 0.1);
+  --pagination-link-border: rgba(255, 255, 255, 0.3);
+  --pagination-link-hover-bg: rgba(255, 255, 255, 0.2);
+  --pagination-link-hover-border: rgba(255, 255, 255, 0.5);
+  --pagination-active-border: rgba(255, 255, 255, 0.5);
+
+  /* 特殊元素颜色变量 */
+  --env-var-bg: rgba(0, 0, 0, 0.3);
+  --env-var-color: #ffc107;
+  --code-example-bg: rgba(0, 0, 0, 0.3);
+  --code-example-border: rgba(255, 255, 255, 0.2);
+
+  /* 通用颜色变量 */
+  --white: #ffffff;
+  --white-transparent-1: rgba(255, 255, 255, 0.1);
+  --white-transparent-2: rgba(255, 255, 255, 0.2);
+  --white-transparent-3: rgba(255, 255, 255, 0.3);
+  --white-transparent-5: rgba(255, 255, 255, 0.5);
+  --white-transparent-6: rgba(255, 255, 255, 0.6);
+  --white-transparent-7: rgba(255, 255, 255, 0.7);
+  --black-transparent-1: rgba(0, 0, 0, 0.1);
+  --black-transparent-2: rgba(0, 0, 0, 0.2);
+  --black-transparent-3: rgba(0, 0, 0, 0.3);
+  --black-transparent-4: rgba(0, 0, 0, 0.4);
+  --black-transparent-7: rgba(0, 0, 0, 0.7);
+}
+
+.modal-backdrop {
+  background: var(--modal-backdrop-bg);
+  backdrop-filter: blur(4px);
+}
+
+.modal-content {
+  background: var(--modal-content-bg);
+  border: 1px solid var(--modal-border-color);
+  border-radius: 20px;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 40px var(--modal-shadow-color);
+  color: var(--modal-text-color);
+}
+
+.modal-title {
+  color: var(--modal-text-color);
+  font-weight: 600;
+  text-shadow: 0 1px 2px var(--black-transparent-3);
+}
+
+.modal-body {
+  color: var(--modal-text-color);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--modal-border-color);
+  background: var(--modal-footer-bg);
+  border-radius: 0 0 20px 20px;
+}
+
+.btn-close {
+  color: var(--modal-text-color);
+  opacity: 0.7;
+  filter: invert(1);
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+/* 模态框内的按钮样式 */
+.modal .btn-primary {
+  background: linear-gradient(135deg, var(--btn-primary-gradient-start), var(--btn-primary-gradient-end));
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-primary:hover {
+  background: linear-gradient(135deg, var(--btn-primary-gradient-end), var(--btn-primary-gradient-start));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--modal-shadow-color);
+}
+
+.modal .btn-secondary {
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-secondary:hover {
+  background: var(--btn-secondary-hover-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--modal-shadow-color);
+}
+
+.modal .btn-outline-primary {
+  background: var(--btn-outline-primary-bg);
+  border: 1px solid var(--btn-outline-primary-border);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-outline-primary:hover {
+  background: var(--btn-outline-primary-hover-bg);
+  border-color: var(--btn-outline-primary-hover-border);
+  transform: translateY(-1px);
+}
+
+.modal .btn-danger {
+  background: linear-gradient(135deg, var(--btn-danger-gradient-start), var(--btn-danger-gradient-end));
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-danger:hover {
+  background: linear-gradient(135deg, var(--btn-danger-gradient-end), var(--btn-danger-gradient-start));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+}
+
+.modal .btn-success {
+  background: linear-gradient(135deg, var(--btn-success-gradient-start), var(--btn-success-gradient-end));
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-success:hover {
+  background: linear-gradient(135deg, var(--btn-success-gradient-end), var(--btn-success-gradient-start));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.modal .btn-warning {
+  background: linear-gradient(135deg, var(--btn-warning-gradient-start), var(--btn-warning-gradient-end));
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-warning:hover {
+  background: linear-gradient(135deg, var(--btn-warning-gradient-end), var(--btn-warning-gradient-start));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+}
+
+.modal .btn-info {
+  background: linear-gradient(135deg, var(--btn-info-gradient-start), var(--btn-info-gradient-end));
+  border: 1px solid var(--white-transparent-3);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .btn-info:hover {
+  background: linear-gradient(135deg, var(--btn-info-gradient-end), var(--btn-info-gradient-start));
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(23, 162, 184, 0.4);
+}
+
+/* 模态框内的表单元素样式 */
+.modal .form-control,
+.modal .form-select,
+.modal .form-textarea {
+  background: var(--form-control-bg);
+  border: 1px solid var(--form-control-border);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .form-control:focus,
+.modal .form-select:focus,
+.modal .form-textarea:focus {
+  background: var(--form-control-focus-bg);
+  border-color: var(--form-control-focus-border);
+  box-shadow: 0 0 0 0.2rem var(--form-control-focus-shadow);
+  color: var(--modal-text-color);
+}
+
+.modal .form-control::placeholder {
+  color: var(--form-control-placeholder);
+}
+
+.modal .form-label {
+  color: var(--modal-text-color);
+  font-weight: 600;
+}
+
+.modal .input-group-text {
+  background: var(--form-control-bg);
+  border: 1px solid var(--form-control-border);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+/* 模态框内的警告框样式 */
+.modal .alert {
+  background: var(--alert-bg);
+  border: 1px solid var(--alert-border);
+  border-radius: 12px;
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .alert-info {
+  background: var(--alert-info-bg);
+  border-color: var(--alert-info-border);
+}
+
+.modal .alert-warning {
+  background: var(--alert-warning-bg);
+  border-color: var(--alert-warning-border);
+}
+
+.modal .alert-danger {
+  background: var(--alert-danger-bg);
+  border-color: var(--alert-danger-border);
+}
+
+.modal .alert-success {
+  background: var(--alert-success-bg);
+  border-color: var(--alert-success-border);
+}
+
+/* 模态框内的选项卡样式 */
+.modal .nav-tabs {
+  border-bottom: 1px solid var(--nav-tabs-border);
+}
+
+.modal .nav-tabs .nav-link {
+  background: var(--nav-tabs-link-bg);
+  border: 1px solid var(--nav-tabs-link-border);
+  color: var(--nav-tabs-link-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .nav-tabs .nav-link:hover {
+  background: var(--nav-tabs-link-hover-bg);
+  border-color: var(--nav-tabs-link-hover-border);
+  color: var(--modal-text-color);
+}
+
+.modal .nav-tabs .nav-link.active {
+  background: var(--nav-tabs-link-active-bg);
+  border-color: var(--nav-tabs-link-active-border);
+  color: var(--modal-text-color);
+}
+
+/* 模态框内的手风琴样式 */
+.modal .accordion-item {
+  background: var(--accordion-item-bg);
+  border: 1px solid var(--accordion-item-border);
+  backdrop-filter: blur(5px);
+}
+
+.modal .accordion-button {
+  background: var(--accordion-button-bg);
+  color: var(--modal-text-color);
+  border: none;
+  backdrop-filter: blur(5px);
+}
+
+.modal .accordion-button:not(.collapsed) {
+  background: var(--accordion-button-active-bg);
+  color: var(--modal-text-color);
+  box-shadow: none;
+}
+
+.modal .accordion-button:focus {
+  border-color: var(--accordion-button-focus-border);
+  box-shadow: 0 0 0 0.25rem var(--accordion-button-focus-shadow);
+}
+
+.modal .accordion-body {
+  background: var(--accordion-body-bg);
+  color: var(--modal-text-color);
+}
+
+/* 模态框内的代码块样式 */
+.modal pre,
+.modal code {
+  background: var(--code-bg);
+  color: var(--modal-text-color);
+  border: 1px solid var(--code-border);
+  border-radius: 8px;
+}
+
+.modal .table {
+  color: var(--modal-text-color);
+}
+
+.modal .table th {
+  background: var(--table-th-bg);
+  border-color: var(--table-th-border);
+}
+
+.modal .table td {
+  border-color: var(--table-td-border);
+}
+
+/* 模态框内的下拉菜单样式 */
+.modal .dropdown-menu {
+  border-radius: 10px;
+}
+
+.modal .dropdown-item {
+  color: var(--modal-text-color);
+}
+
+.modal .dropdown-item:hover {
+  background: var(--dropdown-item-hover-bg);
+  color: var(--modal-text-color);
+}
+
+/* 模态框内的分页样式 */
+.modal .pagination .page-link {
+  background: var(--pagination-link-bg);
+  border: 1px solid var(--pagination-link-border);
+  color: var(--modal-text-color);
+  backdrop-filter: blur(5px);
+}
+
+.modal .pagination .page-link:hover {
+  background: var(--pagination-link-hover-bg);
+  border-color: var(--pagination-link-hover-border);
+  color: var(--modal-text-color);
+}
+
+.modal .pagination .page-item.active .page-link {
+  background: linear-gradient(135deg, var(--btn-primary-gradient-start), var(--btn-primary-gradient-end));
+  border-color: var(--pagination-active-border);
+  color: var(--modal-text-color);
+}
+
+/* 特殊元素样式 */
+.env-var-name {
+  background: var(--env-var-bg);
+  color: var(--env-var-color);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-family: 'Courier New', monospace;
+}
+
+.code-example {
+  background: var(--code-example-bg);
+  color: var(--modal-text-color);
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid var(--code-example-border);
+  font-family: 'Courier New', monospace;
+  font-size: 0.9rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .modal-content {
+    margin: 10px;
+  }
+
+  .modal-header,
+  .modal-footer {
+    padding: 1rem;
+  }
+
+  .modal-body {
+    padding: 1rem;
+  }
+}
