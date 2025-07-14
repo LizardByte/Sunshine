@@ -209,7 +209,7 @@ namespace platf::dxgi {
     diagnostic_frame_count++;
 
     // Log diagnostic info every 120 frames (~2 seconds at 60fps)
-    if (diagnostic_frame_count % 120 == 0) {
+    if (diagnostic_frame_count % 120 == 0 && diagnostic_frame_count > 0) {
       auto avg_interval = total_interval_time.count() / diagnostic_frame_count;
       auto expected_interval = (_config.framerate > 0) ? (1000 / _config.framerate) : 16;
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Frame timing diagnostics - "
@@ -316,9 +316,9 @@ namespace platf::dxgi {
         qpc_freq_main = freq.QuadPart;
       }
 
-      double wait_time_us = (double) (timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
-      double mutex_time_us = (double) (timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main;
-      double total_acquire_us = (double) (timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main;
+      double wait_time_us = (qpc_freq_main > 0) ? (double) (timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main : 0.0;
+      double mutex_time_us = (qpc_freq_main > 0) ? (double) (timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main : 0.0;
+      double total_acquire_us = (qpc_freq_main > 0) ? (double) (timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main : 0.0;
 
       BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Acquire timing - "
                       << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
@@ -639,7 +639,7 @@ namespace platf::dxgi {
     diagnostic_frame_count++;
 
     // Log diagnostic info every 120 frames (~2 seconds at 60fps)
-    if (diagnostic_frame_count % 120 == 0) {
+    if (diagnostic_frame_count % 120 == 0 && diagnostic_frame_count > 0) {
       auto avg_interval = total_interval_time.count() / diagnostic_frame_count;
       auto expected_interval = (_config.framerate > 0) ? (1000 / _config.framerate) : 16;
       BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Frame timing diagnostics - "
@@ -746,9 +746,9 @@ namespace platf::dxgi {
         qpc_freq_main_ram = freq.QuadPart;
       }
 
-      double wait_time_us = (double) (timestamp_after_wait_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
-      double mutex_time_us = (double) (timestamp_after_mutex_ram - timestamp_after_wait_ram) * 1000000.0 / qpc_freq_main_ram;
-      double total_acquire_us = (double) (timestamp_after_mutex_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram;
+      double wait_time_us = (qpc_freq_main_ram > 0) ? (double) (timestamp_after_wait_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram : 0.0;
+      double mutex_time_us = (qpc_freq_main_ram > 0) ? (double) (timestamp_after_mutex_ram - timestamp_after_wait_ram) * 1000000.0 / qpc_freq_main_ram : 0.0;
+      double total_acquire_us = (qpc_freq_main_ram > 0) ? (double) (timestamp_after_mutex_ram - timestamp_before_wait_ram) * 1000000.0 / qpc_freq_main_ram : 0.0;
 
       BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Acquire timing - "
                        << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
