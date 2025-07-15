@@ -98,8 +98,11 @@ export default {
      * 处理图像错误
      */
     handleImageError(event) {
-      event.target.style.display = 'none';
-      event.target.nextElementSibling.style.display = 'flex';
+      const element = event.target;
+      element.style.display = 'none';
+      if (element.nextElementSibling) {
+        element.nextElementSibling.style.display = 'flex';
+      }
     },
     
     /**

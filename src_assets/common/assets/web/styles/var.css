@@ -33,4 +33,38 @@
   --spacing-md: 1rem;
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
+
+  --cute-btn-border-color: rgba(255, 255, 255, 0.3);
+  --cute-btn-border-hover-color: rgba(255, 255, 255, 0.5);
+}
+
+/* data-bs-theme="dark" 适配 */
+[data-bs-theme="dark"] {
+  --primary-color: #375a7f;
+  --secondary-color: #444950;
+  --success-color: #00bc8c;
+  --danger-color: #e74c3c;
+  --warning-color: #f39c12;
+  --info-color: #3498db;
+  --light-color: #23272b;
+  --dark-color: #f8f9fa;
+  --gradient-success: linear-gradient(135deg, #00bc8c, #16a085);
+  --gradient-success-hover: linear-gradient(135deg, #16a085, #00bc8c);
+  --box-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.4);
+  --box-shadow-md: 0 8px 16px rgba(0, 0, 0, 0.3);
+  --box-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.25rem;
+  --font-size-xl: 1.5rem;
+  --font-size-xxl: 2rem;
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+
+  --cute-btn-border-color: rgba(0, 0, 0, 0.2);
+  --cute-btn-border-hover-color: rgba(0, 0, 0, 0.1);
 }

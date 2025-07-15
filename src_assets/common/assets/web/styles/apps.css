@@ -4,8 +4,14 @@
 /* 全局样式 */
 body {
   background: var(--gradient-primary);
-  min-height: 100vh;
   font-family: var(--font-family-base);
+  min-height: 100vh;
+}
+
+[data-bs-theme='dark'] {
+  body {
+    backdrop-filter: brightness(0.6);
+  }
 }
 
 /* 页面标题 */
@@ -159,32 +165,32 @@ body {
 
 .cute-btn-primary {
   background: var(--gradient-primary);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--cute-btn-border-color);
 }
 
 .cute-btn-primary:hover {
   background: linear-gradient(135deg, #764ba2, #667eea);
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: var(--cute-btn-border-hover-color);
 }
 
 .cute-btn-secondary {
   background: linear-gradient(135deg, var(--info-color), #138496);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--cute-btn-border-color);
 }
 
 .cute-btn-secondary:hover {
   background: linear-gradient(135deg, #138496, var(--info-color));
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: var(--cute-btn-border-hover-color);
 }
 
 .cute-btn-success {
   background: var(--gradient-success);
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid var(--cute-btn-border-color);
 }
 
 .cute-btn-success:hover {
   background: var(--gradient-success-hover);
-  border-color: rgba(255, 255, 255, 0.5);
+  border-color: var(--cute-btn-border-hover-color);
 }
 
 .cute-btn:nth-child(1) {
@@ -247,8 +253,12 @@ body {
 }
 
 .app-card-inner {
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   position: relative;
+  padding: 20px;
+  height: 100%;
 }
 
 /* 应用图标 */
@@ -258,7 +268,7 @@ body {
   align-items: center;
   width: 80px;
   height: 80px;
-  margin: 0 auto 15px;
+  margin: 0 auto 8px;
   position: relative;
 }
 
@@ -298,35 +308,6 @@ body {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(5px);
   transform: translateY(-1px);
-}
-
-.app-info[title]:not([title=''])::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  transform: translateY(-50%);
-  width: 16px;
-  height: 16px;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 50%;
-  opacity: 0;
-  transition: var(--transition-default);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.app-info[title]:not([title=''])::after {
-  content: '📋';
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  font-size: 12px;
-  opacity: 0;
-  transition: var(--transition-default);
-  z-index: 2;
 }
 
 .app-info[title]:not([title='']):hover::before {
@@ -374,6 +355,9 @@ body {
   color: #fff;
   margin-bottom: 8px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-command {

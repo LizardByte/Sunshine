@@ -169,7 +169,7 @@
       },
       mounted() {
         this.initPinForm()
-        electron?.getIccFileList((files = []) => {
+        window.electron?.getIccFileList((files = []) => {
           this.hdrProfileList = files.filter((file) => /.icc$/.test(file))
         })
       },
