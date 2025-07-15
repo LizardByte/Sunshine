@@ -2,7 +2,7 @@
 // Windows Graphics Capture helper process for Sunshine
 
 #define WIN32_LEAN_AND_MEAN
-#include "shared_memory.h"
+#include "src/platform/windows/wgc/shared_memory.h"
 
 #include <avrt.h>  // For MMCSS
 #include <d3d11.h>
