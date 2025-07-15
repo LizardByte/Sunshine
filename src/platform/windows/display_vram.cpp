@@ -1612,93 +1612,9 @@ namespace platf::dxgi {
    * @param timeout how long to wait for the next frame
    * @param cursor_visible
    */
-  capture_e display_wgc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
-    texture2d_t src;
-    uint64_t frame_qpc;
-    auto capture_status = acquire_next_frame(timeout, src, frame_qpc, cursor_visible);
-    
-    if (capture_status == capture_e::ok) {
-      // Got a new frame - process it normally
-      auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
-      D3D11_TEXTURE2D_DESC desc;
-      src->GetDesc(&desc);
-
-      // It's possible for our display enumeration to race with mode changes and result in
-      // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
-      if (desc.Width != width_before_rotation || desc.Height != height_before_rotation) {
-        BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
-        return capture_e::reinit;
-      }
-
-      // It's also possible for the capture format to change on the fly. If that happens,
-      // reinitialize capture to try format detection again and create new images.
-      if (capture_format != desc.Format) {
-        BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
-        return capture_e::reinit;
-      }
-
-      std::shared_ptr<platf::img_t> img;
-      if (!pull_free_image_cb(img)) {
-        return capture_e::interrupted;
-      }
-
-      auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
-      d3d_img->blank = false;  // image is always ready for capture
-      if (complete_img(d3d_img.get(), false) == 0) {
-        texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
-        if (lock_helper.lock()) {
-          device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
-        } else {
-          BOOST_LOG(error) << "Failed to lock capture texture";
-          return capture_e::error;
-        }
-      } else {
-        return capture_e::error;
-      }
-      
-      img->frame_timestamp = frame_timestamp;
-      img_out = img;
-      
-      // Cache this frame for potential reuse
-      last_cached_frame = img;
-      
-      return capture_e::ok;
-      
-    } else if (capture_status == capture_e::timeout && last_cached_frame) {
-      // No new frame available, but we have a cached frame - forward it
-      // This mimics the DDUP ofa::forward_last_img behavior
-      // Only do this for genuine timeouts, not for errors
-      img_out = last_cached_frame;
-      
-      // Update timestamp to current time to maintain proper timing
-      if (img_out) {
-        img_out->frame_timestamp = std::chrono::steady_clock::now();
-      }
-      
-      return capture_e::ok;
-      
-    } else {
-      // Return the actual error/timeout from acquire_next_frame
-      // This preserves proper error semantics (e.g., when helper process is unavailable)
-      return capture_status;
-    }
-  }
-
-  capture_e display_wgc_vram_t::release_snapshot() {
-    return dup.release_frame();
-  }
-
-  capture_e display_wgc_vram_t::acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) {
-    dup.set_cursor_visible(cursor_visible);
-    return dup.next_frame(timeout, &src, frame_qpc);
-  }
-
-  int display_wgc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
-    if (display_base_t::init(config, display_name) || dup.init(this, config)) {
-      return -1;
-    }
-
-    return 0;
+  // Factory method for display_wgc_vram_t - always returns IPC implementation
+  std::shared_ptr<display_t> display_wgc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
+    return display_wgc_ipc_vram_t::create(config, display_name);
   }
 
   std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {

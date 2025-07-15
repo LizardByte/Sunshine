@@ -10,6 +10,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include "src/platform/windows/display_vram.h"
+#include "src/platform/windows/display.h"
 
 using namespace platf::dxgi;
 
@@ -608,6 +609,119 @@ TEST_F(DisplayIpcWgcIntegrationTest, PerformanceMetricsValidation) {
             std::cout << "ℹ Performance test: No successful captures (acceptable in test environment)" << std::endl;
         }
     }, 25000);
+}
+
+TEST_F(DisplayIpcWgcIntegrationTest, RamImplementationContentValidation) {
+    deadlock_protection([&] {
+        // Test the RAM implementation specifically and validate frame content
+        display_wgc_ipc_ram_t display;
+        ::video::config_t config{};
+        config.width = 1920;
+        config.height = 1080;
+        config.framerate = 60;
+        std::string display_name = "";
+        
+        int result = display.init(config, display_name);
+        EXPECT_EQ(result, 0) << "RAM display initialization should succeed";
+
+        // Try to take a snapshot (should trigger lazy_init)
+        std::shared_ptr<platf::img_t> img_out;
+        auto cb = [&display](std::shared_ptr<platf::img_t>& img) { 
+            img = display.alloc_img(); 
+            return img != nullptr; 
+        };
+        
+        auto status = display.snapshot(cb, img_out, std::chrono::milliseconds(4000), false);
+        
+        if (helper_exists) {
+            // If helper exists, we expect either successful capture or timeout
+            EXPECT_TRUE(status == platf::capture_e::ok || status == platf::capture_e::timeout) 
+                << "With helper process, RAM should get ok or timeout, got: " << static_cast<int>(status);
+            
+            if (status == platf::capture_e::ok) {
+                EXPECT_TRUE(img_out != nullptr) << "Successful RAM capture should provide image";
+                EXPECT_EQ(img_out->width, config.width) << "RAM frame width should match config";
+                EXPECT_EQ(img_out->height, config.height) << "RAM frame height should match config";
+                
+                // Verify this is a system memory image (not VRAM)
+                EXPECT_TRUE(img_out->data != nullptr) << "RAM image should have CPU-accessible data";
+                
+                // Validate frame content - check if we have actual display data
+                const uint8_t* pixel_data = static_cast<const uint8_t*>(img_out->data);
+                uint32_t width = img_out->width;
+                uint32_t height = img_out->height;
+                uint32_t row_pitch = img_out->row_pitch;
+                
+                // Calculate content metrics (assuming BGRA format, 4 bytes per pixel)
+                uint64_t total_brightness = 0;
+                uint32_t non_black_pixels = 0;
+                uint32_t bytes_per_pixel = 4;
+                uint32_t sample_step = 8; // Sample every 8th pixel for performance
+                
+                for (uint32_t y = 0; y < height; y += sample_step) {
+                    const uint8_t* row = pixel_data + (y * row_pitch);
+                    for (uint32_t x = 0; x < width; x += sample_step) {
+                        const uint8_t* pixel = row + (x * bytes_per_pixel);
+                        uint8_t b = pixel[0];
+                        uint8_t g = pixel[1];
+                        uint8_t r = pixel[2];
+                        
+                        // Calculate brightness (luminance)
+                        uint32_t brightness = (uint32_t)(0.299 * r + 0.587 * g + 0.114 * b);
+                        total_brightness += brightness;
+                        
+                        // Count non-black pixels (threshold of 16 to account for noise)
+                        if (r > 16 || g > 16 || b > 16) {
+                            non_black_pixels++;
+                        }
+                    }
+                }
+                
+                // Calculate sampled pixel count
+                uint32_t sampled_pixels = (height / sample_step) * (width / sample_step);
+                double average_brightness = static_cast<double>(total_brightness) / sampled_pixels;
+                double non_black_ratio = static_cast<double>(non_black_pixels) / sampled_pixels;
+                
+                std::cout << "✓ IPC RAM capture content analysis:" << std::endl;
+                std::cout << "  Resolution: " << width << "x" << height << std::endl;
+                std::cout << "  Row pitch: " << row_pitch << " bytes" << std::endl;
+                std::cout << "  Sampled pixels: " << sampled_pixels << std::endl;
+                std::cout << "  Non-black ratio: " << (non_black_ratio * 100.0) << "%" << std::endl;
+                std::cout << "  Average brightness: " << average_brightness << std::endl;
+                
+                // Validate capture mechanism is working
+                EXPECT_GT(sampled_pixels, 0) << "Should have sampled pixels";
+                EXPECT_GE(average_brightness, 0) << "Average brightness should be non-negative";
+                EXPECT_GT(row_pitch, 0) << "Row pitch should be positive";
+                EXPECT_GE(row_pitch, width * bytes_per_pixel) << "Row pitch should be at least width * bytes_per_pixel";
+                
+                // Check if we're getting meaningful content (not entirely black)
+                if (non_black_ratio < 0.01) { // Less than 1% non-black pixels
+                    std::cout << "⚠ WARNING: RAM capture appears to be mostly black - may indicate capture issue" << std::endl;
+                    
+                    // Show first few pixels for debugging
+                    std::cout << "  First few pixels (BGRA): ";
+                    for (int i = 0; i < std::min(8u, width); i++) {
+                        const uint8_t* pixel = pixel_data + (i * bytes_per_pixel);
+                        std::cout << "(" << (int)pixel[2] << "," << (int)pixel[1] << "," << (int)pixel[0] << "," << (int)pixel[3] << ") ";
+                    }
+                    std::cout << std::endl;
+                } else {
+                    std::cout << "✓ RAM capture contains meaningful content (" << (non_black_ratio * 100.0) << "% non-black)" << std::endl;
+                }
+                
+                std::cout << "✓ IPC RAM capture successful - frame captured to system memory: " 
+                         << img_out->width << "x" << img_out->height << std::endl;
+            } else {
+                std::cout << "ℹ IPC RAM capture timeout - helper process may need more time" << std::endl;
+            }
+        } else {
+            // Without helper, should fallback to error
+            EXPECT_EQ(status, platf::capture_e::error) 
+                << "Without helper process, RAM should return error, got: " << static_cast<int>(status);
+            std::cout << "✓ IPC RAM gracefully handles missing helper process" << std::endl;
+        }
+    }, 15000); // Extended timeout for content analysis
 }
 
 
