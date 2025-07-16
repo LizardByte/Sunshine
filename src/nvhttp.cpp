@@ -416,7 +416,7 @@ namespace nvhttp {
   }
 
   void
-  getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
+  getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin, const std::string &client_name) {
     if (sess.async_insert_pin.salt.size() < 32) {
       tree.put("root.paired", 0);
       tree.put("root.<xmlattr>.status_code", 400);
@@ -432,6 +432,8 @@ namespace nvhttp {
     sess.cipher_key = std::make_unique<crypto::aes_t>(key);
 
     tree.put("root.paired", 1);
+    // 增加自定义客户端名字告诉客户端
+    tree.put("root.pairname", client_name);
     tree.put("root.plaincert", util::hex_vec(conf_intern.servercert, true));
     tree.put("root.<xmlattr>.status_code", 200);
   }
@@ -637,7 +639,7 @@ namespace nvhttp {
           std::cout << "Please insert pin: "sv;
           std::getline(std::cin, pin);
 
-          getservercert(ptr->second, tree, pin);
+          getservercert(ptr->second, tree, pin, sess.client.name);
         }
         else {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
@@ -694,7 +696,7 @@ namespace nvhttp {
     }
 
     auto &sess = std::begin(map_id_sess)->second;
-    getservercert(sess, tree, pin);
+    getservercert(sess, tree, pin, name);
 
     // set up named cert
     client_t &client = client_root;
