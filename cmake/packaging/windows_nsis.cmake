@@ -29,6 +29,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
 set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
         ExecShell 'startunpin' '\\\"$DESKTOP\\\\SunshineGUI.lnk\\\"'
+        nsExec::ExecToLog 'taskkill /f /im sunshine-gui.exe'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-vdd.bat\\\"'
