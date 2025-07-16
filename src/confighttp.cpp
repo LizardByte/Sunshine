@@ -627,16 +627,8 @@ namespace confighttp {
       resolutions_nodes.push_back(std::make_pair("resolution"s, res_node));
     }
 
-    char* systemDrive = std::getenv("SystemDrive");
-    if (!systemDrive) {
-        BOOST_LOG(error) << "无法获取 SystemDrive 环境变量";
-        return false;
-    }
-
-    auto idd_option_path = std::filesystem::path(systemDrive)
-        / "\\"
-        / "VirtualDisplayDriver"
-        / "vdd_settings.xml";
+    // 类似于 config.cpp 中的 path_f 函数逻辑，使用相对路径
+    std::filesystem::path idd_option_path = platf::appdata().parent_path() / "tools" / "vdd" / "vdd_settings.xml";
 
     BOOST_LOG(info) << "VDD配置文件路径: " << idd_option_path.string();
 

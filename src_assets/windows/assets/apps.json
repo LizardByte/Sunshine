@@ -13,19 +13,19 @@
         {
           "id": "kcENAT5r9P",
           "name": "打开触摸键盘",
-          "cmd": "C:\\Program Files\\Sunshine\\tools\\qiin-tabtip.exe",
+          "cmd": ".\\tools\\qiin-tabtip.exe",
           "elevated": "false"
         },
         {
           "id": "rjeOKHmcdL",
           "name": "DPI 250",
-          "cmd": "C:\\Program Files\\Sunshine\\tools\\SetDpi.exe 250",
+          "cmd": ".\\tools\\SetDpi.exe 250",
           "elevated": "false"
         },
         {
           "id": "C_vunhdQwA",
           "name": "DPI 100",
-          "cmd": "C:\\Program Files\\Sunshine\\tools\\SetDpi.exe 100",
+          "cmd": ".\\tools\\SetDpi.exe 100",
           "elevated": "false"
         }
       ]
@@ -39,12 +39,12 @@
     },
     {
       "name": "禁用虚拟显示器",
-      "cmd": "C:\\Program Files\\Sunshine\\tools\\device-toggler.exe 2 2 \"Zako Display Adapter\"",
+      "cmd": ".\\tools\\device-toggler.exe 2 2 \"Zako Display Adapter\"",
       "elevated": "true"
     },
     {
       "name": "安全模式重启Sunshine",
-      "cmd": "C:\\Program Files\\Sunshine\\Sunshine.exe -1"
+      "cmd": ".\\Sunshine.exe -1"
     }
   ]
 }

@@ -39,7 +39,10 @@ rem install
 set "DRIVER_DIR=%~dp0\driver"
 echo %DRIVER_DIR%
 
-set "DIST_DIR=%SYSTEMDRIVE%\VirtualDisplayDriver"
+rem Get sunshine root directory
+for %%I in ("%~dp0\..") do set "ROOT_DIR=%%~fI"
+
+set "DIST_DIR=%ROOT_DIR%\tools\vdd"
 set "NEFCON=%DIST_DIR%\nefconw.exe"
 
 rem 如果目录存在则删除
@@ -53,6 +56,9 @@ copy "%DRIVER_DIR%\*.*" %DIST_DIR%
 %NEFCON% --remove-device-node --hardware-id ROOT\MttVDD --class-guid 4d36e968-e325-11ce-bfc1-08002be10318
 echo 正在等待vdd卸载...
 timeout /t 5 /nobreak > nul
+
+@REM write registry
+reg add "HKLM\SOFTWARE\ZakoTech\ZakoDisplayAdapter" /v VDDPATH /t REG_SZ /d "%DIST_DIR%" /f
 
 @REM rem install cet
 set CERTIFICATE="%DIST_DIR%/MttVDD.cer"
