@@ -212,3 +212,29 @@ jobs:
           tag: ${{ needs.release-setup.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}
           virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+
+  release-homebrew-beta:
+    name: Release Homebrew Beta
+    if:
+      needs.release-setup.outputs.publish_release == 'true' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - release-setup
+      - build-homebrew
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download homebrew artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: beta-Homebrew
+
+      - name: Upload Homebrew Beta Formula
+        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: false
