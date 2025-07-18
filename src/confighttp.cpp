@@ -692,6 +692,8 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(resp_https_t response, req_https_t request) {
+    // Skip check_content_type() for this endpoint since the request body is not used.
+
     if (!authenticate(response, request)) {
       return;
     }
