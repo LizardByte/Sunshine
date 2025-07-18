@@ -228,6 +228,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: beta-Homebrew
+          path: homebrew
 
       - name: Upload Homebrew Beta Formula
         uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
