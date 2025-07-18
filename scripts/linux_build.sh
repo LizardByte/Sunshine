@@ -96,9 +96,11 @@ function add_arch_deps() {
     'base-devel'
     'cmake'
     'curl'
+    'doxygen'
     "gcc${gcc_version}"
     "gcc${gcc_version}-libs"
     'git'
+    'graphviz'
     'libayatana-appindicator'
     'libcap'
     'libdrm'
