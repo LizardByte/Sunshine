@@ -192,7 +192,7 @@
     "dd_wa_hdr_toggle_delay_desc_1": "Při použití virtuálního zobrazovacího zařízení (VDD) pro streamování může dojít k nesprávnému zobrazení barev HDR. Sunshine se může pokusit tento problém zmírnit vypnutím a opětovným zapnutím HDR.",
     "dd_wa_hdr_toggle_delay_desc_2": "Pokud je hodnota nastavena na 0, je obcházení zakázáno (výchozí nastavení). Pokud je hodnota v rozmezí 0 až 3000 milisekund, Sunshine vypne HDR, počká zadanou dobu a poté HDR opět zapne. Doporučená doba zpoždění je ve většině případů přibližně 500 milisekund.",
     "dd_wa_hdr_toggle_delay_desc_3": "NEPOUŽÍVEJTE toto řešení, pokud skutečně nemáte problémy s HDR, protože přímo ovlivňuje čas spuštění streamu!",
-    "dd_wa_hdr_toggle_delay": "Práce na vysokém kontrastu pro HDR",
+    "dd_wa_hdr_toggle_delay": "Řešení pro HDR s vysokým kontrastem",
     "ds4_back_as_touchpad_click": "Mapa zpátky/Vyberte pro klepnutí na Touchpad",
     "ds4_back_as_touchpad_click_desc": "Při vynucení emulace DS4 mapa zpět/Vyberte na Touchpad kliknutí",
     "encoder": "Vynutit specifický enkodér",
