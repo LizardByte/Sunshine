@@ -7,6 +7,7 @@ include_directories("${CMAKE_SOURCE_DIR}")
 add_executable(dxgi-info dxgi.cpp)
 set_target_properties(dxgi-info PROPERTIES CXX_STANDARD 23)
 target_link_libraries(dxgi-info
+        ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         dxgi
         ${PLATFORM_LIBRARIES})
