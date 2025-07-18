@@ -692,9 +692,6 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
