@@ -12,7 +12,7 @@
 #include <roapi.h>
 
 // local includes
-#include "src/platform/windows/tools/helper.h"
+#include "src/platform/windows/utf_utils.h"
 #include "src/utility.h"
 
 DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 2);  // DEVPROP_TYPE_STRING
@@ -211,13 +211,20 @@ namespace audio {
       }
     }
 
+    auto safe_wstring_output = [](const wchar_t *wstr) -> std::string {
+      if (!wstr) {
+        return "Unknown";
+      }
+      return utf_utils::to_utf8(std::wstring(wstr));
+    };
+
     std::cout << "===== Device =====" << std::endl;
-    output::output_field("Device ID          ", wstring.get());
-    output::output_field("Device name        ", output::no_null(device_friendly_name.prop.pwszVal));
-    output::output_field("Adapter name       ", output::no_null(adapter_friendly_name.prop.pwszVal));
-    output::output_field("Device description ", output::no_null(device_desc.prop.pwszVal));
-    output::output_field("Device state       ", device_state_string.c_str());
-    output::output_field("Current format     ", current_format);
+    std::cout << "Device ID           : " << utf_utils::to_utf8(std::wstring(wstring.get())) << std::endl;
+    std::cout << "Device name         : " << safe_wstring_output(device_friendly_name.prop.pwszVal) << std::endl;
+    std::cout << "Adapter name        : " << safe_wstring_output(adapter_friendly_name.prop.pwszVal) << std::endl;
+    std::cout << "Device description  : " << safe_wstring_output(device_desc.prop.pwszVal) << std::endl;
+    std::cout << "Device state        : " << utf_utils::to_utf8(device_state_string) << std::endl;
+    std::cout << "Current format      : " << current_format << std::endl;
     std::cout << std::endl;
   }
 }  // namespace audio

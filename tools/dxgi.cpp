@@ -3,7 +3,7 @@
  * @brief Displays information about connected displays and GPUs
  */
 #define WINVER 0x0A00
-#include "src/platform/windows/tools/helper.h"
+#include "src/platform/windows/utf_utils.h"
 #include "src/utility.h"
 
 #include <d3dcommon.h>
@@ -44,12 +44,12 @@ int main(int argc, char *argv[]) {
     adapter->GetDesc1(&adapter_desc);
 
     std::cout << "====== ADAPTER =====" << std::endl;
-    output::output_field("Device Name      ", adapter_desc.Description);
-    output::output_field("Device Vendor ID ", "0x" + util::hex(adapter_desc.VendorId).to_string());
-    output::output_field("Device Device ID ", "0x" + util::hex(adapter_desc.DeviceId).to_string());
-    output::output_field("Device Video Mem ", std::format("{} MiB", adapter_desc.DedicatedVideoMemory / 1048576));
-    output::output_field("Device Sys Mem   ", std::format("{} MiB", adapter_desc.DedicatedSystemMemory / 1048576));
-    output::output_field("Share Sys Mem    ", std::format("{} MiB", adapter_desc.SharedSystemMemory / 1048576));
+    std::cout << "Device Name       : " << utf_utils::to_utf8(std::wstring(adapter_desc.Description)) << std::endl;
+    std::cout << "Device Vendor ID  : " << "0x" << util::hex(adapter_desc.VendorId).to_string() << std::endl;
+    std::cout << "Device Device ID  : " << "0x" << util::hex(adapter_desc.DeviceId).to_string() << std::endl;
+    std::cout << "Device Video Mem  : " << std::format("{} MiB", adapter_desc.DedicatedVideoMemory / 1048576) << std::endl;
+    std::cout << "Device Sys Mem    : " << std::format("{} MiB", adapter_desc.DedicatedSystemMemory / 1048576) << std::endl;
+    std::cout << "Share Sys Mem     : " << std::format("{} MiB", adapter_desc.SharedSystemMemory / 1048576) << std::endl;
 
     dxgi::output_t::pointer output_p {};
     bool has_outputs = false;
@@ -69,9 +69,9 @@ int main(int argc, char *argv[]) {
       auto width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
       auto height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;
 
-      output::output_field("    Output Name       ", desc.DeviceName);
-      output::output_field("    AttachedToDesktop ", desc.AttachedToDesktop ? "yes" : "no");
-      output::output_field("    Resolution        ", std::format("{}x{}", width, height));
+      std::cout << "    Output Name       : " << utf_utils::to_utf8(std::wstring(desc.DeviceName)) << std::endl;
+      std::cout << "    AttachedToDesktop : " << (desc.AttachedToDesktop ? "yes" : "no") << std::endl;
+      std::cout << "    Resolution        : " << std::format("{}x{}", width, height) << std::endl;
     }
     std::cout << std::endl;
   }
