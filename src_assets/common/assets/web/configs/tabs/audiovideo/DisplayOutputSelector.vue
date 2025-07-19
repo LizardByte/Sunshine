@@ -30,6 +30,11 @@ const outputNamePlaceholder = (props.platform === 'windows') ? '{de9bb7e2-186e-5
             <b>&nbsp;&nbsp;}</b>
           </pre>
         </template>
+        <template #freebsd>
+          <pre style="white-space: pre-line;">
+            TODO
+          </pre>
+        </template>
         <template #linux>
           <pre style="white-space: pre-line;">
             Info: Detecting displays
