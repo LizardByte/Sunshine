@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <atomic>
+
 // platform includes
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -12,12 +15,15 @@
 #include <dxgi.h>
 #include <dxgi1_6.h>
 #include <Unknwn.h>
+#include <wrl/client.h>
 #include <winrt/Windows.Graphics.Capture.h>
 
 // local includes
 #include "src/platform/common.h"
 #include "src/utility.h"
 #include "src/video.h"
+#include "src/platform/windows/wgc/process_handler.h"
+#include "src/platform/windows/wgc/shared_memory.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -240,8 +246,8 @@ namespace platf::dxgi {
       return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
     }
 
-    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
-    virtual capture_e release_snapshot() = 0;
+    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible);
+    virtual capture_e release_snapshot();
     virtual int complete_img(img_t *img, bool dummy) = 0;
   };
 
@@ -338,50 +344,131 @@ namespace platf::dxgi {
   };
 
   /**
-   * Display duplicator that uses the Windows.Graphics.Capture API.
-   */
-  class wgc_capture_t {
-    winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice uwp_device {nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem item {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool frame_pool {nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession capture_session {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame {nullptr}, consumed_frame {nullptr};
-    SRWLOCK frame_lock = SRWLOCK_INIT;
-    CONDITION_VARIABLE frame_present_cv;
-
-    void on_frame_arrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &);
-
-  public:
-    wgc_capture_t();
-    ~wgc_capture_t();
-
-    int init(display_base_t *display, const ::video::config_t &config);
-    capture_e next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time);
-    capture_e release_frame();
-    int set_cursor_visible(bool);
-  };
-
-  /**
    * Display backend that uses Windows.Graphics.Capture with a software encoder.
+   * This now always uses IPC implementation via display_wgc_ipc_ram_t.
    */
   class display_wgc_ram_t: public display_ram_t {
-    wgc_capture_t dup;
-
   public:
-    int init(const ::video::config_t &config, const std::string &display_name);
-    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
-    capture_e release_snapshot() override;
+    // Factory method that always returns the IPC implementation
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+    
+    // These methods are pure virtual - derived classes must implement them
+    virtual int init(const ::video::config_t &config, const std::string &display_name) = 0;
+    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    virtual capture_e release_snapshot() = 0;
   };
 
   /**
    * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   * This now always uses IPC implementation via display_wgc_ipc_vram_t.
    */
   class display_wgc_vram_t: public display_vram_t {
-    wgc_capture_t dup;
+    // Cache for frame forwarding when no new frame is available
+    std::shared_ptr<platf::img_t> last_cached_frame;
 
   public:
+    // Factory method that always returns the IPC implementation
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+    
+    // These methods are pure virtual - derived classes must implement them
+    virtual int init(const ::video::config_t &config, const std::string &display_name) = 0;
+    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    virtual capture_e release_snapshot() = 0;
+
+  protected:
+    // Virtual method to acquire the next frame - can be overridden by derived classes
+    virtual capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) = 0;
+  };
+
+  /**
+   * Display backend that uses WGC with IPC helper for hardware encoder.
+   */
+  class display_wgc_ipc_vram_t : public display_vram_t {
+    // Cache for frame forwarding when no new frame is available
+    std::shared_ptr<platf::img_t> last_cached_frame;
+public:
+    display_wgc_ipc_vram_t();
+    ~display_wgc_ipc_vram_t() override;
+
+    // Factory method that returns either WGC IPC or secure desktop fallback based on current state
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+
     int init(const ::video::config_t &config, const std::string &display_name);
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    void lazy_init();
+    int dummy_img(platf::img_t *img_base) override;
+
+protected:
+    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
     capture_e release_snapshot() override;
+
+private:
+    std::unique_ptr<class wgc_ipc_session_t> _session;
+    ::video::config_t _config;
+    std::string _display_name;
+    bool _session_initialized_logged = false;
+};
+
+  /**
+   * Display backend that uses WGC with IPC helper for software encoder.
+   */
+  class display_wgc_ipc_ram_t : public display_ram_t {
+public:
+    display_wgc_ipc_ram_t();
+    ~display_wgc_ipc_ram_t() override;
+
+    // Factory method that returns either WGC IPC or secure desktop fallback based on current state
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+
+    int init(const ::video::config_t &config, const std::string &display_name);
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+    void lazy_init();
+    int dummy_img(platf::img_t *img_base) override;
+
+protected:
+    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
+    capture_e release_snapshot() override;
+
+private:
+    std::unique_ptr<class wgc_ipc_session_t> _session;
+    ::video::config_t _config;
+    std::string _display_name;
+    bool _session_initialized_logged = false;
+    
+    // Track last staging texture properties for base class texture
+    UINT _last_width = 0;
+    UINT _last_height = 0;
+    DXGI_FORMAT _last_format = DXGI_FORMAT_UNKNOWN;
+};  /**
+   * Display backend that uses DXGI duplication for secure desktop scenarios.
+   * This display can detect when secure desktop is no longer active and swap back to WGC.
+   */
+  class temp_dxgi_vram_t : public display_ddup_vram_t {
+  private:
+    std::chrono::steady_clock::time_point _last_check_time;
+    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
+    
+  public:
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
   };
+
+  /**
+   * Display backend that uses DXGI duplication for secure desktop scenarios.
+   * This display can detect when secure desktop is no longer active and swap back to WGC.
+   */
+  class temp_dxgi_ram_t : public display_ddup_ram_t {
+  private:
+    std::chrono::steady_clock::time_point _last_check_time;
+    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
+    
+  public:
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+};
+
+
 }  // namespace platf::dxgi
+
+
+
+
+
