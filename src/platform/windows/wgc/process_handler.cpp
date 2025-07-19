@@ -32,7 +32,7 @@ bool ProcessHandler::start(const std::wstring& application, const std::wstring& 
         cmd += arguments;
     }
 
-    DWORD creation_flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_BREAKAWAY_FROM_JOB | CREATE_NO_WINDOW;
+    DWORD creation_flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW;
 
     std::string cmd_str = platf::to_utf8(cmd);
     std::wstring working_dir; // Empty working directory

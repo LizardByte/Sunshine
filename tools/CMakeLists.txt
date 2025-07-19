@@ -32,9 +32,17 @@ target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 # Add sunshine_wgc_capture executable
 add_executable(sunshine_wgc_capture
         sunshine_wgc_capture.cpp
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp)
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/misc_utils.cpp)
 set_target_properties(sunshine_wgc_capture PROPERTIES CXX_STANDARD 20)
+
+# Define helper build flag to conditionally compile logging
+target_compile_definitions(sunshine_wgc_capture PRIVATE
+        SUNSHINE_WGC_HELPER_BUILD=1
+)
+
 target_link_libraries(sunshine_wgc_capture
+        ${Boost_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         d3d11
         dxgi
@@ -44,7 +52,6 @@ target_link_libraries(sunshine_wgc_capture
         windowsapp
         avrt
         shcore
+        wtsapi32
         ${PLATFORM_LIBRARIES})
 target_compile_options(sunshine_wgc_capture PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
-# Add WIN32 subsystem specification for the helper
-set_target_properties(sunshine_wgc_capture PROPERTIES LINK_FLAGS "-Wl,--subsystem,windows")

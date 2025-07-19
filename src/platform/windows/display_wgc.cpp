@@ -3,7 +3,7 @@
  * @brief Refactored WGC IPC display implementations using shared session helper.
  */
 
-#include "wgc/helpers.h"  // for is_secure_desktop_active
+#include "wgc/misc_utils.h"  // for is_secure_desktop_active
 #include "src/logging.h"
 #include "src/platform/windows/display.h"
 #include "src/platform/windows/display_vram.h"  // for img_d3d_t
@@ -16,16 +16,6 @@
 #include <wrl/client.h>
 
 namespace platf::dxgi {
-
-  // Structures from display_ipc_wgc_refactored.cpp (we need the complete definitions here)
-  struct FrameMetadata {
-    uint64_t qpc_timestamp;
-    uint32_t frame_sequence;
-    uint32_t suppressed_frames;
-  };
-
-  // Forward declaration
-  struct SharedHandleData;
 
   // ===== VRAM Implementation =====
 
@@ -73,6 +63,12 @@ namespace platf::dxgi {
         BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Session initialized: "
                         << "capture=" << _session->width() << "x" << _session->height()
                         << ", target=" << width << "x" << height;
+        
+        
+        // If we don't update these before snapshot() is called, it could cause a stack overflow of reinits.
+        width_before_rotation = _session->width();
+        height_before_rotation = _session->height();
+
         _session_initialized_logged = true;
       }
     }
@@ -90,7 +86,6 @@ namespace platf::dxgi {
     }
 
     lazy_init();
-    // Strengthen error detection: check all required resources
     if (!_session->is_initialized()) {
       return capture_e::error;
     }
@@ -206,38 +201,24 @@ namespace platf::dxgi {
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
-    // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
+    // Always use DXGI fallback for dummy images to avoid lazy_init complications
+    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Using DXGI fallback for dummy_img";
 
-    // First try to use lazy_init to see if IPC is possible
-    lazy_init();
-
-    if (!_session || !_session->is_initialized()) {
-      // IPC failed (likely running as service), use DXGI fallback for dummy image creation
-      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] IPC not available for dummy_img, using DXGI fallback";
-
-      // Create a temporary DXGI display for dummy image creation
-      auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
-      if (temp_dxgi->init(_config, _display_name) == 0) {
-        // Successfully initialized DXGI, use it for dummy image
-        return temp_dxgi->dummy_img(img_base);
-      } else {
-        BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to initialize DXGI fallback for dummy_img";
-        return -1;
-      }
+    // Create a temporary DXGI display for dummy image creation
+    auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
+    if (temp_dxgi->init(_config, _display_name) == 0) {
+      // Successfully initialized DXGI, use it for dummy image
+      return temp_dxgi->dummy_img(img_base);
+    } else {
+      BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to initialize DXGI fallback for dummy_img";
+      return -1;
     }
-
-    // IPC is available, use normal WGC path
-    // Set a default capture format if it hasn't been set yet
-    if (capture_format == DXGI_FORMAT_UNKNOWN) {
-      capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    }
-    return display_vram_t::dummy_img(img_base);
   }
 
   std::shared_ptr<display_t> display_wgc_ipc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
 
-    if (platf::is_secure_desktop_active()) {
+    if (platf::wgc::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
       auto disp = std::make_shared<temp_dxgi_vram_t>();
@@ -461,38 +442,24 @@ namespace platf::dxgi {
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
     // During encoder validation, we need to create dummy textures before WGC is initialized
-    // If we're running as a service, WGC IPC won't work, so we need to fall back to DXGI
+    // Always use DXGI fallback for dummy images to avoid lazy_init complications
+    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Using DXGI fallback for dummy_img";
 
-    // First try to use lazy_init to see if IPC is possible
-    lazy_init();
-
-    if (!_session || !_session->is_initialized()) {
-      // IPC failed (likely running as service), use DXGI fallback for dummy image creation
-      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] IPC not available for dummy_img, using DXGI fallback";
-
-      // Create a temporary DXGI display for dummy image creation
-      auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
-      if (temp_dxgi->init(_config, _display_name) == 0) {
-        // Successfully initialized DXGI, use it for dummy image
-        return temp_dxgi->dummy_img(img_base);
-      } else {
-        BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to initialize DXGI fallback for dummy_img";
-        return -1;
-      }
+    // Create a temporary DXGI display for dummy image creation
+    auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
+    if (temp_dxgi->init(_config, _display_name) == 0) {
+      // Successfully initialized DXGI, use it for dummy image
+      return temp_dxgi->dummy_img(img_base);
+    } else {
+      BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to initialize DXGI fallback for dummy_img";
+      return -1;
     }
-
-    // IPC is available, use normal WGC path
-    // Set a default capture format if it hasn't been set yet
-    if (capture_format == DXGI_FORMAT_UNKNOWN) {
-      capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    }
-    return display_ram_t::dummy_img(img_base);
   }
 
   std::shared_ptr<display_t> display_wgc_ipc_ram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
 
-    if (platf::is_secure_desktop_active()) {
+    if (platf::wgc::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
       auto disp = std::make_shared<temp_dxgi_ram_t>();
@@ -517,7 +484,7 @@ namespace platf::dxgi {
     // Check periodically if secure desktop is still active
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
-      if (!platf::is_secure_desktop_active()) {
+      if (!platf::wgc::is_secure_desktop_active()) {
         BOOST_LOG(info) << "[temp_dxgi_vram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
         return capture_e::reinit;
       }
@@ -531,7 +498,7 @@ namespace platf::dxgi {
     // Check periodically if secure desktop is still active
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
-      if (!platf::is_secure_desktop_active()) {
+      if (!platf::wgc::is_secure_desktop_active()) {
         BOOST_LOG(info) << "[temp_dxgi_ram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
         return capture_e::reinit;
       }

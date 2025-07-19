@@ -1,3 +1,4 @@
+
 /**
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
@@ -883,9 +884,7 @@ namespace platf {
   /**
    * @brief Launch a process with user impersonation (for use when running as SYSTEM).
    */
-  bool launch_process_with_impersonation(bool elevated, const std::string &cmd, const std::wstring &start_dir, 
-                                        DWORD creation_flags, STARTUPINFOEXW &startup_info, 
-                                        PROCESS_INFORMATION &process_info, std::error_code &ec) {
+  bool launch_process_with_impersonation(bool elevated, const std::string &cmd, const std::wstring &start_dir, DWORD creation_flags, STARTUPINFOEXW &startup_info, PROCESS_INFORMATION &process_info, std::error_code &ec) {
     // Duplicate the current user's token
     HANDLE user_token = retrieve_users_token(elevated);
     if (!user_token) {
@@ -911,10 +910,7 @@ namespace platf {
     ec = impersonate_current_user(user_token, [&]() {
       std::wstring env_block = create_environment_block(cloned_env);
       std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
-      ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, 
-                                !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), 
-                                creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), 
-                                (LPSTARTUPINFOW) &startup_info, &process_info);
+      ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
     });
 
     if (!ret && !ec) {
@@ -928,9 +924,7 @@ namespace platf {
   /**
    * @brief Launch a process without impersonation (for use when running as regular user).
    */
-  bool launch_process_without_impersonation(const std::string &cmd, const std::wstring &start_dir, 
-                                           DWORD creation_flags, STARTUPINFOEXW &startup_info, 
-                                           PROCESS_INFORMATION &process_info, std::error_code &ec) {
+  bool launch_process_without_impersonation(const std::string &cmd, const std::wstring &start_dir, DWORD creation_flags, STARTUPINFOEXW &startup_info, PROCESS_INFORMATION &process_info, std::error_code &ec) {
     // Open our current token to resolve environment variables
     HANDLE process_token;
     if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &process_token)) {
@@ -942,10 +936,7 @@ namespace platf {
     });
 
     std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
-    BOOL ret = CreateProcessW(NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, 
-                             !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), 
-                             creation_flags, NULL, start_dir.empty() ? NULL : start_dir.c_str(), 
-                             (LPSTARTUPINFOW) &startup_info, &process_info);
+    BOOL ret = CreateProcessW(NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, NULL, start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
 
     if (!ret) {
       BOOST_LOG(error) << "Failed to launch process: " << GetLastError();
