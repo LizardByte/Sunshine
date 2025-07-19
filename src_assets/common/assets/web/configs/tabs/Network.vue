@@ -88,7 +88,7 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
         <tr>
           <!-- Video, Control, Audio -->
           <td>{{ $t('config.port_udp') }}</td>
-          <td>{{+effectivePort + 9}} - {{+effectivePort + 11}}</td>
+          <td>{{+effectivePort + 9}} - {{+effectivePort + 13}}</td>
           <td></td>
         </tr>
         <!--            <tr>-->
