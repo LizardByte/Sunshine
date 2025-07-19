@@ -62,7 +62,7 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/wgc_ipc_session.h"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/wgc_ipc_session.cpp"
-        "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/helpers.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/misc_utils.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/process_handler.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViGEmClient.cpp"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Client.h"

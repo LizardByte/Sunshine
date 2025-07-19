@@ -42,7 +42,7 @@ protected:
 
     void SetUp() override {
         // Determine the helper executable path - it should be relative to test executable
-        helper_exe_path = std::filesystem::current_path() / "build" / "tests" / "tools" / "sunshine_wgc_capture.exe";
+        helper_exe_path = std::filesystem::current_path() / "tools" / "sunshine_wgc_capture.exe";
         backup_path = helper_exe_path;
         backup_path += ".bak";
         
@@ -126,7 +126,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, InitAndSnapshotSuccess) {
                 << "Without helper process, should return error, got: " << static_cast<int>(status);
             std::cout << "✓ IPC gracefully handles missing helper process" << std::endl;
         }
-    }, 12000); // Longer timeout for helper process startup
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
@@ -158,7 +158,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, HelperProcessFailure) {
         
         // Restore helper for other tests
         restoreHelper();
-    }, 10000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, IpcCommunicationTest) {
@@ -199,7 +199,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, IpcCommunicationTest) {
         } else {
             FAIL() << "Unexpected capture status: " << static_cast<int>(status1);
         }
-    }, 15000); // Extended timeout for helper startup and IPC setup
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, MultipleResolutionConfigs) {
@@ -249,7 +249,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, MultipleResolutionConfigs) {
             
             // Each display instance cleanup happens automatically via destructor
         }
-    }, 25000); // Extended timeout for multiple resolutions
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, FrameSequenceValidation) {
@@ -301,7 +301,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameSequenceValidation) {
         } else {
             std::cout << "ℹ IPC frame sequence test - all timeouts (acceptable in test environment)" << std::endl;
         }
-    }, 20000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupValidation) {
@@ -337,7 +337,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, ResourceCleanupValidation) {
         }
         
         std::cout << "✓ Resource cleanup validation complete - no crashes or leaks detected" << std::endl;
-    }, 12000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, SnapshotWithoutInit) {
@@ -356,7 +356,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, SnapshotWithoutInit) {
             << "Snapshot without init should return error";
         
         std::cout << "✓ IPC properly handles uninitialized display" << std::endl;
-    });
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, FrameContentValidation) {
@@ -490,7 +490,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, FrameContentValidation) {
             std::cout << "ℹ Frame capture status: " << static_cast<int>(status) 
                      << " (timeout acceptable in test environment)" << std::endl;
         }
-    }, 15000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, HdrConfigurationTest) {
@@ -547,7 +547,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, HdrConfigurationTest) {
                          << " (timeout acceptable)" << std::endl;
             }
         }
-    }, 20000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, PerformanceMetricsValidation) {
@@ -608,7 +608,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, PerformanceMetricsValidation) {
         } else {
             std::cout << "ℹ Performance test: No successful captures (acceptable in test environment)" << std::endl;
         }
-    }, 25000);
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 TEST_F(DisplayIpcWgcIntegrationTest, RamImplementationContentValidation) {
@@ -721,7 +721,7 @@ TEST_F(DisplayIpcWgcIntegrationTest, RamImplementationContentValidation) {
                 << "Without helper process, RAM should return error, got: " << static_cast<int>(status);
             std::cout << "✓ IPC RAM gracefully handles missing helper process" << std::endl;
         }
-    }, 15000); // Extended timeout for content analysis
+    }, 3000); // Capped timeout at 3 seconds
 }
 
 
