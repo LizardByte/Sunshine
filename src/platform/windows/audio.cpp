@@ -13,10 +13,10 @@
 #include <synchapi.h>
 
 // local includes
-#include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "utf_utils.h"
 
 // Must be the last included file
 // clang-format off
@@ -695,7 +695,7 @@ namespace platf::audio {
         audio::wstring_t id;
         device->GetId(&id);
 
-        sink.host = to_utf8(id.get());
+        sink.host = utf_utils::to_utf8(id.get());
       }
 
       // Prepare to search for the device_id of the virtual audio sink device,
@@ -705,14 +705,14 @@ namespace platf::audio {
       if (config::audio.virtual_sink.empty()) {
         match_list = match_steam_speakers();
       } else {
-        match_list = match_all_fields(from_utf8(config::audio.virtual_sink));
+        match_list = match_all_fields(utf_utils::from_utf8(config::audio.virtual_sink));
       }
 
       // Search for the virtual audio sink device currently present in the system.
       auto matched = find_device_id(match_list);
       if (matched) {
         // Prepare to fill virtual audio sink names with device_id.
-        auto device_id = to_utf8(matched->second);
+        auto device_id = utf_utils::to_utf8(matched->second);
         // Also prepend format name (basically channel layout at the moment)
         // because we don't want to extend the platform interface.
         sink.null = std::make_optional(sink_t::null_t {
@@ -728,7 +728,7 @@ namespace platf::audio {
     }
 
     bool is_sink_available(const std::string &sink) override {
-      const auto match_list = match_all_fields(from_utf8(sink));
+      const auto match_list = match_all_fields(utf_utils::from_utf8(sink));
       const auto matched = find_device_id(match_list);
       return static_cast<bool>(matched);
     }
@@ -750,7 +750,7 @@ namespace platf::audio {
         for (const auto &format : formats) {
           auto &name = format.name;
           if (current.find(name) == 0) {
-            auto device_id = from_utf8(current.substr(name.size(), current.size() - name.size()));
+            auto device_id = utf_utils::from_utf8(current.substr(name.size(), current.size() - name.size()));
             return std::make_pair(device_id, std::reference_wrapper(format));
           }
         }
@@ -797,7 +797,7 @@ namespace platf::audio {
         // Sink name does not begin with virtual-(format name), hence it's not a virtual sink
         // and we don't want to change playback format of the corresponding device.
         // Also need to perform matching, sink name is not necessarily device_id in this case.
-        auto matched = find_device_id(match_all_fields(from_utf8(sink)));
+        auto matched = find_device_id(match_all_fields(utf_utils::from_utf8(sink)));
         if (matched) {
           return matched->second;
         } else {

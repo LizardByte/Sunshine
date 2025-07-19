@@ -7,7 +7,7 @@
 // platform includes
 // disable clang-format header reordering
 // clang-format off
-#include <windows.h>
+#include <Windows.h>
 #include <aclapi.h>
 // clang-format on
 
