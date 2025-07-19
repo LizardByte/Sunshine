@@ -206,7 +206,7 @@ index 5b3638d..aca9481 100644
 
     args = %W[
       -DBUILD_WERROR=ON
-      -DCMAKE_CXX_STANDARD=20
+      -DCMAKE_CXX_STANDARD=23
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
       -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
