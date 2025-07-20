@@ -1,36 +1,38 @@
-#include "src/platform/windows/wgc/wgc_logger.h"
-
-// Define the global logger instance for the WGC helper
-boost::log::sources::severity_logger<severity_level> g_logger;
 // sunshine_wgc_helper.cpp
 // Windows Graphics Capture helper process for Sunshine
-
 #define WIN32_LEAN_AND_MEAN
-#include "src/platform/windows/wgc/shared_memory.h"
+#include "src/logging.h"
 #include "src/platform/windows/wgc/misc_utils.h"
+#include "src/platform/windows/wgc/shared_memory.h"
+#include "src/utility.h"  // For RAII utilities
 
-#include "src/platform/windows/wgc/wgc_logger.h"
-
-// Additional includes for log formatting
+#include <atomic>
 #include <boost/format.hpp>
 #include <chrono>
-#include <iomanip>
-
-using namespace std::literals;
-
-#include <avrt.h>  // For MMCSS
+#include <condition_variable>
 #include <d3d11.h>
 #include <dxgi1_2.h>
 #include <inspectable.h>  // For IInspectable
+#include <iomanip>  // for std::fixed, std::setprecision
+#include <iomanip>
+#include <iostream>
+#include <mutex>
 #include <psapi.h>  // For GetModuleBaseName
+#include <queue>
 #include <shellscalingapi.h>  // For DPI awareness
+#include <shlobj.h>  // For SHGetFolderPathW and CSIDL_DESKTOPDIRECTORY
+#include <string>
+#include <thread>
 #include <tlhelp32.h>  // For process enumeration
+#include <windows.graphics.capture.interop.h>
 #include <windows.h>
 #include <winrt/base.h>
-#include <winrt/windows.foundation.h>
-#include <winrt/windows.foundation.metadata.h>
-#include <winrt/windows.graphics.directx.direct3d11.h>
+#include <winrt/Windows.Foundation.h>
+#include <winrt/Windows.Foundation.Metadata.h>  // For ApiInformation
+#include <winrt/windows.Graphics.Capture.h>
+#include <winrt/windows.Graphics.Directx.Direct3d11.h>
 #include <winrt/Windows.System.h>
+
 // Gross hack to work around MINGW-packages#22160
 #define ____FIReference_1_boolean_INTERFACE_DEFINED__
 
@@ -49,7 +51,7 @@ struct
   __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
 #endif
   IDirect3DDxgiInterfaceAccess: ::IUnknown {
-  virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
+  virtual HRESULT __stdcall GetInterface(REFIID id, IUnknown **object) = 0;
 };
 
 #if !WINRT_IMPL_HAS_DECLSPEC_UUID
@@ -78,20 +80,6 @@ constexpr auto __mingw_uuidof<winrt::Windows::Graphics::DirectX::Direct3D11::IDi
 }
 #endif
 
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <iomanip>  // for std::fixed, std::setprecision
-#include <iostream>
-#include <mutex>
-#include <queue>
-#include <shlobj.h>  // For SHGetFolderPathW and CSIDL_DESKTOPDIRECTORY
-#include <string>
-#include <thread>
-#include <windows.graphics.capture.interop.h>
-#include <winrt/Windows.Foundation.Metadata.h>  // For ApiInformation
-#include <winrt/windows.graphics.capture.h>
-
 // Function to get QPC counter (similar to main process)
 inline int64_t qpc_counter() {
   LARGE_INTEGER counter;
@@ -106,14 +94,17 @@ using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 using namespace winrt::Windows::System;
-
+using namespace std::literals;
+using namespace platf::dxgi;
+using namespace platf::wgc;
 
 // Global config data received from main process
+const int INITIAL_LOG_LEVEL = 2;
 platf::dxgi::ConfigData g_config = {0, 0, 0, 0, 0, L""};
 bool g_config_received = false;
 
 // Global variables for frame metadata and rate limiting
-HANDLE g_metadata_mapping = nullptr;
+safe_handle g_metadata_mapping = nullptr;
 platf::dxgi::FrameMetadata *g_frame_metadata = nullptr;
 uint32_t g_frame_sequence = 0;
 
@@ -121,13 +112,13 @@ uint32_t g_frame_sequence = 0;
 AsyncNamedPipe *g_communication_pipe = nullptr;
 
 // Global variables for desktop switch detection
-HWINEVENTHOOK g_desktop_switch_hook = nullptr;
+safe_winevent_hook g_desktop_switch_hook = nullptr;
 bool g_secure_desktop_detected = false;
 
 // System initialization class to handle DPI, threading, and MMCSS setup
 class SystemInitializer {
 private:
-  HANDLE mmcss_handle = nullptr;
+  safe_mmcss_handle mmcss_handle = nullptr;
   bool dpi_awareness_set = false;
   bool thread_priority_set = false;
   bool mmcss_characteristics_set = false;
@@ -137,26 +128,32 @@ public:
     // Set DPI awareness to prevent zoomed display issues
     // Try the newer API first (Windows 10 1703+), fallback to older API
     typedef BOOL(WINAPI * SetProcessDpiAwarenessContextFunc)(DPI_AWARENESS_CONTEXT);
-    typedef HRESULT(WINAPI * SetProcessDpiAwarenessFunc)(PROCESS_DPI_AWARENESS);
 
-    HMODULE user32 = GetModuleHandleA("user32.dll");
-    bool dpi_set = false;
-    if (user32) {
+    if (HMODULE user32 = GetModuleHandleA("user32.dll")) {
       auto setDpiContextFunc = (SetProcessDpiAwarenessContextFunc) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
       if (setDpiContextFunc) {
-        dpi_set = setDpiContextFunc((DPI_AWARENESS_CONTEXT) -4);  // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+        if (setDpiContextFunc((DPI_AWARENESS_CONTEXT) -4)) {  // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+          dpi_awareness_set = true;
+          return true;
+        }
+      } else if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
+        BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
+        return false;
+      } else {
+        dpi_awareness_set = true;
+        return true;
       }
+    } else if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
+      BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
+      return false;
+    } else {
+      dpi_awareness_set = true;
+      return true;
     }
 
-      if (!dpi_set) {
-        // Fallback for older Windows versions
-        if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
-          BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
-          return false;
-        }
-      }
-    dpi_awareness_set = true;
-    return true;
+    // Fallback case - should not reach here
+    BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
+    return false;
   }
 
   bool initializeThreadPriority() {
@@ -165,7 +162,7 @@ public:
       BOOST_LOG(error) << "Failed to set thread priority: " << GetLastError();
       return false;
     }
-    
+
     thread_priority_set = true;
     return true;
   }
@@ -173,19 +170,21 @@ public:
   bool initializeMmcssCharacteristics() {
     // Set MMCSS for real-time scheduling - try "Pro Audio" for lower latency
     DWORD taskIdx = 0;
-    mmcss_handle = AvSetMmThreadCharacteristicsW(L"Pro Audio", &taskIdx);
-      if (!mmcss_handle) {
-        // Fallback to "Games" if "Pro Audio" fails
-        mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
-        if (!mmcss_handle) {
-          BOOST_LOG(error) << "Failed to set MMCSS characteristics: " << GetLastError();
-          return false;
-        }
-      }    mmcss_characteristics_set = true;
+    HANDLE raw_handle = AvSetMmThreadCharacteristicsW(L"Pro Audio", &taskIdx);
+    if (!raw_handle) {
+      // Fallback to "Games" if "Pro Audio" fails
+      raw_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
+      if (!raw_handle) {
+        BOOST_LOG(error) << "Failed to set MMCSS characteristics: " << GetLastError();
+        return false;
+      }
+    }
+    mmcss_handle.reset(raw_handle);
+    mmcss_characteristics_set = true;
     return true;
   }
 
-  bool initializeWinRtApartment() {
+  bool initializeWinRtApartment() const {
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
     return true;
   }
@@ -199,19 +198,25 @@ public:
     return success;
   }
 
-  void cleanup() {
-    if (mmcss_handle && mmcss_characteristics_set) {
-      AvRevertMmThreadCharacteristics(mmcss_handle);
-      mmcss_handle = nullptr;
-      mmcss_characteristics_set = false;
-    }
+  void cleanup() noexcept {
+    // RAII handles cleanup automatically
+    mmcss_handle.reset();
+    mmcss_characteristics_set = false;
   }
 
-  bool isDpiAwarenessSet() const { return dpi_awareness_set; }
-  bool isThreadPrioritySet() const { return thread_priority_set; }
-  bool isMmcssCharacteristicsSet() const { return mmcss_characteristics_set; }
+  bool isDpiAwarenessSet() const {
+    return dpi_awareness_set;
+  }
 
-  ~SystemInitializer() {
+  bool isThreadPrioritySet() const {
+    return thread_priority_set;
+  }
+
+  bool isMmcssCharacteristicsSet() const {
+    return mmcss_characteristics_set;
+  }
+
+  ~SystemInitializer() noexcept {
     cleanup();
   }
 };
@@ -219,8 +224,8 @@ public:
 // D3D11 device management class to handle device creation and WinRT interop
 class D3D11DeviceManager {
 private:
-  ID3D11Device *device = nullptr;
-  ID3D11DeviceContext *context = nullptr;
+  safe_com_ptr<ID3D11Device> device = nullptr;
+  safe_com_ptr<ID3D11DeviceContext> context = nullptr;
   D3D_FEATURE_LEVEL feature_level;
   winrt::com_ptr<IDXGIDevice> dxgi_device;
   winrt::com_ptr<::IDirect3DDevice> interop_device;
@@ -228,11 +233,17 @@ private:
 
 public:
   bool createDevice() {
-    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &device, &feature_level, &context);
+    ID3D11Device *raw_device = nullptr;
+    ID3D11DeviceContext *raw_context = nullptr;
+
+    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &raw_device, &feature_level, &raw_context);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create D3D11 device";
       return false;
     }
+
+    device.reset(raw_device);
+    context.reset(raw_context);
     return true;
   }
 
@@ -246,13 +257,13 @@ public:
       BOOST_LOG(error) << "Failed to get DXGI device";
       return false;
     }
-    
-    hr = CreateDirect3D11DeviceFromDXGIDevice(dxgi_device.get(), reinterpret_cast<::IInspectable **>(interop_device.put_void()));
+
+    hr = CreateDirect3D11DeviceFromDXGIDevice(dxgi_device.get(), reinterpret_cast<::IInspectable **>(winrt::put_abi(interop_device)));
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create interop device";
       return false;
     }
-    
+
     winrt_device = interop_device.as<IDirect3DDevice>();
     return true;
   }
@@ -261,22 +272,25 @@ public:
     return createDevice() && createWinRtInterop();
   }
 
-  void cleanup() {
-    if (context) {
-      context->Release();
-      context = nullptr;
-    }
-    if (device) {
-      device->Release();
-      device = nullptr;
-    }
+  void cleanup() noexcept {
+    // RAII handles cleanup automatically
+    context.reset();
+    device.reset();
   }
 
-  ID3D11Device* getDevice() const { return device; }
-  ID3D11DeviceContext* getContext() const { return context; }
-  IDirect3DDevice getWinRtDevice() const { return winrt_device; }
+  ID3D11Device *getDevice() {
+    return device.get();
+  }
 
-  ~D3D11DeviceManager() {
+  ID3D11DeviceContext *getContext() {
+    return context.get();
+  }
+
+  IDirect3DDevice getWinRtDevice() const {
+    return winrt_device;
+  }
+
+  ~D3D11DeviceManager() noexcept {
     cleanup();
   }
 };
@@ -292,22 +306,21 @@ private:
   UINT final_height = 0;
 
 public:
-  bool selectMonitor(const platf::dxgi::ConfigData& config) {
+  bool selectMonitor(const platf::dxgi::ConfigData &config) {
     if (config.displayName[0] != L'\0') {
       // Enumerate monitors to find one matching displayName
       struct EnumData {
         const wchar_t *targetName;
         HMONITOR foundMonitor;
-      } enumData = {config.displayName, nullptr};
+      };
 
-      auto enumProc = [](HMONITOR hMon, HDC, LPRECT, LPARAM lParam) -> BOOL {
-        EnumData *data = reinterpret_cast<EnumData *>(lParam);
-        MONITORINFOEXW info = {sizeof(MONITORINFOEXW)};
-        if (GetMonitorInfoW(hMon, &info)) {
-          if (wcsncmp(info.szDevice, data->targetName, 32) == 0) {
-            data->foundMonitor = hMon;
-            return FALSE;  // Stop enumeration
-          }
+      EnumData enumData = {config.displayName, nullptr};
+
+      auto enumProc = +[](HMONITOR hMon, HDC, RECT *, LPARAM lParam) {
+        auto *data = static_cast<EnumData *>(reinterpret_cast<void *>(lParam));
+        if (MONITORINFOEXW mInfo = {sizeof(MONITORINFOEXW)}; GetMonitorInfoW(hMon, &mInfo) && wcsncmp(mInfo.szDevice, data->targetName, 32) == 0) {
+          data->foundMonitor = hMon;
+          return FALSE;  // Stop enumeration
         }
         return TRUE;
       };
@@ -317,7 +330,7 @@ public:
         BOOST_LOG(warning) << "Could not find monitor with name '" << winrt::to_string(config.displayName) << "', falling back to primary.";
       }
     }
-    
+
     if (!selected_monitor) {
       selected_monitor = MonitorFromWindow(GetDesktopWindow(), MONITOR_DEFAULTTOPRIMARY);
       if (!selected_monitor) {
@@ -332,22 +345,22 @@ public:
     if (!selected_monitor) {
       return false;
     }
-    
+
     if (!GetMonitorInfo(selected_monitor, &monitor_info)) {
       BOOST_LOG(error) << "Failed to get monitor info";
       return false;
     }
-    
+
     fallback_width = monitor_info.rcMonitor.right - monitor_info.rcMonitor.left;
     fallback_height = monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top;
     return true;
   }
 
-  bool createGraphicsCaptureItem(GraphicsCaptureItem& item) {
+  bool createGraphicsCaptureItem(GraphicsCaptureItem &item) {
     if (!selected_monitor) {
       return false;
     }
-    
+
     auto activationFactory = winrt::get_activation_factory<GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
     HRESULT hr = activationFactory->CreateForMonitor(selected_monitor, winrt::guid_of<GraphicsCaptureItem>(), winrt::put_abi(item));
     if (FAILED(hr)) {
@@ -357,11 +370,11 @@ public:
     return true;
   }
 
-  void calculateFinalResolution(const platf::dxgi::ConfigData& config, bool config_received, GraphicsCaptureItem& item) {
+  void calculateFinalResolution(const platf::dxgi::ConfigData &config, bool config_received, const GraphicsCaptureItem &item) {
     // Get actual WGC item size to ensure we capture full desktop (fixes zoomed display issue)
     auto item_size = item.Size();
-    UINT wgc_width = static_cast<UINT>(item_size.Width);
-    UINT wgc_height = static_cast<UINT>(item_size.Height);
+    auto wgc_width = static_cast<UINT>(item_size.Width);
+    auto wgc_height = static_cast<UINT>(item_size.Height);
 
     BOOST_LOG(info) << "WGC item reports size: " << wgc_width << "x" << wgc_height;
     BOOST_LOG(info) << "Monitor logical size: " << fallback_width << "x" << fallback_height;
@@ -381,43 +394,63 @@ public:
     // This ensures we capture the full desktop without cropping/zooming
     if (wgc_width > 0 && wgc_height > 0) {
       // Check if there's a significant difference (indicating DPI scaling)
-      bool scaling_detected = (abs(static_cast<int>(wgc_width) - static_cast<int>(fallback_width)) > 100) ||
-                              (abs(static_cast<int>(wgc_height) - static_cast<int>(fallback_height)) > 100);
-
-      if (scaling_detected) {
+      if (auto scaling_detected = (abs(static_cast<int>(wgc_width) - static_cast<int>(fallback_width)) > 100) ||
+                                  (abs(static_cast<int>(wgc_height) - static_cast<int>(fallback_height)) > 100);
+          scaling_detected) {
         BOOST_LOG(info) << "DPI scaling detected - using WGC physical size to avoid zoom issues";
       }
-
       final_width = wgc_width;
       final_height = wgc_height;
       BOOST_LOG(info) << "Final resolution (physical): " << final_width << "x" << final_height;
     }
   }
 
-  HMONITOR getSelectedMonitor() const { return selected_monitor; }
-  UINT getFinalWidth() const { return final_width; }
-  UINT getFinalHeight() const { return final_height; }
-  UINT getFallbackWidth() const { return fallback_width; }
-  UINT getFallbackHeight() const { return fallback_height; }
+  HMONITOR getSelectedMonitor() const {
+    return selected_monitor;
+  }
+
+  UINT getFinalWidth() const {
+    return final_width;
+  }
+
+  UINT getFinalHeight() const {
+    return final_height;
+  }
+
+  UINT getFallbackWidth() const {
+    return fallback_width;
+  }
+
+  UINT getFallbackHeight() const {
+    return fallback_height;
+  }
 };
 
 // Shared resource management class to handle texture, memory mapping, and events
 class SharedResourceManager {
 private:
-  ID3D11Texture2D *shared_texture = nullptr;
-  IDXGIKeyedMutex *keyed_mutex = nullptr;
+  safe_com_ptr<ID3D11Texture2D> shared_texture = nullptr;
+  safe_com_ptr<IDXGIKeyedMutex> keyed_mutex = nullptr;
   HANDLE shared_handle = nullptr;
-  HANDLE metadata_mapping = nullptr;
-  platf::dxgi::FrameMetadata *frame_metadata = nullptr;
-  HANDLE frame_event = nullptr;
+  safe_handle metadata_mapping = nullptr;
+  safe_memory_view frame_metadata_view = nullptr;
+  FrameMetadata *frame_metadata = nullptr;
+  safe_handle frame_event = nullptr;
   UINT width = 0;
   UINT height = 0;
 
 public:
-  bool createSharedTexture(ID3D11Device* device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
+  // Rule of 5: delete copy operations and move constructor/assignment
+  SharedResourceManager() = default;
+  SharedResourceManager(const SharedResourceManager &) = delete;
+  SharedResourceManager &operator=(const SharedResourceManager &) = delete;
+  SharedResourceManager(SharedResourceManager &&) = delete;
+  SharedResourceManager &operator=(SharedResourceManager &&) = delete;
+
+  bool createSharedTexture(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     width = texture_width;
     height = texture_height;
-    
+
     D3D11_TEXTURE2D_DESC texDesc = {};
     texDesc.Width = width;
     texDesc.Height = height;
@@ -428,12 +461,14 @@ public:
     texDesc.Usage = D3D11_USAGE_DEFAULT;
     texDesc.BindFlags = 0;
     texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
-    
-    HRESULT hr = device->CreateTexture2D(&texDesc, nullptr, &shared_texture);
+
+    ID3D11Texture2D *raw_texture = nullptr;
+    HRESULT hr = device->CreateTexture2D(&texDesc, nullptr, &raw_texture);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create shared texture";
       return false;
     }
+    shared_texture.reset(raw_texture);
     return true;
   }
 
@@ -441,12 +476,14 @@ public:
     if (!shared_texture) {
       return false;
     }
-    
-    HRESULT hr = shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), reinterpret_cast<void **>(&keyed_mutex));
+
+    IDXGIKeyedMutex *raw_mutex = nullptr;
+    HRESULT hr = shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) (&raw_mutex));
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to get keyed mutex";
       return false;
     }
+    keyed_mutex.reset(raw_mutex);
     return true;
   }
 
@@ -454,65 +491,41 @@ public:
     if (!shared_texture) {
       return false;
     }
-    
+
     IDXGIResource *dxgiResource = nullptr;
-    HRESULT hr = shared_texture->QueryInterface(__uuidof(IDXGIResource), reinterpret_cast<void **>(&dxgiResource));
+    HRESULT hr = shared_texture->QueryInterface(__uuidof(IDXGIResource), (void **) (&dxgiResource));
+    if (FAILED(hr)) {
+      BOOST_LOG(error) << "Failed to query DXGI resource interface";
+      return false;
+    }
+
     hr = dxgiResource->GetSharedHandle(&shared_handle);
     dxgiResource->Release();
     if (FAILED(hr) || !shared_handle) {
       BOOST_LOG(error) << "Failed to get shared handle";
       return false;
     }
-    
-    BOOST_LOG(info) << "Created shared texture: " << width << "x" << height 
-                   << ", handle: " << std::hex << reinterpret_cast<uintptr_t>(shared_handle) << std::dec;
+
+    BOOST_LOG(info) << "Created shared texture: " << width << "x" << height
+                    << ", handle: " << std::hex << reinterpret_cast<std::uintptr_t>(shared_handle) << std::dec;
     return true;
   }
 
-  bool createFrameMetadataMapping() {
-    metadata_mapping = CreateFileMappingW(
-      INVALID_HANDLE_VALUE,
-      nullptr,
-      PAGE_READWRITE,
-      0,
-      sizeof(platf::dxgi::FrameMetadata),
-      L"Local\\SunshineWGCMetadata"
-    );
-    if (!metadata_mapping) {
-      BOOST_LOG(error) << "Failed to create metadata mapping: " << GetLastError();
-      return false;
-    }
-
-    frame_metadata = static_cast<platf::dxgi::FrameMetadata *>(MapViewOfFile(
-      metadata_mapping,
-      FILE_MAP_ALL_ACCESS,
-      0,
-      0,
-      sizeof(platf::dxgi::FrameMetadata)
-    ));
-    if (!frame_metadata) {
-      BOOST_LOG(error) << "Failed to map metadata view: " << GetLastError();
-      CloseHandle(metadata_mapping);
-      metadata_mapping = nullptr;
-      return false;
-    }
-
-    // Initialize metadata
-    memset(frame_metadata, 0, sizeof(platf::dxgi::FrameMetadata));
-    BOOST_LOG(info) << "Created frame metadata shared memory";
+  bool createFrameMetadataMapping() const {
+    // NOTE: This method is now a no-op - metadata is sent via pipe messages
+    // Keeping the method for compatibility but not creating shared memory
+    BOOST_LOG(info) << "Frame metadata will be sent via pipe communication";
     return true;
   }
 
-  bool createFrameEvent() {
-    frame_event = CreateEventW(nullptr, FALSE, FALSE, L"Local\\SunshineWGCFrame");
-    if (!frame_event) {
-      BOOST_LOG(error) << "Failed to create frame event";
-      return false;
-    }
+  bool createFrameEvent() const {
+    // NOTE: This method is now a no-op - frame notifications are sent via pipe messages
+    // Keeping the method for compatibility but not creating Windows events
+    BOOST_LOG(info) << "Frame notifications will be sent via pipe communication";
     return true;
   }
 
-  bool initializeAll(ID3D11Device* device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
+  bool initializeAll(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     return createSharedTexture(device, texture_width, texture_height, format) &&
            createKeyedMutex() &&
            createSharedHandle() &&
@@ -524,35 +537,33 @@ public:
     return {shared_handle, width, height};
   }
 
-  void cleanup() {
-    if (frame_metadata) {
-      UnmapViewOfFile(frame_metadata);
-      frame_metadata = nullptr;
-    }
-    if (metadata_mapping) {
-      CloseHandle(metadata_mapping);
-      metadata_mapping = nullptr;
-    }
-    if (frame_event) {
-      CloseHandle(frame_event);
-      frame_event = nullptr;
-    }
-    if (keyed_mutex) {
-      keyed_mutex->Release();
-      keyed_mutex = nullptr;
-    }
-    if (shared_texture) {
-      shared_texture->Release();
-      shared_texture = nullptr;
-    }
+  void cleanup() noexcept {
+    // RAII handles cleanup automatically
+    frame_metadata = nullptr;
+    frame_metadata_view.reset();
+    metadata_mapping.reset();
+    frame_event.reset();
+    keyed_mutex.reset();
+    shared_texture.reset();
   }
 
-  ID3D11Texture2D* getSharedTexture() const { return shared_texture; }
-  IDXGIKeyedMutex* getKeyedMutex() const { return keyed_mutex; }
-  HANDLE getFrameEvent() const { return frame_event; }
-  platf::dxgi::FrameMetadata* getFrameMetadata() const { return frame_metadata; }
+  ID3D11Texture2D *getSharedTexture() {
+    return shared_texture.get();
+  }
 
-  ~SharedResourceManager() {
+  IDXGIKeyedMutex *getKeyedMutex() {
+    return keyed_mutex.get();
+  }
+
+  HANDLE getFrameEvent() {
+    return frame_event.get();
+  }
+
+  platf::dxgi::FrameMetadata *getFrameMetadata() const {
+    return frame_metadata;
+  }
+
+  ~SharedResourceManager() noexcept {
     cleanup();
   }
 };
@@ -563,9 +574,10 @@ private:
   Direct3D11CaptureFramePool frame_pool = nullptr;
   GraphicsCaptureSession capture_session = nullptr;
   winrt::event_token frame_arrived_token {};
-  SharedResourceManager* resource_manager = nullptr;
-  ID3D11DeviceContext* d3d_context = nullptr;
-  
+  SharedResourceManager *resource_manager = nullptr;
+  ID3D11DeviceContext *d3d_context = nullptr;
+  AsyncNamedPipe *communication_pipe = nullptr;  // Add pipe communication
+
   // Frame processing state
   static std::chrono::steady_clock::time_point last_delivery_time;
   static bool first_frame;
@@ -573,6 +585,13 @@ private:
   static std::chrono::milliseconds total_delivery_time;
 
 public:
+  // Rule of 5: delete copy operations and move constructor/assignment
+  WgcCaptureManager() = default;
+  WgcCaptureManager(const WgcCaptureManager &) = delete;
+  WgcCaptureManager &operator=(const WgcCaptureManager &) = delete;
+  WgcCaptureManager(WgcCaptureManager &&) = delete;
+  WgcCaptureManager &operator=(WgcCaptureManager &&) = delete;
+
   bool createFramePool(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height) {
     const uint32_t kPoolFrames = 2;
     frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
@@ -584,10 +603,11 @@ public:
     return frame_pool != nullptr;
   }
 
-  void attachFrameArrivedHandler(SharedResourceManager* res_mgr, ID3D11DeviceContext* context) {
+  void attachFrameArrivedHandler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe) {
     resource_manager = res_mgr;
     d3d_context = context;
-    
+    communication_pipe = pipe;
+
     frame_arrived_token = frame_pool.FrameArrived([this](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &) {
       processFrame(sender);
     });
@@ -640,17 +660,16 @@ public:
     }
   }
 
-  void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, 
-                               uint64_t timestamp_frame_arrived, uint64_t frame_qpc) {
-    if (!resource_manager || !d3d_context) {
+  void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t timestamp_frame_arrived, uint64_t frame_qpc) {
+    if (!resource_manager || !d3d_context || !communication_pipe) {
       return;
     }
 
     winrt::com_ptr<IDirect3DDxgiInterfaceAccess> interfaceAccess;
-    HRESULT hr = surface.as<::IUnknown>()->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), reinterpret_cast<void **>(interfaceAccess.put()));
+    HRESULT hr = surface.as<::IUnknown>()->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), winrt::put_abi(interfaceAccess));
     if (SUCCEEDED(hr)) {
       winrt::com_ptr<ID3D11Texture2D> frameTexture;
-      hr = interfaceAccess->GetInterface(__uuidof(ID3D11Texture2D), frameTexture.put_void());
+      hr = interfaceAccess->GetInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<::IUnknown **>(frameTexture.put_void()));
       if (SUCCEEDED(hr)) {
         hr = resource_manager->getKeyedMutex()->AcquireSync(0, INFINITE);
         if (SUCCEEDED(hr)) {
@@ -659,15 +678,22 @@ public:
           // Timestamp #2: Immediately after CopyResource completes
           uint64_t timestamp_after_copy = qpc_counter();
 
-          updateFrameMetadata(frame_qpc);
+          // Create frame metadata and send via pipe instead of shared memory
+          platf::dxgi::FrameMetadata frame_metadata = {};
+          frame_metadata.qpc_timestamp = frame_qpc;
+          frame_metadata.frame_sequence = ++g_frame_sequence;
+          frame_metadata.suppressed_frames = 0;  // No suppression - always 0
 
           resource_manager->getKeyedMutex()->ReleaseSync(1);
 
-          // Timestamp #3: Immediately after SetEvent is called
-          uint64_t timestamp_after_set_event = qpc_counter();
-          SetEvent(resource_manager->getFrameEvent());
+          // Timestamp #3: Immediately after pipe send is called
+          uint64_t timestamp_after_send = qpc_counter();
 
-          logFrameTiming(timestamp_frame_arrived, timestamp_after_copy, timestamp_after_set_event);
+          // Send frame notification via pipe instead of SetEvent
+          sendFrameNotification(frame_metadata);
+
+          logFrameTiming(timestamp_frame_arrived, timestamp_after_copy, timestamp_after_send);
+          logPerformanceStats(frame_qpc);
         } else {
           // Log error
           BOOST_LOG(error) << "Failed to acquire keyed mutex: " << hr;
@@ -682,16 +708,22 @@ public:
     }
   }
 
-  void updateFrameMetadata(uint64_t frame_qpc) {
-    if (!resource_manager || !resource_manager->getFrameMetadata()) {
+  void sendFrameNotification(const platf::dxgi::FrameMetadata &metadata) {
+    if (!communication_pipe || !communication_pipe->isConnected()) {
       return;
     }
 
-    auto metadata = resource_manager->getFrameMetadata();
-    metadata->qpc_timestamp = frame_qpc;
-    metadata->frame_sequence = ++g_frame_sequence;
-    metadata->suppressed_frames = 0;  // No suppression - always 0
+    platf::dxgi::FrameNotification notification = {};
+    notification.metadata = metadata;
+    notification.message_type = 0x03;  // Frame ready message type
 
+    std::vector<uint8_t> message(sizeof(platf::dxgi::FrameNotification));
+    memcpy(message.data(), &notification, sizeof(platf::dxgi::FrameNotification));
+
+    communication_pipe->asyncSend(message);
+  }
+
+  void logPerformanceStats(uint64_t frame_qpc) const {
     // Performance telemetry: emit helper-side instantaneous fps (async)
     static uint64_t lastQpc = 0;
     static uint64_t qpc_freq = 0;
@@ -702,8 +734,7 @@ public:
     }
     if ((g_frame_sequence % 600) == 0) {  // every ~5s at 120fps
       if (lastQpc != 0) {
-        double fps = 600.0 * qpc_freq / double(frame_qpc - lastQpc);
-
+        double fps = 600.0 * static_cast<double>(qpc_freq) / static_cast<double>(frame_qpc - lastQpc);
         BOOST_LOG(debug) << "delivered " << std::fixed << std::setprecision(1) << fps << " fps (target: " << (g_config_received ? g_config.framerate : 60) << ")";
       }
       lastQpc = frame_qpc;
@@ -715,7 +746,7 @@ public:
     }
   }
 
-  void logFrameTiming(uint64_t timestamp_frame_arrived, uint64_t timestamp_after_copy, uint64_t timestamp_after_set_event) {
+  void logFrameTiming(uint64_t timestamp_frame_arrived, uint64_t timestamp_after_copy, uint64_t timestamp_after_send) const {
     // Log high-precision timing deltas every 300 frames
     static uint32_t timing_log_counter = 0;
     if ((++timing_log_counter % 300) == 0) {
@@ -726,11 +757,11 @@ public:
         qpc_freq_timing = freq.QuadPart;
       }
 
-      double arrived_to_copy_us = (double) (timestamp_after_copy - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
-      double copy_to_signal_us = (double) (timestamp_after_set_event - timestamp_after_copy) * 1000000.0 / qpc_freq_timing;
-      double total_frame_us = (double) (timestamp_after_set_event - timestamp_frame_arrived) * 1000000.0 / qpc_freq_timing;
+      double arrived_to_copy_us = static_cast<double>(timestamp_after_copy - timestamp_frame_arrived) * 1000000.0 / static_cast<double>(qpc_freq_timing);
+      double copy_to_send_us = static_cast<double>(timestamp_after_send - timestamp_after_copy) * 1000000.0 / static_cast<double>(qpc_freq_timing);
+      double total_frame_us = static_cast<double>(timestamp_after_send - timestamp_frame_arrived) * 1000000.0 / static_cast<double>(qpc_freq_timing);
 
-      BOOST_LOG(debug) << "Frame timing - Arrived->Copy: " << std::fixed << std::setprecision(1) << arrived_to_copy_us << "μs, Copy->Signal: " << copy_to_signal_us << "μs, Total: " << total_frame_us << "μs";
+      BOOST_LOG(debug) << "Frame timing - Arrived->Copy: " << std::fixed << std::setprecision(1) << arrived_to_copy_us << "μs, Copy->Send: " << copy_to_send_us << "μs, Total: " << total_frame_us << "μs";
     }
   }
 
@@ -738,23 +769,25 @@ public:
     if (!frame_pool) {
       return false;
     }
-    
+
     capture_session = frame_pool.CreateCaptureSession(item);
     capture_session.IsBorderRequired(false);
 
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
-    capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
-    BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
+      capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
+      BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
+    }
+    return true;
   }
-  return true;
-}
 
-void startCapture() {
-  if (capture_session) {
-    capture_session.StartCapture();
-    BOOST_LOG(info) << "Helper process started. Capturing frames using WGC...";
+  void startCapture() const {
+    if (capture_session) {
+      capture_session.StartCapture();
+      BOOST_LOG(info) << "Helper process started. Capturing frames using WGC...";
+    }
   }
-}  void cleanup() {
+
+  void cleanup() noexcept {
     if (capture_session) {
       capture_session.Close();
       capture_session = nullptr;
@@ -766,7 +799,7 @@ void startCapture() {
     }
   }
 
-  ~WgcCaptureManager() {
+  ~WgcCaptureManager() noexcept {
     cleanup();
   }
 };
@@ -778,7 +811,7 @@ uint32_t WgcCaptureManager::delivery_count = 0;
 std::chrono::milliseconds WgcCaptureManager::total_delivery_time {0};
 
 // Desktop switch event hook procedure
-void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK hWinEventHook, DWORD event, HWND hwnd, LONG idObject, LONG idChild, DWORD dwEventThread, DWORD dwmsEventTime) {
+void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK /*hWinEventHook*/, DWORD event, HWND /*hwnd*/, LONG /*idObject*/, LONG /*idChild*/, DWORD /*dwEventThread*/, DWORD /*dwmsEventTime*/) {
   if (event == EVENT_SYSTEM_DESKTOPSWITCH) {
     BOOST_LOG(info) << "Desktop switch detected!";
 
@@ -805,197 +838,69 @@ void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK hWinEventHook, DWORD event, HW
   }
 }
 
-
 // Helper function to get the system temp directory
 std::string get_temp_log_path() {
   wchar_t tempPath[MAX_PATH] = {0};
-  DWORD len = GetTempPathW(MAX_PATH, tempPath);
-  if (len == 0 || len > MAX_PATH) {
+  if (auto len = GetTempPathW(MAX_PATH, tempPath); len == 0 || len > MAX_PATH) {
     // fallback to current directory if temp path fails
     return "sunshine_wgc_helper.log";
   }
   std::wstring wlog = std::wstring(tempPath) + L"sunshine_wgc_helper.log";
   // Convert to UTF-8
-  int size_needed = WideCharToMultiByte(CP_UTF8, 0, wlog.c_str(), -1, NULL, 0, NULL, NULL);
+  int size_needed = WideCharToMultiByte(CP_UTF8, 0, wlog.c_str(), -1, nullptr, 0, nullptr, nullptr);
   std::string log_file(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, wlog.c_str(), -1, &log_file[0], size_needed, NULL, NULL);
+  WideCharToMultiByte(CP_UTF8, 0, wlog.c_str(), -1, &log_file[0], size_needed, nullptr, nullptr);
   // Remove trailing null
-  if (!log_file.empty() && log_file.back() == '\0') log_file.pop_back();
+  if (!log_file.empty() && log_file.back() == '\0') {
+    log_file.pop_back();
+  }
   return log_file;
 }
 
-struct WgcHelperConfig {
-  severity_level min_log_level = info;  // Default to info level
-  std::string log_file;
-  bool help_requested = false;
-  bool console_output = false;
-  int log_level; // New: log level from main process
-  DWORD parent_pid = 0; // Parent process ID for pipe naming
-  // Note: pipe_name and event_name are now generated from parent PID
-};
-
-WgcHelperConfig parse_args(int argc, char* argv[]) {
-  WgcHelperConfig config;
-  config.log_file = get_temp_log_path(); // Default to temp dir
-  config.log_level = info; // Default log level
-  for (int i = 1; i < argc; i++) {
-    std::string arg = argv[i];
-    if (arg == "--help" || arg == "-h") {
-      config.help_requested = true;
-    } else if (arg == "--trace" || arg == "-t") {
-      config.min_log_level = trace;
-    } else if (arg == "--verbose" || arg == "-v") {
-      config.min_log_level = debug;
-    } else if (arg == "--debug" || arg == "-d") {
-      config.min_log_level = debug;
-    } else if (arg == "--info" || arg == "-i") {
-      config.min_log_level = info;
-    } else if (arg == "--warning" || arg == "-w") {
-      config.min_log_level = warning;
-    } else if (arg == "--error" || arg == "-e") {
-      config.min_log_level = error;
-    } else if (arg == "--fatal" || arg == "-f") {
-      config.min_log_level = fatal;
-    } else if (arg == "--log-file" && i + 1 < argc) {
-      config.log_file = argv[++i];
-    } else if (arg == "--console") {
-      config.console_output = true;
-    } else if (arg == "--parent-pid" && i + 1 < argc) {
-      config.parent_pid = static_cast<DWORD>(std::stoul(argv[++i]));
-    }
-    // Note: --pipe-name and --event-name arguments are no longer needed
-    // as they are now generated from parent process ID
+// Helper function to handle config messages
+void handleIPCMessage(const std::vector<uint8_t> &message, std::chrono::steady_clock::time_point &last_msg_time) {
+  // Heartbeat message: single byte 0x01
+  if (message.size() == 1 && message[0] == 0x01) {
+    last_msg_time = std::chrono::steady_clock::now();
+    return;
   }
-  return config;
+  // Handle config data message
+  if (message.size() == sizeof(platf::dxgi::ConfigData) && !g_config_received) {
+    memcpy(&g_config, message.data(), sizeof(platf::dxgi::ConfigData));
+    g_config_received = true;
+    // If log_level in config differs from current, update log filter
+    if (INITIAL_LOG_LEVEL != g_config.log_level) {
+      // Update log filter to new log level
+      boost::log::core::get()->set_filter(
+        severity >= g_config.log_level
+      );
+      BOOST_LOG(info) << "Log level updated from config: " << g_config.log_level;
+    }
+    BOOST_LOG(info) << "Received config data: " << g_config.width << "x" << g_config.height
+                    << ", fps: " << g_config.framerate << ", hdr: " << g_config.dynamicRange
+                    << ", display: '" << winrt::to_string(g_config.displayName) << "'";
+  }
 }
 
-void print_help() {
-  std::cout << "Sunshine WGC Helper - Windows Graphics Capture helper process\n"
-            << "\nUsage: sunshine_wgc_capture [options]\n"
-            << "\nOptions:\n"
-            << "  --help, -h        Show this help message\n"
-            << "  --trace, -t       Set trace logging level\n"
-            << "  --verbose, -v     Set debug logging level\n"
-            << "  --debug, -d       Set debug logging level\n"
-            << "  --info, -i        Set info logging level [default]\n"
-            << "  --warning, -w     Set warning logging level\n"
-            << "  --error, -e       Set error logging level\n"
-            << "  --fatal, -f       Set fatal logging level\n"
-            << "  --log-file FILE   Set log file path (default: sunshine_wgc_helper.log)\n"
-            << "  --console         Also output logs to console\n"
-            << "  --parent-pid PID  Set parent process ID for pipe naming\n"
-            << "\nNote: Parent PID is automatically passed by the main process\n"
-            << std::endl;
-}
-
-// Custom formatter to match main process logging format
-void wgc_log_formatter(const boost::log::record_view &view, boost::log::formatting_ostream &os) {
-  constexpr const char *message = "Message";
-  constexpr const char *severity = "Severity";
-
-  auto log_level = view.attribute_values()[severity].extract<severity_level>().get();
-
-  std::string_view log_type;
-  switch (log_level) {
-    case trace:
-      log_type = "Verbose: "sv;
-      break;
-    case debug:
-      log_type = "Debug: "sv;
-      break;
-    case info:
-      log_type = "Info: "sv;
-      break;
-    case warning:
-      log_type = "Warning: "sv;
-      break;
-    case error:
-      log_type = "Error: "sv;
-      break;
-    case fatal:
-      log_type = "Fatal: "sv;
-      break;
+// Helper function to setup communication pipe
+bool setupCommunicationPipe(AsyncNamedPipe &communicationPipe, std::chrono::steady_clock::time_point &last_msg_time) {
+  auto onMessage = [&last_msg_time](const std::vector<uint8_t> &message) {
+    handleIPCMessage(message, last_msg_time);
   };
 
-  auto now = std::chrono::system_clock::now();
-  auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-    now - std::chrono::time_point_cast<std::chrono::seconds>(now)
-  );
+  auto onError = [](std::string_view /*err*/) {
+    // Error handler, intentionally left empty or log as needed
+  };
 
-  auto t = std::chrono::system_clock::to_time_t(now);
-  auto lt = *std::localtime(&t);
-
-  os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
-     << log_type << view.attribute_values()[message].extract<std::string>();
+  return communicationPipe.start(onMessage, onError);
 }
 
-// Initialize standalone logging system
-bool init_logging(severity_level min_level, const std::string& log_file, bool console_output) {
-  try {
-    // Create file sink directly
-    typedef boost::log::sinks::synchronous_sink<boost::log::sinks::text_file_backend> file_sink_t;
-    auto file_sink = boost::make_shared<file_sink_t>(
-      boost::log::keywords::file_name = log_file,
-      boost::log::keywords::rotation_size = 10 * 1024 * 1024,  // 10MB
-      boost::log::keywords::auto_flush = true
-    );
-    
-    // Set file sink filter and formatter
-    file_sink->set_filter(boost::log::expressions::attr<severity_level>("Severity") >= min_level);
-    file_sink->set_formatter(&wgc_log_formatter);
-    
-    // Add file sink to logging core
-    boost::log::core::get()->add_sink(file_sink);
-    
-    // Set up console sink if requested
-    if (console_output) {
-      typedef boost::log::sinks::synchronous_sink<boost::log::sinks::text_ostream_backend> console_sink_t;
-      auto console_sink = boost::make_shared<console_sink_t>();
-      console_sink->locked_backend()->add_stream(boost::shared_ptr<std::ostream>(&std::cout, [](std::ostream*){}));
-      
-      console_sink->set_filter(boost::log::expressions::attr<severity_level>("Severity") >= min_level);
-      console_sink->set_formatter(&wgc_log_formatter);
-      boost::log::core::get()->add_sink(console_sink);
-    }
-    
-    // Set global filter
-    boost::log::core::get()->set_filter(
-      boost::log::expressions::attr<severity_level>("Severity") >= min_level
-    );
-    
-    // Add common attributes
-    boost::log::add_common_attributes();
-    
-    return true;
-  } catch (const std::exception& e) {
-    std::cerr << "Failed to initialize logging: " << e.what() << std::endl;
-    return false;
-  }
-}
-
-int main(int argc, char* argv[]) {
-  // Parse command line arguments
-  auto config = parse_args(argc, argv);
-
-  g_config.log_level = config.log_level; // Set log level from parsed args
-  if (config.help_requested) {
-    print_help();
-    return 0;
-  }
-
-  // Initialize logging at startup with info level (or user-specified log_file/console_output)
-  severity_level initial_level = info;
-  if (!init_logging(initial_level, config.log_file, config.console_output)) {
-    std::cerr << "Failed to initialize logging system" << std::endl;
-    return 1;
-  }
-
-  // Log startup information
-  BOOST_LOG(info) << "Sunshine WGC Helper starting - Log level: " << initial_level
-                  << ", Log file: " << config.log_file;
+int main(int argc, char *argv[]) {
+  // Set up default config and log level
+  auto log_deinit = logging::init(2, get_temp_log_path());
 
   // Heartbeat mechanism: track last heartbeat time
-  auto last_heartbeat = std::chrono::steady_clock::now();
+  auto last_msg_time = std::chrono::steady_clock::now();
 
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer systemInitializer;
@@ -1012,42 +917,14 @@ int main(int argc, char* argv[]) {
 
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
-
   // Create named pipe for communication with main process
   SecuredPipeFactory factory;
 
   auto commPipe = factory.create("SunshineWGCPipe", "SunshineWGCEvent", false, false);
   AsyncNamedPipe communicationPipe(std::move(commPipe));
-    g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
+  g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
 
-  auto onMessage = [&](const std::vector<uint8_t> &message) {
-    // Heartbeat message: single byte 0x01
-    if (message.size() == 1 && message[0] == 0x01) {
-      last_heartbeat = std::chrono::steady_clock::now();
-      return;
-    }
-    // Handle config data message
-    if (message.size() == sizeof(platf::dxgi::ConfigData) && !g_config_received) {
-      memcpy(&g_config, message.data(), sizeof(platf::dxgi::ConfigData));
-      g_config_received = true;
-      // If log_level in config differs from current, update log filter
-      if (g_config.log_level != initial_level) {
-        boost::log::core::get()->set_filter(
-          boost::log::expressions::attr<severity_level>("Severity") >= static_cast<severity_level>(g_config.log_level)
-        );
-        BOOST_LOG(info) << "Log level updated from config: " << g_config.log_level;
-      }
-      BOOST_LOG(info) << "Received config data: " << g_config.width << "x" << g_config.height
-                     << ", fps: " << g_config.framerate << ", hdr: " << g_config.dynamicRange
-                     << ", display: '" << winrt::to_string(g_config.displayName) << "'";
-    }
-  };
-
-  auto onError = [&](const std::string &err) {
-  auto config = parse_args(argc, argv);
-  };
-
-  if (!communicationPipe.start(onMessage, onError)) {
+  if (!setupCommunicationPipe(communicationPipe, last_msg_time)) {
     BOOST_LOG(error) << "Failed to start communication pipe";
     return 1;
   }
@@ -1113,7 +990,7 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
-  wgcManager.attachFrameArrivedHandler(&sharedResourceManager, d3d11Manager.getContext());
+  wgcManager.attachFrameArrivedHandler(&sharedResourceManager, d3d11Manager.getContext(), &communicationPipe);
 
   if (!wgcManager.createCaptureSession(item)) {
     BOOST_LOG(error) << "Failed to create capture session";
@@ -1122,7 +999,7 @@ int main(int argc, char* argv[]) {
 
   // Set up desktop switch hook for secure desktop detection
   BOOST_LOG(info) << "Setting up desktop switch hook...";
-  g_desktop_switch_hook = SetWinEventHook(
+  HWINEVENTHOOK raw_hook = SetWinEventHook(
     EVENT_SYSTEM_DESKTOPSWITCH,
     EVENT_SYSTEM_DESKTOPSWITCH,
     nullptr,
@@ -1132,9 +1009,10 @@ int main(int argc, char* argv[]) {
     WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
   );
 
-  if (!g_desktop_switch_hook) {
+  if (!raw_hook) {
     BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
   } else {
+    g_desktop_switch_hook.reset(raw_hook);
     BOOST_LOG(info) << "Desktop switch hook installed successfully";
   }
 
@@ -1154,8 +1032,7 @@ int main(int argc, char* argv[]) {
     // Heartbeat timeout check
 
     auto now = std::chrono::steady_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_heartbeat);
-    if (elapsed.count() > 5) {
+    if (auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time); elapsed.count() > 5) {
       BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, exiting...";
       _exit(1);
     }
@@ -1165,18 +1042,13 @@ int main(int argc, char* argv[]) {
 
   BOOST_LOG(info) << "Main process disconnected, shutting down...";
 
-  // Cleanup
-  if (g_desktop_switch_hook) {
-    UnhookWinEvent(g_desktop_switch_hook);
-    g_desktop_switch_hook = nullptr;
-  }
-  
+  // Cleanup is handled automatically by RAII destructors
   wgcManager.cleanup();
   communicationPipe.stop();
 
   // Flush logs before exit
   boost::log::core::get()->flush();
-  
+
   BOOST_LOG(info) << "WGC Helper process terminated";
 
   // Cleanup managed by destructors

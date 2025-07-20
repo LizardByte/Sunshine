@@ -6,7 +6,7 @@ class ProcessHandler {
 public:
     // Starts a process with the given application path and arguments.
     // Returns true on success, false on failure.
-    bool start(const std::wstring& application, const std::wstring& arguments);
+    bool start(const std::wstring& application, std::wstring_view arguments);
 
     // Waits for the process to finish and returns the exit code.
     // Returns true if the process finished successfully, false otherwise.

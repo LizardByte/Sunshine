@@ -9,19 +9,55 @@
 #include "src/logging.h"
 #include "src/platform/windows/misc.h"
 
+#include "config.h"
+
 #include <avrt.h>
 #include <chrono>
 #include <filesystem>
 #include <iomanip>
+#include <string_view>
 #include <thread>
 
 namespace platf::dxgi {
+
+  void wgc_ipc_session_t::handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received) {
+    if (msg.size() == sizeof(SharedHandleData)) {
+      SharedHandleData handleData;
+      memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
+      BOOST_LOG(info) << "[wgc_ipc_session_t] Received handle data: " << std::hex
+                      << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
+                      << ", " << handleData.width << "x" << handleData.height;
+      if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
+        handle_received = true;
+      }
+    }
+  }
+
+  void wgc_ipc_session_t::handle_frame_notification(const std::vector<uint8_t> &msg) {
+    if (msg.size() == sizeof(FrameNotification)) {
+      FrameNotification frameNotification;
+      memcpy(&frameNotification, msg.data(), sizeof(FrameNotification));
+      if (frameNotification.message_type == 0x03) {
+        // Frame ready notification
+        _current_frame_metadata = frameNotification.metadata;
+        _frame_ready.store(true, std::memory_order_release);
+      }
+    }
+  }
+
+  void wgc_ipc_session_t::handle_secure_desktop_message(const std::vector<uint8_t> &msg) {
+    if (msg.size() == 1 && msg[0] == 0x02) {
+      // secure desktop detected
+      BOOST_LOG(info) << "[wgc_ipc_session_t] WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
+      _should_swap_to_dxgi = true;
+    }
+  }
 
   wgc_ipc_session_t::~wgc_ipc_session_t() {
     cleanup();
   }
 
-  int wgc_ipc_session_t::init(const ::video::config_t &config, const std::string &display_name, ID3D11Device *device) {
+  int wgc_ipc_session_t::init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device) {
     _process_helper = std::make_unique<ProcessHandler>();
     _config = config;
     _display_name = display_name;
@@ -41,14 +77,14 @@ namespace platf::dxgi {
     }
 
     // Get the directory of the main executable
-    wchar_t exePathBuffer[MAX_PATH] = {0};
-    GetModuleFileNameW(nullptr, exePathBuffer, MAX_PATH);
+    std::string exePathBuffer(MAX_PATH, '\0');
+    GetModuleFileNameA(nullptr, exePathBuffer.data(), MAX_PATH);
+    exePathBuffer.resize(strlen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
 
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      bool is_system = platf::wgc::is_running_as_system();
-      if (is_system) {
+      if (bool is_system = ::platf::wgc::is_running_as_system(); is_system) {
         BOOST_LOG(debug) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
       } else {
         BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring();
@@ -60,35 +96,23 @@ namespace platf::dxgi {
     bool handle_received = false;
 
     auto onMessage = [this, &handle_received](const std::vector<uint8_t> &msg) {
-      BOOST_LOG(info) << "[wgc_ipc_session_t] Received message, size: " << msg.size();
-      if (msg.size() == sizeof(SharedHandleData)) {
-        SharedHandleData handleData;
-        memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
-        BOOST_LOG(info) << "[wgc_ipc_session_t] Received handle data: " << std::hex
-                        << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
-                        << ", " << handleData.width << "x" << handleData.height;
-        if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
-          handle_received = true;
-        }
-      } else if (msg.size() == 1 && msg[0] == 0x02) {
-        // secure desktop detected
-        BOOST_LOG(warning) << "[wgc_ipc_session_t] WGC session closed - secure desktop detected, setting swap flag";
-        _should_swap_to_dxgi = true;
-      }
+      handle_shared_handle_message(msg, handle_received);
+      handle_frame_notification(msg);
+      handle_secure_desktop_message(msg);
     };
 
     auto onError = [](const std::string &err) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
     };
 
-    auto secured_pipe_fact = new SecuredPipeFactory();
+    auto secured_pipe_fact = std::make_unique<SecuredPipeFactory>();
 
     auto rawPipe = secured_pipe_fact->create("SunshineWGCPipe",
                                              "SunshineWGCEvent",
                                              /*isServer=*/true,
                                              /*isSecured=*/false);
     if (!rawPipe) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed – aborting WGC session";
+      BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
       cleanup();
       return;
     }
@@ -102,7 +126,7 @@ namespace platf::dxgi {
     configData.height = static_cast<UINT>(_config.height);
     configData.framerate = _config.framerate;
     configData.dynamicRange = _config.dynamicRange;
-    configData.log_level = 2;  // Set to INFO (or use your log level variable if available)
+    configData.log_level = config::sunshine.min_log_level; 
 
     // Convert display_name (std::string) to wchar_t[32]
     if (!_display_name.empty()) {
@@ -152,53 +176,41 @@ namespace platf::dxgi {
   }
 
   void wgc_ipc_session_t::cleanup() {
+    // Stop pipe communication first if active
     if (_pipe) {
       _pipe->stop();
-      _pipe.reset();
     }
+    
+    // Terminate process if running
     if (_process_helper) {
       _process_helper->terminate();
-      _process_helper.reset();
     }
-    if (_frame_event) {
-      CloseHandle(_frame_event);
-      _frame_event = nullptr;
-    }
-    if (_frame_metadata) {
-      UnmapViewOfFile(_frame_metadata);
-      _frame_metadata = nullptr;
-    }
-    if (_metadata_mapping) {
-      CloseHandle(_metadata_mapping);
-      _metadata_mapping = nullptr;
-    }
-    if (_keyed_mutex) {
-      _keyed_mutex->Release();
-      _keyed_mutex = nullptr;
-    }
-    if (_shared_texture) {
-      _shared_texture->Release();
-      _shared_texture = nullptr;
-    }
+    
+    // Reset all resources - RAII handles automatic cleanup
+    _pipe.reset();
+    _process_helper.reset();
+    _keyed_mutex.reset();
+    _shared_texture.reset();
+    
+    // Reset frame state
+    _frame_ready.store(false, std::memory_order_release);
+    _current_frame_metadata = {};
+    
     _initialized = false;
   }
 
-  bool wgc_ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, const FrameMetadata *&meta_out) {
-    // Add real-time scheduling hint (once per thread)
+  void wgc_ipc_session_t::initialize_mmcss_for_thread() const {
     static thread_local bool mmcss_initialized = false;
     if (!mmcss_initialized) {
       SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
       DWORD taskIdx = 0;
-      HANDLE mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
-      (void) mmcss_handle;  // Suppress unused variable warning
+      HANDLE const mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
+      (void) mmcss_handle; 
       mmcss_initialized = true;
     }
+  }
 
-    // Additional error check: ensure required resources are valid
-    if (!_shared_texture || !_frame_event || !_keyed_mutex || !_frame_metadata) {
-      return false;
-    }
-
+  void wgc_ipc_session_t::log_frame_diagnostics() const {
     // Enhanced diagnostic logging: track frame intervals
     static thread_local auto last_frame_time = std::chrono::steady_clock::now();
     static thread_local uint32_t diagnostic_frame_count = 0;
@@ -222,12 +234,17 @@ namespace platf::dxgi {
       diagnostic_frame_count = 0;
     }
 
-    // Timeout adjustment with proper handling of 0ms timeout
+    last_frame_time = current_time;
+  }
+
+  std::chrono::milliseconds wgc_ipc_session_t::calculate_adjusted_timeout(std::chrono::milliseconds timeout) const {
     std::chrono::milliseconds adjusted_timeout = timeout;
     if (timeout.count() == 0) {
       // Keep the original behavior for 0ms timeout (immediate return)
-      adjusted_timeout = timeout;
-    } else if (_config.framerate > 0) {
+      return timeout;
+    }
+    
+    if (_config.framerate > 0) {
       // Apply frame rate based timeout adjustment only for non-zero timeouts
       auto perfect_us = static_cast<int64_t>(1'000'000 / _config.framerate);  // microseconds
       auto tgt_us = (perfect_us * 120) / 100;  // +20% headroom (increased from 10%)
@@ -245,43 +262,123 @@ namespace platf::dxgi {
                         << "fps=" << _config.framerate;
       }
     }
+    
+    return adjusted_timeout;
+  }
 
-    // Wait for new frame event
-    // Timestamp #1: Before calling WaitForSingleObject
-    uint64_t timestamp_before_wait = qpc_counter();
-    DWORD waitResult = WaitForSingleObject(_frame_event, adjusted_timeout.count());
-    // Timestamp #2: Immediately after WaitForSingleObject returns
-    uint64_t timestamp_after_wait = qpc_counter();
-
-    if (waitResult != WAIT_OBJECT_0) {
-      if (waitResult == WAIT_TIMEOUT) {
-        _timeout_count++;
-        // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
-        if (adjusted_timeout.count() > 0) {
-          // Log timeout with detailed timing info
-          BOOST_LOG(info) << "[wgc_ipc_session_t] Frame timeout #" << _timeout_count
-                          << ", interval since last frame: " << frame_interval.count() << "ms"
-                          << ", timeout used: " << adjusted_timeout.count() << "ms";
-
-          // Adjust threshold for high framerates - expect more timeouts with very high framerates
-          auto timeout_threshold = (_config.framerate >= 120) ? 50 : ((_config.framerate > 60) ? 30 : 10);
-          if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
-            BOOST_LOG(warning) << "[wgc_ipc_session_t] Frequent timeouts detected ("
-                               << _timeout_count << " timeouts), frame delivery may be irregular"
-                               << " (framerate: " << _config.framerate << "fps)";
-          }
-        }
+  bool wgc_ipc_session_t::wait_for_frame(std::chrono::milliseconds adjusted_timeout) {
+    auto start_time = std::chrono::steady_clock::now();
+    
+    while (true) {
+      // Check if frame is ready
+      if (_frame_ready.load(std::memory_order_acquire)) {
+        _frame_ready.store(false, std::memory_order_release);
+        return true;
       }
-      last_frame_time = current_time;  // Update timing even on timeout
+      
+      // Check timeout
+      if (auto elapsed = std::chrono::steady_clock::now() - start_time; elapsed >= adjusted_timeout) {
+        handle_frame_timeout(adjusted_timeout);
+        return false;
+      }
+      
+      // Small sleep to avoid busy waiting
+      std::this_thread::sleep_for(std::chrono::microseconds(2));
+    }
+  }
+
+  void wgc_ipc_session_t::handle_frame_timeout(std::chrono::milliseconds adjusted_timeout) {
+    _timeout_count++;
+    // Only log timeouts if we were actually waiting for a frame (non-blocking checks are expected to timeout)
+    if (adjusted_timeout.count() > 0) {
+      // Log timeout with detailed timing info
+      BOOST_LOG(info) << "[wgc_ipc_session_t] Frame timeout #" << _timeout_count
+                      << ", timeout used: " << adjusted_timeout.count() << "ms";
+
+      // Calculate timeout threshold for high framerates
+      uint32_t timeout_threshold;
+      if (_config.framerate >= 120) {
+        timeout_threshold = 50;
+      } else if (_config.framerate > 60) {
+        timeout_threshold = 30;
+      } else {
+        timeout_threshold = 10;
+      }
+
+      if (_timeout_count > timeout_threshold && (_timeout_count % 20) == 0) {
+        BOOST_LOG(warning) << "[wgc_ipc_session_t] Frequent timeouts detected ("
+                           << _timeout_count << " timeouts), frame delivery may be irregular"
+                           << " (framerate: " << _config.framerate << "fps)";
+      }
+    }
+  }
+
+  void wgc_ipc_session_t::log_frame_sequence_diagnostics(const FrameMetadata *meta_out) const {
+    static thread_local uint32_t last_logged_sequence = 0;
+    if (meta_out->frame_sequence > 0 && (meta_out->frame_sequence % 100) == 0 && meta_out->frame_sequence != last_logged_sequence) {
+      BOOST_LOG(info) << "[wgc_ipc_session_t] Frame diagnostics - "
+                      << "Sequence: " << meta_out->frame_sequence
+                      << ", Suppressed in batch: " << meta_out->suppressed_frames
+                      << ", Target fps: " << _config.framerate
+                      << ", Recent timeout count: " << _timeout_count;
+      last_logged_sequence = meta_out->frame_sequence;
+    }
+  }
+
+  void wgc_ipc_session_t::log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const {
+    static thread_local uint32_t main_timing_log_counter = 0;
+    if ((++main_timing_log_counter % 150) == 0) {
+      static uint64_t qpc_freq_main = 0;
+      if (qpc_freq_main == 0) {
+        LARGE_INTEGER freq;
+        QueryPerformanceFrequency(&freq);
+        qpc_freq_main = freq.QuadPart;
+      }
+
+      if (qpc_freq_main > 0) {
+        double wait_time_us = static_cast<double>(timestamp_after_wait - timestamp_before_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
+        double mutex_time_us = static_cast<double>(timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
+        double total_acquire_us = static_cast<double>(timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
+
+        BOOST_LOG(info) << "[wgc_ipc_session_t] Acquire timing - "
+                        << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
+                        << "Mutex: " << mutex_time_us << "μs, "
+                        << "Total: " << total_acquire_us << "μs";
+      }
+    }
+  }
+
+  bool wgc_ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, const FrameMetadata *&meta_out) {
+    // Add real-time scheduling hint (once per thread)
+    initialize_mmcss_for_thread();
+
+    // Additional error check: ensure required resources are valid
+    if (!_shared_texture || !_keyed_mutex) {
       return false;
     }
 
+    // Enhanced diagnostic logging: track frame intervals
+    log_frame_diagnostics();
+
+    // Timeout adjustment with proper handling of 0ms timeout
+    std::chrono::milliseconds adjusted_timeout = calculate_adjusted_timeout(timeout);
+
+    // Wait for new frame via async pipe messages
+    // Timestamp #1: Before waiting for frame
+    uint64_t timestamp_before_wait = qpc_counter();
+    
+    if (bool frame_available = wait_for_frame(adjusted_timeout); !frame_available) {
+      return false;
+    }
+
+    // Timestamp #2: Immediately after frame becomes available
+    uint64_t timestamp_after_wait = qpc_counter();
+
     // Reset timeout counter on successful frame
     _timeout_count = 0;
-    last_frame_time = current_time;
 
     // Acquire keyed mutex to access shared texture
-    // Use infinite wait - the event already guarantees that a frame exists
+    // Use infinite wait - the message already guarantees that a frame exists
     HRESULT hr = _keyed_mutex->AcquireSync(1, 0);  // 0 == infinite wait
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
@@ -291,39 +388,14 @@ namespace platf::dxgi {
     }
 
     // Set output parameters
-    gpu_tex_out = _shared_texture;
-    meta_out = static_cast<const FrameMetadata *>(_frame_metadata);
+    gpu_tex_out = _shared_texture.get();
+    meta_out = &_current_frame_metadata;
 
     // Enhanced suppressed frames logging with more detail
-    static uint32_t last_logged_sequence = 0;
-    if (meta_out->frame_sequence > 0 && (meta_out->frame_sequence % 100) == 0 && meta_out->frame_sequence != last_logged_sequence) {
-      BOOST_LOG(info) << "[wgc_ipc_session_t] Frame diagnostics - "
-                      << "Sequence: " << meta_out->frame_sequence
-                      << ", Suppressed in batch: " << meta_out->suppressed_frames
-                      << ", Target fps: " << _config.framerate
-                      << ", Recent timeout count: " << _timeout_count;
-      last_logged_sequence = meta_out->frame_sequence;
-    }
+    log_frame_sequence_diagnostics(meta_out);
 
     // Log high-precision timing deltas every 150 frames for main process timing
-    static uint32_t main_timing_log_counter = 0;
-    if ((++main_timing_log_counter % 150) == 0) {
-      static uint64_t qpc_freq_main = 0;
-      if (qpc_freq_main == 0) {
-        LARGE_INTEGER freq;
-        QueryPerformanceFrequency(&freq);
-        qpc_freq_main = freq.QuadPart;
-      }
-
-      double wait_time_us = (qpc_freq_main > 0) ? (double) (timestamp_after_wait - timestamp_before_wait) * 1000000.0 / qpc_freq_main : 0.0;
-      double mutex_time_us = (qpc_freq_main > 0) ? (double) (timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / qpc_freq_main : 0.0;
-      double total_acquire_us = (qpc_freq_main > 0) ? (double) (timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / qpc_freq_main : 0.0;
-
-      BOOST_LOG(info) << "[wgc_ipc_session_t] Acquire timing - "
-                      << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
-                      << "Mutex: " << mutex_time_us << "μs, "
-                      << "Total: " << total_acquire_us << "μs";
-    }
+    log_timing_diagnostics(timestamp_before_wait, timestamp_after_wait, timestamp_after_mutex);
 
     return true;
   }
@@ -348,47 +420,32 @@ namespace platf::dxgi {
     }
 
     HRESULT hr;
-    // Open the shared texture
-    ID3D11Texture2D *texture = nullptr;
-    hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &texture);
+
+    safe_com_ptr<ID3D11Texture2D> texture;
+    ID3D11Texture2D* raw_texture = nullptr;
+    hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void**)&raw_texture);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to open shared texture: " << hr;
       return false;
     }
-    _shared_texture = texture;
+    
+    texture.reset(raw_texture);
 
     // Get texture description to set the capture format
     D3D11_TEXTURE2D_DESC desc;
-    _shared_texture->GetDesc(&desc);
+    texture->GetDesc(&desc);
 
-    // Get the keyed mutex
-    hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &_keyed_mutex);
+    safe_com_ptr<IDXGIKeyedMutex> keyed_mutex;
+    IDXGIKeyedMutex* raw_mutex = nullptr;
+    hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void**)&raw_mutex);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to get keyed mutex: " << hr;
       return false;
     }
+    keyed_mutex.reset(raw_mutex);
 
-    // Open the frame event
-    _frame_event = OpenEventW(SYNCHRONIZE, FALSE, L"Local\\SunshineWGCFrame");
-    if (!_frame_event) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to open frame event: " << GetLastError();
-      return false;
-    }
-
-    // Open the frame metadata shared memory
-    _metadata_mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, L"Local\\SunshineWGCMetadata");
-    if (!_metadata_mapping) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to open metadata mapping: " << GetLastError();
-      return false;
-    }
-
-    _frame_metadata = MapViewOfFile(_metadata_mapping, FILE_MAP_READ, 0, 0, sizeof(FrameMetadata));
-    if (!_frame_metadata) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to map metadata view: " << GetLastError();
-      CloseHandle(_metadata_mapping);
-      _metadata_mapping = nullptr;
-      return false;
-    }
+    _shared_texture = std::move(texture);
+    _keyed_mutex = std::move(keyed_mutex);
 
     _width = width;
     _height = height;

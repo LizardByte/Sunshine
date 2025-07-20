@@ -33,12 +33,13 @@ target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 add_executable(sunshine_wgc_capture
         sunshine_wgc_capture.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/misc_utils.cpp)
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/misc_utils.cpp
+        ${CMAKE_SOURCE_DIR}/src/logging.cpp)
 set_target_properties(sunshine_wgc_capture PROPERTIES CXX_STANDARD 20)
 
 # Define helper build flag to conditionally compile logging
 target_compile_definitions(sunshine_wgc_capture PRIVATE
-        SUNSHINE_WGC_HELPER_BUILD=1
+        SUNSHINE_EXTERNAL_PROCESS=1
 )
 
 target_link_libraries(sunshine_wgc_capture

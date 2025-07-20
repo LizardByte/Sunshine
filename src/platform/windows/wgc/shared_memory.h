@@ -1,4 +1,6 @@
 #pragma once
+
+#include "src/logging.h"
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -8,6 +10,10 @@
 #include <vector>
 #include <windows.h>
 
+// Forward declaration for RAII wrapper
+namespace platf::dxgi {
+  struct safe_handle;
+}
 
 class IAsyncPipe {
 public:
@@ -77,7 +83,7 @@ public:
   AsyncNamedPipe(std::unique_ptr<IAsyncPipe> pipe);
   ~AsyncNamedPipe();
 
-  bool start(MessageCallback onMessage, ErrorCallback onError);
+  bool start(const MessageCallback& onMessage, const ErrorCallback& onError);
   void stop();
   void asyncSend(const std::vector<uint8_t> &message);
   void wait_for_client_connection(int milliseconds);
@@ -85,6 +91,10 @@ public:
 
 private:
   void workerThread();
+  bool establishConnection();
+  void processMessage(const std::vector<uint8_t>& bytes) const;
+  void handleWorkerException(const std::exception& e) const;
+  void handleWorkerUnknownException() const;
 
   std::unique_ptr<IAsyncPipe> _pipe;
   std::atomic<bool> _running;
@@ -111,6 +121,8 @@ public:
   void complete_async_read(std::vector<uint8_t> &bytes);
 
 private:
+  void connect_server_pipe(OVERLAPPED& ovl, int milliseconds);
+
   HANDLE _pipe;
   HANDLE _event;
   std::atomic<bool> _connected;
@@ -141,7 +153,7 @@ public:
   std::unique_ptr<IAsyncPipe> prepare_server(std::unique_ptr<IAsyncPipe> pipe);
 
 private:
-  std::string generateGuid();
+  std::string generateGuid() const;
   IAsyncPipeFactory *_pipeFactory;
 };
 
@@ -160,6 +172,7 @@ public:
   std::unique_ptr<IAsyncPipe> create(const std::string &pipeName, const std::string &eventName, bool isServer, bool isSecured) override;
 
 private:
-  bool create_security_descriptor(SECURITY_DESCRIPTOR &desc);
-  bool create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid);
+  bool create_security_descriptor(SECURITY_DESCRIPTOR &desc) const;
+  bool create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const;
+  platf::dxgi::safe_handle create_client_pipe(const std::wstring& fullPipeName) const;
 };

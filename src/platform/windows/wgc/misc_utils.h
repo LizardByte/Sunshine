@@ -8,6 +8,8 @@
 #include <cstdint>
 #include <string>
 #include <windows.h>
+#include <avrt.h>
+#include "src/utility.h"
 
 namespace platf::dxgi {
 
@@ -24,6 +26,11 @@ namespace platf::dxgi {
     uint32_t suppressed_frames;
   };
 
+  struct FrameNotification {
+    FrameMetadata metadata;
+    uint8_t message_type; // 0x03 for frame ready
+  };
+
   struct ConfigData {
     UINT width;
     UINT height;
@@ -32,6 +39,59 @@ namespace platf::dxgi {
     int log_level;
     wchar_t displayName[32];
   };
+
+  // RAII wrappers for Windows resources
+  struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
+    using util::safe_ptr_v2<void, BOOL, CloseHandle>::safe_ptr_v2;
+
+    explicit operator bool() const {
+      auto handle = get();
+      return handle != NULL && handle != INVALID_HANDLE_VALUE;
+    }
+  };
+
+  struct memory_view_deleter {
+    void operator()(void *ptr) {
+      if (ptr) {
+        UnmapViewOfFile(ptr);
+      }
+    }
+  };
+
+  using safe_memory_view = util::uniq_ptr<void, memory_view_deleter>;
+
+  struct com_deleter {
+    template<typename T>
+    void operator()(T *ptr) {
+      if (ptr) {
+        ptr->Release();
+      }
+    }
+  };
+
+  template<typename T>
+  using safe_com_ptr = util::uniq_ptr<T, com_deleter>;
+
+  struct winevent_hook_deleter {
+    void operator()(HWINEVENTHOOK hook) {
+      if (hook) {
+        UnhookWinEvent(hook);
+      }
+    }
+  };
+
+  using safe_winevent_hook = util::uniq_ptr<std::remove_pointer_t<HWINEVENTHOOK>, winevent_hook_deleter>;
+
+  // RAII wrapper for MMCSS handles (AvSetMmThreadCharacteristicsW)
+  struct mmcss_handle_deleter {
+    void operator()(HANDLE handle) {
+      if (handle) {
+        AvRevertMmThreadCharacteristics(handle);
+      }
+    }
+  };
+
+  using safe_mmcss_handle = util::uniq_ptr<std::remove_pointer_t<HANDLE>, mmcss_handle_deleter>;
 }  // namespace platf::dxgi
 
 namespace platf::wgc {

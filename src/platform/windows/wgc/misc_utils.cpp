@@ -56,11 +56,8 @@ namespace platf::wgc {
 
     // Create a SID for the local system account
     ret = CreateWellKnownSid(WinLocalSystemSid, nullptr, SystemSid, &dwSize);
-    if (ret) {
-      // Check if the current process token contains this SID
-      if (!CheckTokenMembership(nullptr, SystemSid, &ret)) {
-        ret = false;
-      }
+    if (ret && !CheckTokenMembership(nullptr, SystemSid, &ret)) {
+      ret = false;
     }
 
     // Free the memory allocated for the SID structure
@@ -152,8 +149,7 @@ namespace platf::wgc {
 
     // Check for login screen by looking for winlogon.exe with specific conditions
     // or check the current desktop name
-    HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId());
-    if (currentDesktop) {
+    if (HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId())) {
       wchar_t desktopName[256] = {0};
       DWORD needed = 0;
       if (GetUserObjectInformationW(currentDesktop, UOI_NAME, desktopName, sizeof(desktopName), &needed)) {

@@ -1,9 +1,7 @@
-
-
 #include "shared_memory.h"
 
 #include "misc_utils.h"
-#include "wgc_logger.h"
+#include "src/utility.h"
 
 #include <aclapi.h>
 #include <chrono>
@@ -11,22 +9,81 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <format>
 #include <memory>
 #include <sddl.h>
-#include <src/utility.h>
 #include <string>
 #include <thread>
 #include <vector>
 #include <windows.h>
+
+namespace {
+  // RAII wrappers for Windows security objects
+  using safe_token = util::safe_ptr_v2<void, BOOL, &CloseHandle>;
+  using safe_sid = util::safe_ptr_v2<void, PVOID, &FreeSid>;
+  using safe_local_mem = util::safe_ptr_v2<void, HLOCAL, &LocalFree>;
+  using safe_handle = platf::dxgi::safe_handle;
+  
+  // Specialized wrapper for DACL since it needs to be cast to PACL
+  struct safe_dacl {
+    PACL dacl = nullptr;
+    
+    safe_dacl() = default;
+    explicit safe_dacl(PACL p) : dacl(p) {}
+    
+    ~safe_dacl() {
+      if (dacl) {
+        LocalFree(dacl);
+      }
+    }
+    
+    // Move constructor
+    safe_dacl(safe_dacl&& other) noexcept : dacl(other.dacl) {
+      other.dacl = nullptr;
+    }
+    
+    // Move assignment
+    safe_dacl& operator=(safe_dacl&& other) noexcept {
+      if (this != &other) {
+        if (dacl) {
+          LocalFree(dacl);
+        }
+        dacl = other.dacl;
+        other.dacl = nullptr;
+      }
+      return *this;
+    }
+    
+    // Disable copy
+    safe_dacl(const safe_dacl&) = delete;
+    safe_dacl& operator=(const safe_dacl&) = delete;
+    
+    void reset(PACL p = nullptr) {
+      if (dacl) {
+        LocalFree(dacl);
+      }
+      dacl = p;
+    }
+    
+    PACL get() const { return dacl; }
+    PACL release() {
+      PACL tmp = dacl;
+      dacl = nullptr;
+      return tmp;
+    }
+    
+    explicit operator bool() const { return dacl != nullptr; }
+  };
+}
 
 // Helper functions for proper string conversion
 std::string wide_to_utf8(const std::wstring &wstr) {
   if (wstr.empty()) {
     return std::string();
   }
-  int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), NULL, 0, NULL, NULL);
+  int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), nullptr, 0, nullptr, nullptr);
   std::string strTo(size_needed, 0);
-  WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0], size_needed, NULL, NULL);
+  WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0], size_needed, nullptr, nullptr);
   return strTo;
 }
 
@@ -34,7 +91,7 @@ std::wstring utf8_to_wide(const std::string &str) {
   if (str.empty()) {
     return std::wstring();
   }
-  int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), NULL, 0);
+  int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), nullptr, 0);
   std::wstring wstrTo(size_needed, 0);
   MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), &wstrTo[0], size_needed);
   return wstrTo;
@@ -173,88 +230,74 @@ std::unique_ptr<IAsyncPipe> SecuredPipeCoordinator::prepare_server(std::unique_p
   return dataPipe;
 }
 
-std::string SecuredPipeCoordinator::generateGuid() {
+std::string SecuredPipeCoordinator::generateGuid() const {
   GUID guid;
   if (CoCreateGuid(&guid) != S_OK) {
     return {};
   }
 
-  WCHAR guidStr[39];  // "{...}" format, 38 chars + null
-  if (StringFromGUID2(guid, guidStr, 39) == 0) {
+  std::array<WCHAR, 39> guidStr{};  // "{...}" format, 38 chars + null
+  if (StringFromGUID2(guid, guidStr.data(), 39) == 0) {
     return {};
   }
 
   // Convert WCHAR to std::string using proper conversion
-  std::wstring wstr(guidStr);
+  std::wstring wstr(guidStr.data());
   return wide_to_utf8(wstr);
 }
 
-bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) {
-  HANDLE token = nullptr;
-  TOKEN_USER *tokenUser = nullptr;
-  PSID user_sid = nullptr;
-  PSID system_sid = nullptr;
-  PACL pDacl = nullptr;
-
-  // Use RAII-style cleanup to ensure resources are freed
-  auto fg = util::fail_guard([&]() {
-    if (tokenUser) {
-      free(tokenUser);
-    }
-    if (token) {
-      CloseHandle(token);
-    }
-    if (system_sid) {
-      FreeSid(system_sid);
-    }
-    if (pDacl) {
-      LocalFree(pDacl);
-    }
-  });
+bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) const {
+  safe_token token;
+  util::c_ptr<TOKEN_USER> tokenUser;
+  safe_sid user_sid;
+  safe_sid system_sid;
+  safe_dacl pDacl;
 
   BOOL isSystem = platf::wgc::is_running_as_system();
   
   BOOST_LOG(info) << "create_security_descriptor: isSystem=" << isSystem;
 
   if (isSystem) {
-    token = platf::wgc::retrieve_users_token(false);
-    BOOST_LOG(info) << "create_security_descriptor: Retrieved user token for SYSTEM service, token=" << (void*)token;
+    token.reset(platf::wgc::retrieve_users_token(false));
+    BOOST_LOG(info) << "create_security_descriptor: Retrieved user token for SYSTEM service, token=" << token.get();
     if (!token) {
       BOOST_LOG(error) << "Failed to retrieve user token when running as SYSTEM";
       return false;
     }
   } else {
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+    HANDLE raw_token = nullptr;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw_token)) {
       BOOST_LOG(error) << "OpenProcessToken failed in create_security_descriptor, error=" << GetLastError();
       return false;
     }
-    BOOST_LOG(info) << "create_security_descriptor: Opened current process token, token=" << (void*)token;
+    token.reset(raw_token);
+    BOOST_LOG(info) << "create_security_descriptor: Opened current process token, token=" << token.get();
   }
 
   // Extract user SID from token
   DWORD len = 0;
-  GetTokenInformation(token, TokenUser, nullptr, 0, &len);
+  GetTokenInformation(token.get(), TokenUser, nullptr, 0, &len);
   if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
     BOOST_LOG(error) << "GetTokenInformation (size query) failed in create_security_descriptor, error=" << GetLastError();
     return false;
   }
 
-  tokenUser = (TOKEN_USER *) malloc(len);
-  if (!tokenUser || !GetTokenInformation(token, TokenUser, tokenUser, len, &len)) {
+  auto tokenBuffer = std::make_unique<uint8_t[]>(len);
+  tokenUser.reset(reinterpret_cast<TOKEN_USER*>(tokenBuffer.release()));
+  if (!tokenUser || !GetTokenInformation(token.get(), TokenUser, tokenUser.get(), len, &len)) {
     BOOST_LOG(error) << "GetTokenInformation (fetch) failed in create_security_descriptor, error=" << GetLastError();
     return false;
   }
-  user_sid = tokenUser->User.Sid;
+  PSID raw_user_sid = tokenUser->User.Sid;
 
   // Validate the user SID
-  if (!IsValidSid(user_sid)) {
+  if (!IsValidSid(raw_user_sid)) {
     BOOST_LOG(error) << "Invalid user SID in create_security_descriptor";
     return false;
   }
   
   // Log the user SID for debugging
-  LPWSTR sidString = nullptr;
-  if (ConvertSidToStringSidW(user_sid, &sidString)) {
+  if (LPWSTR sidString = nullptr; ConvertSidToStringSidW(raw_user_sid, &sidString)) {
     std::wstring wsid(sidString);
     BOOST_LOG(info) << "create_security_descriptor: User SID=" << wide_to_utf8(wsid);
     LocalFree(sidString);
@@ -262,22 +305,24 @@ bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) {
 
   // Always create SYSTEM SID for consistent permissions
   SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
-  if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &system_sid)) {
+  PSID raw_system_sid = nullptr;
+  if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &raw_system_sid)) {
     BOOST_LOG(error) << "AllocateAndInitializeSid failed in create_security_descriptor, error=" << GetLastError();
     return false;
   }
+  system_sid.reset(raw_system_sid);
 
   // Validate the system SID
-  if (!IsValidSid(system_sid)) {
+  if (!IsValidSid(system_sid.get())) {
     BOOST_LOG(error) << "Invalid system SID in create_security_descriptor";
     return false;
   }
   
   // Log the system SID for debugging
-  if (ConvertSidToStringSidW(system_sid, &sidString)) {
-    std::wstring wsid(sidString);
+  if (LPWSTR systemSidString = nullptr; ConvertSidToStringSidW(system_sid.get(), &systemSidString)) {
+    std::wstring wsid(systemSidString);
     BOOST_LOG(info) << "create_security_descriptor: System SID=" << wide_to_utf8(wsid);
-    LocalFree(sidString);
+    LocalFree(systemSidString);
   }
 
   // Initialize security descriptor
@@ -297,7 +342,7 @@ bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) {
     ea[aceCount].grfInheritance = NO_INHERITANCE;
     ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
     ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid;
+    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid.get();
     BOOST_LOG(info) << "create_security_descriptor: Added SYSTEM SID to ACL at index " << aceCount;
     aceCount++;
   }
@@ -305,22 +350,24 @@ bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) {
   // Always add user SID to ACL if we have one
   // When running as SYSTEM, this is the impersonated user who needs access
   // When not running as SYSTEM, this is the current user
-  if (user_sid) {
+  if (raw_user_sid) {
     ea[aceCount].grfAccessPermissions = GENERIC_ALL;
     ea[aceCount].grfAccessMode = SET_ACCESS;
     ea[aceCount].grfInheritance = NO_INHERITANCE;
     ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
     ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) user_sid;
+    ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
     BOOST_LOG(info) << "create_security_descriptor: Added user SID to ACL at index " << aceCount;
     aceCount++;
   }
   
   BOOST_LOG(info) << "create_security_descriptor: Total ACE count=" << aceCount;
   if (aceCount > 0) {
-    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &pDacl);
+    PACL raw_dacl = nullptr;
+    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
     if (err == ERROR_SUCCESS) {
-      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl, FALSE)) {
+      pDacl.reset(raw_dacl);
+      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl.get(), FALSE)) {
         BOOST_LOG(error) << "SetSecurityDescriptorDacl failed in create_security_descriptor, error=" << GetLastError();
         return false;
       }
@@ -330,49 +377,30 @@ bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) {
     }
   }
 
-  // Don't cleanup pDacl here as it's used by the security descriptor
-  pDacl = nullptr;
+  // Transfer ownership of pDacl to the security descriptor - don't let RAII clean it up
+  pDacl.release();
   return true;  // Success
 }
 
-bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) {
-  HANDLE target_process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, target_pid);
+bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const {
+  safe_handle target_process(OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, target_pid));
   if (!target_process) {
     DWORD err = GetLastError();
     BOOST_LOG(error) << "Failed to open target process for security descriptor, pid=" << target_pid << ", error=" << err;
     return false;
   }
 
-  HANDLE target_token = nullptr;
-  if (!OpenProcessToken(target_process, TOKEN_QUERY, &target_token)) {
+  HANDLE raw_target_token = nullptr;
+  if (!OpenProcessToken(target_process.get(), TOKEN_QUERY, &raw_target_token)) {
     DWORD err = GetLastError();
     BOOST_LOG(error) << "Failed to open target process token, pid=" << target_pid << ", error=" << err;
-    CloseHandle(target_process);
     return false;
   }
+  safe_token target_token(raw_target_token);
 
-  CloseHandle(target_process);
-
-  TOKEN_USER *tokenUser = nullptr;
-  PSID user_sid = nullptr;
-  PSID system_sid = nullptr;
-  PACL pDacl = nullptr;
-
-  // Use RAII-style cleanup to ensure resources are freed
-  auto fg = util::fail_guard([&]() {
-    if (tokenUser) {
-      free(tokenUser);
-    }
-    if (target_token) {
-      CloseHandle(target_token);
-    }
-    if (system_sid) {
-      FreeSid(system_sid);
-    }
-    if (pDacl) {
-      LocalFree(pDacl);
-    }
-  });
+  util::c_ptr<TOKEN_USER> tokenUser;
+  safe_sid system_sid;
+  safe_dacl pDacl;
 
   BOOL isSystem = platf::wgc::is_running_as_system();
   
@@ -380,53 +408,54 @@ bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
 
   // Extract user SID from target process token
   DWORD len = 0;
-  GetTokenInformation(target_token, TokenUser, nullptr, 0, &len);
+  GetTokenInformation(target_token.get(), TokenUser, nullptr, 0, &len);
   if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
     BOOST_LOG(error) << "GetTokenInformation (size query) failed for target process, error=" << GetLastError();
     return false;
   }
 
-  tokenUser = (TOKEN_USER *) malloc(len);
-  if (!tokenUser || !GetTokenInformation(target_token, TokenUser, tokenUser, len, &len)) {
+  auto tokenBuffer = std::make_unique<uint8_t[]>(len);
+  tokenUser.reset(reinterpret_cast<TOKEN_USER*>(tokenBuffer.release()));
+  if (!tokenUser || !GetTokenInformation(target_token.get(), TokenUser, tokenUser.get(), len, &len)) {
     BOOST_LOG(error) << "GetTokenInformation (fetch) failed for target process, error=" << GetLastError();
     return false;
   }
-  user_sid = tokenUser->User.Sid;
+  PSID raw_user_sid = tokenUser->User.Sid;
 
   // Validate the user SID
-  if (!IsValidSid(user_sid)) {
+  if (!IsValidSid(raw_user_sid)) {
     BOOST_LOG(error) << "Invalid user SID for target process";
     return false;
   }
   
   // Log the user SID for debugging
-  LPWSTR sidString = nullptr;
-  if (ConvertSidToStringSidW(user_sid, &sidString)) {
-    std::wstring wsid(sidString);
+  if (LPWSTR targetSidString = nullptr; ConvertSidToStringSidW(raw_user_sid, &targetSidString)) {
+    std::wstring wsid(targetSidString);
     BOOST_LOG(info) << "create_security_descriptor_for_target_process: Target User SID=" << wide_to_utf8(wsid);
-    LocalFree(sidString);
+    LocalFree(targetSidString);
   }
 
   // Create SYSTEM SID if needed
   if (isSystem) {
     SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
-    if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &system_sid)) {
+    PSID raw_system_sid = nullptr;
+    if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &raw_system_sid)) {
       BOOST_LOG(error) << "AllocateAndInitializeSid failed for target process, error=" << GetLastError();
       return false;
     }
+    system_sid.reset(raw_system_sid);
 
     // Validate the system SID
-    if (!IsValidSid(system_sid)) {
+    if (!IsValidSid(system_sid.get())) {
       BOOST_LOG(error) << "Invalid system SID for target process";
       return false;
     }
     
     // Log the system SID for debugging
-    LPWSTR sidString = nullptr;
-    if (ConvertSidToStringSidW(system_sid, &sidString)) {
-      std::wstring wsid(sidString);
+    if (LPWSTR systemTargetSidString = nullptr; ConvertSidToStringSidW(system_sid.get(), &systemTargetSidString)) {
+      std::wstring wsid(systemTargetSidString);
       BOOST_LOG(info) << "create_security_descriptor_for_target_process: System SID=" << wide_to_utf8(wsid);
-      LocalFree(sidString);
+      LocalFree(systemTargetSidString);
     }
   }
 
@@ -447,28 +476,30 @@ bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
     ea[aceCount].grfInheritance = NO_INHERITANCE;
     ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
     ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid;
+    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid.get();
     BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added SYSTEM SID to ACL at index " << aceCount;
     aceCount++;
   }
   
   // Always add target process user SID to ACL
-  if (user_sid) {
+  if (raw_user_sid) {
     ea[aceCount].grfAccessPermissions = GENERIC_ALL;
     ea[aceCount].grfAccessMode = SET_ACCESS;
     ea[aceCount].grfInheritance = NO_INHERITANCE;
     ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
     ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) user_sid;
+    ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
     BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added target user SID to ACL at index " << aceCount;
     aceCount++;
   }
   
   BOOST_LOG(info) << "create_security_descriptor_for_target_process: Total ACE count=" << aceCount;
   if (aceCount > 0) {
-    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &pDacl);
+    PACL raw_dacl = nullptr;
+    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
     if (err == ERROR_SUCCESS) {
-      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl, FALSE)) {
+      pDacl.reset(raw_dacl);
+      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl.get(), FALSE)) {
         BOOST_LOG(error) << "SetSecurityDescriptorDacl failed for target process, error=" << GetLastError();
         return false;
       }
@@ -478,8 +509,8 @@ bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
     }
   }
 
-  // Don't cleanup pDacl here as it's used by the security descriptor
-  pDacl = nullptr;
+  // Transfer ownership of pDacl to the security descriptor - don't let RAII clean it up
+  pDacl.release();
   return true;  // Success
 }
 
@@ -497,12 +528,12 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create(
 
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName;
-  if (wPipeBase.find(L"\\\\.\\pipe\\") == 0) {
+  if (wPipeBase.find(LR"(\\.\pipe\)") == 0) {
     // Pipe name already has the full prefix
     fullPipeName = wPipeBase;
   } else {
     // Need to add the prefix
-    fullPipeName = L"\\\\.\\pipe\\" + wPipeBase;
+    fullPipeName = LR"(\\.\pipe\)" + wPipeBase;
   }
   std::wstring wEventName = utf8_to_wide(eventName);
 
@@ -511,9 +542,8 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create(
   SECURITY_ATTRIBUTES *pSecAttr = nullptr;
   SECURITY_ATTRIBUTES secAttr {};
   SECURITY_DESCRIPTOR secDesc {};
-  BOOL needsSecurityDescriptor = isSecured || platf::wgc::is_running_as_system();
   
-  if (needsSecurityDescriptor) {
+  if (const BOOL needsSecurityDescriptor = isSecured || platf::wgc::is_running_as_system(); needsSecurityDescriptor) {
     if (!create_security_descriptor(secDesc)) {
       BOOST_LOG(error) << "Failed to init security descriptor";
       return nullptr;
@@ -525,16 +555,16 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create(
 
   // Create event (manual‑reset, non‑signaled)
   // Use the same security attributes as the pipe for consistency
-  HANDLE hEvent = CreateEventW(pSecAttr, TRUE, FALSE, wEventName.c_str());
+  safe_handle hEvent(CreateEventW(pSecAttr, TRUE, FALSE, wEventName.c_str()));
   if (!hEvent) {
     DWORD err = GetLastError();
     BOOST_LOG(error) << "CreateEventW failed (" << err << ")";
     return nullptr;
   }
 
-  HANDLE hPipe = INVALID_HANDLE_VALUE;
+  safe_handle hPipe;
   if (isServer) {
-    hPipe = CreateNamedPipeW(
+    hPipe.reset(CreateNamedPipeW(
       fullPipeName.c_str(),
       PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
       PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
@@ -543,52 +573,57 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create(
       65536,
       0,
       pSecAttr
-    );
+    ));
   } else {
-    // Replace probe-then-open with canonical open-or-retry pattern
-    const auto kTimeoutEnd = GetTickCount64() + 2000;  // 2s overall timeout instead of 5s for faster failure
-    while (hPipe == INVALID_HANDLE_VALUE && GetTickCount64() < kTimeoutEnd) {
-      hPipe = CreateFileW(
-        fullPipeName.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        nullptr,  // ← always nullptr
-        OPEN_EXISTING,
-        FILE_FLAG_OVERLAPPED,
-        nullptr
-      );
-
-      if (hPipe == INVALID_HANDLE_VALUE) {
-        DWORD err = GetLastError();
-        if (err == ERROR_PIPE_BUSY) {
-          // Someone else already has the pipe – wait for a free instance
-          if (!WaitNamedPipeW(fullPipeName.c_str(), 250)) {
-            continue;
-          }
-        } else if (err == ERROR_FILE_NOT_FOUND) {
-          // Server hasn't created the pipe yet – short back-off
-          Sleep(50);
-          continue;
-        } else {
-          BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
-          CloseHandle(hEvent);
-          return nullptr;
-        }
-      }
-    }
+    hPipe = create_client_pipe(fullPipeName);
   }
 
-  if (hPipe == INVALID_HANDLE_VALUE) {
+  if (!hPipe) {
     DWORD err = GetLastError();
     BOOST_LOG(error) << (isServer ? "CreateNamedPipeW" : "CreateFileW")
                      << " failed (" << err << ")";
-    CloseHandle(hEvent);
     return nullptr;
   }
 
-  auto pipeObj = std::make_unique<AsyncPipe>(hPipe, hEvent, isServer);
+  auto pipeObj = std::make_unique<AsyncPipe>(hPipe.release(), hEvent.release(), isServer);
   BOOST_LOG(info) << "Returning AsyncPipe for '" << pipeName << "'";
   return pipeObj;
+}
+
+// Helper function to create client pipe with retry logic
+safe_handle AsyncPipeFactory::create_client_pipe(const std::wstring& fullPipeName) const {
+  const auto kTimeoutEnd = GetTickCount64() + 2000;  // 2s overall timeout instead of 5s for faster failure
+  safe_handle hPipe;
+  
+  while (!hPipe && GetTickCount64() < kTimeoutEnd) {
+    hPipe.reset(CreateFileW(
+      fullPipeName.c_str(),
+      GENERIC_READ | GENERIC_WRITE,
+      0,
+      nullptr,  // ← always nullptr
+      OPEN_EXISTING,
+      FILE_FLAG_OVERLAPPED,
+      nullptr
+    ));
+
+    if (!hPipe) {
+      DWORD err = GetLastError();
+      if (err == ERROR_PIPE_BUSY) {
+        // Someone else already has the pipe – wait for a free instance
+        if (!WaitNamedPipeW(fullPipeName.c_str(), 250)) {
+          continue;
+        }
+      } else if (err == ERROR_FILE_NOT_FOUND) {
+        // Server hasn't created the pipe yet – short back-off
+        Sleep(50);
+        continue;
+      } else {
+        BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
+        return safe_handle{};
+      }
+    }
+  }
+  return hPipe;
 }
 
 SecuredPipeFactory::SecuredPipeFactory():
@@ -602,12 +637,12 @@ std::unique_ptr<IAsyncPipe> SecuredPipeFactory::create(const std::string &pipeNa
   if (!isSecured) {
     DWORD pid = 0;
     if (isServer) {
-      pid = static_cast<DWORD>(GetCurrentProcessId());
+      pid = GetCurrentProcessId();
     } else {
       pid = platf::wgc::get_parent_process_id();
     }
-    pipeNameWithPid += "_" + std::to_string(pid);
-    eventNameWithPid += "_" + std::to_string(pid);
+    pipeNameWithPid = std::format("{}_{}", pipeName, pid);
+    eventNameWithPid = std::format("{}_{}", eventName, pid);
   }
 
   auto first_pipe = _pipeFactory->create(pipeNameWithPid, eventNameWithPid, isServer, isSecured);
@@ -640,7 +675,7 @@ AsyncPipe::AsyncPipe(HANDLE pipe, HANDLE event, bool isServer):
 }
 
 AsyncPipe::~AsyncPipe() {
-  disconnect();
+  AsyncPipe::disconnect();
 }
 
 void AsyncPipe::send(std::vector<uint8_t> bytes) {
@@ -651,13 +686,18 @@ void AsyncPipe::send(const std::vector<uint8_t> &bytes, bool block) {
   if (!_connected || _pipe == INVALID_HANDLE_VALUE) {
     return;
   }
-  OVERLAPPED ovl = {0};
-  ovl.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr); // fresh event for each op
-  ResetEvent(ovl.hEvent);
-  DWORD bytesWritten = 0;
-  BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, &ovl);
   
-  if (!result) {
+  OVERLAPPED ovl = {0};
+  safe_handle event(CreateEventW(nullptr, TRUE, FALSE, nullptr)); // fresh event for each op
+  if (!event) {
+    BOOST_LOG(error) << "Failed to create event for send operation, error=" << GetLastError();
+    return;
+  }
+  ovl.hEvent = event.get();
+  ResetEvent(ovl.hEvent);
+  
+  DWORD bytesWritten = 0;
+  if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, &ovl); !result) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING && block) {
       BOOST_LOG(info) << "WriteFile is pending, waiting for completion.";
@@ -665,12 +705,10 @@ void AsyncPipe::send(const std::vector<uint8_t> &bytes, bool block) {
       GetOverlappedResult(_pipe, &ovl, &bytesWritten, FALSE);
     } else {
       BOOST_LOG(error) << "WriteFile failed (" << err << ") in AsyncPipe::send";
-      CloseHandle(ovl.hEvent);
       return;           // bail out – don't pretend we sent anything
     }
   } 
   FlushFileBuffers(_pipe);   // guarantees delivery of the handshake payload
-  CloseHandle(ovl.hEvent);
 }
 
 void AsyncPipe::receive(std::vector<uint8_t> &bytes) {
@@ -687,8 +725,8 @@ void AsyncPipe::receive(std::vector<uint8_t> &bytes, bool block) {
   if (!_readPending && !_readBuffer.empty()) {
     bytes = std::move(_readBuffer);
     _readBuffer.clear();
-    // Close the per-operation event if any
-    if (_readOverlapped.hEvent) {
+    // Close the per-operation event if any - now handled by RAII in begin_async_read
+    if (_readOverlapped.hEvent && _readOverlapped.hEvent != _event) {
       CloseHandle(_readOverlapped.hEvent);
       _readOverlapped.hEvent = nullptr;
     }
@@ -766,16 +804,15 @@ void AsyncPipe::complete_async_read(std::vector<uint8_t> &bytes) {
     // Data was available immediately from begin_async_read
     bytes = std::move(_readBuffer);
     _readBuffer.clear();
-    // Close the per-operation event
-    if (_readOverlapped.hEvent) {
+    // Close the per-operation event - check if it's not the main event
+    if (_readOverlapped.hEvent && _readOverlapped.hEvent != _event) {
       CloseHandle(_readOverlapped.hEvent);
       _readOverlapped.hEvent = nullptr;
     }
     return;
   }
 
-  DWORD bytesRead = 0;
-  if (GetOverlappedResult(_pipe, &_readOverlapped, &bytesRead, FALSE)) {
+  if (DWORD bytesRead = 0; GetOverlappedResult(_pipe, &_readOverlapped, &bytesRead, FALSE)) {
     _readBuffer.resize(bytesRead);
     bytes = std::move(_readBuffer);
     _readBuffer.clear();
@@ -784,16 +821,15 @@ void AsyncPipe::complete_async_read(std::vector<uint8_t> &bytes) {
     }
   } else {
     DWORD err = GetLastError();
-    BOOST_LOG(error) << "GetOverlappedResult failed in complete_async_read, bytesRead=" 
-                     << bytesRead << ", error=" << err;
+    BOOST_LOG(error) << "GetOverlappedResult failed in complete_async_read, error=" << err;
     if (err == ERROR_BROKEN_PIPE) {
       BOOST_LOG(error) << "Pipe was closed by remote end during read operation";
     }
   }
   
   _readPending = false;
-  // Close the per-operation event
-  if (_readOverlapped.hEvent) {
+  // Close the per-operation event - check if it's not the main event
+  if (_readOverlapped.hEvent && _readOverlapped.hEvent != _event) {
     CloseHandle(_readOverlapped.hEvent);
     _readOverlapped.hEvent = nullptr;
   }
@@ -808,51 +844,60 @@ void AsyncPipe::wait_for_client_connection(int milliseconds) {
   if (_isServer) {
     // For server pipes, use ConnectNamedPipe with proper overlapped I/O
     OVERLAPPED ovl = {0};
-    ovl.hEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr); // fresh event for connect
+    safe_handle event(CreateEventW(nullptr, TRUE, FALSE, nullptr)); // fresh event for connect
+    if (!event) {
+      BOOST_LOG(error) << "Failed to create event for connection, error=" << GetLastError();
+      return;
+    }
+    ovl.hEvent = event.get();
     ResetEvent(ovl.hEvent);
 
-    BOOL result = ConnectNamedPipe(_pipe, &ovl);
-    if (result) {
-      _connected = true;
-      BOOST_LOG(info) << "AsyncPipe (server): Connected after ConnectNamedPipe returned true.";
-    } else {
-      DWORD err = GetLastError();
-      if (err == ERROR_PIPE_CONNECTED) {
-        // Client already connected
-        _connected = true;
-        
-        // NEW: flip to the correct read‑mode so the first WriteFile
-        // is accepted by the pipe instance
-        DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
-        SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-        BOOST_LOG(info) << "AsyncPipe (server): Client pre‑connected, mode set.";
-      } else if (err == ERROR_IO_PENDING) {
-        // Wait for the connection to complete
-        DWORD waitResult = WaitForSingleObject(ovl.hEvent, milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
-        if (waitResult == WAIT_OBJECT_0) {
-          DWORD transferred = 0;
-          if (GetOverlappedResult(_pipe, &ovl, &transferred, FALSE)) {
-            _connected = true;
-            
-            // NEW: flip to the correct read‑mode so the first WriteFile
-            // is accepted by the pipe instance
-            DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
-            SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-            BOOST_LOG(info) << "AsyncPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
-          } else {
-            BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
-          }
-        } else {
-          BOOST_LOG(error) << "ConnectNamedPipe timeout or wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
-        }
-      } else {
-        BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
-      }
-    }
-    CloseHandle(ovl.hEvent);
+    connect_server_pipe(ovl, milliseconds);
+    // event is automatically cleaned up by RAII
   } else {
     // For client handles created with CreateFileW, the connection already exists
     // _connected is set in constructor
+  }
+}
+
+void AsyncPipe::connect_server_pipe(OVERLAPPED& ovl, int milliseconds) {
+  BOOL result = ConnectNamedPipe(_pipe, &ovl);
+  if (result) {
+    _connected = true;
+    BOOST_LOG(info) << "AsyncPipe (server): Connected after ConnectNamedPipe returned true.";
+  } else {
+    DWORD err = GetLastError();
+    if (err == ERROR_PIPE_CONNECTED) {
+      // Client already connected
+      _connected = true;
+      
+      // NEW: flip to the correct read‑mode so the first WriteFile
+      // is accepted by the pipe instance
+      DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
+      SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
+      BOOST_LOG(info) << "AsyncPipe (server): Client pre‑connected, mode set.";
+    } else if (err == ERROR_IO_PENDING) {
+      // Wait for the connection to complete
+      DWORD waitResult = WaitForSingleObject(ovl.hEvent, milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
+      if (waitResult == WAIT_OBJECT_0) {
+        DWORD transferred = 0;
+        if (GetOverlappedResult(_pipe, &ovl, &transferred, FALSE)) {
+          _connected = true;
+          
+          // NEW: flip to the correct read‑mode so the first WriteFile
+          // is accepted by the pipe instance
+          DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
+          SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
+          BOOST_LOG(info) << "AsyncPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
+        } else {
+          BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
+        }
+      } else {
+        BOOST_LOG(error) << "ConnectNamedPipe timeout or wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
+      }
+    } else {
+      BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
+    }
   }
 }
 
@@ -868,8 +913,8 @@ void AsyncPipe::disconnect() {
   // Clear the read buffer
   _readBuffer.clear();
   
-  // Clean up per-operation event if one is pending
-  if (_readOverlapped.hEvent) {
+  // Clean up per-operation event if one is pending (but not the main event)
+  if (_readOverlapped.hEvent && _readOverlapped.hEvent != _event) {
     CloseHandle(_readOverlapped.hEvent);
     _readOverlapped.hEvent = nullptr;
   }
@@ -906,7 +951,7 @@ AsyncNamedPipe::~AsyncNamedPipe() {
   stop();
 }
 
-bool AsyncNamedPipe::start(MessageCallback onMessage, ErrorCallback onError) {
+bool AsyncNamedPipe::start(const MessageCallback& onMessage, const ErrorCallback& onError) {
   if (_running) {
     return false; // Already running
   }
@@ -955,15 +1000,8 @@ bool AsyncNamedPipe::isConnected() const {
 
 void AsyncNamedPipe::workerThread() {
   try {
-    // For server pipes, we need to wait for a client connection first
-    if (_pipe && !_pipe->is_connected()) {
-      _pipe->wait_for_client_connection(5000); // Wait up to 5 seconds for connection
-      if (!_pipe->is_connected()) {
-        if (_onError) {
-          _onError("Failed to establish connection within timeout");
-        }
-        return;
-      }
+    if (!establishConnection()) {
+      return;
     }
 
     // Start the first async read
@@ -971,30 +1009,16 @@ void AsyncNamedPipe::workerThread() {
       _pipe->begin_async_read();
     }
 
-    while (_running) {
-      if (!_pipe || !_pipe->is_connected()) {
-        break;
-      }
-
+    while (_running && _pipe && _pipe->is_connected()) {
       std::vector<uint8_t> bytes;
       _pipe->receive(bytes, true); // This will now wait for the overlapped operation to complete
 
       if (!_running) {
-        break;
+        return;
       }
 
       if (!bytes.empty()) {
-        if (_onMessage) {
-          try {
-            _onMessage(bytes);
-          } catch (const std::exception& e) {
-            BOOST_LOG(error) << "AsyncNamedPipe: Exception in message callback: " << e.what();
-            // Continue processing despite callback exception
-          } catch (...) {
-            BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in message callback";
-            // Continue processing despite callback exception
-          }
-        }
+        processMessage(bytes);
       }
 
       // Start the next async read
@@ -1003,22 +1027,64 @@ void AsyncNamedPipe::workerThread() {
       }
     }
   } catch (const std::exception& e) {
-    BOOST_LOG(error) << "AsyncNamedPipe worker thread exception: " << e.what();
-    if (_onError) {
-      try {
-        _onError(std::string("Worker thread exception: ") + e.what());
-      } catch (...) {
-        BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
-      }
-    }
+    handleWorkerException(e);
   } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe worker thread unknown exception";
-    if (_onError) {
-      try {
-        _onError("Worker thread unknown exception");
-      } catch (...) {
-        BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
-      }
-    }
+    handleWorkerUnknownException();
+  }
+}
+
+bool AsyncNamedPipe::establishConnection() {
+  // For server pipes, we need to wait for a client connection first
+  if (!_pipe || _pipe->is_connected()) {
+    return true;
+  }
+  
+  _pipe->wait_for_client_connection(5000); // Wait up to 5 seconds for connection
+  if (!_pipe->is_connected() && _onError) {
+    _onError("Failed to establish connection within timeout");
+    return false;
+  }
+  return _pipe->is_connected();
+}
+
+void AsyncNamedPipe::processMessage(const std::vector<uint8_t>& bytes) const {
+  if (!_onMessage) {
+    return;
+  }
+  
+  try {
+    _onMessage(bytes);
+  } catch (const std::exception& e) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in message callback: " << e.what();
+    // Continue processing despite callback exception
+  } catch (...) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in message callback";
+    // Continue processing despite callback exception
+  }
+}
+
+void AsyncNamedPipe::handleWorkerException(const std::exception& e) const {
+  BOOST_LOG(error) << "AsyncNamedPipe worker thread exception: " << e.what();
+  if (!_onError) {
+    return;
+  }
+  
+  try {
+    _onError(std::string("Worker thread exception: ") + e.what());
+  } catch (...) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
+  }
+}
+
+void AsyncNamedPipe::handleWorkerUnknownException() const {
+  BOOST_LOG(error) << "AsyncNamedPipe worker thread unknown exception";
+  if (!_onError) {
+    return;
+  }
+  
+  try {
+    _onError("Worker thread unknown exception");
+  } catch (...) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
   }
 }

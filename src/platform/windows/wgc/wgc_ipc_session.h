@@ -8,18 +8,16 @@
 #include <d3d11.h>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <atomic>
 
 #include "process_handler.h"
 #include "shared_memory.h"
 #include "src/video.h"
+#include "src/utility.h"
 
-// Forward declarations to avoid including the entire display header
-namespace platf::dxgi {
-  struct FrameMetadata;
-  struct SharedHandleData;
-  struct ConfigData;
-}
+// Include misc_utils outside of namespace to avoid nested namespace issues
+#include "misc_utils.h"
 
 namespace platf::dxgi {
 
@@ -38,7 +36,7 @@ namespace platf::dxgi {
      * @param device D3D11 device for shared texture operations
      * @return 0 on success, non-zero on failure
      */
-    int init(const ::video::config_t& config, const std::string& display_name, ID3D11Device* device);
+    int init(const ::video::config_t& config, std::string_view display_name, ID3D11Device* device);
 
     /**
      * Start the helper process and set up IPC connection on demand.
@@ -78,17 +76,18 @@ namespace platf::dxgi {
     bool is_initialized() const { return _initialized; }
 
   private:
-    // IPC resources
+    // IPC resources - using RAII wrappers for automatic cleanup
     std::unique_ptr<ProcessHandler> _process_helper;
     std::unique_ptr<AsyncNamedPipe> _pipe;
-    IDXGIKeyedMutex* _keyed_mutex = nullptr;
-    ID3D11Texture2D* _shared_texture = nullptr;
-    HANDLE _frame_event = nullptr;
-    HANDLE _metadata_mapping = nullptr;
-    void* _frame_metadata = nullptr;
+    safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;
+    safe_com_ptr<ID3D11Texture2D> _shared_texture;
 
     // D3D11 device reference (not owned)
     ID3D11Device* _device = nullptr;
+
+    // Frame state
+    FrameMetadata _current_frame_metadata{};
+    std::atomic<bool> _frame_ready{false};
 
     // State
     bool _initialized = false;
@@ -103,6 +102,16 @@ namespace platf::dxgi {
 
     // Helper methods
     bool setup_shared_texture(HANDLE shared_handle, UINT width, UINT height);
+    void handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received);
+    void handle_frame_notification(const std::vector<uint8_t> &msg);
+    void handle_secure_desktop_message(const std::vector<uint8_t> &msg);
+    void initialize_mmcss_for_thread() const;
+    void log_frame_diagnostics() const;
+    std::chrono::milliseconds calculate_adjusted_timeout(std::chrono::milliseconds timeout) const;
+    bool wait_for_frame(std::chrono::milliseconds adjusted_timeout);
+    void handle_frame_timeout(std::chrono::milliseconds adjusted_timeout);
+    void log_frame_sequence_diagnostics(const FrameMetadata *meta_out) const;
+    void log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const;
   };
 
 } // namespace platf::dxgi
