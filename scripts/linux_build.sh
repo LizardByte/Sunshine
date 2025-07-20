@@ -402,7 +402,7 @@ function run_install() {
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
       if [ -e "$file_path" ]; then
-        mv "$file_path" "$file_path.bak"
+        ${sudo_cmd} mv "$file_path" "$file_path.bak"
       fi
     done
 
@@ -446,7 +446,7 @@ function run_install() {
       cd "doxygen-${doxygen_min}"
       cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
       ninja -C "build" -j"${num_processors}"
-      ninja -C "build" install
+      ${sudo_cmd} ninja -C "build" install
     else
       echo "Doxygen version not in range, skipping docs"
       cmake_args+=("-DBUILD_DOCS=OFF")
