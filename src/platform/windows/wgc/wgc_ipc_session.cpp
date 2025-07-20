@@ -105,12 +105,9 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
     };
 
-    auto secured_pipe_fact = std::make_unique<SecuredPipeFactory>();
+    auto anonConnector = std::make_unique<AnonymousPipeConnector>();
 
-    auto rawPipe = secured_pipe_fact->create("SunshineWGCPipe",
-                                             "SunshineWGCEvent",
-                                             /*isServer=*/true,
-                                             /*isSecured=*/false);
+    auto rawPipe = anonConnector->create_server("SunshineWGCPipe", "SunshineWGCEvent");
     if (!rawPipe) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
       cleanup();

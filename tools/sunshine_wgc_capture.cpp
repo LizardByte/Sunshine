@@ -918,9 +918,9 @@ int main(int argc, char *argv[]) {
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
   // Create named pipe for communication with main process
-  SecuredPipeFactory factory;
+  AnonymousPipeConnector pipeFactory;
 
-  auto commPipe = factory.create("SunshineWGCPipe", "SunshineWGCEvent", false, false);
+  auto commPipe = pipeFactory.create_client("SunshineWGCPipe", "SunshineWGCEvent");
   AsyncNamedPipe communicationPipe(std::move(commPipe));
   g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
 

@@ -1,5 +1,5 @@
 /**
- * @file src/platform/windows/wgc/display_ipc_wgc_refactored.cpp
+ * @file src/platform/windows/display_wgc.cpp
  * @brief Refactored WGC IPC display implementations using shared session helper.
  */
 
@@ -200,9 +200,16 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
-    // During encoder validation, we need to create dummy textures before WGC is initialized
-    // Always use DXGI fallback for dummy images to avoid lazy_init complications
-    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Using DXGI fallback for dummy_img";
+    // Try to use WGC first by attempting lazy initialization
+    lazy_init();
+    if (_session && _session->is_initialized()) {
+      // WGC is available, delegate to base class which calls complete_img
+      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Using WGC base class for dummy_img";
+      return display_vram_t::dummy_img(img_base);
+    }
+
+    // WGC not available or lazy init failed, fallback to DXGI
+    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] WGC unavailable, using DXGI fallback for dummy_img";
 
     // Create a temporary DXGI display for dummy image creation
     auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
@@ -441,9 +448,16 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
-    // During encoder validation, we need to create dummy textures before WGC is initialized
-    // Always use DXGI fallback for dummy images to avoid lazy_init complications
-    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Using DXGI fallback for dummy_img";
+    // Try to use WGC first by attempting lazy initialization
+    lazy_init();
+    if (_session && _session->is_initialized()) {
+      // WGC is available, delegate to base class which calls complete_img
+      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Using WGC base class for dummy_img";
+      return display_ram_t::dummy_img(img_base);
+    }
+
+    // WGC not available or lazy init failed, fallback to DXGI
+    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] WGC unavailable, using DXGI fallback for dummy_img";
 
     // Create a temporary DXGI display for dummy image creation
     auto temp_dxgi = std::make_unique<display_ddup_ram_t>();

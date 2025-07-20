@@ -71,8 +71,8 @@ TEST(AsyncNamedPipe, ServerClientConnectsAndSendsMessage) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeA";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
-    auto clientPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", false, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
+    auto clientPipe = factory.create_client(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe server(std::move(serverPipe));
     AsyncNamedPipe client(std::move(clientPipe));
         std::vector<uint8_t> received;
@@ -106,7 +106,7 @@ TEST(AsyncNamedPipe, DoubleStartStop) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeB";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe pipe(std::move(serverPipe));
         CallbackFlags flags;
         ASSERT_TRUE(pipe.start(
@@ -125,7 +125,7 @@ TEST(AsyncNamedPipe, ServerPipeCreationFailure) {
         // Use an invalid pipe name to force failure
         std::wstring badName = L"INVALID_PIPE_NAME";
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(badName.begin(), badName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(badName.begin(), badName.end()), "");
     AsyncNamedPipe pipe(std::move(serverPipe));
         CallbackFlags flags;
         pipe.start(
@@ -144,7 +144,7 @@ TEST(AsyncNamedPipe, ClientConnectRetryFailure) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeC";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto clientPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", false, false);
+    auto clientPipe = factory.create_client(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe pipe(std::move(clientPipe));
         CallbackFlags flags;
         pipe.start(
@@ -163,8 +163,8 @@ TEST(AsyncNamedPipe, SendReceiveRoundtrip) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeD";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
-    auto clientPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", false, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
+    auto clientPipe = factory.create_client(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe server(std::move(serverPipe));
     AsyncNamedPipe client(std::move(clientPipe));
         CallbackFlags serverFlags;
@@ -197,7 +197,7 @@ TEST(AsyncNamedPipe, SendFailsIfNotConnected) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeE";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe pipe(std::move(serverPipe));
         // Not started, not connected
         pipe.asyncSend({1,2,3});
@@ -210,7 +210,7 @@ TEST(AsyncNamedPipe, ErrorCallbackOnPipeError) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeF";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe server(std::move(serverPipe));
         CallbackFlags flags;
         server.start(
@@ -227,7 +227,7 @@ TEST(AsyncNamedPipe, BufferSizeLimit) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeG";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe server(std::move(serverPipe));
         CallbackFlags flags;
         server.start(
@@ -237,7 +237,7 @@ TEST(AsyncNamedPipe, BufferSizeLimit) {
             },
             [&](const std::string&){ }
         );
-    auto clientPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", false, false);
+    auto clientPipe = factory.create_client(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe client(std::move(clientPipe));
         client.start(
             [&](const std::vector<uint8_t>&){},
@@ -263,7 +263,7 @@ TEST(AsyncNamedPipe, CallbackExceptionSafety) {
         std::wstring pipeName = L"\\\\.\\pipe\\testpipeH";
         std::wcout << L"[TEST] Using pipe name: " << pipeName << std::endl;
     AsyncPipeFactory factory;
-    auto serverPipe = factory.create(std::string(pipeName.begin(), pipeName.end()), "", true, false);
+    auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()), "");
     AsyncNamedPipe pipe(std::move(serverPipe));
         pipe.start(
             [&](const std::vector<uint8_t>&){ 

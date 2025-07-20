@@ -1605,14 +1605,17 @@ namespace platf::dxgi {
     return 0;
   }
 
+
   /**
-   * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
-   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
-   * @param img_out the captured frame is returned here
-   * @param timeout how long to wait for the next frame
-   * @param cursor_visible
+   * @brief Creates a new display_wgc_vram_t instance.
+   *
+   * This function creates and returns a shared pointer to a display_t object using the provided
+   * video configuration and display name. It delegates creation to display_wgc_ipc_vram_t::create.
+   *
+   * @param config The video configuration to use for the display.
+   * @param display_name The name of the display to create.
+   * @return std::shared_ptr<display_t> A shared pointer to the created display object.
    */
-  // Factory method for display_wgc_vram_t - always returns IPC implementation
   std::shared_ptr<display_t> display_wgc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
     return display_wgc_ipc_vram_t::create(config, display_name);
   }

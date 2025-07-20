@@ -70,9 +70,20 @@ public:
   virtual bool is_connected() = 0;
 
   /**
-   * @brief Starts an asynchronous read operation.
+   * @brief Performs an overlapped read operation.
+   * @param buffer Buffer to read data into.
+   * @param overlapped OVERLAPPED structure for the operation.
+   * @return True if the operation was initiated successfully, false otherwise.
    */
-  virtual void begin_async_read() = 0;
+  virtual bool read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) = 0;
+
+  /**
+   * @brief Gets the result of an overlapped operation.
+   * @param overlapped OVERLAPPED structure from the operation.
+   * @param bytesRead Output parameter for number of bytes read.
+   * @return True if the operation completed successfully, false otherwise.
+   */
+  virtual bool get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) = 0;
 };
 
 class AsyncNamedPipe {
@@ -83,7 +94,7 @@ public:
   AsyncNamedPipe(std::unique_ptr<IAsyncPipe> pipe);
   ~AsyncNamedPipe();
 
-  bool start(const MessageCallback& onMessage, const ErrorCallback& onError);
+  bool start(const MessageCallback &onMessage, const ErrorCallback &onError);
   void stop();
   void asyncSend(const std::vector<uint8_t> &message);
   void wait_for_client_connection(int milliseconds);
@@ -92,15 +103,18 @@ public:
 private:
   void workerThread();
   bool establishConnection();
-  void processMessage(const std::vector<uint8_t>& bytes) const;
-  void handleWorkerException(const std::exception& e) const;
+  void processMessage(const std::vector<uint8_t> &bytes) const;
+  void handleWorkerException(const std::exception &e) const;
   void handleWorkerUnknownException() const;
+  bool postRead();
 
   std::unique_ptr<IAsyncPipe> _pipe;
   std::atomic<bool> _running;
   std::thread _worker;
   MessageCallback _onMessage;
   ErrorCallback _onError;
+  std::vector<uint8_t> _rxBuf;
+  OVERLAPPED _ovl;
 };
 
 class AsyncPipe: public IAsyncPipe {
@@ -115,64 +129,51 @@ public:
   void wait_for_client_connection(int milliseconds) override;
   void disconnect() override;
   bool is_connected() override;
-
-  // New methods for async read operations
-  void begin_async_read();
-  void complete_async_read(std::vector<uint8_t> &bytes);
+  bool read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) override;
+  bool get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) override;
 
 private:
-  void connect_server_pipe(OVERLAPPED& ovl, int milliseconds);
+  void connect_server_pipe(OVERLAPPED &ovl, int milliseconds);
 
   HANDLE _pipe;
   HANDLE _event;
   std::atomic<bool> _connected;
   bool _isServer;
-  std::atomic<bool> _running;
-  
-  // New members for persistent async operations
-  OVERLAPPED _readOverlapped;
-  std::vector<uint8_t> _readBuffer;
-  std::atomic<bool> _readPending;
 };
 
 class IAsyncPipeFactory {
 public:
   virtual ~IAsyncPipeFactory() = default;
-  virtual std::unique_ptr<IAsyncPipe> create(const std::string &pipeName, const std::string &eventName, bool isServer, bool isSecured) = 0;
+  virtual std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) = 0;
+  virtual std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) = 0;
 };
 
-struct SecureClientMessage {
+struct AnonConnectMsg {
   wchar_t pipe_name[40];
   wchar_t event_name[40];
 };
 
-class SecuredPipeCoordinator {
-public:
-  SecuredPipeCoordinator(IAsyncPipeFactory *pipeFactory);
-  std::unique_ptr<IAsyncPipe> prepare_client(std::unique_ptr<IAsyncPipe> pipe);
-  std::unique_ptr<IAsyncPipe> prepare_server(std::unique_ptr<IAsyncPipe> pipe);
-
-private:
-  std::string generateGuid() const;
-  IAsyncPipeFactory *_pipeFactory;
-};
-
-class SecuredPipeFactory: public IAsyncPipeFactory {
-public:
-  SecuredPipeFactory();
-  std::unique_ptr<IAsyncPipe> create(const std::string &pipeName, const std::string &eventName, bool isServer, bool isSecured) override;
-
-private:
-  std::unique_ptr<IAsyncPipeFactory> _pipeFactory;
-  SecuredPipeCoordinator _coordinator;
-};
 
 class AsyncPipeFactory: public IAsyncPipeFactory {
 public:
-  std::unique_ptr<IAsyncPipe> create(const std::string &pipeName, const std::string &eventName, bool isServer, bool isSecured) override;
+  std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
 
 private:
   bool create_security_descriptor(SECURITY_DESCRIPTOR &desc) const;
   bool create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const;
-  platf::dxgi::safe_handle create_client_pipe(const std::wstring& fullPipeName) const;
+  platf::dxgi::safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
+};
+
+class AnonymousPipeConnector: public IAsyncPipeFactory {
+public:
+  AnonymousPipeConnector();
+  std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
+
+private:
+  std::unique_ptr<AsyncPipeFactory> _pipeFactory;
+  std::unique_ptr<IAsyncPipe> handshake_server(std::unique_ptr<IAsyncPipe> pipe);
+  std::unique_ptr<IAsyncPipe> handshake_client(std::unique_ptr<IAsyncPipe> pipe);
+  std::string generateGuid() const;
 };

@@ -1931,8 +1931,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Automatic.
-            Sunshine will use the first capture method available in the order of the table above.</td>
+        <td colspan="2">Automatic<br>
+            If left on Automatic, Sunshine will select the best capture method based on the order of the table below, if the OS supports it.</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -1964,15 +1964,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
-        <td>ddx</td>
-        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
+        <td>wgc</td>
+        <td>Use Windows.Graphics.Capture API to capture the display. Modern, secure, and compatible with most games and overlays.
             @note{Applies to Windows only.}</td>
     </tr>
     <tr>
-        <td>wgc</td>
-        <td>(beta feature) Use Windows.Graphics.Capture to capture the display.
-            @note{Applies to Windows only.}
-            @attention{This capture method is not compatible with the Sunshine service.}</td>
+        <td>ddx</td>
+        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines, but may have compatibility issues with some overlays (such as Windows Game Bar).
+            @note{Applies to Windows only.}</td>
     </tr>
 </table>
 
