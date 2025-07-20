@@ -10,6 +10,11 @@ class @PROJECT_NAME@ < Formula
   license all_of: ["GPL-3.0-only"]
   head "@GITHUB_CLONE_URL@", branch: "@GITHUB_DEFAULT_BRANCH@"
 
+  # CUDA version variables
+  CUDA_VERSION = "12.9.1".freeze
+  CUDA_BUILD = "575.57.08".freeze
+  GCC_VERSION = "14".freeze
+
   # https://docs.brew.sh/Brew-Livecheck#githublatest-strategy-block
   livecheck do
     url :stable
@@ -25,6 +30,7 @@ class @PROJECT_NAME@ < Formula
   option "with-docs", "Enable docs"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
+  option "without-cuda", "Enable CUDA support"
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build
@@ -45,6 +51,7 @@ class @PROJECT_NAME@ < Formula
     depends_on "fontconfig" => :build
     depends_on "freetype" => :build
     depends_on "fribidi" => :build
+    depends_on "gcc@#{GCC_VERSION}" => :build
     depends_on "gettext" => :build
     depends_on "gobject-introspection" => :build
     depends_on "graphite2" => :build
@@ -77,6 +84,20 @@ class @PROJECT_NAME@ < Formula
     depends_on "wayland"
 
     # resources that do not have brew packages
+    if build.with? "cuda"
+      depends_on "gnu-which" => :build
+
+      resource "cuda" do
+        if Hardware::CPU.arm?
+          url "https://developer.download.nvidia.com/compute/cuda/#{CUDA_VERSION}/local_installers/cuda_#{CUDA_VERSION}_#{CUDA_BUILD}_linux_sbsa.run"
+          sha256 "64f47ab791a76b6889702425e0755385f5fa216c5a9f061875c7deed5f08cdb6"
+        else
+          url "https://developer.download.nvidia.com/compute/cuda/#{CUDA_VERSION}/local_installers/cuda_#{CUDA_VERSION}_#{CUDA_BUILD}_linux.run"
+          sha256 "0f6d806ddd87230d2adbe8a6006a9d20144fdbda9de2d6acc677daa5d036417a"
+        end
+      end
+    end
+
     resource "libayatana-appindicator" do
       url "https://github.com/AyatanaIndicators/libayatana-appindicator/archive/refs/tags/0.5.94.tar.gz"
       sha256 "884a6bc77994c0b58c961613ca4c4b974dc91aa0f804e70e92f38a542d0d0f90"
@@ -217,6 +238,11 @@ index 5b3638d..aca9481 100644
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
 
+    if OS.linux?
+      args << "-DCMAKE_C_COMPILER=gcc-#{GCC_VERSION}"
+      args << "-DCMAKE_CXX_COMPILER=g++-#{GCC_VERSION}"
+    end
+
     if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
@@ -245,7 +271,55 @@ index 5b3638d..aca9481 100644
       ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
     end
 
-    args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
+    # Handle CUDA on Linux
+    if OS.linux?
+      if build.with? "cuda"
+        ohai "Symlinking /dev/tty for CUDA installer workaround"
+        system "sudo", "ln", "-sf", "#{buildpath}/cuda_run.log", "/dev/tty"
+
+        ohai "Installing CUDA toolkit"
+
+        # Install CUDA toolkit using the downloaded run file
+        resource("cuda").stage do
+          cuda_install_dir = "#{prefix}/cuda-#{CUDA_VERSION}"
+          cuda_lib_dir = "#{lib}/cuda-#{CUDA_VERSION}"
+          cuda_suffix = Hardware::CPU.arm? ? "_sbsa" : ""
+          cuda_filename = "cuda_#{CUDA_VERSION}_#{CUDA_BUILD}_linux#{cuda_suffix}.run"
+
+          # Make the installer executable
+          File.chmod(0755, cuda_filename)
+
+          # Run the CUDA installer silently with custom installation path
+          system "./#{cuda_filename}",
+                 "--defaultroot=#{cuda_lib_dir}",
+                 "--silent",
+                 "--tmpdir=#{buildpath}",
+                 "--toolkit",
+                 "--toolkitpath=#{cuda_install_dir}",
+                 "--no-opengl-libs",
+                 "--no-man-page",
+                 "--no-drm"
+
+          args << "-DCMAKE_CUDA_COMPILER:PATH=#{cuda_install_dir}/bin/nvcc"
+        end
+
+        # print out contents of /dev/stdout file
+        ohai "CUDA installation log: start"
+        File.open("#{buildpath}/cuda_run.log", "r") do |file|
+          file.each_line do |line|
+            puts line
+          end
+        end
+        ohai "CUDA installation log: end"
+
+        args << "-DSUNSHINE_ENABLE_CUDA=ON"
+        ohai "CUDA support: enabled"
+      else
+        args << "-DCUDA_FAIL_ON_MISSING=OFF"
+        ohai "CUDA support: disabled"
+      end
+    end
+
     args << "-DSUNSHINE_ENABLE_TRAY=OFF" if OS.mac?
 
     # Handle system tray on Linux
