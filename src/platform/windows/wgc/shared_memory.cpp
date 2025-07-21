@@ -518,21 +518,26 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
         return nullptr;
     }
     BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name << "' and event_name='" << event_name << "'";
-    pipe->send(bytes);  // Always blocking now
+    if (!pipe->send(bytes, 5000)) {  // 5 second timeout for handshake
+        BOOST_LOG(error) << "Failed to send handshake message to client";
+        pipe->disconnect();
+        return nullptr;
+    }
 
     // Wait for ACK from client before disconnecting
     std::vector<uint8_t> ack;
     bool ack_ok = false;
     auto t0 = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-        pipe->receive(ack);  // Always blocking now
-        if (ack.size() == 1 && ack[0] == 0xA5) {
-            ack_ok = true;
-            BOOST_LOG(info) << "Received handshake ACK from client";
-            break;
-        }
-        if (!ack.empty()) {
-            BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
+        if (pipe->receive(ack, 1000)) {  // 1 second timeout per receive attempt
+            if (ack.size() == 1 && ack[0] == 0xA5) {
+                ack_ok = true;
+                BOOST_LOG(info) << "Received handshake ACK from client";
+                break;
+            }
+            if (!ack.empty()) {
+                BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
@@ -561,10 +566,11 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
     bool received = false;
 
     while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-        pipe->receive(bytes);  // Always blocking now
-        if (!bytes.empty()) {
-            received = true;
-            break;
+        if (pipe->receive(bytes, 500)) {  // 500ms timeout per receive attempt
+            if (!bytes.empty()) {
+                received = true;
+                break;
+            }
         }
         // Check if we received 0 bytes due to pipe being closed
         if (bytes.empty()) {
@@ -588,10 +594,14 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
 
     std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
 
-    // Send ACK (1 byte) always blocking now
+    // Send ACK (1 byte) with timeout
     std::vector<uint8_t> ack(1, 0xA5);
     BOOST_LOG(info) << "Sending handshake ACK to server";
-    pipe->send(ack);
+    if (!pipe->send(ack, 5000)) {  // 5 second timeout for ACK
+        BOOST_LOG(error) << "Failed to send handshake ACK to server";
+        pipe->disconnect();
+        return nullptr;
+    }
 
     // Convert wide string to string using proper conversion
     std::wstring wpipeNasme(msg.pipe_name);
@@ -654,16 +664,16 @@ WinPipe::~WinPipe() {
   WinPipe::disconnect();
 }
 
-void WinPipe::send(std::vector<uint8_t> bytes) {
+bool WinPipe::send(std::vector<uint8_t> bytes, int timeout_ms) {
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
-    return;
+    return false;
   }
 
   OVERLAPPED ovl = {0};
   safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
   if (!event) {
     BOOST_LOG(error) << "Failed to create event for send operation, error=" << GetLastError();
-    return;
+    return false;
   }
   ovl.hEvent = event.get();
 
@@ -671,34 +681,45 @@ void WinPipe::send(std::vector<uint8_t> bytes) {
   if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, &ovl); !result) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
-      // Always wait for completion (blocking)
-      BOOST_LOG(info) << "WriteFile is pending, waiting for completion.";
-      WaitForSingleObject(ovl.hEvent, INFINITE);
-      if (!GetOverlappedResult(_pipe, &ovl, &bytesWritten, FALSE)) {
-        BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
-        return;
+      // Wait for completion with timeout
+      BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
+      DWORD waitResult = WaitForSingleObject(ovl.hEvent, timeout_ms);
+      if (waitResult == WAIT_OBJECT_0) {
+        if (!GetOverlappedResult(_pipe, &ovl, &bytesWritten, FALSE)) {
+          BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
+          return false;
+        }
+      } else if (waitResult == WAIT_TIMEOUT) {
+        BOOST_LOG(warning) << "Send operation timed out after " << timeout_ms << "ms";
+        CancelIoEx(_pipe, &ovl);
+        return false;
+      } else {
+        BOOST_LOG(error) << "WaitForSingleObject failed in send, result=" << waitResult << ", error=" << GetLastError();
+        return false;
       }
     } else {
       BOOST_LOG(error) << "WriteFile failed (" << err << ") in WinPipe::send";
-      return;
+      return false;
     }
   }
   if (bytesWritten != bytes.size()) {
     BOOST_LOG(error) << "WriteFile wrote " << bytesWritten << " bytes, expected " << bytes.size();
+    return false;
   }
+  return true;
 }
 
-void WinPipe::receive(std::vector<uint8_t> &bytes) {
+bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
   bytes.clear();
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
-    return;
+    return false;
   }
 
   OVERLAPPED ovl = {0};
   safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
   if (!event) {
     BOOST_LOG(error) << "Failed to create event for receive operation, error=" << GetLastError();
-    return;
+    return false;
   }
   ovl.hEvent = event.get();
 
@@ -710,23 +731,32 @@ void WinPipe::receive(std::vector<uint8_t> &bytes) {
     // Read completed immediately
     buffer.resize(bytesRead);
     bytes = std::move(buffer);
+    return true;
   } else {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
-      // Always wait for completion (blocking)
-      DWORD waitResult = WaitForSingleObject(ovl.hEvent, INFINITE);
+      // Wait for completion with timeout
+      DWORD waitResult = WaitForSingleObject(ovl.hEvent, timeout_ms);
       if (waitResult == WAIT_OBJECT_0) {
         if (GetOverlappedResult(_pipe, &ovl, &bytesRead, FALSE)) {
           buffer.resize(bytesRead);
           bytes = std::move(buffer);
+          return true;
         } else {
           BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << GetLastError();
+          return false;
         }
+      } else if (waitResult == WAIT_TIMEOUT) {
+        BOOST_LOG(warning) << "Receive operation timed out after " << timeout_ms << "ms";
+        CancelIoEx(_pipe, &ovl);
+        return false;
       } else {
         BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
+        return false;
       }
     } else {
       BOOST_LOG(error) << "ReadFile failed in receive, error=" << err;
+      return false;
     }
   }
 }
@@ -862,7 +892,9 @@ void AsyncNamedPipe::stop() {
 
 void AsyncNamedPipe::asyncSend(const std::vector<uint8_t> &message) {
   if (_pipe && _pipe->is_connected()) {
-    _pipe->send(message);
+    if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
+      BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
+    }
   }
 }
 
@@ -883,18 +915,20 @@ void AsyncNamedPipe::workerThread() {
     while (_running.load(std::memory_order_acquire)) {
       try {
         std::vector<uint8_t> message;
-        _pipe->receive(message);  // Blocking receive
-        
-        if (!_running.load(std::memory_order_acquire)) {
-          break;
-        }
+        // Use timeout to allow periodic checks of _running flag
+        if (_pipe->receive(message, 1000)) {  // 1 second timeout for receives
+          if (!_running.load(std::memory_order_acquire)) {
+            break;
+          }
 
-        if (message.empty()) {
-          BOOST_LOG(info) << "AsyncNamedPipe: Received empty message (remote end closed pipe)";
-          break;
-        }
+          if (message.empty()) {
+            BOOST_LOG(info) << "AsyncNamedPipe: Received empty message (remote end closed pipe)";
+            break;
+          }
 
-        processMessage(message);
+          processMessage(message);
+        }
+        // If receive timed out, just continue the loop to check _running flag
       } catch (const std::exception &e) {
         BOOST_LOG(error) << "AsyncNamedPipe: Exception during receive: " << e.what();
         break;

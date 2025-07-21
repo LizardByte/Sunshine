@@ -23,16 +23,20 @@ public:
   virtual ~INamedPipe() = default;
 
   /**
-   * @brief Sends a message through the pipe (always blocking).
+   * @brief Sends a message through the pipe with timeout.
    * @param bytes The message to send as a vector of bytes.
+   * @param timeout_ms Maximum time to wait for send completion, in milliseconds.
+   * @return True if sent successfully, false on timeout or error.
    */
-  virtual void send(std::vector<uint8_t> bytes) = 0;
+  virtual bool send(std::vector<uint8_t> bytes, int timeout_ms) = 0;
 
   /**
-   * @brief Receives a message from the pipe (always blocking).
+   * @brief Receives a message from the pipe with timeout.
    * @param bytes The received message will be stored in this vector.
+   * @param timeout_ms Maximum time to wait for receive completion, in milliseconds.
+   * @return True if received successfully, false on timeout or error.
    */
-  virtual void receive(std::vector<uint8_t> &bytes) = 0;
+  virtual bool receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
 
   /**
    * @brief Connect to the pipe and verify that the client has connected.
@@ -87,8 +91,8 @@ public:
   WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, bool isServer = false);
   ~WinPipe() override;
 
-  void send(std::vector<uint8_t> bytes) override;
-  void receive(std::vector<uint8_t> &bytes) override;
+  bool send(std::vector<uint8_t> bytes, int timeout_ms) override;
+  bool receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
   void wait_for_client_connection(int milliseconds) override;
   void disconnect() override;
   bool is_connected() override;
