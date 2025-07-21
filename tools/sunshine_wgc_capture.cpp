@@ -11,6 +11,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <d3d11.h>
+#include <deque>
 #include <dxgi1_2.h>
 #include <inspectable.h>  // For IInspectable
 #include <iomanip>  // for std::fixed, std::setprecision
@@ -370,38 +371,37 @@ public:
     return true;
   }
 
-  void calculateFinalResolution(const platf::dxgi::ConfigData &config, bool config_received, const GraphicsCaptureItem &item) {
-    // Get actual WGC item size to ensure we capture full desktop (fixes zoomed display issue)
-    auto item_size = item.Size();
-    auto wgc_width = static_cast<UINT>(item_size.Width);
-    auto wgc_height = static_cast<UINT>(item_size.Height);
-
-    BOOST_LOG(info) << "WGC item reports size: " << wgc_width << "x" << wgc_height;
-    BOOST_LOG(info) << "Monitor logical size: " << fallback_width << "x" << fallback_height;
-    BOOST_LOG(info) << "Config requested size: " << (config_received ? config.width : 0) << "x" << (config_received ? config.height : 0);
-
-    if (config_received && config.width > 0 && config.height > 0) {
-      final_width = config.width;
-      final_height = config.height;
-      BOOST_LOG(info) << "Using config resolution: " << final_width << "x" << final_height;
-    } else {
-      final_width = fallback_width;
-      final_height = fallback_height;
-      BOOST_LOG(info) << "No valid config resolution received, falling back to monitor: " << final_width << "x" << final_height;
+  // Pass `isWindowCapture = true` if you used
+  //   GraphicsCaptureItem::CreateFromWindowId / GraphicsCapturePicker
+  // Pass `false` if you used
+  //   GraphicsCaptureItem::TryCreateFromDisplayId
+  void calculateFinalResolution(const platf::dxgi::ConfigData &config, bool config_received, const GraphicsCaptureItem &item, bool isWindowCapture = false) {
+    // 1. Logical size reported by the API
+    const auto logical = item.Size();  // Width/Height are:
+                                       //  • DIPs for windows
+                                       //  • physical px for displays
+    UINT dpiX = 96, dpiY = 96;
+    if (selected_monitor) {
+      GetDpiForMonitor(selected_monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);  // falls back to 96×96 on error
     }
 
-    // Use physical size from WGC to avoid DPI scaling issues
-    // This ensures we capture the full desktop without cropping/zooming
-    if (wgc_width > 0 && wgc_height > 0) {
-      // Check if there's a significant difference (indicating DPI scaling)
-      if (auto scaling_detected = (abs(static_cast<int>(wgc_width) - static_cast<int>(fallback_width)) > 100) ||
-                                  (abs(static_cast<int>(wgc_height) - static_cast<int>(fallback_height)) > 100);
-          scaling_detected) {
-        BOOST_LOG(info) << "DPI scaling detected - using WGC physical size to avoid zoom issues";
+    const float scaleX = dpiX / 96.0f;
+    const float scaleY = dpiY / 96.0f;
+
+    if (config_received && config.width > 0 && config.height > 0) {
+      // Treat user-supplied numbers as final physical pixels.
+      final_width = config.width;
+      final_height = config.height;
+    } else {
+      if (isWindowCapture) {
+        // Window ⇒ convert DIPs → px
+        final_width = static_cast<UINT>(std::round(logical.Width * scaleX));
+        final_height = static_cast<UINT>(std::round(logical.Height * scaleY));
+      } else {
+        // Display ⇒ already physical, no scaling
+        final_width = logical.Width;
+        final_height = logical.Height;
       }
-      final_width = wgc_width;
-      final_height = wgc_height;
-      BOOST_LOG(info) << "Final resolution (physical): " << final_width << "x" << final_height;
     }
   }
 
@@ -578,6 +578,22 @@ private:
   ID3D11DeviceContext *d3d_context = nullptr;
   AsyncNamedPipe *communication_pipe = nullptr;  // Add pipe communication
 
+  // Dynamic frame buffer management
+  uint32_t current_buffer_size = 1;
+  static constexpr uint32_t MAX_BUFFER_SIZE = 4;
+
+  // Advanced buffer management tracking
+  std::deque<std::chrono::steady_clock::time_point> drop_timestamps;
+  std::atomic<int> outstanding_frames {0};
+  std::atomic<int> peak_outstanding {0};
+  std::chrono::steady_clock::time_point last_quiet_start = std::chrono::steady_clock::now();
+  std::chrono::steady_clock::time_point last_buffer_check = std::chrono::steady_clock::now();
+  IDirect3DDevice winrt_device_cached = nullptr;
+  DXGI_FORMAT capture_format_cached = DXGI_FORMAT_UNKNOWN;
+  UINT width_cached = 0;
+  UINT height_cached = 0;
+  GraphicsCaptureItem capture_item_cached = nullptr;
+
   // Frame processing state
   static std::chrono::steady_clock::time_point last_delivery_time;
   static bool first_frame;
@@ -593,14 +609,116 @@ public:
   WgcCaptureManager &operator=(WgcCaptureManager &&) = delete;
 
   bool createFramePool(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height) {
-    const uint32_t kPoolFrames = 2;
-    frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-      winrt_device,
-      (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? DirectXPixelFormat::R16G16B16A16Float : DirectXPixelFormat::B8G8R8A8UIntNormalized,
-      kPoolFrames,
-      SizeInt32 {static_cast<int32_t>(width), static_cast<int32_t>(height)}
-    );
-    return frame_pool != nullptr;
+    // Cache parameters for dynamic buffer adjustment
+    winrt_device_cached = winrt_device;
+    capture_format_cached = capture_format;
+    width_cached = width;
+    height_cached = height;
+
+    return recreateFramePool(current_buffer_size);
+  }
+
+  /**
+   * @brief Recreates the frame pool with a new buffer size for dynamic adjustment.
+   * @param buffer_size The number of frames to buffer (1 or 2).
+   * @returns true if the frame pool was recreated successfully, false otherwise.
+   */
+  bool recreateFramePool(uint32_t buffer_size) {
+    if (!winrt_device_cached || capture_format_cached == DXGI_FORMAT_UNKNOWN) {
+      return false;
+    }
+
+    if (frame_pool) {
+      // Use the proper Recreate method instead of closing and re-creating
+      try {
+        frame_pool.Recreate(
+          winrt_device_cached,
+          (capture_format_cached == DXGI_FORMAT_R16G16B16A16_FLOAT) ? DirectXPixelFormat::R16G16B16A16Float : DirectXPixelFormat::B8G8R8A8UIntNormalized,
+          buffer_size,
+          SizeInt32 {static_cast<int32_t>(width_cached), static_cast<int32_t>(height_cached)}
+        );
+
+        current_buffer_size = buffer_size;
+        BOOST_LOG(info) << "Frame pool recreated with buffer size: " << buffer_size;
+        return true;
+      } catch (const winrt::hresult_error &ex) {
+        BOOST_LOG(error) << "Failed to recreate frame pool: " << ex.code() << " - " << winrt::to_string(ex.message());
+        return false;
+      }
+    } else {
+      // Initial creation case - create new frame pool
+      frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
+        winrt_device_cached,
+        (capture_format_cached == DXGI_FORMAT_R16G16B16A16_FLOAT) ? DirectXPixelFormat::R16G16B16A16Float : DirectXPixelFormat::B8G8R8A8UIntNormalized,
+        buffer_size,
+        SizeInt32 {static_cast<int32_t>(width_cached), static_cast<int32_t>(height_cached)}
+      );
+
+      if (frame_pool) {
+        current_buffer_size = buffer_size;
+        BOOST_LOG(info) << "Frame pool created with buffer size: " << buffer_size;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * @brief Adjusts frame buffer size dynamically based on dropped frame events and peak occupancy.
+   *
+   * Uses a sliding window approach to track frame drops and buffer utilization:
+   * - Increases buffer count if ≥2 drops occur within any 5-second window
+   * - Decreases buffer count if no drops AND peak occupancy ≤ (bufferCount-1) for 30 seconds
+   */
+  void adjustFrameBufferDynamically() {
+    auto now = std::chrono::steady_clock::now();
+
+    // Check every 1 second for buffer adjustments
+    if (auto time_since_last_check = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_buffer_check);
+        time_since_last_check.count() < 1000) {
+      return;
+    }
+
+    last_buffer_check = now;
+
+    // 1) Prune old drop timestamps (older than 5 seconds)
+    while (!drop_timestamps.empty() &&
+           now - drop_timestamps.front() > std::chrono::seconds(5)) {
+      drop_timestamps.pop_front();
+    }
+
+    // 2) Check if we should increase buffer count (≥2 drops in last 5 seconds)
+    if (drop_timestamps.size() >= 2 && current_buffer_size < MAX_BUFFER_SIZE) {
+      uint32_t new_buffer_size = current_buffer_size + 1;
+      BOOST_LOG(info) << "Detected " << drop_timestamps.size() << " frame drops in 5s window, increasing buffer from "
+                      << current_buffer_size << " to " << new_buffer_size;
+      recreateFramePool(new_buffer_size);
+      drop_timestamps.clear();  // Reset after adjustment
+      peak_outstanding = 0;  // Reset peak tracking
+      last_quiet_start = now;  // Reset quiet timer
+      return;
+    }
+
+    // 3) Check if we should decrease buffer count (sustained quiet period)
+    bool is_quiet = drop_timestamps.empty() &&
+                    peak_outstanding.load() <= static_cast<int>(current_buffer_size) - 1;
+
+    if (is_quiet) {
+      // Check if we've been quiet for 30 seconds
+      if (now - last_quiet_start >= std::chrono::seconds(30) && current_buffer_size > 1) {
+        uint32_t new_buffer_size = current_buffer_size - 1;
+        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << peak_outstanding.load()
+                        << " ≤ " << (current_buffer_size - 1) << ", decreasing buffer from "
+                        << current_buffer_size << " to " << new_buffer_size;
+        recreateFramePool(new_buffer_size);
+        peak_outstanding = 0;  // Reset peak tracking
+        last_quiet_start = now;  // Reset quiet timer
+      }
+    } else {
+      // Reset quiet timer if we're not in a quiet state
+      last_quiet_start = now;
+    }
   }
 
   void attachFrameArrivedHandler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe) {
@@ -609,6 +727,10 @@ public:
     communication_pipe = pipe;
 
     frame_arrived_token = frame_pool.FrameArrived([this](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &) {
+      // Track outstanding frames for buffer occupancy monitoring
+      ++outstanding_frames;
+      peak_outstanding = std::max(peak_outstanding.load(), outstanding_frames.load());
+
       processFrame(sender);
     });
   }
@@ -617,8 +739,8 @@ public:
     // Timestamp #1: Very beginning of FrameArrived handler
     uint64_t timestamp_frame_arrived = qpc_counter();
 
-    auto frame = sender.TryGetNextFrame();
-    if (frame) {
+    if (auto frame = sender.TryGetNextFrame(); frame) {
+      // Frame successfully retrieved
       auto surface = frame.Surface();
 
       // Capture QPC timestamp as close to frame processing as possible
@@ -657,7 +779,19 @@ public:
       }
       surface.Close();
       frame.Close();
+    } else {
+      // Frame drop detected - record timestamp for sliding window analysis
+      auto now = std::chrono::steady_clock::now();
+      drop_timestamps.push_back(now);
+
+      BOOST_LOG(debug) << "Frame drop detected (total drops in 5s window: " << drop_timestamps.size() << ")";
     }
+
+    // Decrement outstanding frame count (always called whether frame retrieved or not)
+    --outstanding_frames;
+
+    // Check if we need to adjust frame buffer size
+    adjustFrameBufferDynamically();
   }
 
   void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t timestamp_frame_arrived, uint64_t frame_qpc) {
@@ -770,13 +904,17 @@ public:
       return false;
     }
 
-    capture_session = frame_pool.CreateCaptureSession(item);
+    // Cache the item for reference
+    capture_item_cached = item;
+
+    capture_session = frame_pool.CreateCaptureSession(capture_item_cached);
     capture_session.IsBorderRequired(false);
 
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
       capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
       BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
     }
+
     return true;
   }
 
@@ -999,17 +1137,16 @@ int main(int argc, char *argv[]) {
 
   // Set up desktop switch hook for secure desktop detection
   BOOST_LOG(info) << "Setting up desktop switch hook...";
-  HWINEVENTHOOK raw_hook = SetWinEventHook(
-    EVENT_SYSTEM_DESKTOPSWITCH,
-    EVENT_SYSTEM_DESKTOPSWITCH,
-    nullptr,
-    DesktopSwitchHookProc,
-    0,
-    0,
-    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-  );
-
-  if (!raw_hook) {
+  if (HWINEVENTHOOK raw_hook = SetWinEventHook(
+        EVENT_SYSTEM_DESKTOPSWITCH,
+        EVENT_SYSTEM_DESKTOPSWITCH,
+        nullptr,
+        DesktopSwitchHookProc,
+        0,
+        0,
+        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
+      );
+      !raw_hook) {
     BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
   } else {
     g_desktop_switch_hook.reset(raw_hook);

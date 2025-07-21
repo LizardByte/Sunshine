@@ -200,21 +200,11 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
-    // Try to use WGC first by attempting lazy initialization
-    lazy_init();
-    if (_session && _session->is_initialized()) {
-      // WGC is available, delegate to base class which calls complete_img
-      BOOST_LOG(debug) << "[display_wgc_ipc_vram_t] Using WGC base class for dummy_img";
-      return display_vram_t::dummy_img(img_base);
-    }
+    // Always use DXGI fallback for dummy_img
+    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Always using DXGI fallback for dummy_img";
 
-    // WGC not available or lazy init failed, fallback to DXGI
-    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] WGC unavailable, using DXGI fallback for dummy_img";
-
-    // Create a temporary DXGI display for dummy image creation
     auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
-      // Successfully initialized DXGI, use it for dummy image
       return temp_dxgi->dummy_img(img_base);
     } else {
       BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to initialize DXGI fallback for dummy_img";
@@ -448,21 +438,11 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
-    // Try to use WGC first by attempting lazy initialization
-    lazy_init();
-    if (_session && _session->is_initialized()) {
-      // WGC is available, delegate to base class which calls complete_img
-      BOOST_LOG(debug) << "[display_wgc_ipc_ram_t] Using WGC base class for dummy_img";
-      return display_ram_t::dummy_img(img_base);
-    }
+    // Always use DXGI fallback for dummy_img
+    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Always using DXGI fallback for dummy_img";
 
-    // WGC not available or lazy init failed, fallback to DXGI
-    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] WGC unavailable, using DXGI fallback for dummy_img";
-
-    // Create a temporary DXGI display for dummy image creation
     auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
-      // Successfully initialized DXGI, use it for dummy image
       return temp_dxgi->dummy_img(img_base);
     } else {
       BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to initialize DXGI fallback for dummy_img";
