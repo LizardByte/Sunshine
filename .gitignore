@@ -46,9 +46,6 @@ docs/doxyconfig*
 node_modules/
 package-lock.json
 
-# Locally compiled Doxygen
-doxygen-*/
-
 # Translations
 *.mo
 *.pot
