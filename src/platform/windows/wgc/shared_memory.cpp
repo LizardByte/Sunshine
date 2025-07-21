@@ -17,14 +17,7 @@
 #include <windows.h>
 
 // --- End of all class and function definitions ---
-// Forwarding implementations for vtable (must be after class definition)
-void WinPipe::send(std::vector<uint8_t> bytes) {
-  send(bytes, false);
-}
-
-void WinPipe::receive(std::vector<uint8_t> &bytes) {
-  receive(bytes, false);
-}
+// Note: The base send() method will be implemented directly in WinPipe
 
 namespace {
   // RAII wrappers for Windows security objects
@@ -386,10 +379,9 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
 // --- NamedPipeFactory Implementation ---
 
 std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
-  BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
+  BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
-  std::wstring wEventName = utf8_to_wide(eventName);
 
   SECURITY_ATTRIBUTES *pSecAttr = nullptr;
   SECURITY_ATTRIBUTES secAttr {};
@@ -402,13 +394,6 @@ std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &p
     secAttr = {sizeof(secAttr), &secDesc, FALSE};
     pSecAttr = &secAttr;
     BOOST_LOG(info) << "Security attributes prepared (isSystem=" << platf::wgc::is_running_as_system() << ").";
-  }
-
-  safe_handle hEvent(CreateEventW(pSecAttr, TRUE, FALSE, wEventName.c_str()));
-  if (!hEvent) {
-    DWORD err = GetLastError();
-    BOOST_LOG(error) << "CreateEventW failed (" << err << ")";
-    return nullptr;
   }
 
   safe_handle hPipe(CreateNamedPipeW(
@@ -427,23 +412,15 @@ std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &p
     return nullptr;
   }
 
-  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), hEvent.release(), true);
+  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), true);
   BOOST_LOG(info) << "Returning WinPipe (server) for '" << pipeName << "'";
   return pipeObj;
 }
 
 std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
-  BOOST_LOG(info) << "NamedPipeFactory::create_client called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
+  BOOST_LOG(info) << "NamedPipeFactory::create_client called with pipeName='" << pipeName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
-  std::wstring wEventName = utf8_to_wide(eventName);
-
-  safe_handle hEvent(CreateEventW(nullptr, TRUE, FALSE, wEventName.c_str()));
-  if (!hEvent) {
-    DWORD err = GetLastError();
-    BOOST_LOG(error) << "CreateEventW failed (" << err << ")";
-    return nullptr;
-  }
 
   safe_handle hPipe = create_client_pipe(fullPipeName);
   if (!hPipe) {
@@ -452,7 +429,7 @@ std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &p
     return nullptr;
   }
 
-  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), hEvent.release(), false);
+  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), false);
   BOOST_LOG(info) << "Returning WinPipe (client) for '" << pipeName << "'";
   return pipeObj;
 }
@@ -541,14 +518,14 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
         return nullptr;
     }
     BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name << "' and event_name='" << event_name << "'";
-    pipe->send(bytes, true);  // Block to ensure WriteFile completes
+    pipe->send(bytes);  // Always blocking now
 
     // Wait for ACK from client before disconnecting
     std::vector<uint8_t> ack;
     bool ack_ok = false;
     auto t0 = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-        pipe->receive(ack, true);  // Blocking receive to wait for ACK
+        pipe->receive(ack);  // Always blocking now
         if (ack.size() == 1 && ack[0] == 0xA5) {
             ack_ok = true;
             BOOST_LOG(info) << "Received handshake ACK from client";
@@ -584,7 +561,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
     bool received = false;
 
     while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-        pipe->receive(bytes, true);  // Use blocking receive to wait for handshake
+        pipe->receive(bytes);  // Always blocking now
         if (!bytes.empty()) {
             received = true;
             break;
@@ -611,10 +588,10 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
 
     std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
 
-    // Send ACK (1 byte) with blocking to ensure delivery
+    // Send ACK (1 byte) always blocking now
     std::vector<uint8_t> ack(1, 0xA5);
     BOOST_LOG(info) << "Sending handshake ACK to server";
-    pipe->send(ack, true);
+    pipe->send(ack);
 
     // Convert wide string to string using proper conversion
     std::wstring wpipeNasme(msg.pipe_name);
@@ -663,9 +640,8 @@ std::string AnonymousPipeFactory::generateGuid() const {
 }
 
 // --- WinPipe Implementation ---
-WinPipe::WinPipe(HANDLE pipe, HANDLE event, bool isServer):
+WinPipe::WinPipe(HANDLE pipe, bool isServer):
     _pipe(pipe),
-    _event(event),
     _connected(false),
     _isServer(isServer) {
   if (!_isServer && _pipe != INVALID_HANDLE_VALUE) {
@@ -678,24 +654,24 @@ WinPipe::~WinPipe() {
   WinPipe::disconnect();
 }
 
-void WinPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
+void WinPipe::send(std::vector<uint8_t> bytes) {
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
     return;
   }
 
   OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // auto-reset event for each op
+  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
   if (!event) {
     BOOST_LOG(error) << "Failed to create event for send operation, error=" << GetLastError();
     return;
   }
   ovl.hEvent = event.get();
-  ResetEvent(ovl.hEvent);
 
   DWORD bytesWritten = 0;
   if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, &ovl); !result) {
     DWORD err = GetLastError();
-    if (err == ERROR_IO_PENDING && block) {
+    if (err == ERROR_IO_PENDING) {
+      // Always wait for completion (blocking)
       BOOST_LOG(info) << "WriteFile is pending, waiting for completion.";
       WaitForSingleObject(ovl.hEvent, INFINITE);
       if (!GetOverlappedResult(_pipe, &ovl, &bytesWritten, FALSE)) {
@@ -704,29 +680,27 @@ void WinPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
       }
     } else {
       BOOST_LOG(error) << "WriteFile failed (" << err << ") in WinPipe::send";
-      return;  // bail out – don't pretend we sent anything
+      return;
     }
   }
   if (bytesWritten != bytes.size()) {
     BOOST_LOG(error) << "WriteFile wrote " << bytesWritten << " bytes, expected " << bytes.size();
   }
-  // No FlushFileBuffers: overlapped completion is sufficient
 }
 
-void WinPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
+void WinPipe::receive(std::vector<uint8_t> &bytes) {
   bytes.clear();
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
     return;
   }
 
   OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));
+  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
   if (!event) {
     BOOST_LOG(error) << "Failed to create event for receive operation, error=" << GetLastError();
     return;
   }
   ovl.hEvent = event.get();
-  ResetEvent(ovl.hEvent);
 
   std::vector<uint8_t> buffer(4096);
   DWORD bytesRead = 0;
@@ -738,7 +712,8 @@ void WinPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
     bytes = std::move(buffer);
   } else {
     DWORD err = GetLastError();
-    if (err == ERROR_IO_PENDING && block) {
+    if (err == ERROR_IO_PENDING) {
+      // Always wait for completion (blocking)
       DWORD waitResult = WaitForSingleObject(ovl.hEvent, INFINITE);
       if (waitResult == WAIT_OBJECT_0) {
         if (GetOverlappedResult(_pipe, &ovl, &bytesRead, FALSE)) {
@@ -773,10 +748,6 @@ void WinPipe::disconnect() {
     CloseHandle(_pipe);
     _pipe = INVALID_HANDLE_VALUE;
   }
-  if (_event) {
-    CloseHandle(_event);
-    _event = nullptr;
-  }
   _connected.store(false, std::memory_order_release);
   BOOST_LOG(info) << "AsyncPipe: Connection state set to false (disconnected).";
 }
@@ -788,24 +759,22 @@ void WinPipe::wait_for_client_connection(int milliseconds) {
 
   if (_isServer) {
     // For server pipes, use ConnectNamedPipe with proper overlapped I/O
-    OVERLAPPED ovl = {0};
-    safe_handle event(CreateEventW(nullptr, TRUE, FALSE, nullptr));  // fresh event for connect
-    if (!event) {
-      BOOST_LOG(error) << "Failed to create event for connection, error=" << GetLastError();
-      return;
-    }
-    ovl.hEvent = event.get();
-    ResetEvent(ovl.hEvent);
-
-    connect_server_pipe(ovl, milliseconds);
-    // event is automatically cleaned up by RAII
+    connect_server_pipe(milliseconds);
   } else {
     // For client handles created with CreateFileW, the connection already exists
     // _connected is set in constructor
   }
 }
 
-void WinPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
+void WinPipe::connect_server_pipe(int milliseconds) {
+  OVERLAPPED ovl = {0};
+  safe_handle event(CreateEventW(nullptr, TRUE, FALSE, nullptr));  // Anonymous manual-reset event
+  if (!event) {
+    BOOST_LOG(error) << "Failed to create event for connection, error=" << GetLastError();
+    return;
+  }
+  ovl.hEvent = event.get();
+
   BOOL result = ConnectNamedPipe(_pipe, &ovl);
   if (result) {
     _connected = true;
@@ -816,8 +785,7 @@ void WinPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
       // Client already connected
       _connected = true;
 
-      // NEW: flip to the correct read‑mode so the first WriteFile
-      // is accepted by the pipe instance
+      // Set to the correct read‑mode so the first WriteFile is accepted by the pipe instance
       DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
       SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
       BOOST_LOG(info) << "WinPipe (server): Client pre‑connected, mode set.";
@@ -829,8 +797,7 @@ void WinPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
         if (GetOverlappedResult(_pipe, &ovl, &transferred, FALSE)) {
           _connected = true;
 
-          // NEW: flip to the correct read‑mode so the first WriteFile
-          // is accepted by the pipe instance
+          // Set to the correct read‑mode so the first WriteFile is accepted by the pipe instance
           DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
           SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
           BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
@@ -850,43 +817,10 @@ bool WinPipe::is_connected() {
   return _connected.load(std::memory_order_acquire);
 }
 
-bool WinPipe::read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) {
-  if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
-    return false;
-  }
-
-  DWORD bytesRead = 0;
-  BOOL result = ReadFile(_pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, overlapped);
-  
-  if (result) {
-    // Read completed immediately
-    return true;
-  } else {
-    DWORD err = GetLastError();
-    if (err == ERROR_IO_PENDING) {
-      // This is expected for overlapped I/O
-      return true;
-    } else {
-      BOOST_LOG(error) << "ReadFile failed in read_overlapped, error=" << err;
-      return false;
-    }
-  }
-}
-
-bool WinPipe::get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) {
-  if (_pipe == INVALID_HANDLE_VALUE) {
-    return false;
-  }
-
-  return GetOverlappedResult(_pipe, overlapped, &bytesRead, FALSE) != FALSE;
-}
-
 // --- AsyncNamedPipe Implementation ---
 AsyncNamedPipe::AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe):
     _pipe(std::move(pipe)),
-    _running(false),
-    _rxBuf(4096) {
-  ZeroMemory(&_ovl, sizeof(_ovl));
+    _running(false) {
 }
 
 AsyncNamedPipe::~AsyncNamedPipe() {
@@ -921,12 +855,6 @@ void AsyncNamedPipe::stop() {
     _pipe->disconnect();
   }
 
-  // Clean up the event if it was created
-  if (_ovl.hEvent) {
-    CloseHandle(_ovl.hEvent);
-    _ovl.hEvent = nullptr;
-  }
-
   if (_worker.joinable()) {
     _worker.join();
   }
@@ -952,60 +880,23 @@ void AsyncNamedPipe::workerThread() {
       return;
     }
 
-    // Create an event for overlapped operations
-    _ovl.hEvent = CreateEventW(nullptr, FALSE, FALSE, nullptr);
-    if (!_ovl.hEvent) {
-      BOOST_LOG(error) << "Failed to create event for AsyncNamedPipe worker thread, error=" << GetLastError();
-      if (_onError) {
-        _onError("Failed to create event for worker thread");
-      }
-      return;
-    }
-
-    // Post the first read
-    bool readPosted = postRead();
-    if (!readPosted) {
-      return;
-    }
-
     while (_running.load(std::memory_order_acquire)) {
-      // Wait for the read to complete
-      DWORD waitResult = WaitForSingleObject(_ovl.hEvent, INFINITE);
-      
-      if (!_running.load(std::memory_order_acquire)) {
-        break;
-      }
-
-      if (waitResult == WAIT_OBJECT_0) {
-        // Get the number of bytes read
-        DWORD bytesRead = 0;
-        if (_pipe->get_overlapped_result(&_ovl, bytesRead)) {
-          if (bytesRead > 0) {
-            // Process the message
-            std::vector<uint8_t> message(_rxBuf.begin(), _rxBuf.begin() + bytesRead);
-            processMessage(message);
-          } else {
-            BOOST_LOG(info) << "AsyncNamedPipe: Read completed with 0 bytes (remote end closed pipe)";
-            break;
-          }
-
-          // Immediately repost the read for the next message
-          if (_running.load(std::memory_order_acquire)) {
-            if (!postRead()) {
-              break;
-            }
-          }
-        } else {
-          DWORD err = GetLastError();
-          BOOST_LOG(error) << "get_overlapped_result failed in worker thread, error=" << err;
-          if (err == ERROR_BROKEN_PIPE) {
-            BOOST_LOG(info) << "Pipe was closed by remote end";
-          }
+      try {
+        std::vector<uint8_t> message;
+        _pipe->receive(message);  // Blocking receive
+        
+        if (!_running.load(std::memory_order_acquire)) {
           break;
         }
-      } else {
-        DWORD err = GetLastError();
-        BOOST_LOG(error) << "WaitForSingleObject failed in worker thread, result=" << waitResult << ", error=" << err;
+
+        if (message.empty()) {
+          BOOST_LOG(info) << "AsyncNamedPipe: Received empty message (remote end closed pipe)";
+          break;
+        }
+
+        processMessage(message);
+      } catch (const std::exception &e) {
+        BOOST_LOG(error) << "AsyncNamedPipe: Exception during receive: " << e.what();
         break;
       }
     }
@@ -1014,11 +905,6 @@ void AsyncNamedPipe::workerThread() {
   } catch (...) {
     handleWorkerUnknownException();
   }
-}
-
-bool AsyncNamedPipe::postRead() {
-  ResetEvent(_ovl.hEvent);
-  return _pipe->read_overlapped(_rxBuf, &_ovl);
 }
 
 bool AsyncNamedPipe::establishConnection() {

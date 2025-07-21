@@ -23,34 +23,16 @@ public:
   virtual ~INamedPipe() = default;
 
   /**
-   * @brief Sends a message through the pipe.
+   * @brief Sends a message through the pipe (always blocking).
    * @param bytes The message to send as a vector of bytes.
-   *
-   * May be asynchronous or blocking depending on implementation.
    */
   virtual void send(std::vector<uint8_t> bytes) = 0;
 
   /**
-   * @brief Sends a message through the pipe.
-   * @param bytes The message to send as a vector of bytes.
-   * @param block If true, the call blocks until the message is sent; if false, it may return immediately.
-   */
-  virtual void send(const std::vector<uint8_t> &bytes, bool block) = 0;
-
-  /**
-   * @brief Receives a message from the pipe.
+   * @brief Receives a message from the pipe (always blocking).
    * @param bytes The received message will be stored in this vector.
-   *
-   * May be asynchronous or blocking depending on implementation.
    */
   virtual void receive(std::vector<uint8_t> &bytes) = 0;
-
-  /**
-   * @brief Receives a message from the pipe.
-   * @param bytes The received message will be stored in this vector.
-   * @param block If true, the call blocks until a message is received; if false, it may return immediately.
-   */
-  virtual void receive(std::vector<uint8_t> &bytes, bool block) = 0;
 
   /**
    * @brief Connect to the pipe and verify that the client has connected.
@@ -69,21 +51,7 @@ public:
    */
   virtual bool is_connected() = 0;
 
-  /**
-   * @brief Performs an overlapped read operation.
-   * @param buffer Buffer to read data into.
-   * @param overlapped OVERLAPPED structure for the operation.
-   * @return True if the operation was initiated successfully, false otherwise.
-   */
-  virtual bool read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) = 0;
 
-  /**
-   * @brief Gets the result of an overlapped operation.
-   * @param overlapped OVERLAPPED structure from the operation.
-   * @param bytesRead Output parameter for number of bytes read.
-   * @return True if the operation completed successfully, false otherwise.
-   */
-  virtual bool get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) = 0;
 };
 
 class AsyncNamedPipe {
@@ -106,37 +74,29 @@ private:
   void processMessage(const std::vector<uint8_t> &bytes) const;
   void handleWorkerException(const std::exception &e) const;
   void handleWorkerUnknownException() const;
-  bool postRead();
 
   std::unique_ptr<INamedPipe> _pipe;
   std::atomic<bool> _running;
   std::thread _worker;
   MessageCallback _onMessage;
   ErrorCallback _onError;
-  std::vector<uint8_t> _rxBuf;
-  OVERLAPPED _ovl;
 };
 
 class WinPipe: public INamedPipe {
 public:
-  WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, HANDLE event = nullptr, bool isServer = false);
+  WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, bool isServer = false);
   ~WinPipe() override;
 
   void send(std::vector<uint8_t> bytes) override;
-  void send(const std::vector<uint8_t> &bytes, bool block) override;
   void receive(std::vector<uint8_t> &bytes) override;
-  void receive(std::vector<uint8_t> &bytes, bool block) override;
   void wait_for_client_connection(int milliseconds) override;
   void disconnect() override;
   bool is_connected() override;
-  bool read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) override;
-  bool get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) override;
 
 private:
-  void connect_server_pipe(OVERLAPPED &ovl, int milliseconds);
+  void connect_server_pipe(int milliseconds);
 
   HANDLE _pipe;
-  HANDLE _event;
   std::atomic<bool> _connected;
   bool _isServer;
 };
