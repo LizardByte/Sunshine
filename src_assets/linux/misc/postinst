@@ -1,6 +1,7 @@
 #!/bin/sh
 
 # Load uhid (DS5 emulation)
+echo "Loading uhid kernel module for DS5 emulation."
 modprobe uhid
 
 # Check if we're in an rpm-ostree environment
