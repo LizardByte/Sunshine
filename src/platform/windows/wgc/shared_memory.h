@@ -15,12 +15,12 @@ namespace platf::dxgi {
   struct safe_handle;
 }
 
-class IAsyncPipe {
+class INamedPipe {
 public:
   /**
    * @brief Virtual destructor for safe polymorphic deletion.
    */
-  virtual ~IAsyncPipe() = default;
+  virtual ~INamedPipe() = default;
 
   /**
    * @brief Sends a message through the pipe.
@@ -91,7 +91,7 @@ public:
   using MessageCallback = std::function<void(const std::vector<uint8_t> &)>;
   using ErrorCallback = std::function<void(const std::string &)>;
 
-  AsyncNamedPipe(std::unique_ptr<IAsyncPipe> pipe);
+  AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe);
   ~AsyncNamedPipe();
 
   bool start(const MessageCallback &onMessage, const ErrorCallback &onError);
@@ -108,7 +108,7 @@ private:
   void handleWorkerUnknownException() const;
   bool postRead();
 
-  std::unique_ptr<IAsyncPipe> _pipe;
+  std::unique_ptr<INamedPipe> _pipe;
   std::atomic<bool> _running;
   std::thread _worker;
   MessageCallback _onMessage;
@@ -117,10 +117,10 @@ private:
   OVERLAPPED _ovl;
 };
 
-class AsyncPipe: public IAsyncPipe {
+class WinPipe: public INamedPipe {
 public:
-  AsyncPipe(HANDLE pipe = INVALID_HANDLE_VALUE, HANDLE event = nullptr, bool isServer = false);
-  ~AsyncPipe() override;
+  WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, HANDLE event = nullptr, bool isServer = false);
+  ~WinPipe() override;
 
   void send(std::vector<uint8_t> bytes) override;
   void send(const std::vector<uint8_t> &bytes, bool block) override;
@@ -144,8 +144,8 @@ private:
 class IAsyncPipeFactory {
 public:
   virtual ~IAsyncPipeFactory() = default;
-  virtual std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) = 0;
-  virtual std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) = 0;
+  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) = 0;
+  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) = 0;
 };
 
 struct AnonConnectMsg {
@@ -154,10 +154,10 @@ struct AnonConnectMsg {
 };
 
 
-class AsyncPipeFactory: public IAsyncPipeFactory {
+class NamedPipeFactory: public IAsyncPipeFactory {
 public:
-  std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
-  std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
 
 private:
   bool create_security_descriptor(SECURITY_DESCRIPTOR &desc) const;
@@ -165,15 +165,15 @@ private:
   platf::dxgi::safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
 };
 
-class AnonymousPipeConnector: public IAsyncPipeFactory {
+class AnonymousPipeFactory: public IAsyncPipeFactory {
 public:
-  AnonymousPipeConnector();
-  std::unique_ptr<IAsyncPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
-  std::unique_ptr<IAsyncPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
+  AnonymousPipeFactory();
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
 
 private:
-  std::unique_ptr<AsyncPipeFactory> _pipeFactory;
-  std::unique_ptr<IAsyncPipe> handshake_server(std::unique_ptr<IAsyncPipe> pipe);
-  std::unique_ptr<IAsyncPipe> handshake_client(std::unique_ptr<IAsyncPipe> pipe);
+  std::unique_ptr<NamedPipeFactory> _pipeFactory;
+  std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
+  std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
   std::string generateGuid() const;
 };

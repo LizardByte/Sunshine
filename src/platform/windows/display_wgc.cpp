@@ -37,11 +37,6 @@ namespace platf::dxgi {
       return -1;
     }
 
-    // Override dimensions with config values (base class sets them to monitor native resolution)
-    width = config.width;
-    height = config.height;
-    width_before_rotation = config.width;
-    height_before_rotation = config.height;
     capture_format = DXGI_FORMAT_UNKNOWN;  // Start with unknown format (prevents race condition/crash on first frame)
 
     // Create session

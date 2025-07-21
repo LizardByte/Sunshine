@@ -105,7 +105,7 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
     };
 
-    auto anonConnector = std::make_unique<AnonymousPipeConnector>();
+    auto anonConnector = std::make_unique<AnonymousPipeFactory>();
 
     auto rawPipe = anonConnector->create_server("SunshineWGCPipe", "SunshineWGCEvent");
     if (!rawPipe) {

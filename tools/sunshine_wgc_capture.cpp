@@ -1298,7 +1298,7 @@ int main(int argc, char *argv[]) {
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
   // Create named pipe for communication with main process
-  AnonymousPipeConnector pipeFactory;
+  AnonymousPipeFactory pipeFactory;
 
   auto commPipe = pipeFactory.create_client("SunshineWGCPipe", "SunshineWGCEvent");
   AsyncNamedPipe communicationPipe(std::move(commPipe));

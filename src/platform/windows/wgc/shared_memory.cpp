@@ -18,11 +18,11 @@
 
 // --- End of all class and function definitions ---
 // Forwarding implementations for vtable (must be after class definition)
-void AsyncPipe::send(std::vector<uint8_t> bytes) {
+void WinPipe::send(std::vector<uint8_t> bytes) {
   send(bytes, false);
 }
 
-void AsyncPipe::receive(std::vector<uint8_t> &bytes) {
+void WinPipe::receive(std::vector<uint8_t> &bytes) {
   receive(bytes, false);
 }
 
@@ -115,7 +115,7 @@ std::wstring utf8_to_wide(const std::string &str) {
 }
 
 
-bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) const {
+bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) const {
   safe_token token;
   util::c_ptr<TOKEN_USER> tokenUser;
   safe_sid user_sid;
@@ -251,7 +251,7 @@ bool AsyncPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
   return true;  // Success
 }
 
-bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const {
+bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const {
   safe_handle target_process(OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, target_pid));
   if (!target_process) {
     DWORD err = GetLastError();
@@ -383,10 +383,10 @@ bool AsyncPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
   return true;  // Success
 }
 
-// --- AsyncPipeFactory Implementation ---
+// --- NamedPipeFactory Implementation ---
 
-std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
-  BOOST_LOG(info) << "AsyncPipeFactory::create_server called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
+std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
+  BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
   std::wstring wEventName = utf8_to_wide(eventName);
@@ -427,13 +427,13 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create_server(const std::string &p
     return nullptr;
   }
 
-  auto pipeObj = std::make_unique<AsyncPipe>(hPipe.release(), hEvent.release(), true);
-  BOOST_LOG(info) << "Returning AsyncPipe (server) for '" << pipeName << "'";
+  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), hEvent.release(), true);
+  BOOST_LOG(info) << "Returning WinPipe (server) for '" << pipeName << "'";
   return pipeObj;
 }
 
-std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
-  BOOST_LOG(info) << "AsyncPipeFactory::create_client called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
+std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
+  BOOST_LOG(info) << "NamedPipeFactory::create_client called with pipeName='" << pipeName << "', eventName='" << eventName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
   std::wstring wEventName = utf8_to_wide(eventName);
@@ -452,13 +452,13 @@ std::unique_ptr<IAsyncPipe> AsyncPipeFactory::create_client(const std::string &p
     return nullptr;
   }
 
-  auto pipeObj = std::make_unique<AsyncPipe>(hPipe.release(), hEvent.release(), false);
-  BOOST_LOG(info) << "Returning AsyncPipe (client) for '" << pipeName << "'";
+  auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), hEvent.release(), false);
+  BOOST_LOG(info) << "Returning WinPipe (client) for '" << pipeName << "'";
   return pipeObj;
 }
 
 // Helper function to create client pipe with retry logic
-safe_handle AsyncPipeFactory::create_client_pipe(const std::wstring &fullPipeName) const {
+safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeName) const {
   const auto kTimeoutEnd = GetTickCount64() + 2000;  // 2s overall timeout instead of 5s for faster failure
   safe_handle hPipe;
 
@@ -494,10 +494,10 @@ safe_handle AsyncPipeFactory::create_client_pipe(const std::wstring &fullPipeNam
 }
 
 
-AnonymousPipeConnector::AnonymousPipeConnector()
-    : _pipeFactory(std::make_unique<AsyncPipeFactory>()) {}
+AnonymousPipeFactory::AnonymousPipeFactory()
+    : _pipeFactory(std::make_unique<NamedPipeFactory>()) {}
 
-std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::create_server(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
     DWORD pid = GetCurrentProcessId();
     std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
     std::string eventNameWithPid = std::format("{}_{}", eventName, pid);
@@ -508,7 +508,7 @@ std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::create_server(const std::str
     return handshake_server(std::move(first_pipe));
 }
 
-std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::create_client(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
     DWORD pid = platf::wgc::get_parent_process_id();
     std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
     std::string eventNameWithPid = std::format("{}_{}", eventName, pid);
@@ -519,7 +519,7 @@ std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::create_client(const std::str
     return handshake_client(std::move(first_pipe));
 }
 
-std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::handshake_server(std::unique_ptr<IAsyncPipe> pipe) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_ptr<INamedPipe> pipe) {
     std::string pipe_name = generateGuid();
     std::string event_name = generateGuid();
 
@@ -576,7 +576,7 @@ std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::handshake_server(std::unique
     return dataPipe;
 }
 
-std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::handshake_client(std::unique_ptr<IAsyncPipe> pipe) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_ptr<INamedPipe> pipe) {
     AnonConnectMsg msg {};  // Zero-initialize
 
     std::vector<uint8_t> bytes;
@@ -626,7 +626,7 @@ std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::handshake_client(std::unique
     pipe->disconnect();
 
     // Retry logic for opening the data pipe
-    std::unique_ptr<IAsyncPipe> data_pipe = nullptr;
+    std::unique_ptr<INamedPipe> data_pipe = nullptr;
     auto retry_start = std::chrono::steady_clock::now();
     const auto retry_timeout = std::chrono::seconds(5);
 
@@ -647,7 +647,7 @@ std::unique_ptr<IAsyncPipe> AnonymousPipeConnector::handshake_client(std::unique
     return data_pipe;
 }
 
-std::string AnonymousPipeConnector::generateGuid() const {
+std::string AnonymousPipeFactory::generateGuid() const {
     GUID guid;
     if (CoCreateGuid(&guid) != S_OK) {
         return {};
@@ -662,23 +662,23 @@ std::string AnonymousPipeConnector::generateGuid() const {
     return wide_to_utf8(wstr);
 }
 
-// --- AsyncPipe Implementation ---
-AsyncPipe::AsyncPipe(HANDLE pipe, HANDLE event, bool isServer):
+// --- WinPipe Implementation ---
+WinPipe::WinPipe(HANDLE pipe, HANDLE event, bool isServer):
     _pipe(pipe),
     _event(event),
     _connected(false),
     _isServer(isServer) {
   if (!_isServer && _pipe != INVALID_HANDLE_VALUE) {
     _connected.store(true, std::memory_order_release);
-    BOOST_LOG(info) << "AsyncPipe (client): Connected immediately after CreateFileW, handle valid.";
+    BOOST_LOG(info) << "WinPipe (client): Connected immediately after CreateFileW, handle valid.";
   }
 }
 
-AsyncPipe::~AsyncPipe() {
-  AsyncPipe::disconnect();
+WinPipe::~WinPipe() {
+  WinPipe::disconnect();
 }
 
-void AsyncPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
+void WinPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
     return;
   }
@@ -703,7 +703,7 @@ void AsyncPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
         return;
       }
     } else {
-      BOOST_LOG(error) << "WriteFile failed (" << err << ") in AsyncPipe::send";
+      BOOST_LOG(error) << "WriteFile failed (" << err << ") in WinPipe::send";
       return;  // bail out – don't pretend we sent anything
     }
   }
@@ -713,7 +713,7 @@ void AsyncPipe::send(const std::vector<uint8_t> &bytes, bool block /*=false*/) {
   // No FlushFileBuffers: overlapped completion is sufficient
 }
 
-void AsyncPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
+void WinPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
   bytes.clear();
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
     return;
@@ -748,7 +748,7 @@ void AsyncPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
           BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << GetLastError();
         }
       } else {
-        BOOST_LOG(error) << "AsyncPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
+        BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
       }
     } else {
       BOOST_LOG(error) << "ReadFile failed in receive, error=" << err;
@@ -757,7 +757,7 @@ void AsyncPipe::receive(std::vector<uint8_t> &bytes, bool block /*=false*/) {
 }
 
 
-void AsyncPipe::disconnect() {
+void WinPipe::disconnect() {
   // Cancel any pending I/O operations (from any thread)
   if (_pipe != INVALID_HANDLE_VALUE) {
     CancelIoEx(_pipe, nullptr);
@@ -766,9 +766,9 @@ void AsyncPipe::disconnect() {
   if (_pipe != INVALID_HANDLE_VALUE) {
     if (_isServer) {
       DisconnectNamedPipe(_pipe);
-      BOOST_LOG(info) << "AsyncPipe (server): Disconnected via DisconnectNamedPipe.";
+      BOOST_LOG(info) << "WinPipe (server): Disconnected via DisconnectNamedPipe.";
     } else {
-      BOOST_LOG(info) << "AsyncPipe (client): Disconnected (no DisconnectNamedPipe).";
+      BOOST_LOG(info) << "WinPipe (client): Disconnected (no DisconnectNamedPipe).";
     }
     CloseHandle(_pipe);
     _pipe = INVALID_HANDLE_VALUE;
@@ -781,7 +781,7 @@ void AsyncPipe::disconnect() {
   BOOST_LOG(info) << "AsyncPipe: Connection state set to false (disconnected).";
 }
 
-void AsyncPipe::wait_for_client_connection(int milliseconds) {
+void WinPipe::wait_for_client_connection(int milliseconds) {
   if (_pipe == INVALID_HANDLE_VALUE) {
     return;
   }
@@ -805,11 +805,11 @@ void AsyncPipe::wait_for_client_connection(int milliseconds) {
   }
 }
 
-void AsyncPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
+void WinPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
   BOOL result = ConnectNamedPipe(_pipe, &ovl);
   if (result) {
     _connected = true;
-    BOOST_LOG(info) << "AsyncPipe (server): Connected after ConnectNamedPipe returned true.";
+    BOOST_LOG(info) << "WinPipe (server): Connected after ConnectNamedPipe returned true.";
   } else {
     DWORD err = GetLastError();
     if (err == ERROR_PIPE_CONNECTED) {
@@ -820,7 +820,7 @@ void AsyncPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
       // is accepted by the pipe instance
       DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
       SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-      BOOST_LOG(info) << "AsyncPipe (server): Client pre‑connected, mode set.";
+      BOOST_LOG(info) << "WinPipe (server): Client pre‑connected, mode set.";
     } else if (err == ERROR_IO_PENDING) {
       // Wait for the connection to complete
       DWORD waitResult = WaitForSingleObject(ovl.hEvent, milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
@@ -833,7 +833,7 @@ void AsyncPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
           // is accepted by the pipe instance
           DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
           SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-          BOOST_LOG(info) << "AsyncPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
+          BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
         } else {
           BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
         }
@@ -846,11 +846,11 @@ void AsyncPipe::connect_server_pipe(OVERLAPPED &ovl, int milliseconds) {
   }
 }
 
-bool AsyncPipe::is_connected() {
+bool WinPipe::is_connected() {
   return _connected.load(std::memory_order_acquire);
 }
 
-bool AsyncPipe::read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) {
+bool WinPipe::read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overlapped) {
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
     return false;
   }
@@ -873,7 +873,7 @@ bool AsyncPipe::read_overlapped(std::vector<uint8_t> &buffer, OVERLAPPED *overla
   }
 }
 
-bool AsyncPipe::get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) {
+bool WinPipe::get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) {
   if (_pipe == INVALID_HANDLE_VALUE) {
     return false;
   }
@@ -882,7 +882,7 @@ bool AsyncPipe::get_overlapped_result(OVERLAPPED *overlapped, DWORD &bytesRead) 
 }
 
 // --- AsyncNamedPipe Implementation ---
-AsyncNamedPipe::AsyncNamedPipe(std::unique_ptr<IAsyncPipe> pipe):
+AsyncNamedPipe::AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe):
     _pipe(std::move(pipe)),
     _running(false),
     _rxBuf(4096) {
