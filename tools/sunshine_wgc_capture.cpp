@@ -81,6 +81,10 @@ constexpr auto __mingw_uuidof<winrt::Windows::Graphics::DirectX::Direct3D11::IDi
 }
 #endif
 
+/**
+ * @brief Get the current QueryPerformanceCounter value.
+ * @return The current QPC counter value as a 64-bit integer.
+ */
 // Function to get QPC counter (similar to main process)
 inline int64_t qpc_counter() {
   LARGE_INTEGER counter;
@@ -97,7 +101,7 @@ using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
 using namespace winrt::Windows::System;
 using namespace std::literals;
 using namespace platf::dxgi;
-using namespace platf::wgc;
+using namespace platf::dxgi;
 
 // Global config data received from main process
 const int INITIAL_LOG_LEVEL = 2;
@@ -125,6 +129,20 @@ private:
   bool mmcss_characteristics_set = false;
 
 public:
+  /**
+   * @brief Initializes the DPI awareness for the current process to prevent display scaling issues.
+   *
+   * This function attempts to set the process DPI awareness using the most modern available API:
+   *
+   * - First, it tries to use SetProcessDpiAwarenessContext (Windows 10 Creators Update/1703 and later)
+   *   with DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2.
+   *
+   * - If unavailable, it falls back to SetProcessDpiAwareness with PROCESS_PER_MONITOR_DPI_AWARE.
+   *
+   * - Logs a warning if unable to set DPI awareness, which may result in display scaling issues.
+   *
+   * @return true if DPI awareness was successfully set, false otherwise.
+   */
   bool initializeDpiAwareness() {
     // Set DPI awareness to prevent zoomed display issues
     // Try the newer API first (Windows 10 1703+), fallback to older API
@@ -157,6 +175,16 @@ public:
     return false;
   }
 
+  /**
+   * @brief Attempts to increase the current thread's priority to the highest level.
+   *
+   * This function sets the priority of the calling thread to THREAD_PRIORITY_HIGHEST
+   * using the Windows API. If the operation fails, it logs an error message with the
+   * corresponding error code and returns false. On success, it marks the thread
+   * priority as set and returns true.
+   *
+   * @return true if the thread priority was successfully set; false otherwise.
+   */
   bool initializeThreadPriority() {
     // Increase thread priority to minimize scheduling delay
     if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST)) {
@@ -168,6 +196,16 @@ public:
     return true;
   }
 
+  /**
+   * @brief Initializes MMCSS (Multimedia Class Scheduler Service) characteristics for the current thread.
+   *
+   * This function attempts to set the thread's MMCSS characteristics to "Pro Audio" for optimal real-time
+   * audio processing. If setting "Pro Audio" fails, it falls back to "Games" as an alternative. The function
+   * logs an error if both attempts fail and returns false. On success, it stores the MMCSS handle and marks
+   * the characteristics as set.
+   *
+   * @return true if MMCSS characteristics were successfully set; false otherwise.
+   */
   bool initializeMmcssCharacteristics() {
     // Set MMCSS for real-time scheduling - try "Pro Audio" for lower latency
     DWORD taskIdx = 0;
@@ -185,11 +223,28 @@ public:
     return true;
   }
 
+  /**
+   * @brief Initializes the Windows Runtime (WinRT) apartment for multi-threaded operations.
+   *
+   * This function sets up the WinRT environment to use a multi-threaded apartment model,
+   * which is required for certain WinRT APIs that expect this threading context.
+   *
+   * @return Always returns true to indicate the initialization was performed.
+   */
   bool initializeWinRtApartment() const {
     winrt::init_apartment(winrt::apartment_type::multi_threaded);
     return true;
   }
 
+  /**
+   * @brief Initializes all required system settings for the application.
+   *
+   * This function sequentially initializes DPI awareness, thread priority,
+   * MMCSS characteristics, and WinRT apartment state. If any initialization
+   * step fails, the function returns false.
+   *
+   * @return true if all initialization steps succeed, false otherwise.
+   */
   bool initializeAll() {
     bool success = true;
     success &= initializeDpiAwareness();
@@ -199,24 +254,48 @@ public:
     return success;
   }
 
+  /**
+   * @brief Cleans up system initialization state.
+   *
+   * Resets the MMCSS handle and marks MMCSS characteristics as unset.
+   * Most cleanup is handled automatically by RAII.
+   */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
     mmcss_handle.reset();
     mmcss_characteristics_set = false;
   }
 
+  /**
+   * @brief Checks if DPI awareness was set successfully.
+   * @return true if DPI awareness is set, false otherwise.
+   */
   bool isDpiAwarenessSet() const {
     return dpi_awareness_set;
   }
 
+  /**
+   * @brief Checks if thread priority was set successfully.
+   * @return true if thread priority is set, false otherwise.
+   */
   bool isThreadPrioritySet() const {
     return thread_priority_set;
   }
 
+  /**
+   * @brief Checks if MMCSS characteristics were set successfully.
+   * @return true if MMCSS characteristics are set, false otherwise.
+   */
   bool isMmcssCharacteristicsSet() const {
     return mmcss_characteristics_set;
   }
 
+  /**
+   * @brief Destructor for SystemInitializer.
+   *
+   * Calls cleanup to ensure any necessary cleanup is performed when the object is destroyed.
+   * All resources are managed using RAII, so explicit cleanup is minimal.
+   */
   ~SystemInitializer() noexcept {
     cleanup();
   }
@@ -269,28 +348,63 @@ public:
     return true;
   }
 
+  /**
+   * @brief Initializes the D3D11 device and WinRT interop device.
+   *
+   * Calls createDevice() to create a D3D11 device and context, then createWinRtInterop() to create the WinRT interop device.
+   *
+   * @return true if both device and interop device are successfully created, false otherwise.
+   * @sideeffect Allocates and stores device, context, and WinRT device handles.
+   */
   bool initializeAll() {
     return createDevice() && createWinRtInterop();
   }
 
+  /**
+   * @brief Cleans up D3D11 device and context resources.
+   *
+   * Resets the device and context smart pointers. Most cleanup is handled by RAII.
+   * Safe to call multiple times.
+   * @sideeffect Releases device and context COM objects.
+   */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
     context.reset();
     device.reset();
   }
 
+  /**
+   * @brief Gets the underlying D3D11 device pointer.
+   *
+   * @return Pointer to the managed ID3D11Device, or nullptr if not initialized.
+   */
   ID3D11Device *getDevice() {
     return device.get();
   }
 
+  /**
+   * @brief Gets the underlying D3D11 device context pointer.
+   *
+   * @return Pointer to the managed ID3D11DeviceContext, or nullptr if not initialized.
+   */
   ID3D11DeviceContext *getContext() {
     return context.get();
   }
 
+  /**
+   * @brief Gets the WinRT IDirect3DDevice for Windows Graphics Capture interop.
+   *
+   * @return The WinRT IDirect3DDevice, or nullptr if not initialized.
+   */
   IDirect3DDevice getWinRtDevice() const {
     return winrt_device;
   }
 
+  /**
+   * @brief Destructor for D3D11DeviceManager.
+   *
+   * Calls cleanup() to release device and context resources.
+   */
   ~D3D11DeviceManager() noexcept {
     cleanup();
   }
@@ -307,6 +421,15 @@ private:
   UINT final_height = 0;
 
 public:
+  /**
+   * @brief Selects a monitor for capture based on the provided configuration.
+   *
+   * If a display name is specified in the config, attempts to find and select the monitor matching that name.
+   * If not found, or if no display name is provided, falls back to selecting the primary monitor.
+   *
+   * @param config The configuration data containing the desired display name (if any).
+   * @return true if a monitor was successfully selected; false if monitor selection failed.
+   */
   bool selectMonitor(const platf::dxgi::ConfigData &config) {
     if (config.displayName[0] != L'\0') {
       // Enumerate monitors to find one matching displayName
@@ -342,6 +465,14 @@ public:
     return true;
   }
 
+  /**
+   * @brief Retrieves information about the currently selected monitor.
+   *
+   * This function queries the Windows API to obtain monitor information for the selected monitor,
+   * including its dimensions. The width and height are stored as fallback values for later use.
+   *
+   * @return true if monitor information was successfully retrieved; false otherwise.
+   */
   bool getMonitorInfo() {
     if (!selected_monitor) {
       return false;
@@ -357,6 +488,16 @@ public:
     return true;
   }
 
+  /**
+   * @brief Creates a Windows Graphics Capture item for the selected monitor.
+   *
+   * Uses the IGraphicsCaptureItemInterop interface to create a GraphicsCaptureItem
+   * corresponding to the currently selected monitor. This item is required for
+   * initiating Windows Graphics Capture sessions.
+   *
+   * @param[out] item Reference to a GraphicsCaptureItem that will be set on success.
+   * @return true if the GraphicsCaptureItem was successfully created; false otherwise.
+   */
   bool createGraphicsCaptureItem(GraphicsCaptureItem &item) {
     if (!selected_monitor) {
       return false;
@@ -371,38 +512,26 @@ public:
     return true;
   }
 
-  // Pass `isWindowCapture = true` if you used
-  //   GraphicsCaptureItem::CreateFromWindowId / GraphicsCapturePicker
-  // Pass `false` if you used
-  //   GraphicsCaptureItem::TryCreateFromDisplayId
-  void calculateFinalResolution(const platf::dxgi::ConfigData &config, bool config_received, const GraphicsCaptureItem &item, bool isWindowCapture = false) {
-    // 1. Logical size reported by the API
-    const auto logical = item.Size();  // Width/Height are:
-                                       //  • DIPs for windows
-                                       //  • physical px for displays
-    UINT dpiX = 96, dpiY = 96;
-    if (selected_monitor) {
-      GetDpiForMonitor(selected_monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);  // falls back to 96×96 on error
-    }
-
-    const float scaleX = dpiX / 96.0f;
-    const float scaleY = dpiY / 96.0f;
-
-    if (config_received && config.width > 0 && config.height > 0) {
-      // Treat user-supplied numbers as final physical pixels.
-      final_width = config.width;
-      final_height = config.height;
-    } else {
-      if (isWindowCapture) {
-        // Window ⇒ convert DIPs → px
-        final_width = static_cast<UINT>(std::round(logical.Width * scaleX));
-        final_height = static_cast<UINT>(std::round(logical.Height * scaleY));
-      } else {
-        // Display ⇒ already physical, no scaling
-        final_width = logical.Width;
-        final_height = logical.Height;
-      }
-    }
+  /**
+   * @brief Calculates the final capture resolution based on config, monitor info, and WGC item size.
+   *
+   * Chooses resolution in this order:
+   *
+   * - Uses config width/height if valid.
+   *
+   * - Otherwise uses monitor logical size.
+   *
+   * - If WGC item size differs significantly (DPI scaling), uses WGC physical size to avoid cropping/zoom.
+   *
+   * @param config The configuration data with requested width/height.
+   * @param config_received True if config data was received.
+   * @param item The GraphicsCaptureItem for the selected monitor.
+   */
+  void calculateFinalResolution(const platf::dxgi::ConfigData &config, bool config_received, const GraphicsCaptureItem &item) {
+    // Get actual WGC item size to ensure we capture full desktop (fixes zoomed display issue)
+    auto item_size = item.Size();
+    final_height = item_size.Height;
+    final_width = item_size.Width;
   }
 
   HMONITOR getSelectedMonitor() const {
@@ -447,6 +576,16 @@ public:
   SharedResourceManager(SharedResourceManager &&) = delete;
   SharedResourceManager &operator=(SharedResourceManager &&) = delete;
 
+  /**
+   * @brief Creates a shared D3D11 texture with keyed mutex for inter-process sharing.
+   *
+   * @param device Pointer to the D3D11 device used for texture creation.
+   * @param texture_width Width of the texture in pixels.
+   * @param texture_height Height of the texture in pixels.
+   * @param format DXGI format for the texture.
+   * @return true if the texture was successfully created; false otherwise.
+   *
+   */
   bool createSharedTexture(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     width = texture_width;
     height = texture_height;
@@ -472,6 +611,10 @@ public:
     return true;
   }
 
+  /**
+   * @brief Acquires a keyed mutex interface from the shared texture for synchronization.
+   * @return true if the keyed mutex was successfully acquired; false otherwise.
+   */
   bool createKeyedMutex() {
     if (!shared_texture) {
       return false;
@@ -487,6 +630,10 @@ public:
     return true;
   }
 
+  /**
+   * @brief Obtains a shared handle for the texture to allow sharing with other processes.
+   * @return true if the shared handle was successfully obtained; false otherwise.
+   */
   bool createSharedHandle() {
     if (!shared_texture) {
       return false;
@@ -511,32 +658,33 @@ public:
     return true;
   }
 
-  bool createFrameMetadataMapping() const {
-    // NOTE: This method is now a no-op - metadata is sent via pipe messages
-    // Keeping the method for compatibility but not creating shared memory
-    BOOST_LOG(info) << "Frame metadata will be sent via pipe communication";
-    return true;
-  }
-
-  bool createFrameEvent() const {
-    // NOTE: This method is now a no-op - frame notifications are sent via pipe messages
-    // Keeping the method for compatibility but not creating Windows events
-    BOOST_LOG(info) << "Frame notifications will be sent via pipe communication";
-    return true;
-  }
-
+  /**
+   * @brief Initializes all shared resource components: texture, keyed mutex, and handle.
+   *
+   * @param device Pointer to the D3D11 device used for resource creation.
+   * @param texture_width Width of the texture in pixels.
+   * @param texture_height Height of the texture in pixels.
+   * @param format DXGI format for the texture.
+   * @return true if all resources were successfully initialized; false otherwise.
+   *
+   */
   bool initializeAll(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     return createSharedTexture(device, texture_width, texture_height, format) &&
            createKeyedMutex() &&
-           createSharedHandle() &&
-           createFrameMetadataMapping() &&
-           createFrameEvent();
+           createSharedHandle();
   }
 
+  /**
+   * @brief Gets the shared handle data (handle, width, height) for inter-process sharing.
+   * @return SharedHandleData struct containing the handle and texture dimensions.
+   */
   platf::dxgi::SharedHandleData getSharedHandleData() const {
     return {shared_handle, width, height};
   }
 
+  /**
+   * @brief Cleans up all managed shared resources. Resets all internal handles and pointers. Safe to call multiple times.
+   */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
     frame_metadata = nullptr;
@@ -547,22 +695,42 @@ public:
     shared_texture.reset();
   }
 
+  /**
+   * @brief Gets the underlying shared D3D11 texture pointer.
+   * @return Pointer to the managed ID3D11Texture2D, or nullptr if not initialized.
+   */
   ID3D11Texture2D *getSharedTexture() {
     return shared_texture.get();
   }
 
+  /**
+   * @brief Gets the keyed mutex interface for the shared texture.
+   * @return Pointer to the managed IDXGIKeyedMutex, or nullptr if not initialized.
+   */
   IDXGIKeyedMutex *getKeyedMutex() {
     return keyed_mutex.get();
   }
 
+  /**
+   * @brief Gets the frame event handle for synchronization.
+   * @return The frame event HANDLE, or nullptr if not initialized.
+   */
   HANDLE getFrameEvent() {
     return frame_event.get();
   }
 
+  /**
+   * @brief Gets the pointer to the frame metadata structure.
+   * @return Pointer to FrameMetadata, or nullptr if not initialized.
+   */
   platf::dxgi::FrameMetadata *getFrameMetadata() const {
     return frame_metadata;
   }
 
+  /**
+   * @brief Destructor for SharedResourceManager.\
+   * Calls cleanup() to release all managed resources. All resources are managed using RAII.
+   */
   ~SharedResourceManager() noexcept {
     cleanup();
   }
@@ -581,11 +749,11 @@ private:
   // Dynamic frame buffer management
   uint32_t current_buffer_size = 1;
   static constexpr uint32_t MAX_BUFFER_SIZE = 4;
-
+  
   // Advanced buffer management tracking
   std::deque<std::chrono::steady_clock::time_point> drop_timestamps;
-  std::atomic<int> outstanding_frames {0};
-  std::atomic<int> peak_outstanding {0};
+  std::atomic<int> outstanding_frames{0};
+  std::atomic<int> peak_outstanding{0};
   std::chrono::steady_clock::time_point last_quiet_start = std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point last_buffer_check = std::chrono::steady_clock::now();
   IDirect3DDevice winrt_device_cached = nullptr;
@@ -602,12 +770,23 @@ private:
 
 public:
   // Rule of 5: delete copy operations and move constructor/assignment
+  /**
+   * @brief Default constructor for WgcCaptureManager.
+   */
   WgcCaptureManager() = default;
   WgcCaptureManager(const WgcCaptureManager &) = delete;
   WgcCaptureManager &operator=(const WgcCaptureManager &) = delete;
   WgcCaptureManager(WgcCaptureManager &&) = delete;
   WgcCaptureManager &operator=(WgcCaptureManager &&) = delete;
 
+  /**
+   * @brief Creates a Direct3D11CaptureFramePool for frame capture.
+   * @param winrt_device The WinRT Direct3D device to use for capture.
+   * @param capture_format The DXGI format for captured frames.
+   * @param width The width of the capture area in pixels.
+   * @param height The height of the capture area in pixels.
+   * @returns true if the frame pool was created successfully, false otherwise.
+   */
   bool createFramePool(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height) {
     // Cache parameters for dynamic buffer adjustment
     winrt_device_cached = winrt_device;
@@ -637,7 +816,7 @@ public:
           buffer_size,
           SizeInt32 {static_cast<int32_t>(width_cached), static_cast<int32_t>(height_cached)}
         );
-
+        
         current_buffer_size = buffer_size;
         BOOST_LOG(info) << "Frame pool recreated with buffer size: " << buffer_size;
         return true;
@@ -660,59 +839,59 @@ public:
         return true;
       }
     }
-
+    
     return false;
   }
 
   /**
    * @brief Adjusts frame buffer size dynamically based on dropped frame events and peak occupancy.
-   *
+   * 
    * Uses a sliding window approach to track frame drops and buffer utilization:
    * - Increases buffer count if ≥2 drops occur within any 5-second window
    * - Decreases buffer count if no drops AND peak occupancy ≤ (bufferCount-1) for 30 seconds
    */
   void adjustFrameBufferDynamically() {
     auto now = std::chrono::steady_clock::now();
-
+    
     // Check every 1 second for buffer adjustments
-    if (auto time_since_last_check = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_buffer_check);
+    if (auto time_since_last_check = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_buffer_check); 
         time_since_last_check.count() < 1000) {
       return;
     }
 
     last_buffer_check = now;
-
+    
     // 1) Prune old drop timestamps (older than 5 seconds)
-    while (!drop_timestamps.empty() &&
+    while (!drop_timestamps.empty() && 
            now - drop_timestamps.front() > std::chrono::seconds(5)) {
       drop_timestamps.pop_front();
     }
-
+    
     // 2) Check if we should increase buffer count (≥2 drops in last 5 seconds)
     if (drop_timestamps.size() >= 2 && current_buffer_size < MAX_BUFFER_SIZE) {
       uint32_t new_buffer_size = current_buffer_size + 1;
-      BOOST_LOG(info) << "Detected " << drop_timestamps.size() << " frame drops in 5s window, increasing buffer from "
+      BOOST_LOG(info) << "Detected " << drop_timestamps.size() << " frame drops in 5s window, increasing buffer from " 
                       << current_buffer_size << " to " << new_buffer_size;
       recreateFramePool(new_buffer_size);
-      drop_timestamps.clear();  // Reset after adjustment
-      peak_outstanding = 0;  // Reset peak tracking
+      drop_timestamps.clear(); // Reset after adjustment
+      peak_outstanding = 0;    // Reset peak tracking
       last_quiet_start = now;  // Reset quiet timer
       return;
     }
-
+    
     // 3) Check if we should decrease buffer count (sustained quiet period)
-    bool is_quiet = drop_timestamps.empty() &&
-                    peak_outstanding.load() <= static_cast<int>(current_buffer_size) - 1;
-
+    bool is_quiet = drop_timestamps.empty() && 
+                   peak_outstanding.load() <= static_cast<int>(current_buffer_size) - 1;
+    
     if (is_quiet) {
       // Check if we've been quiet for 30 seconds
       if (now - last_quiet_start >= std::chrono::seconds(30) && current_buffer_size > 1) {
         uint32_t new_buffer_size = current_buffer_size - 1;
-        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << peak_outstanding.load()
-                        << " ≤ " << (current_buffer_size - 1) << ", decreasing buffer from "
+        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << peak_outstanding.load() 
+                        << " ≤ " << (current_buffer_size - 1) << ", decreasing buffer from " 
                         << current_buffer_size << " to " << new_buffer_size;
         recreateFramePool(new_buffer_size);
-        peak_outstanding = 0;  // Reset peak tracking
+        peak_outstanding = 0;    // Reset peak tracking
         last_quiet_start = now;  // Reset quiet timer
       }
     } else {
@@ -721,6 +900,12 @@ public:
     }
   }
 
+  /**
+   * @brief Attaches the frame arrived event handler for frame processing.
+   * @param res_mgr Pointer to the shared resource manager.
+   * @param context Pointer to the D3D11 device context.
+   * @param pipe Pointer to the async named pipe for IPC.
+   */
   void attachFrameArrivedHandler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe) {
     resource_manager = res_mgr;
     d3d_context = context;
@@ -730,11 +915,15 @@ public:
       // Track outstanding frames for buffer occupancy monitoring
       ++outstanding_frames;
       peak_outstanding = std::max(peak_outstanding.load(), outstanding_frames.load());
-
+      
       processFrame(sender);
     });
   }
 
+  /**
+   * @brief Processes a frame when the frame arrived event is triggered.
+   * @param sender The frame pool that triggered the event.
+   */
   void processFrame(Direct3D11CaptureFramePool const &sender) {
     // Timestamp #1: Very beginning of FrameArrived handler
     uint64_t timestamp_frame_arrived = qpc_counter();
@@ -783,7 +972,7 @@ public:
       // Frame drop detected - record timestamp for sliding window analysis
       auto now = std::chrono::steady_clock::now();
       drop_timestamps.push_back(now);
-
+      
       BOOST_LOG(debug) << "Frame drop detected (total drops in 5s window: " << drop_timestamps.size() << ")";
     }
 
@@ -794,6 +983,12 @@ public:
     adjustFrameBufferDynamically();
   }
 
+  /**
+   * @brief Copies the captured surface to the shared texture and notifies the main process.
+   * @param surface The captured D3D11 surface.
+   * @param timestamp_frame_arrived QPC timestamp when frame arrived.
+   * @param frame_qpc QPC timestamp for the frame.
+   */
   void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t timestamp_frame_arrived, uint64_t frame_qpc) {
     if (!resource_manager || !d3d_context || !communication_pipe) {
       return;
@@ -842,6 +1037,10 @@ public:
     }
   }
 
+  /**
+   * @brief Sends a frame notification to the main process via the communication pipe.
+   * @param metadata The frame metadata to send.
+   */
   void sendFrameNotification(const platf::dxgi::FrameMetadata &metadata) {
     if (!communication_pipe || !communication_pipe->isConnected()) {
       return;
@@ -857,6 +1056,10 @@ public:
     communication_pipe->asyncSend(message);
   }
 
+  /**
+   * @brief Logs performance statistics such as instantaneous FPS and frame count.
+   * @param frame_qpc QPC timestamp for the current frame.
+   */
   void logPerformanceStats(uint64_t frame_qpc) const {
     // Performance telemetry: emit helper-side instantaneous fps (async)
     static uint64_t lastQpc = 0;
@@ -880,6 +1083,12 @@ public:
     }
   }
 
+  /**
+   * @brief Logs high-precision timing deltas for frame processing steps.
+   * @param timestamp_frame_arrived QPC timestamp when frame arrived.
+   * @param timestamp_after_copy QPC timestamp after frame copy.
+   * @param timestamp_after_send QPC timestamp after notification send.
+   */
   void logFrameTiming(uint64_t timestamp_frame_arrived, uint64_t timestamp_after_copy, uint64_t timestamp_after_send) const {
     // Log high-precision timing deltas every 300 frames
     static uint32_t timing_log_counter = 0;
@@ -899,6 +1108,11 @@ public:
     }
   }
 
+  /**
+   * @brief Creates a capture session for the specified capture item.
+   * @param item The GraphicsCaptureItem to capture.
+   * @returns true if the session was created successfully, false otherwise.
+   */
   bool createCaptureSession(GraphicsCaptureItem item) {
     if (!frame_pool) {
       return false;
@@ -906,7 +1120,7 @@ public:
 
     // Cache the item for reference
     capture_item_cached = item;
-
+    
     capture_session = frame_pool.CreateCaptureSession(capture_item_cached);
     capture_session.IsBorderRequired(false);
 
@@ -914,10 +1128,13 @@ public:
       capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
       BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
     }
-
+    
     return true;
   }
 
+  /**
+   * @brief Starts the capture session if available.
+   */
   void startCapture() const {
     if (capture_session) {
       capture_session.StartCapture();
@@ -925,6 +1142,9 @@ public:
     }
   }
 
+  /**
+   * @brief Cleans up the capture session and frame pool resources.
+   */
   void cleanup() noexcept {
     if (capture_session) {
       capture_session.Close();
@@ -937,6 +1157,9 @@ public:
     }
   }
 
+  /**
+   * @brief Destructor for WgcCaptureManager. Calls cleanup().
+   */
   ~WgcCaptureManager() noexcept {
     cleanup();
   }
@@ -948,6 +1171,10 @@ bool WgcCaptureManager::first_frame = true;
 uint32_t WgcCaptureManager::delivery_count = 0;
 std::chrono::milliseconds WgcCaptureManager::total_delivery_time {0};
 
+/**
+ * @brief Callback procedure for desktop switch events.
+ * @details Handles EVENT_SYSTEM_DESKTOPSWITCH to detect secure desktop transitions and notify the main process.
+ */
 // Desktop switch event hook procedure
 void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK /*hWinEventHook*/, DWORD event, HWND /*hwnd*/, LONG /*idObject*/, LONG /*idChild*/, DWORD /*dwEventThread*/, DWORD /*dwmsEventTime*/) {
   if (event == EVENT_SYSTEM_DESKTOPSWITCH) {
@@ -976,6 +1203,10 @@ void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK /*hWinEventHook*/, DWORD event
   }
 }
 
+/**
+ * @brief Helper function to get the system temp directory for log files.
+ * @return Path to a log file in the system temp directory, or current directory as fallback.
+ */
 // Helper function to get the system temp directory
 std::string get_temp_log_path() {
   wchar_t tempPath[MAX_PATH] = {0};
@@ -995,6 +1226,11 @@ std::string get_temp_log_path() {
   return log_file;
 }
 
+/**
+ * @brief Helper function to handle IPC messages from the main process.
+ * @param message The received message bytes.
+ * @param last_msg_time Reference to track the last message timestamp for heartbeat monitoring.
+ */
 // Helper function to handle config messages
 void handleIPCMessage(const std::vector<uint8_t> &message, std::chrono::steady_clock::time_point &last_msg_time) {
   // Heartbeat message: single byte 0x01
@@ -1020,6 +1256,12 @@ void handleIPCMessage(const std::vector<uint8_t> &message, std::chrono::steady_c
   }
 }
 
+/**
+ * @brief Helper function to setup the communication pipe with the main process.
+ * @param communicationPipe Reference to the AsyncNamedPipe to configure.
+ * @param last_msg_time Reference to track heartbeat timing.
+ * @return `true` if the pipe was successfully set up and started, `false` otherwise.
+ */
 // Helper function to setup communication pipe
 bool setupCommunicationPipe(AsyncNamedPipe &communicationPipe, std::chrono::steady_clock::time_point &last_msg_time) {
   auto onMessage = [&last_msg_time](const std::vector<uint8_t> &message) {
@@ -1138,15 +1380,14 @@ int main(int argc, char *argv[]) {
   // Set up desktop switch hook for secure desktop detection
   BOOST_LOG(info) << "Setting up desktop switch hook...";
   if (HWINEVENTHOOK raw_hook = SetWinEventHook(
-        EVENT_SYSTEM_DESKTOPSWITCH,
-        EVENT_SYSTEM_DESKTOPSWITCH,
-        nullptr,
-        DesktopSwitchHookProc,
-        0,
-        0,
-        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-      );
-      !raw_hook) {
+    EVENT_SYSTEM_DESKTOPSWITCH,
+    EVENT_SYSTEM_DESKTOPSWITCH,
+    nullptr,
+    DesktopSwitchHookProc,
+    0,
+    0,
+    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
+  ); !raw_hook) {
     BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
   } else {
     g_desktop_switch_hook.reset(raw_hook);
