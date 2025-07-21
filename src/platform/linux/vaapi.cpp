@@ -2,27 +2,30 @@
  * @file src/platform/linux/vaapi.cpp
  * @brief Definitions for VA-API hardware accelerated capture.
  */
+// standard includes
+#include <fcntl.h>
 #include <sstream>
 #include <string>
 
-#include <fcntl.h>
-
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libavutil/pixdesc.h>
 #include <va/va.h>
 #include <va/va_drm.h>
 #if !VA_CHECK_VERSION(1, 9, 0)
-// vaSyncBuffer stub allows Sunshine built against libva <2.9.0 to link against ffmpeg on libva 2.9.0 or later
-VAStatus
-vaSyncBuffer(
-  VADisplay dpy,
-  VABufferID buf_id,
-  uint64_t timeout_ns) {
-  return VA_STATUS_ERROR_UNIMPLEMENTED;
-}
+  // vaSyncBuffer stub allows Sunshine built against libva <2.9.0 to link against ffmpeg on libva 2.9.0 or later
+  VAStatus
+    vaSyncBuffer(
+      VADisplay dpy,
+      VABufferID buf_id,
+      uint64_t timeout_ns
+    ) {
+    return VA_STATUS_ERROR_UNIMPLEMENTED;
+  }
 #endif
 }
 
+// local includes
 #include "graphics.h"
 #include "misc.h"
 #include "src/config.h"
@@ -68,6 +71,7 @@ namespace va {
 
     // Number of layers making up the surface.
     uint32_t num_layers;
+
     struct {
       // DRM format fourcc of this layer (DRM_FOURCC_*).
       uint32_t drm_format;
@@ -88,13 +92,11 @@ namespace va {
 
   using display_t = util::safe_ptr_v2<void, VAStatus, vaTerminate>;
 
-  int
-  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
+  int vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
   class va_t: public platf::avcodec_encode_device_t {
   public:
-    int
-    init(int in_width, int in_height, file_t &&render_device) {
+    int init(int in_width, int in_height, file_t &&render_device) {
       file = std::move(render_device);
 
       if (!gbm::create_device) {
@@ -129,18 +131,166 @@ namespace va {
       return 0;
     }
 
-    void
-    init_codec_options(AVCodecContext *ctx, AVDictionary *options) override {
-      // Don't set the RC buffer size when using H.264 on Intel GPUs. It causes
-      // major encoding quality degradation.
+    /**
+     * @brief Finds a supported VA entrypoint for the given VA profile.
+     * @param profile The profile to match.
+     * @return A valid encoding entrypoint or 0 on failure.
+     */
+    VAEntrypoint select_va_entrypoint(VAProfile profile) {
+      std::vector<VAEntrypoint> entrypoints(vaMaxNumEntrypoints(va_display));
+      int num_eps;
+      auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps);
+      if (status != VA_STATUS_SUCCESS) {
+        BOOST_LOG(error) << "Failed to query VA entrypoints: "sv << vaErrorStr(status);
+        return (VAEntrypoint) 0;
+      }
+      entrypoints.resize(num_eps);
+
+      // Sorted in order of descending preference
+      VAEntrypoint ep_preferences[] = {
+        VAEntrypointEncSliceLP,
+        VAEntrypointEncSlice,
+        VAEntrypointEncPicture
+      };
+      for (auto ep_pref : ep_preferences) {
+        if (std::find(entrypoints.begin(), entrypoints.end(), ep_pref) != entrypoints.end()) {
+          return ep_pref;
+        }
+      }
+
+      return (VAEntrypoint) 0;
+    }
+
+    /**
+     * @brief Determines if a given VA profile is supported.
+     * @param profile The profile to match.
+     * @return Boolean value indicating if the profile is supported.
+     */
+    bool is_va_profile_supported(VAProfile profile) {
+      std::vector<VAProfile> profiles(vaMaxNumProfiles(va_display));
+      int num_profs;
+      auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs);
+      if (status != VA_STATUS_SUCCESS) {
+        BOOST_LOG(error) << "Failed to query VA profiles: "sv << vaErrorStr(status);
+        return false;
+      }
+      profiles.resize(num_profs);
+
+      return std::find(profiles.begin(), profiles.end(), profile) != profiles.end();
+    }
+
+    /**
+     * @brief Determines the matching VA profile for the codec configuration.
+     * @param ctx The FFmpeg codec context.
+     * @return The matching VA profile or `VAProfileNone` on failure.
+     */
+    VAProfile get_va_profile(AVCodecContext *ctx) {
+      if (ctx->codec_id == AV_CODEC_ID_H264) {
+        // There's no VAAPI profile for H.264 4:4:4
+        return VAProfileH264High;
+      } else if (ctx->codec_id == AV_CODEC_ID_HEVC) {
+        switch (ctx->profile) {
+          case FF_PROFILE_HEVC_REXT:
+            switch (av_pix_fmt_desc_get(ctx->sw_pix_fmt)->comp[0].depth) {
+              case 10:
+                return VAProfileHEVCMain444_10;
+              case 8:
+                return VAProfileHEVCMain444;
+            }
+            break;
+          case FF_PROFILE_HEVC_MAIN_10:
+            return VAProfileHEVCMain10;
+          case FF_PROFILE_HEVC_MAIN:
+            return VAProfileHEVCMain;
+        }
+      } else if (ctx->codec_id == AV_CODEC_ID_AV1) {
+        switch (ctx->profile) {
+          case FF_PROFILE_AV1_HIGH:
+            return VAProfileAV1Profile1;
+          case FF_PROFILE_AV1_MAIN:
+            return VAProfileAV1Profile0;
+        }
+      }
+
+      BOOST_LOG(error) << "Unknown encoder profile: "sv << ctx->profile;
+      return VAProfileNone;
+    }
+
+    void init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
+      auto va_profile = get_va_profile(ctx);
+      if (va_profile == VAProfileNone || !is_va_profile_supported(va_profile)) {
+        // Don't bother doing anything if the profile isn't supported
+        return;
+      }
+
+      auto va_entrypoint = select_va_entrypoint(va_profile);
+      if (va_entrypoint == 0) {
+        // It's possible that only decoding is supported for this profile
+        return;
+      }
+
       auto vendor = vaQueryVendorString(va_display);
-      if (ctx->codec_id != AV_CODEC_ID_H264 || (vendor && !strstr(vendor, "Intel"))) {
+
+      if (va_entrypoint == VAEntrypointEncSliceLP) {
+        BOOST_LOG(info) << "Using LP encoding mode"sv;
+        av_dict_set_int(options, "low_power", 1, 0);
+      } else {
+        BOOST_LOG(info) << "Using normal encoding mode"sv;
+      }
+
+      VAConfigAttrib rc_attr = {VAConfigAttribRateControl};
+      auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
+      if (status != VA_STATUS_SUCCESS) {
+        // Stick to the default rate control (CQP)
+        rc_attr.value = 0;
+      }
+
+      VAConfigAttrib slice_attr = {VAConfigAttribEncMaxSlices};
+      status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &slice_attr, 1);
+      if (status != VA_STATUS_SUCCESS) {
+        // Assume only a single slice is supported
+        slice_attr.value = 1;
+      }
+      if (ctx->slices > slice_attr.value) {
+        BOOST_LOG(info) << "Limiting slice count to encoder maximum: "sv << slice_attr.value;
+        ctx->slices = slice_attr.value;
+      }
+
+      // Use VBR with a single frame VBV when the user forces it and for known good cases:
+      // - Intel GPUs
+      // - AV1
+      //
+      // VBR ensures the bitstream isn't full of filler data for bitrate undershoots and
+      // single frame VBV ensures that we don't have large bitrate overshoots (at least
+      // as much as they can be avoided without pre-analysis).
+      //
+      // When we have to resort to the default 1 second VBV for encoding quality reasons,
+      // we stick to CBR in order to avoid encoding huge frames after bitrate undershoots
+      // leave headroom available in the RC window.
+      if (config::video.vaapi.strict_rc_buffer ||
+          (vendor && strstr(vendor, "Intel")) ||
+          ctx->codec_id == AV_CODEC_ID_AV1) {
         ctx->rc_buffer_size = ctx->bit_rate * ctx->framerate.den / ctx->framerate.num;
+
+        if (rc_attr.value & VA_RC_VBR) {
+          BOOST_LOG(info) << "Using VBR with single frame VBV size"sv;
+          av_dict_set(options, "rc_mode", "VBR", 0);
+        } else if (rc_attr.value & VA_RC_CBR) {
+          BOOST_LOG(info) << "Using CBR with single frame VBV size"sv;
+          av_dict_set(options, "rc_mode", "CBR", 0);
+        } else {
+          BOOST_LOG(warning) << "Using CQP with single frame VBV size"sv;
+          av_dict_set_int(options, "qp", config::video.qp, 0);
+        }
+      } else if (!(rc_attr.value & (VA_RC_CBR | VA_RC_VBR))) {
+        BOOST_LOG(warning) << "Using CQP rate control"sv;
+        av_dict_set_int(options, "qp", config::video.qp, 0);
+      } else {
+        BOOST_LOG(info) << "Using default rate control"sv;
       }
     }
 
-    int
-    set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
+    int set_frame(AVFrame *frame, AVBufferRef *hw_frames_ctx_buf) override {
       this->hwframe.reset(frame);
       this->frame = frame;
 
@@ -160,7 +310,8 @@ namespace va {
         surface,
         va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
         va::EXPORT_SURFACE_WRITE_ONLY | va::EXPORT_SURFACE_SEPARATE_LAYERS,
-        &prime);
+        &prime
+      );
       if (status) {
         BOOST_LOG(error) << "Couldn't export va surface handle: ["sv << (int) surface << "]: "sv << vaErrorStr(status);
 
@@ -216,8 +367,7 @@ namespace va {
       return 0;
     }
 
-    void
-    apply_colorspace() override {
+    void apply_colorspace() override {
       sws.apply_colorspace(colorspace);
     }
 
@@ -240,8 +390,7 @@ namespace va {
 
   class va_ram_t: public va_t {
   public:
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       sws.load_ram(img);
 
       sws.convert(nv12->buf);
@@ -251,15 +400,13 @@ namespace va {
 
   class va_vram_t: public va_t {
   public:
-    int
-    convert(platf::img_t &img) override {
+    int convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
       if (descriptor.sequence == 0) {
         // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
         rgb = egl::create_blank(img);
-      }
-      else if (descriptor.sequence > sequence) {
+      } else if (descriptor.sequence > sequence) {
         sequence = descriptor.sequence;
 
         rgb = egl::rgb_t {};
@@ -279,8 +426,7 @@ namespace va {
       return 0;
     }
 
-    int
-    init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y) {
+    int init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y) {
       if (va_t::init(in_width, in_height, std::move(render_device))) {
         return -1;
       }
@@ -310,6 +456,7 @@ namespace va {
       void *xdisplay;
       int fd;
     } drm;
+
     int drm_fd;
   } VAAPIDevicePriv;
 
@@ -333,13 +480,11 @@ namespace va {
     unsigned int driver_quirks;
   } AVVAAPIDeviceContext;
 
-  static void
-  __log(void *level, const char *msg) {
+  static void __log(void *level, const char *msg) {
     BOOST_LOG(*(boost::log::sources::severity_logger<int> *) level) << msg;
   }
 
-  static void
-  vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
+  static void vaapi_hwdevice_ctx_free(AVHWDeviceContext *ctx) {
     auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
     auto priv = (VAAPIDevicePriv *) ctx->user_opaque;
 
@@ -348,8 +493,7 @@ namespace va {
     av_freep(&priv);
   }
 
-  int
-  vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
+  int vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
     auto va = (va::va_t *) base;
     auto fd = dup(va->file.el);
 
@@ -361,7 +505,7 @@ namespace va {
       av_free(priv);
     });
 
-    va::display_t display { vaGetDisplayDRM(fd) };
+    va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
       auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
@@ -395,7 +539,7 @@ namespace va {
 
     auto err = av_hwdevice_ctx_init(*hw_device_buf);
     if (err) {
-      char err_str[AV_ERROR_MAX_STRING_SIZE] { 0 };
+      char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
       return err;
@@ -404,8 +548,7 @@ namespace va {
     return 0;
   }
 
-  static bool
-  query(display_t::pointer display, VAProfile profile) {
+  static bool query(display_t::pointer display, VAProfile profile) {
     std::vector<VAEntrypoint> entrypoints;
     entrypoints.resize(vaMaxNumEntrypoints(display));
 
@@ -426,15 +569,14 @@ namespace va {
     return false;
   }
 
-  bool
-  validate(int fd) {
-    va::display_t display { vaGetDisplayDRM(fd) };
+  bool validate(int fd) {
+    va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
       char string[1024];
 
       auto bytes = readlink(("/proc/self/fd/" + std::to_string(fd)).c_str(), string, sizeof(string));
 
-      std::string_view render_device { string, (std::size_t) bytes };
+      std::string_view render_device {string, (std::size_t) bytes};
 
       BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
       return false;
@@ -462,8 +604,7 @@ namespace va {
     return true;
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, file_t &&card, int offset_x, int offset_y, bool vram) {
     if (vram) {
       auto egl = std::make_unique<va::va_vram_t>();
       if (egl->init(width, height, std::move(card), offset_x, offset_y)) {
@@ -483,8 +624,7 @@ namespace va {
     }
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
     file_t file = open(render_device, O_RDWR);
@@ -498,8 +638,7 @@ namespace va {
     return make_avcodec_encode_device(width, height, std::move(file), offset_x, offset_y, vram);
   }
 
-  std::unique_ptr<platf::avcodec_encode_device_t>
-  make_avcodec_encode_device(int width, int height, bool vram) {
+  std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram) {
     return make_avcodec_encode_device(width, height, 0, 0, vram);
   }
 }  // namespace va

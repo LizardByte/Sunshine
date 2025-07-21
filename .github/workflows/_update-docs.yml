@@ -1,0 +1,34 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# To use, add the `rtd` repository label to identify repositories that should trigger this workflow.
+# If the project slug is not the repository name, add a repository variable named `READTHEDOCS_SLUG` with the value of
+# the ReadTheDocs project slug.
+
+# Update readthedocs on release events.
+
+name: Update docs
+permissions: {}
+
+on:
+  release:
+    types:
+      - created
+      - edited
+      - deleted
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.event.release.tag_name }}"
+  cancel-in-progress: true
+
+jobs:
+  update-docs:
+    name: Update docs
+    uses: LizardByte/.github/.github/workflows/__call-update-docs.yml@master
+    if: github.repository_owner == 'LizardByte'
+    with:
+      readthedocs_slug: ${{ vars.READTHEDOCS_SLUG }}
+    secrets:
+      READTHEDOCS_TOKEN: ${{ secrets.READTHEDOCS_TOKEN }}

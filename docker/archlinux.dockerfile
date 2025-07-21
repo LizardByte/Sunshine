@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.4
+# syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64
 # archlinux does not have an arm64 base image
@@ -17,7 +17,7 @@ pacman -Syu --disable-download-timeout --noconfirm
 pacman -Scc --noconfirm
 _DEPS
 
-FROM sunshine-base as sunshine-build
+FROM sunshine-base AS sunshine-build
 
 ARG BRANCH
 ARG BUILD_VERSION
@@ -28,21 +28,23 @@ ARG CLONE_URL
 ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
+ENV CLONE_URL=${CLONE_URL}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Setup builder user, arch prevents running makepkg as root
-RUN useradd -m builder && \
-    echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
-
-# patch the build flags
 # hadolint ignore=SC2016
-RUN sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
-
-# install dependencies
-RUN <<_DEPS
+RUN <<_SETUP
 #!/bin/bash
 set -e
+
+# Setup builder user, arch prevents running makepkg as root
+useradd -m builder
+echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+# patch the build flags
+sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
+
+# install dependencies
 pacman -Syu --disable-download-timeout --needed --noconfirm \
   base-devel \
   cmake \
@@ -51,7 +53,7 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   namcap \
   xorg-server-xvfb
 pacman -Scc --noconfirm
-_DEPS
+_SETUP
 
 # Setup builder user
 USER builder
@@ -67,26 +69,25 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
-if [[ "${BUILD_VERSION}" == '' ]]; then
+
+sub_version=""
+if [[ "${BRANCH}" != "master" ]]; then
   sub_version=".r${COMMIT}"
-else
-  sub_version=""
 fi
+
 cmake \
+  -DSUNSHINE_CONFIGURE_ONLY=ON \
   -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
   -DSUNSHINE_SUB_VERSION="${sub_version}" \
-  -DGITHUB_CLONE_URL="${CLONE_URL}" \
-  -DGITHUB_BRANCH=${BRANCH} \
-  -DGITHUB_BUILD_VERSION=${BUILD_VERSION} \
-  -DGITHUB_COMMIT="${COMMIT}" \
-  -DSUNSHINE_CONFIGURE_ONLY=ON \
   /build/sunshine
 _MAKE
 
 WORKDIR /build/sunshine/pkg
-RUN mv /build/sunshine/build/PKGBUILD .
-RUN mv /build/sunshine/build/sunshine.install .
-RUN makepkg --printsrcinfo > .SRCINFO
+RUN <<_PACKAGE
+mv /build/sunshine/build/PKGBUILD .
+mv /build/sunshine/build/sunshine.install .
+makepkg --printsrcinfo > .SRCINFO
+_PACKAGE
 
 # create a PKGBUILD archive
 USER root
@@ -111,14 +112,13 @@ rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
-FROM scratch as artifacts
+FROM sunshine-base AS sunshine
 
 COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
-COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
 
-FROM sunshine-base as sunshine
-
-COPY --link --from=artifacts /sunshine.pkg.tar.zst /
+# artifacts to be extracted in CI
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /artifacts/sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /artifacts/sunshine.pkg.tar.gz
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

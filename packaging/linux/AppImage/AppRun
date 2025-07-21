@@ -48,9 +48,10 @@ function install() {
   # shellcheck disable=SC2002
   cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sunshine.rules" | sudo tee /etc/udev/rules.d/60-sunshine.rules
   cat "$SUNSHINE_SHARE_HERE/modules-load.d/60-sunshine.conf" | sudo tee /etc/modules-load.d/60-sunshine.conf
+  sudo modprobe uhid
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
-  sudo modprobe uhid
+  sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
 
   # sunshine service
   mkdir -p ~/.config/systemd/user

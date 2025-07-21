@@ -35,16 +35,12 @@ endif ()
 
 set(TEST_DEFINITIONS)  # list will be appended as needed
 
-# make sure TESTS_SOFTWARE_ENCODER_UNAVAILABLE is set to "fail" or "skip"
-if (NOT (TESTS_SOFTWARE_ENCODER_UNAVAILABLE STREQUAL "fail" OR TESTS_SOFTWARE_ENCODER_UNAVAILABLE STREQUAL "skip"))
-    set(TESTS_SOFTWARE_ENCODER_UNAVAILABLE "fail")
-endif ()
-list(APPEND TEST_DEFINITIONS TESTS_SOFTWARE_ENCODER_UNAVAILABLE="${TESTS_SOFTWARE_ENCODER_UNAVAILABLE}")  # fail/skip
+# this indicates we're building tests in case sunshine needs to adjust some code or add private tests
+list(APPEND TEST_DEFINITIONS SUNSHINE_TESTS)
 
-file(GLOB_RECURSE TEST_SOURCES
-        ${CMAKE_SOURCE_DIR}/tests/conftest.cpp
-        ${CMAKE_SOURCE_DIR}/tests/utils.cpp
-        ${CMAKE_SOURCE_DIR}/tests/test_*.cpp)
+file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
+        ${CMAKE_SOURCE_DIR}/tests/*.h
+        ${CMAKE_SOURCE_DIR}/tests/*.cpp)
 
 set(SUNSHINE_SOURCES
         ${SUNSHINE_TARGET_FILES})
@@ -60,11 +56,10 @@ foreach(dep ${SUNSHINE_TARGET_DEPENDENCIES})
     add_dependencies(${PROJECT_NAME} ${dep})  # compile these before sunshine
 endforeach()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 20)
+set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23)
 target_link_libraries(${PROJECT_NAME}
         ${SUNSHINE_EXTERNAL_LIBRARIES}
         gtest
-        gtest_main  # if we use this we don't need our own main function
         ${PLATFORM_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
@@ -72,8 +67,6 @@ target_link_options(${PROJECT_NAME} PRIVATE)
 
 if (WIN32)
     # prefer static libraries since we're linking statically
-    # this fixes gtest_main and libcurl linking errors, when using non MSYS2 version of CMake
+    # this fixes libcurl linking errors when using non MSYS2 version of CMake
     set_target_properties(${PROJECT_NAME} PROPERTIES LINK_SEARCH_START_STATIC 1)
 endif ()
-
-add_test(NAME ${PROJECT_NAME} COMMAND sunshine_test)

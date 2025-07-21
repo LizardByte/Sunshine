@@ -48,12 +48,9 @@ elseif(UNIX)
     endif()
 endif()
 
-include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include")
+include_directories(BEFORE SYSTEM "${CMAKE_SOURCE_DIR}/third-party/nv-codec-headers/include")
 file(GLOB NVENC_SOURCES CONFIGURE_DEPENDS "src/nvenc/*.cpp" "src/nvenc/*.h")
 list(APPEND PLATFORM_TARGET_FILES ${NVENC_SOURCES})
-
-configure_file("${CMAKE_SOURCE_DIR}/src/version.h.in" version.h @ONLY)
-include_directories("${CMAKE_CURRENT_BINARY_DIR}")  # required for importing version.h
 
 set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/src/Input.h"
@@ -68,6 +65,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/uuid.h"
         "${CMAKE_SOURCE_DIR}/src/config.h"
         "${CMAKE_SOURCE_DIR}/src/config.cpp"
+        "${CMAKE_SOURCE_DIR}/src/display_device.h"
+        "${CMAKE_SOURCE_DIR}/src/display_device.cpp"
         "${CMAKE_SOURCE_DIR}/src/entry_handler.cpp"
         "${CMAKE_SOURCE_DIR}/src/entry_handler.h"
         "${CMAKE_SOURCE_DIR}/src/file_handler.cpp"
@@ -124,9 +123,15 @@ list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_ASSETS_DIR="${SUNSHINE_ASSETS_DIR_DEF}
 
 list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY=${SUNSHINE_TRAY})
 
-include_directories("${CMAKE_SOURCE_DIR}")
+# Publisher metadata
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_NAME="${SUNSHINE_PUBLISHER_NAME}")
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_WEBSITE="${SUNSHINE_PUBLISHER_WEBSITE}")
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_PUBLISHER_ISSUE_URL="${SUNSHINE_PUBLISHER_ISSUE_URL}")
+
+include_directories(BEFORE "${CMAKE_SOURCE_DIR}")
 
 include_directories(
+        BEFORE
         SYSTEM
         "${CMAKE_SOURCE_DIR}/third-party"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
@@ -140,6 +145,8 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${MINIUPNP_LIBRARIES}
         ${CMAKE_THREAD_LIBS_INIT}
         enet
+        libdisplaydevice::display_device
+        nlohmann_json::nlohmann_json
         opus
         ${FFMPEG_LIBRARIES}
         ${Boost_LIBRARIES}

@@ -31,8 +31,7 @@ PROJECT_NAME = Sunshine
 
 # project specific settings
 DOT_GRAPH_MAX_NODES = 60
-IMAGE_PATH = ../docs/images
-INCLUDE_PATH = ../third-party/build-deps/ffmpeg/Linux-x86_64/include/
+# IMAGE_PATH = ../docs/images
 PREDEFINED += SUNSHINE_BUILD_WAYLAND
 PREDEFINED += SUNSHINE_TRAY=1
 
@@ -50,10 +49,22 @@ INPUT = ../README.md \
         legal.md \
         configuration.md \
         app_examples.md \
+        awesome_sunshine.md \
         guides.md \
         performance_tuning.md \
+        api.md \
         troubleshooting.md \
         building.md \
         contributing.md \
         ../third-party/doxyconfig/docs/source_code.md \
         ../src
+
+# extra css
+HTML_EXTRA_STYLESHEET += doc-styles.css
+
+# extra js
+HTML_EXTRA_FILES += api.js
+HTML_EXTRA_FILES += configuration.js
+
+# custom aliases
+ALIASES += api_examples{3|}="@htmlonly<script>(function() { let examples = generateExamples('\1', '\2', \3); document.write(createTabs(examples)); })();</script>@endhtmlonly"

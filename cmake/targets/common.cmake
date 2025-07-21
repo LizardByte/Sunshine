@@ -27,7 +27,7 @@ endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-set_target_properties(sunshine PROPERTIES CXX_STANDARD 20
+set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
         VERSION ${PROJECT_VERSION}
         SOVERSION ${PROJECT_VERSION_MAJOR})
 
@@ -53,10 +53,17 @@ endif()
 
 #WebUI build
 find_program(NPM npm REQUIRED)
+
+if (NPM_OFFLINE)
+    set(NPM_INSTALL_FLAGS "--offline")
+else()
+    set(NPM_INSTALL_FLAGS "")
+endif()
+
 add_custom_target(web-ui ALL
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Installing NPM Dependencies and Building the Web UI"
-        COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" install
+        COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" install ${NPM_INSTALL_FLAGS}
         COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
         COMMAND_EXPAND_LISTS
         VERBATIM)
@@ -106,9 +113,15 @@ set_source_files_properties("${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/src/ViG
 string(TOUPPER "x${CMAKE_BUILD_TYPE}" BUILD_TYPE)
 if("${BUILD_TYPE}" STREQUAL "XDEBUG")
     if(WIN32)
-        set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
-                DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
-                PROPERTIES COMPILE_FLAGS -O2)
+        if (NOT BUILD_TESTS)
+            set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
+                    DIRECTORY "${CMAKE_SOURCE_DIR}"
+                    PROPERTIES COMPILE_FLAGS -O2)
+        else()
+            set_source_files_properties("${CMAKE_SOURCE_DIR}/src/nvhttp.cpp"
+                    DIRECTORY "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests"
+                    PROPERTIES COMPILE_FLAGS -O2)
+        endif()
     endif()
 else()
     add_definitions(-DNDEBUG)

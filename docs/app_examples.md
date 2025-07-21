@@ -23,25 +23,28 @@ process is killed.}
 
 @tabs{
   @tab{Linux | <!-- -->
-    \| Field             \| Value                                               \|
-    \|-------------------\|-----------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                    \|
-    \| Detached Commands \| @code{}setsid steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                            \|
+    \| Field                        \| Value                                                \|
+    \|------------------------------\|------------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
+    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
+    \| Image                        \| @code{}steam.png@endcode                             \|
   }
   @tab{macOS | <!-- -->
-    \| Field             \| Value                                             \|
-    \|-------------------\|---------------------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode                  \|
-    \| Detached Commands \| @code{}open steam steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode                          \|
+    \| Field                        \| Value                                          \|
+    \|------------------------------\|------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode               \|
+    \| Command Preporations -> Undo \| @code{}open steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}open steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                       \|
   }
   @tab{Windows | <!-- -->
-    \| Field             \| Value                                  \|
-    \|-------------------\|----------------------------------------\|
-    \| Application Name  \| @code{}Steam Big Picture@endcode       \|
-    \| Detached Commands \| @code{}steam://open/bigpicture@endcode \|
-    \| Image             \| @code{}steam.png@endcode               \|
+    \| Field                        \| Value                                     \|
+    \|------------------------------\|-------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode          \|
+    \| Command Preporations -> Undo \| @code{}steam://close/bigpicture@endcode   \|
+    \| Detached Commands            \| @code{}steam://open/bigpicture@endcode    \|
+    \| Image                        \| @code{}steam.png@endcode                  \|
   }
 }
 
@@ -167,7 +170,7 @@ process is killed.}
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
 @hint{The above only works if the xrandr mode already exists. You will need to create new modes to stream to macOS
-and iOS devices, since they use non standard resolutions.
+and iOS devices, since they use non-standard resolutions.
 
 You can update the ``Do`` command to this:
 ```bash
@@ -210,7 +213,7 @@ xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rot
 ```
 }
 
-###### Wayland
+###### Wayland (wlroots, e.g. hyprland)
 
 | Prep Step | Command                                                                                                                                  |
 |-----------|------------------------------------------------------------------------------------------------------------------------------------------|
@@ -219,17 +222,30 @@ xrandr --output ${display_output} --primary --mode ${mode_alias} --pos 0x0 --rot
 
 @hint{`wlr-xrandr` only works with wlroots-based compositors.}
 
-###### Gnome (Wayland, X11)
+###### Gnome (X11)
 
 | Prep Step | Command                                                                                                                               |
 |-----------|---------------------------------------------------------------------------------------------------------------------------------------|
 | Do        | @code{}sh -c "xrandr --output HDMI-1 --mode ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --rate ${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}xrandr --output HDMI-1 --mode 3840x2160 --rate 120@endcode                                                                     |
 
-The commands above are valid for an X11 session but won't work for
-Wayland. In that case `xrandr` must be replaced by [gnome-randr.py](https://gitlab.com/Oschowa/gnome-randr).
-This script is intended as a drop-in replacement with the same syntax. (It can be saved in
-`/usr/local/bin` and needs to be made executable.)
+###### Gnome (Wayland)
+
+| Prep Step | Command                                                                                                                                                                                               |
+|-----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "displayconfig-mutter set --connector HDMI-1 --resolution ${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} --refresh-rate ${SUNSHINE_CLIENT_FPS} --hdr ${SUNSHINE_CLIENT_HDR}"@endcode |
+| Undo      | @code{}displayconfig-mutter set --connector HDMI-1 --resolution 3840x2160 --refresh-rate 120 --hdr false@endcode                                                                                      |
+
+Installation instructions for displayconfig-mutter can be [found here](https://github.com/eaglesemanation/displayconfig-mutter). Alternatives include
+[gnome-randr-rust](https://github.com/maxwellainatchi/gnome-randr-rust) and [gnome-randr.py](https://gitlab.com/Oschowa/gnome-randr), but both of those are
+unmaintained and do not support newer Mutter features such as HDR and VRR.
+
+@hint{HDR support has been added to Gnome 48, to check if your display supports it you can run this:
+```
+displayconfig-mutter list
+```
+If it doesn't, then remove ``--hdr`` flag from both ``Do`` and ``Undo`` steps.
+}
 
 ###### KDE Plasma (Wayland, X11)
 
@@ -238,24 +254,29 @@ This script is intended as a drop-in replacement with the same syntax. (It can b
 | Do        | @code{}sh -c "kscreen-doctor output.HDMI-A-1.mode.${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}@${SUNSHINE_CLIENT_FPS}"@endcode |
 | Undo      | @code{}kscreen-doctor output.HDMI-A-1.mode.3840x2160@120@endcode                                                                     |
 
+@attention{The names of your displays will differ between X11 and Wayland.
+Be sure to use the correct name, depending on your session manager.
+e.g. On X11, the monitor may be called ``HDMI-A-0``, but on Wayland, it may be called ``HDMI-A-1``.
+}
+
+@hint{Replace ``HDMI-A-1`` with the display name of the monitor you would like to use for Moonlight.
+You can list the monitors available to you with:
+```
+kscreen-doctor -o
+```
+
+These will also give you the supported display properties for each monitor. You can select them either by
+hard-coding their corresponding number (e.g. ``kscreen-doctor output.HDMI-A1.mode.0``) or using the above
+``do`` command to fetch the resolution requested by your Moonlight client
+(which has a chance of not being supported by your monitor).
+}
+
 ###### NVIDIA
 
-| Prep Step | Command                                                                                                     |
-|-----------|-------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}sh -c "${HOME}/scripts/set-custom-res.sh ${SUNSHINE_CLIENT_WIDTH} ${SUNSHINE_CLIENT_HEIGHT}"@endcode |
-| Undo      | @code{}sh -c "${HOME}/scripts/set-custom-res.sh 3840 2160"@endcode                                          |
-
-The ``set-custom-res.sh`` will have this content:
-```bash
-#!/bin/bash
-set -e
-
-# Get params and set any defaults
-width=${1:-1920}
-height=${2:-1080}
-output=${3:-HDMI-1}
-nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=${width}x${height}, ViewPortOut=${width}x${height}+0+0 }"
-```
+| Prep Step | Command                                                                                                                                                                                                                        |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}, ViewPortOut=${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}+0+0 }\""@endcode |
+| Undo      | @code{}nvidia-settings -a CurrentMetaMode=\"HDMI-1: nvidia-auto-select { ViewPortIn=3840x2160, ViewPortOut=3840x2160+0+0 }"@endcode                                                                                            |
 
 ##### macOS
 
@@ -264,21 +285,23 @@ nvidia-settings -a CurrentMetaMode="${output}: nvidia-auto-select { ViewPortIn=$
 This tool can be installed following instructions in their
 [GitHub repository](https://github.com/jakehilborn/displayplacer)}.
 
-| Prep Step | Command                                                                                            |
-|-----------|----------------------------------------------------------------------------------------------------|
-| Do        | @code{}displayplacer "id:<screenId> res:1920x1080 hz:60 scaling:on origin:(0,0) degree:0"@endcode  |
-| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode |
+| Prep Step | Command                                                                                                                                                                  |
+|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}sh -c "displayplacer \"id:<screenId> res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0\""@endcode |
+| Undo      | @code{}displayplacer "id:<screenId> res:3840x2160 hz:120 scaling:on origin:(0,0) degree:0"@endcode                                                                       |
 
 ##### Windows
+Sunshine has built-in support for changing the resolution and refresh rate on Windows. If you prefer to use a
+third-party tool, you can use *QRes* as an example.
 
 ###### QRes
 @note{This example uses the *QRes* tool to change the resolution and refresh rate.
-This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}.
+This tool can be downloaded from their [SourceForge repository](https://sourceforge.net/projects/qres).}
 
-| Prep Step | Command                                                                                                                 |
-|-----------|-------------------------------------------------------------------------------------------------------------------------|
-| Do        | @code{}cmd /C FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%@endcode |
-| Undo      | @code{}cmd /C FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                          |
+| Prep Step | Command                                                                                                                   |
+|-----------|---------------------------------------------------------------------------------------------------------------------------|
+| Do        | @code{}cmd /C "FullPath\qres.exe /x:%SUNSHINE_CLIENT_WIDTH% /y:%SUNSHINE_CLIENT_HEIGHT% /r:%SUNSHINE_CLIENT_FPS%"@endcode |
+| Undo      | @code{}FullPath\qres.exe /x:3840 /y:2160 /r:120@endcode                                                                   |
 
 ### Additional Considerations
 
@@ -294,22 +317,19 @@ administrative privileges. Simply enable the elevated option in the WEB UI, or a
 This is an option for both prep-cmd and regular commands and will launch the process with the current user without a
 UAC prompt.
 
-@note{It is important to write the values "true" and "false" as string values, not as the typical true/false
-values in most JSON.}
-
 **Example**
 ```json
 {
   "name": "Game With AntiCheat that Requires Admin",
   "output": "",
   "cmd": "ping 127.0.0.1",
-  "exclude-global-prep-cmd": "false",
-  "elevated": "true",
+  "exclude-global-prep-cmd": false,
+  "elevated": true,
   "prep-cmd": [
     {
       "do": "powershell.exe -command \"Start-Streaming\"",
       "undo": "powershell.exe -command \"Stop-Streaming\"",
-      "elevated": "false"
+      "elevated": false
     }
   ],
   "image-path": ""
@@ -318,8 +338,13 @@ values in most JSON.}
 
 <div class="section_buttons">
 
-| Previous                          |                Next |
-|:----------------------------------|--------------------:|
-| [Configuration](configuration.md) | [Guides](guides.md) |
+| Previous                          |                                    Next |
+|:----------------------------------|----------------------------------------:|
+| [Configuration](configuration.md) | [Awesome-Sunshine](awesome_sunshine.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

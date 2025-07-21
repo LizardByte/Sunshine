@@ -3,15 +3,14 @@ import {ref} from 'vue'
 import {$tp} from '../../platform-i18n'
 import PlatformLayout from '../../PlatformLayout.vue'
 import AdapterNameSelector from './audiovideo/AdapterNameSelector.vue'
-import LegacyDisplayOutputSelector from './audiovideo/LegacyDisplayOutputSelector.vue'
-import NewDisplayOutputSelector from './audiovideo/NewDisplayOutputSelector.vue'
+import DisplayOutputSelector from './audiovideo/DisplayOutputSelector.vue'
 import DisplayDeviceOptions from "./audiovideo/DisplayDeviceOptions.vue";
 import DisplayModesSettings from "./audiovideo/DisplayModesSettings.vue";
+import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
   'platform',
   'config',
-  'min_fps_factor',
 ])
 
 const config = ref(props.config)
@@ -55,23 +54,34 @@ const config = ref(props.config)
         </div>
 
         <!-- Install Steam Audio Drivers -->
-        <div class="mb-3">
-          <label for="install_steam_audio_drivers" class="form-label">{{ $t('config.install_steam_audio_drivers') }}</label>
-          <select id="install_steam_audio_drivers" class="form-select" v-model="config.install_steam_audio_drivers">
-            <option value="disabled">{{ $t('_common.disabled') }}</option>
-            <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-          </select>
-          <div class="form-text">{{ $t('config.install_steam_audio_drivers_desc') }}</div>
-        </div>
+        <Checkbox class="mb-3"
+                  id="install_steam_audio_drivers"
+                  locale-prefix="config"
+                  v-model="config.install_steam_audio_drivers"
+                  default="true"
+        ></Checkbox>
       </template>
     </PlatformLayout>
+
+    <!-- Disable Audio -->
+    <Checkbox class="mb-3"
+              id="stream_audio"
+              locale-prefix="config"
+              v-model="config.stream_audio"
+              default="true"
+    ></Checkbox>
 
     <AdapterNameSelector
         :platform="platform"
         :config="config"
     />
 
-    <LegacyDisplayOutputSelector
+    <DisplayOutputSelector
+      :platform="platform"
+      :config="config"
+    />
+
+    <DisplayDeviceOptions
       :platform="platform"
       :config="config"
     />
@@ -80,7 +90,6 @@ const config = ref(props.config)
     <DisplayModesSettings
         :platform="platform"
         :config="config"
-        :min_fps_factor="min_fps_factor"
     />
 
   </div>

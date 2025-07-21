@@ -4,8 +4,10 @@
  */
 #pragma once
 
+// standard includes
 #include <atomic>
 
+// local includes
 #include "crypto.h"
 #include "thread_safe.h"
 
@@ -38,20 +40,27 @@ namespace rtsp_stream {
     uint32_t rtsp_iv_counter;
   };
 
-  void
-  launch_session_raise(std::shared_ptr<launch_session_t> launch_session);
+  void launch_session_raise(std::shared_ptr<launch_session_t> launch_session);
 
   /**
    * @brief Clear state for the specified launch session.
    * @param launch_session_id The ID of the session to clear.
    */
-  void
-  launch_session_clear(uint32_t launch_session_id);
+  void launch_session_clear(uint32_t launch_session_id);
 
-  int
-  session_count();
+  /**
+   * @brief Get the number of active sessions.
+   * @return Count of active sessions.
+   */
+  int session_count();
 
-  void
-  rtpThread();
+  /**
+   * @brief Terminates all running streaming sessions.
+   */
+  void terminate_sessions();
 
+  /**
+   * @brief Runs the RTSP server loop.
+   */
+  void start();
 }  // namespace rtsp_stream

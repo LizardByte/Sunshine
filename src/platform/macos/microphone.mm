@@ -2,11 +2,11 @@
  * @file src/platform/macos/microphone.mm
  * @brief Definitions for microphone capture on macOS.
  */
-#include "src/platform/common.h"
-#include "src/platform/macos/av_audio.h"
-
+// local includes
 #include "src/config.h"
 #include "src/logging.h"
+#include "src/platform/common.h"
+#include "src/platform/macos/av_audio.h"
 
 namespace platf {
   using namespace std::literals;
@@ -18,8 +18,7 @@ namespace platf {
       [av_audio_capture release];
     }
 
-    capture_e
-    sample(std::vector<float> &sample_in) override {
+    capture_e sample(std::vector<float> &sample_in) override {
       auto sample_size = sample_in.size();
 
       uint32_t length = 0;
@@ -45,14 +44,12 @@ namespace platf {
     AVCaptureDevice *audio_capture_device {};
 
   public:
-    int
-    set_sink(const std::string &sink) override {
+    int set_sink(const std::string &sink) override {
       BOOST_LOG(warning) << "audio_control_t::set_sink() unimplemented: "sv << sink;
       return 0;
     }
 
-    std::unique_ptr<mic_t>
-    microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
       auto mic = std::make_unique<av_mic_t>();
       const char *audio_sink = "";
 
@@ -81,16 +78,19 @@ namespace platf {
       return mic;
     }
 
-    std::optional<sink_t>
-    sink_info() override {
+    bool is_sink_available(const std::string &sink) override {
+      BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
+      return true;
+    }
+
+    std::optional<sink_t> sink_info() override {
       sink_t sink;
 
       return sink;
     }
   };
 
-  std::unique_ptr<audio_control_t>
-  audio_control() {
+  std::unique_ptr<audio_control_t> audio_control() {
     return std::make_unique<macos_audio_control_t>();
   }
 }  // namespace platf

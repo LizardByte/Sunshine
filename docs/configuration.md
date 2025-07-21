@@ -1,4 +1,13 @@
 # Configuration
+
+@admonition{ Host authority | @htmlonly
+By providing the host authority (URI + port), you can easily open each configuration option in the config UI.
+<br>
+<script src="configuration.js"></script>
+<strong>Host authority: </strong> <input type="text" id="host-authority" value="localhost:47990">
+@endhtmlonly
+}
+
 Sunshine will work with the default settings for most users. In some cases you may want to configure Sunshine further.
 
 The default location for the configuration file is listed below. You can use another location if you
@@ -24,9 +33,9 @@ location by modifying the configuration file.
 Although it is recommended to use the configuration UI, it is possible manually configure Sunshine by
 editing the `conf` file in a text editor. Use the examples as reference.
 
-## [General](https://localhost:47990/config/#general)
+## General
 
-### [locale](https://localhost:47990/config/#locale)
+### locale
 
 <table>
     <tr>
@@ -48,7 +57,15 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="13">Choices</td>
+        <td rowspan="20">Choices</td>
+        <td>bg</td>
+        <td>Bulgarian</td>
+    </tr>
+    <tr>
+        <td>cs</td>
+        <td>Czech</td>
+    </tr>
+    <tr>
         <td>de</td>
         <td>German</td>
     </tr>
@@ -81,8 +98,20 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Japanese</td>
     </tr>
     <tr>
+        <td>ko</td>
+        <td>Korean</td>
+    </tr>
+    <tr>
+        <td>pl</td>
+        <td>Polish</td>
+    </tr>
+    <tr>
         <td>pt</td>
         <td>Portuguese</td>
+    </tr>
+    <tr>
+        <td>pt_BR</td>
+        <td>Portuguese (Brazilian)</td>
     </tr>
     <tr>
         <td>ru</td>
@@ -97,12 +126,20 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Turkish</td>
     </tr>
     <tr>
+        <td>uk</td>
+        <td>Ukranian</td>
+    </tr>
+    <tr>
         <td>zh</td>
         <td>Chinese (Simplified)</td>
     </tr>
+    <tr>
+        <td>zh_TW</td>
+        <td>Chinese (Traditional)</td>
+    </tr>
 </table>
 
-### [sunshine_name](https://localhost:47990/config/#sunshine_name)
+### sunshine_name
 
 <table>
     <tr>
@@ -123,7 +160,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [min_log_level](https://localhost:47990/config/#min_log_level)
+### min_log_level
 
 <table>
     <tr>
@@ -177,33 +214,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [channels](https://localhost:47990/config/#channels)
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Sunshine can support multiple clients streaming simultaneously,
-            at the cost of higher CPU and GPU usage.
-            @note{All connected clients share control of the same streaming session.}
-            @warning{Some hardware encoders may have limitations that reduce performance with multiple streams.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            1
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            channels = 1
-            @endcode</td>
-    </tr>
-</table>
-
-### [global_prep_cmd](https://localhost:47990/config/#global_prep_cmd)
+### global_prep_cmd
 
 <table>
     <tr>
@@ -222,12 +233,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
+            global_prep_cmd = [{"do":"nircmd.exe setdisplay 1280 720 32 144","elevated":true,"undo":"nircmd.exe setdisplay 2560 1440 32 144"}]
             @endcode</td>
     </tr>
 </table>
 
-### [notify_pre_releases](https://localhost:47990/config/#notify_pre_releases)
+### notify_pre_releases
 
 <table>
     <tr>
@@ -250,9 +261,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Input](https://localhost:47990/config/#input)
+## Input
 
-### [controller](https://localhost:47990/config/#controller)
+### controller
 
 <table>
     <tr>
@@ -275,7 +286,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [gamepad](https://localhost:47990/config/#gamepad)
+### gamepad
 
 <table>
     <tr>
@@ -324,7 +335,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [ds4_back_as_touchpad_click](https://localhost:47990/config/#ds4_back_as_touchpad_click)
+### ds4_back_as_touchpad_click
 
 <table>
     <tr>
@@ -349,7 +360,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [motion_as_ds4](https://localhost:47990/config/#motion_as_ds4)
+### motion_as_ds4
 
 <table>
     <tr>
@@ -377,7 +388,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [touchpad_as_ds4](https://localhost:47990/config/#touchpad_as_ds4)
+### touchpad_as_ds4
 
 <table>
     <tr>
@@ -405,7 +416,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [back_button_timeout](https://localhost:47990/config/#back_button_timeout)
+### back_button_timeout
 
 <table>
     <tr>
@@ -430,7 +441,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [keyboard](https://localhost:47990/config/#keyboard)
+### keyboard
 
 <table>
     <tr>
@@ -453,7 +464,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_repeat_delay](https://localhost:47990/config/#key_repeat_delay)
+### key_repeat_delay
 
 <table>
     <tr>
@@ -477,7 +488,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_repeat_frequency](https://localhost:47990/config/#key_repeat_frequency)
+### key_repeat_frequency
 
 <table>
     <tr>
@@ -501,7 +512,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [always_send_scancodes](https://localhost:47990/config/#always_send_scancodes)
+### always_send_scancodes
 
 <table>
     <tr>
@@ -532,7 +543,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [key_rightalt_to_key_win](https://localhost:47990/config/#key_rightalt_to_key_win)
+### key_rightalt_to_key_win
 
 <table>
     <tr>
@@ -555,7 +566,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [mouse](https://localhost:47990/config/#mouse)
+### mouse
 
 <table>
     <tr>
@@ -578,7 +589,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [high_resolution_scrolling](https://localhost:47990/config/#high_resolution_scrolling)
+### high_resolution_scrolling
 
 <table>
     <tr>
@@ -604,7 +615,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [native_pen_touch](https://localhost:47990/config/#native_pen_touch)
+### native_pen_touch
 
 <table>
     <tr>
@@ -629,7 +640,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [native_pen_touch](https://localhost:47990/config/#native_pen_touch)
+### keybindings
 
 <table>
     <tr>
@@ -665,9 +676,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Audio/Video](https://localhost:47990/config/#audio-video)
+## Audio/Video
 
-### [audio_sink](https://localhost:47990/config/#audio_sink)
+### audio_sink
 
 <table>
     <tr>
@@ -710,7 +721,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             If you have multiple audio devices with identical names, use the Device ID instead.
             }
             @attention{If you want to mute the host speakers, use
-            [virtual_sink](#virtual_sinkhttpslocalhost47990configvirtual_sink) instead.}
+            [virtual_sink](#virtual_sink) instead.}
         </td>
     </tr>
     <tr>
@@ -737,7 +748,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [virtual_sink](https://localhost:47990/config/#virtual_sink)
+### virtual_sink
 
 <table>
     <tr>
@@ -745,11 +756,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The audio device that's virtual, like Steam Streaming Speakers. This allows Sunshine to stream audio,
             while muting the speakers.
-            @tip{See [audio_sink](#audio_sinkhttpslocalhost47990configaudio_sink)!}
+            @tip{See [audio_sink](#audio_sink)!}
             @tip{These are some options for virtual sound devices.
             * Stream Streaming Speakers (Linux, macOS, Windows)
               * Steam must be installed.
-              * Enable [install_steam_audio_drivers](#install_steam_audio_drivershttpslocalhost47990configinstall_steam_audio_drivers)
+              * Enable [install_steam_audio_drivers](#install_steam_audio_drivers)
                 or use Steam Remote Play at least once to install the drivers.
             * [Virtual Audio Cable](https://vb-audio.com/Cable) (macOS, Windows)
             }
@@ -767,7 +778,30 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [install_steam_audio_drivers](https://localhost:47990/config/#install_steam_audio_drivers)
+### stream_audio
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Whether to stream audio or not. Disabling this can be useful for streaming headless displays as second monitors.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            stream_audio = disabled
+            @endcode</td>
+    </tr>
+</table>
+
+### install_steam_audio_drivers
 
 <table>
     <tr>
@@ -792,7 +826,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [adapter_name](https://localhost:47990/config/#adapter_name)
+### adapter_name
 
 <table>
     <tr>
@@ -845,7 +879,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [output_name](https://localhost:47990/config/#output_name)
+### output_name
 
 <table>
     <tr>
@@ -882,10 +916,56 @@ editing the `conf` file in a text editor. Use the examples as reference.
             <br>
             **Windows:**
             <br>
-            Enter the following command in command prompt or PowerShell.
+            During Sunshine startup, you should see the list of detected displays:
             @code{}
-            %ProgramFiles%\Sunshine\tools\dxgi-info.exe
+            Info: Currently available display devices:
+            [
+              {
+                "device_id": "{64243705-4020-5895-b923-adc862c3457e}",
+                "display_name": "",
+                "friendly_name": "IDD HDR",
+                "info": null
+              },
+              {
+                "device_id": "{77f67f3e-754f-5d31-af64-ee037e18100a}",
+                "display_name": "",
+                "friendly_name": "SunshineHDR",
+                "info": null
+              },
+              {
+                "device_id": "{daeac860-f4db-5208-b1f5-cf59444fb768}",
+                "display_name": "\\\\.\\DISPLAY1",
+                "friendly_name": "ROG PG279Q",
+                "info": {
+                  "hdr_state": null,
+                  "origin_point": {
+                    "x": 0,
+                    "y": 0
+                  },
+                  "primary": true,
+                  "refresh_rate": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 1000,
+                      "numerator": 119998
+                    }
+                  },
+                  "resolution": {
+                    "height": 1440,
+                    "width": 2560
+                  },
+                  "resolution_scale": {
+                    "type": "rational",
+                    "value": {
+                      "denominator": 100,
+                      "numerator": 100
+                    }
+                  }
+                }
+              }
+            ]
             @endcode
+            You need to use the `device_id` value.
             }
         </td>
     </tr>
@@ -908,43 +988,392 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example (Windows)</td>
         <td colspan="2">@code{}
-            output_name  = \\.\DISPLAY1
+            output_name = {daeac860-f4db-5208-b1f5-cf59444fb768}
             @endcode</td>
     </tr>
 </table>
 
-### [min_fps_factor](https://localhost:47990/config/#min_fps_factor)
+### dd_configuration_option
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Sunshine will use this factor to calculate the minimum time between frames. Increasing this value may help
-            when streaming mostly static content.
-            @warning{Higher values will consume more bandwidth.}
+            Perform mandatory verification and additional configuration for the display device.
+            @note{Applies to Windows only.}
         </td>
     </tr>
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            1
+            disabled
             @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1-3</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            min_fps_factor = 1
+            dd_configuration_option = ensure_only_display
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="5">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration (disables all `dd_` configuration options).</td>
+    </tr>
+    <tr>
+        <td>verify_only</td>
+        <td>Verify that display is active only (this is a mandatory step without any extra steps to verify display state).</td>
+    </tr>
+    <tr>
+        <td>ensure_active</td>
+        <td>Activate the display if it's currently inactive.</td>
+    </tr>
+    <tr>
+        <td>ensure_primary</td>
+        <td>Activate the display if it's currently inactive and make it primary.</td>
+    </tr>
+    <tr>
+        <td>ensure_only_display</td>
+        <td>Activate the display if it's currently inactive and disable all others.</td>
+    </tr>
+</table>
+
+### dd_resolution_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional resolution configuration for the display device.
+            @note{"Optimize game settings" must be enabled in Moonlight for this option to work.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_resolution_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change resolution to the requested resolution from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change resolution to the user specified one (set via [dd_manual_resolution](#dd_manual_resolution)).</td>
+    </tr>
+</table>
+
+### dd_manual_resolution
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual resolution to be used.
+            @note{[dd_resolution_option](#dd_resolution_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 1920x1080
             @endcode</td>
     </tr>
 </table>
 
-## [Network](https://localhost:47990/config/#network)
+### dd_refresh_rate_option
 
-### [upnp](https://localhost:47990/config/#upnp)
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional refresh rate configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_refresh_rate_option = manual
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change refresh rate to the requested FPS value from the client.</td>
+    </tr>
+    <tr>
+        <td>manual</td>
+        <td>Change refresh rate to the user specified one (set via [dd_manual_refresh_rate](#dd_manual_refresh_rate)).</td>
+    </tr>
+</table>
+
+### dd_manual_refresh_rate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Specify manual refresh rate to be used.
+            @note{[dd_refresh_rate_option](#dd_refresh_rate_option) must be set to `manual`}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">n/a</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_manual_resolution = 120
+            dd_manual_resolution = 59.95
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_hdr_option
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Perform additional HDR configuration for the display device.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}auto@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_hdr_option = disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Choices</td>
+        <td>disabled</td>
+        <td>Perform no additional configuration.</td>
+    </tr>
+    <tr>
+        <td>auto</td>
+        <td>Change HDR to the requested state from the client if the display supports it.</td>
+    </tr>
+</table>
+
+### dd_wa_hdr_toggle_delay
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When using virtual display device (VDD) for streaming, it might incorrectly display HDR color. Sunshine can try to mitigate this issue, by turning HDR off and then on again.<br>
+            If the value is set to 0, the workaround is disabled (default). If the value is between 0 and 3000 milliseconds, Sunshine will turn off HDR, wait for the specified amount of time and then turn HDR on again. The recommended delay time is around 500 milliseconds in most cases.<br>
+            DO NOT use this workaround unless you actually have issues with HDR as it directly impacts stream start time!
+            @note{This option works independently of [dd_hdr_option](#dd_hdr_option)}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_wa_hdr_toggle_delay = 500
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_config_revert_delay
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Additional delay in milliseconds to wait before reverting configuration when the app has been closed or the last session terminated.
+            Main purpose is to provide a smoother transition when quickly switching between apps.
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}3000@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_config_revert_delay = 1500
+            @endcode</td>
+    </tr>
+</table>
+
+
+### dd_config_revert_on_disconnect
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When enabled, display configuration is reverted upon disconnect of all clients instead of app close or last session termination.
+            This can be useful for returning to physical usage of the host machine without closing the active app.
+            @warning{Some applications may not function properly when display configuration is changed while active.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}disabled@endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_config_revert_on_disconnect = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### dd_mode_remapping
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Remap the requested resolution and FPS to another display mode.<br>
+            Depending on the [dd_resolution_option](#dd_resolution_option) and
+            [dd_refresh_rate_option](#dd_refresh_rate_option) values, the following mapping 
+            groups are available:
+            <ul>
+                <li>`mixed` - both options are set to `auto`.</li>
+                <li>
+                  `resolution_only` - only [dd_resolution_option](#dd_resolution_option) is set to `auto`.
+                </li>
+                <li>
+                  `refresh_rate_only` - only [dd_refresh_rate_option](#dd_refresh_rate_option) is set to `auto`.
+                </li>
+            </ul>
+            For each of those groups, a list of fields can be configured to perform remapping:  
+            <ul>
+                <li>
+                  `requested_resolution` - resolution that needs to be matched in order to use this remapping entry.
+                </li>
+                <li>`requested_fps` - FPS that needs to be matched in order to use this remapping entry.</li>
+                <li>`final_resolution` - resolution value to be used if the entry was matched.</li>
+                <li>`final_refresh_rate` - refresh rate value to be used if the entry was matched.</li>
+            </ul>
+            If `requested_*` field is left empty, it will match <b>everything</b>.<br>
+            If `final_*` field is left empty, the original value will not be remapped and either a requested, manual 
+            or current value is used. However, at least one `final_*` must be set, otherwise the entry is considered 
+            invalid.<br>
+            @note{"Optimize game settings" must be enabled on client side for ANY entry with `resolution` 
+            field to be considered.}
+            @note{First entry to be matched in the list is the one that will be used.}
+            @tip{`requested_resolution` and `final_resolution` can be omitted for `refresh_rate_only` group.}
+            @tip{`requested_fps` and `final_refresh_rate` can be omitted for `resolution_only` group.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            dd_mode_remapping = {
+              "mixed": [],
+              "resolution_only": [],
+              "refresh_rate_only": []
+            }
+            @endcode
+        </td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            dd_mode_remapping = {
+              "mixed": [
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "119.95",
+                  "requested_resolution": "1920x1080",
+                  "final_resolution": "2560x1440"
+                },
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "120",
+                  "requested_resolution": "",
+                  "final_resolution": ""
+                }
+              ],
+              "resolution_only": [
+                {
+                  "requested_resolution": "1920x1080",
+                  "final_resolution": "2560x1440"
+                }
+              ],
+              "refresh_rate_only": [
+                {
+                  "requested_fps": "60",
+                  "final_refresh_rate": "119.95"
+                }
+              ]
+            }@endcode
+        </td>
+    </tr>
+</table>
+
+### max_bitrate
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            max_bitrate = 5000
+            @endcode</td>
+    </tr>
+</table>
+
+## Network
+
+### upnp
 
 <table>
     <tr>
@@ -967,7 +1396,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [address_family](https://localhost:47990/config/#address_family)
+### address_family
 
 <table>
     <tr>
@@ -999,7 +1428,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [port](https://localhost:47990/config/#port)
+### port
 
 <table>
     <tr>
@@ -1027,7 +1456,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [origin_web_ui_allowed](https://localhost:47990/config/#origin_web_ui_allowed)
+### origin_web_ui_allowed
 
 <table>
     <tr>
@@ -1063,7 +1492,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [external_ip](https://localhost:47990/config/#external_ip)
+### external_ip
 
 <table>
     <tr>
@@ -1084,7 +1513,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [lan_encryption_mode](https://localhost:47990/config/#lan_encryption_mode)
+### lan_encryption_mode
 
 <table>
     <tr>
@@ -1121,7 +1550,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [wan_encryption_mode](https://localhost:47990/config/#wan_encryption_mode)
+### wan_encryption_mode
 
 <table>
     <tr>
@@ -1158,7 +1587,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [ping_timeout](https://localhost:47990/config/#ping_timeout)
+### ping_timeout
 
 <table>
     <tr>
@@ -1181,9 +1610,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Config Files](https://localhost:47990/config/#files)
+## Config Files
 
-### [file_apps](https://localhost:47990/config/#file_apps)
+### file_apps
 
 <table>
     <tr>
@@ -1207,7 +1636,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [credentials_file](https://localhost:47990/config/#credentials_file)
+### credentials_file
 
 <table>
     <tr>
@@ -1230,7 +1659,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [log_path](https://localhost:47990/config/#log_path)
+### log_path
 
 <table>
     <tr>
@@ -1253,7 +1682,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [pkey](https://localhost:47990/config/#pkey)
+### pkey
 
 <table>
     <tr>
@@ -1278,7 +1707,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [cert](https://localhost:47990/config/#cert)
+### cert
 
 <table>
     <tr>
@@ -1303,7 +1732,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [file_state](https://localhost:47990/config/#file_state)
+### file_state
 
 <table>
     <tr>
@@ -1326,9 +1755,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Advanced](https://localhost:47990/config/#advanced)
+## Advanced
 
-### [fec_percentage](https://localhost:47990/config/#fec_percentage)
+### fec_percentage
 
 <table>
     <tr>
@@ -1357,7 +1786,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qp](https://localhost:47990/config/#qp)
+### qp
 
 <table>
     <tr>
@@ -1381,7 +1810,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [min_threads](https://localhost:47990/config/#min_threads)
+### min_threads
 
 <table>
     <tr>
@@ -1407,7 +1836,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [hevc_mode](https://localhost:47990/config/#hevc_mode)
+### hevc_mode
 
 <table>
     <tr>
@@ -1449,7 +1878,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [av1_mode](https://localhost:47990/config/#av1_mode)
+### av1_mode
 
 <table>
     <tr>
@@ -1491,7 +1920,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [capture](https://localhost:47990/config/#capture)
+### capture
 
 <table>
     <tr>
@@ -1520,7 +1949,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wlr</td>
-        <td>Capture for wlroots based Wayland compositors via DMA-BUF.
+        <td>Capture for wlroots based Wayland compositors via wlr-screencopy-unstable-v1. It is possible to capture
+            virtual displays in e.g. Hyprland using this method.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
@@ -1546,7 +1976,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [encoder](https://localhost:47990/config/#encoder)
+### encoder
 
 <table>
     <tr>
@@ -1588,9 +2018,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [NVIDIA NVENC Encoder](https://localhost:47990/config/#nvidia-nvenc-encoder)
+## NVIDIA NVENC Encoder
 
-### [nvenc_preset](https://localhost:47990/config/#nvenc_preset)
+### nvenc_preset
 
 <table>
     <tr>
@@ -1600,7 +2030,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency.
             Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished
             by increasing bitrate.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1646,7 +2076,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_twopass](https://localhost:47990/config/#nvenc_twopass)
+### nvenc_twopass
 
 <table>
     <tr>
@@ -1656,7 +2086,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             This allows to detect more motion vectors, better distribute bitrate across the frame and more strictly
             adhere to bitrate limits. Disabling it is not recommended since this can lead to occasional bitrate
             overshoot and subsequent packet loss.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1686,7 +2116,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_spatial_aq](https://localhost:47990/config/#nvenc_spatial_aq)
+### nvenc_spatial_aq
 
 <table>
     <tr>
@@ -1694,7 +2124,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Assign higher QP values to flat regions of the video.
             Recommended to enable when streaming at lower bitrates.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Enabling this option may reduce performance.}
         </td>
     </tr>
@@ -1712,7 +2142,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_vbv_increase](https://localhost:47990/config/#nvenc_vbv_increase)
+### nvenc_vbv_increase
 
 <table>
     <tr>
@@ -1724,7 +2154,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             act as low-latency variable bitrate, but may also lead to packet loss if the network doesn't have buffer
             headroom to handle bitrate spikes. Maximum accepted value is 400, which corresponds to 5x increased
             encoded video frame upper size limit.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Can lead to network packet loss.}
         </td>
     </tr>
@@ -1746,7 +2176,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_realtime_hags](https://localhost:47990/config/#nvenc_realtime_hags)
+### nvenc_realtime_hags
 
 <table>
     <tr>
@@ -1756,7 +2186,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             in Windows. Currently, NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used
             and VRAM utilization is close to maximum. Disabling this option lowers the priority to high, sidestepping
             the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1774,7 +2204,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_latency_over_power](https://localhost:47990/config/#nvenc_latency_over_power)
+### nvenc_latency_over_power
 
 <table>
     <tr>
@@ -1782,7 +2212,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Adaptive P-State algorithm which NVIDIA drivers employ doesn't work well with low latency streaming,
             so Sunshine requests high power mode explicitly.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @warning{Disabling this is not recommended since this can lead to significantly increased encoding latency.}
             @note{Applies to Windows only.}
         </td>
@@ -1801,7 +2231,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_opengl_vulkan_on_dxgi](https://localhost:47990/config/#nvenc_opengl_vulkan_on_dxgi)
+### nvenc_opengl_vulkan_on_dxgi
 
 <table>
     <tr>
@@ -1810,7 +2240,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Sunshine can't capture fullscreen OpenGL and Vulkan programs at full frame rate unless they present on
             top of DXGI. With this option enabled Sunshine changes global Vulkan/OpenGL present method to
             "Prefer layered on DXGI Swapchain". This is system-wide setting that is reverted on Sunshine program exit.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
         </td>
     </tr>
@@ -1828,7 +2258,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [nvenc_h264_cavlc](https://localhost:47990/config/#nvenc_h264_cavlc)
+### nvenc_h264_cavlc
 
 <table>
     <tr>
@@ -1838,7 +2268,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             CAVLC is outdated and needs around 10% more bitrate for same quality, but provides slightly faster
             decoding when using software decoder.
             @note{This option only applies when using H.264 format with the
-            NVENC [encoder](#encoderhttpslocalhost47990configencoder).}
+            NVENC [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1855,16 +2285,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Intel QuickSync Encoder](https://localhost:47990/config/#intel-quicksync-encoder)
+## Intel QuickSync Encoder
 
-### [qsv_preset](https://localhost:47990/config/#qsv_preset)
+### qsv_preset
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder preset to use.
-            @note{This option only applies when using quicksync [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using quicksync [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1910,7 +2340,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qsv_coder](https://localhost:47990/config/#qsv_coder)
+### qsv_coder
 
 <table>
     <tr>
@@ -1918,7 +2348,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The entropy encoding to use.
             @note{This option only applies when using H.264 with the quicksync
-            [encoder](#encoderhttpslocalhost47990configencoder).}
+            [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -1948,14 +2378,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [qsv_slow_hevc](https://localhost:47990/config/#qsv_slow_hevc)
+### qsv_slow_hevc
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             This options enables use of HEVC on older Intel GPUs that only support low power encoding for H.264.
-            @note{This option only applies when using quicksync [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using quicksync [encoder](#encoder).}
             @caution{Streaming performance may be significantly reduced when this option is enabled.}
         </td>
     </tr>
@@ -1973,16 +2403,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [AMD AMF Encoder](https://localhost:47990/config/#amd-amf-encoder)
+## AMD AMF Encoder
 
-### [amd_usage](https://localhost:47990/config/#amd_usage)
+### amd_usage
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder usage profile is used to set the base set of encoding parameters.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @note{The other AMF options that follow will override a subset of the settings applied by your usage
             profile, but there are hidden parameters set in usage profiles that cannot be overridden elsewhere.}
         </td>
@@ -2022,14 +2452,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_rc](https://localhost:47990/config/#amd_rc)
+### amd_rc
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder rate control.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @warning{The `vbr_latency` option generally works best, but some bitrate overshoots may still occur.
             Enabling HRD allows all bitrate based rate controls to better constrain peak bitrate, but may result in
             encoding artifacts depending on your card.}
@@ -2066,14 +2496,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_enforce_hrd](https://localhost:47990/config/#amd_enforce_hrd)
+### amd_enforce_hrd
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             Enable Hypothetical Reference Decoder (HRD) enforcement to help constrain the target bitrate.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
             @warning{HRD is known to cause encoding artifacts or negatively affect encoding quality on certain cards.}
         </td>
     </tr>
@@ -2091,14 +2521,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_quality](https://localhost:47990/config/#amd_quality)
+### amd_quality
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The quality profile controls the tradeoff between speed and quality of encoding.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2128,14 +2558,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_preanalysis](https://localhost:47990/config/#amd_preanalysis)
+### amd_preanalysis
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             Preanalysis can increase encoding quality at the cost of latency.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2152,7 +2582,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_vbaq](https://localhost:47990/config/#amd_vbaq)
+### amd_vbaq
 
 <table>
     <tr>
@@ -2160,7 +2590,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Variance Based Adaptive Quantization (VBAQ) can increase subjective visual quality by prioritizing
             allocation of more bits to smooth areas compared to more textured areas.
-            @note{This option only applies when using amdvce [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using amdvce [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2177,7 +2607,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [amd_coder](https://localhost:47990/config/#amd_coder)
+### amd_coder
 
 <table>
     <tr>
@@ -2185,7 +2615,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             The entropy encoding to use.
             @note{This option only applies when using H.264 with the amdvce
-            [encoder](#encoderhttpslocalhost47990configencoder).}
+            [encoder](#encoder).}
         </td>
     </tr>
     <tr>
@@ -2215,9 +2645,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [VideoToolbox Encoder](https://localhost:47990/config/#videotoolbox-encoder)
+## VideoToolbox Encoder
 
-### [vt_coder](https://localhost:47990/config/#vt_coder)
+### vt_coder
 
 <table>
     <tr>
@@ -2254,7 +2684,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [vt_software](https://localhost:47990/config/#vt_software)
+### vt_software
 
 <table>
     <tr>
@@ -2295,7 +2725,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [vt_realtime](https://localhost:47990/config/#vt_realtime)
+### vt_realtime
 
 <table>
     <tr>
@@ -2320,16 +2750,43 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-## [Software Encoder](https://localhost:47990/config/#software-encoder)
+## VA-API Encoder
 
-### [sw_preset](https://localhost:47990/config/#sw_preset)
+### vaapi_strict_rc_buffer
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enabling this option can avoid dropped frames over the network during scene changes, but video quality may
+            be reduced during motion.
+            @note{This option only applies for H.264 and HEVC when using VA-API [encoder](#encoder) on AMD GPUs.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_strict_rc_buffer = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+## Software Encoder
+
+### sw_preset
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The encoder preset to use.
-            @note{This option only applies when using software [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using software [encoder](#encoder).}
             @note{From [FFmpeg](https://trac.ffmpeg.org/wiki/Encode/H.264#preset).
             <br>
             <br>
@@ -2393,14 +2850,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### [sw_tune](https://localhost:47990/config/#sw_tune)
+### sw_tune
 
 <table>
     <tr>
         <td>Description</td>
         <td colspan="2">
             The tuning preset to use.
-            @note{This option only applies when using software [encoder](#encoderhttpslocalhost47990configencoder).}
+            @note{This option only applies when using software [encoder](#encoder).}
             @note{From [FFmpeg](https://trac.ffmpeg.org/wiki/Encode/H.264#preset).
             <br>
             <br>
@@ -2454,3 +2911,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
 | [Legal](legal.md) | [App Examples](app_examples.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

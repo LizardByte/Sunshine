@@ -1,6 +1,7 @@
-cmake_minimum_required(VERSION 3.18)
+cmake_minimum_required(VERSION 3.20)
 # `CMAKE_CUDA_ARCHITECTURES` requires 3.18
-# set_source_files_properties requires 3.18
+# `set_source_files_properties` requires 3.18
+# `cmake_path(CONVERT ... TO_NATIVE_PATH_LIST ...)` requires 3.20
 # todo - set this conditionally
 
 project(Sunshine VERSION 0.0.0
@@ -25,6 +26,9 @@ endif()
 
 # set the module path, used for includes
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+
+# export compile_commands.json
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # set version info for this build
 include(${CMAKE_MODULE_PATH}/prep/build_version.cmake)

@@ -39,10 +39,16 @@
         let name = document.querySelector("#name-input").value;
         document.querySelector("#status").innerHTML = "";
         let b = JSON.stringify({pin: pin, name: name});
-        fetch("/api/pin", {method: "POST", body: b})
+        fetch("./api/pin", {
+          method: "POST", 
+          headers: {
+            'Content-Type': 'application/json'
+          }, 
+          body: b
+        })
           .then((response) => response.json())
           .then((response) => {
-            if (response.status.toString().toLowerCase() === "true") {
+            if (response.status === true) {
               document.querySelector(
                 "#status"
               ).innerHTML = `<div class="alert alert-success" role="alert">${this.i18n.t('pin.pair_success')}</div>`;

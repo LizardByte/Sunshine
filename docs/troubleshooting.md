@@ -23,6 +23,9 @@ If you forgot your credentials to the web UI, try this.
 @tip{Don't forget to replace `{new-username}` and `{new-password}` with your new credentials.
 Do not include the curly braces.}
 
+### Unusual Mouse Behavior
+If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
+
 ### Web UI Access
 Can't access the web UI?
 
@@ -115,6 +118,16 @@ system. You may also want to enable decoders, however that is not required for S
 ```
 }
 
+### Input not working
+After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
+automatically, but if it fails you may need to restart your system.
+
+If the input is still not working, you may need to add your user to the `input` group.
+
+```bash
+sudo usermod -aG input $USER
+```
+
 @note{Other build options are listed in the
 [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.}
 
@@ -143,25 +156,24 @@ often grub is used to load the kernel and set its command line.)
 
 ### AMD encoding latency issues
 If you notice unexpectedly high encoding latencies (e.g. in Moonlight's
-performance overlay) or strong fluctuations thereof, this is due to
-[missing support](https://gitlab.freedesktop.org/drm/amd/-/issues/3336)
-in Mesa/libva for AMD's low latency encoder mode. This is particularly
-problematic at higher resolutions (4K).
+performance overlay) or strong fluctuations thereof, your system's Mesa
+libraries are outdated (<24.2). This is particularly problematic at higher
+resolutions (4K).
 
-Only the most recent development versions of mesa include support for this
-low-latency mode. It will be included in Mesa-24.2.
-
-In order to enable it, Sunshine has to be started with a special environment
-variable:
-
+Starting with Mesa-24.2 applications can request a
+[low-latency mode](https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039)
+by running them with a special
+[environment variable](https://docs.mesa3d.org/envvars.html#envvar-AMD_DEBUG):
 ```bash
-AMD_DEBUG=lowlatencyenc sunshine
+export AMD_DEBUG=lowlatencyenc
 ```
+Sunshine sets this variable automatically, no manual
+configuration is needed.
 
-To check whether low-latency mode is being used, one can watch the `VCLK` and
-`DCLK` frequencies in `amdgpu_top`. Without this encoder tuning both clock
-frequencies will fluctuate strongly, whereas with active low-latency encoding
-they will stay high as long as the encoder is used.
+To check whether low-latency mode is being used, one can watch the VCLK and DCLK
+frequencies in amdgpu_top. Without this encoder tuning both clock frequencies
+will fluctuate strongly, whereas with active low-latency encoding they will stay
+high as long as the encoder is used.
 
 ### Gamescope compatibility
 Some users have reported stuttering issues when streaming games running within Gamescope.
@@ -191,10 +203,18 @@ has. You may get permission denied errors when attempting to launch a game or ap
 You will need to modify the security permissions on your disk. Ensure that user/principal SYSTEM has full
 permissions on the disk.
 
+### Stuttering
+If you experience stuttering using NVIDIA, try disabling `vsync:fast` in the NVIDIA Control Panel.
+
 <div class="section_buttons">
 
-| Previous                                    |                    Next |
-|:--------------------------------------------|------------------------:|
-| [Performance Tuning](performance_tuning.md) | [Building](building.md) |
+| Previous      |                    Next |
+|:--------------|------------------------:|
+| [API](api.md) | [Building](building.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

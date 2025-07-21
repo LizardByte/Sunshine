@@ -1,17 +1,28 @@
 # windows specific packaging
-
-# see options at: https://cmake.org/cmake/help/latest/cpack_gen/nsis.html
 install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
+
+# ViGEmBus installer
+set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/vigembus_installer.exe")
+file(DOWNLOAD
+        "https://github.com/nefarius/ViGEmBus/releases/download/v1.21.442.0/ViGEmBus_1.21.442_x64_x86_arm64.exe"
+        ${VIGEMBUS_INSTALLER}
+        SHOW_PROGRESS
+        EXPECTED_HASH SHA256=155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc
+        TIMEOUT 60
+)
+install(FILES ${VIGEMBUS_INSTALLER}
+        DESTINATION "scripts"
+        RENAME "vigembus_installer.exe"
+        COMPONENT gamepad)
 
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 
 # Mandatory tools
-install(TARGETS ddprobe RUNTIME DESTINATION "tools" COMPONENT application)
 install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
 
 # Mandatory scripts
@@ -19,6 +30,9 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
         DESTINATION "scripts"
         COMPONENT assets)
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/migration/"
+        DESTINATION "scripts"
+        COMPONENT assets)
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/path/"
         DESTINATION "scripts"
         COMPONENT assets)
 
@@ -39,79 +53,21 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
         DESTINATION "${SUNSHINE_ASSETS_DIR}"
         COMPONENT assets)
-# copy assets to build directory, for running without install
-file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
-        DESTINATION "${CMAKE_BINARY_DIR}/assets")
 
-# set(CPACK_NSIS_MUI_HEADERIMAGE "") # TODO: image should be 150x57 bmp
+# copy assets (excluding shaders) to build directory, for running without install
+file(COPY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
+        DESTINATION "${CMAKE_BINARY_DIR}/assets"
+        PATTERN "shaders" EXCLUDE)
+# use junction for shaders directory
+cmake_path(CONVERT "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/shaders"
+        TO_NATIVE_PATH_LIST shaders_in_build_src_native)
+cmake_path(CONVERT "${CMAKE_BINARY_DIR}/assets/shaders" TO_NATIVE_PATH_LIST shaders_in_build_dest_native)
+execute_process(COMMAND cmd.exe /c mklink /J "${shaders_in_build_dest_native}" "${shaders_in_build_src_native}")
+
 set(CPACK_PACKAGE_ICON "${CMAKE_SOURCE_DIR}\\\\sunshine.ico")
-set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
+
 # The name of the directory that will be created in C:/Program files/
 set(CPACK_PACKAGE_INSTALL_DIRECTORY "${CPACK_PACKAGE_NAME}")
-
-# Extra install commands
-# Restores permissions on the install directory
-# Migrates config files from the root into the new config folder
-# Install service
-SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
-        "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-        IfSilent +2 0
-        ExecShell 'open' 'https://sunshinestream.readthedocs.io/'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-gamepad.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
-        NoController:
-        ")
-
-# Extra uninstall commands
-# Uninstall service
-set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
-        "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\sunshine.exe\\\" --restore-nvprefs-undo'
-        MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to remove Virtual Gamepad)?' \
-            /SD IDNO IDNO NoGamepad
-            nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-gamepad.bat\\\"'; skipped if no
-        NoGamepad:
-        MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
-            /SD IDNO IDNO NoDelete
-            RMDir /r \\\"$INSTDIR\\\"; skipped if no
-        NoDelete:
-        ")
-
-# Adding an option for the start menu
-set(CPACK_NSIS_MODIFY_PATH "OFF")
-set(CPACK_NSIS_EXECUTABLES_DIRECTORY ".")
-# This will be shown on the installed apps Windows settings
-set(CPACK_NSIS_INSTALLED_ICON_NAME "${CMAKE_PROJECT_NAME}.exe")
-set(CPACK_NSIS_CREATE_ICONS_EXTRA
-        "${CPACK_NSIS_CREATE_ICONS_EXTRA}
-        CreateShortCut '\$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\${CMAKE_PROJECT_NAME}.lnk' \
-            '\$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe' '--shortcut'
-        ")
-set(CPACK_NSIS_DELETE_ICONS_EXTRA
-        "${CPACK_NSIS_DELETE_ICONS_EXTRA}
-        Delete '\$SMPROGRAMS\\\\$MUI_TEMP\\\\${CMAKE_PROJECT_NAME}.lnk'
-        ")
-
-# Checking for previous installed versions
-set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL "ON")
-
-set(CPACK_NSIS_HELP_LINK "https://sunshinestream.readthedocs.io/en/latest/about/installation.html")
-set(CPACK_NSIS_URL_INFO_ABOUT "${CMAKE_PROJECT_HOMEPAGE_URL}")
-set(CPACK_NSIS_CONTACT "${CMAKE_PROJECT_HOMEPAGE_URL}/support")
-
-set(CPACK_NSIS_MENU_LINKS
-        "https://sunshinestream.readthedocs.io" "Sunshine documentation"
-        "https://app.lizardbyte.dev" "LizardByte Web Site"
-        "https://app.lizardbyte.dev/support" "LizardByte Support")
-set(CPACK_NSIS_MANIFEST_DPI_AWARE true)
 
 # Setting components groups and dependencies
 set(CPACK_COMPONENT_GROUP_CORE_EXPANDED true)
@@ -153,3 +109,7 @@ set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
 set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "Scripts to install and uninstall Virtual Gamepad.")
 set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
+
+# include specific packaging
+include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)
+include(${CMAKE_MODULE_PATH}/packaging/windows_wix.cmake)

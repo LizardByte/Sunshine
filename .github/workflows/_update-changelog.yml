@@ -1,0 +1,31 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+name: Update changelog
+permissions:
+  contents: read
+
+on:
+  release:
+    types:
+      - created
+      - edited
+      - deleted
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}"
+  cancel-in-progress: true
+
+jobs:
+  update-changelog:
+    name: Update Changelog
+    uses: LizardByte/.github/.github/workflows/__call-update-changelog.yml@master
+    if: >-
+      github.repository_owner == 'LizardByte' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (!github.event.release.prerelease && !github.event.release.draft))
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

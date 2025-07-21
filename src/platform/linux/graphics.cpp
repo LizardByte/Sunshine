@@ -2,12 +2,14 @@
  * @file src/platform/linux/graphics.cpp
  * @brief Definitions for graphics related functions.
  */
+// standard includes
+#include <fcntl.h>
+
+// local includes
 #include "graphics.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
 #include "src/video.h"
-
-#include <fcntl.h>
 
 extern "C" {
 #include <libavutil/pixdesc.h>
@@ -17,9 +19,8 @@ extern "C" {
 // There aren't that many DRM_FORMAT I need to use, so define them here
 //
 // They aren't likely to change any time soon.
-#define fourcc_code(a, b, c, d) ((std::uint32_t)(a) | ((std::uint32_t)(b) << 8) | \
-                                 ((std::uint32_t)(c) << 16) | ((std::uint32_t)(d) << 24))
-#define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) &0x00ffffffffffffffULL))
+#define fourcc_code(a, b, c, d) ((std::uint32_t) (a) | ((std::uint32_t) (b) << 8) | ((std::uint32_t) (c) << 16) | ((std::uint32_t) (d) << 24))
+#define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) & 0x00ffffffffffffffULL))
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
@@ -27,11 +28,11 @@ extern "C" {
 #endif
 
 using namespace std::literals;
+
 namespace gl {
   GladGLContext ctx;
 
-  void
-  drain_errors(const std::string_view &prefix) {
+  void drain_errors(const std::string_view &prefix) {
     GLenum err;
     while ((err = ctx.GetError()) != GL_NO_ERROR) {
       BOOST_LOG(error) << "GL: "sv << prefix << ": ["sv << util::hex(err).to_string_view() << ']';
@@ -44,13 +45,12 @@ namespace gl {
     }
   }
 
-  tex_t
-  tex_t::make(std::size_t count) {
-    tex_t textures { count };
+  tex_t tex_t::make(std::size_t count) {
+    tex_t textures {count};
 
     ctx.GenTextures(textures.size(), textures.begin());
 
-    float color[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+    float color[] = {0.0f, 0.0f, 0.0f, 1.0f};
 
     for (auto tex : textures) {
       gl::ctx.BindTexture(GL_TEXTURE_2D, tex);
@@ -70,25 +70,22 @@ namespace gl {
     }
   }
 
-  frame_buf_t
-  frame_buf_t::make(std::size_t count) {
-    frame_buf_t frame_buf { count };
+  frame_buf_t frame_buf_t::make(std::size_t count) {
+    frame_buf_t frame_buf {count};
 
     ctx.GenFramebuffers(frame_buf.size(), frame_buf.begin());
 
     return frame_buf;
   }
 
-  void
-  frame_buf_t::copy(int id, int texture, int offset_x, int offset_y, int width, int height) {
+  void frame_buf_t::copy(int id, int texture, int offset_x, int offset_y, int width, int height) {
     gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, (*this)[id]);
     gl::ctx.ReadBuffer(GL_COLOR_ATTACHMENT0 + id);
     gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
     gl::ctx.CopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, offset_x, offset_y, width, height);
   }
 
-  std::string
-  shader_t::err_str() {
+  std::string shader_t::err_str() {
     int length;
     ctx.GetShaderiv(handle(), GL_INFO_LOG_LENGTH, &length);
 
@@ -102,8 +99,7 @@ namespace gl {
     return string;
   }
 
-  util::Either<shader_t, std::string>
-  shader_t::compile(const std::string_view &source, GLenum type) {
+  util::Either<shader_t, std::string> shader_t::compile(const std::string_view &source, GLenum type) {
     shader_t shader;
 
     auto data = source.data();
@@ -123,13 +119,11 @@ namespace gl {
     return shader;
   }
 
-  GLuint
-  shader_t::handle() const {
+  GLuint shader_t::handle() const {
     return _shader.el;
   }
 
-  buffer_t
-  buffer_t::make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data) {
+  buffer_t buffer_t::make(util::buffer_t<GLint> &&offsets, const char *block, const std::string_view &data) {
     buffer_t buffer;
     buffer._block = block;
     buffer._size = data.size();
@@ -142,25 +136,21 @@ namespace gl {
     return buffer;
   }
 
-  GLuint
-  buffer_t::handle() const {
+  GLuint buffer_t::handle() const {
     return _buffer.el;
   }
 
-  const char *
-  buffer_t::block() const {
+  const char *buffer_t::block() const {
     return _block;
   }
 
-  void
-  buffer_t::update(const std::string_view &view, std::size_t offset) {
+  void buffer_t::update(const std::string_view &view, std::size_t offset) {
     ctx.BindBuffer(GL_UNIFORM_BUFFER, handle());
     ctx.BufferSubData(GL_UNIFORM_BUFFER, offset, view.size(), (const void *) view.data());
   }
 
-  void
-  buffer_t::update(std::string_view *members, std::size_t count, std::size_t offset) {
-    util::buffer_t<std::uint8_t> buffer { _size };
+  void buffer_t::update(std::string_view *members, std::size_t count, std::size_t offset) {
+    util::buffer_t<std::uint8_t> buffer {_size};
 
     for (int x = 0; x < count; ++x) {
       auto val = members[x];
@@ -171,8 +161,7 @@ namespace gl {
     update(util::view(buffer.begin(), buffer.end()), offset);
   }
 
-  std::string
-  program_t::err_str() {
+  std::string program_t::err_str() {
     int length;
     ctx.GetProgramiv(handle(), GL_INFO_LOG_LENGTH, &length);
 
@@ -186,8 +175,7 @@ namespace gl {
     return string;
   }
 
-  util::Either<program_t, std::string>
-  program_t::link(const shader_t &vert, const shader_t &frag) {
+  util::Either<program_t, std::string> program_t::link(const shader_t &vert, const shader_t &frag) {
     program_t program;
 
     program._program.el = ctx.CreateProgram();
@@ -214,16 +202,14 @@ namespace gl {
     return program;
   }
 
-  void
-  program_t::bind(const buffer_t &buffer) {
+  void program_t::bind(const buffer_t &buffer) {
     ctx.UseProgram(handle());
     auto i = ctx.GetUniformBlockIndex(handle(), buffer.block());
 
     ctx.BindBufferBase(GL_UNIFORM_BUFFER, i, buffer.handle());
   }
 
-  std::optional<buffer_t>
-  program_t::uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count) {
+  std::optional<buffer_t> program_t::uniform(const char *block, std::pair<const char *, std::string_view> *members, std::size_t count) {
     auto i = ctx.GetUniformBlockIndex(handle(), block);
     if (i == GL_INVALID_INDEX) {
       BOOST_LOG(error) << "Couldn't find index of ["sv << block << ']';
@@ -235,7 +221,7 @@ namespace gl {
 
     bool error_flag = false;
 
-    util::buffer_t<GLint> offsets { count };
+    util::buffer_t<GLint> offsets {count};
     auto indices = (std::uint32_t *) alloca(count * sizeof(std::uint32_t));
     auto names = (const char **) alloca(count * sizeof(const char *));
     auto names_p = names;
@@ -260,7 +246,7 @@ namespace gl {
     }
 
     ctx.GetActiveUniformsiv(handle(), count, indices, GL_UNIFORM_OFFSET, offsets.begin());
-    util::buffer_t<std::uint8_t> buffer { (std::size_t) size };
+    util::buffer_t<std::uint8_t> buffer {(std::size_t) size};
 
     for (int x = 0; x < count; ++x) {
       auto val = std::get<1>(members[x]);
@@ -268,11 +254,10 @@ namespace gl {
       std::copy_n((const std::uint8_t *) val.data(), val.size(), &buffer[offsets[x]]);
     }
 
-    return buffer_t::make(std::move(offsets), block, std::string_view { (char *) buffer.begin(), buffer.size() });
+    return buffer_t::make(std::move(offsets), block, std::string_view {(char *) buffer.begin(), buffer.size()});
   }
 
-  GLuint
-  program_t::handle() const {
+  GLuint program_t::handle() const {
     return _program.el;
   }
 
@@ -282,23 +267,24 @@ namespace gbm {
   device_destroy_fn device_destroy;
   create_device_fn create_device;
 
-  int
-  init() {
-    static void *handle { nullptr };
+  int init() {
+    static void *handle {nullptr};
     static bool funcs_loaded = false;
 
-    if (funcs_loaded) return 0;
+    if (funcs_loaded) {
+      return 0;
+    }
 
     if (!handle) {
-      handle = dyn::handle({ "libgbm.so.1", "libgbm.so" });
+      handle = dyn::handle({"libgbm.so.1", "libgbm.so"});
       if (!handle) {
         return -1;
       }
     }
 
     std::vector<std::tuple<GLADapiproc *, const char *>> funcs {
-      { (GLADapiproc *) &device_destroy, "gbm_device_destroy" },
-      { (GLADapiproc *) &create_device, "gbm_create_device" },
+      {(GLADapiproc *) &device_destroy, "gbm_device_destroy"},
+      {(GLADapiproc *) &create_device, "gbm_create_device"},
     };
 
     if (dyn::load(handle, funcs)) {
@@ -334,16 +320,14 @@ namespace egl {
   constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT = 0x3449;
   constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT = 0x344A;
 
-  bool
-  fail() {
+  bool fail() {
     return eglGetError() != EGL_SUCCESS;
   }
 
   /**
    * @memberof egl::display_t
    */
-  display_t
-  make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
+  display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
     constexpr auto EGL_PLATFORM_GBM_MESA = 0x31D7;
     constexpr auto EGL_PLATFORM_WAYLAND_KHR = 0x31D8;
     constexpr auto EGL_PLATFORM_X11_KHR = 0x31D5;
@@ -408,10 +392,11 @@ namespace egl {
     return display;
   }
 
-  std::optional<ctx_t>
-  make_ctx(display_t::pointer display) {
+  std::optional<ctx_t> make_ctx(display_t::pointer display) {
     constexpr int conf_attr[] {
-      EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE
+      EGL_RENDERABLE_TYPE,
+      EGL_OPENGL_BIT,
+      EGL_NONE
     };
 
     int count;
@@ -427,10 +412,12 @@ namespace egl {
     }
 
     constexpr int attr[] {
-      EGL_CONTEXT_CLIENT_VERSION, 3, EGL_NONE
+      EGL_CONTEXT_CLIENT_VERSION,
+      3,
+      EGL_NONE
     };
 
-    ctx_t ctx { display, eglCreateContext(display, conf, EGL_NO_CONTEXT, attr) };
+    ctx_t ctx {display, eglCreateContext(display, conf, EGL_NO_CONTEXT, attr)};
     if (fail()) {
       BOOST_LOG(error) << "Couldn't create EGL context: ["sv << util::hex(eglGetError()).to_string_view() << ']';
       return std::nullopt;
@@ -465,8 +452,7 @@ namespace egl {
     EGLAttrib hi;
   };
 
-  inline plane_attr_t
-  get_plane(std::uint32_t plane_indice) {
+  inline plane_attr_t get_plane(std::uint32_t plane_indice) {
     switch (plane_indice) {
       case 0:
         return {
@@ -511,8 +497,7 @@ namespace egl {
    * @param surface The surface descriptor.
    * @return Vector of EGL attributes.
    */
-  std::vector<EGLAttrib>
-  surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+  std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
     std::vector<EGLAttrib> attribs;
 
     attribs.emplace_back(EGL_WIDTH);
@@ -549,8 +534,7 @@ namespace egl {
     return attribs;
   }
 
-  std::optional<rgb_t>
-  import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+  std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
     auto attribs = surface_descriptor_to_egl_attribs(xrgb);
 
     rgb_t rgb {
@@ -580,8 +564,7 @@ namespace egl {
    * @param img The image to use for texture sizing.
    * @return The new RGB texture.
    */
-  rgb_t
-  create_blank(platf::img_t &img) {
+  rgb_t create_blank(platf::img_t &img) {
     rgb_t rgb {
       EGL_NO_DISPLAY,
       EGL_NO_IMAGE,
@@ -597,7 +580,7 @@ namespace egl {
 
     GLenum attachment = GL_COLOR_ATTACHMENT0;
     gl::ctx.DrawBuffers(1, &attachment);
-    const GLuint rgb_black[] = { 0, 0, 0, 0 };
+    const GLuint rgb_black[] = {0, 0, 0, 0};
     gl::ctx.ClearBufferuiv(GL_COLOR, 0, rgb_black);
 
     gl_drain_errors;
@@ -605,8 +588,7 @@ namespace egl {
     return rgb;
   }
 
-  std::optional<nv12_t>
-  import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
+  std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
     auto y_attribs = surface_descriptor_to_egl_attribs(y);
     auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
 
@@ -642,8 +624,8 @@ namespace egl {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
 
-      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -661,8 +643,7 @@ namespace egl {
    * @param format Format of the target frame.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t>
-  create_target(int width, int height, AVPixelFormat format) {
+  std::optional<nv12_t> create_target(int width, int height, AVPixelFormat format) {
     nv12_t nv12 {
       EGL_NO_DISPLAY,
       EGL_NO_IMAGE,
@@ -679,12 +660,10 @@ namespace egl {
     if (fmt_desc->comp[0].depth <= 8) {
       y_format = GL_R8;
       uv_format = GL_RG8;
-    }
-    else if (fmt_desc->comp[0].depth <= 16) {
+    } else if (fmt_desc->comp[0].depth <= 16) {
       y_format = GL_R16;
       uv_format = GL_RG16;
-    }
-    else {
+    } else {
       BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
       return std::nullopt;
     }
@@ -693,8 +672,7 @@ namespace egl {
     gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, uv_format,
-      width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, uv_format, width >> fmt_desc->log2_chroma_w, height >> fmt_desc->log2_chroma_h);
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
@@ -707,8 +685,8 @@ namespace egl {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
 
-      const float y_black[] = { 0.0f, 0.0f, 0.0f, 0.0f };
-      const float uv_black[] = { 0.5f, 0.5f, 0.5f, 0.5f };
+      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -719,8 +697,7 @@ namespace egl {
     return nv12;
   }
 
-  void
-  sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
+  void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
     auto color_p = video::color_vectors_from_colorspace(colorspace);
 
     std::string_view members[] {
@@ -737,8 +714,7 @@ namespace egl {
     program[1].bind(color_matrix);
   }
 
-  std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
+  std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
     sws.serial = std::numeric_limits<std::uint64_t>::max();
@@ -866,8 +842,7 @@ namespace egl {
     return sws;
   }
 
-  int
-  sws_t::blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height) {
+  int sws_t::blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height) {
     auto f = [&]() {
       std::swap(offsetX, this->offsetX);
       std::swap(offsetY, this->offsetY);
@@ -881,8 +856,7 @@ namespace egl {
     return convert(fb);
   }
 
-  std::optional<sws_t>
-  sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
+  std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
     GLint gl_format;
 
     // Decide the bit depth format of the backing texture based the target frame format
@@ -916,16 +890,14 @@ namespace egl {
     return make(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
-  void
-  sws_t::load_ram(platf::img_t &img) {
+  void sws_t::load_ram(platf::img_t &img) {
     loaded_texture = tex[0];
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
   }
 
-  void
-  sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
+  void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
     // When only a sub-part of the image must be encoded...
     const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
     if (copy) {
@@ -934,8 +906,7 @@ namespace egl {
 
       loaded_texture = tex[0];
       framebuf.copy(0, loaded_texture, offset_x, offset_y, in_width, in_height);
-    }
-    else {
+    } else {
       loaded_texture = texture;
     }
 
@@ -985,8 +956,7 @@ namespace egl {
     }
   }
 
-  int
-  sws_t::convert(gl::frame_buf_t &fb) {
+  int sws_t::convert(gl::frame_buf_t &fb) {
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
 
     GLenum attachments[] {
@@ -1019,7 +989,6 @@ namespace egl {
   }
 }  // namespace egl
 
-void
-free_frame(AVFrame *frame) {
+void free_frame(AVFrame *frame) {
   av_frame_free(&frame);
 }

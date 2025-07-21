@@ -2,11 +2,11 @@
  * @file tests/unit/test_file_handler.cpp
  * @brief Test src/file_handler.*.
  */
+#include "../tests_common.h"
+
 #include <src/file_handler.h>
 
-#include <tests/conftest.cpp>
-
-class FileHandlerParentDirectoryTest: public ::testing::TestWithParam<std::tuple<std::string, std::string>> {};
+struct FileHandlerParentDirectoryTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
 
 TEST_P(FileHandlerParentDirectoryTest, Run) {
   auto [input, expected] = GetParam();
@@ -16,12 +16,14 @@ TEST_P(FileHandlerParentDirectoryTest, Run) {
 INSTANTIATE_TEST_SUITE_P(
   FileHandlerTests,
   FileHandlerParentDirectoryTest,
-  ::testing::Values(
+  testing::Values(
     std::make_tuple("/path/to/file.txt", "/path/to"),
     std::make_tuple("/path/to/directory", "/path/to"),
-    std::make_tuple("/path/to/directory/", "/path/to")));
+    std::make_tuple("/path/to/directory/", "/path/to")
+  )
+);
 
-class FileHandlerMakeDirectoryTest: public ::testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
+struct FileHandlerMakeDirectoryTest: testing::TestWithParam<std::tuple<std::string, bool, bool>> {};
 
 TEST_P(FileHandlerMakeDirectoryTest, Run) {
   auto [input, expected, remove] = GetParam();
@@ -41,28 +43,20 @@ TEST_P(FileHandlerMakeDirectoryTest, Run) {
 INSTANTIATE_TEST_SUITE_P(
   FileHandlerTests,
   FileHandlerMakeDirectoryTest,
-  ::testing::Values(
+  testing::Values(
     std::make_tuple("dir_123", true, false),
     std::make_tuple("dir_123", true, true),
     std::make_tuple("dir_123/abc", true, false),
-    std::make_tuple("dir_123/abc", true, true)));
+    std::make_tuple("dir_123/abc", true, true)
+  )
+);
 
-class FileHandlerTests: public virtual BaseTest, public ::testing::WithParamInterface<std::tuple<int, std::string>> {
-protected:
-  void
-  SetUp() override {
-    BaseTest::SetUp();
-  }
+struct FileHandlerTests: testing::TestWithParam<std::tuple<int, std::string>> {};
 
-  void
-  TearDown() override {
-    BaseTest::TearDown();
-  }
-};
 INSTANTIATE_TEST_SUITE_P(
   TestFiles,
   FileHandlerTests,
-  ::testing::Values(
+  testing::Values(
     std::make_tuple(0, ""),  // empty file
     std::make_tuple(1, "a"),  // single character
     std::make_tuple(2, "Mr. Blue Sky - Electric Light Orchestra"),  // single line
@@ -80,7 +74,8 @@ All the streets where once was pity
 Mr. Blue Sky is living here today!
 Hey, hey, hey!
     )")  // multi-line
-    ));
+  )
+);
 
 TEST_P(FileHandlerTests, WriteFileTest) {
   auto [fileNum, content] = GetParam();

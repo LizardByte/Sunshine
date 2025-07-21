@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps([
   'platform',
@@ -38,14 +39,12 @@ const config = ref(props.config)
     </div>
 
     <!-- Spatial AQ -->
-    <div class="mb-3">
-      <label for="nvenc_spatial_aq" class="form-label">{{ $t('config.nvenc_spatial_aq') }}</label>
-      <select id="nvenc_spatial_aq" class="form-select" v-model="config.nvenc_spatial_aq">
-        <option value="disabled">{{ $t('config.nvenc_spatial_aq_disabled') }}</option>
-        <option value="enabled">{{ $t('config.nvenc_spatial_aq_enabled') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.nvenc_spatial_aq_desc') }}</div>
-    </div>
+    <Checkbox class="mb-3"
+              id="nvenc_spatial_aq"
+              locale-prefix="config"
+              v-model="config.nvenc_spatial_aq"
+              default="false"
+    ></Checkbox>
 
     <!-- Single-frame VBV/HRD percentage increase -->
     <div class="mb-3">
@@ -60,7 +59,7 @@ const config = ref(props.config)
     </div>
 
     <!-- Miscellaneous options -->
-    <div class="accordion">
+    <div class="mb-3 accordion">
       <div class="accordion-item">
         <h2 class="accordion-header">
           <button class="accordion-button" type="button" data-bs-toggle="collapse"
@@ -72,48 +71,43 @@ const config = ref(props.config)
              aria-labelledby="panelsStayOpen-headingOne">
           <div class="accordion-body">
             <!-- NVENC Realtime HAGS priority -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_realtime_hags" class="form-label">{{ $t('config.nvenc_realtime_hags') }}</label>
-              <select id="nvenc_realtime_hags" class="form-select" v-model="config.nvenc_realtime_hags">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
-              <div class="form-text">
-                {{ $t('config.nvenc_realtime_hags_desc') }}<br>
-                <br>
-                <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
-              </div>
-            </div>
+            <Checkbox v-if="platform === 'windows'"
+                      class="mb-3"
+                      id="nvenc_realtime_hags"
+                      locale-prefix="config"
+                      v-model="config.nvenc_realtime_hags"
+                      default="true"
+            >
+              <br>
+              <br>
+              <a href="https://devblogs.microsoft.com/directx/hardware-accelerated-gpu-scheduling/">HAGS</a>
+            </Checkbox>
 
             <!-- Prefer lower encoding latency over power savings -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_latency_over_power" class="form-label">{{ $t('config.nvenc_latency_over_power') }}</label>
-              <select id="nvenc_latency_over_power" class="form-select" v-model="config.nvenc_latency_over_power">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.nvenc_latency_over_power_desc') }}</div>
-            </div>
+            <Checkbox v-if="platform === 'windows'"
+                      class="mb-3"
+                      id="nvenc_latency_over_power"
+                      locale-prefix="config"
+                      v-model="config.nvenc_latency_over_power"
+                      default="true"
+            ></Checkbox>
 
             <!-- Present OpenGL/Vulkan on top of DXGI -->
-            <div class="mb-3" v-if="platform === 'windows'">
-              <label for="nvenc_opengl_vulkan_on_dxgi" class="form-label">{{ $t('config.nvenc_opengl_vulkan_on_dxgi') }}</label>
-              <select id="nvenc_opengl_vulkan_on_dxgi" class="form-select" v-model="config.nvenc_opengl_vulkan_on_dxgi">
-                <option value="disabled">{{ $t('_common.disabled') }}</option>
-                <option value="enabled">{{ $t('_common.enabled_def') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.nvenc_opengl_vulkan_on_dxgi_desc') }}</div>
-            </div>
+            <Checkbox v-if="platform === 'windows'"
+                      class="mb-3"
+                      id="nvenc_opengl_vulkan_on_dxgi"
+                      locale-prefix="config"
+                      v-model="config.nvenc_opengl_vulkan_on_dxgi"
+                      default="true"
+            ></Checkbox>
 
             <!-- NVENC H264 CAVLC -->
-            <div>
-              <label for="nvenc_h264_cavlc" class="form-label">{{ $t('config.nvenc_h264_cavlc') }}</label>
-              <select id="nvenc_h264_cavlc" class="form-select" v-model="config.nvenc_h264_cavlc">
-                <option value="disabled">{{ $t('_common.disabled_def') }}</option>
-                <option value="enabled">{{ $t('_common.enabled') }}</option>
-              </select>
-              <div class="form-text">{{ $t('config.nvenc_h264_cavlc_desc') }}</div>
-            </div>
+            <Checkbox class="mb-3"
+                      id="nvenc_h264_cavlc"
+                      locale-prefix="config"
+                      v-model="config.nvenc_h264_cavlc"
+                      default="false"
+            ></Checkbox>
           </div>
         </div>
       </div>

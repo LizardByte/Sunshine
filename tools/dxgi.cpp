@@ -3,18 +3,17 @@
  * @brief Displays information about connected displays and GPUs
  */
 #define WINVER 0x0A00
-#include <d3dcommon.h>
-#include <dxgi.h>
-
-#include <iostream>
-
 #include "src/utility.h"
 
+#include <d3dcommon.h>
+#include <dxgi.h>
+#include <iostream>
+
 using namespace std::literals;
+
 namespace dxgi {
-  template <class T>
-  void
-  Release(T *dxgi) {
+  template<class T>
+  void Release(T *dxgi) {
     dxgi->Release();
   }
 
@@ -24,8 +23,7 @@ namespace dxgi {
 
 }  // namespace dxgi
 
-int
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
   HRESULT status;
 
   // Set ourselves as per-monitor DPI aware for accurate resolution values on High DPI systems
@@ -33,7 +31,7 @@ main(int argc, char *argv[]) {
 
   dxgi::factory1_t::pointer factory_p {};
   status = CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &factory_p);
-  dxgi::factory1_t factory { factory_p };
+  dxgi::factory1_t factory {factory_p};
   if (FAILED(status)) {
     std::cout << "Failed to create DXGIFactory1 [0x"sv << util::hex(status).to_string_view() << ']' << std::endl;
     return -1;
@@ -41,7 +39,7 @@ main(int argc, char *argv[]) {
 
   dxgi::adapter_t::pointer adapter_p {};
   for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
-    dxgi::adapter_t adapter { adapter_p };
+    dxgi::adapter_t adapter {adapter_p};
 
     DXGI_ADAPTER_DESC1 adapter_desc;
     adapter->GetDesc1(&adapter_desc);
@@ -61,7 +59,7 @@ main(int argc, char *argv[]) {
 
     dxgi::output_t::pointer output_p {};
     for (int y = 0; adapter->EnumOutputs(y, &output_p) != DXGI_ERROR_NOT_FOUND; ++y) {
-      dxgi::output_t output { output_p };
+      dxgi::output_t output {output_p};
 
       DXGI_OUTPUT_DESC desc;
       output->GetDesc(&desc);

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+  <id>@PROJECT_FQDN@</id>
+
+  <name>@PROJECT_NAME@</name>
+  <summary>@PROJECT_BRIEF_DESCRIPTION@</summary>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>@PROJECT_LICENSE@</project_license>
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+    <control>touch</control>
+    <control>gamepad</control>
+  </supports>
+
+  <url type="homepage">@PROJECT_HOMEPAGE_URL@</url>
+  <url type="bugtracker">https://github.com/LizardByte/Sunshine/issues</url>
+  <url type="faq">https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2troubleshooting.html</url>
+  <url type="help">https://docs.lizardbyte.dev/projects/sunshine</url>
+  <url type="donation">https://app.lizardbyte.dev/#Donate</url>
+  <url type="translate">https://translate.lizardbyte.dev</url>
+  <url type="contact">https://app.lizardbyte.dev/support</url>
+
+  <description>
+    <p>
+      @PROJECT_LONG_DESCRIPTION@
+    </p>
+
+    <p>NOTE: Sunshine requires additional installation steps (Flatpak).</p>
+    <p>
+      <code>flatpak run --command=additional-install.sh @PROJECT_FQDN@</code>
+    </p>
+    <p>NOTE: Sunshine uses a self-signed certificate. The web browser will report it as not secure, but it is safe.</p>
+    <p>NOTE: KMS Grab (Flatpak)</p>
+    <p>
+      <code>sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run @PROJECT_FQDN@</code>
+    </p>
+  </description>
+
+  <releases>
+    <release version="@PROJECT_VERSION@" date="@PROJECT_YEAR@-@PROJECT_MONTH@-@PROJECT_DAY@">
+      <description>
+        <p>
+          See the full changelog on GitHub
+
+          <!-- changelog -->
+        </p>
+      </description>
+    </release>
+  </releases>
+
+  <developer id="dev.lizardbyte">
+    <name>LizardByte</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://app.lizardbyte.dev/Sunshine/assets/img/screenshots/01-sunshine-welcome-page.png</image>
+      <caption>Sunshine welcome page</caption>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.0">
+    <content_attribute id="language-profanity">moderate</content_attribute>
+    <content_attribute id="language-humor">mild</content_attribute>
+    <content_attribute id="money-purchasing">mild</content_attribute>
+  </content_rating>
+  <launchable type="desktop-id">@PROJECT_FQDN@.desktop</launchable>
+</component>

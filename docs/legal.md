@@ -25,3 +25,8 @@ concerns about using Sunshine in a commercial setting, we recommend consulting w
 | [Gamestream Migration](gamestream_migration.md) | [Configuration](configuration.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

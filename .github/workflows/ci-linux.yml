@@ -1,0 +1,216 @@
+---
+name: CI-Linux
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+
+jobs:
+  build_linux:
+    name: ${{ matrix.name }}
+    env:
+      APP_ID: dev.lizardbyte.app.Sunshine
+    runs-on: ubuntu-${{ matrix.dist }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: AppImage
+            EXTRA_ARGS: '--appimage-build'
+            dist: 22.04
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@v10
+        with:
+          root-reserve-mb: 30720
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+          remove-docker-images: 'true'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Dependencies Linux
+        timeout-minutes: 5
+        run: |
+          # create the artifacts directory
+          mkdir -p artifacts
+
+          # allow libfuse2 for appimage on 22.04+
+          sudo add-apt-repository universe
+
+          sudo apt-get install -y \
+            libdrm-dev \
+            libfuse2 \
+            libgl-dev \
+            libwayland-dev \
+            libx11-xcb-dev \
+            libxcb-dri3-dev \
+            libxfixes-dev
+
+      - name: Setup python
+        id: python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build latest libva
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        timeout-minutes: 5
+        run: |
+          gh release download --archive=tar.gz --repo=intel/libva
+          tar xzf libva-*.tar.gz && rm libva-*.tar.gz
+          cd libva-*
+          ./autogen.sh --prefix=/usr --libdir=/usr/lib/x86_64-linux-gnu \
+            --enable-drm \
+            --enable-x11 \
+            --enable-glx \
+            --enable-wayland \
+            --without-legacy  # emgd, nvctrl, fglrx
+          make -j $(nproc)
+          sudo make install
+          cd .. && rm -rf libva-*
+
+      - name: Build Linux
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ inputs.release_version }}
+          COMMIT: ${{ inputs.release_commit }}
+        run: |
+          chmod +x ./scripts/linux_build.sh
+          ./scripts/linux_build.sh \
+            --publisher-name='${{ github.repository_owner }}' \
+            --publisher-website='https://app.lizardbyte.dev' \
+            --publisher-issue-url='https://app.lizardbyte.dev/support' \
+            --skip-cleanup \
+            --skip-package \
+            --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
+
+      - name: Set AppImage Version
+        if: matrix.name == 'AppImage'
+        run: |
+          version=${{ inputs.release_version }}
+          echo "VERSION=${version}" >> $GITHUB_ENV
+
+      - name: Package Linux - AppImage
+        if: matrix.name == 'AppImage'
+        working-directory: build
+        run: |
+          # install sunshine to the DESTDIR
+          DESTDIR=AppDir ninja install
+
+          # custom AppRun file
+          cp -f ../packaging/linux/AppImage/AppRun ./AppDir/
+          chmod +x ./AppDir/AppRun
+
+          # variables
+          DESKTOP_FILE="${DESKTOP_FILE:-${APP_ID}.desktop}"
+          ICON_FILE="${ICON_FILE:-sunshine.png}"
+
+          # AppImage
+          # https://docs.appimage.org/packaging-guide/index.html
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+          # https://github.com/linuxdeploy/linuxdeploy-plugin-gtk
+          sudo apt-get install libgtk-3-dev librsvg2-dev -y
+          wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
+          chmod +x linuxdeploy-plugin-gtk.sh
+          export DEPLOY_GTK_VERSION=3
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir ./AppDir \
+            --plugin gtk \
+            --executable ./sunshine \
+            --icon-file "../$ICON_FILE" \
+            --desktop-file "./$DESKTOP_FILE" \
+            --output appimage
+
+          # move
+          mv Sunshine*.AppImage ../artifacts/sunshine.AppImage
+
+          # permissions
+          chmod +x ../artifacts/sunshine.AppImage
+
+      - name: Delete CUDA
+        # free up space on the runner
+        run: |
+          rm -rf ./build/cuda
+
+      - name: Verify AppImage
+        if: matrix.name == 'AppImage'
+        run: |
+          wget https://github.com/TheAssassin/appimagelint/releases/download/continuous/appimagelint-x86_64.AppImage
+          chmod +x appimagelint-x86_64.AppImage
+
+          ./appimagelint-x86_64.AppImage ./artifacts/sunshine.AppImage
+
+      - name: Install test deps
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            x11-xserver-utils \
+            xvfb
+
+          # clean apt cache
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+      - name: Run tests
+        id: test
+        working-directory: build/tests
+        run: |
+          export DISPLAY=:1
+          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+          sleep 5  # give Xvfb time to start
+
+          ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      - name: Generate gcov report
+        id: test_report
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        working-directory: build
+        run: |
+          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --verbose \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success')
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-Linux-${{ matrix.name }}
+          path: |
+            build/coverage.xml
+            build/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-Linux-${{ matrix.name }}
+          path: artifacts/
+          if-no-files-found: error

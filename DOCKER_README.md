@@ -26,8 +26,6 @@ Sunshine images are available with the following tag suffixes, based on their re
 
 - `archlinux`
 - `debian-bookworm`
-- `fedora-39`
-- `fedora-40`
 - `ubuntu-22.04`
 - `ubuntu-24.04`
 
@@ -54,6 +52,7 @@ docker run -d \
   --device /dev/dri/ \
   --name=<image_name> \
   --restart=unless-stopped \
+  --ipc=host \
   -e PUID=<uid> \
   -e PGID=<gid> \
   -e TZ=<timezone> \
@@ -80,6 +79,7 @@ services:
       - PUID=<uid>
       - PGID=<gid>
       - TZ=<timezone>
+    ipc: host
     ports:
       - "47984-47990:47984-47990/tcp"
       - "48010:48010"
@@ -125,6 +125,9 @@ port `47990` (e.g. `http://<host_ip>:47990`). The internal port must be `47990`,
 | `-e PGID=<gid>`             | Group ID             | `1001`             | False    |
 | `-e TZ=<timezone>`          | Lookup [TZ value][1] | `America/New_York` | False    |
 
+For additional configuration, it is recommended to reference the *Games on Whales*
+[sunshine config](https://github.com/games-on-whales/gow/blob/2e442292d79b9d996f886b8a03d22b6eb6bddf7b/compose/streamers/sunshine.yml).
+
 [1]: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 
 #### User / Group Identifiers:
@@ -152,8 +155,6 @@ The architectures supported by these images are shown in the table below.
 |-----------------|--------------|---------------|
 | archlinux       | ✅            | ❌             |
 | debian-bookworm | ✅            | ✅             |
-| fedora-39       | ✅            | ❌             |
-| fedora-40       | ✅            | ❌             |
 | ubuntu-22.04    | ✅            | ✅             |
 | ubuntu-24.04    | ✅            | ✅             |
 
@@ -164,3 +165,8 @@ The architectures supported by these images are shown in the table below.
 | [Changelog](docs/changelog.md) | [Third-Party Packages](docs/third_party_packages.md) |
 
 </div>
+
+<details style="display: none;">
+  <summary></summary>
+  [TOC]
+</details>

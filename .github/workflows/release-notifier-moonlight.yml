@@ -1,5 +1,6 @@
 ---
 name: Release Notifications (Moonlight)
+permissions: {}
 
 on:
   release:
@@ -8,20 +9,30 @@ on:
 
 jobs:
   discord:
-    if: >-
-      startsWith(github.repository, 'LizardByte/') &&
-      !github.event.release.prerelease &&
-      !github.event.release.draft
+    if: github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
     steps:
-      - name: discord
-        uses: sarisia/actions-status-discord@v1  # https://github.com/sarisia/actions-status-discord
+      - name: Check if latest GitHub release
+        id: check-release
+        uses: actions/github-script@v7
         with:
-          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}
+          script: |
+            const latestRelease = await github.rest.repos.getLatestRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            core.setOutput('isLatestRelease', latestRelease.data.tag_name === context.payload.release.tag_name);
+
+      - name: discord
+        if: steps.check-release.outputs.isLatestRelease == 'true'
+        uses: sarisia/actions-status-discord@v1
+        with:
+          avatar_url: ${{ vars.ORG_LOGO_URL }}256
+          color: 0x${{ vars.COLOR_HEX_GREEN }}
+          description: ${{ github.event.release.body }}
           nodetail: true
           nofail: false
-          username: ${{ secrets.DISCORD_USERNAME }}
-          avatar_url: ${{ secrets.ORG_LOGO_URL }}
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          description: ${{ github.event.release.body }}
-          color: 0xFF4500
+          username: ${{ secrets.DISCORD_USERNAME }}
+          webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}

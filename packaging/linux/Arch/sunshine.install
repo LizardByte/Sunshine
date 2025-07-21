@@ -5,7 +5,9 @@ do_setcap() {
 do_udev_reload() {
   udevadm control --reload-rules
   udevadm trigger --property-match=DEVNAME=/dev/uinput
+  udevadm trigger --property-match=DEVNAME=/dev/uhid
   modprobe uinput || true
+  modprobe uhid || true
 }
 
 post_install() {

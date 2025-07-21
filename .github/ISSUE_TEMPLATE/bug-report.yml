@@ -70,9 +70,8 @@ body:
     attributes:
       label: Architecture
       options:
-        - 32 bit
-        - 64 bit
-        - arm
+        - amd64/x86_64
+        - arm64/aarch64
         - other, n/a
     validations:
       required: true
@@ -95,18 +94,19 @@ body:
         - Linux - AUR (Third Party)
         - Linux - deb
         - Linux - Docker
-        - Linux - flathub (Third Party)
-        - Linux - flatpak
+        - Linux - Fedora Copr
+        - Linux - flathub/flatpak
         - Linux - Homebrew
+        - Linux - LizardByte/pacman-repo
         - Linux - nixpkgs (Third Party)
         - Linux - pkg.tar.zst
-        - Linux - rpm
         - Linux - solus (Third Party)
+        - Linux - Unraid (Third Party)
         - macOS - Homebrew
         - macOS - Portfile
         - Windows - Chocolatey (Third Party)
-        - Windows - installer
-        - Windows - portable
+        - Windows - installer (recommended)
+        - Windows - portable (not recommended)
         - Windows - Scoop (Third Party)
         - Windows - Winget
         - other (not listed)
@@ -124,7 +124,7 @@ body:
         - AMD
         - Apple Silicon
         - Intel
-        - Nvidia
+        - NVIDIA
         - none (software encoding)
         - n/a
     validations:
@@ -150,7 +150,7 @@ body:
       description: The capture method being used.
       options:
         - AVCaptureScreen (macOS)
-        - KMX (Linux)
+        - KMS (Linux)
         - NvFBC (Linux)
         - wlroots (Linux)
         - X11 (Linux)
@@ -166,7 +166,7 @@ body:
         Please copy and paste your config (`sunshine.conf`) file.
       render: Shell
     validations:
-      required: true
+      required: false
   - type: textarea
     id: apps
     attributes:

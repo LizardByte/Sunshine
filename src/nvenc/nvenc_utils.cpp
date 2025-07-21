@@ -1,16 +1,17 @@
 /**
  * @file src/nvenc/nvenc_utils.cpp
- * @brief Definitions for base NVENC utilities.
+ * @brief Definitions for NVENC utilities.
  */
+// standard includes
 #include <cassert>
 
+// local includes
 #include "nvenc_utils.h"
 
 namespace nvenc {
 
 #ifdef _WIN32
-  DXGI_FORMAT
-  dxgi_format_from_nvenc_format(NV_ENC_BUFFER_FORMAT format) {
+  DXGI_FORMAT dxgi_format_from_nvenc_format(NV_ENC_BUFFER_FORMAT format) {
     switch (format) {
       case NV_ENC_BUFFER_FORMAT_YUV420_10BIT:
         return DXGI_FORMAT_P010;
@@ -18,14 +19,19 @@ namespace nvenc {
       case NV_ENC_BUFFER_FORMAT_NV12:
         return DXGI_FORMAT_NV12;
 
+      case NV_ENC_BUFFER_FORMAT_AYUV:
+        return DXGI_FORMAT_AYUV;
+
+      case NV_ENC_BUFFER_FORMAT_YUV444_10BIT:
+        return DXGI_FORMAT_R16_UINT;
+
       default:
         return DXGI_FORMAT_UNKNOWN;
     }
   }
 #endif
 
-  NV_ENC_BUFFER_FORMAT
-  nvenc_format_from_sunshine_format(platf::pix_fmt_e format) {
+  NV_ENC_BUFFER_FORMAT nvenc_format_from_sunshine_format(platf::pix_fmt_e format) {
     switch (format) {
       case platf::pix_fmt_e::nv12:
         return NV_ENC_BUFFER_FORMAT_NV12;
@@ -33,13 +39,18 @@ namespace nvenc {
       case platf::pix_fmt_e::p010:
         return NV_ENC_BUFFER_FORMAT_YUV420_10BIT;
 
+      case platf::pix_fmt_e::ayuv:
+        return NV_ENC_BUFFER_FORMAT_AYUV;
+
+      case platf::pix_fmt_e::yuv444p16:
+        return NV_ENC_BUFFER_FORMAT_YUV444_10BIT;
+
       default:
         return NV_ENC_BUFFER_FORMAT_UNDEFINED;
     }
   }
 
-  nvenc_colorspace_t
-  nvenc_colorspace_from_sunshine_colorspace(const video::sunshine_colorspace_t &sunshine_colorspace) {
+  nvenc_colorspace_t nvenc_colorspace_from_sunshine_colorspace(const video::sunshine_colorspace_t &sunshine_colorspace) {
     nvenc_colorspace_t colorspace;
 
     switch (sunshine_colorspace.colorspace) {
