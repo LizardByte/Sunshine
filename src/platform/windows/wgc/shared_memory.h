@@ -100,6 +100,7 @@ public:
   void wait_for_client_connection(int milliseconds) override;
   void disconnect() override;
   bool is_connected() override;
+  void flush_buffers();
 
 private:
   void connect_server_pipe(int milliseconds);

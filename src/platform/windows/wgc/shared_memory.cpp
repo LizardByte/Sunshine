@@ -28,6 +28,55 @@ namespace {
   using safe_local_mem = util::safe_ptr_v2<void, HLOCAL, &LocalFree>;
   using safe_handle = platf::dxgi::safe_handle;
 
+  // RAII helper for overlapped I/O operations
+  class io_context {
+  public:
+    io_context() {
+      _event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+      ZeroMemory(&_ovl, sizeof(_ovl));
+      _ovl.hEvent = _event;
+    }
+    
+    ~io_context() { 
+      if (_event) {
+        CloseHandle(_event); 
+      }
+    }
+    
+    // Disable copy
+    io_context(const io_context &) = delete;
+    io_context &operator=(const io_context &) = delete;
+    
+    // Enable move
+    io_context(io_context &&other) noexcept:
+        _ovl(other._ovl),
+        _event(other._event) {
+      other._event = nullptr;
+      ZeroMemory(&other._ovl, sizeof(other._ovl));
+    }
+    
+    io_context &operator=(io_context &&other) noexcept {
+      if (this != &other) {
+        if (_event) {
+          CloseHandle(_event);
+        }
+        _ovl = other._ovl;
+        _event = other._event;
+        other._event = nullptr;
+        ZeroMemory(&other._ovl, sizeof(other._ovl));
+      }
+      return *this;
+    }
+    
+    OVERLAPPED* get() { return &_ovl; }
+    HANDLE event() const { return _event; }
+    bool is_valid() const { return _event != nullptr; }
+    
+  private:
+    OVERLAPPED _ovl;
+    HANDLE _event;
+  };
+
   // Specialized wrapper for DACL since it needs to be cast to PACL
   struct safe_dacl {
     PACL dacl = nullptr;
@@ -465,10 +514,13 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
     return nullptr;
   }
 
+  // Flush the control pipe to ensure ACK is delivered before disconnecting
+  static_cast<WinPipe*>(pipe.get())->flush_buffers();
+
   // Convert wide string to string using proper conversion
   std::wstring wpipeName(msg.pipe_name);
   std::string pipeNameStr = wide_to_utf8(wpipeName);
-  // Disconnect control pipe only after ACK is sent
+  // Disconnect control pipe only after ACK is sent and flushed
   pipe->disconnect();
 
   // Retry logic for opening the data pipe
@@ -515,7 +567,7 @@ WinPipe::WinPipe(HANDLE pipe, bool isServer):
     _isServer(isServer) {
   if (!_isServer && _pipe != INVALID_HANDLE_VALUE) {
     _connected.store(true, std::memory_order_release);
-    BOOST_LOG(info) << "WinPipe (client): Connected immediately after CreateFileW, handle valid.";
+    BOOST_LOG(info) << "WinPipe (client): Connected immediately after CreateFileW, handle valid, mode set.";
   }
 }
 
@@ -528,29 +580,30 @@ bool WinPipe::send(std::vector<uint8_t> bytes, int timeout_ms) {
     return false;
   }
 
-  OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
-  if (!event) {
-    BOOST_LOG(error) << "Failed to create event for send operation, error=" << GetLastError();
+  auto ctx = std::make_unique<io_context>();
+  if (!ctx->is_valid()) {
+    BOOST_LOG(error) << "Failed to create I/O context for send operation, error=" << GetLastError();
     return false;
   }
-  ovl.hEvent = event.get();
 
   DWORD bytesWritten = 0;
-  if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, &ovl); !result) {
+  if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, ctx->get()); !result) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
       // Wait for completion with timeout
       BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
-      DWORD waitResult = WaitForSingleObject(ovl.hEvent, timeout_ms);
+      DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
       if (waitResult == WAIT_OBJECT_0) {
-        if (!GetOverlappedResult(_pipe, &ovl, &bytesWritten, FALSE)) {
+        if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
           BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
           return false;
         }
       } else if (waitResult == WAIT_TIMEOUT) {
         BOOST_LOG(warning) << "Send operation timed out after " << timeout_ms << "ms";
-        CancelIoEx(_pipe, &ovl);
+        CancelIoEx(_pipe, ctx->get());
+        // Wait for cancellation to complete to ensure OVERLAPPED structure safety
+        DWORD transferred = 0;
+        GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
         return false;
       } else {
         BOOST_LOG(error) << "WaitForSingleObject failed in send, result=" << waitResult << ", error=" << GetLastError();
@@ -574,17 +627,15 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
     return false;
   }
 
-  OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
-  if (!event) {
-    BOOST_LOG(error) << "Failed to create event for receive operation, error=" << GetLastError();
+  auto ctx = std::make_unique<io_context>();
+  if (!ctx->is_valid()) {
+    BOOST_LOG(error) << "Failed to create I/O context for receive operation, error=" << GetLastError();
     return false;
   }
-  ovl.hEvent = event.get();
 
   std::vector<uint8_t> buffer(4096);
   DWORD bytesRead = 0;
-  BOOL result = ReadFile(_pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, &ovl);
+  BOOL result = ReadFile(_pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, ctx->get());
 
   if (result) {
     // Read completed immediately
@@ -595,9 +646,9 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
       // Wait for completion with timeout
-      DWORD waitResult = WaitForSingleObject(ovl.hEvent, timeout_ms);
+      DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
       if (waitResult == WAIT_OBJECT_0) {
-        if (GetOverlappedResult(_pipe, &ovl, &bytesRead, FALSE)) {
+        if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
           buffer.resize(bytesRead);
           bytes = std::move(buffer);
           return true;
@@ -606,7 +657,10 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
           return false;
         }
       } else if (waitResult == WAIT_TIMEOUT) {
-        CancelIoEx(_pipe, &ovl);
+        CancelIoEx(_pipe, ctx->get());
+        // Wait for cancellation to complete to ensure OVERLAPPED structure safety
+        DWORD transferred = 0;
+        GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
         return false;
       } else {
         BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
@@ -656,15 +710,13 @@ void WinPipe::wait_for_client_connection(int milliseconds) {
 }
 
 void WinPipe::connect_server_pipe(int milliseconds) {
-  OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
-  if (!event) {
-    BOOST_LOG(error) << "Failed to create event for connection, error=" << GetLastError();
+  auto ctx = std::make_unique<io_context>();
+  if (!ctx->is_valid()) {
+    BOOST_LOG(error) << "Failed to create I/O context for connection, error=" << GetLastError();
     return;
   }
-  ovl.hEvent = event.get();
 
-  BOOL result = ConnectNamedPipe(_pipe, &ovl);
+  BOOL result = ConnectNamedPipe(_pipe, ctx->get());
   if (result) {
     _connected = true;
     BOOST_LOG(info) << "WinPipe (server): Connected after ConnectNamedPipe returned true.";
@@ -673,28 +725,25 @@ void WinPipe::connect_server_pipe(int milliseconds) {
     if (err == ERROR_PIPE_CONNECTED) {
       // Client already connected
       _connected = true;
-
-      // Set to the correct read‑mode so the first WriteFile is accepted by the pipe instance
-      DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
-      SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-      BOOST_LOG(info) << "WinPipe (server): Client pre‑connected, mode set.";
     } else if (err == ERROR_IO_PENDING) {
       // Wait for the connection to complete
-      DWORD waitResult = WaitForSingleObject(ovl.hEvent, milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
+      DWORD waitResult = WaitForSingleObject(ctx->event(), milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
       if (waitResult == WAIT_OBJECT_0) {
         DWORD transferred = 0;
-        if (GetOverlappedResult(_pipe, &ovl, &transferred, FALSE)) {
+        if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
           _connected = true;
-
-          // Set to the correct read‑mode so the first WriteFile is accepted by the pipe instance
-          DWORD dwMode = PIPE_READMODE_BYTE | PIPE_WAIT;
-          SetNamedPipeHandleState(_pipe, &dwMode, nullptr, nullptr);
-          BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed, mode set.";
+          BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed";
         } else {
           BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
         }
+      } else if (waitResult == WAIT_TIMEOUT) {
+        BOOST_LOG(error) << "ConnectNamedPipe timeout after " << (milliseconds > 0 ? milliseconds : 5000) << "ms";
+        CancelIoEx(_pipe, ctx->get());
+        // Wait for cancellation to complete to ensure OVERLAPPED structure safety
+        DWORD transferred = 0;
+        GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
       } else {
-        BOOST_LOG(error) << "ConnectNamedPipe timeout or wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
+        BOOST_LOG(error) << "ConnectNamedPipe wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
       }
     } else {
       BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
@@ -704,6 +753,12 @@ void WinPipe::connect_server_pipe(int milliseconds) {
 
 bool WinPipe::is_connected() {
   return _connected.load(std::memory_order_acquire);
+}
+
+void WinPipe::flush_buffers() {
+  if (_pipe != INVALID_HANDLE_VALUE) {
+    FlushFileBuffers(_pipe);
+  }
 }
 
 // --- AsyncNamedPipe Implementation ---
