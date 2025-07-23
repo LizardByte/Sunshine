@@ -1,12 +1,13 @@
 
 #include "shared_memory.h"
-#include <vector>
-#include <cstdint>
+
 #include "misc_utils.h"
 #include "src/utility.h"
+
 #include <aclapi.h>
 #include <chrono>
 #include <combaseapi.h>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <format>
@@ -14,6 +15,7 @@
 #include <sddl.h>
 #include <string>
 #include <thread>
+#include <vector>
 #include <windows.h>
 
 // --- End of all class and function definitions ---
@@ -107,7 +109,6 @@ std::wstring utf8_to_wide(const std::string &str) {
   return wstrTo;
 }
 
-
 bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) const {
   safe_token token;
   util::c_ptr<TOKEN_USER> tokenUser;
@@ -193,12 +194,11 @@ bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
     return false;
   }
 
-  // Build DACL: always allow SYSTEM and user full access
-  EXPLICIT_ACCESS ea[2] = {};
+  // Build DACL: only add SYSTEM SID if running as SYSTEM
+  EXPLICIT_ACCESS ea[1] = {};
   int aceCount = 0;
 
-  // Always add SYSTEM SID to ACL for consistent access
-  if (system_sid) {
+  if (isSystem && system_sid) {
     ea[aceCount].grfAccessPermissions = GENERIC_ALL;
     ea[aceCount].grfAccessMode = SET_ACCESS;
     ea[aceCount].grfInheritance = NO_INHERITANCE;
@@ -209,21 +209,7 @@ bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
     aceCount++;
   }
 
-  // Always add user SID to ACL if we have one
-  // When running as SYSTEM, this is the impersonated user who needs access
-  // When not running as SYSTEM, this is the current user
-  if (raw_user_sid) {
-    ea[aceCount].grfAccessPermissions = GENERIC_ALL;
-    ea[aceCount].grfAccessMode = SET_ACCESS;
-    ea[aceCount].grfInheritance = NO_INHERITANCE;
-    ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
-    BOOST_LOG(info) << "create_security_descriptor: Added user SID to ACL at index " << aceCount;
-    aceCount++;
-  }
-
-  BOOST_LOG(info) << "create_security_descriptor: Total ACE count=" << aceCount;
+  BOOST_LOG(info) << "create_security_descriptor: Total ACE count=" << aceCount << " (user SID not added when not running as SYSTEM)";
   if (aceCount > 0) {
     PACL raw_dacl = nullptr;
     DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
@@ -237,11 +223,9 @@ bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
       BOOST_LOG(error) << "SetEntriesInAcl failed in create_security_descriptor, error=" << err;
       return false;
     }
+    LocalFree(pDacl.release());
   }
-
-  // Transfer ownership of pDacl to the security descriptor - don't let RAII clean it up
-  // Free DACL memory after setting it in the security descriptor to avoid memory leak
-  LocalFree(pDacl.release());
+  // If aceCount == 0, no DACL is set; owner has full control by default
   return true;  // Success
 }
 
@@ -328,11 +312,10 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
     return false;
   }
 
-  // Build DACL: allow SYSTEM (if running as system) and target process user full access
+  // Build DACL: only add SYSTEM and target user SID if running as SYSTEM
   EXPLICIT_ACCESS ea[2] = {};
   int aceCount = 0;
 
-  // When running as SYSTEM, always add SYSTEM SID to ACL
   if (isSystem && system_sid) {
     ea[aceCount].grfAccessPermissions = GENERIC_ALL;
     ea[aceCount].grfAccessMode = SET_ACCESS;
@@ -342,21 +325,20 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
     ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid.get();
     BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added SYSTEM SID to ACL at index " << aceCount;
     aceCount++;
+    // Also add target user SID if running as SYSTEM
+    if (raw_user_sid) {
+      ea[aceCount].grfAccessPermissions = GENERIC_ALL;
+      ea[aceCount].grfAccessMode = SET_ACCESS;
+      ea[aceCount].grfInheritance = NO_INHERITANCE;
+      ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
+      ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
+      ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
+      BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added target user SID to ACL at index " << aceCount;
+      aceCount++;
+    }
   }
 
-  // Always add target process user SID to ACL
-  if (raw_user_sid) {
-    ea[aceCount].grfAccessPermissions = GENERIC_ALL;
-    ea[aceCount].grfAccessMode = SET_ACCESS;
-    ea[aceCount].grfInheritance = NO_INHERITANCE;
-    ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
-    BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added target user SID to ACL at index " << aceCount;
-    aceCount++;
-  }
-
-  BOOST_LOG(info) << "create_security_descriptor_for_target_process: Total ACE count=" << aceCount;
+  BOOST_LOG(info) << "create_security_descriptor_for_target_process: Total ACE count=" << aceCount << " (target user SID not added when not running as SYSTEM)";
   if (aceCount > 0) {
     PACL raw_dacl = nullptr;
     DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
@@ -370,9 +352,9 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
       BOOST_LOG(error) << "SetEntriesInAcl failed for target process, error=" << err;
       return false;
     }
+    LocalFree(pDacl.release());
   }
-
-  LocalFree(pDacl.release());
+  // If aceCount == 0, no DACL is set; owner has full control by default
   return true;  // Success
 }
 
@@ -470,176 +452,173 @@ safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeNam
   return hPipe;
 }
 
-
-AnonymousPipeFactory::AnonymousPipeFactory()
-    : _pipeFactory(std::make_unique<NamedPipeFactory>()) {}
+AnonymousPipeFactory::AnonymousPipeFactory():
+    _pipeFactory(std::make_unique<NamedPipeFactory>()) {}
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
-    DWORD pid = GetCurrentProcessId();
-    std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    auto first_pipe = _pipeFactory->create_server(pipeNameWithPid);
-    if (!first_pipe) {
-        return nullptr;
-    }
-    return handshake_server(std::move(first_pipe));
+  DWORD pid = GetCurrentProcessId();
+  std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
+  auto first_pipe = _pipeFactory->create_server(pipeNameWithPid);
+  if (!first_pipe) {
+    return nullptr;
+  }
+  return handshake_server(std::move(first_pipe));
 }
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName) {
-    DWORD pid = platf::wgc::get_parent_process_id();
-    std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    auto first_pipe = _pipeFactory->create_client(pipeNameWithPid);
-    if (!first_pipe) {
-        return nullptr;
-    }
-    return handshake_client(std::move(first_pipe));
+  DWORD pid = platf::wgc::get_parent_process_id();
+  std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
+  auto first_pipe = _pipeFactory->create_client(pipeNameWithPid);
+  if (!first_pipe) {
+    return nullptr;
+  }
+  return handshake_client(std::move(first_pipe));
 }
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_ptr<INamedPipe> pipe) {
-    std::string pipe_name = generateGuid();
-    std::string event_name = generateGuid();
+  std::string pipe_name = generateGuid();
 
-    std::wstring wpipe_name = utf8_to_wide(pipe_name);
-    std::wstring wevent_name = utf8_to_wide(event_name);
+  std::wstring wpipe_name = utf8_to_wide(pipe_name);
 
-    AnonConnectMsg message {};
-    wcsncpy_s(message.pipe_name, wpipe_name.c_str(), _TRUNCATE);
+  AnonConnectMsg message {};
+  wcsncpy_s(message.pipe_name, wpipe_name.c_str(), _TRUNCATE);
 
-    std::vector<uint8_t> bytes(sizeof(AnonConnectMsg));
-    std::memcpy(bytes.data(), &message, sizeof(AnonConnectMsg));
+  std::vector<uint8_t> bytes(sizeof(AnonConnectMsg));
+  std::memcpy(bytes.data(), &message, sizeof(AnonConnectMsg));
 
-    pipe->wait_for_client_connection(3000);
+  pipe->wait_for_client_connection(3000);
 
-    if (!pipe->is_connected()) {
-        BOOST_LOG(error) << "Client did not connect to pipe instance within the specified timeout. Disconnecting server pipe.";
-        pipe->disconnect();
-        return nullptr;
-    }
-    BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name << "' and event_name='" << event_name << "'";
-    if (!pipe->send(bytes, 5000)) {  // 5 second timeout for handshake
-        BOOST_LOG(error) << "Failed to send handshake message to client";
-        pipe->disconnect();
-        return nullptr;
-    }
-
-    // Wait for ACK from client before disconnecting
-    std::vector<uint8_t> ack;
-    bool ack_ok = false;
-    auto t0 = std::chrono::steady_clock::now();
-    while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-        if (pipe->receive(ack, 1000)) {  // 1 second timeout per receive attempt
-            if (ack.size() == 1 && ack[0] == 0xA5) {
-                ack_ok = true;
-                BOOST_LOG(info) << "Received handshake ACK from client";
-                break;
-            }
-            if (!ack.empty()) {
-                BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
-            }
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-
-    if (!ack_ok) {
-        BOOST_LOG(error) << "Handshake ACK not received within timeout - aborting";
-        pipe->disconnect();
-        return nullptr;
-    }
-
+  if (!pipe->is_connected()) {
+    BOOST_LOG(error) << "Client did not connect to pipe instance within the specified timeout. Disconnecting server pipe.";
     pipe->disconnect();
+    return nullptr;
+  }
+  BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name;
+  if (!pipe->send(bytes, 5000)) {  // 5 second timeout for handshake
+    BOOST_LOG(error) << "Failed to send handshake message to client";
+    pipe->disconnect();
+    return nullptr;
+  }
 
-    auto dataPipe = _pipeFactory->create_server(pipe_name);
-    // Ensure the server side waits for a client
-    if (dataPipe) {
-        dataPipe->wait_for_client_connection(0);  // 0 = immediate IF connected, otherwise overlapped wait
+  // Wait for ACK from client before disconnecting
+  std::vector<uint8_t> ack;
+  bool ack_ok = false;
+  auto t0 = std::chrono::steady_clock::now();
+  while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
+    if (pipe->receive(ack, 1000)) {  // 1 second timeout per receive attempt
+      if (ack.size() == 1 && ack[0] == 0xA5) {
+        ack_ok = true;
+        BOOST_LOG(info) << "Received handshake ACK from client";
+        break;
+      }
+      if (!ack.empty()) {
+        BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
+      }
     }
-    return dataPipe;
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
+
+  if (!ack_ok) {
+    BOOST_LOG(error) << "Handshake ACK not received within timeout - aborting";
+    pipe->disconnect();
+    return nullptr;
+  }
+
+  auto dataPipe = _pipeFactory->create_server(pipe_name);
+  // Ensure the server side waits for a client
+  if (dataPipe) {
+    dataPipe->wait_for_client_connection(0);  // 0 = immediate IF connected, otherwise overlapped wait
+  }
+
+  pipe->disconnect();
+  return dataPipe;
 }
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_ptr<INamedPipe> pipe) {
-    AnonConnectMsg msg {};  // Zero-initialize
+  AnonConnectMsg msg {};  // Zero-initialize
 
-    std::vector<uint8_t> bytes;
-    auto start = std::chrono::steady_clock::now();
-    bool received = false;
+  std::vector<uint8_t> bytes;
+  auto start = std::chrono::steady_clock::now();
+  bool received = false;
 
-    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-        if (pipe->receive(bytes, 500)) {  // 500ms timeout per receive attempt
-            if (!bytes.empty()) {
-                received = true;
-                break;
-            }
-        }
-        // Check if we received 0 bytes due to pipe being closed
-        if (bytes.empty()) {
-            BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-
-    if (!received) {
-        BOOST_LOG(error) << "Did not receive handshake message in time. Disconnecting client.";
-        pipe->disconnect();
-        return nullptr;
-    }
-
-    if (bytes.size() < sizeof(AnonConnectMsg)) {
-        BOOST_LOG(error) << "Received incomplete handshake message (size=" << bytes.size()
-                         << ", expected=" << sizeof(AnonConnectMsg) << "). Disconnecting client.";
-        pipe->disconnect();
-        return nullptr;
-    }
-
-    std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
-
-    // Send ACK (1 byte) with timeout
-      BOOST_LOG(info) << "Sending handshake ACK to server";
-      if (!pipe->send({ACK_MSG}, 5000)) {  // 5 second timeout for ACK
-        BOOST_LOG(error) << "Failed to send handshake ACK to server";
-        pipe->disconnect();
-        return nullptr;
+  while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
+    if (pipe->receive(bytes, 500)) {  // 500ms timeout per receive attempt
+      if (!bytes.empty()) {
+        received = true;
+        break;
       }
+    }
+    // Check if we received 0 bytes due to pipe being closed
+    if (bytes.empty()) {
+      BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
 
-    // Convert wide string to string using proper conversion
-    std::wstring wpipeName(msg.pipe_name);
-    std::string pipeNameStr = wide_to_utf8(wpipeName);
-    // Disconnect control pipe only after ACK is sent
+  if (!received) {
+    BOOST_LOG(error) << "Did not receive handshake message in time. Disconnecting client.";
     pipe->disconnect();
+    return nullptr;
+  }
 
-    // Retry logic for opening the data pipe
-    std::unique_ptr<INamedPipe> data_pipe = nullptr;
-    auto retry_start = std::chrono::steady_clock::now();
-    const auto retry_timeout = std::chrono::seconds(5);
+  if (bytes.size() < sizeof(AnonConnectMsg)) {
+    BOOST_LOG(error) << "Received incomplete handshake message (size=" << bytes.size()
+                     << ", expected=" << sizeof(AnonConnectMsg) << "). Disconnecting client.";
+    pipe->disconnect();
+    return nullptr;
+  }
 
-    while (std::chrono::steady_clock::now() - retry_start < retry_timeout) {
-        data_pipe = _pipeFactory->create_client(pipeNameStr);
-        if (data_pipe) {
-            break;
-        }
-        BOOST_LOG(info) << "Retrying data pipe connection...";
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
+
+  // Send ACK (1 byte) with timeout
+  BOOST_LOG(info) << "Sending handshake ACK to server";
+  if (!pipe->send({ACK_MSG}, 5000)) {  // 5 second timeout for ACK
+    BOOST_LOG(error) << "Failed to send handshake ACK to server";
+    pipe->disconnect();
+    return nullptr;
+  }
+
+  // Convert wide string to string using proper conversion
+  std::wstring wpipeName(msg.pipe_name);
+  std::string pipeNameStr = wide_to_utf8(wpipeName);
+  // Disconnect control pipe only after ACK is sent
+  pipe->disconnect();
+
+  // Retry logic for opening the data pipe
+  std::unique_ptr<INamedPipe> data_pipe = nullptr;
+  auto retry_start = std::chrono::steady_clock::now();
+  const auto retry_timeout = std::chrono::seconds(5);
+
+  while (std::chrono::steady_clock::now() - retry_start < retry_timeout) {
+    data_pipe = _pipeFactory->create_client(pipeNameStr);
+    if (data_pipe) {
+      break;
     }
+    BOOST_LOG(info) << "Retrying data pipe connection...";
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
 
-    if (!data_pipe) {
-        BOOST_LOG(error) << "Failed to connect to data pipe after retries";
-        return nullptr;
-    }
+  if (!data_pipe) {
+    BOOST_LOG(error) << "Failed to connect to data pipe after retries";
+    return nullptr;
+  }
 
-    return data_pipe;
+  return data_pipe;
 }
 
 std::string AnonymousPipeFactory::generateGuid() const {
-    GUID guid;
-    if (CoCreateGuid(&guid) != S_OK) {
-        return {};
-    }
+  GUID guid;
+  if (CoCreateGuid(&guid) != S_OK) {
+    return {};
+  }
 
-    std::array<WCHAR, 39> guidStr {};  // "{...}" format, 38 chars + null
-    if (StringFromGUID2(guid, guidStr.data(), 39) == 0) {
-        return {};
-    }
+  std::array<WCHAR, 39> guidStr {};  // "{...}" format, 38 chars + null
+  if (StringFromGUID2(guid, guidStr.data(), 39) == 0) {
+    return {};
+  }
 
-    std::wstring wstr(guidStr.data());
-    return wide_to_utf8(wstr);
+  std::wstring wstr(guidStr.data());
+  return wide_to_utf8(wstr);
 }
 
 // --- WinPipe Implementation ---
@@ -740,7 +719,6 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
           return false;
         }
       } else if (waitResult == WAIT_TIMEOUT) {
-        BOOST_LOG(warning) << "Receive operation timed out after " << timeout_ms << "ms";
         CancelIoEx(_pipe, &ovl);
         return false;
       } else {
@@ -754,7 +732,6 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
   }
 }
 
-
 void WinPipe::disconnect() {
   // Cancel any pending I/O operations (from any thread)
   if (_pipe != INVALID_HANDLE_VALUE) {
@@ -763,6 +740,8 @@ void WinPipe::disconnect() {
 
   if (_pipe != INVALID_HANDLE_VALUE) {
     if (_isServer) {
+      // Ensure any final writes are delivered before closing (rare edge-case)
+      FlushFileBuffers(_pipe);
       DisconnectNamedPipe(_pipe);
       BOOST_LOG(info) << "WinPipe (server): Disconnected via DisconnectNamedPipe.";
     } else {
@@ -791,7 +770,7 @@ void WinPipe::wait_for_client_connection(int milliseconds) {
 
 void WinPipe::connect_server_pipe(int milliseconds) {
   OVERLAPPED ovl = {0};
-  safe_handle event(CreateEventW(nullptr, TRUE, FALSE, nullptr));  // Anonymous manual-reset event
+  safe_handle event(CreateEventW(nullptr, FALSE, FALSE, nullptr));  // Anonymous auto-reset event
   if (!event) {
     BOOST_LOG(error) << "Failed to create event for connection, error=" << GetLastError();
     return;
@@ -884,10 +863,18 @@ void AsyncNamedPipe::stop() {
 }
 
 void AsyncNamedPipe::asyncSend(const std::vector<uint8_t> &message) {
-  if (_pipe && _pipe->is_connected()) {
-    if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
-      BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
+  try {
+    if (_pipe && _pipe->is_connected()) {
+      if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
+        BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
+      }
     }
+  } catch (const std::exception &e) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in asyncSend: " << e.what();
+    // Continue despite callback exception
+  } catch (...) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in asyncSend";
+    // Continue despite callback exception
   }
 }
 
