@@ -240,7 +240,8 @@ bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
   }
 
   // Transfer ownership of pDacl to the security descriptor - don't let RAII clean it up
-  pDacl.release();
+  // Free DACL memory after setting it in the security descriptor to avoid memory leak
+  LocalFree(pDacl.release());
   return true;  // Success
 }
 
@@ -371,8 +372,7 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
     }
   }
 
-  // Transfer ownership of pDacl to the security descriptor - don't let RAII clean it up
-  pDacl.release();
+  LocalFree(pDacl.release());
   return true;  // Success
 }
 
