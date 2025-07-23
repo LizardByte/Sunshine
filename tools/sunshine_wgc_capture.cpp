@@ -111,7 +111,6 @@ bool g_config_received = false;
 // Global variables for frame metadata and rate limiting
 safe_handle g_metadata_mapping = nullptr;
 
-
 // Global communication pipe for sending session closed notifications
 AsyncNamedPipe *g_communication_pipe = nullptr;
 
@@ -147,6 +146,7 @@ public:
     // Try the newer API first (Windows 10 1703+), fallback to older API
     typedef BOOL(WINAPI * SetProcessDpiAwarenessContextFunc)(DPI_AWARENESS_CONTEXT);
 
+    bool triedDpiContext = false;
     if (HMODULE user32 = GetModuleHandleA("user32.dll")) {
       auto setDpiContextFunc = (SetProcessDpiAwarenessContextFunc) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
       if (setDpiContextFunc) {
@@ -154,21 +154,17 @@ public:
           dpi_awareness_set = true;
           return true;
         }
-      } else if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
-        BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
-        return false;
-      } else {
-        dpi_awareness_set = true;
-        return true;
+        triedDpiContext = true;
       }
-    } else if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
+    }
+    // Always try SetProcessDpiAwareness if SetProcessDpiAwarenessContext is missing or failed
+    if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
       BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
       return false;
     } else {
       dpi_awareness_set = true;
       return true;
     }
-
     // Fallback case - should not reach here
     BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
     return false;
@@ -560,9 +556,6 @@ private:
   safe_com_ptr<ID3D11Texture2D> shared_texture = nullptr;
   safe_com_ptr<IDXGIKeyedMutex> keyed_mutex = nullptr;
   HANDLE shared_handle = nullptr;
-  safe_handle metadata_mapping = nullptr;
-  safe_memory_view frame_metadata_view = nullptr;
-  safe_handle frame_event = nullptr;
   UINT width = 0;
   UINT height = 0;
 
@@ -596,7 +589,7 @@ public:
     texDesc.Format = format;
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
-    texDesc.BindFlags = 0;
+    texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
     texDesc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
 
     ID3D11Texture2D *raw_texture = nullptr;
@@ -685,8 +678,6 @@ public:
    */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
-    metadata_mapping.reset();
-    frame_event.reset();
     keyed_mutex.reset();
     shared_texture.reset();
   }
@@ -707,13 +698,6 @@ public:
     return keyed_mutex.get();
   }
 
-  /**
-   * @brief Gets the frame event handle for synchronization.
-   * @return The frame event HANDLE, or nullptr if not initialized.
-   */
-  HANDLE getFrameEvent() {
-    return frame_event.get();
-  }
 
   /**
    * @brief Destructor for SharedResourceManager.\
@@ -913,7 +897,6 @@ public:
    * @param sender The frame pool that triggered the event.
    */
   void processFrame(Direct3D11CaptureFramePool const &sender) {
-
     if (auto frame = sender.TryGetNextFrame(); frame) {
       // Frame successfully retrieved
       auto surface = frame.Surface();
@@ -961,8 +944,8 @@ public:
           d3d_context->CopyResource(resource_manager->getSharedTexture(), frameTexture.get());
 
           // Create frame metadata and send via pipe instead of shared memory
-            resource_manager->getKeyedMutex()->ReleaseSync(1);
-            communication_pipe->asyncSend({FRAME_READY_MSG});
+          resource_manager->getKeyedMutex()->ReleaseSync(1);
+          communication_pipe->asyncSend({FRAME_READY_MSG});
         } else {
           // Log error
           BOOST_LOG(error) << "Failed to acquire keyed mutex: " << hr;
@@ -1048,9 +1031,6 @@ std::chrono::milliseconds WgcCaptureManager::total_delivery_time {0};
 void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK /*hWinEventHook*/, DWORD event, HWND /*hwnd*/, LONG /*idObject*/, LONG /*idChild*/, DWORD /*dwEventThread*/, DWORD /*dwmsEventTime*/) {
   if (event == EVENT_SYSTEM_DESKTOPSWITCH) {
     BOOST_LOG(info) << "Desktop switch detected!";
-
-    // Small delay to let the system settle
-    Sleep(100);
 
     bool isSecure = platf::wgc::is_secure_desktop_active();
     BOOST_LOG(info) << "Desktop switch - Secure desktop: " << (isSecure ? "YES" : "NO");
@@ -1264,23 +1244,27 @@ int main(int argc, char *argv[]) {
 
   wgcManager.startCapture();
 
-  // Keep running until main process disconnects
-  // We need to pump messages for the desktop switch hook to work
-  // Reduced polling interval to 1ms for more responsive IPC and lower jitter
+  // Controlled shutdown flag
+  bool shutdown_requested = false;
   MSG msg;
-  while (communicationPipe.isConnected()) {
+  while (communicationPipe.isConnected() && !shutdown_requested) {
     // Process any pending messages for the hook
     while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
       DispatchMessageW(&msg);
+      // If WM_QUIT is received, exit loop
+      if (msg.message == WM_QUIT) {
+        shutdown_requested = true;
+      }
     }
 
     // Heartbeat timeout check
-
     auto now = std::chrono::steady_clock::now();
-    if (auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time); elapsed.count() > 5) {
-      BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, exiting...";
-      _exit(1);
+    if (!shutdown_requested && std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time).count() > 5) {
+      BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, requesting controlled shutdown...";
+      shutdown_requested = true;
+      PostQuitMessage(0);
+      continue;
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Reduced from 5ms for lower IPC jitter

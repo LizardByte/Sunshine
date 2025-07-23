@@ -109,7 +109,25 @@ std::wstring utf8_to_wide(const std::string &str) {
   return wstrTo;
 }
 
-bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) const {
+// Helper to initialize a security descriptor and build its DACL from explicit ACEs.
+bool init_sd_with_explicit_aces(SECURITY_DESCRIPTOR &desc, std::vector<EXPLICIT_ACCESS> &eaList, PACL *out_pacl) {
+  if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
+    return false;
+  }
+  PACL rawDacl = nullptr;
+  DWORD err = SetEntriesInAcl(static_cast<ULONG>(eaList.size()), eaList.data(), nullptr, &rawDacl);
+  if (err != ERROR_SUCCESS) {
+    return false;
+  }
+  if (!SetSecurityDescriptorDacl(&desc, TRUE, rawDacl, FALSE)) {
+    LocalFree(rawDacl);
+    return false;
+  }
+  *out_pacl = rawDacl;
+  return true;
+}
+
+bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const {
   safe_token token;
   util::c_ptr<TOKEN_USER> tokenUser;
   safe_sid user_sid;
@@ -194,168 +212,29 @@ bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc) con
     return false;
   }
 
-  // Build DACL: only add SYSTEM SID if running as SYSTEM
-  EXPLICIT_ACCESS ea[1] = {};
-  int aceCount = 0;
-
-  if (isSystem && system_sid) {
-    ea[aceCount].grfAccessPermissions = GENERIC_ALL;
-    ea[aceCount].grfAccessMode = SET_ACCESS;
-    ea[aceCount].grfInheritance = NO_INHERITANCE;
-    ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid.get();
-    BOOST_LOG(info) << "create_security_descriptor: Added SYSTEM SID to ACL at index " << aceCount;
-    aceCount++;
-  }
-
-  BOOST_LOG(info) << "create_security_descriptor: Total ACE count=" << aceCount << " (user SID not added when not running as SYSTEM)";
-  if (aceCount > 0) {
-    PACL raw_dacl = nullptr;
-    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
-    if (err == ERROR_SUCCESS) {
-      pDacl.reset(raw_dacl);
-      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl.get(), FALSE)) {
-        BOOST_LOG(error) << "SetSecurityDescriptorDacl failed in create_security_descriptor, error=" << GetLastError();
-        return false;
-      }
-    } else {
-      BOOST_LOG(error) << "SetEntriesInAcl failed in create_security_descriptor, error=" << err;
-      return false;
-    }
-    LocalFree(pDacl.release());
-  }
-  // If aceCount == 0, no DACL is set; owner has full control by default
-  return true;  // Success
-}
-
-bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const {
-  safe_handle target_process(OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, target_pid));
-  if (!target_process) {
-    DWORD err = GetLastError();
-    BOOST_LOG(error) << "Failed to open target process for security descriptor, pid=" << target_pid << ", error=" << err;
-    return false;
-  }
-
-  HANDLE raw_target_token = nullptr;
-  if (!OpenProcessToken(target_process.get(), TOKEN_QUERY, &raw_target_token)) {
-    DWORD err = GetLastError();
-    BOOST_LOG(error) << "Failed to open target process token, pid=" << target_pid << ", error=" << err;
-    return false;
-  }
-  safe_token target_token(raw_target_token);
-
-  util::c_ptr<TOKEN_USER> tokenUser;
-  safe_sid system_sid;
-  safe_dacl pDacl;
-
-  BOOL isSystem = platf::wgc::is_running_as_system();
-
-  BOOST_LOG(info) << "create_security_descriptor_for_target_process: isSystem=" << isSystem << ", target_pid=" << target_pid;
-
-  // Extract user SID from target process token
-  DWORD len = 0;
-  GetTokenInformation(target_token.get(), TokenUser, nullptr, 0, &len);
-  if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
-    BOOST_LOG(error) << "GetTokenInformation (size query) failed for target process, error=" << GetLastError();
-    return false;
-  }
-
-  auto tokenBuffer = std::make_unique<uint8_t[]>(len);
-  tokenUser.reset(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release()));
-  if (!tokenUser || !GetTokenInformation(target_token.get(), TokenUser, tokenUser.get(), len, &len)) {
-    BOOST_LOG(error) << "GetTokenInformation (fetch) failed for target process, error=" << GetLastError();
-    return false;
-  }
-  PSID raw_user_sid = tokenUser->User.Sid;
-
-  // Validate the user SID
-  if (!IsValidSid(raw_user_sid)) {
-    BOOST_LOG(error) << "Invalid user SID for target process";
-    return false;
-  }
-
-  // Log the user SID for debugging
-  if (LPWSTR targetSidString = nullptr; ConvertSidToStringSidW(raw_user_sid, &targetSidString)) {
-    std::wstring wsid(targetSidString);
-    BOOST_LOG(info) << "create_security_descriptor_for_target_process: Target User SID=" << wide_to_utf8(wsid);
-    LocalFree(targetSidString);
-  }
-
-  // Create SYSTEM SID if needed
+  // Build a list of explicit ACEs
+  std::vector<EXPLICIT_ACCESS> eaList;
   if (isSystem) {
-    SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
-    PSID raw_system_sid = nullptr;
-    if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &raw_system_sid)) {
-      BOOST_LOG(error) << "AllocateAndInitializeSid failed for target process, error=" << GetLastError();
+    EXPLICIT_ACCESS eaSys {};
+    eaSys.grfAccessPermissions = GENERIC_ALL;
+    eaSys.grfAccessMode = SET_ACCESS;
+    eaSys.grfInheritance = NO_INHERITANCE;
+    eaSys.Trustee.TrusteeForm = TRUSTEE_IS_SID;
+    eaSys.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
+    eaSys.Trustee.ptstrName = (LPTSTR) system_sid.get();
+    eaList.push_back(eaSys);
+    EXPLICIT_ACCESS eaUser = eaSys;
+    eaUser.Trustee.TrusteeType = TRUSTEE_IS_USER;
+    eaUser.Trustee.ptstrName = (LPTSTR) raw_user_sid;
+    eaList.push_back(eaUser);
+  }
+  if (!eaList.empty()) {
+    if (!init_sd_with_explicit_aces(desc, eaList, out_pacl)) {
+      BOOST_LOG(error) << "init_sd_with_explicit_aces failed in create_security_descriptor";
       return false;
     }
-    system_sid.reset(raw_system_sid);
-
-    // Validate the system SID
-    if (!IsValidSid(system_sid.get())) {
-      BOOST_LOG(error) << "Invalid system SID for target process";
-      return false;
-    }
-
-    // Log the system SID for debugging
-    if (LPWSTR systemTargetSidString = nullptr; ConvertSidToStringSidW(system_sid.get(), &systemTargetSidString)) {
-      std::wstring wsid(systemTargetSidString);
-      BOOST_LOG(info) << "create_security_descriptor_for_target_process: System SID=" << wide_to_utf8(wsid);
-      LocalFree(systemTargetSidString);
-    }
   }
-
-  // Initialize security descriptor
-  if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
-    BOOST_LOG(error) << "InitializeSecurityDescriptor failed for target process, error=" << GetLastError();
-    return false;
-  }
-
-  // Build DACL: only add SYSTEM and target user SID if running as SYSTEM
-  EXPLICIT_ACCESS ea[2] = {};
-  int aceCount = 0;
-
-  if (isSystem && system_sid) {
-    ea[aceCount].grfAccessPermissions = GENERIC_ALL;
-    ea[aceCount].grfAccessMode = SET_ACCESS;
-    ea[aceCount].grfInheritance = NO_INHERITANCE;
-    ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-    ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-    ea[aceCount].Trustee.ptstrName = (LPTSTR) system_sid.get();
-    BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added SYSTEM SID to ACL at index " << aceCount;
-    aceCount++;
-    // Also add target user SID if running as SYSTEM
-    if (raw_user_sid) {
-      ea[aceCount].grfAccessPermissions = GENERIC_ALL;
-      ea[aceCount].grfAccessMode = SET_ACCESS;
-      ea[aceCount].grfInheritance = NO_INHERITANCE;
-      ea[aceCount].Trustee.TrusteeForm = TRUSTEE_IS_SID;
-      ea[aceCount].Trustee.TrusteeType = TRUSTEE_IS_USER;
-      ea[aceCount].Trustee.ptstrName = (LPTSTR) raw_user_sid;
-      BOOST_LOG(info) << "create_security_descriptor_for_target_process: Added target user SID to ACL at index " << aceCount;
-      aceCount++;
-    }
-  }
-
-  BOOST_LOG(info) << "create_security_descriptor_for_target_process: Total ACE count=" << aceCount << " (target user SID not added when not running as SYSTEM)";
-  if (aceCount > 0) {
-    PACL raw_dacl = nullptr;
-    DWORD err = SetEntriesInAcl(aceCount, ea, nullptr, &raw_dacl);
-    if (err == ERROR_SUCCESS) {
-      pDacl.reset(raw_dacl);
-      if (!SetSecurityDescriptorDacl(&desc, TRUE, pDacl.get(), FALSE)) {
-        BOOST_LOG(error) << "SetSecurityDescriptorDacl failed for target process, error=" << GetLastError();
-        return false;
-      }
-    } else {
-      BOOST_LOG(error) << "SetEntriesInAcl failed for target process, error=" << err;
-      return false;
-    }
-    LocalFree(pDacl.release());
-  }
-  // If aceCount == 0, no DACL is set; owner has full control by default
-  return true;  // Success
+  return true;
 }
 
 // --- NamedPipeFactory Implementation ---
@@ -368,8 +247,16 @@ std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &p
   SECURITY_ATTRIBUTES *pSecAttr = nullptr;
   SECURITY_ATTRIBUTES secAttr {};
   SECURITY_DESCRIPTOR secDesc {};
+  PACL rawDacl = nullptr;
+
+  auto fg = util::fail_guard([&]() {
+    if (rawDacl) {
+      LocalFree(rawDacl);
+    }
+  });
+
   if (platf::wgc::is_running_as_system()) {
-    if (!create_security_descriptor(secDesc)) {
+    if (!create_security_descriptor(secDesc, &rawDacl)) {
       BOOST_LOG(error) << "Failed to init security descriptor";
       return nullptr;
     }

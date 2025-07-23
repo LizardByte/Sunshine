@@ -126,8 +126,7 @@ public:
   std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) override;
 
 private:
-  bool create_security_descriptor(SECURITY_DESCRIPTOR &desc) const;
-  bool create_security_descriptor_for_target_process(SECURITY_DESCRIPTOR &desc, DWORD target_pid) const;
+  bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
   platf::dxgi::safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
 };
 
