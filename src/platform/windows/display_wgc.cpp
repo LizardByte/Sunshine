@@ -3,12 +3,12 @@
  * @brief Refactored WGC IPC display implementations using shared session helper.
  */
 
-#include "wgc/misc_utils.h"  // for is_secure_desktop_active
 #include "src/logging.h"
 #include "src/platform/windows/display.h"
 #include "src/platform/windows/display_vram.h"  // for img_d3d_t
 #include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
 #include "src/utility.h"  // for util::hex
+#include "wgc/misc_utils.h"  // for is_secure_desktop_active
 #include "wgc/wgc_ipc_session.h"
 
 #include <algorithm>
@@ -58,8 +58,7 @@ namespace platf::dxgi {
         BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Session initialized: "
                         << "capture=" << _session->width() << "x" << _session->height()
                         << ", target=" << width << "x" << height;
-        
-        
+
         // If we don't update these before snapshot() is called, it could cause a stack overflow of reinits.
         width_before_rotation = _session->width();
         height_before_rotation = _session->height();
@@ -172,17 +171,19 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
+    // Capture the QPC timestamp here to measure the time from when we request a frame until we receive it from the GPU.
+    // This is more reliable than trying to get the timestamp from the external process, since the pipe may have many queued frames.
+    frame_qpc = qpc_counter();
     ID3D11Texture2D *gpu_tex = nullptr;
-    const FrameMetadata *meta = nullptr;
-    if (!_session->acquire(timeout, gpu_tex, meta)) {
-      return capture_e::timeout;  // or error
+    if (!_session->acquire(timeout, gpu_tex)) {
+      return capture_e::timeout;
     }
+
+    // We have to capture
 
     // Wrap the texture with our safe_ptr wrapper
     src.reset(gpu_tex);
     gpu_tex->AddRef();  // AddRef since both session and src will reference it
-
-    frame_qpc = meta->qpc_timestamp;
 
     return capture_e::ok;
   }
@@ -298,10 +299,11 @@ namespace platf::dxgi {
     }
 
     ID3D11Texture2D *gpu_tex = nullptr;
-    const FrameMetadata *meta = nullptr;
-    if (!_session->acquire(timeout, gpu_tex, meta)) {
+    if (!_session->acquire(timeout, gpu_tex)) {
       return capture_e::timeout;  // or error
     }
+
+    auto frame_qpc = qpc_counter();
 
     // Get description of the captured texture
     D3D11_TEXTURE2D_DESC desc;
@@ -411,21 +413,14 @@ namespace platf::dxgi {
     }
 
     // Set frame timestamp
-    if (meta) {
-      auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), meta->qpc_timestamp);
-      img->frame_timestamp = frame_timestamp;
-    }
+
+    auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
+    img->frame_timestamp = frame_timestamp;
 
     _session->release();
     return capture_e::ok;
   }
 
-  capture_e display_wgc_ipc_ram_t::acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) {
-    // This method is not used in the RAM path since we override snapshot() directly
-    // But we need to implement it since it's pure virtual in the parent
-    BOOST_LOG(error) << "[display_wgc_ipc_ram_t] acquire_next_frame should not be called - using direct snapshot implementation";
-    return capture_e::error;
-  }
 
   capture_e display_wgc_ipc_ram_t::release_snapshot() {
     // Not used in RAM path since we handle everything in snapshot()

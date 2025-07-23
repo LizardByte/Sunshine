@@ -4,20 +4,21 @@
  */
 #pragma once
 
+#include "process_handler.h"
+#include "shared_memory.h"
+#include "src/utility.h"
+#include "src/video.h"
+
+#include <atomic>
 #include <chrono>
 #include <d3d11.h>
 #include <memory>
 #include <string>
 #include <string_view>
-#include <atomic>
-
-#include "process_handler.h"
-#include "shared_memory.h"
-#include "src/video.h"
-#include "src/utility.h"
 
 // Include misc_utils outside of namespace to avoid nested namespace issues
 #include "misc_utils.h"
+
 
 namespace platf::dxgi {
 
@@ -36,7 +37,7 @@ namespace platf::dxgi {
      * @param device D3D11 device for shared texture operations
      * @return 0 on success, non-zero on failure
      */
-    int init(const ::video::config_t& config, std::string_view display_name, ID3D11Device* device);
+    int init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device);
 
     /**
      * Start the helper process and set up IPC connection on demand.
@@ -55,9 +56,7 @@ namespace platf::dxgi {
      * @param meta_out Output parameter for frame metadata pointer
      * @return true on success, false on timeout/error
      */
-    bool acquire(std::chrono::milliseconds timeout,
-                 ID3D11Texture2D*& gpu_tex_out,
-                 const FrameMetadata*& meta_out);
+    bool acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out);
 
     /**
      * Release the keyed mutex and send heartbeat to helper process.
@@ -68,12 +67,22 @@ namespace platf::dxgi {
      * Check if the session should swap to DXGI due to secure desktop.
      * @return true if swap is needed
      */
-    bool should_swap_to_dxgi() const { return _should_swap_to_dxgi; }
+    bool should_swap_to_dxgi() const {
+      return _should_swap_to_dxgi;
+    }
 
     // Accessors for texture properties
-    UINT width() const { return _width; }
-    UINT height() const { return _height; }
-    bool is_initialized() const { return _initialized; }
+    UINT width() const {
+      return _width;
+    }
+
+    UINT height() const {
+      return _height;
+    }
+
+    bool is_initialized() const {
+      return _initialized;
+    }
 
   private:
     // IPC resources - using RAII wrappers for automatic cleanup
@@ -83,15 +92,14 @@ namespace platf::dxgi {
     safe_com_ptr<ID3D11Texture2D> _shared_texture;
 
     // D3D11 device reference (not owned)
-    ID3D11Device* _device = nullptr;
+    ID3D11Device *_device = nullptr;
 
     // Frame state
-    FrameMetadata _current_frame_metadata{};
-    std::atomic<bool> _frame_ready{false};
+    std::atomic<bool> _frame_ready {false};
 
     // State
     bool _initialized = false;
-    std::atomic<bool> _should_swap_to_dxgi{false};
+    std::atomic<bool> _should_swap_to_dxgi {false};
     UINT _width = 0;
     UINT _height = 0;
     uint32_t _timeout_count = 0;
@@ -106,12 +114,8 @@ namespace platf::dxgi {
     void handle_frame_notification(const std::vector<uint8_t> &msg);
     void handle_secure_desktop_message(const std::vector<uint8_t> &msg);
     void initialize_mmcss_for_thread() const;
-    void log_frame_diagnostics() const;
-    std::chrono::milliseconds calculate_adjusted_timeout(std::chrono::milliseconds timeout) const;
-    bool wait_for_frame(std::chrono::milliseconds adjusted_timeout);
-    void handle_frame_timeout(std::chrono::milliseconds adjusted_timeout);
-    void log_frame_sequence_diagnostics(const FrameMetadata *meta_out) const;
     void log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const;
+    bool wait_for_frame(std::chrono::milliseconds timeout);
   };
 
-} // namespace platf::dxgi
+}  // namespace platf::dxgi

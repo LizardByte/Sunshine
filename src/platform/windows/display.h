@@ -426,7 +426,6 @@ public:
     int dummy_img(platf::img_t *img_base) override;
 
 protected:
-    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
     capture_e release_snapshot() override;
 
 private:

@@ -20,21 +20,8 @@ namespace platf::dxgi {
     UINT height;
   };
 
-  struct FrameMetadata {
-    uint64_t qpc_timestamp;
-    uint32_t frame_sequence;
-    uint32_t suppressed_frames;
-  };
-
-  struct FrameNotification {
-    FrameMetadata metadata;
-    uint8_t message_type; // 0x03 for frame ready
-  };
 
   struct ConfigData {
-    UINT width;
-    UINT height;
-    int framerate;
     int dynamicRange;
     int log_level;
     wchar_t displayName[32];

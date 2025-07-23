@@ -105,13 +105,12 @@ using namespace platf::dxgi;
 
 // Global config data received from main process
 const int INITIAL_LOG_LEVEL = 2;
-platf::dxgi::ConfigData g_config = {0, 0, 0, 0, 0, L""};
+platf::dxgi::ConfigData g_config = {0, 0, L""};
 bool g_config_received = false;
 
 // Global variables for frame metadata and rate limiting
 safe_handle g_metadata_mapping = nullptr;
-platf::dxgi::FrameMetadata *g_frame_metadata = nullptr;
-uint32_t g_frame_sequence = 0;
+
 
 // Global communication pipe for sending session closed notifications
 AsyncNamedPipe *g_communication_pipe = nullptr;
@@ -563,7 +562,6 @@ private:
   HANDLE shared_handle = nullptr;
   safe_handle metadata_mapping = nullptr;
   safe_memory_view frame_metadata_view = nullptr;
-  FrameMetadata *frame_metadata = nullptr;
   safe_handle frame_event = nullptr;
   UINT width = 0;
   UINT height = 0;
@@ -687,8 +685,6 @@ public:
    */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
-    frame_metadata = nullptr;
-    frame_metadata_view.reset();
     metadata_mapping.reset();
     frame_event.reset();
     keyed_mutex.reset();
@@ -720,14 +716,6 @@ public:
   }
 
   /**
-   * @brief Gets the pointer to the frame metadata structure.
-   * @return Pointer to FrameMetadata, or nullptr if not initialized.
-   */
-  platf::dxgi::FrameMetadata *getFrameMetadata() const {
-    return frame_metadata;
-  }
-
-  /**
    * @brief Destructor for SharedResourceManager.\
    * Calls cleanup() to release all managed resources. All resources are managed using RAII.
    */
@@ -749,11 +737,11 @@ private:
   // Dynamic frame buffer management
   uint32_t current_buffer_size = 1;
   static constexpr uint32_t MAX_BUFFER_SIZE = 4;
-  
+
   // Advanced buffer management tracking
   std::deque<std::chrono::steady_clock::time_point> drop_timestamps;
-  std::atomic<int> outstanding_frames{0};
-  std::atomic<int> peak_outstanding{0};
+  std::atomic<int> outstanding_frames {0};
+  std::atomic<int> peak_outstanding {0};
   std::chrono::steady_clock::time_point last_quiet_start = std::chrono::steady_clock::now();
   std::chrono::steady_clock::time_point last_buffer_check = std::chrono::steady_clock::now();
   IDirect3DDevice winrt_device_cached = nullptr;
@@ -816,7 +804,7 @@ public:
           buffer_size,
           SizeInt32 {static_cast<int32_t>(width_cached), static_cast<int32_t>(height_cached)}
         );
-        
+
         current_buffer_size = buffer_size;
         BOOST_LOG(info) << "Frame pool recreated with buffer size: " << buffer_size;
         return true;
@@ -839,59 +827,59 @@ public:
         return true;
       }
     }
-    
+
     return false;
   }
 
   /**
    * @brief Adjusts frame buffer size dynamically based on dropped frame events and peak occupancy.
-   * 
+   *
    * Uses a sliding window approach to track frame drops and buffer utilization:
    * - Increases buffer count if ≥2 drops occur within any 5-second window
    * - Decreases buffer count if no drops AND peak occupancy ≤ (bufferCount-1) for 30 seconds
    */
   void adjustFrameBufferDynamically() {
     auto now = std::chrono::steady_clock::now();
-    
+
     // Check every 1 second for buffer adjustments
-    if (auto time_since_last_check = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_buffer_check); 
+    if (auto time_since_last_check = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_buffer_check);
         time_since_last_check.count() < 1000) {
       return;
     }
 
     last_buffer_check = now;
-    
+
     // 1) Prune old drop timestamps (older than 5 seconds)
-    while (!drop_timestamps.empty() && 
+    while (!drop_timestamps.empty() &&
            now - drop_timestamps.front() > std::chrono::seconds(5)) {
       drop_timestamps.pop_front();
     }
-    
+
     // 2) Check if we should increase buffer count (≥2 drops in last 5 seconds)
     if (drop_timestamps.size() >= 2 && current_buffer_size < MAX_BUFFER_SIZE) {
       uint32_t new_buffer_size = current_buffer_size + 1;
-      BOOST_LOG(info) << "Detected " << drop_timestamps.size() << " frame drops in 5s window, increasing buffer from " 
+      BOOST_LOG(info) << "Detected " << drop_timestamps.size() << " frame drops in 5s window, increasing buffer from "
                       << current_buffer_size << " to " << new_buffer_size;
       recreateFramePool(new_buffer_size);
-      drop_timestamps.clear(); // Reset after adjustment
-      peak_outstanding = 0;    // Reset peak tracking
+      drop_timestamps.clear();  // Reset after adjustment
+      peak_outstanding = 0;  // Reset peak tracking
       last_quiet_start = now;  // Reset quiet timer
       return;
     }
-    
+
     // 3) Check if we should decrease buffer count (sustained quiet period)
-    bool is_quiet = drop_timestamps.empty() && 
-                   peak_outstanding.load() <= static_cast<int>(current_buffer_size) - 1;
-    
+    bool is_quiet = drop_timestamps.empty() &&
+                    peak_outstanding.load() <= static_cast<int>(current_buffer_size) - 1;
+
     if (is_quiet) {
       // Check if we've been quiet for 30 seconds
       if (now - last_quiet_start >= std::chrono::seconds(30) && current_buffer_size > 1) {
         uint32_t new_buffer_size = current_buffer_size - 1;
-        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << peak_outstanding.load() 
-                        << " ≤ " << (current_buffer_size - 1) << ", decreasing buffer from " 
+        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << peak_outstanding.load()
+                        << " ≤ " << (current_buffer_size - 1) << ", decreasing buffer from "
                         << current_buffer_size << " to " << new_buffer_size;
         recreateFramePool(new_buffer_size);
-        peak_outstanding = 0;    // Reset peak tracking
+        peak_outstanding = 0;  // Reset peak tracking
         last_quiet_start = now;  // Reset quiet timer
       }
     } else {
@@ -915,7 +903,7 @@ public:
       // Track outstanding frames for buffer occupancy monitoring
       ++outstanding_frames;
       peak_outstanding = std::max(peak_outstanding.load(), outstanding_frames.load());
-      
+
       processFrame(sender);
     });
   }
@@ -925,43 +913,13 @@ public:
    * @param sender The frame pool that triggered the event.
    */
   void processFrame(Direct3D11CaptureFramePool const &sender) {
-    // Timestamp #1: Very beginning of FrameArrived handler
-    uint64_t timestamp_frame_arrived = qpc_counter();
 
     if (auto frame = sender.TryGetNextFrame(); frame) {
       // Frame successfully retrieved
       auto surface = frame.Surface();
 
-      // Capture QPC timestamp as close to frame processing as possible
-      uint64_t frame_qpc = qpc_counter();
-
-      // Track timing for async logging
-      auto now = std::chrono::steady_clock::now();
-
-      // Only calculate timing after the first frame
-      if (!first_frame) {
-        auto delivery_interval = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_delivery_time);
-        total_delivery_time += delivery_interval;
-        delivery_count++;
-
-        // Log timing every 300 frames
-        if (delivery_count % 300 == 0) {
-          auto avg_delivery_ms = total_delivery_time.count() / delivery_count;
-          auto expected_ms = (g_config_received && g_config.framerate > 0) ? (1000 / g_config.framerate) : 16;
-
-          BOOST_LOG(debug) << "Frame delivery timing - Avg interval: " << avg_delivery_ms << "ms, Expected: " << expected_ms << "ms, Last: " << delivery_interval.count() << "ms";
-
-          // Reset counters for next measurement window
-          total_delivery_time = std::chrono::milliseconds {0};
-          delivery_count = 0;
-        }
-      } else {
-        first_frame = false;
-      }
-      last_delivery_time = now;
-
       try {
-        processSurfaceToTexture(surface, timestamp_frame_arrived, frame_qpc);
+        processSurfaceToTexture(surface);
       } catch (const winrt::hresult_error &ex) {
         // Log error
         BOOST_LOG(error) << "WinRT error in frame processing: " << ex.code() << " - " << winrt::to_string(ex.message());
@@ -972,8 +930,8 @@ public:
       // Frame drop detected - record timestamp for sliding window analysis
       auto now = std::chrono::steady_clock::now();
       drop_timestamps.push_back(now);
-      
-      BOOST_LOG(debug) << "Frame drop detected (total drops in 5s window: " << drop_timestamps.size() << ")";
+
+      BOOST_LOG(info) << "Frame drop detected (total drops in 5s window: " << drop_timestamps.size() << ")";
     }
 
     // Decrement outstanding frame count (always called whether frame retrieved or not)
@@ -986,10 +944,8 @@ public:
   /**
    * @brief Copies the captured surface to the shared texture and notifies the main process.
    * @param surface The captured D3D11 surface.
-   * @param timestamp_frame_arrived QPC timestamp when frame arrived.
-   * @param frame_qpc QPC timestamp for the frame.
    */
-  void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t timestamp_frame_arrived, uint64_t frame_qpc) {
+  void processSurfaceToTexture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface) {
     if (!resource_manager || !d3d_context || !communication_pipe) {
       return;
     }
@@ -1004,25 +960,9 @@ public:
         if (SUCCEEDED(hr)) {
           d3d_context->CopyResource(resource_manager->getSharedTexture(), frameTexture.get());
 
-          // Timestamp #2: Immediately after CopyResource completes
-          uint64_t timestamp_after_copy = qpc_counter();
-
           // Create frame metadata and send via pipe instead of shared memory
-          platf::dxgi::FrameMetadata frame_metadata = {};
-          frame_metadata.qpc_timestamp = frame_qpc;
-          frame_metadata.frame_sequence = ++g_frame_sequence;
-          frame_metadata.suppressed_frames = 0;  // No suppression - always 0
-
-          resource_manager->getKeyedMutex()->ReleaseSync(1);
-
-          // Timestamp #3: Immediately after pipe send is called
-          uint64_t timestamp_after_send = qpc_counter();
-
-          // Send frame notification via pipe instead of SetEvent
-          sendFrameNotification(frame_metadata);
-
-          logFrameTiming(timestamp_frame_arrived, timestamp_after_copy, timestamp_after_send);
-          logPerformanceStats(frame_qpc);
+            resource_manager->getKeyedMutex()->ReleaseSync(1);
+            communication_pipe->asyncSend({FRAME_READY_MSG});
         } else {
           // Log error
           BOOST_LOG(error) << "Failed to acquire keyed mutex: " << hr;
@@ -1038,77 +978,6 @@ public:
   }
 
   /**
-   * @brief Sends a frame notification to the main process via the communication pipe.
-   * @param metadata The frame metadata to send.
-   */
-  void sendFrameNotification(const platf::dxgi::FrameMetadata &metadata) {
-    if (!communication_pipe || !communication_pipe->isConnected()) {
-      return;
-    }
-
-    platf::dxgi::FrameNotification notification = {};
-    notification.metadata = metadata;
-    notification.message_type = 0x03;  // Frame ready message type
-
-    std::vector<uint8_t> message(sizeof(platf::dxgi::FrameNotification));
-    memcpy(message.data(), &notification, sizeof(platf::dxgi::FrameNotification));
-
-    communication_pipe->asyncSend(message);
-  }
-
-  /**
-   * @brief Logs performance statistics such as instantaneous FPS and frame count.
-   * @param frame_qpc QPC timestamp for the current frame.
-   */
-  void logPerformanceStats(uint64_t frame_qpc) const {
-    // Performance telemetry: emit helper-side instantaneous fps (async)
-    static uint64_t lastQpc = 0;
-    static uint64_t qpc_freq = 0;
-    if (qpc_freq == 0) {
-      LARGE_INTEGER freq;
-      QueryPerformanceFrequency(&freq);
-      qpc_freq = freq.QuadPart;
-    }
-    if ((g_frame_sequence % 600) == 0) {  // every ~5s at 120fps
-      if (lastQpc != 0) {
-        double fps = 600.0 * static_cast<double>(qpc_freq) / static_cast<double>(frame_qpc - lastQpc);
-        BOOST_LOG(debug) << "delivered " << std::fixed << std::setprecision(1) << fps << " fps (target: " << (g_config_received ? g_config.framerate : 60) << ")";
-      }
-      lastQpc = frame_qpc;
-    }
-
-    // Log performance stats periodically
-    if ((g_frame_sequence % 1500) == 0) {
-      BOOST_LOG(debug) << "Frame " << g_frame_sequence << " processed without suppression";
-    }
-  }
-
-  /**
-   * @brief Logs high-precision timing deltas for frame processing steps.
-   * @param timestamp_frame_arrived QPC timestamp when frame arrived.
-   * @param timestamp_after_copy QPC timestamp after frame copy.
-   * @param timestamp_after_send QPC timestamp after notification send.
-   */
-  void logFrameTiming(uint64_t timestamp_frame_arrived, uint64_t timestamp_after_copy, uint64_t timestamp_after_send) const {
-    // Log high-precision timing deltas every 300 frames
-    static uint32_t timing_log_counter = 0;
-    if ((++timing_log_counter % 300) == 0) {
-      static uint64_t qpc_freq_timing = 0;
-      if (qpc_freq_timing == 0) {
-        LARGE_INTEGER freq;
-        QueryPerformanceFrequency(&freq);
-        qpc_freq_timing = freq.QuadPart;
-      }
-
-      double arrived_to_copy_us = static_cast<double>(timestamp_after_copy - timestamp_frame_arrived) * 1000000.0 / static_cast<double>(qpc_freq_timing);
-      double copy_to_send_us = static_cast<double>(timestamp_after_send - timestamp_after_copy) * 1000000.0 / static_cast<double>(qpc_freq_timing);
-      double total_frame_us = static_cast<double>(timestamp_after_send - timestamp_frame_arrived) * 1000000.0 / static_cast<double>(qpc_freq_timing);
-
-      BOOST_LOG(debug) << "Frame timing - Arrived->Copy: " << std::fixed << std::setprecision(1) << arrived_to_copy_us << "μs, Copy->Send: " << copy_to_send_us << "μs, Total: " << total_frame_us << "μs";
-    }
-  }
-
-  /**
    * @brief Creates a capture session for the specified capture item.
    * @param item The GraphicsCaptureItem to capture.
    * @returns true if the session was created successfully, false otherwise.
@@ -1120,7 +989,7 @@ public:
 
     // Cache the item for reference
     capture_item_cached = item;
-    
+
     capture_session = frame_pool.CreateCaptureSession(capture_item_cached);
     capture_session.IsBorderRequired(false);
 
@@ -1128,7 +997,7 @@ public:
       capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
       BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
     }
-    
+
     return true;
   }
 
@@ -1192,8 +1061,7 @@ void CALLBACK DesktopSwitchHookProc(HWINEVENTHOOK /*hWinEventHook*/, DWORD event
 
       // Send notification to main process
       if (g_communication_pipe && g_communication_pipe->isConnected()) {
-        std::vector<uint8_t> sessionClosedMessage = {0x02};  // 0x02 marker for secure desktop detected
-        g_communication_pipe->asyncSend(sessionClosedMessage);
+        g_communication_pipe->asyncSend({SECURE_DESKTOP_MSG});
         BOOST_LOG(info) << "Sent secure desktop notification to main process (0x02)";
       }
     } else if (!isSecure && g_secure_desktop_detected) {
@@ -1250,8 +1118,7 @@ void handleIPCMessage(const std::vector<uint8_t> &message, std::chrono::steady_c
       );
       BOOST_LOG(info) << "Log level updated from config: " << g_config.log_level;
     }
-    BOOST_LOG(info) << "Received config data: " << g_config.width << "x" << g_config.height
-                    << ", fps: " << g_config.framerate << ", hdr: " << g_config.dynamicRange
+    BOOST_LOG(info) << "Received config data: hdr: " << g_config.dynamicRange
                     << ", display: '" << winrt::to_string(g_config.displayName) << "'";
   }
 }
@@ -1300,7 +1167,7 @@ int main(int argc, char *argv[]) {
   // Create named pipe for communication with main process
   AnonymousPipeFactory pipeFactory;
 
-  auto commPipe = pipeFactory.create_client("SunshineWGCPipe", "SunshineWGCEvent");
+  auto commPipe = pipeFactory.create_client("SunshineWGCPipe");
   AsyncNamedPipe communicationPipe(std::move(commPipe));
   g_communication_pipe = &communicationPipe;  // Store global reference for session.Closed handler
 
@@ -1380,14 +1247,15 @@ int main(int argc, char *argv[]) {
   // Set up desktop switch hook for secure desktop detection
   BOOST_LOG(info) << "Setting up desktop switch hook...";
   if (HWINEVENTHOOK raw_hook = SetWinEventHook(
-    EVENT_SYSTEM_DESKTOPSWITCH,
-    EVENT_SYSTEM_DESKTOPSWITCH,
-    nullptr,
-    DesktopSwitchHookProc,
-    0,
-    0,
-    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-  ); !raw_hook) {
+        EVENT_SYSTEM_DESKTOPSWITCH,
+        EVENT_SYSTEM_DESKTOPSWITCH,
+        nullptr,
+        DesktopSwitchHookProc,
+        0,
+        0,
+        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
+      );
+      !raw_hook) {
     BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
   } else {
     g_desktop_switch_hook.reset(raw_hook);

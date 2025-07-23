@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/logging.h"
+
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -9,6 +10,11 @@
 #include <thread>
 #include <vector>
 #include <windows.h>
+
+constexpr uint8_t HEARTBEAT_MSG = 0x01;
+constexpr uint8_t FRAME_READY_MSG = 0x03;
+constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;
+constexpr uint8_t ACK_MSG = 0xA5;
 
 // Forward declaration for RAII wrapper
 namespace platf::dxgi {
@@ -54,8 +60,6 @@ public:
    * @return True if connected, false otherwise.
    */
   virtual bool is_connected() = 0;
-
-
 };
 
 class AsyncNamedPipe {
@@ -108,20 +112,18 @@ private:
 class IAsyncPipeFactory {
 public:
   virtual ~IAsyncPipeFactory() = default;
-  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) = 0;
-  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) = 0;
+  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) = 0;
+  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) = 0;
 };
 
 struct AnonConnectMsg {
   wchar_t pipe_name[40];
-  wchar_t event_name[40];
 };
-
 
 class NamedPipeFactory: public IAsyncPipeFactory {
 public:
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) override;
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) override;
 
 private:
   bool create_security_descriptor(SECURITY_DESCRIPTOR &desc) const;
@@ -132,8 +134,8 @@ private:
 class AnonymousPipeFactory: public IAsyncPipeFactory {
 public:
   AnonymousPipeFactory();
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName, const std::string &eventName) override;
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName, const std::string &eventName) override;
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) override;
 
 private:
   std::unique_ptr<NamedPipeFactory> _pipeFactory;

@@ -378,7 +378,7 @@ bool NamedPipeFactory::create_security_descriptor_for_target_process(SECURITY_DE
 
 // --- NamedPipeFactory Implementation ---
 
-std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName) {
   BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
@@ -417,7 +417,7 @@ std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &p
   return pipeObj;
 }
 
-std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &pipeName) {
   BOOST_LOG(info) << "NamedPipeFactory::create_client called with pipeName='" << pipeName << "'";
   auto wPipeBase = utf8_to_wide(pipeName);
   std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
@@ -474,22 +474,20 @@ safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeNam
 AnonymousPipeFactory::AnonymousPipeFactory()
     : _pipeFactory(std::make_unique<NamedPipeFactory>()) {}
 
-std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
     DWORD pid = GetCurrentProcessId();
     std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    std::string eventNameWithPid = std::format("{}_{}", eventName, pid);
-    auto first_pipe = _pipeFactory->create_server(pipeNameWithPid, eventNameWithPid);
+    auto first_pipe = _pipeFactory->create_server(pipeNameWithPid);
     if (!first_pipe) {
         return nullptr;
     }
     return handshake_server(std::move(first_pipe));
 }
 
-std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName, const std::string &eventName) {
+std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName) {
     DWORD pid = platf::wgc::get_parent_process_id();
     std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    std::string eventNameWithPid = std::format("{}_{}", eventName, pid);
-    auto first_pipe = _pipeFactory->create_client(pipeNameWithPid, eventNameWithPid);
+    auto first_pipe = _pipeFactory->create_client(pipeNameWithPid);
     if (!first_pipe) {
         return nullptr;
     }
@@ -505,7 +503,6 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
 
     AnonConnectMsg message {};
     wcsncpy_s(message.pipe_name, wpipe_name.c_str(), _TRUNCATE);
-    wcsncpy_s(message.event_name, wevent_name.c_str(), _TRUNCATE);
 
     std::vector<uint8_t> bytes(sizeof(AnonConnectMsg));
     std::memcpy(bytes.data(), &message, sizeof(AnonConnectMsg));
@@ -550,7 +547,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
 
     pipe->disconnect();
 
-    auto dataPipe = _pipeFactory->create_server(pipe_name, event_name);
+    auto dataPipe = _pipeFactory->create_server(pipe_name);
     // Ensure the server side waits for a client
     if (dataPipe) {
         dataPipe->wait_for_client_connection(0);  // 0 = immediate IF connected, otherwise overlapped wait
@@ -595,20 +592,16 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
     std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
 
     // Send ACK (1 byte) with timeout
-    std::vector<uint8_t> ack(1, 0xA5);
-    BOOST_LOG(info) << "Sending handshake ACK to server";
-    if (!pipe->send(ack, 5000)) {  // 5 second timeout for ACK
+      BOOST_LOG(info) << "Sending handshake ACK to server";
+      if (!pipe->send({ACK_MSG}, 5000)) {  // 5 second timeout for ACK
         BOOST_LOG(error) << "Failed to send handshake ACK to server";
         pipe->disconnect();
         return nullptr;
-    }
+      }
 
     // Convert wide string to string using proper conversion
-    std::wstring wpipeNasme(msg.pipe_name);
-    std::wstring weventName(msg.event_name);
-    std::string pipeNameStr = wide_to_utf8(wpipeNasme);
-    std::string eventNameStr = wide_to_utf8(weventName);
-
+    std::wstring wpipeName(msg.pipe_name);
+    std::string pipeNameStr = wide_to_utf8(wpipeName);
     // Disconnect control pipe only after ACK is sent
     pipe->disconnect();
 
@@ -618,7 +611,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
     const auto retry_timeout = std::chrono::seconds(5);
 
     while (std::chrono::steady_clock::now() - retry_start < retry_timeout) {
-        data_pipe = _pipeFactory->create_client(pipeNameStr, eventNameStr);
+        data_pipe = _pipeFactory->create_client(pipeNameStr);
         if (data_pipe) {
             break;
         }
