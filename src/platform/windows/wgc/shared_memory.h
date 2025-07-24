@@ -72,16 +72,16 @@ public:
 
   bool start(const MessageCallback &onMessage, const ErrorCallback &onError);
   void stop();
-  void asyncSend(const std::vector<uint8_t> &message);
+  void send(const std::vector<uint8_t> &message);
   void wait_for_client_connection(int milliseconds);
-  bool isConnected() const;
+  bool is_connected() const;
 
 private:
-  void workerThread();
-  bool establishConnection();
-  void processMessage(const std::vector<uint8_t> &bytes) const;
-  void handleWorkerException(const std::exception &e) const;
-  void handleWorkerUnknownException() const;
+  void worker_thread();
+  bool establish_connection();
+  void process_message(const std::vector<uint8_t> &bytes) const;
+  void handle_worker_exception(const std::exception &e) const;
+  void handle_worker_unknown_exception() const;
 
   std::unique_ptr<INamedPipe> _pipe;
   std::atomic<bool> _running;
@@ -107,14 +107,14 @@ private:
 
   HANDLE _pipe;
   std::atomic<bool> _connected;
-  bool _isServer;
+  bool _is_server;
 };
 
 class IAsyncPipeFactory {
 public:
   virtual ~IAsyncPipeFactory() = default;
-  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) = 0;
-  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) = 0;
+  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) = 0;
+  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) = 0;
 };
 
 struct AnonConnectMsg {
@@ -123,8 +123,8 @@ struct AnonConnectMsg {
 
 class NamedPipeFactory: public IAsyncPipeFactory {
 public:
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) override;
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
 
 private:
   bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
@@ -134,12 +134,12 @@ private:
 class AnonymousPipeFactory: public IAsyncPipeFactory {
 public:
   AnonymousPipeFactory();
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipeName) override;
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipeName) override;
+  std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
+  std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
 
 private:
-  std::unique_ptr<NamedPipeFactory> _pipeFactory;
+  std::unique_ptr<NamedPipeFactory> _pipe_factory;
   std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
   std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
-  std::string generateGuid() const;
+  std::string generate_guid() const;
 };

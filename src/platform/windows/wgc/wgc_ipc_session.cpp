@@ -1,6 +1,14 @@
 /**
  * @file src/platform/windows/wgc/wgc_ipc_session.cpp
- * @brief Implementation of shared IPC session for WGC capture.
+ * @brief Implementation of shared IPC ses    auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
+    if (!raw_pipe) {
+      BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
+      cleanup();
+      return;
+    }
+    _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
+
+    _pipe->wait_for_client_connection(3000);WGC capture.
  */
 
 #include "wgc_ipc_session.h"
@@ -20,13 +28,13 @@
 namespace platf::dxgi {
 
   void wgc_ipc_session_t::handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received) {
-    if (msg.size() == sizeof(SharedHandleData)) {
-      SharedHandleData handleData;
-      memcpy(&handleData, msg.data(), sizeof(SharedHandleData));
+    if (msg.size() == sizeof(shared_handle_data_t)) {
+      shared_handle_data_t handle_data;
+      memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
       BOOST_LOG(info) << "[wgc_ipc_session_t] Received handle data: " << std::hex
-                      << reinterpret_cast<uintptr_t>(handleData.textureHandle) << std::dec
-                      << ", " << handleData.width << "x" << handleData.height;
-      if (setup_shared_texture(handleData.textureHandle, handleData.width, handleData.height)) {
+                      << reinterpret_cast<uintptr_t>(handle_data.texture_handle) << std::dec
+                      << ", " << handle_data.width << "x" << handle_data.height;
+      if (setup_shared_texture(handle_data.texture_handle, handle_data.width, handle_data.height)) {
         handle_received = true;
       }
     }
@@ -88,57 +96,57 @@ namespace platf::dxgi {
 
     bool handle_received = false;
 
-    auto onMessage = [this, &handle_received](const std::vector<uint8_t> &msg) {
+    auto on_message = [this, &handle_received](const std::vector<uint8_t> &msg) {
       handle_shared_handle_message(msg, handle_received);
       handle_frame_notification(msg);
       handle_secure_desktop_message(msg);
     };
 
-    auto onError = [](const std::string &err) {
+    auto on_error = [](const std::string &err) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
     };
 
-    auto anonConnector = std::make_unique<AnonymousPipeFactory>();
+    auto anon_connector = std::make_unique<AnonymousPipeFactory>();
 
-    auto rawPipe = anonConnector->create_server("SunshineWGCPipe");
-    if (!rawPipe) {
+    auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
+    if (!raw_pipe) {
       BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
       cleanup();
       return;
     }
-    _pipe = std::make_unique<AsyncNamedPipe>(std::move(rawPipe));
+    _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
 
     _pipe->wait_for_client_connection(3000);
 
     // Send config data to helper process
-    ConfigData configData = {};
-    configData.dynamicRange = _config.dynamicRange;
-    configData.log_level = config::sunshine.min_log_level;
+    config_data_t config_data = {};
+    config_data.dynamic_range = _config.dynamicRange;
+    config_data.log_level = config::sunshine.min_log_level;
 
     // Convert display_name (std::string) to wchar_t[32]
     if (!_display_name.empty()) {
       std::wstring wdisplay_name(_display_name.begin(), _display_name.end());
-      wcsncpy_s(configData.displayName, wdisplay_name.c_str(), 31);
-      configData.displayName[31] = L'\0';
+      wcsncpy_s(config_data.display_name, wdisplay_name.c_str(), 31);
+      config_data.display_name[31] = L'\0';
     } else {
-      configData.displayName[0] = L'\0';
+      config_data.display_name[0] = L'\0';
     }
 
-    std::vector<uint8_t> configMessage(sizeof(ConfigData));
-    memcpy(configMessage.data(), &configData, sizeof(ConfigData));
+    std::vector<uint8_t> config_message(sizeof(config_data_t));
+    memcpy(config_message.data(), &config_data, sizeof(config_data_t));
 
-    // Convert displayName to std::string for logging
-    std::wstring ws_display(configData.displayName);
+    // Convert display_name to std::string for logging
+    std::wstring ws_display(config_data.display_name);
     std::string display_str(ws_display.begin(), ws_display.end());
     BOOST_LOG(info) << "[wgc_ipc_session_t] Config data prepared: "
-                    << "hdr: " << configData.dynamicRange
+                    << "hdr: " << config_data.dynamic_range
                     << ", display: '" << display_str << "'";
 
     BOOST_LOG(info) << "sending config to helper";
 
-    _pipe->asyncSend(configMessage);
+    _pipe->send(config_message);
 
-    _pipe->start(onMessage, onError);
+    _pipe->start(on_message, on_error);
 
     BOOST_LOG(info) << "[wgc_ipc_session_t] Waiting for handle data from helper process...";
 
@@ -187,8 +195,8 @@ namespace platf::dxgi {
     static thread_local bool mmcss_initialized = false;
     if (!mmcss_initialized) {
       SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-      DWORD taskIdx = 0;
-      HANDLE const mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &taskIdx);
+      DWORD task_idx = 0;
+      HANDLE const mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &task_idx);
       (void) mmcss_handle;
       mmcss_initialized = true;
     }
@@ -260,9 +268,11 @@ namespace platf::dxgi {
     // Reset timeout counter on successful frame
     _timeout_count = 0;
 
-    // Acquire keyed mutex to access shared texture
-    // Use infinite wait - the message already guarantees that a frame exists
-    HRESULT hr = _keyed_mutex->AcquireSync(0, INFINITE);  
+    
+    // Sharing key 0 across threads/processes caused microstuttering.
+    // So instead, we are doing ping-pong mutex pattern here (Acquire 1/Release 0)
+    // The 200ms timeout is just a safeguard for rare deadlocks caused by ping-pong.
+    HRESULT hr = _keyed_mutex->AcquireSync(1, 200);  
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
 
@@ -287,8 +297,8 @@ namespace platf::dxgi {
     }
 
     // Send heartbeat to helper after each frame is released
-    if (_pipe && _pipe->isConnected()) {
-      _pipe->asyncSend(std::vector<uint8_t> {HEARTBEAT_MSG});
+    if (_pipe && _pipe->is_connected()) {
+      _pipe->send(std::vector<uint8_t> {HEARTBEAT_MSG});
     }
   }
 

@@ -29,11 +29,11 @@ void onErrorStore(const std::string& err, CallbackFlags* flags) {
 // Helper to wait for connection with timeout, returns true if connected
 bool waitForConnection(AsyncNamedPipe& pipe, int timeoutMs = 2000) {
     int waited = 0;
-    while (!pipe.isConnected() && waited < timeoutMs) {
+    while (!pipe.is_connected() && waited < timeoutMs) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         waited += 10;
     }
-    return pipe.isConnected();
+    return pipe.is_connected();
 }
 
 // Helper: deadlock protection lambda
@@ -85,7 +85,7 @@ TEST(AsyncNamedPipe, ServerClientConnectsAndSendsMessage) {
         ASSERT_TRUE(waitForConnection(client, 2000)) << "Client did not connect in time";
 
         std::vector<uint8_t> msg = {1,2,3,4,5};
-        client.asyncSend(msg);
+        client.send(msg);
 
         int waited = 0;
         while (received.empty() && waited < 1000 && !error) {
@@ -179,7 +179,7 @@ TEST(AsyncNamedPipe, SendReceiveRoundtrip) {
         ASSERT_TRUE(waitForConnection(server, 2000));
         ASSERT_TRUE(waitForConnection(client, 2000));
         std::vector<uint8_t> msg = {9,8,7,6};
-        client.asyncSend(msg);
+        client.send(msg);
         int waited = 0;
         while (!serverFlags.called && waited < 1000) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -200,7 +200,7 @@ TEST(AsyncNamedPipe, SendFailsIfNotConnected) {
     auto serverPipe = factory.create_server(std::string(pipeName.begin(), pipeName.end()));
     AsyncNamedPipe pipe(std::move(serverPipe));
         // Not started, not connected
-        pipe.asyncSend({1,2,3});
+        pipe.send({1,2,3});
         // Should not crash or throw
     });
 }
@@ -246,7 +246,7 @@ TEST(AsyncNamedPipe, BufferSizeLimit) {
         ASSERT_TRUE(waitForConnection(server, 2000));
         ASSERT_TRUE(waitForConnection(client, 2000));
         std::vector<uint8_t> bigMsg(5000, 0x42);
-        client.asyncSend(bigMsg);
+        client.send(bigMsg);
         int waited = 0;
         while (!flags.called && waited < 1000) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

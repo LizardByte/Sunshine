@@ -389,12 +389,12 @@ safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeNam
 }
 
 AnonymousPipeFactory::AnonymousPipeFactory():
-    _pipeFactory(std::make_unique<NamedPipeFactory>()) {}
+    _pipe_factory(std::make_unique<NamedPipeFactory>()) {}
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
   DWORD pid = GetCurrentProcessId();
   std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-  auto first_pipe = _pipeFactory->create_server(pipeNameWithPid);
+  auto first_pipe = _pipe_factory->create_server(pipeNameWithPid);
   if (!first_pipe) {
     return nullptr;
   }
@@ -404,7 +404,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::strin
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName) {
   DWORD pid = platf::wgc::get_parent_process_id();
   std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-  auto first_pipe = _pipeFactory->create_client(pipeNameWithPid);
+  auto first_pipe = _pipe_factory->create_client(pipeNameWithPid);
   if (!first_pipe) {
     return nullptr;
   }
@@ -412,7 +412,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::strin
 }
 
 std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_ptr<INamedPipe> pipe) {
-  std::string pipe_name = generateGuid();
+  std::string pipe_name = generate_guid();
 
   std::wstring wpipe_name = utf8_to_wide(pipe_name);
 
@@ -460,7 +460,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
     return nullptr;
   }
 
-  auto dataPipe = _pipeFactory->create_server(pipe_name);
+  auto dataPipe = _pipe_factory->create_server(pipe_name);
   // Ensure the server side waits for a client
   if (dataPipe) {
     dataPipe->wait_for_client_connection(0);  // 0 = immediate IF connected, otherwise overlapped wait
@@ -529,7 +529,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
   const auto retry_timeout = std::chrono::seconds(5);
 
   while (std::chrono::steady_clock::now() - retry_start < retry_timeout) {
-    data_pipe = _pipeFactory->create_client(pipeNameStr);
+    data_pipe = _pipe_factory->create_client(pipeNameStr);
     if (data_pipe) {
       break;
     }
@@ -545,7 +545,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
   return data_pipe;
 }
 
-std::string AnonymousPipeFactory::generateGuid() const {
+std::string AnonymousPipeFactory::generate_guid() const {
   GUID guid;
   if (CoCreateGuid(&guid) != S_OK) {
     return {};
@@ -564,8 +564,8 @@ std::string AnonymousPipeFactory::generateGuid() const {
 WinPipe::WinPipe(HANDLE pipe, bool isServer):
     _pipe(pipe),
     _connected(false),
-    _isServer(isServer) {
-  if (!_isServer && _pipe != INVALID_HANDLE_VALUE) {
+    _is_server(isServer) {
+  if (!_is_server && _pipe != INVALID_HANDLE_VALUE) {
     _connected.store(true, std::memory_order_release);
     BOOST_LOG(info) << "WinPipe (client): Connected immediately after CreateFileW, handle valid, mode set.";
   }
@@ -680,7 +680,7 @@ void WinPipe::disconnect() {
   }
 
   if (_pipe != INVALID_HANDLE_VALUE) {
-    if (_isServer) {
+    if (_is_server) {
       // Ensure any final writes are delivered before closing (rare edge-case)
       FlushFileBuffers(_pipe);
       DisconnectNamedPipe(_pipe);
@@ -700,7 +700,7 @@ void WinPipe::wait_for_client_connection(int milliseconds) {
     return;
   }
 
-  if (_isServer) {
+  if (_is_server) {
     // For server pipes, use ConnectNamedPipe with proper overlapped I/O
     connect_server_pipe(milliseconds);
   } else {
@@ -787,7 +787,7 @@ bool AsyncNamedPipe::start(const MessageCallback &onMessage, const ErrorCallback
   _onError = onError;
 
   _running.store(true, std::memory_order_release);
-  _worker = std::thread(&AsyncNamedPipe::workerThread, this);
+  _worker = std::thread(&AsyncNamedPipe::worker_thread, this);
   return true;
 }
 
@@ -804,7 +804,7 @@ void AsyncNamedPipe::stop() {
   }
 }
 
-void AsyncNamedPipe::asyncSend(const std::vector<uint8_t> &message) {
+void AsyncNamedPipe::send(const std::vector<uint8_t> &message) {
   try {
     if (_pipe && _pipe->is_connected()) {
       if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
@@ -812,10 +812,10 @@ void AsyncNamedPipe::asyncSend(const std::vector<uint8_t> &message) {
       }
     }
   } catch (const std::exception &e) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Exception in asyncSend: " << e.what();
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in send: " << e.what();
     // Continue despite callback exception
   } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in asyncSend";
+    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in send";
     // Continue despite callback exception
   }
 }
@@ -824,13 +824,13 @@ void AsyncNamedPipe::wait_for_client_connection(int milliseconds) {
   _pipe->wait_for_client_connection(milliseconds);
 }
 
-bool AsyncNamedPipe::isConnected() const {
+bool AsyncNamedPipe::is_connected() const {
   return _pipe && _pipe->is_connected();
 }
 
-void AsyncNamedPipe::workerThread() {
+void AsyncNamedPipe::worker_thread() {
   try {
-    if (!establishConnection()) {
+    if (!establish_connection()) {
       return;
     }
 
@@ -848,7 +848,7 @@ void AsyncNamedPipe::workerThread() {
             break;
           }
 
-          processMessage(message);
+          process_message(message);
         }
         // If receive timed out, just continue the loop to check _running flag
       } catch (const std::exception &e) {
@@ -857,13 +857,13 @@ void AsyncNamedPipe::workerThread() {
       }
     }
   } catch (const std::exception &e) {
-    handleWorkerException(e);
+    handle_worker_exception(e);
   } catch (...) {
-    handleWorkerUnknownException();
+    handle_worker_unknown_exception();
   }
 }
 
-bool AsyncNamedPipe::establishConnection() {
+bool AsyncNamedPipe::establish_connection() {
   // For server pipes, we need to wait for a client connection first
   if (!_pipe || _pipe->is_connected()) {
     return true;
@@ -877,7 +877,7 @@ bool AsyncNamedPipe::establishConnection() {
   return _pipe->is_connected();
 }
 
-void AsyncNamedPipe::processMessage(const std::vector<uint8_t> &bytes) const {
+void AsyncNamedPipe::process_message(const std::vector<uint8_t> &bytes) const {
   if (!_onMessage) {
     return;
   }
@@ -893,7 +893,7 @@ void AsyncNamedPipe::processMessage(const std::vector<uint8_t> &bytes) const {
   }
 }
 
-void AsyncNamedPipe::handleWorkerException(const std::exception &e) const {
+void AsyncNamedPipe::handle_worker_exception(const std::exception &e) const {
   BOOST_LOG(error) << "AsyncNamedPipe worker thread exception: " << e.what();
   if (!_onError) {
     return;
@@ -906,7 +906,7 @@ void AsyncNamedPipe::handleWorkerException(const std::exception &e) const {
   }
 }
 
-void AsyncNamedPipe::handleWorkerUnknownException() const {
+void AsyncNamedPipe::handle_worker_unknown_exception() const {
   BOOST_LOG(error) << "AsyncNamedPipe worker thread unknown exception";
   if (!_onError) {
     return;

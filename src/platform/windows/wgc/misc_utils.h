@@ -14,17 +14,17 @@
 namespace platf::dxgi {
 
   // Message structs for IPC Communication
-  struct SharedHandleData {
-    HANDLE textureHandle;
+  struct shared_handle_data_t {
+    HANDLE texture_handle;
     UINT width;
     UINT height;
   };
 
 
-  struct ConfigData {
-    int dynamicRange;
+  struct config_data_t {
+    int dynamic_range;
     int log_level;
-    wchar_t displayName[32];
+    wchar_t display_name[32];
   };
 
   // RAII wrappers for Windows resources
