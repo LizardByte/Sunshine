@@ -114,7 +114,6 @@ namespace platf::dxgi {
     ConfigData configData = {};
     configData.dynamicRange = _config.dynamicRange;
     configData.log_level = config::sunshine.min_log_level;
-    configData.fps = _config.framerate;
 
     // Convert display_name (std::string) to wchar_t[32]
     if (!_display_name.empty()) {
@@ -133,7 +132,6 @@ namespace platf::dxgi {
     std::string display_str(ws_display.begin(), ws_display.end());
     BOOST_LOG(info) << "[wgc_ipc_session_t] Config data prepared: "
                     << "hdr: " << configData.dynamicRange
-                    << ", fps: " << configData.fps
                     << ", display: '" << display_str << "'";
 
     BOOST_LOG(info) << "sending config to helper";

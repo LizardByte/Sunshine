@@ -24,7 +24,6 @@ namespace platf::dxgi {
   struct ConfigData {
     int dynamicRange;
     int log_level;
-    int fps;
     wchar_t displayName[32];
   };
 
