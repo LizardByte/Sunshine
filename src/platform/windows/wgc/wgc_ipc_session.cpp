@@ -114,6 +114,7 @@ namespace platf::dxgi {
     ConfigData configData = {};
     configData.dynamicRange = _config.dynamicRange;
     configData.log_level = config::sunshine.min_log_level;
+    configData.fps = _config.framerate;
 
     // Convert display_name (std::string) to wchar_t[32]
     if (!_display_name.empty()) {
@@ -132,6 +133,7 @@ namespace platf::dxgi {
     std::string display_str(ws_display.begin(), ws_display.end());
     BOOST_LOG(info) << "[wgc_ipc_session_t] Config data prepared: "
                     << "hdr: " << configData.dynamicRange
+                    << ", fps: " << configData.fps
                     << ", display: '" << display_str << "'";
 
     BOOST_LOG(info) << "sending config to helper";
@@ -262,7 +264,7 @@ namespace platf::dxgi {
 
     // Acquire keyed mutex to access shared texture
     // Use infinite wait - the message already guarantees that a frame exists
-    HRESULT hr = _keyed_mutex->AcquireSync(1, 0);  // 0 == infinite wait
+    HRESULT hr = _keyed_mutex->AcquireSync(0, INFINITE);  
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
 

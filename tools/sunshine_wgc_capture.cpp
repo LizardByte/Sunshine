@@ -105,7 +105,7 @@ using namespace platf::dxgi;
 
 // Global config data received from main process
 const int INITIAL_LOG_LEVEL = 2;
-platf::dxgi::ConfigData g_config = {0, 0, L""};
+platf::dxgi::ConfigData g_config = {0, 0, 0, L""};
 bool g_config_received = false;
 
 // Global variables for frame metadata and rate limiting
@@ -944,7 +944,7 @@ public:
           d3d_context->CopyResource(resource_manager->getSharedTexture(), frameTexture.get());
 
           // Create frame metadata and send via pipe instead of shared memory
-          resource_manager->getKeyedMutex()->ReleaseSync(1);
+          resource_manager->getKeyedMutex()->ReleaseSync(0);
           communication_pipe->asyncSend({FRAME_READY_MSG});
         } else {
           // Log error
@@ -977,8 +977,21 @@ public:
     capture_session.IsBorderRequired(false);
 
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
-      capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
-      BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+)";
+      // Calculate MinUpdateInterval based on requested FPS
+      // TimeSpan is in 100-nanosecond units, so we need:
+      // (1000ms / fps) * 10000 = 10000000 / fps
+      int64_t intervalTicks = g_config_received && g_config.fps > 0 ? 
+                              (10000000LL / g_config.fps) : 
+                              10000;  // Default to 1ms (120fps+) if no config
+      
+      capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {intervalTicks});
+      
+      if (g_config_received && g_config.fps > 0) {
+        BOOST_LOG(info) << "Successfully set the MinUpdateInterval for " << g_config.fps << " fps (" 
+                        << (intervalTicks / 10000.0) << "ms interval)";
+      } else {
+        BOOST_LOG(info) << "Successfully set the MinUpdateInterval (120fps+ default)";
+      }
     }
 
     return true;
@@ -1099,6 +1112,7 @@ void handleIPCMessage(const std::vector<uint8_t> &message, std::chrono::steady_c
       BOOST_LOG(info) << "Log level updated from config: " << g_config.log_level;
     }
     BOOST_LOG(info) << "Received config data: hdr: " << g_config.dynamicRange
+                    << ", fps: " << g_config.fps
                     << ", display: '" << winrt::to_string(g_config.displayName) << "'";
   }
 }
