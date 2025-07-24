@@ -402,7 +402,7 @@ function run_install() {
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
       if [ -e "$file_path" ]; then
-        mv "$file_path" "$file_path.bak"
+        ${sudo_cmd} mv "$file_path" "$file_path.bak"
       fi
     done
 
@@ -441,12 +441,14 @@ function run_install() {
       echo "Compiling doxygen"
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/doxygen-${doxygen_min}.src.tar.gz"
       echo "doxygen url: ${doxygen_url}"
-      wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/doxygen.tar.gz"
-      tar -xzf "${build_dir}/doxygen.tar.gz"
-      cd "doxygen-${doxygen_min}"
-      cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
-      ninja -C "build" -j"${num_processors}"
-      ninja -C "build" install
+      pushd "${build_dir}"
+        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "doxygen.tar.gz"
+        tar -xzf "doxygen.tar.gz"
+        cd "doxygen-${doxygen_min}"
+        cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
+        ninja -C "build" -j"${num_processors}"
+        ${sudo_cmd} ninja -C "build" install
+      popd
     else
       echo "Doxygen version not in range, skipping docs"
       cmake_args+=("-DBUILD_DOCS=OFF")
