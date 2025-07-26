@@ -68,6 +68,72 @@ namespace platf {
     }
   };
 
+  struct mic_output_pa_t: public mic_output_t {
+    util::safe_ptr<pa_simple, pa_simple_free> output;
+    std::string device_name;
+    bool started = false;
+
+    mic_output_pa_t(int channels, std::uint32_t sample_rate, const std::string &dev_name) 
+      : device_name(dev_name) {
+      
+      pa_sample_spec ss {PA_SAMPLE_FLOAT32, sample_rate, (std::uint8_t)channels};
+      pa_channel_map pa_map;
+      
+      pa_map.channels = channels;
+      for (int i = 0; i < channels; i++) {
+        pa_map.map[i] = PA_CHANNEL_POSITION_MONO;
+      }
+
+      pa_buffer_attr pa_attr = {
+        .maxlength = uint32_t(-1),
+        .tlength = uint32_t(-1),
+        .prebuf = uint32_t(-1),
+        .minreq = uint32_t(-1),
+        .fragsize = uint32_t(-1)
+      };
+
+      int status;
+      output.reset(
+        pa_simple_new(nullptr, "sunshine-mic", PA_STREAM_PLAYBACK, 
+                      device_name.c_str(), "sunshine-mic-output", 
+                      &ss, &pa_map, &pa_attr, &status)
+      );
+
+      if (!output) {
+        BOOST_LOG(error) << "Failed to create PulseAudio mic output: "sv << pa_strerror(status);
+      }
+    }
+
+    int output_samples(const std::vector<float> &frame_buffer) override {
+      if (!output || !started) {
+        return -1;
+      }
+
+      int status;
+      if (pa_simple_write(output.get(), frame_buffer.data(), 
+                         frame_buffer.size() * sizeof(float), &status)) {
+        BOOST_LOG(error) << "pa_simple_write() failed: "sv << pa_strerror(status);
+        return -1;
+      }
+
+      return 0;
+    }
+
+    int start() override {
+      started = output != nullptr;
+      return started ? 0 : -1;
+    }
+
+    int stop() override {
+      started = false;
+      if (output) {
+        int status;
+        pa_simple_drain(output.get(), &status);
+      }
+      return 0;
+    }
+  };
+
   std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, std::string source_name) {
     auto mic = std::make_unique<mic_attr_t>();
 
@@ -457,6 +523,10 @@ namespace platf {
         }
 
         return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
+      }
+
+      std::unique_ptr<mic_output_t> mic_output(int channels, std::uint32_t sample_rate, const std::string &device_name) override {
+        return std::make_unique<mic_output_pa_t>(channels, sample_rate, device_name);
       }
 
       bool is_sink_available(const std::string &sink) override {

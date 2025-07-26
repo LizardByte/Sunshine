@@ -755,6 +755,15 @@ namespace rtsp_stream {
 
     // Tell the client about our supported features
     ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
+    
+    // Advertise microphone support if enabled
+    if (config::audio.enable_mic_passthrough) {
+      ss << "a=x-ss-mic.enabled:1" << std::endl;
+      ss << "a=x-ss-mic.codec:OPUS" << std::endl;
+      ss << "a=x-ss-mic.sampleRate:48000" << std::endl;
+      ss << "a=x-ss-mic.channels:1" << std::endl;
+      ss << "a=x-ss-mic.bitrate:64000" << std::endl;
+    }
 
     // Always request new control stream encryption if the client supports it
     uint32_t encryption_flags_supported = SS_ENC_CONTROL_V2 | SS_ENC_AUDIO;
@@ -850,6 +859,8 @@ namespace rtsp_stream {
       port = net::map_port(stream::VIDEO_STREAM_PORT);
     } else if (type == "control"sv) {
       port = net::map_port(stream::CONTROL_PORT);
+    } else if (type == "microphone"sv) {
+      port = net::map_port(stream::MIC_STREAM_PORT);
     } else {
       cmd_not_found(sock, session, std::move(req));
 
@@ -956,6 +967,9 @@ namespace rtsp_stream {
 
     std::int64_t configuredBitrateKbps;
     config.audio.flags[audio::config_t::HOST_AUDIO] = session.host_audio;
+    
+    // Enable client microphone if configured and supported
+    session.client_mic_enabled = config::audio.enable_mic_passthrough;
     try {
       config.audio.channels = util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
       config.audio.mask = util::from_view(args.at("x-nv-audio.surround.channelMask"sv));

@@ -322,4 +322,63 @@ namespace audio {
     stream.coupledStreams = params.coupledStreams;
     stream.mapping = params.mapping;
   }
+
+  void mic_receive(safe::mail_t mail, config_t config, void *channel_data) {
+    if (!config::audio.enable_mic_passthrough) {
+      BOOST_LOG(warning) << "Microphone pass-through requested but disabled in config"sv;
+      return;
+    }
+
+    auto shutdown_event = mail->event<bool>(mail::shutdown);
+    auto packets = mail->queue<packet_t>(mail::mic_packets);
+
+    // Create microphone output device
+    auto audio_ctx = get_audio_ctx_ref();
+    if (!audio_ctx || !audio_ctx->control) {
+      BOOST_LOG(error) << "No audio control context available for microphone output"sv;
+      return;
+    }
+
+    const std::string &mic_sink = config::audio.mic_sink.empty() ? "default" : config::audio.mic_sink;
+    auto mic_output = audio_ctx->control->mic_output(1, 48000, mic_sink);
+    if (!mic_output) {
+      BOOST_LOG(error) << "Failed to initialize microphone output device: "sv << mic_sink;
+      return;
+    }
+
+    if (mic_output->start()) {
+      BOOST_LOG(error) << "Failed to start microphone output device"sv;
+      return;
+    }
+
+    BOOST_LOG(info) << "Started microphone receiver thread"sv;
+
+    auto opus_dec = opus_decoder_create(48000, 1, nullptr);
+    if (!opus_dec) {
+      BOOST_LOG(error) << "Failed to create Opus decoder for microphone"sv;
+      return;
+    }
+
+    std::vector<float> decode_buffer(960); // 20ms at 48kHz mono
+
+    while (auto packet = packets->pop()) {
+      if (shutdown_event->peek()) {
+        break;
+      }
+
+      auto opus_data = reinterpret_cast<const unsigned char*>(packet->first);
+      auto opus_size = packet->second.size();
+
+      int decoded_samples = opus_decode_float(opus_dec, opus_data, opus_size, decode_buffer.data(), decode_buffer.size(), 0);
+      if (decoded_samples > 0) {
+        decode_buffer.resize(decoded_samples);
+        mic_output->output_samples(decode_buffer);
+        decode_buffer.resize(960);
+      }
+    }
+
+    mic_output->stop();
+    opus_decoder_destroy(opus_dec);
+    BOOST_LOG(info) << "Stopped microphone receiver thread"sv;
+  }
 }  // namespace audio
