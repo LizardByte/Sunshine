@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <title>Sunshine</title>
+  <%- header %>
+  <style>
+    .login-container {
+      max-width: 400px;
+      margin: 2rem auto;
+      padding: 2rem;
+    }
+    .login-form {
+      background: var(--bs-body-bg);
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.375rem;
+      padding: 2rem;
+    }
+  </style>
+</head>
+
+<body id="app" v-cloak>
+  <div class="login-container">
+    <div class="login-form">
+      <div class="text-center mb-4">
+        <img src="./images/logo-sunshine-45.png" height="45" alt="Sunshine">
+        <h1 class="h3 mb-3 fw-normal">{{ $t('auth.login_title') }}</h1>
+      </div>
+      <login v-cloak />
+    </div>
+  </div>
+
+  <script type="module">
+    import { createApp } from 'vue';
+    import { initApp } from './init';
+    import Login from './Login.vue';
+
+    const app = createApp({
+      components: { Login },
+      template: `<Login />`
+    });
+    initApp(app);
+  </script>
+</body>
+</html>
