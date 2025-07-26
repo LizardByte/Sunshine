@@ -966,16 +966,39 @@ public:
       winrt::com_ptr<ID3D11Texture2D> frame_texture;
       hr = interface_access->GetInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<::IUnknown **>(frame_texture.put_void()));
       if (SUCCEEDED(hr)) {
-        hr = _resource_manager->get_keyed_mutex()->AcquireSync(0, INFINITE);
+        //  To avoid a potential deadlock with capture and encoding threads we will utilize ping pong mutexes.
+        // - First frame: Helper starts the ring by acquiring key 0 and releasing key 1, which then allows wgc_ipc_session to acquire it.
+        // - Main Process then Acquires Key 1, then proceeds to Release key 2.
+        // - Subsequent frames: Helper acquires key 2 (released by main) and releases key 1  
+        // - Main always acquires key 1 (released by helper) and releases key 2
+        // - Other capture methods use 0->0 and are completely separate, 
+        static std::atomic<bool> is_first_frame{true};
+        
+        UINT acquire_key = is_first_frame.load() ? 0 : 2;
+        // Because a deadlock can theoretically happen here, we will not
+        // use an infinite timeout for the first call.
+        // But its required to use infinite after ping pong has been setup. 
+        // Otherwise, if you dont use infinite you will get microstuttering
+        // I pick 200ms here because its unlikely someone streams at 5fps.
+        DWORD timeout_ms = is_first_frame.load() ? 200 : INFINITE;
+        
+        hr = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
         if (SUCCEEDED(hr)) {
           _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_texture.get());
 
-          // Create frame metadata and send via pipe instead of shared memory
+          // Always release key 1 for main process to acquire
           _resource_manager->get_keyed_mutex()->ReleaseSync(1);
           _pipe->send({FRAME_READY_MSG});
+          
+          if (is_first_frame.load()) {
+            is_first_frame.store(false);
+          }
         } else {
-          // Log error
-          BOOST_LOG(error) << "Failed to acquire keyed mutex: " << hr;
+          if (!is_first_frame.load()) {
+            BOOST_LOG(debug) << "Main process still processing texture (key 2 unavailable), dropping frame";
+          } else {
+            BOOST_LOG(error) << "Failed to acquire initial mutex key 0: " << hr;
+          }
         }
       } else {
         // Log error

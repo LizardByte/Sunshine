@@ -249,6 +249,10 @@ namespace platf::dxgi {
     // Add real-time scheduling hint (once per thread)
     initialize_mmcss_for_thread();
 
+    // No atomic necessary, pipe doesn't access this variable
+    // And there is no extra capture thread loop like in the external process.
+    static bool first_frame = false;
+
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_keyed_mutex) {
       return false;
@@ -268,11 +272,10 @@ namespace platf::dxgi {
     // Reset timeout counter on successful frame
     _timeout_count = 0;
 
-    
-    // Sharing key 0 across threads/processes caused microstuttering.
-    // So instead, we are doing ping-pong mutex pattern here (Acquire 1/Release 0)
-    // The 200ms timeout is just a safeguard for rare deadlocks caused by ping-pong.
-    HRESULT hr = _keyed_mutex->AcquireSync(1, 200);  
+    //  We intentionally avoid key 0 to prevent race conditions with the capture and encoder threads.
+    // - Note: Helper acquires key 0 on the first frame to setup the ping pong, then will swap to 1 -> 2.
+    //   This means theoretically a deadlock could happen on the very first frame, so we use a 200ms timeout just in case.
+    HRESULT hr = _keyed_mutex->AcquireSync(1, first_frame ? 200 : INFINITE);
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
 
@@ -286,14 +289,20 @@ namespace platf::dxgi {
 
     // Log high-precision timing deltas every 150 frames for main process timing
     log_timing_diagnostics(timestamp_before_wait, timestamp_after_wait, timestamp_after_mutex);
-
+    if (first_frame) {
+      // After the first frame its safe to use an infinite timeout
+      // because there is no risk for a deadlock anymore.
+      first_frame = false;
+    }
     return true;
   }
 
   void wgc_ipc_session_t::release() {
-    // Release the keyed mutex
     if (_keyed_mutex) {
-      _keyed_mutex->ReleaseSync(0);
+      // The keyed mutex has two behaviors, traditional mutex and signal-style/ping-pong.
+      // If you use a key > 0, you must first RELEASE that key, even though it was never acquired.
+      // Think of it like an inverse mutex, we're signaling the helper that they can work by releasing it first.
+      _keyed_mutex->ReleaseSync(2);
     }
 
     // Send heartbeat to helper after each frame is released
