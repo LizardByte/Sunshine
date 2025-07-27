@@ -458,6 +458,7 @@ namespace platf {
     timeout,  ///< Timeout
     interrupted,  ///< Capture was interrupted
     error  ///< Error
+
   };
 
   class display_t {
@@ -585,6 +586,7 @@ namespace platf {
    * @brief Get the display_t instance for the given hwdevice_type.
    * If display_name is empty, use the first monitor that's compatible you can find
    * If you require to use this parameter in a separate thread, make a copy of it.
+   * @param hwdevice_type The type of hardware device memory to use for display capture.
    * @param display_name The name of the monitor that SHOULD be displayed
    * @param config Stream configuration
    * @return The display_t instance based on hwdevice_type.

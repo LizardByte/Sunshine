@@ -32,6 +32,7 @@ typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
 #include "misc.h"
 #include "src/config.h"
 #include "src/display_device.h"
+#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -333,6 +334,18 @@ namespace platf::dxgi {
     }
 
     return capture_e::ok;
+  }
+
+  capture_e display_base_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    // This is a base implementation that should be overridden by derived classes
+    BOOST_LOG(error) << "snapshot() called on base class - should be overridden by derived class";
+    return capture_e::error;
+  }
+
+  capture_e display_base_t::release_snapshot() {
+    // This is a base implementation that should be overridden by derived classes
+    BOOST_LOG(error) << "release_snapshot() called on base class - should be overridden by derived class";
+    return capture_e::error;
   }
 
   /**
@@ -981,44 +994,30 @@ namespace platf::dxgi {
 }  // namespace platf::dxgi
 
 namespace platf {
-  /**
-   * Pick a display adapter and capture method.
-   * @param hwdevice_type enables possible use of hardware encoder
-   */
+
+
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (config::video.capture == "ddx" || config::video.capture.empty()) {
-      if (hwdevice_type == mem_type_e::dxgi) {
+
+    if (hwdevice_type == mem_type_e::dxgi) {
+      if (config::video.capture == "wgc") {
+        return dxgi::display_wgc_ipc_vram_t::create(config, display_name);
+      } else {
         auto disp = std::make_shared<dxgi::display_ddup_vram_t>();
-
         if (!disp->init(config, display_name)) {
           return disp;
         }
-      } else if (hwdevice_type == mem_type_e::system) {
+      }
+    } else if (hwdevice_type == mem_type_e::system) {
+      if (config::video.capture == "wgc") {
+        return dxgi::display_wgc_ipc_ram_t::create(config, display_name);
+      } else {
         auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
-
         if (!disp->init(config, display_name)) {
           return disp;
         }
       }
     }
 
-    if (config::video.capture == "wgc" || config::video.capture.empty()) {
-      if (hwdevice_type == mem_type_e::dxgi) {
-        auto disp = std::make_shared<dxgi::display_wgc_vram_t>();
-
-        if (!disp->init(config, display_name)) {
-          return disp;
-        }
-      } else if (hwdevice_type == mem_type_e::system) {
-        auto disp = std::make_shared<dxgi::display_wgc_ram_t>();
-
-        if (!disp->init(config, display_name)) {
-          return disp;
-        }
-      }
-    }
-
-    // ddx and wgc failed
     return nullptr;
   }
 

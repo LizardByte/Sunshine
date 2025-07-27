@@ -2,6 +2,12 @@
  * @file src/main.cpp
  * @brief Definitions for the main entry point for Sunshine.
  */
+// Windows headers must come first to avoid ordering issues
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 // standard includes
 #include <codecvt>
 #include <csignal>
@@ -21,6 +27,14 @@
 #include "system_tray.h"
 #include "upnp.h"
 #include "video.h"
+
+#ifndef SUNSHINE_EXTERNAL_PROCESS
+#include "logging_tp.h"
+#endif
+
+#ifdef __ANDROID__
+#include "logging_android.h"
+#endif
 
 extern "C" {
 #include "rswrapper.h"
@@ -118,6 +132,17 @@ int main(int argc, char *argv[]) {
   if (!log_deinit_guard) {
     BOOST_LOG(error) << "Logging failed to initialize"sv;
   }
+
+#ifndef SUNSHINE_EXTERNAL_PROCESS
+  // Setup third-party library logging
+  logging::setup_av_logging(config::sunshine.min_log_level);
+  logging::setup_libdisplaydevice_logging(config::sunshine.min_log_level);
+#endif
+
+#ifdef __ANDROID__
+  // Setup Android-specific logging
+  logging::setup_android_logging();
+#endif
 
   // logging can begin at this point
   // if anything is logged prior to this point, it will appear in stdout, but not in the log viewer in the UI
