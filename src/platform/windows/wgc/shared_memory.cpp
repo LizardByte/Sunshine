@@ -874,10 +874,11 @@ void AsyncNamedPipe::worker_thread() noexcept {
 void AsyncNamedPipe::run_message_loop() {
   using namespace std::chrono_literals;
 
-  for (; _running.load(std::memory_order_acquire);  // loop condition
-       std::this_thread::sleep_for(1ms))  // throttle
+  for (; _running.load(std::memory_order_acquire);)
   {
     std::vector<uint8_t> message;
+    // The timeout here is why we don't need a sleep each loop.
+    // Eventually the message queue empties and its forced to wait.
     PipeResult res = _pipe->receive(message, 1000);  // 1 s timeout
 
     // Fast cancel – bail out even before decoding res

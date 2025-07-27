@@ -23,16 +23,12 @@
 #include <dxgi1_2.h>
 #include <inspectable.h>  // For IInspectable
 #include <iomanip>  // for std::fixed, std::setprecision
-#include <iomanip>
 #include <iostream>
 #include <mutex>
-#include <psapi.h>  // For GetModuleBaseName
 #include <queue>
 #include <shellscalingapi.h>  // For DPI awareness
-#include <shlobj.h>  // For SHGetFolderPathW and CSIDL_DESKTOPDIRECTORY
 #include <string>
 #include <thread>
-#include <tlhelp32.h>  // For process enumeration
 #include <windows.graphics.capture.interop.h>
 #include <windows.h>
 #include <winrt/base.h>
@@ -174,23 +170,22 @@ public:
    * @return true if DPI awareness was successfully set, false otherwise.
    */
   bool initialize_dpi_awareness() {
-    typedef BOOL(WINAPI * set_process_dpi_awareness_context_func)(DPI_AWARENESS_CONTEXT);
+    // Try newer API first
     if (HMODULE user32 = GetModuleHandleA("user32.dll")) {
+      typedef BOOL(WINAPI * set_process_dpi_awareness_context_func)(DPI_AWARENESS_CONTEXT);
       auto set_dpi_context_func = (set_process_dpi_awareness_context_func) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
-      if (set_dpi_context_func) {
-        if (set_dpi_context_func((DPI_AWARENESS_CONTEXT) -4)) {
-          _dpi_awareness_set = true;
-          return true;
-        }
+      if (set_dpi_context_func && set_dpi_context_func((DPI_AWARENESS_CONTEXT) -4)) {
+        _dpi_awareness_set = true;
+        return true;
       }
     }
-    if (FAILED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
-      BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
-      return false;
-    } else {
+
+    // Fallback to older API
+    if (SUCCEEDED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
       _dpi_awareness_set = true;
       return true;
     }
+
     BOOST_LOG(warning) << "Failed to set DPI awareness, display scaling issues may occur";
     return false;
   }
@@ -530,8 +525,6 @@ class DisplayManager {
 private:
   HMONITOR _selected_monitor = nullptr;  ///< Handle to the selected monitor for capture
   MONITORINFO _monitor_info = {sizeof(MONITORINFO)};  ///< Information about the selected monitor
-  UINT _fallback_width = 0;  ///< Fallback width if configuration fails
-  UINT _fallback_height = 0;  ///< Fallback height if configuration fails
   UINT _width = 0;  ///< Final capture width in pixels
   UINT _height = 0;  ///< Final capture height in pixels
 
@@ -886,11 +879,6 @@ private:
   UINT _width = 0;  ///< Capture width in pixels
   GraphicsCaptureItem _graphics_item = nullptr;  ///< WinRT graphics capture item (monitor/window)
 
-  static std::chrono::steady_clock::time_point _last_delivery_time;  ///< Last frame delivery timestamp (static for all instances)
-  static bool _first_frame;  ///< Flag indicating if this is the first frame (static for all instances)
-  static uint32_t _delivery_count;  ///< Total number of frames delivered (static for all instances)
-  static std::chrono::milliseconds _total_delivery_time;  ///< Cumulative delivery time (static for all instances)
-
 public:
   /**
    * @brief Constructor for WgcCaptureManager.
@@ -1035,6 +1023,99 @@ public:
     check_and_adjust_frame_buffer();
   }
 
+private:
+  /**
+   * @brief Handles ping-pong mutex acquisition for frame synchronization.
+   * @param is_first_frame Reference to the first frame flag.
+   * @return HRESULT of the acquisition attempt.
+   */
+  HRESULT acquire_frame_mutex() {
+    static std::atomic<bool> is_first_frame {true};
+    const bool first = is_first_frame.load();
+    const UINT acquire_key = is_first_frame ? 0 : 2;
+    const DWORD timeout_ms = is_first_frame ? 2 : INFINITE;
+
+    //  We use ping-pong mutexes to prevent deadlocks between the capture and encoding threads.
+    //  First frame: the helper locks key 0, then unlocks key 1 so the main process can acquire it.
+    //  The main process locks key 1 and then unlocks key 2.
+    //  Later frames: the helper locks key 2 (just unlocked by the main process) and then unlocks key 1.
+    //  The main process always locks key 1 (just unlocked by the helper) and then unlocks key 2.
+    //  Because the capture and encoder acquire 0, there is a small risk of deadlocking during the initial handshake.
+    //  This because we cannot unlock key 1 until we have locked key 0 first and then release 1
+
+    if (first) {
+      // Use retry logic for first frame to avoid deadlock
+      for (int i = 0; i < 100; ++i) {
+        const HRESULT r = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
+        if (r == S_OK || r != WAIT_TIMEOUT) {
+          is_first_frame.store(false);
+          return r;
+        }
+      }
+      return WAIT_TIMEOUT;
+    }
+
+    return _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
+  }
+
+  /**
+   * @brief Prunes old frame drop timestamps from the sliding window.
+   * @param now Current timestamp for comparison.
+   */
+  void prune_old_drop_timestamps(const std::chrono::steady_clock::time_point &now) {
+    while (!_drop_timestamps.empty() && now - _drop_timestamps.front() > std::chrono::seconds(5)) {
+      _drop_timestamps.pop_front();
+    }
+  }
+
+  /**
+   * @brief Checks if buffer size should be increased due to recent frame drops.
+   * @param now Current timestamp.
+   * @return true if buffer was increased, false otherwise.
+   */
+  bool try_increase_buffer_size(const std::chrono::steady_clock::time_point &now) {
+    if (_drop_timestamps.size() >= 2 && _current_buffer_size < MAX_BUFFER_SIZE) {
+      uint32_t new_buffer_size = _current_buffer_size + 1;
+      BOOST_LOG(info) << "Detected " << _drop_timestamps.size() << " frame drops in 5s window, increasing buffer from "
+                      << _current_buffer_size << " to " << new_buffer_size;
+      create_or_adjust_frame_pool(new_buffer_size);
+      _drop_timestamps.clear();  // Reset after adjustment
+      _peak_outstanding = 0;  // Reset peak tracking
+      _last_quiet_start = now;  // Reset quiet timer
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * @brief Checks if buffer size should be decreased due to sustained quiet period.
+   * @param now Current timestamp.
+   * @return true if buffer was decreased, false otherwise.
+   */
+  bool try_decrease_buffer_size(const std::chrono::steady_clock::time_point &now) {
+    bool is_quiet = _drop_timestamps.empty() &&
+                    _peak_outstanding.load() <= static_cast<int>(_current_buffer_size) - 1;
+
+    if (!is_quiet) {
+      _last_quiet_start = now;  // Reset quiet timer
+      return false;
+    }
+
+    // Check if we've been quiet for 30 seconds
+    if (now - _last_quiet_start >= std::chrono::seconds(30) && _current_buffer_size > 1) {
+      uint32_t new_buffer_size = _current_buffer_size - 1;
+      BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << _peak_outstanding.load()
+                      << " ≤ " << (_current_buffer_size - 1) << ", decreasing buffer from "
+                      << _current_buffer_size << " to " << new_buffer_size;
+      create_or_adjust_frame_pool(new_buffer_size);
+      _peak_outstanding = 0;  // Reset peak tracking
+      _last_quiet_start = now;  // Reset quiet timer
+      return true;
+    }
+
+    return false;
+  }
+
   /**
    * @brief Copies the captured surface to the shared texture and notifies the main process.
    * @param surface The captured D3D11 surface.
@@ -1058,51 +1139,20 @@ public:
       return;
     }
 
-    // We use ping-pong mutexes to prevent deadlocks between the capture and encoding threads.
-    //  First frame: the helper locks key 0, then unlocks key 1 so the main process can acquire it.
-    //  The main process locks key 1 and then unlocks key 2.
-    //  Later frames: the helper locks key 2 (just unlocked by the main process) and then unlocks key 1.
-    //  The main process always locks key 1 (just unlocked by the helper) and then unlocks key 2.
-    //  Because the capture and encoder acquire 0, there is a small risk of deadlocking during the initial handshake.
-    //  This because we cannot unlock key 1 until we have locked key 0 first and then release 1
-
-    static std::atomic<bool> is_first_frame {true};
-    const bool first = is_first_frame.load();
-
-    const UINT acquire_key = first ? 0 : 2;
-    const DWORD timeout_ms = first ? 2 : INFINITE;
-
-    // Because its possible to deadlock on the first acquire we will make it retry with a short timeout.
-    const auto try_acquire = [&](int retries) -> HRESULT {
-      for (int i = 0; i < retries; ++i) {
-        const HRESULT r = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
-        if (r == S_OK || r != WAIT_TIMEOUT) {
-          return r;  // success or non‑timeout failure
-        }
-      }
-      return WAIT_TIMEOUT;
-    };
-
-    HRESULT hr = first ? try_acquire(100) : _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
-
+    HRESULT hr = acquire_frame_mutex();
     if (hr != S_OK) {
-      if (first) {
-        BOOST_LOG(error) << "Failed to acquire initial mutex key 0"
-                         << (hr == WAIT_TIMEOUT ? " after 100 retries: WAIT_TIMEOUT" : std::format(": 0x{:08X}", hr));
-      }
+      BOOST_LOG(error) << "Failed to acquire initial mutex key 0"
+                       << (hr == WAIT_TIMEOUT ? " after 100 retries: WAIT_TIMEOUT" : std::format(": 0x{:08X}", hr));
       return;
     }
 
-    // Copy & release
+    // Copy frame data and release mutex
     _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
     _resource_manager->get_keyed_mutex()->ReleaseSync(1);
     _pipe->send({FRAME_READY_MSG});
-
-    if (first) {
-      is_first_frame.store(false);
-    }
   }
 
+public:
   /**
    * @brief Creates a capture session for the specified capture item.
    * @returns true if the session was created successfully, false otherwise.
@@ -1114,7 +1164,9 @@ public:
 
     _capture_session = _frame_pool.CreateCaptureSession(_graphics_item);
     _capture_session.IsBorderRequired(false);
-
+    
+    // Technically this is not required for users that have 24H2, but there's really no functional difference.
+    // So instead of coding out a version check, we'll just set it for everyone.
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
       _capture_session.MinUpdateInterval(winrt::Windows::Foundation::TimeSpan {10000});
     }
@@ -1160,52 +1212,17 @@ private:
     _last_buffer_check = now;
 
     // 1) Prune old drop timestamps (older than 5 seconds)
-    while (!_drop_timestamps.empty() &&
-           now - _drop_timestamps.front() > std::chrono::seconds(5)) {
-      _drop_timestamps.pop_front();
-    }
+    prune_old_drop_timestamps(now);
 
-    // 2) Check if we should increase buffer count (≥2 drops in last 5 seconds)
-    if (_drop_timestamps.size() >= 2 && _current_buffer_size < MAX_BUFFER_SIZE) {
-      uint32_t new_buffer_size = _current_buffer_size + 1;
-      BOOST_LOG(info) << "Detected " << _drop_timestamps.size() << " frame drops in 5s window, increasing buffer from "
-                      << _current_buffer_size << " to " << new_buffer_size;
-      create_or_adjust_frame_pool(new_buffer_size);
-      _drop_timestamps.clear();  // Reset after adjustment
-      _peak_outstanding = 0;  // Reset peak tracking
-      _last_quiet_start = now;  // Reset quiet timer
+    // 2) Try to increase buffer count if we have recent drops
+    if (try_increase_buffer_size(now)) {
       return;
     }
 
-    // 3) Check if we should decrease buffer count (sustained quiet period)
-    bool is_quiet = _drop_timestamps.empty() &&
-                    _peak_outstanding.load() <= static_cast<int>(_current_buffer_size) - 1;
-
-    if (is_quiet) {
-      // Check if we've been quiet for 30 seconds
-      if (now - _last_quiet_start >= std::chrono::seconds(30) && _current_buffer_size > 1) {
-        uint32_t new_buffer_size = _current_buffer_size - 1;
-        BOOST_LOG(info) << "Sustained quiet period (30s) with peak occupancy " << _peak_outstanding.load()
-                        << " ≤ " << (_current_buffer_size - 1) << ", decreasing buffer from "
-                        << _current_buffer_size << " to " << new_buffer_size;
-        create_or_adjust_frame_pool(new_buffer_size);
-        _peak_outstanding = 0;  // Reset peak tracking
-        _last_quiet_start = now;  // Reset quiet timer
-      }
-    } else {
-      // Reset quiet timer if we're not in a quiet state
-      _last_quiet_start = now;
-    }
+    // 3) Try to decrease buffer count if we've been quiet
+    try_decrease_buffer_size(now);
   }
 };
-
-/**
- * @brief Static member initialization for WgcCaptureManager frame processing statistics.
- */
-std::chrono::steady_clock::time_point WgcCaptureManager::_last_delivery_time = std::chrono::steady_clock::time_point {};
-bool WgcCaptureManager::_first_frame = true;
-uint32_t WgcCaptureManager::_delivery_count = 0;
-std::chrono::milliseconds WgcCaptureManager::_total_delivery_time {0};
 
 /**
  * @brief Callback procedure for desktop switch events.
@@ -1326,6 +1343,71 @@ bool setup_pipe_callbacks(AsyncNamedPipe &pipe, std::chrono::steady_clock::time_
   };
 
   return pipe.start(on_message, on_error);
+}
+
+/**
+ * @brief Helper function to process window messages for desktop hooks.
+ *
+ * @param shutdown_requested Reference to shutdown flag that may be set if WM_QUIT is received.
+ * @return true if messages were processed, false if shutdown was requested.
+ */
+bool process_window_messages(bool &shutdown_requested) {
+  MSG msg;
+  while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
+    TranslateMessage(&msg);
+    DispatchMessageW(&msg);
+    if (msg.message == WM_QUIT) {
+      shutdown_requested = true;
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * @brief Helper function to check heartbeat timeout.
+ *
+ * @param last_msg_time The timestamp of the last received message.
+ * @param shutdown_requested Reference to shutdown flag that may be set on timeout.
+ * @return true if heartbeat is valid, false if timeout occurred.
+ */
+bool check_heartbeat_timeout(const std::chrono::steady_clock::time_point &last_msg_time, bool &shutdown_requested) {
+  auto now = std::chrono::steady_clock::now();
+  if (std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time).count() > 5) {
+    BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, requesting controlled shutdown...";
+    shutdown_requested = true;
+    PostQuitMessage(0);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * @brief Helper function to setup desktop switch hook for secure desktop detection.
+ *
+ * @return true if the hook was successfully installed, false otherwise.
+ */
+bool setup_desktop_switch_hook() {
+  BOOST_LOG(info) << "Setting up desktop switch hook...";
+
+  HWINEVENTHOOK raw_hook = SetWinEventHook(
+    EVENT_SYSTEM_DESKTOPSWITCH,
+    EVENT_SYSTEM_DESKTOPSWITCH,
+    nullptr,
+    desktop_switch_hook_proc,
+    0,
+    0,
+    WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
+  );
+
+  if (!raw_hook) {
+    BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
+    return false;
+  }
+
+  g_desktop_switch_hook.reset(raw_hook);
+  BOOST_LOG(info) << "Desktop switch hook installed successfully";
+  return true;
 }
 
 /**
@@ -1451,45 +1533,20 @@ int main(int argc, char *argv[]) {
   }
 
   // Set up desktop switch hook for secure desktop detection
-  BOOST_LOG(info) << "Setting up desktop switch hook...";
-  if (HWINEVENTHOOK raw_hook = SetWinEventHook(
-        EVENT_SYSTEM_DESKTOPSWITCH,
-        EVENT_SYSTEM_DESKTOPSWITCH,
-        nullptr,
-        desktop_switch_hook_proc,
-        0,
-        0,
-        WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS
-      );
-      !raw_hook) {
-    BOOST_LOG(error) << "Failed to set up desktop switch hook: " << GetLastError();
-  } else {
-    g_desktop_switch_hook.reset(raw_hook);
-    BOOST_LOG(info) << "Desktop switch hook installed successfully";
-  }
+  setup_desktop_switch_hook();
 
   wgc_capture_manager.start_capture();
 
-  // Controlled shutdown flag
+  // Main message loop
   bool shutdown_requested = false;
-  MSG msg;
   while (pipe.is_connected() && !shutdown_requested) {
-    // Process any pending messages for the hook
-    while (PeekMessageW(&msg, nullptr, 0, 0, PM_REMOVE)) {
-      TranslateMessage(&msg);
-      DispatchMessageW(&msg);
-      // If WM_QUIT is received, exit loop
-      if (msg.message == WM_QUIT) {
-        shutdown_requested = true;
-      }
+    // Process window messages and check for shutdown
+    if (!process_window_messages(shutdown_requested)) {
+      break;
     }
 
-    // Heartbeat timeout check
-    auto now = std::chrono::steady_clock::now();
-    if (!shutdown_requested && std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time).count() > 5) {
-      BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, requesting controlled shutdown...";
-      shutdown_requested = true;
-      PostQuitMessage(0);
+    // Check heartbeat timeout
+    if (!check_heartbeat_timeout(last_msg_time, shutdown_requested)) {
       continue;
     }
 
