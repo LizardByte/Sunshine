@@ -995,66 +995,26 @@ namespace platf::dxgi {
 
 namespace platf {
 
-  /**
-   * @brief Retrieves and caches the current Windows build number.
-   *
-   * This function queries the operating system for the Windows build number using RtlGetVersion
-   * or GetVersionExW, and caches the result for future calls. This avoids repeated system calls
-   * for the build number.
-   *
-   * @return DWORD The Windows build number, or 0 if it could not be determined.
-   */
-  DWORD get_cached_windows_build() {
-    static DWORD cached_build = 0;
-    static bool checked = false;
-    if (!checked) {
-      OSVERSIONINFOEXW osvi = {0};
-      osvi.dwOSVersionInfoSize = sizeof(osvi);
-      typedef LONG (WINAPI *RtlGetVersionPtr)(PRTL_OSVERSIONINFOW);
-      HMODULE hMod = ::GetModuleHandleW(L"ntdll.dll");
-      if (hMod) {
-        auto pRtlGetVersion = (RtlGetVersionPtr)::GetProcAddress(hMod, "RtlGetVersion");
-        if (pRtlGetVersion) {
-          RTL_OSVERSIONINFOW rovi = {0};
-          rovi.dwOSVersionInfoSize = sizeof(rovi);
-          if (pRtlGetVersion(&rovi) == 0) {
-            cached_build = rovi.dwBuildNumber;
-            checked = true;
-            return cached_build;
-          }
-        }
-      }
-      if (::GetVersionExW((LPOSVERSIONINFOW)&osvi)) {
-        cached_build = osvi.dwBuildNumber;
-      } else {
-        cached_build = 0;
-      }
-      checked = true;
-    }
-    return cached_build;
-  }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    constexpr DWORD WGC_MIN_BUILD = 17134; // Windows 10, version 1803
-    DWORD win_build = get_cached_windows_build();
 
     if (hwdevice_type == mem_type_e::dxgi) {
-      if (config::video.capture == "ddx" || win_build < WGC_MIN_BUILD) {
+      if (config::video.capture == "wgc") {
+        return dxgi::display_wgc_ipc_vram_t::create(config, display_name);
+      } else {
         auto disp = std::make_shared<dxgi::display_ddup_vram_t>();
         if (!disp->init(config, display_name)) {
           return disp;
         }
-      } else {
-        return dxgi::display_wgc_ipc_vram_t::create(config, display_name);
       }
     } else if (hwdevice_type == mem_type_e::system) {
-      if (config::video.capture == "ddx" || win_build < WGC_MIN_BUILD) {
+      if (config::video.capture == "wgc") {
+        return dxgi::display_wgc_ipc_ram_t::create(config, display_name);
+      } else {
         auto disp = std::make_shared<dxgi::display_ddup_ram_t>();
         if (!disp->init(config, display_name)) {
           return disp;
         }
-      } else {
-        return dxgi::display_wgc_ipc_ram_t::create(config, display_name);
       }
     }
 

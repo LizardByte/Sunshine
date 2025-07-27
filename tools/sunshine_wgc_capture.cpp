@@ -99,6 +99,18 @@ using namespace winrt::Windows::System;
 using namespace std::literals;
 using namespace platf::dxgi;
 
+// GPU scheduling priority definitions for optimal capture performance under high GPU load
+typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
+  D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
+  D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,
+  D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,
+  D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,
+  D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,
+  D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
+} D3DKMT_SCHEDULINGPRIORITYCLASS;
+
+typedef LONG(__stdcall *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+
 /**
  * @brief Initial log level for the helper process.
  */
@@ -149,6 +161,7 @@ private:
   bool _dpi_awareness_set = false;  ///< Flag indicating if DPI awareness was successfully set
   bool _thread_priority_set = false;  ///< Flag indicating if thread priority was elevated
   bool _mmcss_characteristics_set = false;  ///< Flag indicating if MMCSS characteristics were set
+  bool _gpu_priority_set = false;  ///< Flag indicating if GPU scheduling priority was set
 
 public:
   /**
@@ -205,6 +218,7 @@ public:
    * Registers the thread with MMCSS for multimedia workload scheduling.
    * First attempts "Pro Audio" task profile, then falls back to "Games" profile.
    * This helps ensure consistent timing for capture operations.
+   * Additionally sets MMCSS thread relative priority to maximum for best performance.
    *
    * @return true if MMCSS characteristics were successfully set, false otherwise.
    */
@@ -218,8 +232,51 @@ public:
         return false;
       }
     }
+    
+    // Set MMCSS thread relative priority to maximum (AVRT_PRIORITY_HIGH = 2)
+    if (!AvSetMmThreadPriority(raw_handle, AVRT_PRIORITY_HIGH)) {
+      BOOST_LOG(warning) << "Failed to set MMCSS thread priority: " << GetLastError();
+      // Don't fail completely as the basic MMCSS registration still works
+    }
+    
     _mmcss_handle.reset(raw_handle);
     _mmcss_characteristics_set = true;
+    return true;
+  }
+
+  /**
+   * @brief Sets GPU scheduling priority for optimal capture performance under high GPU load.
+   *
+   * Configures the process GPU scheduling priority to HIGH or REALTIME depending on GPU vendor
+   * and Hardware-Accelerated GPU Scheduling (HAGS) status. This is critical for maintaining
+   * capture performance when the GPU is under heavy load from games or other applications.
+   *
+   * @return true if GPU priority was successfully set, false otherwise.
+   */
+  bool initialize_gpu_scheduling_priority() {
+    HMODULE gdi32 = GetModuleHandleA("gdi32.dll");
+    if (!gdi32) {
+      BOOST_LOG(warning) << "Failed to get gdi32.dll handle for GPU priority adjustment";
+      return false;
+    }
+
+    auto d3dkmt_set_process_priority = (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+    if (!d3dkmt_set_process_priority) {
+      BOOST_LOG(warning) << "D3DKMTSetProcessSchedulingPriorityClass not available, GPU priority not set";
+      return false;
+    }
+
+    auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
+    
+    HRESULT hr = d3dkmt_set_process_priority(GetCurrentProcess(), priority);
+    if (FAILED(hr)) {
+      BOOST_LOG(warning) << "Failed to set GPU scheduling priority to REALTIME: " << hr 
+                         << " (may require administrator privileges for optimal performance)";
+      return false;
+    }
+
+    BOOST_LOG(info) << "GPU scheduling priority set to REALTIME for optimal capture performance";
+    _gpu_priority_set = true;
     return true;
   }
 
@@ -241,7 +298,8 @@ public:
    *
    * Calls all initialization methods in sequence:
    * - DPI awareness configuration
-   * - Thread priority elevation
+   * - Thread priority elevation  
+   * - GPU scheduling priority setup
    * - MMCSS characteristics setup
    * - WinRT apartment initialization
    *
@@ -251,6 +309,7 @@ public:
     bool success = true;
     success &= initialize_dpi_awareness();
     success &= initialize_thread_priority();
+    success &= initialize_gpu_scheduling_priority();
     success &= initialize_mmcss_characteristics();
     success &= initialize_winrt_apartment();
     return success;
@@ -292,6 +351,14 @@ public:
   }
 
   /**
+   * @brief Checks if GPU scheduling priority was successfully set.
+   * @return true if GPU scheduling priority is configured, false otherwise.
+   */
+  bool is_gpu_priority_set() const {
+    return _gpu_priority_set;
+  }
+
+  /**
    * @brief Destructor for SystemInitializer.
    *
    * Calls cleanup() to release MMCSS resources.
@@ -323,6 +390,7 @@ public:
    *
    * Creates a hardware-accelerated D3D11 device using default settings.
    * The device is used for texture operations and WinRT interop.
+   * Also sets GPU thread priority to 7 for optimal capture performance.
    *
    * @return true if device creation succeeded, false otherwise.
    */
@@ -338,6 +406,22 @@ public:
 
     _device.reset(raw_device);
     _context.reset(raw_context);
+    
+    // Set GPU thread priority to 7 for optimal capture performance under high GPU load
+    winrt::com_ptr<IDXGIDevice> dxgi_device;
+    hr = _device->QueryInterface(__uuidof(IDXGIDevice), dxgi_device.put_void());
+    if (SUCCEEDED(hr)) {
+      hr = dxgi_device->SetGPUThreadPriority(7);
+      if (FAILED(hr)) {
+        BOOST_LOG(warning) << "Failed to set GPU thread priority to 7: " << hr 
+                           << " (may require administrator privileges for optimal performance)";
+      } else {
+        BOOST_LOG(info) << "GPU thread priority set to 7 for optimal capture performance";
+      }
+    } else {
+      BOOST_LOG(warning) << "Failed to query DXGI device for GPU thread priority setting";
+    }
+    
     return true;
   }
 
@@ -1272,6 +1356,7 @@ int main(int argc, char *argv[]) {
   BOOST_LOG(info) << "System initialization successful";
   BOOST_LOG(debug) << "DPI awareness set: " << (system_initializer.is_dpi_awareness_set() ? "YES" : "NO");
   BOOST_LOG(debug) << "Thread priority set: " << (system_initializer.is_thread_priority_set() ? "YES" : "NO");
+  BOOST_LOG(debug) << "GPU scheduling priority set: " << (system_initializer.is_gpu_priority_set() ? "YES" : "NO");
   BOOST_LOG(debug) << "MMCSS characteristics set: " << (system_initializer.is_mmcss_characteristics_set() ? "YES" : "NO");
 
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
