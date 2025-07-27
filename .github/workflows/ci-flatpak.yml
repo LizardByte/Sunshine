@@ -73,15 +73,16 @@ jobs:
             cmake \
             flatpak
 
-          sudo su $(whoami) -c "flatpak --user remote-add --if-not-exists flathub \
-            https://flathub.org/repo/flathub.flatpakrepo"
+          sudo su "$(whoami)" -c "flatpak --user remote-add --if-not-exists flathub \
+            https://flathub.org/repo/flathub.flatpakrepo
+          "
 
-          sudo su $(whoami) -c "flatpak --user install -y flathub \
+          sudo su "$(whoami)" -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
             org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
             org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            "
+          "
 
           flatpak run org.flatpak.Builder --version
 
@@ -101,9 +102,11 @@ jobs:
             flatpak-${{ matrix.arch }}-
 
       - name: Configure Flatpak Manifest
+        env:
+          BRANCH: ${{ github.head_ref }}
         run: |
           # variables for manifest
-          branch="${{ github.head_ref }}"
+          branch="${{ env.BRANCH }}"
           build_version=${{ inputs.release_version }}
           commit=${{ inputs.release_commit }}
 
@@ -137,19 +140,20 @@ jobs:
 
       - name: Debug Manifest
         working-directory: build
-        run: cat ${APP_ID}.yml
+        run: cat "${APP_ID}.yml"
 
       - name: Build Linux Flatpak
         working-directory: build
         run: |
-          sudo su $(whoami) -c "flatpak run org.flatpak.Builder \
+          echo "::add-matcher::.github/matchers/gcc-strip3.json"
+          sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
             --arch=${{ matrix.arch }} \
             --force-clean \
             --repo=repo \
             --sandbox \
             --stop-at=cuda build-sunshine ${APP_ID}.yml"
           cp -r .flatpak-builder copy-of-flatpak-builder
-          sudo su $(whoami) -c "flatpak run org.flatpak.Builder \
+          sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
             --arch=${{ matrix.arch }} \
             --force-clean \
             --repo=repo \
@@ -157,15 +161,16 @@ jobs:
             build-sunshine ${APP_ID}.yml"
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
-          sudo su $(whoami) -c "flatpak build-bundle \
+          sudo su "$(whoami)" -c "flatpak build-bundle \
             --arch=${{ matrix.arch }} \
             ./repo \
             ../artifacts/sunshine_${{ matrix.arch }}.flatpak ${APP_ID}"
-          sudo su $(whoami) -c "flatpak build-bundle \
+          sudo su "$(whoami)" -c "flatpak build-bundle \
             --runtime \
             --arch=${{ matrix.arch }} \
             ./repo \
             ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak ${APP_ID}.Debug"
+          echo "::remove-matcher owner=gcc-strip3::"
 
       - name: Lint Flatpak
         working-directory: build
@@ -177,7 +182,7 @@ jobs:
             --exceptions \
             --user-exceptions "${exceptions_file}" \
             manifest \
-            ${APP_ID}.yml
+            "${APP_ID}.yml"
 
           echo "Linting flatpak repo"
           # TODO: add arg
@@ -193,13 +198,13 @@ jobs:
         if: matrix.arch == 'x86_64'
         run: |
           mkdir -p flathub/modules
-          cp ./build/generated-sources.json ./flathub/
-          cp ./build/package-lock.json ./flathub/
-          cp ./build/${APP_ID}.yml ./flathub/
-          cp ./build/${APP_ID}.metainfo.xml ./flathub/
-          cp ./packaging/linux/flatpak/README.md ./flathub/
-          cp ./packaging/linux/flatpak/flathub.json ./flathub/
-          cp -r ./packaging/linux/flatpak/modules/. ./flathub/modules/
+          cp "./build/generated-sources.json" "./flathub/"
+          cp "./build/package-lock.json" "./flathub/"
+          cp "./build/${APP_ID}.yml" "./flathub/"
+          cp "./build/${APP_ID}.metainfo.xml" "./flathub/"
+          cp "./packaging/linux/flatpak/README.md" "./flathub/"
+          cp "./packaging/linux/flatpak/flathub.json" "./flathub/"
+          cp -r "./packaging/linux/flatpak/modules/." "./flathub/modules/"
           # submodules will need to be handled in the workflow that creates the PR
 
           # create the archive
