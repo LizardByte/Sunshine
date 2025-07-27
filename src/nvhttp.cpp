@@ -857,16 +857,30 @@ namespace nvhttp {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;
 
-      // We want to prepare display only if there are no active sessions at
-      // the moment. This should be done before probing encoders as it could
-      // change the active displays.
-      display_device::configure_display(config::video, *launch_session);
+      // Execute PRE_DISPLAY_CHECK event-action before encoder probing
+      event_actions::execution_context_t context;
+      context.app_id = "0";  // Use 0 for system-level operations
+      context.app_name = "Stream Launch";
+      context.client_count = 0;  // No clients during display validation
+      context.current_stage = event_actions::stage_e::PRE_DISPLAY_CHECK;
+      int pre_display_result = event_actions::event_handler.execute_stage(event_actions::stage_e::PRE_DISPLAY_CHECK, context);
+      if (pre_display_result != 0) {
+        tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "PRE_DISPLAY_CHECK event-action failed");
+        tree.put("root.gamesession", 0);
+        return;
+      }
 
       // Probe encoders again before streaming to ensure our chosen
       // encoder matches the active GPU (which could have changed
       // due to hotplugging, driver crash, primary monitor change,
       // or any number of other factors).
-      
+
+      // We want to prepare display only if there are no active sessions at
+      // the moment. This should be done before probing encoders as it could
+      // change the active displays.
+      display_device::configure_display(config::video, *launch_session);
+
       if (video::probe_encoders()) {
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
@@ -960,7 +974,7 @@ namespace nvhttp {
       // encoder matches the active GPU (which could have changed
       // due to hotplugging, driver crash, primary monitor change,
       // or any number of other factors).
-      
+
       // Execute PRE_DISPLAY_CHECK event-action before encoder probing
       event_actions::execution_context_t context;
       context.app_id = "0";  // Use 0 for system-level operations
@@ -968,7 +982,7 @@ namespace nvhttp {
       context.client_count = 0;  // No clients during display validation
       context.current_stage = event_actions::stage_e::PRE_DISPLAY_CHECK;
       event_actions::event_handler.execute_stage(event_actions::stage_e::PRE_DISPLAY_CHECK, context);
-      
+
       if (video::probe_encoders()) {
         tree.put("root.resume", 0);
         tree.put("root.<xmlattr>.status_code", 503);
@@ -976,7 +990,7 @@ namespace nvhttp {
 
         return;
       }
-      
+
       // Execute POST_DISPLAY_CHECK event-action after successful encoder probing
       context.current_stage = event_actions::stage_e::POST_DISPLAY_CHECK;
       event_actions::event_handler.execute_stage(event_actions::stage_e::POST_DISPLAY_CHECK, context);
