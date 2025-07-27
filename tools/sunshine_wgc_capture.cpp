@@ -232,13 +232,13 @@ public:
         return false;
       }
     }
-    
+
     // Set MMCSS thread relative priority to maximum (AVRT_PRIORITY_HIGH = 2)
     if (!AvSetMmThreadPriority(raw_handle, AVRT_PRIORITY_HIGH)) {
       BOOST_LOG(warning) << "Failed to set MMCSS thread priority: " << GetLastError();
       // Don't fail completely as the basic MMCSS registration still works
     }
-    
+
     _mmcss_handle.reset(raw_handle);
     _mmcss_characteristics_set = true;
     return true;
@@ -267,10 +267,10 @@ public:
     }
 
     auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
-    
+
     HRESULT hr = d3dkmt_set_process_priority(GetCurrentProcess(), priority);
     if (FAILED(hr)) {
-      BOOST_LOG(warning) << "Failed to set GPU scheduling priority to REALTIME: " << hr 
+      BOOST_LOG(warning) << "Failed to set GPU scheduling priority to REALTIME: " << hr
                          << " (may require administrator privileges for optimal performance)";
       return false;
     }
@@ -298,7 +298,7 @@ public:
    *
    * Calls all initialization methods in sequence:
    * - DPI awareness configuration
-   * - Thread priority elevation  
+   * - Thread priority elevation
    * - GPU scheduling priority setup
    * - MMCSS characteristics setup
    * - WinRT apartment initialization
@@ -406,14 +406,14 @@ public:
 
     _device.reset(raw_device);
     _context.reset(raw_context);
-    
+
     // Set GPU thread priority to 7 for optimal capture performance under high GPU load
     winrt::com_ptr<IDXGIDevice> dxgi_device;
     hr = _device->QueryInterface(__uuidof(IDXGIDevice), dxgi_device.put_void());
     if (SUCCEEDED(hr)) {
       hr = dxgi_device->SetGPUThreadPriority(7);
       if (FAILED(hr)) {
-        BOOST_LOG(warning) << "Failed to set GPU thread priority to 7: " << hr 
+        BOOST_LOG(warning) << "Failed to set GPU thread priority to 7: " << hr
                            << " (may require administrator privileges for optimal performance)";
       } else {
         BOOST_LOG(info) << "GPU thread priority set to 7 for optimal capture performance";
@@ -421,7 +421,7 @@ public:
     } else {
       BOOST_LOG(warning) << "Failed to query DXGI device for GPU thread priority setting";
     }
-    
+
     return true;
   }
 
@@ -1044,53 +1044,62 @@ public:
       return;
     }
 
-    winrt::com_ptr<IDirect3DDxgiInterfaceAccess> interface_access;
-    HRESULT hr = surface.as<::IUnknown>()->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), winrt::put_abi(interface_access));
-    if (SUCCEEDED(hr)) {
-      winrt::com_ptr<ID3D11Texture2D> frame_texture;
-      hr = interface_access->GetInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<::IUnknown **>(frame_texture.put_void()));
-      if (SUCCEEDED(hr)) {
-        //  To avoid a potential deadlock with capture and encoding threads we will utilize ping pong mutexes.
-        // - First frame: Helper starts the ring by acquiring key 0 and releasing key 1, which then allows wgc_ipc_session to acquire it.
-        // - Main Process then Acquires Key 1, then proceeds to Release key 2.
-        // - Subsequent frames: Helper acquires key 2 (released by main) and releases key 1  
-        // - Main always acquires key 1 (released by helper) and releases key 2
-        // - Other capture methods use 0->0 and are completely separate, 
-        static std::atomic<bool> is_first_frame{true};
-        
-        UINT acquire_key = is_first_frame.load() ? 0 : 2;
-        // Because a deadlock can theoretically happen here, we will not
-        // use an infinite timeout for the first call.
-        // But its required to use infinite after ping pong has been setup. 
-        // Otherwise, if you dont use infinite you will get microstuttering
-        // I pick 200ms here because its unlikely someone streams at 5fps.
-        DWORD timeout_ms = is_first_frame.load() ? 200 : INFINITE;
-        
-        hr = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
-        if (SUCCEEDED(hr)) {
-          _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_texture.get());
+    // Get DXGI access
+    winrt::com_ptr<IDirect3DDxgiInterfaceAccess> ia;
+    if (FAILED(winrt::get_unknown(surface)->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), winrt::put_abi(ia)))) {
+      BOOST_LOG(error) << "Failed to query IDirect3DDxgiInterfaceAccess";
+      return;
+    }
 
-          // Always release key 1 for main process to acquire
-          _resource_manager->get_keyed_mutex()->ReleaseSync(1);
-          _pipe->send({FRAME_READY_MSG});
-          
-          if (is_first_frame.load()) {
-            is_first_frame.store(false);
-          }
-        } else {
-          if (!is_first_frame.load()) {
-            BOOST_LOG(debug) << "Main process still processing texture (key 2 unavailable), dropping frame";
-          } else {
-            BOOST_LOG(error) << "Failed to acquire initial mutex key 0: " << hr;
-          }
+    // Get underlying texture
+    winrt::com_ptr<ID3D11Texture2D> frame_tex;
+    if (FAILED(ia->GetInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<::IUnknown **>(frame_tex.put_void())))) {
+      BOOST_LOG(error) << "Failed to get ID3D11Texture2D from interface";
+      return;
+    }
+
+    // We use ping-pong mutexes to prevent deadlocks between the capture and encoding threads.
+    //  First frame: the helper locks key 0, then unlocks key 1 so the main process can acquire it.
+    //  The main process locks key 1 and then unlocks key 2.
+    //  Later frames: the helper locks key 2 (just unlocked by the main process) and then unlocks key 1.
+    //  The main process always locks key 1 (just unlocked by the helper) and then unlocks key 2.
+    //  Because the capture and encoder acquire 0, there is a small risk of deadlocking during the initial handshake.
+    //  This because we cannot unlock key 1 until we have locked key 0 first and then release 1
+
+    static std::atomic<bool> is_first_frame {true};
+    const bool first = is_first_frame.load();
+
+    const UINT acquire_key = first ? 0 : 2;
+    const DWORD timeout_ms = first ? 2 : INFINITE;
+
+    // Because its possible to deadlock on the first acquire we will make it retry with a short timeout.
+    const auto try_acquire = [&](int retries) -> HRESULT {
+      for (int i = 0; i < retries; ++i) {
+        const HRESULT r = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
+        if (r == S_OK || r != WAIT_TIMEOUT) {
+          return r;  // success or non‑timeout failure
         }
-      } else {
-        // Log error
-        BOOST_LOG(error) << "Failed to get ID3D11Texture2D from interface: " << hr;
       }
-    } else {
-      // Log error
-      BOOST_LOG(error) << "Failed to query IDirect3DDxgiInterfaceAccess: " << hr;
+      return WAIT_TIMEOUT;
+    };
+
+    HRESULT hr = first ? try_acquire(100) : _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
+
+    if (hr != S_OK) {
+      if (first) {
+        BOOST_LOG(error) << "Failed to acquire initial mutex key 0"
+                         << (hr == WAIT_TIMEOUT ? " after 100 retries: WAIT_TIMEOUT" : std::format(": 0x{:08X}", hr));
+      }
+      return;
+    }
+
+    // Copy & release
+    _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
+    _resource_manager->get_keyed_mutex()->ReleaseSync(1);
+    _pipe->send({FRAME_READY_MSG});
+
+    if (first) {
+      is_first_frame.store(false);
     }
   }
 

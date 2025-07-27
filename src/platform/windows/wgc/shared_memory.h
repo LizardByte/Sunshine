@@ -21,6 +21,17 @@ namespace platf::dxgi {
   struct safe_handle;
 }
 
+/**
+ * @brief Result codes for pipe operations
+ */
+enum class PipeResult {
+  Success,       // Operation completed successfully
+  Timeout,       // Operation timed out
+  Disconnected,  // Pipe was disconnected
+  BrokenPipe,    // Pipe broken (ERROR_BROKEN_PIPE = 109) - requires reinit
+  Error          // General error
+};
+
 class INamedPipe {
 public:
   /**
@@ -40,9 +51,9 @@ public:
    * @brief Receives a message from the pipe with timeout.
    * @param bytes The received message will be stored in this vector.
    * @param timeout_ms Maximum time to wait for receive completion, in milliseconds.
-   * @return True if received successfully, false on timeout or error.
+   * @return PipeResult indicating the outcome of the operation.
    */
-  virtual bool receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
+  virtual PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
 
   /**
    * @brief Connect to the pipe and verify that the client has connected.
@@ -66,28 +77,30 @@ class AsyncNamedPipe {
 public:
   using MessageCallback = std::function<void(const std::vector<uint8_t> &)>;
   using ErrorCallback = std::function<void(const std::string &)>;
+  using BrokenPipeCallback = std::function<void()>;  // New callback for broken pipe
 
   AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe);
   ~AsyncNamedPipe();
 
-  bool start(const MessageCallback &onMessage, const ErrorCallback &onError);
+  bool start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe = nullptr);
   void stop();
   void send(const std::vector<uint8_t> &message);
   void wait_for_client_connection(int milliseconds);
   bool is_connected() const;
 
 private:
-  void worker_thread();
+  void worker_thread() noexcept;
+  void run_message_loop();
   bool establish_connection();
   void process_message(const std::vector<uint8_t> &bytes) const;
-  void handle_worker_exception(const std::exception &e) const;
-  void handle_worker_unknown_exception() const;
+  void safe_execute_operation(const std::string &operation_name, const std::function<void()> &operation) const noexcept;
 
   std::unique_ptr<INamedPipe> _pipe;
   std::atomic<bool> _running;
   std::thread _worker;
   MessageCallback _onMessage;
   ErrorCallback _onError;
+  BrokenPipeCallback _onBrokenPipe;  // New callback member
 };
 
 class WinPipe: public INamedPipe {
@@ -96,7 +109,7 @@ public:
   ~WinPipe() override;
 
   bool send(std::vector<uint8_t> bytes, int timeout_ms) override;
-  bool receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
+  PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
   void wait_for_client_connection(int milliseconds) override;
   void disconnect() override;
   bool is_connected() override;

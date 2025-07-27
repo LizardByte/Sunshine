@@ -106,6 +106,11 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
     };
 
+    auto on_broken_pipe = [this]() {
+      BOOST_LOG(warning) << "[wgc_ipc_session_t] Broken pipe detected, forcing re-init";
+      _force_reinit.store(true);
+    };
+
     auto anon_connector = std::make_unique<AnonymousPipeFactory>();
 
     auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
@@ -146,7 +151,7 @@ namespace platf::dxgi {
 
     _pipe->send(config_message);
 
-    _pipe->start(on_message, on_error);
+    _pipe->start(on_message, on_error, on_broken_pipe);
 
     BOOST_LOG(info) << "[wgc_ipc_session_t] Waiting for handle data from helper process...";
 
@@ -187,6 +192,10 @@ namespace platf::dxgi {
 
     // Reset frame state
     _frame_ready.store(false, std::memory_order_release);
+
+    // Reset state flags
+    _should_swap_to_dxgi.store(false);
+    _force_reinit.store(false);
 
     _initialized = false;
   }
@@ -249,10 +258,6 @@ namespace platf::dxgi {
     // Add real-time scheduling hint (once per thread)
     initialize_mmcss_for_thread();
 
-    // No atomic necessary, pipe doesn't access this variable
-    // And there is no extra capture thread loop like in the external process.
-    static bool first_frame = false;
-
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_keyed_mutex) {
       return false;
@@ -269,31 +274,34 @@ namespace platf::dxgi {
     // Timestamp #2: Immediately after frame becomes available
     uint64_t timestamp_after_wait = qpc_counter();
 
-    // Reset timeout counter on successful frame
-    _timeout_count = 0;
+    // Always use 200ms timeout for mutex
+    constexpr DWORD MUTEX_TIMEOUT_MS = 200;
 
-    //  We intentionally avoid key 0 to prevent race conditions with the capture and encoder threads.
-    // - Note: Helper acquires key 0 on the first frame to setup the ping pong, then will swap to 1 -> 2.
-    //   This means theoretically a deadlock could happen on the very first frame, so we use a 200ms timeout just in case.
-    HRESULT hr = _keyed_mutex->AcquireSync(1, first_frame ? 200 : INFINITE);
+    HRESULT hr = _keyed_mutex->AcquireSync(1, MUTEX_TIMEOUT_MS);
     // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
     uint64_t timestamp_after_mutex = qpc_counter();
 
-    // No frame is ready -- timed out
-    if (FAILED(hr)) {
+    if (hr == WAIT_ABANDONED) {
+      BOOST_LOG(error) << "Helper process abandoned the keyed mutex, implying it may have crashed or was forcefully terminated.";
+      _should_swap_to_dxgi = false; // Don't swap to DXGI, just reinit
+      _force_reinit = true;
+      return false;
+    } else if (hr == WAIT_TIMEOUT) {
+      BOOST_LOG(debug) << "[wgc_ipc_session_t] AcquireSync timed out waiting for frame";
+      return false;
+    } else if (hr != S_OK) {
+      BOOST_LOG(error) << "[wgc_ipc_session_t] AcquireSync failed with error: " << hr;
       return false;
     }
+
+    // Reset timeout counter on successful frame
+    _timeout_count = 0;
 
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
 
     // Log high-precision timing deltas every 150 frames for main process timing
     log_timing_diagnostics(timestamp_before_wait, timestamp_after_wait, timestamp_after_mutex);
-    if (first_frame) {
-      // After the first frame its safe to use an infinite timeout
-      // because there is no risk for a deadlock anymore.
-      first_frame = false;
-    }
     return true;
   }
 

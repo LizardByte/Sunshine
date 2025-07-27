@@ -75,7 +75,11 @@ namespace platf::dxgi {
 
     // Check if secure desktop swap was triggered by helper process
     if (_session->should_swap_to_dxgi()) {
-      BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Secure desktop detected, returning reinit to trigger factory re-selection";
+      return capture_e::reinit;
+    }
+
+    // Check if forced reinit was triggered by helper process issues (such as process closed or crashed)
+    if (_session->should_reinit()) {
       return capture_e::reinit;
     }
 
@@ -288,7 +292,11 @@ namespace platf::dxgi {
 
     // Check if secure desktop swap was triggered by helper process
     if (_session->should_swap_to_dxgi()) {
-      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Secure desktop detected, returning reinit to trigger factory re-selection";
+      return capture_e::reinit;
+    }
+
+    // If the helper process crashed or was terminated forcefully by the user, we will re-initialize it.
+    if (_session->should_reinit()) {
       return capture_e::reinit;
     }
 

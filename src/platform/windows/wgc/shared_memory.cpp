@@ -36,17 +36,17 @@ namespace {
       ZeroMemory(&_ovl, sizeof(_ovl));
       _ovl.hEvent = _event;
     }
-    
-    ~io_context() { 
+
+    ~io_context() {
       if (_event) {
-        CloseHandle(_event); 
+        CloseHandle(_event);
       }
     }
-    
+
     // Disable copy
     io_context(const io_context &) = delete;
     io_context &operator=(const io_context &) = delete;
-    
+
     // Enable move
     io_context(io_context &&other) noexcept:
         _ovl(other._ovl),
@@ -54,7 +54,7 @@ namespace {
       other._event = nullptr;
       ZeroMemory(&other._ovl, sizeof(other._ovl));
     }
-    
+
     io_context &operator=(io_context &&other) noexcept {
       if (this != &other) {
         if (_event) {
@@ -67,11 +67,19 @@ namespace {
       }
       return *this;
     }
-    
-    OVERLAPPED* get() { return &_ovl; }
-    HANDLE event() const { return _event; }
-    bool is_valid() const { return _event != nullptr; }
-    
+
+    OVERLAPPED *get() {
+      return &_ovl;
+    }
+
+    HANDLE event() const {
+      return _event;
+    }
+
+    bool is_valid() const {
+      return _event != nullptr;
+    }
+
   private:
     OVERLAPPED _ovl;
     HANDLE _event;
@@ -441,7 +449,8 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
   bool ack_ok = false;
   auto t0 = std::chrono::steady_clock::now();
   while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-    if (pipe->receive(ack, 1000)) {  // 1 second timeout per receive attempt
+    PipeResult result = pipe->receive(ack, 1000);  // 1 second timeout per receive attempt
+    if (result == PipeResult::Success) {
       if (ack.size() == 1 && ack[0] == 0xA5) {
         ack_ok = true;
         BOOST_LOG(info) << "Received handshake ACK from client";
@@ -450,6 +459,9 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_p
       if (!ack.empty()) {
         BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
       }
+    } else if (result == PipeResult::BrokenPipe || result == PipeResult::Error || result == PipeResult::Disconnected) {
+      BOOST_LOG(error) << "Pipe error during handshake ACK wait";
+      break;
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -478,11 +490,15 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
   bool received = false;
 
   while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-    if (pipe->receive(bytes, 500)) {  // 500ms timeout per receive attempt
+    PipeResult result = pipe->receive(bytes, 500);  // 500ms timeout per receive attempt
+    if (result == PipeResult::Success) {
       if (!bytes.empty()) {
         received = true;
         break;
       }
+    } else if (result == PipeResult::BrokenPipe || result == PipeResult::Error || result == PipeResult::Disconnected) {
+      BOOST_LOG(error) << "Pipe error during handshake message receive";
+      break;
     }
     // Check if we received 0 bytes due to pipe being closed
     if (bytes.empty()) {
@@ -515,7 +531,7 @@ std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_p
   }
 
   // Flush the control pipe to ensure ACK is delivered before disconnecting
-  static_cast<WinPipe*>(pipe.get())->flush_buffers();
+  static_cast<WinPipe *>(pipe.get())->flush_buffers();
 
   // Convert wide string to string using proper conversion
   std::wstring wpipeName(msg.pipe_name);
@@ -621,16 +637,16 @@ bool WinPipe::send(std::vector<uint8_t> bytes, int timeout_ms) {
   return true;
 }
 
-bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
+PipeResult WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
   bytes.clear();
   if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
-    return false;
+    return PipeResult::Disconnected;
   }
 
   auto ctx = std::make_unique<io_context>();
   if (!ctx->is_valid()) {
     BOOST_LOG(error) << "Failed to create I/O context for receive operation, error=" << GetLastError();
-    return false;
+    return PipeResult::Error;
   }
 
   std::vector<uint8_t> buffer(4096);
@@ -641,7 +657,7 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
     // Read completed immediately
     buffer.resize(bytesRead);
     bytes = std::move(buffer);
-    return true;
+    return PipeResult::Success;
   } else {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
@@ -651,24 +667,32 @@ bool WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
         if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
           buffer.resize(bytesRead);
           bytes = std::move(buffer);
-          return true;
+          return PipeResult::Success;
         } else {
-          BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << GetLastError();
-          return false;
+          DWORD overlappedErr = GetLastError();
+          if (overlappedErr == ERROR_BROKEN_PIPE) {
+            BOOST_LOG(warning) << "Pipe broken during receive operation (ERROR_BROKEN_PIPE)";
+            return PipeResult::BrokenPipe;
+          }
+          BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << overlappedErr;
+          return PipeResult::Error;
         }
       } else if (waitResult == WAIT_TIMEOUT) {
         CancelIoEx(_pipe, ctx->get());
         // Wait for cancellation to complete to ensure OVERLAPPED structure safety
         DWORD transferred = 0;
         GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
-        return false;
+        return PipeResult::Timeout;
       } else {
         BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
-        return false;
+        return PipeResult::Error;
       }
+    } else if (err == ERROR_BROKEN_PIPE) {
+      BOOST_LOG(warning) << "Pipe broken during ReadFile (ERROR_BROKEN_PIPE)";
+      return PipeResult::BrokenPipe;
     } else {
       BOOST_LOG(error) << "ReadFile failed in receive, error=" << err;
-      return false;
+      return PipeResult::Error;
     }
   }
 }
@@ -771,7 +795,7 @@ AsyncNamedPipe::~AsyncNamedPipe() {
   stop();
 }
 
-bool AsyncNamedPipe::start(const MessageCallback &onMessage, const ErrorCallback &onError) {
+bool AsyncNamedPipe::start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe) {
   if (_running.load(std::memory_order_acquire)) {
     return false;  // Already running
   }
@@ -785,6 +809,7 @@ bool AsyncNamedPipe::start(const MessageCallback &onMessage, const ErrorCallback
 
   _onMessage = onMessage;
   _onError = onError;
+  _onBrokenPipe = onBrokenPipe;
 
   _running.store(true, std::memory_order_release);
   _worker = std::thread(&AsyncNamedPipe::worker_thread, this);
@@ -805,19 +830,13 @@ void AsyncNamedPipe::stop() {
 }
 
 void AsyncNamedPipe::send(const std::vector<uint8_t> &message) {
-  try {
+  safe_execute_operation("send", [this, &message]() {
     if (_pipe && _pipe->is_connected()) {
       if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
         BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
       }
     }
-  } catch (const std::exception &e) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Exception in send: " << e.what();
-    // Continue despite callback exception
-  } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in send";
-    // Continue despite callback exception
-  }
+  });
 }
 
 void AsyncNamedPipe::wait_for_client_connection(int milliseconds) {
@@ -828,38 +847,68 @@ bool AsyncNamedPipe::is_connected() const {
   return _pipe && _pipe->is_connected();
 }
 
-void AsyncNamedPipe::worker_thread() {
+void AsyncNamedPipe::safe_execute_operation(const std::string &operation_name, const std::function<void()> &operation) const noexcept {
+  if (!operation) {
+    return;
+  }
+
   try {
+    operation();
+  } catch (const std::exception &e) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Exception in " << operation_name << ": " << e.what();
+  } catch (...) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in " << operation_name;
+  }
+}
+
+void AsyncNamedPipe::worker_thread() noexcept {
+  safe_execute_operation("worker_thread", [this]() {
     if (!establish_connection()) {
       return;
     }
 
-    while (_running.load(std::memory_order_acquire)) {
-      try {
-        std::vector<uint8_t> message;
-        // Use timeout to allow periodic checks of _running flag
-        if (_pipe->receive(message, 1000)) {  // 1 second timeout for receives
-          if (!_running.load(std::memory_order_acquire)) {
-            break;
-          }
+    run_message_loop();
+  });
+}
 
-          if (message.empty()) {
-            BOOST_LOG(info) << "AsyncNamedPipe: Received empty message (remote end closed pipe)";
-            break;
-          }
+void AsyncNamedPipe::run_message_loop() {
+  using namespace std::chrono_literals;
 
-          process_message(message);
-        }
-        // If receive timed out, just continue the loop to check _running flag
-      } catch (const std::exception &e) {
-        BOOST_LOG(error) << "AsyncNamedPipe: Exception during receive: " << e.what();
-        break;
-      }
+  for (; _running.load(std::memory_order_acquire);  // loop condition
+       std::this_thread::sleep_for(1ms))  // throttle
+  {
+    std::vector<uint8_t> message;
+    PipeResult res = _pipe->receive(message, 1000);  // 1 s timeout
+
+    // Fast cancel – bail out even before decoding res
+    if (!_running.load(std::memory_order_acquire)) {
+      break;
     }
-  } catch (const std::exception &e) {
-    handle_worker_exception(e);
-  } catch (...) {
-    handle_worker_unknown_exception();
+
+    switch (res) {
+      case PipeResult::Success:
+        {
+          if (message.empty()) {  // remote closed
+            BOOST_LOG(info)
+              << "AsyncNamedPipe: remote closed pipe";
+            return;
+          }
+          process_message(std::move(message));
+          break;  // keep looping
+        }
+
+      case PipeResult::Timeout:
+        break;  // nothing to do
+
+      case PipeResult::BrokenPipe:
+        safe_execute_operation("brokenPipe callback", _onBrokenPipe);
+        return;  // terminate
+
+      case PipeResult::Error:
+      case PipeResult::Disconnected:
+      default:
+        return;  // terminate
+    }
   }
 }
 
@@ -870,8 +919,13 @@ bool AsyncNamedPipe::establish_connection() {
   }
 
   _pipe->wait_for_client_connection(5000);  // Wait up to 5 seconds for connection
-  if (!_pipe->is_connected() && _onError) {
-    _onError("Failed to establish connection within timeout");
+  if (!_pipe->is_connected()) {
+    BOOST_LOG(error) << "AsyncNamedPipe: Failed to establish connection within timeout";
+    safe_execute_operation("error callback", [this]() {
+      if (_onError) {
+        _onError("Failed to establish connection within timeout");
+      }
+    });
     return false;
   }
   return _pipe->is_connected();
@@ -882,39 +936,7 @@ void AsyncNamedPipe::process_message(const std::vector<uint8_t> &bytes) const {
     return;
   }
 
-  try {
+  safe_execute_operation("message callback", [this, &bytes]() {
     _onMessage(bytes);
-  } catch (const std::exception &e) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Exception in message callback: " << e.what();
-    // Continue processing despite callback exception
-  } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Unknown exception in message callback";
-    // Continue processing despite callback exception
-  }
-}
-
-void AsyncNamedPipe::handle_worker_exception(const std::exception &e) const {
-  BOOST_LOG(error) << "AsyncNamedPipe worker thread exception: " << e.what();
-  if (!_onError) {
-    return;
-  }
-
-  try {
-    _onError(std::string("Worker thread exception: ") + e.what());
-  } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
-  }
-}
-
-void AsyncNamedPipe::handle_worker_unknown_exception() const {
-  BOOST_LOG(error) << "AsyncNamedPipe worker thread unknown exception";
-  if (!_onError) {
-    return;
-  }
-
-  try {
-    _onError("Worker thread unknown exception");
-  } catch (...) {
-    BOOST_LOG(error) << "AsyncNamedPipe: Exception in error callback";
-  }
+  });
 }

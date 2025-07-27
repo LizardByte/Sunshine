@@ -71,6 +71,14 @@ namespace platf::dxgi {
       return _should_swap_to_dxgi;
     }
 
+    /**
+     * Check if the session should be reinitialized due to helper process issues.
+     * @return true if reinit is needed
+     */
+    bool should_reinit() const {
+      return _force_reinit.load();
+    }
+
     // Accessors for texture properties
     UINT width() const {
       return _width;
@@ -100,6 +108,7 @@ namespace platf::dxgi {
     // State
     bool _initialized = false;
     std::atomic<bool> _should_swap_to_dxgi {false};
+    std::atomic<bool> _force_reinit {false};
     UINT _width = 0;
     UINT _height = 0;
     uint32_t _timeout_count = 0;
