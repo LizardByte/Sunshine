@@ -148,6 +148,16 @@ namespace platf {
 
       return sink;
     }
+
+    int create_virtual_microphone(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+      BOOST_LOG(warning) << "Virtual microphone creation not implemented on macOS yet";
+      return -1;
+    }
+    
+    int setup_virtual_mic_loopback(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+      BOOST_LOG(warning) << "Virtual microphone loopback not implemented on macOS yet";
+      return -1;
+    }
   };
 
   std::unique_ptr<audio_control_t> audio_control() {

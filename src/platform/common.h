@@ -576,6 +576,9 @@ namespace platf {
 
     virtual std::optional<sink_t> sink_info() = 0;
 
+    virtual int create_virtual_microphone(const std::string &virtual_mic_name = "sunshine-virtual-mic") = 0;
+    virtual int setup_virtual_mic_loopback(const std::string &virtual_mic_name = "sunshine-virtual-mic") = 0;
+
     virtual ~audio_control_t() = default;
   };
 

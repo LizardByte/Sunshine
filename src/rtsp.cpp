@@ -756,13 +756,17 @@ namespace rtsp_stream {
     // Tell the client about our supported features
     ss << "a=x-ss-general.featureFlags:" << (uint32_t) platf::get_capabilities() << std::endl;
     
-    // Advertise microphone support if enabled
+    // Advertise microphone support capabilities if enabled
     if (config::audio.enable_mic_passthrough) {
+      ss << "a=x-ss-mic.version:1" << std::endl;
       ss << "a=x-ss-mic.enabled:1" << std::endl;
-      ss << "a=x-ss-mic.codec:OPUS" << std::endl;
-      ss << "a=x-ss-mic.sampleRate:48000" << std::endl;
-      ss << "a=x-ss-mic.channels:1" << std::endl;
-      ss << "a=x-ss-mic.bitrate:64000" << std::endl;
+      ss << "a=x-ss-mic.codecs:" << config::audio.mic_supported_codecs << std::endl;
+      ss << "a=x-ss-mic.sampleRates:" << config::audio.mic_supported_sample_rates << std::endl;
+      ss << "a=x-ss-mic.channels:1,2" << std::endl;
+      ss << "a=x-ss-mic.defaultBitrate:" << config::audio.mic_default_bitrate << std::endl;
+      ss << "a=x-ss-mic.maxClients:" << config::audio.mic_max_clients << std::endl;
+      ss << "a=x-ss-mic.maxStreamsPerClient:" << config::audio.mic_max_streams_per_client << std::endl;
+      ss << "a=x-ss-mic.encryption:" << (config::audio.mic_encryption_enabled ? "1" : "0") << std::endl;
     }
 
     // Always request new control stream encryption if the client supports it

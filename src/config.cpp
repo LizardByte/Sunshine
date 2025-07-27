@@ -510,8 +510,18 @@ namespace config {
   audio_t audio {
     {},  // audio_sink
     {},  // virtual_sink
+    {},  // mic_sink
     true,  // stream audio
     true,  // install_steam_drivers
+    false,  // enable_mic_passthrough
+    
+    // Advanced microphone settings
+    8,  // mic_max_clients
+    2,  // mic_max_streams_per_client
+    false,  // mic_encryption_enabled
+    "OPUS,PCM",  // mic_supported_codecs
+    "16000,48000",  // mic_supported_sample_rates
+    64000,  // mic_default_bitrate
   };
 
   stream_t stream {

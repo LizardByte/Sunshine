@@ -259,6 +259,11 @@ namespace platf {
         std::uint32_t surround71 = PA_INVALID_INDEX;
       } index;
 
+      struct {
+        std::uint32_t virtual_mic = PA_INVALID_INDEX;
+        std::uint32_t virtual_mic_loopback = PA_INVALID_INDEX;
+      } virtual_mic_index;
+
       std::unique_ptr<safe::event_t<ctx_event_e>> events;
       std::unique_ptr<std::function<void(ctx_t::pointer)>> events_cb;
 
@@ -529,6 +534,88 @@ namespace platf {
         return std::make_unique<mic_output_pa_t>(channels, sample_rate, device_name);
       }
 
+      int create_virtual_microphone(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+        if (virtual_mic_index.virtual_mic != PA_INVALID_INDEX) {
+          BOOST_LOG(info) << "Virtual microphone already exists";
+          return virtual_mic_index.virtual_mic;
+        }
+
+        auto alarm = safe::make_alarm<int>();
+        
+        BOOST_LOG(info) << "Creating virtual microphone: " << virtual_mic_name;
+        
+        std::string module_args = "sink_name=" + virtual_mic_name + 
+                                 " sink_properties=device.description=\"Sunshine Virtual Microphone\"" +
+                                 " rate=48000 channels=1 format=float32le";
+        
+        op_t op {
+          pa_context_load_module(
+            ctx.get(),
+            "module-null-sink",
+            module_args.c_str(),
+            cb_i,
+            alarm.get()
+          )
+        };
+
+        if (!op) {
+          BOOST_LOG(error) << "Failed to create virtual microphone module operation";
+          return -1;
+        }
+
+        alarm->wait();
+        auto module_index = *alarm->status();
+        if (module_index == PA_INVALID_INDEX) {
+          BOOST_LOG(error) << "Failed to load virtual microphone module";
+          return -1;
+        }
+
+        virtual_mic_index.virtual_mic = module_index;
+        BOOST_LOG(info) << "Virtual microphone created with module index: " << module_index;
+        return module_index;
+      }
+
+      int setup_virtual_mic_loopback(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+        if (virtual_mic_index.virtual_mic_loopback != PA_INVALID_INDEX) {
+          BOOST_LOG(info) << "Virtual microphone loopback already exists";
+          return virtual_mic_index.virtual_mic_loopback;
+        }
+
+        auto alarm = safe::make_alarm<int>();
+        
+        BOOST_LOG(info) << "Setting up virtual microphone loopback";
+        
+        std::string module_args = "source=" + virtual_mic_name + ".monitor" +
+                                 " sink=@DEFAULT_SINK@" +
+                                 " latency_msec=1";
+        
+        op_t op {
+          pa_context_load_module(
+            ctx.get(),
+            "module-loopback",
+            module_args.c_str(), 
+            cb_i,
+            alarm.get()
+          )
+        };
+
+        if (!op) {
+          BOOST_LOG(error) << "Failed to create loopback module operation";
+          return -1;
+        }
+
+        alarm->wait();
+        auto module_index = *alarm->status();
+        if (module_index == PA_INVALID_INDEX) {
+          BOOST_LOG(error) << "Failed to load loopback module";
+          return -1;
+        }
+
+        virtual_mic_index.virtual_mic_loopback = module_index;
+        BOOST_LOG(info) << "Virtual microphone loopback created with module index: " << module_index;
+        return module_index;
+      }
+
       bool is_sink_available(const std::string &sink) override {
         BOOST_LOG(warning) << "audio_control_t::is_sink_available() unimplemented: "sv << sink;
         return true;
@@ -568,6 +655,9 @@ namespace platf {
         unload_null(index.stereo);
         unload_null(index.surround51);
         unload_null(index.surround71);
+
+        unload_null(virtual_mic_index.virtual_mic);
+        unload_null(virtual_mic_index.virtual_mic_loopback);
 
         if (worker.joinable()) {
           pa_context_disconnect(ctx.get());

@@ -150,6 +150,14 @@ namespace config {
     bool stream;
     bool install_steam_drivers;
     bool enable_mic_passthrough;
+    
+    // Advanced microphone settings for multi-client support
+    int mic_max_clients;
+    int mic_max_streams_per_client;
+    bool mic_encryption_enabled;
+    std::string mic_supported_codecs;
+    std::string mic_supported_sample_rates;
+    int mic_default_bitrate;
   };
 
   constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it

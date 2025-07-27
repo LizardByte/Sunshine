@@ -1333,6 +1333,16 @@ namespace platf::audio {
     ~audio_control_t() override {
     }
 
+    int create_virtual_microphone(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+      BOOST_LOG(warning) << "Virtual microphone creation not implemented on Windows yet";
+      return -1;
+    }
+    
+    int setup_virtual_mic_loopback(const std::string &virtual_mic_name = "sunshine-virtual-mic") override {
+      BOOST_LOG(warning) << "Virtual microphone loopback not implemented on Windows yet";
+      return -1;
+    }
+
     policy_t policy;
     audio::device_enum_t device_enum;
     std::string assigned_sink;
