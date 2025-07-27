@@ -63,6 +63,8 @@ export default defineConfig({
     root: resolve(assetsSrcPath),
     build: {
         outDir: resolve(assetsDstPath),
+        minify: false, // Disable minification for easier debugging
+        sourcemap: true, // Enable source maps for debugging
         rollupOptions: {
             input: {
                 apps: resolve(assetsSrcPath, 'apps.html'),
@@ -74,5 +76,9 @@ export default defineConfig({
                 welcome: resolve(assetsSrcPath, 'welcome.html'),
             },
         },
+    },
+    test: {
+        environment: 'jsdom',
+        globals: true,
     },
 })

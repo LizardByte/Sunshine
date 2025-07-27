@@ -4,19 +4,25 @@
   "scripts": {
     "build": "vite build --debug",
     "build-clean": "vite build --debug --emptyOutDir",
-    "dev": "vite build --watch",
-    "serve": "serve ./tests/fixtures/http --no-port-switching"
+    "dev": "vite build --watch --sourcemap --minify false",
+    "serve": "serve ./tests/fixtures/http --no-port-switching",
+    "preview": "vite preview --port 4173",
+    "test": "vitest run"
   },
   "dependencies": {
     "@lizardbyte/shared-web": "2025.626.181239",
-    "vue": "3.5.18",
-    "vue-i18n": "11.1.11"
+    "vue-i18n": "11.1.7"
   },
   "devDependencies": {
-    "@codecov/vite-plugin": "1.9.1",
+    "@babel/preset-env": "^7.28.0",
+    "@codecov/vite-plugin": "1.9.0",
     "@vitejs/plugin-vue": "4.6.2",
-    "serve": "14.2.4",
+    "@vue/test-utils": "^2.4.6",
+    "serve": "14.2.3",
+    "typescript": "^5.8.3",
     "vite": "4.5.14",
-    "vite-plugin-ejs": "1.6.4"
+    "vite-plugin-ejs": "1.6.4",
+    "vitest": "^3.2.4",
+    "vue": "^3.5.17"
   }
 }
