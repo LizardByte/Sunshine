@@ -1,0 +1,241 @@
+---
+name: CI
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+jobs:
+  github-env:
+    name: GitHub Env Debug
+    uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
+
+  release-setup:
+    name: Release Setup
+    outputs:
+      publish_release: ${{ steps.release-setup.outputs.publish_release }}
+      release_body: ${{ steps.release-setup.outputs.release_body }}
+      release_commit: ${{ steps.release-setup.outputs.release_commit }}
+      release_generate_release_notes: ${{ steps.release-setup.outputs.release_generate_release_notes }}
+      release_tag: ${{ steps.release-setup.outputs.release_tag }}
+      release_version: ${{ steps.release-setup.outputs.release_version }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Release Setup
+        id: release-setup
+        uses: LizardByte/actions/actions/release_setup@v2025.715.25226
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docker:
+    name: Docker
+    needs: release-setup
+    permissions:
+      contents: read
+      packages: write
+    uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
+    with:
+      maximize_build_space: true
+      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
+      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      GH_BOT_NAME: ${{ secrets.GH_BOT_NAME }}
+      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-homebrew:
+    name: Homebrew
+    needs: release-setup
+    uses: ./.github/workflows/ci-homebrew.yml
+    with:
+      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_tag: ${{ needs.release-setup.outputs.release_tag }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
+      GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GIT_USERNAME: ${{ secrets.GH_BOT_NAME }}
+
+  build-linux:
+    name: Linux
+    needs: release-setup
+    uses: ./.github/workflows/ci-linux.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
+  build-linux-copr:
+    name: Linux Copr
+    if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
+    needs: release-setup
+    uses: ./.github/workflows/ci-copr.yml
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
+      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
+      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+
+  build-linux-flatpak:
+    name: Linux Flatpak
+    needs: release-setup
+    uses: ./.github/workflows/ci-flatpak.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
+  build-windows:
+    name: Windows
+    needs: release-setup
+    uses: ./.github/workflows/ci-windows.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  coverage:
+    name: Coverage-${{ matrix.name }}
+    if: >-
+      always() &&
+      !cancelled() &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - build-linux
+      - build-linux-flatpak
+      - build-homebrew
+      - build-windows
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux-AppImage
+            coverage: true
+          - name: Homebrew-macos-13
+            coverage: false
+          - name: Homebrew-macos-14
+            coverage: false
+          - name: Homebrew-macos-15
+            coverage: false
+          - name: Homebrew-ubuntu-latest
+            coverage: false
+          - name: Windows-AMD64
+            coverage: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-${{ matrix.name }}
+          path: _coverage
+
+      - name: Upload test results
+        uses: codecov/test-results-action@v1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./_coverage/tests/test_results.xml
+          flags: ${{ matrix.name }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        if: matrix.coverage != false
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./_coverage/coverage.xml
+          flags: ${{ matrix.name }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+  release:
+    name: Release
+    if:
+      needs.release-setup.outputs.publish_release == 'true' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - release-setup
+      - build-docker
+      - build-linux
+      - build-linux-flatpak
+      - build-homebrew
+      - build-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Debug artifacts
+        run: ls -l artifacts
+
+      - name: Create/Update GitHub Release
+        uses: LizardByte/actions/actions/release_create@v2025.715.25226
+        with:
+          allowUpdates: false
+          body: ${{ needs.release-setup.outputs.release_body }}
+          generateReleaseNotes: ${{ needs.release-setup.outputs.release_generate_release_notes }}
+          name: ${{ needs.release-setup.outputs.release_tag }}
+          prerelease: true
+          tag: ${{ needs.release-setup.outputs.release_tag }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+
+  release-homebrew-beta:
+    name: Release Homebrew Beta
+    if:
+      needs.release-setup.outputs.publish_release == 'true' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - release-setup
+      - build-homebrew
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download homebrew artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: beta-Homebrew
+          path: homebrew
+
+      - name: Upload Homebrew Beta Formula
+        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: false

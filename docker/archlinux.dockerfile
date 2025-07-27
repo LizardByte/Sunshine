@@ -28,6 +28,7 @@ ARG CLONE_URL
 ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
+ENV CLONE_URL=${CLONE_URL}
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -68,19 +69,16 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
-if [[ "${BUILD_VERSION}" == '' ]]; then
+
+sub_version=""
+if [[ "${BRANCH}" != "master" ]]; then
   sub_version=".r${COMMIT}"
-else
-  sub_version=""
 fi
+
 cmake \
+  -DSUNSHINE_CONFIGURE_ONLY=ON \
   -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
   -DSUNSHINE_SUB_VERSION="${sub_version}" \
-  -DGITHUB_CLONE_URL="${CLONE_URL}" \
-  -DGITHUB_BRANCH=${BRANCH} \
-  -DGITHUB_BUILD_VERSION=${BUILD_VERSION} \
-  -DGITHUB_COMMIT="${COMMIT}" \
-  -DSUNSHINE_CONFIGURE_ONLY=ON \
   /build/sunshine
 _MAKE
 
@@ -114,14 +112,13 @@ rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
-FROM scratch AS artifacts
-
-COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
-COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
-
 FROM sunshine-base AS sunshine
 
-COPY --link --from=artifacts /sunshine.pkg.tar.zst /
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+
+# artifacts to be extracted in CI
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /artifacts/sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /artifacts/sunshine.pkg.tar.gz
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE

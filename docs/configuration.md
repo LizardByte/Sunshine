@@ -57,9 +57,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @endcode</td>
     </tr>
     <tr>
-        <td rowspan="18">Choices</td>
+        <td rowspan="20">Choices</td>
         <td>bg</td>
         <td>Bulgarian</td>
+    </tr>
+    <tr>
+        <td>cs</td>
+        <td>Czech</td>
     </tr>
     <tr>
         <td>de</td>
@@ -128,6 +132,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>zh</td>
         <td>Chinese (Simplified)</td>
+    </tr>
+    <tr>
+        <td>zh_TW</td>
+        <td>Chinese (Traditional)</td>
     </tr>
 </table>
 
@@ -1359,35 +1367,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             max_bitrate = 5000
-            @endcode</td>
-    </tr>
-</table>
-
-### min_fps_factor
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            Sunshine will use this factor to calculate the minimum time between frames. Increasing this value may help
-            when streaming mostly static content.
-            @warning{Higher values will consume more bandwidth.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">@code{}
-            1
-            @endcode</td>
-    </tr>
-    <tr>
-        <td>Range</td>
-        <td colspan="2">1-3</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            min_fps_factor = 1
             @endcode</td>
     </tr>
 </table>

@@ -1,23 +1,24 @@
 ---
-name: CI Copr
+name: CI-Copr
 permissions:
   contents: read
 
 on:
-  pull_request:
-    branches:
-      - master
-    types:
-      - opened
-      - synchronize
-      - reopened
   release:
     types:
       - prereleased
       - released
+  workflow_call:
+    secrets:
+      COPR_BETA_WEBHOOK_TOKEN:
+        required: false
+      COPR_STABLE_WEBHOOK_TOKEN:
+        required: false
+      COPR_CLI_CONFIG:
+        required: false
 
 concurrency:
-  group: "${{ github.workflow }}-${{ github.ref }}"
+  group: "_${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
@@ -33,3 +34,35 @@ jobs:
       COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
       COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
       COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
+
+  release:
+    name: Release
+    if:
+      github.event_name == 'release' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - call-copr-ci
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: build-*
+          merge-multiple: true
+
+      - name: Debug artifacts
+        run: ls -l artifacts
+
+      - name: Update GitHub Release
+        uses: LizardByte/actions/actions/release_create@v2025.715.25226
+        with:
+          allowUpdates: true
+          body: ${{ github.event.release.body }}
+          deleteOtherPreReleases: false
+          generateReleaseNotes: false
+          name: ${{ github.event.release.name }}
+          prerelease: true
+          tag: ${{ github.event.release.tag_name }}
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}

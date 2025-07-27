@@ -1,0 +1,345 @@
+---
+name: CI-Windows
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  build_windows:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: msys2 {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows-AMD64
+            os: windows-2022
+            arch: x86_64
+            msystem: ucrt64
+            toolchain: ucrt-x86_64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Prepare tests
+        id: prepare-tests
+        if: false  # todo: DirectX11 is not available, so even software encoder fails
+        shell: pwsh
+        run: |
+          # function to download and extract a zip file
+          function DownloadAndExtract {
+            param (
+              [string]$Uri,
+              [string]$OutFile
+            )
+
+            $maxRetries = 5
+            $retryCount = 0
+            $success = $false
+
+            while (-not $success -and $retryCount -lt $maxRetries) {
+              $retryCount++
+              Write-Host "Downloading $Uri to $OutFile, attempt $retryCount of $maxRetries"
+              try {
+                Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+                $success = $true
+              } catch {
+                Write-Host "Attempt $retryCount of $maxRetries failed with error: $($_.Exception.Message). Retrying..."
+                Start-Sleep -Seconds 5
+              }
+            }
+
+            if (-not $success) {
+              Write-Host "Failed to download the file after $maxRetries attempts."
+              exit 1
+            }
+
+            # use .NET to get the base name of the file
+            $baseName = (Get-Item $OutFile).BaseName
+
+            # Extract the zip file
+            Expand-Archive -Path $OutFile -DestinationPath $baseName
+          }
+
+          # virtual display driver
+          DownloadAndExtract `
+            -Uri "https://www.amyuni.com/downloads/usbmmidd_v2.zip" `
+            -OutFile "usbmmidd_v2.zip"
+
+          # install
+          Set-Location -Path usbmmidd_v2/usbmmidd_v2
+          ./deviceinstaller64 install usbmmidd.inf usbmmidd
+
+          # create the virtual display
+          ./deviceinstaller64 enableidd 1
+
+          # move up a directory
+          Set-Location -Path ../..
+
+          # install devcon
+          DownloadAndExtract `
+            -Uri "https://github.com/Drawbackz/DevCon-Installer/releases/download/1.4-rc/Devcon.Installer.zip" `
+            -OutFile "Devcon.Installer.zip"
+          Set-Location -Path Devcon.Installer
+          # hash needs to match OS version
+          # https://github.com/Drawbackz/DevCon-Installer/blob/master/devcon_sources.json
+          Start-Process -FilePath "./Devcon Installer.exe" -Wait -ArgumentList `
+            'install', `
+            '-hash', '54004C83EE34F6A55380528A8B29F4C400E61FBB947A19E0AB9E5A193D7D961E', `
+            '-addpath', `
+            '-update', `
+            '-dir', 'C:\Windows\System32'
+
+          # disable Hyper-V Video
+          # https://stackoverflow.com/a/59490940
+          C:\Windows\System32\devcon.exe disable "VMBUS\{da0a7802-e377-4aac-8e77-0558eb1073f8}"
+
+          # move up a directory
+          Set-Location -Path ..
+
+          # multi monitor tool
+          DownloadAndExtract `
+            -Uri "http://www.nirsoft.net/utils/multimonitortool-x64.zip" `
+            -OutFile "multimonitortool.zip"
+
+          # enable the virtual display
+          # http://www.nirsoft.net/utils/multi_monitor_tool.html
+          Set-Location -Path multimonitortool
+
+          # Original Hyper-V is \\.\DISPLAY1, it will recreate itself as \\.\DISPLAY6 (or something higher than 2)
+          # USB Mobile Monitor Virtual Display is \\.\DISPLAY2
+
+          # these don't seem to work if not using runAs
+          # todo: do they work if not using runAs?
+          Start-Process powershell -Verb runAs -ArgumentList '-Command ./MultiMonitorTool.exe /enable \\.\DISPLAY2'
+          Start-Process powershell -Verb runAs -ArgumentList '-Command ./MultiMonitorTool.exe /SetPrimary \\.\DISPLAY2'
+
+          # wait a few seconds
+          Start-Sleep -s 5
+
+          # list monitors
+          ./MultiMonitorTool.exe /stext monitor_list.txt
+
+          # wait a few seconds
+          Start-Sleep -s 5
+
+          # print the monitor list
+          Get-Content -Path monitor_list.txt
+
+      - name: Setup Dependencies Windows
+        # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{ matrix.msystem }}
+          update: true
+          install: >-
+            wget
+
+      - name: Update Windows dependencies
+        env:
+          MSYSTEM: ${{ matrix.msystem }}
+          TOOLCHAIN: ${{ matrix.toolchain }}
+        shell: msys2 {0}
+        run: |
+          # variables
+          declare -A pinned_deps
+
+          # dependencies
+          dependencies=(
+            "git"
+            "mingw-w64-${TOOLCHAIN}-cmake"
+            "mingw-w64-${TOOLCHAIN}-cppwinrt"
+            "mingw-w64-${TOOLCHAIN}-curl-winssl"
+            "mingw-w64-${TOOLCHAIN}-gcc"
+            "mingw-w64-${TOOLCHAIN}-graphviz"
+            "mingw-w64-${TOOLCHAIN}-MinHook"
+            "mingw-w64-${TOOLCHAIN}-miniupnpc"
+            "mingw-w64-${TOOLCHAIN}-nlohmann-json"
+            "mingw-w64-${TOOLCHAIN}-nodejs"
+            "mingw-w64-${TOOLCHAIN}-nsis"
+            "mingw-w64-${TOOLCHAIN}-onevpl"
+            "mingw-w64-${TOOLCHAIN}-openssl"
+            "mingw-w64-${TOOLCHAIN}-opus"
+            "mingw-w64-${TOOLCHAIN}-toolchain"
+          )
+
+          # do not modify below this line
+
+          ignore_packages=()
+          tarballs=""
+          for pkg in "${!pinned_deps[@]}"; do
+            ignore_packages+=("${pkg}")
+            version="${pinned_deps[$pkg]}"
+            tarball="${pkg}-${version}-any.pkg.tar.zst"
+
+            # download working version
+            wget "https://repo.msys2.org/mingw/${MSYSTEM}/${tarball}"
+
+            tarballs="${tarballs} ${tarball}"
+          done
+
+          # Create the ignore string for pacman
+          ignore_list=$(IFS=,; echo "${ignore_packages[*]}")
+
+          # install pinned dependencies
+          if [ -n "$tarballs" ]; then
+            pacman -U --noconfirm ${tarballs}
+          fi
+
+          # Only add --ignore if we have packages to ignore
+          if [ -n "$ignore_list" ]; then
+            pacman -Syu --noconfirm --ignore="${ignore_list}" "${dependencies[@]}"
+          else
+            pacman -Syu --noconfirm "${dependencies[@]}"
+          fi
+
+      - name: Install Doxygen
+        # GCC compiled doxygen has issues when running graphviz
+        env:
+          DOXYGEN_VERSION: "1.11.0"
+        shell: pwsh
+        run: |
+          # Set version variables
+          $doxy_ver = $env:DOXYGEN_VERSION
+          $_doxy_ver = $doxy_ver.Replace(".", "_")
+
+          # Download the Doxygen installer
+          Invoke-WebRequest -Uri `
+            "https://github.com/doxygen/doxygen/releases/download/Release_${_doxy_ver}/doxygen-${doxy_ver}-setup.exe" `
+            -OutFile "doxygen-setup.exe"
+
+          # Run the installer
+          Start-Process `
+            -FilePath .\doxygen-setup.exe `
+            -ArgumentList `
+              '/VERYSILENT' `
+          -Wait `
+          -NoNewWindow
+
+          # Clean up
+          Remove-Item -Path doxygen-setup.exe
+
+      - name: Setup python
+        id: setup-python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python Path
+        id: python-path
+        shell: msys2 {0}
+        run: |
+          # replace backslashes with double backslashes
+          python_path=$(echo "${{ steps.setup-python.outputs.python-path }}" | sed 's/\\/\\\\/g')
+
+          # step output
+          echo "python-path=${python_path}"
+          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+
+      - name: Build Windows
+        shell: msys2 {0}
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          BUILD_VERSION: ${{ inputs.release_version }}
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          COMMIT: ${{ inputs.release_commit }}
+        run: |
+          mkdir -p build
+          cmake \
+            -B build \
+            -G Ninja \
+            -S . \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+          ninja -C build
+
+      - name: Package Windows
+        shell: msys2 {0}
+        run: |
+          mkdir -p artifacts
+          cd build
+
+          # package
+          cpack -G NSIS
+          cpack -G ZIP
+
+          # move
+          mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
+          mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
+
+      - name: Run tests
+        id: test
+        shell: msys2 {0}
+        working-directory: build/tests
+        run: |
+          ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      - name: Generate gcov report
+        id: test_report
+        # any except canceled or skipped
+        if: always() && (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        shell: msys2 {0}
+        working-directory: build
+        run: |
+          ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --verbose \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success')
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.name }}
+          path: |
+            build/coverage.xml
+            build/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Package Windows Debug Info
+        shell: pwsh
+        working-directory: build
+        run: |
+          # use .dbg file extension for binaries to avoid confusion with real packages
+          Get-ChildItem -File -Recurse | `
+            % { Rename-Item -Path $_.PSPath -NewName $_.Name.Replace(".exe",".dbg") }
+
+          # save the binaries with debug info
+          7z -r `
+            "-xr!CMakeFiles" `
+            "-xr!cpack_artifacts" `
+            a "../artifacts/Sunshine-${{ matrix.name }}-debuginfo.7z" "*.dbg"
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.name }}
+          path: artifacts/
+          if-no-files-found: error

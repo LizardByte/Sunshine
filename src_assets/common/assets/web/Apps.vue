@@ -412,6 +412,9 @@ export default {
       if (this.editForm['prep-cmd'] === undefined) {
         this.editForm['prep-cmd'] = [];
       }
+      if (this.editForm['event-actions'] === undefined) {
+        this.editForm['event-actions'] = [];
+      }
       if (this.editForm['detached'] === undefined)
         this.editForm['detached'] = [];
       if (this.editForm['exclude-global-prep-cmd'] === undefined)
@@ -481,6 +484,7 @@ export default {
           return Promise.resolve([]);
         }
         let searchName = name.replaceAll(/\s+/g, '.').toLowerCase();
+        // Use raw.githubusercontent.com to avoid CORS issues as we migrate the CNAME
         let dbUrl = 'https://raw.githubusercontent.com/LizardByte/GameDB/gh-pages';
         let bucket = getSearchBucket(name);
         return fetch(`${dbUrl}/buckets/${bucket}.json`).then(function (r) {

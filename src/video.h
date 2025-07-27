@@ -150,7 +150,7 @@ namespace video {
       option_t(const option_t &) = default;
 
       std::string name;
-      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *> value;
+      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *, std::function<const std::string(const config_t &)>> value;
 
       option_t(std::string &&name, decltype(value) &&value):
           name {std::move(name)},
