@@ -50,8 +50,7 @@ namespace platf::dxgi {
       return false;
     }
     PACL rawDacl = nullptr;
-    DWORD err = SetEntriesInAcl(static_cast<ULONG>(eaList.size()), eaList.data(), nullptr, &rawDacl);
-    if (err != ERROR_SUCCESS) {
+    if (DWORD err = SetEntriesInAcl(static_cast<ULONG>(eaList.size()), eaList.data(), nullptr, &rawDacl); err != ERROR_SUCCESS) {
       return false;
     }
     if (!SetSecurityDescriptorDacl(&desc, TRUE, rawDacl, FALSE)) {
@@ -125,7 +124,7 @@ namespace platf::dxgi {
       BOOST_LOG(error) << "GetTokenInformation (fetch) failed in create_security_descriptor, error=" << GetLastError();
       return false;
     }
-    
+
     raw_user_sid = tokenUser->User.Sid;
     if (!IsValidSid(raw_user_sid)) {
       BOOST_LOG(error) << "Invalid user SID in create_security_descriptor";
@@ -174,18 +173,16 @@ namespace platf::dxgi {
       eaSys.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
       eaSys.Trustee.ptstrName = (LPTSTR) system_sid;
       eaList.push_back(eaSys);
-      
+
       EXPLICIT_ACCESS eaUser = eaSys;
       eaUser.Trustee.TrusteeType = TRUSTEE_IS_USER;
       eaUser.Trustee.ptstrName = (LPTSTR) raw_user_sid;
       eaList.push_back(eaUser);
     }
-    
-    if (!eaList.empty()) {
-      if (!init_sd_with_explicit_aces(desc, eaList, out_pacl)) {
-        BOOST_LOG(error) << "init_sd_with_explicit_aces failed in create_security_descriptor";
-        return false;
-      }
+
+    if (!eaList.empty() && !init_sd_with_explicit_aces(desc, eaList, out_pacl)) {
+      BOOST_LOG(error) << "init_sd_with_explicit_aces failed in create_security_descriptor";
+      return false;
     }
     return true;
   }
@@ -202,7 +199,7 @@ namespace platf::dxgi {
     SECURITY_DESCRIPTOR secDesc {};
     PACL rawDacl = nullptr;
 
-    auto fg = util::fail_guard([&]() {
+    auto fg = util::fail_guard([&rawDacl]() {
       if (rawDacl) {
         LocalFree(rawDacl);
       }
@@ -276,17 +273,16 @@ namespace platf::dxgi {
         DWORD err = GetLastError();
         if (err == ERROR_PIPE_BUSY) {
           // Someone else already has the pipe – wait for a free instance
-          if (!WaitNamedPipeW(fullPipeName.c_str(), 250)) {
-            continue;
-          }
-        } else if (err == ERROR_FILE_NOT_FOUND) {
+          WaitNamedPipeW(fullPipeName.c_str(), 250);
+          continue;
+        }
+        if (err == ERROR_FILE_NOT_FOUND) {
           // Server hasn't created the pipe yet – short back-off
           Sleep(50);
           continue;
-        } else {
-          BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
-          return safe_handle {};
         }
+        BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
+        return safe_handle {};
       }
     }
     return hPipe;
@@ -335,7 +331,7 @@ namespace platf::dxgi {
     return dataPipe;
   }
 
-  bool AnonymousPipeFactory::send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name) {
+  bool AnonymousPipeFactory::send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name) const {
     std::wstring wpipe_name = utf8_to_wide(pipe_name);
 
     AnonConnectMsg message {};
@@ -362,27 +358,27 @@ namespace platf::dxgi {
     return true;
   }
 
-  bool AnonymousPipeFactory::wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe) {
+  bool AnonymousPipeFactory::wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const {
+    using enum platf::dxgi::PipeResult;
     std::vector<uint8_t> ack;
     bool ack_ok = false;
     auto t0 = std::chrono::steady_clock::now();
-    
-    while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-      PipeResult result = pipe->receive(ack, 1000);
-      if (result == PipeResult::Success) {
+
+    while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3) && !ack_ok) {
+      if (PipeResult result = pipe->receive(ack, 1000); result == Success) {
         if (ack.size() == 1 && ack[0] == 0xA5) {
           ack_ok = true;
           BOOST_LOG(info) << "Received handshake ACK from client";
-          break;
-        }
-        if (!ack.empty()) {
+        } else if (!ack.empty()) {
           BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
         }
-      } else if (result == PipeResult::BrokenPipe || result == PipeResult::Error || result == PipeResult::Disconnected) {
+      } else if (result == BrokenPipe || result == Error || result == Disconnected) {
         BOOST_LOG(error) << "Pipe error during handshake ACK wait";
         break;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      if (!ack_ok) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
     }
 
     if (!ack_ok) {
@@ -412,26 +408,28 @@ namespace platf::dxgi {
     return connect_to_data_pipe(pipeNameStr);
   }
 
-  bool AnonymousPipeFactory::receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg) {
+  bool AnonymousPipeFactory::receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg) const {
+    using enum platf::dxgi::PipeResult;
     std::vector<uint8_t> bytes;
     auto start = std::chrono::steady_clock::now();
     bool received = false;
+    bool error_occurred = false;
 
-    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-      PipeResult result = pipe->receive(bytes, 500);
-      if (result == PipeResult::Success) {
+    while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3) && !received && !error_occurred) {
+      if (PipeResult result = pipe->receive(bytes, 500); result == Success) {
         if (!bytes.empty()) {
           received = true;
-          break;
         }
-      } else if (result == PipeResult::BrokenPipe || result == PipeResult::Error || result == PipeResult::Disconnected) {
+      } else if (result == BrokenPipe || result == Error || result == Disconnected) {
         BOOST_LOG(error) << "Pipe error during handshake message receive";
-        break;
+        error_occurred = true;
       }
-      if (bytes.empty()) {
-        BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
+      if (!received && !error_occurred) {
+        if (bytes.empty()) {
+          BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     if (!received) {
@@ -451,7 +449,7 @@ namespace platf::dxgi {
     return true;
   }
 
-  bool AnonymousPipeFactory::send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) {
+  bool AnonymousPipeFactory::send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const {
     BOOST_LOG(info) << "Sending handshake ACK to server";
     if (!pipe->send({ACK_MSG}, 5000)) {
       BOOST_LOG(error) << "Failed to send handshake ACK to server";
@@ -551,7 +549,7 @@ namespace platf::dxgi {
   bool WinPipe::handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
     BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
     DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
-    
+
     if (waitResult == WAIT_OBJECT_0) {
       if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
         BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
@@ -595,8 +593,7 @@ namespace platf::dxgi {
     }
   }
 
-  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, 
-                                          std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
       return handle_pending_receive_operation(ctx, timeout_ms, buffer, bytes);
@@ -609,33 +606,33 @@ namespace platf::dxgi {
     }
   }
 
-  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms,
-                                                      std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+    using enum platf::dxgi::PipeResult;
     DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
     DWORD bytesRead = 0;
-    
+
     if (waitResult == WAIT_OBJECT_0) {
       if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
         buffer.resize(bytesRead);
         bytes = std::move(buffer);
-        return PipeResult::Success;
+        return Success;
       } else {
         DWORD overlappedErr = GetLastError();
         if (overlappedErr == ERROR_BROKEN_PIPE) {
           BOOST_LOG(warning) << "Pipe broken during receive operation (ERROR_BROKEN_PIPE)";
-          return PipeResult::BrokenPipe;
+          return BrokenPipe;
         }
         BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << overlappedErr;
-        return PipeResult::Error;
+        return Error;
       }
     } else if (waitResult == WAIT_TIMEOUT) {
       CancelIoEx(_pipe, ctx->get());
       DWORD transferred = 0;
       GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
-      return PipeResult::Timeout;
+      return Timeout;
     } else {
       BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
-      return PipeResult::Error;
+      return Error;
     }
   }
 
@@ -682,38 +679,46 @@ namespace platf::dxgi {
       return;
     }
 
-    BOOL result = ConnectNamedPipe(_pipe, ctx->get());
-    if (result) {
+    if (BOOL result = ConnectNamedPipe(_pipe, ctx->get()); result) {
       _connected = true;
       BOOST_LOG(info) << "WinPipe (server): Connected after ConnectNamedPipe returned true.";
-    } else {
-      DWORD err = GetLastError();
-      if (err == ERROR_PIPE_CONNECTED) {
-        // Client already connected
+      return;
+    }
+
+    DWORD err = GetLastError();
+    if (err == ERROR_PIPE_CONNECTED) {
+      // Client already connected
+      _connected = true;
+      return;
+    }
+
+    if (err == ERROR_IO_PENDING) {
+      handle_pending_connection(ctx, milliseconds);
+      return;
+    }
+
+    BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
+  }
+
+  void WinPipe::handle_pending_connection(std::unique_ptr<io_context> &ctx, int milliseconds) {
+    // Wait for the connection to complete
+    DWORD waitResult = WaitForSingleObject(ctx->event(), milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
+    if (waitResult == WAIT_OBJECT_0) {
+      DWORD transferred = 0;
+      if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
         _connected = true;
-      } else if (err == ERROR_IO_PENDING) {
-        // Wait for the connection to complete
-        DWORD waitResult = WaitForSingleObject(ctx->event(), milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
-        if (waitResult == WAIT_OBJECT_0) {
-          DWORD transferred = 0;
-          if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
-            _connected = true;
-            BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed";
-          } else {
-            BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
-          }
-        } else if (waitResult == WAIT_TIMEOUT) {
-          BOOST_LOG(error) << "ConnectNamedPipe timeout after " << (milliseconds > 0 ? milliseconds : 5000) << "ms";
-          CancelIoEx(_pipe, ctx->get());
-          // Wait for cancellation to complete to ensure OVERLAPPED structure safety
-          DWORD transferred = 0;
-          GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
-        } else {
-          BOOST_LOG(error) << "ConnectNamedPipe wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
-        }
+        BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed";
       } else {
-        BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
+        BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
       }
+    } else if (waitResult == WAIT_TIMEOUT) {
+      BOOST_LOG(error) << "ConnectNamedPipe timeout after " << (milliseconds > 0 ? milliseconds : 5000) << "ms";
+      CancelIoEx(_pipe, ctx->get());
+      // Wait for cancellation to complete to ensure OVERLAPPED structure safety
+      DWORD transferred = 0;
+      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+    } else {
+      BOOST_LOG(error) << "ConnectNamedPipe wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
     }
   }
 
@@ -754,7 +759,7 @@ namespace platf::dxgi {
     _onBrokenPipe = onBrokenPipe;
 
     _running.store(true, std::memory_order_release);
-    _worker = std::thread(&AsyncNamedPipe::worker_thread, this);
+    _worker = std::jthread(&AsyncNamedPipe::worker_thread, this);
     return true;
   }
 
@@ -773,10 +778,8 @@ namespace platf::dxgi {
 
   void AsyncNamedPipe::send(const std::vector<uint8_t> &message) {
     safe_execute_operation("send", [this, &message]() {
-      if (_pipe && _pipe->is_connected()) {
-        if (!_pipe->send(message, 5000)) {  // 5 second timeout for async sends
-          BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
-        }
+      if (_pipe && _pipe->is_connected() && !_pipe->send(message, 5000)) {  // 5 second timeout for async sends
+        BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
       }
     });
   }
@@ -815,8 +818,9 @@ namespace platf::dxgi {
 
   void AsyncNamedPipe::run_message_loop() {
     using namespace std::chrono_literals;
+    using enum platf::dxgi::PipeResult;
 
-    for (; _running.load(std::memory_order_acquire);) {
+    while (_running.load(std::memory_order_acquire)) {
       std::vector<uint8_t> message;
       // The timeout here is why we don't need a sleep each loop.
       // Eventually the message queue empties and its forced to wait.
@@ -828,26 +832,26 @@ namespace platf::dxgi {
       }
 
       switch (res) {
-        case PipeResult::Success:
+        case Success:
           {
             if (message.empty()) {  // remote closed
               BOOST_LOG(info)
                 << "AsyncNamedPipe: remote closed pipe";
               return;
             }
-            process_message(std::move(message));
+            process_message(message);
             break;  // keep looping
           }
 
-        case PipeResult::Timeout:
+        case Timeout:
           break;  // nothing to do
 
-        case PipeResult::BrokenPipe:
+        case BrokenPipe:
           safe_execute_operation("brokenPipe callback", _onBrokenPipe);
           return;  // terminate
 
-        case PipeResult::Error:
-        case PipeResult::Disconnected:
+        case Error:
+        case Disconnected:
         default:
           return;  // terminate
       }
