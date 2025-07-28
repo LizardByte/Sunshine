@@ -910,7 +910,10 @@ namespace platf {
     ec = impersonate_current_user(user_token, [&]() {
       std::wstring env_block = create_environment_block(cloned_env);
       std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
-      ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
+      // Allocate a writable buffer for the command string
+      std::vector<wchar_t> wcmd_buf(wcmd.begin(), wcmd.end());
+      wcmd_buf.push_back(L'\0');
+      ret = CreateProcessAsUserW(user_token, nullptr, wcmd_buf.data(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? nullptr : start_dir.c_str(), reinterpret_cast<LPSTARTUPINFOW>(&startup_info), &process_info);
     });
 
     if (!ret && !ec) {
@@ -935,8 +938,11 @@ namespace platf {
       CloseHandle(process_token);
     });
 
-    std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
-    BOOL ret = CreateProcessW(NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, NULL, start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
+    std::wstring wcmd = resolve_command_string(cmd, start_dir, nullptr, creation_flags);
+    // Allocate a writable buffer for the command string
+    std::vector<wchar_t> wcmd_buf(wcmd.begin(), wcmd.end());
+    wcmd_buf.push_back(L'\0');
+    BOOL ret = CreateProcessW(nullptr, wcmd_buf.data(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, nullptr, start_dir.empty() ? nullptr : start_dir.c_str(), reinterpret_cast<LPSTARTUPINFOW>(&startup_info), &process_info);
 
     if (!ret) {
       BOOST_LOG(error) << "Failed to launch process: " << GetLastError();

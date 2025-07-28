@@ -26,16 +26,16 @@
 #include <iostream>
 #include <mutex>
 #include <queue>
-#include <shellscalingapi.h>  // For DPI awareness
+#include <ShellScalingApi.h>  // For DPI awareness
 #include <string>
 #include <thread>
-#include <windows.graphics.capture.interop.h>
-#include <windows.h>
+#include <Windows.Graphics.Capture.Interop.h>
+#include <Windows.h>
 #include <winrt/base.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Metadata.h>  // For ApiInformation
-#include <winrt/windows.Graphics.Capture.h>
-#include <winrt/windows.Graphics.Directx.Direct3d11.h>
+#include <winrt/Windows.Graphics.Capture.h>
+#include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
 #include <winrt/Windows.System.h>
 
 // Gross hack to work around MINGW-packages#22160
@@ -96,16 +96,16 @@ using namespace std::literals;
 using namespace platf::dxgi;
 
 // GPU scheduling priority definitions for optimal capture performance under high GPU load
-typedef enum _D3DKMT_SCHEDULINGPRIORITYCLASS {
-  D3DKMT_SCHEDULINGPRIORITYCLASS_IDLE,
-  D3DKMT_SCHEDULINGPRIORITYCLASS_BELOW_NORMAL,
-  D3DKMT_SCHEDULINGPRIORITYCLASS_NORMAL,
-  D3DKMT_SCHEDULINGPRIORITYCLASS_ABOVE_NORMAL,
-  D3DKMT_SCHEDULINGPRIORITYCLASS_HIGH,
-  D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME
-} D3DKMT_SCHEDULINGPRIORITYCLASS;
+enum class D3DKMT_SchedulingPriorityClass : LONG {
+  IDLE = 0,
+  BELOW_NORMAL = 1,
+  NORMAL = 2,
+  ABOVE_NORMAL = 3,
+  HIGH = 4,
+  REALTIME = 5
+};
 
-typedef LONG(__stdcall *PD3DKMTSetProcessSchedulingPriorityClass)(HANDLE, D3DKMT_SCHEDULINGPRIORITYCLASS);
+using PD3DKMTSetProcessSchedulingPriorityClass = LONG(__stdcall *)(HANDLE, LONG);
 
 /**
  * @brief Initial log level for the helper process.
@@ -115,32 +115,32 @@ const int INITIAL_LOG_LEVEL = 2;
 /**
  * @brief Global configuration data received from the main process.
  */
-platf::dxgi::config_data_t g_config = {0, 0, L""};
+static platf::dxgi::config_data_t g_config = {0, 0, L""};
 
 /**
  * @brief Flag indicating whether configuration data has been received from main process.
  */
-bool g_config_received = false;
+static bool g_config_received = false;
 
 /**
  * @brief Global handle for frame metadata shared memory mapping.
  */
-safe_handle g_metadata_mapping = nullptr;
+static safe_handle g_metadata_mapping = nullptr;
 
 /**
  * @brief Global communication pipe for sending session closed notifications.
  */
-AsyncNamedPipe *g_communication_pipe = nullptr;
+static AsyncNamedPipe *g_communication_pipe = nullptr;
 
 /**
  * @brief Global Windows event hook for desktop switch detection.
  */
-safe_winevent_hook g_desktop_switch_hook = nullptr;
+static safe_winevent_hook g_desktop_switch_hook = nullptr;
 
 /**
  * @brief Flag indicating if a secure desktop has been detected.
  */
-bool g_secure_desktop_detected = false;
+static bool g_secure_desktop_detected = false;
 
 /**
  * @brief System initialization class to handle DPI, threading, and MMCSS setup.
@@ -255,13 +255,13 @@ public:
       return false;
     }
 
-    auto d3dkmt_set_process_priority = (PD3DKMTSetProcessSchedulingPriorityClass) GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass");
+    auto d3dkmt_set_process_priority = reinterpret_cast<PD3DKMTSetProcessSchedulingPriorityClass>(GetProcAddress(gdi32, "D3DKMTSetProcessSchedulingPriorityClass"));
     if (!d3dkmt_set_process_priority) {
       BOOST_LOG(warning) << "D3DKMTSetProcessSchedulingPriorityClass not available, GPU priority not set";
       return false;
     }
 
-    auto priority = D3DKMT_SCHEDULINGPRIORITYCLASS_REALTIME;
+    auto priority = static_cast<LONG>(D3DKMT_SchedulingPriorityClass::REALTIME);
 
     HRESULT hr = d3dkmt_set_process_priority(GetCurrentProcess(), priority);
     if (FAILED(hr)) {
@@ -548,7 +548,7 @@ public:
 
       EnumData enum_data = {config.display_name, nullptr};
 
-      auto enum_proc = +[](HMONITOR h_mon, HDC, RECT *, LPARAM l_param) {
+      auto enum_proc = +[](HMONITOR h_mon, HDC /*hdc*/, RECT * /*rc*/, LPARAM l_param) {
         auto *data = static_cast<EnumData *>(reinterpret_cast<void *>(l_param));
         if (MONITORINFOEXW m_info = {sizeof(MONITORINFOEXW)}; GetMonitorInfoW(h_mon, &m_info) && wcsncmp(m_info.szDevice, data->target_name, 32) == 0) {
           data->found_monitor = h_mon;
@@ -556,7 +556,7 @@ public:
         }
         return TRUE;
       };
-      EnumDisplayMonitors(nullptr, nullptr, enum_proc, reinterpret_cast<LPARAM>(&enum_data));
+      EnumDisplayMonitors(nullptr, nullptr, enum_proc, static_cast<LPARAM>(reinterpret_cast<std::uintptr_t>(&enum_data)));
       _selected_monitor = enum_data.found_monitor;
       if (!_selected_monitor) {
         BOOST_LOG(warning) << "Could not find monitor with name '" << winrt::to_string(config.display_name) << "', falling back to primary.";
@@ -892,12 +892,12 @@ public:
    * @param height Capture height in pixels.
    * @param item Graphics capture item representing the monitor or window to capture.
    */
-  WgcCaptureManager(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height, GraphicsCaptureItem item) {
-    _winrt_device = winrt_device;
-    _capture_format = capture_format;
-    _width = width;
-    _height = height;
-    _graphics_item = item;
+  WgcCaptureManager(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height, GraphicsCaptureItem item)
+    : _winrt_device(winrt_device),
+      _capture_format(capture_format),
+      _height(height),
+      _width(width),
+      _graphics_item(item) {
   }
 
   /**
@@ -1272,12 +1272,13 @@ void CALLBACK desktop_switch_hook_proc(HWINEVENTHOOK /*h_win_event_hook*/, DWORD
  * @return Path to the log file as a UTF-8 string.
  */
 std::string get_temp_log_path() {
-  wchar_t temp_path[MAX_PATH] = {0};
-  if (auto len = GetTempPathW(MAX_PATH, temp_path); len == 0 || len > MAX_PATH) {
+  std::wstring temp_path(MAX_PATH, L'\0');
+  if (auto len = GetTempPathW(MAX_PATH, temp_path.data()); len == 0 || len > MAX_PATH) {
     // fallback to current directory if temp path fails
     return "sunshine_wgc_helper.log";
   }
-  std::wstring wlog = std::wstring(temp_path) + L"sunshine_wgc_helper.log";
+  temp_path.resize(wcslen(temp_path.data()));  // Remove null padding
+  std::wstring wlog = temp_path + L"sunshine_wgc_helper.log";
   // Convert to UTF-8
   int size_needed = WideCharToMultiByte(CP_UTF8, 0, wlog.c_str(), -1, nullptr, 0, nullptr, nullptr);
   std::string log_file(size_needed, 0);

@@ -4,7 +4,7 @@
 #include "misc_utils.h"
 #include "src/utility.h"
 
-#include <aclapi.h>
+#include <AclAPI.h>
 #include <chrono>
 #include <combaseapi.h>
 #include <cstdint>
@@ -16,7 +16,7 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <windows.h>
+#include <Windows.h>
 
 // --- End of all class and function definitions ---
 // Note: The base send() method will be implemented directly in WinPipe
@@ -111,7 +111,7 @@ namespace platf::dxgi {
 
   bool NamedPipeFactory::extract_user_sid_from_token(const safe_token &token, util::c_ptr<TOKEN_USER> &tokenUser, PSID &raw_user_sid) const {
     DWORD len = 0;
-    HANDLE tokenHandle = const_cast<HANDLE>(token.get());
+    auto tokenHandle = const_cast<HANDLE>(token.get());
     GetTokenInformation(tokenHandle, TokenUser, nullptr, 0, &len);
     if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
       BOOST_LOG(error) << "GetTokenInformation (size query) failed in create_security_descriptor, error=" << GetLastError();
@@ -119,7 +119,12 @@ namespace platf::dxgi {
     }
 
     auto tokenBuffer = std::make_unique<uint8_t[]>(len);
+#if __cpp_lib_launder
+    tokenUser.reset(std::launder(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release())));
+#else
+    // reinterpret_cast is safe here because the buffer is allocated to fit TOKEN_USER
     tokenUser.reset(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release()));
+#endif
     if (!tokenUser || !GetTokenInformation(tokenHandle, TokenUser, tokenUser.get(), len, &len)) {
       BOOST_LOG(error) << "GetTokenInformation (fetch) failed in create_security_descriptor, error=" << GetLastError();
       return false;
@@ -288,8 +293,7 @@ namespace platf::dxgi {
     return hPipe;
   }
 
-  AnonymousPipeFactory::AnonymousPipeFactory():
-      _pipe_factory(std::make_unique<NamedPipeFactory>()) {}
+  AnonymousPipeFactory::AnonymousPipeFactory() = default;
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
     DWORD pid = GetCurrentProcessId();
@@ -501,7 +505,6 @@ namespace platf::dxgi {
   // --- WinPipe Implementation ---
   WinPipe::WinPipe(HANDLE pipe, bool isServer):
       _pipe(pipe),
-      _connected(false),
       _is_server(isServer) {
     if (!_is_server && _pipe != INVALID_HANDLE_VALUE) {
       _connected.store(true, std::memory_order_release);
@@ -510,7 +513,13 @@ namespace platf::dxgi {
   }
 
   WinPipe::~WinPipe() {
-    WinPipe::disconnect();
+    try {
+      WinPipe::disconnect();
+    } catch (const std::exception& ex) {
+      BOOST_LOG(error) << "Exception in WinPipe destructor: " << ex.what();
+    } catch (...) {
+      BOOST_LOG(error) << "Unknown exception in WinPipe destructor.";
+    }
   }
 
   bool WinPipe::send(std::vector<uint8_t> bytes, int timeout_ms) {
@@ -734,8 +743,7 @@ namespace platf::dxgi {
 
   // --- AsyncNamedPipe Implementation ---
   AsyncNamedPipe::AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe):
-      _pipe(std::move(pipe)),
-      _running(false) {
+      _pipe(std::move(pipe)) {
   }
 
   AsyncNamedPipe::~AsyncNamedPipe() {

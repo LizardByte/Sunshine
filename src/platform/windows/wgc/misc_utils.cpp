@@ -199,7 +199,7 @@ namespace platf::dxgi {
     if (elevated && elevationType == TokenElevationTypeLimited) {
       TOKEN_LINKED_TOKEN linkedToken;
       // Retrieve the administrator token that is linked to the limited token
-      if (!GetTokenInformation(userToken, TokenLinkedToken, reinterpret_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
+      if (!GetTokenInformation(userToken, TokenLinkedToken, static_cast<void *>(&linkedToken), sizeof(TOKEN_LINKED_TOKEN), &dwSize)) {
         CloseHandle(userToken);
         return nullptr;
       }
@@ -247,13 +247,12 @@ namespace platf::dxgi {
     // Check for login screen by looking for winlogon.exe with specific conditions
     // or check the current desktop name
     if (HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId())) {
-      wchar_t desktopName[256] = {0};
+      std::wstring desktopName(256, L'\0');
       DWORD needed = 0;
-      if (GetUserObjectInformationW(currentDesktop, UOI_NAME, desktopName, sizeof(desktopName), &needed)) {
+      if (GetUserObjectInformationW(currentDesktop, UOI_NAME, &desktopName[0], static_cast<DWORD>(desktopName.size() * sizeof(wchar_t)), &needed)
+          && (_wcsicmp(desktopName.c_str(), L"Winlogon") == 0 || _wcsicmp(desktopName.c_str(), L"SAD") == 0)) {
         // Secure desktop typically has names like "Winlogon" or "SAD" (Secure Attention Desktop)
-        if (_wcsicmp(desktopName, L"Winlogon") == 0 || _wcsicmp(desktopName, L"SAD") == 0) {
-          return true;
-        }
+        return true;
       }
     }
 

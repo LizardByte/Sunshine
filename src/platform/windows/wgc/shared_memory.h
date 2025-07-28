@@ -94,7 +94,7 @@ namespace platf::dxgi {
     void safe_execute_operation(const std::string &operation_name, const std::function<void()> &operation) const noexcept;
 
     std::unique_ptr<INamedPipe> _pipe;
-    std::atomic<bool> _running;
+    std::atomic<bool> _running{false};
     std::jthread _worker;
     MessageCallback _onMessage;
     ErrorCallback _onError;
@@ -124,7 +124,7 @@ namespace platf::dxgi {
                                                std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes);
 
     HANDLE _pipe;
-    std::atomic<bool> _connected;
+    std::atomic<bool> _connected{false};
     bool _is_server;
   };
 
@@ -161,7 +161,7 @@ namespace platf::dxgi {
     std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
 
   private:
-    std::unique_ptr<NamedPipeFactory> _pipe_factory;
+    std::unique_ptr<NamedPipeFactory> _pipe_factory = std::make_unique<NamedPipeFactory>();
     std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
     std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
     bool send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name) const;
