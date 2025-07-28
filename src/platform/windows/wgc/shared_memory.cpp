@@ -63,16 +63,34 @@ namespace platf::dxgi {
   }
 
   bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const {
-    safe_token token;
-    util::c_ptr<TOKEN_USER> tokenUser;
-    safe_sid user_sid;
-    safe_sid system_sid;
-    safe_dacl pDacl;
-
     BOOL isSystem = platf::dxgi::is_running_as_system();
-
     BOOST_LOG(info) << "create_security_descriptor: isSystem=" << isSystem;
 
+    safe_token token;
+    if (!obtain_access_token(isSystem, token)) {
+      return false;
+    }
+
+    util::c_ptr<TOKEN_USER> tokenUser;
+    PSID raw_user_sid = nullptr;
+    if (!extract_user_sid_from_token(token, tokenUser, raw_user_sid)) {
+      return false;
+    }
+
+    safe_sid system_sid;
+    if (!create_system_sid(system_sid)) {
+      return false;
+    }
+
+    if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
+      BOOST_LOG(error) << "InitializeSecurityDescriptor failed in create_security_descriptor, error=" << GetLastError();
+      return false;
+    }
+
+    return build_access_control_list(isSystem, desc, raw_user_sid, system_sid.get(), out_pacl);
+  }
+
+  bool NamedPipeFactory::obtain_access_token(BOOL isSystem, safe_token &token) const {
     if (isSystem) {
       token.reset(platf::dxgi::retrieve_users_token(false));
       BOOST_LOG(info) << "create_security_descriptor: Retrieved user token for SYSTEM service, token=" << token.get();
@@ -89,10 +107,13 @@ namespace platf::dxgi {
       token.reset(raw_token);
       BOOST_LOG(info) << "create_security_descriptor: Opened current process token, token=" << token.get();
     }
+    return true;
+  }
 
-    // Extract user SID from token
+  bool NamedPipeFactory::extract_user_sid_from_token(const safe_token &token, util::c_ptr<TOKEN_USER> &tokenUser, PSID &raw_user_sid) const {
     DWORD len = 0;
-    GetTokenInformation(token.get(), TokenUser, nullptr, 0, &len);
+    HANDLE tokenHandle = const_cast<HANDLE>(token.get());
+    GetTokenInformation(tokenHandle, TokenUser, nullptr, 0, &len);
     if (GetLastError() != ERROR_INSUFFICIENT_BUFFER) {
       BOOST_LOG(error) << "GetTokenInformation (size query) failed in create_security_descriptor, error=" << GetLastError();
       return false;
@@ -100,26 +121,22 @@ namespace platf::dxgi {
 
     auto tokenBuffer = std::make_unique<uint8_t[]>(len);
     tokenUser.reset(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release()));
-    if (!tokenUser || !GetTokenInformation(token.get(), TokenUser, tokenUser.get(), len, &len)) {
+    if (!tokenUser || !GetTokenInformation(tokenHandle, TokenUser, tokenUser.get(), len, &len)) {
       BOOST_LOG(error) << "GetTokenInformation (fetch) failed in create_security_descriptor, error=" << GetLastError();
       return false;
     }
-    PSID raw_user_sid = tokenUser->User.Sid;
-
-    // Validate the user SID
+    
+    raw_user_sid = tokenUser->User.Sid;
     if (!IsValidSid(raw_user_sid)) {
       BOOST_LOG(error) << "Invalid user SID in create_security_descriptor";
       return false;
     }
 
-    // Log the user SID for debugging
-    if (LPWSTR sidString = nullptr; ConvertSidToStringSidW(raw_user_sid, &sidString)) {
-      std::wstring wsid(sidString);
-      BOOST_LOG(info) << "create_security_descriptor: User SID=" << wide_to_utf8(wsid);
-      LocalFree(sidString);
-    }
+    log_sid_for_debugging(raw_user_sid, "User");
+    return true;
+  }
 
-    // Always create SYSTEM SID for consistent permissions
+  bool NamedPipeFactory::create_system_sid(safe_sid &system_sid) const {
     SID_IDENTIFIER_AUTHORITY ntAuthority = SECURITY_NT_AUTHORITY;
     PSID raw_system_sid = nullptr;
     if (!AllocateAndInitializeSid(&ntAuthority, 1, SECURITY_LOCAL_SYSTEM_RID, 0, 0, 0, 0, 0, 0, 0, &raw_system_sid)) {
@@ -128,26 +145,25 @@ namespace platf::dxgi {
     }
     system_sid.reset(raw_system_sid);
 
-    // Validate the system SID
     if (!IsValidSid(system_sid.get())) {
       BOOST_LOG(error) << "Invalid system SID in create_security_descriptor";
       return false;
     }
 
-    // Log the system SID for debugging
-    if (LPWSTR systemSidString = nullptr; ConvertSidToStringSidW(system_sid.get(), &systemSidString)) {
-      std::wstring wsid(systemSidString);
-      BOOST_LOG(info) << "create_security_descriptor: System SID=" << wide_to_utf8(wsid);
-      LocalFree(systemSidString);
-    }
+    log_sid_for_debugging(system_sid.get(), "System");
+    return true;
+  }
 
-    // Initialize security descriptor
-    if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
-      BOOST_LOG(error) << "InitializeSecurityDescriptor failed in create_security_descriptor, error=" << GetLastError();
-      return false;
+  void NamedPipeFactory::log_sid_for_debugging(PSID sid, const std::string &sidType) const {
+    LPWSTR sidString = nullptr;
+    if (ConvertSidToStringSidW(sid, &sidString)) {
+      std::wstring wsid(sidString);
+      BOOST_LOG(info) << "create_security_descriptor: " << sidType << " SID=" << wide_to_utf8(wsid);
+      LocalFree(sidString);
     }
+  }
 
-    // Build a list of explicit ACEs
+  bool NamedPipeFactory::build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const {
     std::vector<EXPLICIT_ACCESS> eaList;
     if (isSystem) {
       EXPLICIT_ACCESS eaSys {};
@@ -156,13 +172,15 @@ namespace platf::dxgi {
       eaSys.grfInheritance = NO_INHERITANCE;
       eaSys.Trustee.TrusteeForm = TRUSTEE_IS_SID;
       eaSys.Trustee.TrusteeType = TRUSTEE_IS_WELL_KNOWN_GROUP;
-      eaSys.Trustee.ptstrName = (LPTSTR) system_sid.get();
+      eaSys.Trustee.ptstrName = (LPTSTR) system_sid;
       eaList.push_back(eaSys);
+      
       EXPLICIT_ACCESS eaUser = eaSys;
       eaUser.Trustee.TrusteeType = TRUSTEE_IS_USER;
       eaUser.Trustee.ptstrName = (LPTSTR) raw_user_sid;
       eaList.push_back(eaUser);
     }
+    
     if (!eaList.empty()) {
       if (!init_sd_with_explicit_aces(desc, eaList, out_pacl)) {
         BOOST_LOG(error) << "init_sd_with_explicit_aces failed in create_security_descriptor";
@@ -300,6 +318,24 @@ namespace platf::dxgi {
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_server(std::unique_ptr<INamedPipe> pipe) {
     std::string pipe_name = generate_guid();
 
+    if (!send_handshake_message(pipe, pipe_name)) {
+      return nullptr;
+    }
+
+    if (!wait_for_handshake_ack(pipe)) {
+      return nullptr;
+    }
+
+    auto dataPipe = _pipe_factory->create_server(pipe_name);
+    if (dataPipe) {
+      dataPipe->wait_for_client_connection(0);
+    }
+
+    pipe->disconnect();
+    return dataPipe;
+  }
+
+  bool AnonymousPipeFactory::send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name) {
     std::wstring wpipe_name = utf8_to_wide(pipe_name);
 
     AnonConnectMsg message {};
@@ -313,21 +349,26 @@ namespace platf::dxgi {
     if (!pipe->is_connected()) {
       BOOST_LOG(error) << "Client did not connect to pipe instance within the specified timeout. Disconnecting server pipe.";
       pipe->disconnect();
-      return nullptr;
-    }
-    BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name;
-    if (!pipe->send(bytes, 5000)) {  // 5 second timeout for handshake
-      BOOST_LOG(error) << "Failed to send handshake message to client";
-      pipe->disconnect();
-      return nullptr;
+      return false;
     }
 
-    // Wait for ACK from client before disconnecting
+    BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name;
+    if (!pipe->send(bytes, 5000)) {
+      BOOST_LOG(error) << "Failed to send handshake message to client";
+      pipe->disconnect();
+      return false;
+    }
+
+    return true;
+  }
+
+  bool AnonymousPipeFactory::wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe) {
     std::vector<uint8_t> ack;
     bool ack_ok = false;
     auto t0 = std::chrono::steady_clock::now();
+    
     while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3)) {
-      PipeResult result = pipe->receive(ack, 1000);  // 1 second timeout per receive attempt
+      PipeResult result = pipe->receive(ack, 1000);
       if (result == PipeResult::Success) {
         if (ack.size() == 1 && ack[0] == 0xA5) {
           ack_ok = true;
@@ -347,28 +388,37 @@ namespace platf::dxgi {
     if (!ack_ok) {
       BOOST_LOG(error) << "Handshake ACK not received within timeout - aborting";
       pipe->disconnect();
-      return nullptr;
+      return false;
     }
 
-    auto dataPipe = _pipe_factory->create_server(pipe_name);
-    // Ensure the server side waits for a client
-    if (dataPipe) {
-      dataPipe->wait_for_client_connection(0);  // 0 = immediate IF connected, otherwise overlapped wait
-    }
-
-    pipe->disconnect();
-    return dataPipe;
+    return true;
   }
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::handshake_client(std::unique_ptr<INamedPipe> pipe) {
-    AnonConnectMsg msg {};  // Zero-initialize
+    AnonConnectMsg msg {};
 
+    if (!receive_handshake_message(pipe, msg)) {
+      return nullptr;
+    }
+
+    if (!send_handshake_ack(pipe)) {
+      return nullptr;
+    }
+
+    std::wstring wpipeName(msg.pipe_name);
+    std::string pipeNameStr = wide_to_utf8(wpipeName);
+    pipe->disconnect();
+
+    return connect_to_data_pipe(pipeNameStr);
+  }
+
+  bool AnonymousPipeFactory::receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg) {
     std::vector<uint8_t> bytes;
     auto start = std::chrono::steady_clock::now();
     bool received = false;
 
     while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3)) {
-      PipeResult result = pipe->receive(bytes, 500);  // 500ms timeout per receive attempt
+      PipeResult result = pipe->receive(bytes, 500);
       if (result == PipeResult::Success) {
         if (!bytes.empty()) {
           received = true;
@@ -378,7 +428,6 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Pipe error during handshake message receive";
         break;
       }
-      // Check if we received 0 bytes due to pipe being closed
       if (bytes.empty()) {
         BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
       }
@@ -388,36 +437,33 @@ namespace platf::dxgi {
     if (!received) {
       BOOST_LOG(error) << "Did not receive handshake message in time. Disconnecting client.";
       pipe->disconnect();
-      return nullptr;
+      return false;
     }
 
     if (bytes.size() < sizeof(AnonConnectMsg)) {
       BOOST_LOG(error) << "Received incomplete handshake message (size=" << bytes.size()
                        << ", expected=" << sizeof(AnonConnectMsg) << "). Disconnecting client.";
       pipe->disconnect();
-      return nullptr;
+      return false;
     }
 
     std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
+    return true;
+  }
 
-    // Send ACK (1 byte) with timeout
+  bool AnonymousPipeFactory::send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) {
     BOOST_LOG(info) << "Sending handshake ACK to server";
-    if (!pipe->send({ACK_MSG}, 5000)) {  // 5 second timeout for ACK
+    if (!pipe->send({ACK_MSG}, 5000)) {
       BOOST_LOG(error) << "Failed to send handshake ACK to server";
       pipe->disconnect();
-      return nullptr;
+      return false;
     }
 
-    // Flush the control pipe to ensure ACK is delivered before disconnecting
     static_cast<WinPipe *>(pipe.get())->flush_buffers();
+    return true;
+  }
 
-    // Convert wide string to string using proper conversion
-    std::wstring wpipeName(msg.pipe_name);
-    std::string pipeNameStr = wide_to_utf8(wpipeName);
-    // Disconnect control pipe only after ACK is sent and flushed
-    pipe->disconnect();
-
-    // Retry logic for opening the data pipe
+  std::unique_ptr<INamedPipe> AnonymousPipeFactory::connect_to_data_pipe(const std::string &pipeNameStr) {
     std::unique_ptr<INamedPipe> data_pipe = nullptr;
     auto retry_start = std::chrono::steady_clock::now();
     const auto retry_timeout = std::chrono::seconds(5);
@@ -482,37 +528,46 @@ namespace platf::dxgi {
 
     DWORD bytesWritten = 0;
     if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, ctx->get()); !result) {
-      DWORD err = GetLastError();
-      if (err == ERROR_IO_PENDING) {
-        // Wait for completion with timeout
-        BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
-        DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
-        if (waitResult == WAIT_OBJECT_0) {
-          if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
-            BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
-            return false;
-          }
-        } else if (waitResult == WAIT_TIMEOUT) {
-          BOOST_LOG(warning) << "Send operation timed out after " << timeout_ms << "ms";
-          CancelIoEx(_pipe, ctx->get());
-          // Wait for cancellation to complete to ensure OVERLAPPED structure safety
-          DWORD transferred = 0;
-          GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
-          return false;
-        } else {
-          BOOST_LOG(error) << "WaitForSingleObject failed in send, result=" << waitResult << ", error=" << GetLastError();
-          return false;
-        }
-      } else {
-        BOOST_LOG(error) << "WriteFile failed (" << err << ") in WinPipe::send";
-        return false;
-      }
+      return handle_send_error(ctx, timeout_ms, bytesWritten);
     }
+
     if (bytesWritten != bytes.size()) {
       BOOST_LOG(error) << "WriteFile wrote " << bytesWritten << " bytes, expected " << bytes.size();
       return false;
     }
     return true;
+  }
+
+  bool WinPipe::handle_send_error(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
+    DWORD err = GetLastError();
+    if (err == ERROR_IO_PENDING) {
+      return handle_pending_send_operation(ctx, timeout_ms, bytesWritten);
+    } else {
+      BOOST_LOG(error) << "WriteFile failed (" << err << ") in WinPipe::send";
+      return false;
+    }
+  }
+
+  bool WinPipe::handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
+    BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
+    DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
+    
+    if (waitResult == WAIT_OBJECT_0) {
+      if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
+        BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
+        return false;
+      }
+      return true;
+    } else if (waitResult == WAIT_TIMEOUT) {
+      BOOST_LOG(warning) << "Send operation timed out after " << timeout_ms << "ms";
+      CancelIoEx(_pipe, ctx->get());
+      DWORD transferred = 0;
+      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+      return false;
+    } else {
+      BOOST_LOG(error) << "WaitForSingleObject failed in send, result=" << waitResult << ", error=" << GetLastError();
+      return false;
+    }
   }
 
   PipeResult WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
@@ -532,46 +587,55 @@ namespace platf::dxgi {
     BOOL result = ReadFile(_pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, ctx->get());
 
     if (result) {
-      // Read completed immediately
       buffer.resize(bytesRead);
       bytes = std::move(buffer);
       return PipeResult::Success;
     } else {
-      DWORD err = GetLastError();
-      if (err == ERROR_IO_PENDING) {
-        // Wait for completion with timeout
-        DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
-        if (waitResult == WAIT_OBJECT_0) {
-          if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
-            buffer.resize(bytesRead);
-            bytes = std::move(buffer);
-            return PipeResult::Success;
-          } else {
-            DWORD overlappedErr = GetLastError();
-            if (overlappedErr == ERROR_BROKEN_PIPE) {
-              BOOST_LOG(warning) << "Pipe broken during receive operation (ERROR_BROKEN_PIPE)";
-              return PipeResult::BrokenPipe;
-            }
-            BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << overlappedErr;
-            return PipeResult::Error;
-          }
-        } else if (waitResult == WAIT_TIMEOUT) {
-          CancelIoEx(_pipe, ctx->get());
-          // Wait for cancellation to complete to ensure OVERLAPPED structure safety
-          DWORD transferred = 0;
-          GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
-          return PipeResult::Timeout;
-        } else {
-          BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
-          return PipeResult::Error;
-        }
-      } else if (err == ERROR_BROKEN_PIPE) {
-        BOOST_LOG(warning) << "Pipe broken during ReadFile (ERROR_BROKEN_PIPE)";
-        return PipeResult::BrokenPipe;
+      return handle_receive_error(ctx, timeout_ms, buffer, bytes);
+    }
+  }
+
+  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, 
+                                          std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+    DWORD err = GetLastError();
+    if (err == ERROR_IO_PENDING) {
+      return handle_pending_receive_operation(ctx, timeout_ms, buffer, bytes);
+    } else if (err == ERROR_BROKEN_PIPE) {
+      BOOST_LOG(warning) << "Pipe broken during ReadFile (ERROR_BROKEN_PIPE)";
+      return PipeResult::BrokenPipe;
+    } else {
+      BOOST_LOG(error) << "ReadFile failed in receive, error=" << err;
+      return PipeResult::Error;
+    }
+  }
+
+  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms,
+                                                      std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+    DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
+    DWORD bytesRead = 0;
+    
+    if (waitResult == WAIT_OBJECT_0) {
+      if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
+        buffer.resize(bytesRead);
+        bytes = std::move(buffer);
+        return PipeResult::Success;
       } else {
-        BOOST_LOG(error) << "ReadFile failed in receive, error=" << err;
+        DWORD overlappedErr = GetLastError();
+        if (overlappedErr == ERROR_BROKEN_PIPE) {
+          BOOST_LOG(warning) << "Pipe broken during receive operation (ERROR_BROKEN_PIPE)";
+          return PipeResult::BrokenPipe;
+        }
+        BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << overlappedErr;
         return PipeResult::Error;
       }
+    } else if (waitResult == WAIT_TIMEOUT) {
+      CancelIoEx(_pipe, ctx->get());
+      DWORD transferred = 0;
+      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+      return PipeResult::Timeout;
+    } else {
+      BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
+      return PipeResult::Error;
     }
   }
 

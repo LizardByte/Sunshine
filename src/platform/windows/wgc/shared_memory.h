@@ -115,6 +115,12 @@ namespace platf::dxgi {
 
   private:
     void connect_server_pipe(int milliseconds);
+    bool handle_send_error(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten);
+    bool handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten);
+    PipeResult handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, 
+                                   std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes);
+    PipeResult handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms,
+                                               std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes);
 
     HANDLE _pipe;
     std::atomic<bool> _connected;
@@ -139,6 +145,11 @@ namespace platf::dxgi {
 
   private:
     bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
+    bool obtain_access_token(BOOL isSystem, safe_token &token) const;
+    bool extract_user_sid_from_token(const safe_token &token, util::c_ptr<TOKEN_USER> &tokenUser, PSID &raw_user_sid) const;
+    bool create_system_sid(safe_sid &system_sid) const;
+    void log_sid_for_debugging(PSID sid, const std::string &sidType) const;
+    bool build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const;
     safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
   };
 
@@ -152,6 +163,11 @@ namespace platf::dxgi {
     std::unique_ptr<NamedPipeFactory> _pipe_factory;
     std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
     std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
+    bool send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name);
+    bool wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe);
+    bool receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg);
+    bool send_handshake_ack(std::unique_ptr<INamedPipe> &pipe);
+    std::unique_ptr<INamedPipe> connect_to_data_pipe(const std::string &pipeNameStr);
     std::string generate_guid() const;
   };
 }  // namespace platf::dxgi
