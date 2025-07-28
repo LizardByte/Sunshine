@@ -15,15 +15,15 @@
 #include <dxgi.h>
 #include <dxgi1_6.h>
 #include <Unknwn.h>
-#include <wrl/client.h>
 #include <winrt/Windows.Graphics.Capture.h>
+#include <wrl/client.h>
 
 // local includes
 #include "src/platform/common.h"
-#include "src/utility.h"
-#include "src/video.h"
 #include "src/platform/windows/wgc/process_handler.h"
 #include "src/platform/windows/wgc/shared_memory.h"
+#include "src/utility.h"
+#include "src/video.h"
 
 namespace platf::dxgi {
   extern const char *format_str[];
@@ -347,46 +347,33 @@ namespace platf::dxgi {
    * Display backend that uses Windows.Graphics.Capture with a software encoder.
    * This now always uses IPC implementation via display_wgc_ipc_ram_t.
    */
-  class display_wgc_ram_t: public display_ram_t {
+  class display_wgc_ram_t {
   public:
     // Factory method that always returns the IPC implementation
     static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
-    
-    // These methods are pure virtual - derived classes must implement them
-    virtual int init(const ::video::config_t &config, const std::string &display_name) = 0;
-    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
-    virtual capture_e release_snapshot() = 0;
   };
 
   /**
    * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
    * This now always uses IPC implementation via display_wgc_ipc_vram_t.
    */
-  class display_wgc_vram_t: public display_vram_t {
+  class display_wgc_vram_t {
     // Cache for frame forwarding when no new frame is available
     std::shared_ptr<platf::img_t> last_cached_frame;
 
   public:
     // Factory method that always returns the IPC implementation
     static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
-    
-    // These methods are pure virtual - derived classes must implement them
-    virtual int init(const ::video::config_t &config, const std::string &display_name) = 0;
-    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
-    virtual capture_e release_snapshot() = 0;
-
-  protected:
-    // Virtual method to acquire the next frame - can be overridden by derived classes
-    virtual capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) = 0;
   };
 
   /**
    * Display backend that uses WGC with IPC helper for hardware encoder.
    */
-  class display_wgc_ipc_vram_t : public display_vram_t {
+  class display_wgc_ipc_vram_t: public display_vram_t {
     // Cache for frame forwarding when no new frame is available
     std::shared_ptr<platf::img_t> last_cached_frame;
-public:
+
+  public:
     display_wgc_ipc_vram_t();
     ~display_wgc_ipc_vram_t() override;
 
@@ -398,22 +385,22 @@ public:
     void lazy_init();
     int dummy_img(platf::img_t *img_base) override;
 
-protected:
+  protected:
     capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
     capture_e release_snapshot() override;
 
-private:
+  private:
     std::unique_ptr<class wgc_ipc_session_t> _session;
     ::video::config_t _config;
     std::string _display_name;
     bool _session_initialized_logged = false;
-};
+  };
 
   /**
    * Display backend that uses WGC with IPC helper for software encoder.
    */
-  class display_wgc_ipc_ram_t : public display_ram_t {
-public:
+  class display_wgc_ipc_ram_t: public display_ram_t {
+  public:
     display_wgc_ipc_ram_t();
     ~display_wgc_ipc_ram_t() override;
 
@@ -425,28 +412,29 @@ public:
     void lazy_init();
     int dummy_img(platf::img_t *img_base) override;
 
-protected:
+  protected:
     capture_e release_snapshot() override;
 
-private:
+  private:
     std::unique_ptr<class wgc_ipc_session_t> _session;
     ::video::config_t _config;
     std::string _display_name;
     bool _session_initialized_logged = false;
-    
+
     // Track last staging texture properties for base class texture
     UINT _last_width = 0;
     UINT _last_height = 0;
     DXGI_FORMAT _last_format = DXGI_FORMAT_UNKNOWN;
-};  /**
-   * Display backend that uses DXGI duplication for secure desktop scenarios.
-   * This display can detect when secure desktop is no longer active and swap back to WGC.
-   */
-  class temp_dxgi_vram_t : public display_ddup_vram_t {
+  }; /**
+      * Display backend that uses DXGI duplication for secure desktop scenarios.
+      * This display can detect when secure desktop is no longer active and swap back to WGC.
+      */
+
+  class temp_dxgi_vram_t: public display_ddup_vram_t {
   private:
     std::chrono::steady_clock::time_point _last_check_time;
-    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
-    
+    static constexpr std::chrono::seconds CHECK_INTERVAL {2};  // Check every 2 seconds
+
   public:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
   };
@@ -455,22 +443,17 @@ private:
    * Display backend that uses DXGI duplication for secure desktop scenarios.
    * This display can detect when secure desktop is no longer active and swap back to WGC.
    */
-  class temp_dxgi_ram_t : public display_ddup_ram_t {
+  class temp_dxgi_ram_t: public display_ddup_ram_t {
   private:
     std::chrono::steady_clock::time_point _last_check_time;
-    static constexpr std::chrono::seconds CHECK_INTERVAL{2}; // Check every 2 seconds
-    
+    static constexpr std::chrono::seconds CHECK_INTERVAL {2};  // Check every 2 seconds
+
   public:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
-};
+  };
 
   // Type aliases for WGC data structures
   using shared_handle_data_t = platf::dxgi::shared_handle_data_t;
   using config_data_t = platf::dxgi::config_data_t;
 
 }  // namespace platf::dxgi
-
-
-
-
-

@@ -68,7 +68,7 @@ namespace platf::dxgi {
     }
   }
 
-  capture_e display_wgc_ipc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+  capture_e display_wgc_ipc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible)  {
     if (!_session) {
       return capture_e::error;
     }
@@ -192,7 +192,7 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-  capture_e display_wgc_ipc_vram_t::release_snapshot() {
+  capture_e display_wgc_ipc_vram_t::release_snapshot()  {
     if (_session) {
       _session->release();
     }
