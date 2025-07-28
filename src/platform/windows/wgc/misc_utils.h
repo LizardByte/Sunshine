@@ -5,6 +5,7 @@
 
 #pragma once
 
+
 #include <cstdint>
 #include <string>
 #include <windows.h>
@@ -13,13 +14,58 @@
 
 namespace platf::dxgi {
 
+  // RAII wrappers for Windows security objects
+  using safe_token = util::safe_ptr_v2<void, BOOL, &CloseHandle>;
+  using safe_sid = util::safe_ptr_v2<void, PVOID, &FreeSid>;
+  using safe_local_mem = util::safe_ptr_v2<void, HLOCAL, &LocalFree>;
+
+  // RAII helper for overlapped I/O operations
+  class io_context {
+  public:
+    io_context();
+    ~io_context();
+
+    io_context(const io_context &) = delete;
+    io_context &operator=(const io_context &) = delete;
+
+    io_context(io_context &&other) noexcept;
+    io_context &operator=(io_context &&other) noexcept;
+
+    OVERLAPPED *get();
+    HANDLE event() const;
+    bool is_valid() const;
+
+  private:
+    OVERLAPPED _ovl;
+    HANDLE _event;
+  };
+
+  // Specialized wrapper for DACL since it needs to be cast to PACL
+  struct safe_dacl {
+    PACL dacl = nullptr;
+
+    safe_dacl();
+    explicit safe_dacl(PACL p);
+    ~safe_dacl();
+
+    safe_dacl(safe_dacl &&other) noexcept;
+    safe_dacl &operator=(safe_dacl &&other) noexcept;
+
+    safe_dacl(const safe_dacl &) = delete;
+    safe_dacl &operator=(const safe_dacl &) = delete;
+
+    void reset(PACL p = nullptr);
+    PACL get() const;
+    PACL release();
+    explicit operator bool() const;
+  };
+
   // Message structs for IPC Communication
   struct shared_handle_data_t {
     HANDLE texture_handle;
     UINT width;
     UINT height;
   };
-
 
   struct config_data_t {
     int dynamic_range;
@@ -79,9 +125,6 @@ namespace platf::dxgi {
   };
 
   using safe_mmcss_handle = util::uniq_ptr<std::remove_pointer_t<HANDLE>, mmcss_handle_deleter>;
-}  // namespace platf::dxgi
-
-namespace platf::wgc {
 
   /**
    * @brief Check if a process with the given name is running.
@@ -116,4 +159,4 @@ namespace platf::wgc {
   DWORD get_parent_process_id();
   DWORD get_parent_process_id(DWORD process_id);
 
-}  // namespace platf::wgc
+}  // namespace platf::dxgi

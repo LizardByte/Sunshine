@@ -85,7 +85,7 @@ namespace platf::dxgi {
     std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
 
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      if (bool is_system = ::platf::wgc::is_running_as_system(); is_system) {
+      if (bool is_system = ::platf::dxgi::is_running_as_system(); is_system) {
         BOOST_LOG(debug) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
       } else {
         BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring();
@@ -283,7 +283,7 @@ namespace platf::dxgi {
 
     if (hr == WAIT_ABANDONED) {
       BOOST_LOG(error) << "Helper process abandoned the keyed mutex, implying it may have crashed or was forcefully terminated.";
-      _should_swap_to_dxgi = false; // Don't swap to DXGI, just reinit
+      _should_swap_to_dxgi = false;  // Don't swap to DXGI, just reinit
       _force_reinit = true;
       return false;
     } else if (hr == WAIT_TIMEOUT) {

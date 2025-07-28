@@ -9,6 +9,8 @@
 #include <stdexcept>
 #include <future>
 
+using namespace platf::dxgi;
+
 // Mock callback helpers
 struct CallbackFlags {
     std::atomic<bool> called{false};

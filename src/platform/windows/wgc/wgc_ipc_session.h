@@ -53,7 +53,6 @@ namespace platf::dxgi {
      * Blocking acquire of the next frame.
      * @param timeout Maximum time to wait for frame
      * @param gpu_tex_out Output parameter for the GPU texture pointer
-     * @param meta_out Output parameter for frame metadata pointer
      * @return true on success, false on timeout/error
      */
     bool acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out);

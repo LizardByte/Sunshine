@@ -10,7 +10,104 @@
 #include <windows.h>
 #include <wtsapi32.h>
 
-namespace platf::wgc {
+namespace platf::dxgi {
+
+  // RAII helper for overlapped I/O operations
+
+  io_context::io_context() {
+    _event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    ZeroMemory(&_ovl, sizeof(_ovl));
+    _ovl.hEvent = _event;
+  }
+
+  io_context::~io_context() {
+    if (_event) {
+      CloseHandle(_event);
+    }
+  }
+
+  io_context::io_context(io_context &&other) noexcept
+      :
+      _ovl(other._ovl),
+      _event(other._event) {
+    other._event = nullptr;
+    ZeroMemory(&other._ovl, sizeof(other._ovl));
+  }
+
+  io_context &io_context::operator=(io_context &&other) noexcept {
+    if (this != &other) {
+      if (_event) {
+        CloseHandle(_event);
+      }
+      _ovl = other._ovl;
+      _event = other._event;
+      other._event = nullptr;
+      ZeroMemory(&other._ovl, sizeof(other._ovl));
+    }
+    return *this;
+  }
+
+  OVERLAPPED *io_context::get() {
+    return &_ovl;
+  }
+
+  HANDLE io_context::event() const {
+    return _event;
+  }
+
+  bool io_context::is_valid() const {
+    return _event != nullptr;
+  }
+
+  // safe_dacl implementation
+  safe_dacl::safe_dacl() = default;
+
+  safe_dacl::safe_dacl(PACL p):
+      dacl(p) {}
+
+  safe_dacl::~safe_dacl() {
+    if (dacl) {
+      LocalFree(dacl);
+    }
+  }
+
+  safe_dacl::safe_dacl(safe_dacl &&other) noexcept
+      :
+      dacl(other.dacl) {
+    other.dacl = nullptr;
+  }
+
+  safe_dacl &safe_dacl::operator=(safe_dacl &&other) noexcept {
+    if (this != &other) {
+      if (dacl) {
+        LocalFree(dacl);
+      }
+      dacl = other.dacl;
+      other.dacl = nullptr;
+    }
+    return *this;
+  }
+
+  void safe_dacl::reset(PACL p) {
+    if (dacl) {
+      LocalFree(dacl);
+    }
+    dacl = p;
+  }
+
+  PACL safe_dacl::get() const {
+    return dacl;
+  }
+
+  PACL safe_dacl::release() {
+    PACL tmp = dacl;
+    dacl = nullptr;
+    return tmp;
+  }
+
+  safe_dacl::operator bool() const {
+    return dacl != nullptr;
+  }
 
   bool IsUserAdmin(HANDLE user_token) {
     WINBOOL ret;
@@ -190,4 +287,4 @@ namespace platf::wgc {
     return get_parent_process_id(GetCurrentProcessId());
   }
 
-}  // namespace platf::wgc
+}  // namespace platf::dxgi

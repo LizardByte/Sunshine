@@ -464,6 +464,9 @@ private:
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
 };
 
+  // Type aliases for WGC data structures
+  using shared_handle_data_t = platf::dxgi::shared_handle_data_t;
+  using config_data_t = platf::dxgi::config_data_t;
 
 }  // namespace platf::dxgi
 

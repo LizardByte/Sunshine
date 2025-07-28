@@ -215,7 +215,7 @@ namespace platf::dxgi {
   std::shared_ptr<display_t> display_wgc_ipc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
 
-    if (platf::wgc::is_secure_desktop_active()) {
+    if (platf::dxgi::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
       auto disp = std::make_shared<temp_dxgi_vram_t>();
@@ -451,7 +451,7 @@ namespace platf::dxgi {
   std::shared_ptr<display_t> display_wgc_ipc_ram_t::create(const ::video::config_t &config, const std::string &display_name) {
     // Check if secure desktop is currently active
 
-    if (platf::wgc::is_secure_desktop_active()) {
+    if (platf::dxgi::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
       BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
       auto disp = std::make_shared<temp_dxgi_ram_t>();
@@ -476,7 +476,7 @@ namespace platf::dxgi {
     // Check periodically if secure desktop is still active
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
-      if (!platf::wgc::is_secure_desktop_active()) {
+      if (!platf::dxgi::is_secure_desktop_active()) {
         BOOST_LOG(info) << "[temp_dxgi_vram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
         return capture_e::reinit;
       }
@@ -490,7 +490,7 @@ namespace platf::dxgi {
     // Check periodically if secure desktop is still active
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
-      if (!platf::wgc::is_secure_desktop_active()) {
+      if (!platf::dxgi::is_secure_desktop_active()) {
         BOOST_LOG(info) << "[temp_dxgi_ram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
         return capture_e::reinit;
       }

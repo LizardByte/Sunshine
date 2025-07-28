@@ -1,6 +1,7 @@
 #pragma once
 
 #include "src/logging.h"
+#include "src/platform/windows/wgc/misc_utils.h"
 
 #include <atomic>
 #include <cstdint>
@@ -11,148 +12,146 @@
 #include <vector>
 #include <windows.h>
 
-constexpr uint8_t HEARTBEAT_MSG = 0x01;
-constexpr uint8_t FRAME_READY_MSG = 0x03;
-constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;
-constexpr uint8_t ACK_MSG = 0xA5;
-
-// Forward declaration for RAII wrapper
 namespace platf::dxgi {
-  struct safe_handle;
-}
 
-/**
- * @brief Result codes for pipe operations
- */
-enum class PipeResult {
-  Success,       // Operation completed successfully
-  Timeout,       // Operation timed out
-  Disconnected,  // Pipe was disconnected
-  BrokenPipe,    // Pipe broken (ERROR_BROKEN_PIPE = 109) - requires reinit
-  Error          // General error
-};
-
-class INamedPipe {
-public:
-  /**
-   * @brief Virtual destructor for safe polymorphic deletion.
-   */
-  virtual ~INamedPipe() = default;
+  constexpr uint8_t HEARTBEAT_MSG = 0x01;
+  constexpr uint8_t FRAME_READY_MSG = 0x03;
+  constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;
+  constexpr uint8_t ACK_MSG = 0xA5;
 
   /**
-   * @brief Sends a message through the pipe with timeout.
-   * @param bytes The message to send as a vector of bytes.
-   * @param timeout_ms Maximum time to wait for send completion, in milliseconds.
-   * @return True if sent successfully, false on timeout or error.
+   * @brief Result codes for pipe operations
    */
-  virtual bool send(std::vector<uint8_t> bytes, int timeout_ms) = 0;
+  enum class PipeResult {
+    Success,  // Operation completed successfully
+    Timeout,  // Operation timed out
+    Disconnected,  // Pipe was disconnected
+    BrokenPipe,  // Pipe broken (ERROR_BROKEN_PIPE = 109) - requires reinit
+    Error  // General error
+  };
 
-  /**
-   * @brief Receives a message from the pipe with timeout.
-   * @param bytes The received message will be stored in this vector.
-   * @param timeout_ms Maximum time to wait for receive completion, in milliseconds.
-   * @return PipeResult indicating the outcome of the operation.
-   */
-  virtual PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
+  class INamedPipe {
+  public:
+    /**
+     * @brief Virtual destructor for safe polymorphic deletion.
+     */
+    virtual ~INamedPipe() = default;
 
-  /**
-   * @brief Connect to the pipe and verify that the client has connected.
-   * @param milliseconds Maximum time to wait for connection, in milliseconds.
-   */
-  virtual void wait_for_client_connection(int milliseconds) = 0;
+    /**
+     * @brief Sends a message through the pipe with timeout.
+     * @param bytes The message to send as a vector of bytes.
+     * @param timeout_ms Maximum time to wait for send completion, in milliseconds.
+     * @return True if sent successfully, false on timeout or error.
+     */
+    virtual bool send(std::vector<uint8_t> bytes, int timeout_ms) = 0;
 
-  /**
-   * @brief Disconnects the pipe and releases any associated resources.
-   */
-  virtual void disconnect() = 0;
+    /**
+     * @brief Receives a message from the pipe with timeout.
+     * @param bytes The received message will be stored in this vector.
+     * @param timeout_ms Maximum time to wait for receive completion, in milliseconds.
+     * @return PipeResult indicating the outcome of the operation.
+     */
+    virtual PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
 
-  /**
-   * @brief Checks if the pipe is currently connected.
-   * @return True if connected, false otherwise.
-   */
-  virtual bool is_connected() = 0;
-};
+    /**
+     * @brief Connect to the pipe and verify that the client has connected.
+     * @param milliseconds Maximum time to wait for connection, in milliseconds.
+     */
+    virtual void wait_for_client_connection(int milliseconds) = 0;
 
-class AsyncNamedPipe {
-public:
-  using MessageCallback = std::function<void(const std::vector<uint8_t> &)>;
-  using ErrorCallback = std::function<void(const std::string &)>;
-  using BrokenPipeCallback = std::function<void()>;  // New callback for broken pipe
+    /**
+     * @brief Disconnects the pipe and releases any associated resources.
+     */
+    virtual void disconnect() = 0;
 
-  AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe);
-  ~AsyncNamedPipe();
+    /**
+     * @brief Checks if the pipe is currently connected.
+     * @return True if connected, false otherwise.
+     */
+    virtual bool is_connected() = 0;
+  };
 
-  bool start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe = nullptr);
-  void stop();
-  void send(const std::vector<uint8_t> &message);
-  void wait_for_client_connection(int milliseconds);
-  bool is_connected() const;
+  class AsyncNamedPipe {
+  public:
+    using MessageCallback = std::function<void(const std::vector<uint8_t> &)>;
+    using ErrorCallback = std::function<void(const std::string &)>;
+    using BrokenPipeCallback = std::function<void()>;  // New callback for broken pipe
 
-private:
-  void worker_thread() noexcept;
-  void run_message_loop();
-  bool establish_connection();
-  void process_message(const std::vector<uint8_t> &bytes) const;
-  void safe_execute_operation(const std::string &operation_name, const std::function<void()> &operation) const noexcept;
+    AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe);
+    ~AsyncNamedPipe();
 
-  std::unique_ptr<INamedPipe> _pipe;
-  std::atomic<bool> _running;
-  std::thread _worker;
-  MessageCallback _onMessage;
-  ErrorCallback _onError;
-  BrokenPipeCallback _onBrokenPipe;  // New callback member
-};
+    bool start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe = nullptr);
+    void stop();
+    void send(const std::vector<uint8_t> &message);
+    void wait_for_client_connection(int milliseconds);
+    bool is_connected() const;
 
-class WinPipe: public INamedPipe {
-public:
-  WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, bool isServer = false);
-  ~WinPipe() override;
+  private:
+    void worker_thread() noexcept;
+    void run_message_loop();
+    bool establish_connection();
+    void process_message(const std::vector<uint8_t> &bytes) const;
+    void safe_execute_operation(const std::string &operation_name, const std::function<void()> &operation) const noexcept;
 
-  bool send(std::vector<uint8_t> bytes, int timeout_ms) override;
-  PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
-  void wait_for_client_connection(int milliseconds) override;
-  void disconnect() override;
-  bool is_connected() override;
-  void flush_buffers();
+    std::unique_ptr<INamedPipe> _pipe;
+    std::atomic<bool> _running;
+    std::thread _worker;
+    MessageCallback _onMessage;
+    ErrorCallback _onError;
+    BrokenPipeCallback _onBrokenPipe;  // New callback member
+  };
 
-private:
-  void connect_server_pipe(int milliseconds);
+  class WinPipe: public INamedPipe {
+  public:
+    WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, bool isServer = false);
+    ~WinPipe() override;
 
-  HANDLE _pipe;
-  std::atomic<bool> _connected;
-  bool _is_server;
-};
+    bool send(std::vector<uint8_t> bytes, int timeout_ms) override;
+    PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
+    void wait_for_client_connection(int milliseconds) override;
+    void disconnect() override;
+    bool is_connected() override;
+    void flush_buffers();
 
-class IAsyncPipeFactory {
-public:
-  virtual ~IAsyncPipeFactory() = default;
-  virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) = 0;
-  virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) = 0;
-};
+  private:
+    void connect_server_pipe(int milliseconds);
 
-struct AnonConnectMsg {
-  wchar_t pipe_name[40];
-};
+    HANDLE _pipe;
+    std::atomic<bool> _connected;
+    bool _is_server;
+  };
 
-class NamedPipeFactory: public IAsyncPipeFactory {
-public:
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
+  class IAsyncPipeFactory {
+  public:
+    virtual ~IAsyncPipeFactory() = default;
+    virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) = 0;
+    virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) = 0;
+  };
 
-private:
-  bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
-  platf::dxgi::safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
-};
+  struct AnonConnectMsg {
+    wchar_t pipe_name[40];
+  };
 
-class AnonymousPipeFactory: public IAsyncPipeFactory {
-public:
-  AnonymousPipeFactory();
-  std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
-  std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
+  class NamedPipeFactory: public IAsyncPipeFactory {
+  public:
+    std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
+    std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
 
-private:
-  std::unique_ptr<NamedPipeFactory> _pipe_factory;
-  std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
-  std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
-  std::string generate_guid() const;
-};
+  private:
+    bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
+    safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
+  };
+
+  class AnonymousPipeFactory: public IAsyncPipeFactory {
+  public:
+    AnonymousPipeFactory();
+    std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) override;
+    std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
+
+  private:
+    std::unique_ptr<NamedPipeFactory> _pipe_factory;
+    std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
+    std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
+    std::string generate_guid() const;
+  };
+}  // namespace platf::dxgi

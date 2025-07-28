@@ -1243,7 +1243,7 @@ void CALLBACK desktop_switch_hook_proc(HWINEVENTHOOK /*h_win_event_hook*/, DWORD
   if (event == EVENT_SYSTEM_DESKTOPSWITCH) {
     BOOST_LOG(info) << "Desktop switch detected!";
 
-    bool secure_desktop_active = platf::wgc::is_secure_desktop_active();
+    bool secure_desktop_active = platf::dxgi::is_secure_desktop_active();
     BOOST_LOG(info) << "Desktop switch - Secure desktop: " << (secure_desktop_active ? "YES" : "NO");
 
     if (secure_desktop_active && !g_secure_desktop_detected) {
