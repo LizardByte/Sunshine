@@ -32,8 +32,8 @@ target_compile_options(sunshinesvc PRIVATE ${SUNSHINE_COMPILE_OPTIONS})
 # Add sunshine_wgc_capture executable
 add_executable(sunshine_wgc_capture
         sunshine_wgc_capture.cpp
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/shared_memory.cpp
-        ${CMAKE_SOURCE_DIR}/src/platform/windows/wgc/misc_utils.cpp
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/pipes.cpp
+        ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/misc_utils.cpp
         ${CMAKE_SOURCE_DIR}/src/logging.cpp)
 set_target_properties(sunshine_wgc_capture PROPERTIES CXX_STANDARD 20)
 

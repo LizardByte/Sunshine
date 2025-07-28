@@ -1,5 +1,5 @@
 /**
- * @file src/platform/windows/wgc/misc_utils.cpp
+ * @file src/platform/windows/ipc/misc_utils.cpp
  * @brief Minimal utility functions for WGC helper without heavy dependencies
  */
 

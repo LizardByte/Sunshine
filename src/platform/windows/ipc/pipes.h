@@ -1,7 +1,7 @@
 #pragma once
 
 #include "src/logging.h"
-#include "src/platform/windows/wgc/misc_utils.h"
+#include "src/platform/windows/ipc/misc_utils.h"
 
 #include <atomic>
 #include <cstdint>

@@ -20,8 +20,8 @@
 
 // local includes
 #include "src/platform/common.h"
-#include "src/platform/windows/wgc/process_handler.h"
-#include "src/platform/windows/wgc/shared_memory.h"
+#include "src/platform/windows/ipc/process_handler.h"
+#include "src/platform/windows/ipc/pipes.h"
 #include "src/utility.h"
 #include "src/video.h"
 
@@ -390,7 +390,7 @@ namespace platf::dxgi {
     capture_e release_snapshot() override;
 
   private:
-    std::unique_ptr<class wgc_ipc_session_t> _session;
+    std::unique_ptr<class ipc_session_t> _session;
     ::video::config_t _config;
     std::string _display_name;
     bool _session_initialized_logged = false;
@@ -416,7 +416,7 @@ namespace platf::dxgi {
     capture_e release_snapshot() override;
 
   private:
-    std::unique_ptr<class wgc_ipc_session_t> _session;
+    std::unique_ptr<class ipc_session_t> _session;
     ::video::config_t _config;
     std::string _display_name;
     bool _session_initialized_logged = false;

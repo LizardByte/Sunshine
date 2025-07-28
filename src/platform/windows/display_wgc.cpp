@@ -8,8 +8,8 @@
 #include "src/platform/windows/display_vram.h"  // for img_d3d_t
 #include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
 #include "src/utility.h"  // for util::hex
-#include "wgc/misc_utils.h"  // for is_secure_desktop_active
-#include "wgc/wgc_ipc_session.h"
+#include "ipc/misc_utils.h"  // for is_secure_desktop_active
+#include "ipc/ipc_session.h"
 
 #include <algorithm>
 #include <chrono>
@@ -40,7 +40,7 @@ namespace platf::dxgi {
     capture_format = DXGI_FORMAT_UNKNOWN;  // Start with unknown format (prevents race condition/crash on first frame)
 
     // Create session
-    _session = std::make_unique<wgc_ipc_session_t>();
+    _session = std::make_unique<ipc_session_t>();
     if (_session->init(config, display_name, device.get())) {
       return -1;
     }
@@ -261,7 +261,7 @@ namespace platf::dxgi {
     height_before_rotation = config.height;
 
     // Create session
-    _session = std::make_unique<wgc_ipc_session_t>();
+    _session = std::make_unique<ipc_session_t>();
     if (_session->init(config, display_name, device.get())) {
       return -1;
     }

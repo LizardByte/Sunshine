@@ -1,11 +1,11 @@
 /**
- * @file src/platform/windows/wgc/wgc_ipc_session.h
+ * @file src/platform/windows/ipc/ipc_session.h
  * @brief Shared IPC session for WGC capture that can be used by both RAM and VRAM implementations.
  */
 #pragma once
 
 #include "process_handler.h"
-#include "shared_memory.h"
+#include "pipes.h"
 #include "src/utility.h"
 #include "src/video.h"
 
@@ -26,9 +26,9 @@ namespace platf::dxgi {
    * Shared WGC IPC session that owns the helper process, pipe, shared texture,
    * keyed-mutex, frame event, metadata mapping... everything that both RAM & VRAM paths share.
    */
-  class wgc_ipc_session_t {
+  class ipc_session_t {
   public:
-    ~wgc_ipc_session_t();
+    ~ipc_session_t();
 
     /**
      * Initialize the session with configuration and display name.

@@ -1,5 +1,5 @@
 /**
- * @file src/platform/windows/wgc/misc_utils.h
+ * @file src/platform/windows/ipc/misc_utils.h
  * @brief Minimal utility functions for WGC helper without heavy dependencies
  */
 

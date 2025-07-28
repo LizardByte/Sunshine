@@ -10,8 +10,8 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include "src/logging.h"
-#include "src/platform/windows/wgc/misc_utils.h"
-#include "src/platform/windows/wgc/shared_memory.h"
+#include "src/platform/windows/ipc/misc_utils.h"
+#include "src/platform/windows/ipc/pipes.h"
 #include "src/utility.h"  // For RAII utilities
 
 #include <atomic>

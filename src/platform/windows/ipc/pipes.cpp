@@ -1,5 +1,5 @@
 
-#include "shared_memory.h"
+#include "pipes.h"
 
 #include "misc_utils.h"
 #include "src/utility.h"

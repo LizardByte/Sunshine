@@ -1,17 +1,8 @@
 /**
- * @file src/platform/windows/wgc/wgc_ipc_session.cpp
- * @brief Implementation of shared IPC ses    auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
-    if (!raw_pipe) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
-      cleanup();
-      return;
-    }
-    _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
+ * @file src/platform/windows/ipc/ipc_session.cpp
+*/
 
-    _pipe->wait_for_client_connection(3000);WGC capture.
- */
-
-#include "wgc_ipc_session.h"
+#include "ipc_session.h"
 
 #include "config.h"
 #include "misc_utils.h"
@@ -27,11 +18,11 @@
 
 namespace platf::dxgi {
 
-  void wgc_ipc_session_t::handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received) {
+  void ipc_session_t::handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received) {
     if (msg.size() == sizeof(shared_handle_data_t)) {
       shared_handle_data_t handle_data;
       memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
-      BOOST_LOG(info) << "[wgc_ipc_session_t] Received handle data: " << std::hex
+      BOOST_LOG(info) << "[ipc_session_t] Received handle data: " << std::hex
                       << reinterpret_cast<uintptr_t>(handle_data.texture_handle) << std::dec
                       << ", " << handle_data.width << "x" << handle_data.height;
       if (setup_shared_texture(handle_data.texture_handle, handle_data.width, handle_data.height)) {
@@ -40,25 +31,25 @@ namespace platf::dxgi {
     }
   }
 
-  void wgc_ipc_session_t::handle_frame_notification(const std::vector<uint8_t> &msg) {
+  void ipc_session_t::handle_frame_notification(const std::vector<uint8_t> &msg) {
     if (msg.size() == 1 && msg[0] == FRAME_READY_MSG) {
       _frame_ready.store(true, std::memory_order_release);
     }
   }
 
-  void wgc_ipc_session_t::handle_secure_desktop_message(const std::vector<uint8_t> &msg) {
+  void ipc_session_t::handle_secure_desktop_message(const std::vector<uint8_t> &msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
       // secure desktop detected
-      BOOST_LOG(info) << "[wgc_ipc_session_t] WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
+      BOOST_LOG(info) << "[ipc_session_t] WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
       _should_swap_to_dxgi = true;
     }
   }
 
-  wgc_ipc_session_t::~wgc_ipc_session_t() {
+  ipc_session_t::~ipc_session_t() {
     cleanup();
   }
 
-  int wgc_ipc_session_t::init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device) {
+  int ipc_session_t::init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device) {
     _process_helper = std::make_unique<ProcessHandler>();
     _config = config;
     _display_name = display_name;
@@ -66,14 +57,14 @@ namespace platf::dxgi {
     return 0;
   }
 
-  void wgc_ipc_session_t::lazy_init() {
+  void ipc_session_t::lazy_init() {
     if (_initialized) {
       return;
     }
 
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      BOOST_LOG(debug) << "[wgc_ipc_session_t] Cannot lazy_init without proper initialization";
+      BOOST_LOG(debug) << "[ipc_session_t] Cannot lazy_init without proper initialization";
       return;
     }
 
@@ -86,13 +77,13 @@ namespace platf::dxgi {
 
     if (!_process_helper->start(exe_path.wstring(), L"")) {
       if (bool is_system = ::platf::dxgi::is_running_as_system(); is_system) {
-        BOOST_LOG(debug) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
+        BOOST_LOG(debug) << "[ipc_session_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
       } else {
-        BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to start capture process at: " << exe_path.wstring();
+        BOOST_LOG(error) << "[ipc_session_t] Failed to start capture process at: " << exe_path.wstring();
       }
       return;
     }
-    BOOST_LOG(info) << "[wgc_ipc_session_t] Started helper process: " << exe_path.wstring();
+    BOOST_LOG(info) << "[ipc_session_t] Started helper process: " << exe_path.wstring();
 
     bool handle_received = false;
 
@@ -103,11 +94,11 @@ namespace platf::dxgi {
     };
 
     auto on_error = [](const std::string &err) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Pipe error: " << err.c_str();
+      BOOST_LOG(error) << "[ipc_session_t] Pipe error: " << err.c_str();
     };
 
     auto on_broken_pipe = [this]() {
-      BOOST_LOG(warning) << "[wgc_ipc_session_t] Broken pipe detected, forcing re-init";
+      BOOST_LOG(warning) << "[ipc_session_t] Broken pipe detected, forcing re-init";
       _force_reinit.store(true);
     };
 
@@ -115,7 +106,7 @@ namespace platf::dxgi {
 
     auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
     if (!raw_pipe) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] IPC pipe setup failed - aborting WGC session";
+      BOOST_LOG(error) << "[ipc_session_t] IPC pipe setup failed - aborting WGC session";
       cleanup();
       return;
     }
@@ -143,7 +134,7 @@ namespace platf::dxgi {
     // Convert display_name to std::string for logging
     std::wstring ws_display(config_data.display_name);
     std::string display_str(ws_display.begin(), ws_display.end());
-    BOOST_LOG(info) << "[wgc_ipc_session_t] Config data prepared: "
+    BOOST_LOG(info) << "[ipc_session_t] Config data prepared: "
                     << "hdr: " << config_data.dynamic_range
                     << ", display: '" << display_str << "'";
 
@@ -153,27 +144,27 @@ namespace platf::dxgi {
 
     _pipe->start(on_message, on_error, on_broken_pipe);
 
-    BOOST_LOG(info) << "[wgc_ipc_session_t] Waiting for handle data from helper process...";
+    BOOST_LOG(info) << "[ipc_session_t] Waiting for handle data from helper process...";
 
     auto start_time = std::chrono::steady_clock::now();
     while (!handle_received) {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
       if (std::chrono::steady_clock::now() - start_time > std::chrono::seconds(3)) {
-        BOOST_LOG(error) << "[wgc_ipc_session_t] Timed out waiting for handle data from helper process (3s)";
+        BOOST_LOG(error) << "[ipc_session_t] Timed out waiting for handle data from helper process (3s)";
         break;
       }
     }
 
     if (handle_received) {
       _initialized = true;
-      BOOST_LOG(info) << "[wgc_ipc_session_t] Successfully initialized IPC WGC capture";
+      BOOST_LOG(info) << "[ipc_session_t] Successfully initialized IPC WGC capture";
     } else {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to receive handle data from helper process! Helper is likely deadlocked!";
+      BOOST_LOG(error) << "[ipc_session_t] Failed to receive handle data from helper process! Helper is likely deadlocked!";
       cleanup();
     }
   }
 
-  void wgc_ipc_session_t::cleanup() {
+  void ipc_session_t::cleanup() {
     // Stop pipe communication first if active
     if (_pipe) {
       _pipe->stop();
@@ -200,7 +191,7 @@ namespace platf::dxgi {
     _initialized = false;
   }
 
-  void wgc_ipc_session_t::initialize_mmcss_for_thread() const {
+  void ipc_session_t::initialize_mmcss_for_thread() const {
     static thread_local bool mmcss_initialized = false;
     if (!mmcss_initialized) {
       SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
@@ -211,7 +202,7 @@ namespace platf::dxgi {
     }
   }
 
-  bool wgc_ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
+  bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
     auto start_time = std::chrono::steady_clock::now();
 
     while (true) {
@@ -231,7 +222,7 @@ namespace platf::dxgi {
     }
   }
 
-  void wgc_ipc_session_t::log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const {
+  void ipc_session_t::log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const {
     static thread_local uint32_t main_timing_log_counter = 0;
     if ((++main_timing_log_counter % 150) == 0) {
       static uint64_t qpc_freq_main = 0;
@@ -246,7 +237,7 @@ namespace platf::dxgi {
         double mutex_time_us = static_cast<double>(timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
         double total_acquire_us = static_cast<double>(timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
 
-        BOOST_LOG(info) << "[wgc_ipc_session_t] Acquire timing - "
+        BOOST_LOG(info) << "[ipc_session_t] Acquire timing - "
                         << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
                         << "Mutex: " << mutex_time_us << "μs, "
                         << "Total: " << total_acquire_us << "μs";
@@ -254,7 +245,7 @@ namespace platf::dxgi {
     }
   }
 
-  bool wgc_ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
+  bool ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
     // Add real-time scheduling hint (once per thread)
     initialize_mmcss_for_thread();
 
@@ -287,10 +278,10 @@ namespace platf::dxgi {
       _force_reinit = true;
       return false;
     } else if (hr == WAIT_TIMEOUT) {
-      BOOST_LOG(debug) << "[wgc_ipc_session_t] AcquireSync timed out waiting for frame";
+      BOOST_LOG(debug) << "[ipc_session_t] AcquireSync timed out waiting for frame";
       return false;
     } else if (hr != S_OK) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] AcquireSync failed with error: " << hr;
+      BOOST_LOG(error) << "[ipc_session_t] AcquireSync failed with error: " << hr;
       return false;
     }
 
@@ -305,7 +296,7 @@ namespace platf::dxgi {
     return true;
   }
 
-  void wgc_ipc_session_t::release() {
+  void ipc_session_t::release() {
     if (_keyed_mutex) {
       // The keyed mutex has two behaviors, traditional mutex and signal-style/ping-pong.
       // If you use a key > 0, you must first RELEASE that key, even though it was never acquired.
@@ -319,9 +310,9 @@ namespace platf::dxgi {
     }
   }
 
-  bool wgc_ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {
+  bool ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {
     if (!_device) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] No D3D11 device available for setup_shared_texture";
+      BOOST_LOG(error) << "[ipc_session_t] No D3D11 device available for setup_shared_texture";
       return false;
     }
 
@@ -331,7 +322,7 @@ namespace platf::dxgi {
     ID3D11Texture2D *raw_texture = nullptr;
     hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to open shared texture: " << hr;
+      BOOST_LOG(error) << "[ipc_session_t] Failed to open shared texture: " << hr;
       return false;
     }
 
@@ -345,7 +336,7 @@ namespace platf::dxgi {
     IDXGIKeyedMutex *raw_mutex = nullptr;
     hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "[wgc_ipc_session_t] Failed to get keyed mutex: " << hr;
+      BOOST_LOG(error) << "[ipc_session_t] Failed to get keyed mutex: " << hr;
       return false;
     }
     keyed_mutex.reset(raw_mutex);
@@ -356,7 +347,7 @@ namespace platf::dxgi {
     _width = width;
     _height = height;
 
-    BOOST_LOG(info) << "[wgc_ipc_session_t] Successfully set up shared texture: "
+    BOOST_LOG(info) << "[ipc_session_t] Successfully set up shared texture: "
                     << width << "x" << height;
     return true;
   }
