@@ -208,14 +208,6 @@ namespace platf::dxgi {
     void handle_secure_desktop_message(const std::vector<uint8_t> &msg);
 
     /**
-     * @brief Initialize MMCSS (Multimedia Class Scheduler Service) for the current thread.
-     *
-     * Sets the thread priority using MMCSS to improve capture performance and reduce latency.
-     * This is typically called before starting frame acquisition or processing.
-     */
-    void initialize_mmcss_for_thread() const;
-
-    /**
      * @brief Wait for a new frame to become available.
      *
      * Blocks until a new frame is signaled by the helper process or the timeout expires.

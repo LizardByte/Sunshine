@@ -14,8 +14,8 @@
 #include <thread>
 
 // local includes
-#include "ipc_session.h"
 #include "config.h"
+#include "ipc_session.h"
 #include "misc_utils.h"
 #include "src/logging.h"
 #include "src/platform/windows/misc.h"
@@ -78,13 +78,10 @@ namespace platf::dxgi {
     exePathBuffer.resize(strlen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
-
     if (!_process_helper->start(exe_path.wstring(), L"")) {
-      if (bool is_system = ::platf::dxgi::is_running_as_system(); is_system) {
-        BOOST_LOG(debug) << "Failed to start capture process (expected when running as service)";
-      } else {
-        BOOST_LOG(error) << "Failed to start capture process at: " << exe_path.wstring();
-      }
+      auto err = GetLastError();
+      BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
+               << " (error code: " << err << ")";
       return;
     }
 
@@ -182,16 +179,6 @@ namespace platf::dxgi {
     _initialized = false;
   }
 
-  void ipc_session_t::initialize_mmcss_for_thread() const {
-    static thread_local bool mmcss_initialized = false;
-    if (!mmcss_initialized) {
-      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-      DWORD task_idx = 0;
-      HANDLE const mmcss_handle = AvSetMmThreadCharacteristicsW(L"Games", &task_idx);
-      (void) mmcss_handle;
-      mmcss_initialized = true;
-    }
-  }
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
     auto start_time = std::chrono::steady_clock::now();
@@ -214,9 +201,6 @@ namespace platf::dxgi {
   }
 
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
-    // Add real-time scheduling hint (once per thread)
-    initialize_mmcss_for_thread();
-
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_keyed_mutex) {
       return capture_e::error;
@@ -236,9 +220,6 @@ namespace platf::dxgi {
     } else if (hr != S_OK || hr == WAIT_TIMEOUT) {
       return capture_e::error;
     }
-
-    // Reset timeout counter on successful frame
-    _timeout_count = 0;
 
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
