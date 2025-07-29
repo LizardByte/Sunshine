@@ -1,6 +1,6 @@
 {
   "_common": {
-    "apply": "Đăng ký",
+    "apply": "Áp dụng",
     "auto": "Tự động",
     "autodetect": "Phát hiện tự động (đề xuất)",
     "beta": "(phiên bản thử nghiệm)",
@@ -70,19 +70,19 @@
     "global_prep_desc": "Bật/Tắt việc thực thi các lệnh chuẩn bị toàn cầu cho ứng dụng này.",
     "global_prep_name": "Lệnh chuẩn bị toàn cầu",
     "image": "Hình ảnh",
-    "image_desc": "Đường dẫn đến biểu tượng/hình ảnh sẽ được gửi đến khách hàng. Hình ảnh phải là file PNG. Nếu không được thiết lập, Sunshine sẽ gửi hình ảnh hộp mặc định.",
+    "image_desc": "Đường dẫn đến biểu tượng/hình ảnh sẽ được gửi đến client. Hình ảnh phải là file PNG. Nếu không được thiết lập, Sunshine sẽ gửi hình ảnh mặc định.",
     "loading": "Đang tải...",
     "name": "Tên",
     "output_desc": "Tệp chứa kết quả đầu ra của lệnh. Nếu không được chỉ định, kết quả đầu ra sẽ bị bỏ qua.",
     "output_name": "Đầu ra",
-    "run_as_desc": "Điều này có thể cần thiết cho một số ứng dụng yêu cầu quyền quản trị viên để hoạt động đúng cách.",
+    "run_as_desc": "Điều này có thể cần thiết cho một số ứng dụng yêu cầu quyền quản trị viên (Administrator) để hoạt động đúng cách.",
     "wait_all": "Tiếp tục phát trực tuyến cho đến khi tất cả các tiến trình của ứng dụng kết thúc.",
-    "wait_all_desc": "Quá trình phát trực tiếp này sẽ tiếp tục cho đến khi tất cả các tiến trình được ứng dụng khởi chạy đã kết thúc. Khi tùy chọn này không được chọn, phát trực tiếp sẽ dừng lại khi tiến trình chính của ứng dụng kết thúc, ngay cả khi các tiến trình khác của ứng dụng vẫn đang chạy.",
+    "wait_all_desc": "Quá trình streaming này sẽ tiếp tục cho đến khi tất cả các tiến trình được ứng dụng khởi chạy đã kết thúc. Khi tùy chọn này không được chọn, stream sẽ dừng lại khi tiến trình chính của ứng dụng kết thúc, ngay cả khi các tiến trình khác của ứng dụng vẫn đang chạy.",
     "working_dir": "Thư mục làm việc",
     "working_dir_desc": "Thư mục làm việc cần được truyền vào quá trình. Ví dụ, một số ứng dụng sử dụng thư mục làm việc để tìm kiếm các tệp cấu hình. Nếu không được thiết lập, Sunshine sẽ mặc định sử dụng thư mục cha của lệnh."
   },
   "config": {
-    "adapter_name": "Tên bộ chuyển đổi",
+    "adapter_name": "Adapter Name",
     "adapter_name_desc_linux_1": "Chọn GPU cụ thể để sử dụng cho quá trình ghi hình.",
     "adapter_name_desc_linux_2": "Tìm tất cả các thiết bị hỗ trợ VAAPI",
     "adapter_name_desc_linux_3": "Thay thế ``renderD129`` bằng thiết bị từ trên để liệt kê tên và khả năng của thiết bị. Để được hỗ trợ bởi Sunshine, thiết bị cần phải có ít nhất:",
