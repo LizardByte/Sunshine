@@ -354,7 +354,7 @@ namespace platf::dxgi {
      * Always returns the IPC implementation for Windows.Graphics.Capture using a software encoder.
      * @param config Video configuration parameters.
      * @param display_name Name of the display to capture.
-     * @return std::shared_ptr<display_t> Shared pointer to the initialized display backend.
+     * @return Shared pointer to the initialized display backend.
      */
     static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
   };
