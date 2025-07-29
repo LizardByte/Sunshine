@@ -1137,9 +1137,8 @@ namespace video {
     // get the most up-to-date list available monitors
     std::vector<std::string> display_names;
     int display_p = -1;
-    platf::mem_type_e dev_type = encoder.platform_formats->dev_type;
-    refresh_displays(dev_type, display_names, display_p);
-    auto disp = platf::display(dev_type, display_names[display_p], capture_ctxs.front().config);
+    refresh_displays(encoder.platform_formats->dev_type, display_names, display_p);
+    auto disp = platf::display(encoder.platform_formats->dev_type, display_names[display_p], capture_ctxs.front().config);
     if (!disp) {
       return;
     }

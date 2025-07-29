@@ -32,7 +32,6 @@ typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
 #include "misc.h"
 #include "src/config.h"
 #include "src/display_device.h"
-#include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -336,17 +335,6 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-  capture_e display_base_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
-    // This is a base implementation that should be overridden by derived classes
-    BOOST_LOG(error) << "snapshot() called on base class - should be overridden by derived class";
-    return capture_e::error;
-  }
-
-  capture_e display_base_t::release_snapshot() {
-    // This is a base implementation that should be overridden by derived classes
-    BOOST_LOG(error) << "release_snapshot() called on base class - should be overridden by derived class";
-    return capture_e::error;
-  }
 
   /**
    * @brief Tests to determine if the Desktop Duplication API can capture the given output.

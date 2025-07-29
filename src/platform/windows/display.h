@@ -246,8 +246,8 @@ namespace platf::dxgi {
       return (capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? 8 : 4;
     }
 
-    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible);
-    virtual capture_e release_snapshot();
+    virtual capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) = 0;
+    virtual capture_e release_snapshot() = 0;
     virtual int complete_img(img_t *img, bool dummy) = 0;
   };
 

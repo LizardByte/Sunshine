@@ -1965,12 +1965,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wgc</td>
-        <td>Use Windows.Graphics.Capture API to capture the display. Modern, secure, and compatible with most games and overlays.
+        <td>Use Windows.Graphics.Capture API to capture the display. Captures at a constant framerate and does not freeze under high VRAM utilization.
             @note{Applies to Windows only.}</td>
     </tr>
     <tr>
         <td>ddx</td>
-        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines, but may have compatibility issues with some overlays (such as Windows Game Bar).
+        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
             @note{Applies to Windows only.}</td>
     </tr>
 </table>
