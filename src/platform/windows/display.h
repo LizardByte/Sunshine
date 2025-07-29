@@ -351,9 +351,7 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Factory method for initializing WGC RAM capture backend.
-     *
      * Always returns the IPC implementation for Windows.Graphics.Capture using a software encoder.
-     *
      * @param config Video configuration parameters.
      * @param display_name Name of the display to capture.
      * @return std::shared_ptr<display_t> Shared pointer to the initialized display backend.
