@@ -1964,14 +1964,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
-        <td>wgc</td>
-        <td>Use Windows.Graphics.Capture API to capture the display. Captures at a constant framerate and does not freeze under high VRAM utilization.
+        <td>ddx</td>
+        Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
+        <td>
             @note{Applies to Windows only.}</td>
     </tr>
     <tr>
-        <td>ddx</td>
-        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
-            @note{Applies to Windows only.}</td>
+        <td>wgc</td>
+        <td>Use Windows.Graphics.Capture to capture the display. Captures at a constant rate.
+            @note{Windows only.}
+            @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
     </tr>
 </table>
 
@@ -2187,6 +2189,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
             @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
+            @tip{Changing the capture method to Windows.Graphic.Capture also resolves this problem without any additional changes.}
         </td>
     </tr>
     <tr>
