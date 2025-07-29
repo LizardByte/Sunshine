@@ -89,7 +89,8 @@ solution would be to configure traffic shaping rules at the OS-level, so that
 only Sunshine's traffic is slowed down.
 
 Such a solution on Linux could look like that:
-```
+
+```bash
 # 1) Remove existing qdisc (pfifo_fast)
 sudo tc qdisc del dev <NIC> root
 
