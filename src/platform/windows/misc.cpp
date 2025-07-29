@@ -1,4 +1,3 @@
-
 /**
  * @file src/platform/windows/misc.cpp
  * @brief Miscellaneous definitions for Windows.
