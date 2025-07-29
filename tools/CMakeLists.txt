@@ -35,7 +35,7 @@ add_executable(sunshine_wgc_capture
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/pipes.cpp
         ${CMAKE_SOURCE_DIR}/src/platform/windows/ipc/misc_utils.cpp
         ${CMAKE_SOURCE_DIR}/src/logging.cpp)
-set_target_properties(sunshine_wgc_capture PROPERTIES CXX_STANDARD 20)
+set_target_properties(sunshine_wgc_capture PROPERTIES CXX_STANDARD 23)
 
 # Define helper build flag to conditionally compile logging
 target_compile_definitions(sunshine_wgc_capture PRIVATE
