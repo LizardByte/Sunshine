@@ -524,7 +524,10 @@ namespace platf::dxgi {
 
     if (waitResult == WAIT_OBJECT_0) {
       if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
-        BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << GetLastError();
+        DWORD err = GetLastError();
+        if (err != ERROR_OPERATION_ABORTED) {
+          BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << err;
+        }
         return false;
       }
       return true;
@@ -591,8 +594,11 @@ namespace platf::dxgi {
       } else {
         DWORD overlappedErr = GetLastError();
         if (overlappedErr == ERROR_BROKEN_PIPE) {
-          BOOST_LOG(warning) << "Pipe broken during receive operation (ERROR_BROKEN_PIPE)";
+          BOOST_LOG(warning) << "IPC between Sunshine was severed, did the capture process crash?";
           return BrokenPipe;
+        }
+        if (overlappedErr == ERROR_OPERATION_ABORTED) {
+          return Disconnected;
         }
         BOOST_LOG(error) << "GetOverlappedResult failed in receive, error=" << overlappedErr;
         return Error;
@@ -675,7 +681,10 @@ namespace platf::dxgi {
       if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
         _connected = true;
       } else {
-        BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
+        DWORD err = GetLastError();
+        if (err != ERROR_OPERATION_ABORTED) {
+          BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << err;
+        }
       }
     } else if (waitResult == WAIT_TIMEOUT) {
       BOOST_LOG(error) << "ConnectNamedPipe timeout after " << (milliseconds > 0 ? milliseconds : 5000) << "ms";
