@@ -458,7 +458,6 @@ public:
    * Calls create_device() to create a D3D11 device and context, then create_winrt_interop() to create the WinRT interop device.
    *
    * @return true if both device and interop device are successfully created, false otherwise.
-   * @sideeffect Allocates and stores device, context, and WinRT device handles.
    */
   bool initialize_all() {
     return create_device() && create_winrt_interop();
@@ -469,7 +468,6 @@ public:
    *
    * Resets the device and context smart pointers. Most cleanup is handled by RAII.
    * Safe to call multiple times.
-   * @sideeffect Releases device and context COM objects.
    */
   void cleanup() noexcept {
     // RAII handles cleanup automatically
@@ -1445,11 +1443,10 @@ int main(int argc, char *argv[]) {
   }
 
   // Debug: Verify system settings
-  BOOST_LOG(info) << "System initialization successful";
-  BOOST_LOG(debug) << "DPI awareness set: " << (system_initializer.is_dpi_awareness_set() ? "YES" : "NO");
-  BOOST_LOG(debug) << "Thread priority set: " << (system_initializer.is_thread_priority_set() ? "YES" : "NO");
-  BOOST_LOG(debug) << "GPU scheduling priority set: " << (system_initializer.is_gpu_priority_set() ? "YES" : "NO");
-  BOOST_LOG(debug) << "MMCSS characteristics set: " << (system_initializer.is_mmcss_characteristics_set() ? "YES" : "NO");
+  BOOST_LOG(info) << "DPI awareness set: " << (system_initializer.is_dpi_awareness_set() ? "YES" : "NO");
+  BOOST_LOG(info) << "Thread priority set: " << (system_initializer.is_thread_priority_set() ? "YES" : "NO");
+  BOOST_LOG(info) << "GPU scheduling priority set: " << (system_initializer.is_gpu_priority_set() ? "YES" : "NO");
+  BOOST_LOG(info) << "MMCSS characteristics set: " << (system_initializer.is_mmcss_characteristics_set() ? "YES" : "NO");
 
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
