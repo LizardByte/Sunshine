@@ -18,8 +18,6 @@
 #include <vector>
 #include <Windows.h>
 
-// --- End of all class and function definitions ---
-// Note: The base send() method will be implemented directly in WinPipe
 
 namespace platf::dxgi {
 
@@ -44,7 +42,6 @@ namespace platf::dxgi {
     return wstrTo;
   }
 
-  // Helper to initialize a security descriptor and build its DACL from explicit ACEs.
   bool init_sd_with_explicit_aces(SECURITY_DESCRIPTOR &desc, std::vector<EXPLICIT_ACCESS> &eaList, PACL *out_pacl) {
     if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
       return false;
@@ -119,12 +116,8 @@ namespace platf::dxgi {
     }
 
     auto tokenBuffer = std::make_unique<uint8_t[]>(len);
-#if __cpp_lib_launder
-    tokenUser.reset(std::launder(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release())));
-#else
-    // reinterpret_cast is safe here because the buffer is allocated to fit TOKEN_USER
     tokenUser.reset(reinterpret_cast<TOKEN_USER *>(tokenBuffer.release()));
-#endif
+
     if (!tokenUser || !GetTokenInformation(tokenHandle, TokenUser, tokenUser.get(), len, &len)) {
       BOOST_LOG(error) << "GetTokenInformation (fetch) failed in create_security_descriptor, error=" << GetLastError();
       return false;
@@ -192,8 +185,6 @@ namespace platf::dxgi {
     return true;
   }
 
-  // --- NamedPipeFactory Implementation ---
-
   std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName) {
     BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "'";
     auto wPipeBase = utf8_to_wide(pipeName);
@@ -258,7 +249,6 @@ namespace platf::dxgi {
     return pipeObj;
   }
 
-  // Helper function to create client pipe with retry logic
   safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeName) const {
     const auto kTimeoutEnd = GetTickCount64() + 2000;  // 2s overall timeout instead of 5s for faster failure
     safe_handle hPipe;
@@ -502,7 +492,6 @@ namespace platf::dxgi {
     return wide_to_utf8(wstr);
   }
 
-  // --- WinPipe Implementation ---
   WinPipe::WinPipe(HANDLE pipe, bool isServer):
       _pipe(pipe),
       _is_server(isServer) {
@@ -515,7 +504,7 @@ namespace platf::dxgi {
   WinPipe::~WinPipe() {
     try {
       WinPipe::disconnect();
-    } catch (const std::exception& ex) {
+    } catch (const std::exception &ex) {
       BOOST_LOG(error) << "Exception in WinPipe destructor: " << ex.what();
     } catch (...) {
       BOOST_LOG(error) << "Unknown exception in WinPipe destructor.";
@@ -741,7 +730,6 @@ namespace platf::dxgi {
     }
   }
 
-  // --- AsyncNamedPipe Implementation ---
   AsyncNamedPipe::AsyncNamedPipe(std::unique_ptr<INamedPipe> pipe):
       _pipe(std::move(pipe)) {
   }
@@ -828,11 +816,10 @@ namespace platf::dxgi {
     using namespace std::chrono_literals;
     using enum platf::dxgi::PipeResult;
 
+    // No need to add a sleep here: _pipe->receive() blocks until data arrives or times out, so messages are delivered to callbacks as soon as they are available.
     while (_running.load(std::memory_order_acquire)) {
       std::vector<uint8_t> message;
-      // The timeout here is why we don't need a sleep each loop.
-      // Eventually the message queue empties and its forced to wait.
-      PipeResult res = _pipe->receive(message, 1000);  // 1 s timeout
+      PipeResult res = _pipe->receive(message, 1000);
 
       // Fast cancel – bail out even before decoding res
       if (!_running.load(std::memory_order_acquire)) {

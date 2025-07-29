@@ -42,7 +42,7 @@ namespace platf::dxgi {
     /**
      * Start the helper process and set up IPC connection on demand.
      */
-    void lazy_init();
+    void initialize_if_needed();
 
     /**
      * Clean up all resources.
@@ -53,9 +53,8 @@ namespace platf::dxgi {
      * Blocking acquire of the next frame.
      * @param timeout Maximum time to wait for frame
      * @param gpu_tex_out Output parameter for the GPU texture pointer
-     * @return true on success, false on timeout/error
      */
-    bool acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out);
+    capture_e acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out);
 
     /**
      * Release the keyed mutex and send heartbeat to helper process.

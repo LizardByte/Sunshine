@@ -3,13 +3,13 @@
  * @brief Refactored WGC IPC display implementations using shared session helper.
  */
 
+#include "ipc/ipc_session.h"
+#include "ipc/misc_utils.h"  // for is_secure_desktop_active
 #include "src/logging.h"
 #include "src/platform/windows/display.h"
 #include "src/platform/windows/display_vram.h"  // for img_d3d_t
 #include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
 #include "src/utility.h"  // for util::hex
-#include "ipc/misc_utils.h"  // for is_secure_desktop_active
-#include "ipc/ipc_session.h"
 
 #include <algorithm>
 #include <chrono>
@@ -17,22 +17,18 @@
 
 namespace platf::dxgi {
 
-  // ===== VRAM Implementation =====
-
   display_wgc_ipc_vram_t::display_wgc_ipc_vram_t() = default;
 
   display_wgc_ipc_vram_t::~display_wgc_ipc_vram_t() {
-    if (_session) {
-      _session->cleanup();
+    if (_ipc_session) {
+      _ipc_session->cleanup();
     }
   }
 
   int display_wgc_ipc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
-    // Save config for later use
     _config = config;
     _display_name = display_name;
 
-    // Initialize the base display class
     if (display_base_t::init(config, display_name)) {
       return -1;
     }
@@ -40,55 +36,37 @@ namespace platf::dxgi {
     capture_format = DXGI_FORMAT_UNKNOWN;  // Start with unknown format (prevents race condition/crash on first frame)
 
     // Create session
-    _session = std::make_unique<ipc_session_t>();
-    if (_session->init(config, display_name, device.get())) {
+    _ipc_session = std::make_unique<ipc_session_t>();
+    if (_ipc_session->init(config, display_name, device.get())) {
       return -1;
     }
 
     return 0;
   }
 
-  void display_wgc_ipc_vram_t::lazy_init() {
-    if (_session) {
-      _session->lazy_init();
-
-      // For VRAM implementation, we should NOT propagate session properties to base class
-      // The base class should keep the configured dimensions (what encoder expects)
-      if (_session->is_initialized() && !_session_initialized_logged) {
-        BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Session initialized: "
-                        << "capture=" << _session->width() << "x" << _session->height()
-                        << ", target=" << width << "x" << height;
-
-        // If we don't update these before snapshot() is called, it could cause a stack overflow of reinits.
-        width_before_rotation = _session->width();
-        height_before_rotation = _session->height();
-
-        _session_initialized_logged = true;
-      }
-    }
-  }
-
-  capture_e display_wgc_ipc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible)  {
-    if (!_session) {
+  capture_e display_wgc_ipc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    if (!_ipc_session) {
       return capture_e::error;
     }
 
-    // Check if secure desktop swap was triggered by helper process
-    if (_session->should_swap_to_dxgi()) {
+    // We return capture::reinit for most scenarios because the logic in picking which mode to capture is all handled in the factory function.
+
+    if (_ipc_session->should_swap_to_dxgi()) {
       return capture_e::reinit;
     }
 
     // Check if forced reinit was triggered by helper process issues (such as process closed or crashed)
-    if (_session->should_reinit()) {
+    if (_ipc_session->should_reinit()) {
       return capture_e::reinit;
     }
 
-    lazy_init();
-    if (!_session->is_initialized()) {
+    _ipc_session->initialize_if_needed();
+    if (!_ipc_session->is_initialized()) {
       return capture_e::error;
     }
 
-    // Implement complete snapshot logic like other display backends
+    // Most of the code below is copy and pasted from display_vram_t with some elements removed such as cursor blending.
+
     texture2d_t src;
     uint64_t frame_qpc;
 
@@ -171,7 +149,7 @@ namespace platf::dxgi {
   }
 
   capture_e display_wgc_ipc_vram_t::acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) {
-    if (!_session) {
+    if (!_ipc_session) {
       return capture_e::error;
     }
 
@@ -179,11 +157,11 @@ namespace platf::dxgi {
     // This is more reliable than trying to get the timestamp from the external process, since the pipe may have many queued frames.
     frame_qpc = qpc_counter();
     ID3D11Texture2D *gpu_tex = nullptr;
-    if (!_session->acquire(timeout, gpu_tex)) {
-      return capture_e::timeout;
-    }
+    auto status = _ipc_session->acquire(timeout, gpu_tex);
 
-    // We have to capture
+    if (status != capture_e::ok) {
+      return status;
+    }
 
     // Wrap the texture with our safe_ptr wrapper
     src.reset(gpu_tex);
@@ -192,16 +170,22 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-  capture_e display_wgc_ipc_vram_t::release_snapshot()  {
-    if (_session) {
-      _session->release();
+  capture_e display_wgc_ipc_vram_t::release_snapshot() {
+    if (_ipc_session) {
+      _ipc_session->release();
     }
     return capture_e::ok;
   }
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
-    // Always use DXGI fallback for dummy_img
-    BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Always using DXGI fallback for dummy_img";
+    _ipc_session->initialize_if_needed();
+
+    // In certain scenarios (e.g., Windows login screen or when no user session is active),
+    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
+    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
+    if (_ipc_session->is_initialized()) {
+      return display_vram_t::complete_img(img_base, true);
+    }
 
     auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
@@ -217,14 +201,14 @@ namespace platf::dxgi {
 
     if (platf::dxgi::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
-      BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
+      BOOST_LOG(debug) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
       auto disp = std::make_shared<temp_dxgi_vram_t>();
       if (!disp->init(config, display_name)) {
         return disp;
       }
     } else {
       // Secure desktop not active, use WGC IPC
-      BOOST_LOG(info) << "Using WGC IPC implementation (VRAM)";
+      BOOST_LOG(debug) << "Using WGC IPC implementation (VRAM)";
       auto disp = std::make_shared<display_wgc_ipc_vram_t>();
       if (!disp->init(config, display_name)) {
         return disp;
@@ -234,13 +218,11 @@ namespace platf::dxgi {
     return nullptr;
   }
 
-  // ===== RAM Implementation =====
-
   display_wgc_ipc_ram_t::display_wgc_ipc_ram_t() = default;
 
   display_wgc_ipc_ram_t::~display_wgc_ipc_ram_t() {
-    if (_session) {
-      _session->cleanup();
+    if (_ipc_session) {
+      _ipc_session->cleanup();
     }
   }
 
@@ -261,55 +243,40 @@ namespace platf::dxgi {
     height_before_rotation = config.height;
 
     // Create session
-    _session = std::make_unique<ipc_session_t>();
-    if (_session->init(config, display_name, device.get())) {
+    _ipc_session = std::make_unique<ipc_session_t>();
+    if (_ipc_session->init(config, display_name, device.get())) {
       return -1;
     }
 
     return 0;
   }
 
-  void display_wgc_ipc_ram_t::lazy_init() {
-    if (_session) {
-      _session->lazy_init();
-
-      // For RAM implementation, we should NOT propagate session properties to base class
-      // The base class should keep the configured dimensions (what encoder expects)
-      // The session captures at higher resolution and we'll handle scaling during copy
-      if (_session->is_initialized() && !_session_initialized_logged) {
-        BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Session initialized: "
-                        << "capture=" << _session->width() << "x" << _session->height()
-                        << ", target=" << width << "x" << height;
-        _session_initialized_logged = true;
-      }
-    }
-  }
-
   capture_e display_wgc_ipc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
-    if (!_session) {
+    if (!_ipc_session) {
       return capture_e::error;
     }
 
-    // Check if secure desktop swap was triggered by helper process
-    if (_session->should_swap_to_dxgi()) {
+    if (_ipc_session->should_swap_to_dxgi()) {
       return capture_e::reinit;
     }
 
     // If the helper process crashed or was terminated forcefully by the user, we will re-initialize it.
-    if (_session->should_reinit()) {
+    if (_ipc_session->should_reinit()) {
       return capture_e::reinit;
     }
 
-    lazy_init();
-    // Strengthen error detection: check all required resources
-    if (!_session->is_initialized()) {
+    _ipc_session->initialize_if_needed();
+    if (!_ipc_session->is_initialized()) {
       return capture_e::error;
     }
 
     ID3D11Texture2D *gpu_tex = nullptr;
-    if (!_session->acquire(timeout, gpu_tex)) {
-      return capture_e::timeout;  // or error
+    auto status = _ipc_session->acquire(timeout, gpu_tex);
+
+    if(status != capture_e::ok){
+      return status;
     }
+
 
     auto frame_qpc = qpc_counter();
 
@@ -334,14 +301,14 @@ namespace platf::dxgi {
     // Check for size changes
     if (desc.Width != width || desc.Height != height) {
       BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Capture size changed [" << width << 'x' << height << " -> " << desc.Width << 'x' << desc.Height << ']';
-      _session->release();
+      _ipc_session->release();
       return capture_e::reinit;
     }
 
     // Check for format changes
     if (capture_format != desc.Format) {
       BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Capture format changed [" << dxgi_format_to_string(capture_format) << " -> " << dxgi_format_to_string(desc.Format) << ']';
-      _session->release();
+      _ipc_session->release();
       return capture_e::reinit;
     }
 
@@ -364,7 +331,7 @@ namespace platf::dxgi {
       auto hr = device->CreateTexture2D(&t, nullptr, &texture);
       if (FAILED(hr)) {
         BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to create staging texture: " << hr;
-        _session->release();
+        _ipc_session->release();
         return capture_e::error;
       }
 
@@ -381,7 +348,7 @@ namespace platf::dxgi {
 
     // Get a free image from the pool
     if (!pull_free_image_cb(img_out)) {
-      _session->release();
+      _ipc_session->release();
       return capture_e::interrupted;
     }
 
@@ -392,7 +359,7 @@ namespace platf::dxgi {
       BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image";
 
       if (dummy_img(img)) {
-        _session->release();
+        _ipc_session->release();
         return capture_e::error;
       }
     } else {
@@ -400,7 +367,7 @@ namespace platf::dxgi {
       auto hr = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
       if (FAILED(hr)) {
         BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to map staging texture: " << hr;
-        _session->release();
+        _ipc_session->release();
         return capture_e::error;
       }
 
@@ -408,7 +375,7 @@ namespace platf::dxgi {
       if (complete_img(img, false)) {
         device_ctx->Unmap(texture.get(), 0);
         img_info.pData = nullptr;
-        _session->release();
+        _ipc_session->release();
         return capture_e::error;
       }
 
@@ -425,10 +392,9 @@ namespace platf::dxgi {
     auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
     img->frame_timestamp = frame_timestamp;
 
-    _session->release();
+    _ipc_session->release();
     return capture_e::ok;
   }
-
 
   capture_e display_wgc_ipc_ram_t::release_snapshot() {
     // Not used in RAM path since we handle everything in snapshot()
@@ -436,14 +402,20 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
-    // Always use DXGI fallback for dummy_img
-    BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Always using DXGI fallback for dummy_img";
+    _ipc_session->initialize_if_needed();
+
+    // In certain scenarios (e.g., Windows login screen or when no user session is active),
+    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
+    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
+    if (_ipc_session->is_initialized()) {
+      return display_ram_t::complete_img(img_base, true);
+    }
 
     auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
       return temp_dxgi->dummy_img(img_base);
     } else {
-      BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to initialize DXGI fallback for dummy_img";
+      BOOST_LOG(error) << "Failed to initialize DXGI fallback for dummy image check there may be no displays available.";
       return -1;
     }
   }
@@ -453,14 +425,14 @@ namespace platf::dxgi {
 
     if (platf::dxgi::is_secure_desktop_active()) {
       // Secure desktop is active, use DXGI fallback
-      BOOST_LOG(info) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
+      BOOST_LOG(debug) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
       auto disp = std::make_shared<temp_dxgi_ram_t>();
       if (!disp->init(config, display_name)) {
         return disp;
       }
     } else {
       // Secure desktop not active, use WGC IPC
-      BOOST_LOG(info) << "Using WGC IPC implementation (RAM)";
+      BOOST_LOG(debug) << "Using WGC IPC implementation (RAM)";
       auto disp = std::make_shared<display_wgc_ipc_ram_t>();
       if (!disp->init(config, display_name)) {
         return disp;
@@ -477,7 +449,7 @@ namespace platf::dxgi {
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
       if (!platf::dxgi::is_secure_desktop_active()) {
-        BOOST_LOG(info) << "[temp_dxgi_vram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
+        BOOST_LOG(debug) << "DXGI Capture is no longer necessary, swapping back to WGC!";
         return capture_e::reinit;
       }
     }
@@ -491,7 +463,7 @@ namespace platf::dxgi {
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
       _last_check_time = now;
       if (!platf::dxgi::is_secure_desktop_active()) {
-        BOOST_LOG(info) << "[temp_dxgi_ram_t] Secure desktop no longer active, returning reinit to trigger factory re-selection";
+        BOOST_LOG(debug) << "DXGI Capture is no longer necessary, swapping back to WGC!";
         return capture_e::reinit;
       }
     }

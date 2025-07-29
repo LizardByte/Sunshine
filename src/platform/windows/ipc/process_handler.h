@@ -2,20 +2,53 @@
 #include <string>
 #include <windows.h>
 
+/**
+ * @brief Handles launching, waiting, and terminating a Windows process.
+ *
+ * Provides methods to start a process, wait for its completion, terminate it, and clean up resources.
+ */
 class ProcessHandler {
 public:
-    // Starts a process with the given application path and arguments.
-    // Returns true on success, false on failure.
+    /**
+     * @brief Starts a process with the given application path and arguments.
+     *
+     * - Launches the specified application with provided arguments.
+     *
+     * - Initializes process information for later management.
+     *
+     * @param application The full path to the executable to launch.
+     *
+     * @param arguments The command-line arguments to pass to the process.
+     *
+     * @returns true if the process was started successfully, false otherwise.
+     */
     bool start(const std::wstring& application, std::wstring_view arguments);
 
-    // Waits for the process to finish and returns the exit code.
-    // Returns true if the process finished successfully, false otherwise.
+    /**
+     * @brief Waits for the process to finish and retrieves its exit code.
+     *
+     * - Waits for the launched process to exit.
+     *
+     * - Retrieves the exit code of the process.
+     *
+     * @param exitCode Reference to a DWORD to receive the process exit code.
+     *
+     * @returns true if the process finished successfully, false otherwise.
+     */
     bool wait(DWORD& exitCode);
 
-    // Terminates the process if running.
+    /**
+     * @brief Terminates the process if it is running.
+     *
+     * - Checks if the process is active.
+     *
+     * - Attempts to terminate the process.
+     */
     void terminate();
 
-    // Cleans up handles.
+    /**
+     * @brief Cleans up process handles and resources.
+     */
     ~ProcessHandler();
 
 private:

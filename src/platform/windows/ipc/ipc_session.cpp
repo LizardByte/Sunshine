@@ -57,7 +57,7 @@ namespace platf::dxgi {
     return 0;
   }
 
-  void ipc_session_t::lazy_init() {
+  void ipc_session_t::initialize_if_needed() {
     if (_initialized) {
       return;
     }
@@ -222,67 +222,29 @@ namespace platf::dxgi {
     }
   }
 
-  void ipc_session_t::log_timing_diagnostics(uint64_t timestamp_before_wait, uint64_t timestamp_after_wait, uint64_t timestamp_after_mutex) const {
-    static thread_local uint32_t main_timing_log_counter = 0;
-    if ((++main_timing_log_counter % 150) == 0) {
-      static uint64_t qpc_freq_main = 0;
-      if (qpc_freq_main == 0) {
-        LARGE_INTEGER freq;
-        QueryPerformanceFrequency(&freq);
-        qpc_freq_main = freq.QuadPart;
-      }
 
-      if (qpc_freq_main > 0) {
-        double wait_time_us = static_cast<double>(timestamp_after_wait - timestamp_before_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
-        double mutex_time_us = static_cast<double>(timestamp_after_mutex - timestamp_after_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
-        double total_acquire_us = static_cast<double>(timestamp_after_mutex - timestamp_before_wait) * 1000000.0 / static_cast<double>(qpc_freq_main);
-
-        BOOST_LOG(info) << "[ipc_session_t] Acquire timing - "
-                        << "Wait: " << std::fixed << std::setprecision(1) << wait_time_us << "μs, "
-                        << "Mutex: " << mutex_time_us << "μs, "
-                        << "Total: " << total_acquire_us << "μs";
-      }
-    }
-  }
-
-  bool ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
+  capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
     // Add real-time scheduling hint (once per thread)
     initialize_mmcss_for_thread();
 
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_keyed_mutex) {
-      return false;
+      return capture_e::error;
     }
-
-    // Wait for new frame via async pipe messages
-    // Timestamp #1: Before waiting for frame
-    uint64_t timestamp_before_wait = qpc_counter();
 
     if (bool frame_available = wait_for_frame(timeout); !frame_available) {
-      return false;
+      return capture_e::timeout;
     }
 
-    // Timestamp #2: Immediately after frame becomes available
-    uint64_t timestamp_after_wait = qpc_counter();
-
-    // Always use 200ms timeout for mutex
-    constexpr DWORD MUTEX_TIMEOUT_MS = 200;
-
-    HRESULT hr = _keyed_mutex->AcquireSync(1, MUTEX_TIMEOUT_MS);
-    // Timestamp #3: After _keyed_mutex->AcquireSync succeeds
-    uint64_t timestamp_after_mutex = qpc_counter();
+    HRESULT hr = _keyed_mutex->AcquireSync(1, 200);
 
     if (hr == WAIT_ABANDONED) {
       BOOST_LOG(error) << "Helper process abandoned the keyed mutex, implying it may have crashed or was forcefully terminated.";
       _should_swap_to_dxgi = false;  // Don't swap to DXGI, just reinit
       _force_reinit = true;
-      return false;
-    } else if (hr == WAIT_TIMEOUT) {
-      BOOST_LOG(debug) << "[ipc_session_t] AcquireSync timed out waiting for frame";
-      return false;
-    } else if (hr != S_OK) {
-      BOOST_LOG(error) << "[ipc_session_t] AcquireSync failed with error: " << hr;
-      return false;
+      return capture_e::reinit;
+    } else if (hr != S_OK || hr == WAIT_TIMEOUT) {
+      return capture_e::error;
     }
 
     // Reset timeout counter on successful frame
@@ -291,9 +253,7 @@ namespace platf::dxgi {
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
 
-    // Log high-precision timing deltas every 150 frames for main process timing
-    log_timing_diagnostics(timestamp_before_wait, timestamp_after_wait, timestamp_after_mutex);
-    return true;
+    return capture_e::ok;
   }
 
   void ipc_session_t::release() {
