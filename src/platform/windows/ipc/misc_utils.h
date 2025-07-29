@@ -1,19 +1,27 @@
+
 /**
- * @file src/platform/windows/ipc/misc_utils.h
- * @brief Minimal utility functions for WGC helper without heavy dependencies
+ * @file misc_utils.h
+ * @brief Minimal utility functions for WGC helper without heavy dependencies.
+ *
+ * This header provides RAII wrappers and utility types for Windows-specific IPC and resource management
+ * in the DXGI platform layer, with minimal dependencies. It includes safe handle management, memory views,
+ * COM object wrappers, and helpers for process and security token operations.
  */
 #pragma once
 
-// Windows headers must come first to avoid ordering issues
+// standard includes
+#include <cstdint>
+#include <string>
+
+// local includes
+#include "src/utility.h"
+
+// platform includes
 #ifdef _WIN32
   #include <windows.h>
 #endif
-
-#include "src/utility.h"
-
 #include <avrt.h>
-#include <cstdint>
-#include <string>
+#include <tlhelp32.h>
 
 namespace platf::dxgi {
 

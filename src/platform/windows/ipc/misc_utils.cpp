@@ -1,13 +1,18 @@
 /**
- * @file src/platform/windows/ipc/misc_utils.cpp
- * @brief Minimal utility functions for WGC helper without heavy dependencies
+ * @file misc_utils.cpp
+ * @brief Helper functions for Windows platform IPC and process management.
+ *
+ * This file contains utility functions and RAII helpers to minimize dependencies for the sunshine_wgc_capture tool.
+ * Functions include process checks, token management, DACL handling, and secure desktop detection.
  */
 
+// local includes
 #include "misc_utils.h"
 
-#include <sddl.h>
-#include <tlhelp32.h>
+// platform includes
 #include <windows.h>
+#include <tlhelp32.h>
+#include <sddl.h>
 #include <wtsapi32.h>
 
 namespace platf::dxgi {

@@ -1,5 +1,5 @@
 /**
- * @file tools/sunshine_wgc_capture.cpp
+ * @file sunshine_wgc_capture.cpp
  * @brief Windows Graphics Capture helper process for Sunshine.
  *
  * This standalone executable provides Windows Graphics Capture functionality
@@ -9,26 +9,31 @@
  */
 
 #define WIN32_LEAN_AND_MEAN
+
+// standard includes
+#include <atomic>
+#include <boost/format.hpp>
+#include <chrono>
+#include <condition_variable>
+#include <deque>
+#include <iomanip>  // for std::fixed, std::setprecision
+#include <iostream>
+#include <mutex>
+#include <queue>
+#include <string>
+#include <thread>
+
+// local includes
 #include "src/logging.h"
 #include "src/platform/windows/ipc/misc_utils.h"
 #include "src/platform/windows/ipc/pipes.h"
 #include "src/utility.h"  // For RAII utilities
 
-#include <atomic>
-#include <boost/format.hpp>
-#include <chrono>
-#include <condition_variable>
+// platform includes
 #include <d3d11.h>
-#include <deque>
 #include <dxgi1_2.h>
 #include <inspectable.h>  // For IInspectable
-#include <iomanip>  // for std::fixed, std::setprecision
-#include <iostream>
-#include <mutex>
-#include <queue>
 #include <ShellScalingApi.h>  // For DPI awareness
-#include <string>
-#include <thread>
 #include <Windows.Graphics.Capture.Interop.h>
 #include <Windows.h>
 #include <winrt/base.h>
