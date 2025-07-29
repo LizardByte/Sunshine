@@ -781,8 +781,6 @@ public:
       return false;
     }
 
-    BOOST_LOG(info) << "Created shared texture: " << _width << "x" << _height
-                    << ", handle: " << std::hex << reinterpret_cast<std::uintptr_t>(_shared_handle) << std::dec;
     return true;
   }
 

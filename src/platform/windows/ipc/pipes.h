@@ -327,13 +327,6 @@ namespace platf::dxgi {
     bool create_system_sid(safe_sid &system_sid) const;
 
     /**
-     * @brief Logs a SID for debugging purposes.
-     * @param sid The SID to log.
-     * @param sidType String describing the SID type.
-     */
-    void log_sid_for_debugging(PSID sid, const std::string &sidType) const;
-
-    /**
      * @brief Builds an access control list for the pipe.
      * @param isSystem True if for system, false for user.
      * @param desc Reference to a SECURITY_DESCRIPTOR.

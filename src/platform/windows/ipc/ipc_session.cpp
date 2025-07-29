@@ -12,7 +12,6 @@
 #include <avrt.h>
 #include <chrono>
 #include <filesystem>
-#include <iomanip>
 #include <string_view>
 #include <thread>
 
@@ -22,9 +21,6 @@ namespace platf::dxgi {
     if (msg.size() == sizeof(shared_handle_data_t)) {
       shared_handle_data_t handle_data;
       memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
-      BOOST_LOG(info) << "[ipc_session_t] Received handle data: " << std::hex
-                      << reinterpret_cast<uintptr_t>(handle_data.texture_handle) << std::dec
-                      << ", " << handle_data.width << "x" << handle_data.height;
       if (setup_shared_texture(handle_data.texture_handle, handle_data.width, handle_data.height)) {
         handle_received = true;
       }
@@ -40,7 +36,7 @@ namespace platf::dxgi {
   void ipc_session_t::handle_secure_desktop_message(const std::vector<uint8_t> &msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
       // secure desktop detected
-      BOOST_LOG(info) << "[ipc_session_t] WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
+      BOOST_LOG(info) << "WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
       _should_swap_to_dxgi = true;
     }
   }
@@ -64,7 +60,7 @@ namespace platf::dxgi {
 
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      BOOST_LOG(debug) << "[ipc_session_t] Cannot lazy_init without proper initialization";
+      BOOST_LOG(debug) << "Cannot lazy_init without proper initialization";
       return;
     }
 
@@ -77,13 +73,12 @@ namespace platf::dxgi {
 
     if (!_process_helper->start(exe_path.wstring(), L"")) {
       if (bool is_system = ::platf::dxgi::is_running_as_system(); is_system) {
-        BOOST_LOG(debug) << "[ipc_session_t] Failed to start capture process at: " << exe_path.wstring() << " (this is expected when running as service)";
+        BOOST_LOG(debug) << "Failed to start capture process (expected when running as service)";
       } else {
-        BOOST_LOG(error) << "[ipc_session_t] Failed to start capture process at: " << exe_path.wstring();
+        BOOST_LOG(error) << "Failed to start capture process at: " << exe_path.wstring();
       }
       return;
     }
-    BOOST_LOG(info) << "[ipc_session_t] Started helper process: " << exe_path.wstring();
 
     bool handle_received = false;
 
@@ -94,11 +89,11 @@ namespace platf::dxgi {
     };
 
     auto on_error = [](const std::string &err) {
-      BOOST_LOG(error) << "[ipc_session_t] Pipe error: " << err.c_str();
+      BOOST_LOG(error) << "Pipe error: " << err.c_str();
     };
 
     auto on_broken_pipe = [this]() {
-      BOOST_LOG(warning) << "[ipc_session_t] Broken pipe detected, forcing re-init";
+      BOOST_LOG(warning) << "Broken pipe detected, forcing re-init";
       _force_reinit.store(true);
     };
 
@@ -106,7 +101,7 @@ namespace platf::dxgi {
 
     auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
     if (!raw_pipe) {
-      BOOST_LOG(error) << "[ipc_session_t] IPC pipe setup failed - aborting WGC session";
+      BOOST_LOG(error) << "IPC pipe setup failed - aborting WGC session";
       cleanup();
       return;
     }
@@ -131,35 +126,23 @@ namespace platf::dxgi {
     std::vector<uint8_t> config_message(sizeof(config_data_t));
     memcpy(config_message.data(), &config_data, sizeof(config_data_t));
 
-    // Convert display_name to std::string for logging
-    std::wstring ws_display(config_data.display_name);
-    std::string display_str(ws_display.begin(), ws_display.end());
-    BOOST_LOG(info) << "[ipc_session_t] Config data prepared: "
-                    << "hdr: " << config_data.dynamic_range
-                    << ", display: '" << display_str << "'";
-
-    BOOST_LOG(info) << "sending config to helper";
-
     _pipe->send(config_message);
 
     _pipe->start(on_message, on_error, on_broken_pipe);
-
-    BOOST_LOG(info) << "[ipc_session_t] Waiting for handle data from helper process...";
 
     auto start_time = std::chrono::steady_clock::now();
     while (!handle_received) {
       std::this_thread::sleep_for(std::chrono::milliseconds(5));
       if (std::chrono::steady_clock::now() - start_time > std::chrono::seconds(3)) {
-        BOOST_LOG(error) << "[ipc_session_t] Timed out waiting for handle data from helper process (3s)";
+        BOOST_LOG(error) << "Timed out waiting for handle data from helper process (3s)";
         break;
       }
     }
 
     if (handle_received) {
       _initialized = true;
-      BOOST_LOG(info) << "[ipc_session_t] Successfully initialized IPC WGC capture";
     } else {
-      BOOST_LOG(error) << "[ipc_session_t] Failed to receive handle data from helper process! Helper is likely deadlocked!";
+      BOOST_LOG(error) << "Failed to receive handle data from helper process! Helper is likely deadlocked!";
       cleanup();
     }
   }
@@ -271,7 +254,7 @@ namespace platf::dxgi {
 
   bool ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {
     if (!_device) {
-      BOOST_LOG(error) << "[ipc_session_t] No D3D11 device available for setup_shared_texture";
+      BOOST_LOG(error) << "No D3D11 device available for setup_shared_texture";
       return false;
     }
 
@@ -281,7 +264,7 @@ namespace platf::dxgi {
     ID3D11Texture2D *raw_texture = nullptr;
     hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "[ipc_session_t] Failed to open shared texture: " << hr;
+      BOOST_LOG(error) << "Failed to open shared texture: " << hr;
       return false;
     }
 
@@ -295,7 +278,7 @@ namespace platf::dxgi {
     IDXGIKeyedMutex *raw_mutex = nullptr;
     hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "[ipc_session_t] Failed to get keyed mutex: " << hr;
+      BOOST_LOG(error) << "Failed to get keyed mutex: " << hr;
       return false;
     }
     keyed_mutex.reset(raw_mutex);
@@ -306,8 +289,6 @@ namespace platf::dxgi {
     _width = width;
     _height = height;
 
-    BOOST_LOG(info) << "[ipc_session_t] Successfully set up shared texture: "
-                    << width << "x" << height;
     return true;
   }
 

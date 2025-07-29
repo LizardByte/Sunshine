@@ -59,7 +59,6 @@ namespace platf::dxgi {
 
   bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const {
     BOOL isSystem = platf::dxgi::is_running_as_system();
-    BOOST_LOG(info) << "create_security_descriptor: isSystem=" << isSystem;
 
     safe_token token;
     if (!obtain_access_token(isSystem, token)) {
@@ -88,7 +87,6 @@ namespace platf::dxgi {
   bool NamedPipeFactory::obtain_access_token(BOOL isSystem, safe_token &token) const {
     if (isSystem) {
       token.reset(platf::dxgi::retrieve_users_token(false));
-      BOOST_LOG(info) << "create_security_descriptor: Retrieved user token for SYSTEM service, token=" << token.get();
       if (!token) {
         BOOST_LOG(error) << "Failed to retrieve user token when running as SYSTEM";
         return false;
@@ -100,7 +98,6 @@ namespace platf::dxgi {
         return false;
       }
       token.reset(raw_token);
-      BOOST_LOG(info) << "create_security_descriptor: Opened current process token, token=" << token.get();
     }
     return true;
   }
@@ -128,7 +125,6 @@ namespace platf::dxgi {
       return false;
     }
 
-    log_sid_for_debugging(raw_user_sid, "User");
     return true;
   }
 
@@ -146,17 +142,7 @@ namespace platf::dxgi {
       return false;
     }
 
-    log_sid_for_debugging(system_sid.get(), "System");
     return true;
-  }
-
-  void NamedPipeFactory::log_sid_for_debugging(PSID sid, const std::string &sidType) const {
-    LPWSTR sidString = nullptr;
-    if (ConvertSidToStringSidW(sid, &sidString)) {
-      std::wstring wsid(sidString);
-      BOOST_LOG(info) << "create_security_descriptor: " << sidType << " SID=" << wide_to_utf8(wsid);
-      LocalFree(sidString);
-    }
   }
 
   bool NamedPipeFactory::build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const {
@@ -185,7 +171,6 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<INamedPipe> NamedPipeFactory::create_server(const std::string &pipeName) {
-    BOOST_LOG(info) << "NamedPipeFactory::create_server called with pipeName='" << pipeName << "'";
     auto wPipeBase = utf8_to_wide(pipeName);
     std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
 
@@ -207,7 +192,6 @@ namespace platf::dxgi {
       }
       secAttr = {sizeof(secAttr), &secDesc, FALSE};
       pSecAttr = &secAttr;
-      BOOST_LOG(info) << "Security attributes prepared (isSystem=" << platf::dxgi::is_running_as_system() << ").";
     }
 
     safe_handle hPipe(CreateNamedPipeW(
@@ -227,12 +211,10 @@ namespace platf::dxgi {
     }
 
     auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), true);
-    BOOST_LOG(info) << "Returning WinPipe (server) for '" << pipeName << "'";
     return pipeObj;
   }
 
   std::unique_ptr<INamedPipe> NamedPipeFactory::create_client(const std::string &pipeName) {
-    BOOST_LOG(info) << "NamedPipeFactory::create_client called with pipeName='" << pipeName << "'";
     auto wPipeBase = utf8_to_wide(pipeName);
     std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
 
@@ -244,7 +226,6 @@ namespace platf::dxgi {
     }
 
     auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), false);
-    BOOST_LOG(info) << "Returning WinPipe (client) for '" << pipeName << "'";
     return pipeObj;
   }
 
@@ -341,7 +322,6 @@ namespace platf::dxgi {
       return false;
     }
 
-    BOOST_LOG(info) << "Sending handshake message to client with pipe_name='" << pipe_name;
     if (!pipe->send(bytes, 5000)) {
       BOOST_LOG(error) << "Failed to send handshake message to client";
       pipe->disconnect();
@@ -361,7 +341,6 @@ namespace platf::dxgi {
       if (PipeResult result = pipe->receive(ack, 1000); result == Success) {
         if (ack.size() == 1 && ack[0] == 0xA5) {
           ack_ok = true;
-          BOOST_LOG(info) << "Received handshake ACK from client";
         } else if (!ack.empty()) {
           BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
         }
@@ -443,7 +422,6 @@ namespace platf::dxgi {
   }
 
   bool AnonymousPipeFactory::send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const {
-    BOOST_LOG(info) << "Sending handshake ACK to server";
     if (!pipe->send({ACK_MSG}, 5000)) {
       BOOST_LOG(error) << "Failed to send handshake ACK to server";
       pipe->disconnect();
@@ -464,7 +442,6 @@ namespace platf::dxgi {
       if (data_pipe) {
         break;
       }
-      BOOST_LOG(info) << "Retrying data pipe connection...";
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
 
@@ -496,7 +473,6 @@ namespace platf::dxgi {
       _is_server(isServer) {
     if (!_is_server && _pipe != INVALID_HANDLE_VALUE) {
       _connected.store(true, std::memory_order_release);
-      BOOST_LOG(info) << "WinPipe (client): Connected immediately after CreateFileW, handle valid, mode set.";
     }
   }
 
@@ -544,7 +520,6 @@ namespace platf::dxgi {
   }
 
   bool WinPipe::handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
-    BOOST_LOG(info) << "WriteFile is pending, waiting for completion with timeout=" << timeout_ms << "ms.";
     DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
 
     if (waitResult == WAIT_OBJECT_0) {
@@ -644,15 +619,11 @@ namespace platf::dxgi {
         // Ensure any final writes are delivered before closing (rare edge-case)
         FlushFileBuffers(_pipe);
         DisconnectNamedPipe(_pipe);
-        BOOST_LOG(info) << "WinPipe (server): Disconnected via DisconnectNamedPipe.";
-      } else {
-        BOOST_LOG(info) << "WinPipe (client): Disconnected (no DisconnectNamedPipe).";
       }
       CloseHandle(_pipe);
       _pipe = INVALID_HANDLE_VALUE;
     }
     _connected.store(false, std::memory_order_release);
-    BOOST_LOG(info) << "AsyncPipe: Connection state set to false (disconnected).";
   }
 
   void WinPipe::wait_for_client_connection(int milliseconds) {
@@ -678,7 +649,6 @@ namespace platf::dxgi {
 
     if (BOOL result = ConnectNamedPipe(_pipe, ctx->get()); result) {
       _connected = true;
-      BOOST_LOG(info) << "WinPipe (server): Connected after ConnectNamedPipe returned true.";
       return;
     }
 
@@ -704,7 +674,6 @@ namespace platf::dxgi {
       DWORD transferred = 0;
       if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
         _connected = true;
-        BOOST_LOG(info) << "WinPipe (server): Connected after overlapped ConnectNamedPipe completed";
       } else {
         BOOST_LOG(error) << "GetOverlappedResult failed in connect, error=" << GetLastError();
       }
@@ -829,8 +798,6 @@ namespace platf::dxgi {
         case Success:
           {
             if (message.empty()) {  // remote closed
-              BOOST_LOG(info)
-                << "AsyncNamedPipe: remote closed pipe";
               return;
             }
             process_message(message);

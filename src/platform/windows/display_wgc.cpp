@@ -81,7 +81,7 @@ namespace platf::dxgi {
       // If we don't know the capture format yet, grab it from this texture
       if (capture_format == DXGI_FORMAT_UNKNOWN) {
         capture_format = desc.Format;
-        BOOST_LOG(info) << "[display_wgc_ipc_vram_t] Capture format [" << dxgi_format_to_string(capture_format) << ']';
+        BOOST_LOG(info) << "Capture format [" << dxgi_format_to_string(capture_format) << ']';
       }
 
       // It's possible for our display enumeration to race with mode changes and result in
@@ -178,20 +178,12 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
-    _ipc_session->initialize_if_needed();
-
-    // In certain scenarios (e.g., Windows login screen or when no user session is active),
-    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
-    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
-    if (_ipc_session->is_initialized()) {
-      return display_vram_t::complete_img(img_base, true);
-    }
-
+    // Because the probing of encoders could cause problems with IPC, we'll just forcefully use DXGI for the dummy img.
     auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
       return temp_dxgi->dummy_img(img_base);
     } else {
-      BOOST_LOG(error) << "[display_wgc_ipc_vram_t] Failed to initialize DXGI fallback for dummy_img";
+      BOOST_LOG(error) << "Failed to initialize DXGI fallback for dummy_img";
       return -1;
     }
   }
@@ -286,27 +278,19 @@ namespace platf::dxgi {
     // If we don't know the capture format yet, grab it from this texture
     if (capture_format == DXGI_FORMAT_UNKNOWN) {
       capture_format = desc.Format;
-      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Capture format [" << dxgi_format_to_string(capture_format) << ']';
-
-      // Validate that this format is supported by our encoder
-      auto supported_formats = get_supported_capture_formats();
-      bool format_supported = std::ranges::find(supported_formats, capture_format) != supported_formats.end();
-      if (!format_supported) {
-        BOOST_LOG(warning) << "[display_wgc_ipc_ram_t] WGC provided unsupported format " << dxgi_format_to_string(capture_format)
-                           << ", encoder may not handle this optimally";
-      }
+      BOOST_LOG(info) << "Capture format [" << dxgi_format_to_string(capture_format) << ']';
     }
 
     // Check for size changes
     if (desc.Width != width || desc.Height != height) {
-      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Capture size changed [" << width << 'x' << height << " -> " << desc.Width << 'x' << desc.Height << ']';
+      BOOST_LOG(info) << "Capture size changed [" << width << 'x' << height << " -> " << desc.Width << 'x' << desc.Height << ']';
       _ipc_session->release();
       return capture_e::reinit;
     }
 
     // Check for format changes
     if (capture_format != desc.Format) {
-      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Capture format changed [" << dxgi_format_to_string(capture_format) << " -> " << dxgi_format_to_string(desc.Format) << ']';
+      BOOST_LOG(info) << "Capture format changed [" << dxgi_format_to_string(capture_format) << " -> " << dxgi_format_to_string(desc.Format) << ']';
       _ipc_session->release();
       return capture_e::reinit;
     }
@@ -401,15 +385,7 @@ namespace platf::dxgi {
   }
 
   int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
-    _ipc_session->initialize_if_needed();
-
-    // In certain scenarios (e.g., Windows login screen or when no user session is active),
-    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
-    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
-    if (_ipc_session->is_initialized()) {
-      return display_ram_t::complete_img(img_base, true);
-    }
-
+    // Because the probing of encoders could cause problems with IPC, we'll just forcefully use DXGI for the dummy img.
     auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
     if (temp_dxgi->init(_config, _display_name) == 0) {
       return temp_dxgi->dummy_img(img_base);
