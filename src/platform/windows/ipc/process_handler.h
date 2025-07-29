@@ -1,5 +1,17 @@
+
+/**
+ * @file process_handler.h
+ * @brief Defines the ProcessHandler class for managing Windows processes.
+ *
+ * Provides an interface for launching, waiting, terminating, and cleaning up Windows processes.
+ */
+
 #pragma once
+
+// standard includes
 #include <string>
+
+// platform includes
 #include <windows.h>
 
 /**

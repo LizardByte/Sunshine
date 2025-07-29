@@ -1,19 +1,27 @@
+
 /**
- * @file src/platform/windows/ipc/ipc_session.cpp
+ * @file ipc_session.cpp
+ * @brief Implements the IPC session logic for Windows WGC capture integration.
+ *
+ * Handles inter-process communication, shared texture setup, and frame synchronization
+ * between the main process and the WGC capture helper process.
  */
 
-#include "ipc_session.h"
+// standard includes
+#include <chrono>
+#include <filesystem>
+#include <string_view>
+#include <thread>
 
+// local includes
+#include "ipc_session.h"
 #include "config.h"
 #include "misc_utils.h"
 #include "src/logging.h"
 #include "src/platform/windows/misc.h"
 
+// platform includes
 #include <avrt.h>
-#include <chrono>
-#include <filesystem>
-#include <string_view>
-#include <thread>
 
 namespace platf::dxgi {
 

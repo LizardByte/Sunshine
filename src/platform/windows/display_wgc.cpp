@@ -433,8 +433,6 @@ namespace platf::dxgi {
     return nullptr;
   }
 
-  // ===== Temporary DXGI implementations for secure desktop =====
-
   capture_e temp_dxgi_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
     // Check periodically if secure desktop is still active
     if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {

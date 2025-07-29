@@ -2,7 +2,6 @@
  * @file src/main.cpp
  * @brief Definitions for the main entry point for Sunshine.
  */
-
 // standard includes
 #include <codecvt>
 #include <csignal>

@@ -1,22 +1,34 @@
 
-#include "pipes.h"
 
-#include "misc_utils.h"
-#include "src/utility.h"
+/**
+ * @file pipes.cpp
+ * @brief Implements Windows named and anonymous pipe IPC for Sunshine.
+ *
+ * Provides cross-process communication using Windows named pipes, including security descriptor setup,
+ * overlapped I/O, and handshake logic for anonymous pipes. Used for secure and robust IPC between processes.
+ */
 
-#include <AclAPI.h>
+// standard includes
 #include <chrono>
-#include <combaseapi.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <format>
 #include <memory>
-#include <sddl.h>
 #include <string>
 #include <thread>
 #include <vector>
+
+// platform includes
+#include <AclAPI.h>
+#include <combaseapi.h>
+#include <sddl.h>
 #include <Windows.h>
+
+// local includes
+#include "pipes.h"
+#include "misc_utils.h"
+#include "src/utility.h"
 
 namespace platf::dxgi {
 

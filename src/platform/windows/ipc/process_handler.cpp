@@ -1,10 +1,21 @@
-#include "process_handler.h"
 
-#include "../misc.h"
+/**
+ * @file process_handler.cpp
+ * @brief Implements the ProcessHandler class for managing process creation and control on Windows.
+ *
+ * This file provides the implementation for starting, waiting, and terminating processes,
+ * including support for attribute lists and impersonation as needed for the Sunshine project.
+ */
 
+// standard includes
 #include <algorithm>
 #include <system_error>
 #include <vector>
+
+// local includes
+#include "process_handler.h"
+#include "src/platform/windows/misc.h"
+
 
 bool ProcessHandler::start(const std::wstring &application, std::wstring_view arguments) {
   if (running_) {

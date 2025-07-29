@@ -1,8 +1,17 @@
+
+/**
+ * @file pipes.h
+ * @brief Windows Named and Anonymous Pipe IPC Abstractions for Sunshine
+ *
+ * This header defines interfaces and implementations for inter-process communication (IPC)
+ * using Windows named and anonymous pipes. It provides both synchronous and asynchronous
+ * APIs for sending and receiving messages, as well as factories for creating server and
+ * client pipe instances with appropriate security and access control.
+ */
+
 #pragma once
 
-#include "src/logging.h"
-#include "src/platform/windows/ipc/misc_utils.h"
-
+// standard includes
 #include <atomic>
 #include <cstdint>
 #include <functional>
@@ -10,6 +19,12 @@
 #include <string>
 #include <thread>
 #include <vector>
+
+// local includes
+#include "src/logging.h"
+#include "src/platform/windows/ipc/misc_utils.h"
+
+// platform includes
 #include <windows.h>
 
 namespace platf::dxgi {
