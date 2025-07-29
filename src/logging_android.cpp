@@ -4,17 +4,17 @@
  */
 #ifdef __ANDROID__
 
-// lib includes
-#include <boost/log/sinks.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/common.hpp>
+  // lib includes
+  #include <boost/log/common.hpp>
+  #include <boost/log/expressions.hpp>
+  #include <boost/log/sinks.hpp>
 
-// Android includes
-#include <android/log.h>
+  // Android includes
+  #include <android/log.h>
 
-// local includes
-#include "logging.h"
-#include "logging_android.h"
+  // local includes
+  #include "logging.h"
+  #include "logging_android.h"
 
 using namespace std::literals;
 

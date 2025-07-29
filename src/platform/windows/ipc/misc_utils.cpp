@@ -249,8 +249,7 @@ namespace platf::dxgi {
     if (HDESK currentDesktop = GetThreadDesktop(GetCurrentThreadId())) {
       std::wstring desktopName(256, L'\0');
       DWORD needed = 0;
-      if (GetUserObjectInformationW(currentDesktop, UOI_NAME, &desktopName[0], static_cast<DWORD>(desktopName.size() * sizeof(wchar_t)), &needed)
-          && (_wcsicmp(desktopName.c_str(), L"Winlogon") == 0 || _wcsicmp(desktopName.c_str(), L"SAD") == 0)) {
+      if (GetUserObjectInformationW(currentDesktop, UOI_NAME, &desktopName[0], static_cast<DWORD>(desktopName.size() * sizeof(wchar_t)), &needed) && (_wcsicmp(desktopName.c_str(), L"Winlogon") == 0 || _wcsicmp(desktopName.c_str(), L"SAD") == 0)) {
         // Secure desktop typically has names like "Winlogon" or "SAD" (Secure Attention Desktop)
         return true;
       }

@@ -6,8 +6,8 @@
 
 // lib includes
 #include <boost/log/common.hpp>
-#include <boost/log/sinks.hpp>
 #include <boost/log/expressions.hpp>
+#include <boost/log/sinks.hpp>
 
 using text_sink = boost::log::sinks::asynchronous_sink<boost::log::sinks::text_ostream_backend>;
 

@@ -2,15 +2,18 @@
  * @file src/platform/windows/ipc/misc_utils.h
  * @brief Minimal utility functions for WGC helper without heavy dependencies
  */
-
 #pragma once
+
+// Windows headers must come first to avoid ordering issues
+#ifdef _WIN32
+  #include <windows.h>
+#endif
 
 #include "src/utility.h"
 
+#include <avrt.h>
 #include <cstdint>
 #include <string>
-#include <windows.h>
-#include <avrt.h>
 
 namespace platf::dxgi {
 

@@ -9,49 +9,49 @@
  */
 class ProcessHandler {
 public:
-    /**
-     * @brief Starts a process with the given application path and arguments.
-     *
-     * - Launches the specified application with provided arguments.
-     *
-     * - Initializes process information for later management.
-     *
-     * @param application The full path to the executable to launch.
-     *
-     * @param arguments The command-line arguments to pass to the process.
-     *
-     * @returns true if the process was started successfully, false otherwise.
-     */
-    bool start(const std::wstring& application, std::wstring_view arguments);
+  /**
+   * @brief Starts a process with the given application path and arguments.
+   *
+   * - Launches the specified application with provided arguments.
+   *
+   * - Initializes process information for later management.
+   *
+   * @param application The full path to the executable to launch.
+   *
+   * @param arguments The command-line arguments to pass to the process.
+   *
+   * @returns true if the process was started successfully, false otherwise.
+   */
+  bool start(const std::wstring &application, std::wstring_view arguments);
 
-    /**
-     * @brief Waits for the process to finish and retrieves its exit code.
-     *
-     * - Waits for the launched process to exit.
-     *
-     * - Retrieves the exit code of the process.
-     *
-     * @param exitCode Reference to a DWORD to receive the process exit code.
-     *
-     * @returns true if the process finished successfully, false otherwise.
-     */
-    bool wait(DWORD& exitCode);
+  /**
+   * @brief Waits for the process to finish and retrieves its exit code.
+   *
+   * - Waits for the launched process to exit.
+   *
+   * - Retrieves the exit code of the process.
+   *
+   * @param exitCode Reference to a DWORD to receive the process exit code.
+   *
+   * @returns true if the process finished successfully, false otherwise.
+   */
+  bool wait(DWORD &exitCode);
 
-    /**
-     * @brief Terminates the process if it is running.
-     *
-     * - Checks if the process is active.
-     *
-     * - Attempts to terminate the process.
-     */
-    void terminate();
+  /**
+   * @brief Terminates the process if it is running.
+   *
+   * - Checks if the process is active.
+   *
+   * - Attempts to terminate the process.
+   */
+  void terminate();
 
-    /**
-     * @brief Cleans up process handles and resources.
-     */
-    ~ProcessHandler();
+  /**
+   * @brief Cleans up process handles and resources.
+   */
+  ~ProcessHandler();
 
 private:
-    PROCESS_INFORMATION pi_{};
-    bool running_ = false;
+  PROCESS_INFORMATION pi_ {};
+  bool running_ = false;
 };

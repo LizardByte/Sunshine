@@ -1,6 +1,6 @@
 /**
  * @file src/platform/windows/ipc/ipc_session.cpp
-*/
+ */
 
 #include "ipc_session.h"
 
@@ -221,7 +221,6 @@ namespace platf::dxgi {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   }
-
 
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
     // Add real-time scheduling hint (once per thread)

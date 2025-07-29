@@ -3,9 +3,9 @@
  * @brief Shared IPC session for WGC capture that can be used by both RAM and VRAM implementations.
  */
 #pragma once
-
-#include "process_handler.h"
+#include "misc_utils.h"
 #include "pipes.h"
+#include "process_handler.h"
 #include "src/utility.h"
 #include "src/video.h"
 
@@ -15,10 +15,6 @@
 #include <memory>
 #include <string>
 #include <string_view>
-
-// Include misc_utils outside of namespace to avoid nested namespace issues
-#include "misc_utils.h"
-
 
 namespace platf::dxgi {
 

@@ -1,14 +1,14 @@
 #pragma once
 
+#include "display.h"
+
 #include <d3d11.h>
 #include <dxgi.h>
 #include <memory>
 
-#include "display.h"
-
 namespace platf::dxgi {
 
-struct img_d3d_t: public platf::img_t {
+  struct img_d3d_t: public platf::img_t {
     // These objects are owned by the display_t's ID3D11Device
     texture2d_t capture_texture;
     render_target_t capture_rt;
@@ -31,10 +31,10 @@ struct img_d3d_t: public platf::img_t {
     DXGI_FORMAT format;
 
     virtual ~img_d3d_t() override {
-        if (encoder_texture_handle) {
-            CloseHandle(encoder_texture_handle);
-        }
+      if (encoder_texture_handle) {
+        CloseHandle(encoder_texture_handle);
+      }
     };
-};
+  };
 
-} // namespace platf::dxgi
+}  // namespace platf::dxgi

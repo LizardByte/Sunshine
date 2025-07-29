@@ -6,7 +6,7 @@
 #include <system_error>
 #include <vector>
 
-bool ProcessHandler::start(const std::wstring& application, std::wstring_view arguments) {
+bool ProcessHandler::start(const std::wstring &application, std::wstring_view arguments) {
   if (running_) {
     return false;
   }
@@ -22,19 +22,21 @@ bool ProcessHandler::start(const std::wstring& application, std::wstring_view ar
     LPPROC_THREAD_ATTRIBUTE_LIST list;
 
     // Explicit constructor
-    explicit AttrListGuard(LPPROC_THREAD_ATTRIBUTE_LIST l) : list(l) {}
+    explicit AttrListGuard(LPPROC_THREAD_ATTRIBUTE_LIST l):
+        list(l) {}
 
     // Delete copy constructor and copy assignment operator
-    AttrListGuard(const AttrListGuard&) = delete;
-    AttrListGuard& operator=(const AttrListGuard&) = delete;
+    AttrListGuard(const AttrListGuard &) = delete;
+    AttrListGuard &operator=(const AttrListGuard &) = delete;
 
     // Define move constructor
-    AttrListGuard(AttrListGuard&& other) noexcept : list(other.list) {
+    AttrListGuard(AttrListGuard &&other) noexcept:
+        list(other.list) {
       other.list = nullptr;
     }
 
     // Define move assignment operator
-    AttrListGuard& operator=(AttrListGuard&& other) noexcept {
+    AttrListGuard &operator=(AttrListGuard &&other) noexcept {
       if (this != &other) {
         if (list) {
           platf::free_proc_thread_attr_list(list);
@@ -51,7 +53,8 @@ bool ProcessHandler::start(const std::wstring& application, std::wstring_view ar
       }
     }
   };
-  AttrListGuard guard{startup_info.lpAttributeList};
+
+  AttrListGuard guard {startup_info.lpAttributeList};
 
   ZeroMemory(&pi_, sizeof(pi_));
 

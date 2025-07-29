@@ -892,8 +892,8 @@ public:
    * @param height Capture height in pixels.
    * @param item Graphics capture item representing the monitor or window to capture.
    */
-  WgcCaptureManager(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height, GraphicsCaptureItem item)
-    : _winrt_device(winrt_device),
+  WgcCaptureManager(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height, GraphicsCaptureItem item):
+      _winrt_device(winrt_device),
       _capture_format(capture_format),
       _height(height),
       _width(width),
@@ -1164,7 +1164,7 @@ public:
 
     _capture_session = _frame_pool.CreateCaptureSession(_graphics_item);
     _capture_session.IsBorderRequired(false);
-    
+
     // Technically this is not required for users that have 24H2, but there's really no functional difference.
     // So instead of coding out a version check, we'll just set it for everyone.
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {

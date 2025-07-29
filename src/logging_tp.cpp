@@ -4,16 +4,16 @@
  */
 #ifndef SUNSHINE_EXTERNAL_PROCESS
 
-// lib includes
-#include <display_device/logging.h>
+  // lib includes
+  #include <display_device/logging.h>
 
 extern "C" {
   #include <libavutil/log.h>
 }
 
-// local includes
-#include "logging.h"
-#include "logging_tp.h"
+  // local includes
+  #include "logging.h"
+  #include "logging_tp.h"
 
 using namespace std::literals;
 

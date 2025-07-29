@@ -273,10 +273,9 @@ namespace platf::dxgi {
     ID3D11Texture2D *gpu_tex = nullptr;
     auto status = _ipc_session->acquire(timeout, gpu_tex);
 
-    if(status != capture_e::ok){
+    if (status != capture_e::ok) {
       return status;
     }
-
 
     auto frame_qpc = qpc_counter();
 

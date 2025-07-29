@@ -335,7 +335,6 @@ namespace platf::dxgi {
     return capture_e::ok;
   }
 
-
   /**
    * @brief Tests to determine if the Desktop Duplication API can capture the given output.
    * @details When testing for enumeration only, we avoid resyncing the thread desktop.
@@ -983,9 +982,7 @@ namespace platf::dxgi {
 
 namespace platf {
 
-
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-
     if (hwdevice_type == mem_type_e::dxgi) {
       if (config::video.capture == "wgc") {
         return dxgi::display_wgc_ipc_vram_t::create(config, display_name);

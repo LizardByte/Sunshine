@@ -9,4 +9,4 @@ namespace logging {
    * @brief Setup Android-specific logging.
    */
   void setup_android_logging();
-}
+}  // namespace logging

@@ -18,7 +18,6 @@
 #include <vector>
 #include <Windows.h>
 
-
 namespace platf::dxgi {
 
   // Helper functions for proper string conversion

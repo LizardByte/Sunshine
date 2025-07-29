@@ -2,11 +2,6 @@
  * @file src/main.cpp
  * @brief Definitions for the main entry point for Sunshine.
  */
-// Windows headers must come first to avoid ordering issues
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
 
 // standard includes
 #include <codecvt>
@@ -29,11 +24,11 @@
 #include "video.h"
 
 #ifndef SUNSHINE_EXTERNAL_PROCESS
-#include "logging_tp.h"
+  #include "logging_tp.h"
 #endif
 
 #ifdef __ANDROID__
-#include "logging_android.h"
+  #include "logging_android.h"
 #endif
 
 extern "C" {

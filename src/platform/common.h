@@ -458,7 +458,6 @@ namespace platf {
     timeout,  ///< Timeout
     interrupted,  ///< Capture was interrupted
     error  ///< Error
-
   };
 
   class display_t {

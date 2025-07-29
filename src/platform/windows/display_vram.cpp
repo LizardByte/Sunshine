@@ -15,9 +15,6 @@ extern "C" {
 }
 
 // lib includes
-#include <AMF/core/Factory.h>
-#include <boost/algorithm/string/predicate.hpp>
-
 #include "display.h"
 #include "display_vram.h"
 #include "misc.h"
@@ -28,6 +25,9 @@ extern "C" {
 #include "src/nvenc/nvenc_d3d11_on_cuda.h"
 #include "src/nvenc/nvenc_utils.h"
 #include "src/video.h"
+
+#include <AMF/core/Factory.h>
+#include <boost/algorithm/string/predicate.hpp>
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
@@ -127,7 +127,6 @@ namespace platf::dxgi {
   blob_t cursor_ps_hlsl;
   blob_t cursor_ps_normalize_white_hlsl;
   blob_t cursor_vs_hlsl;
-
 
   struct texture_lock_helper {
     keyed_mutex_t _mutex;
@@ -1604,7 +1603,6 @@ namespace platf::dxgi {
 
     return 0;
   }
-
 
   /**
    * @brief Creates a new display_wgc_vram_t instance.

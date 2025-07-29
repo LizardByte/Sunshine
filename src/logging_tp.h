@@ -16,4 +16,4 @@ namespace logging {
    * @param min_log_level The log level.
    */
   void setup_libdisplaydevice_logging(int min_log_level);
-}
+}  // namespace logging
