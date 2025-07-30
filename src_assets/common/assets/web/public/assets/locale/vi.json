@@ -256,6 +256,8 @@
     "log_path_desc": "Tệp chứa các bản ghi hiện tại của Sunshine.",
     "max_bitrate": "Tốc độ bit tối đa",
     "max_bitrate_desc": "Tốc độ bit tối đa (đơn vị Kbps) mà Sunshine sẽ mã hóa luồng. Nếu đặt thành 0, nó sẽ luôn sử dụng tốc độ bit được yêu cầu bởi Moonlight.",
+    "minimum_fps_target": "Mục tiêu FPS tối thiểu",
+    "minimum_fps_target_desc": "Tốc độ khung hình hiệu quả thấp nhất mà luồng có thể đạt được. Giá trị 0 được coi là khoảng một nửa tốc độ khung hình của luồng. Nên thiết lập giá trị 20 nếu bạn phát nội dung có tốc độ khung hình 24 hoặc 30fps.",
     "min_threads": "Số luồng CPU tối thiểu",
     "min_threads_desc": "Tăng giá trị một chút sẽ làm giảm hiệu suất mã hóa, nhưng sự đánh đổi này thường đáng giá để tận dụng thêm các lõi CPU cho quá trình mã hóa. Giá trị lý tưởng là giá trị thấp nhất có thể mã hóa một cách đáng tin cậy ở cài đặt phát trực tuyến mong muốn trên phần cứng của bạn.",
     "misc": "Các tùy chọn khác",
