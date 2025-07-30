@@ -1932,7 +1932,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Default</td>
         <td colspan="2">Automatic<br>
-            If left on Automatic, Sunshine will select the best capture method based on the order of the table below, if the OS supports it.</td>
+            Sunshine will use the first capture method available in the order of the table below</td>
     </tr>
     <tr>
         <td>Example</td>
