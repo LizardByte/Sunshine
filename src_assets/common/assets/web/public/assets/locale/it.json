@@ -256,6 +256,8 @@
     "log_path_desc": "Il file in cui vengono memorizzati i log attuali di Sunshine.",
     "max_bitrate": "Bitrate Massimo",
     "max_bitrate_desc": "Il bitrate massimo (in Kbps) in cui Sunshine codificherà il flusso. Se impostato a 0, utilizzerà sempre il bitrate richiesto dal Moonlight.",
+    "minimum_fps_target": "Obiettivo FPS Minimo",
+    "minimum_fps_target_desc": "Il FPS effettivo più basso può raggiungere un flusso. Un valore di 0 è trattato come circa la metà del FPS del flusso. È consigliata un'impostazione di 20 se il contenuto in streaming è 24 o 30 fps.",
     "min_threads": "Conteggio Minimo Thread CPU",
     "min_threads_desc": "Aumentare leggermente il valore riduce l'efficienza di codifica, ma di solito ne vale la pena per guadagnare l'impiego di più core della CPU per la codifica. Il valore ideale è il valore più basso che può codificare in modo affidabile in base le impostazioni di streaming desiderate sul vostro hardware.",
     "misc": "Opzioni varie",
