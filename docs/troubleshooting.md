@@ -110,6 +110,7 @@ sudo tc filter add dev <NIC> protocol ip parent 1: prio 1 \
     u32 match ip protocol 17 0xff \
     match ip sport 47998 0xffff flowid 1:10
 ```
+
 In that way only the Sunshine traffic is limited by 1 Gbit. This is not persistent on reboots.
 If you use a different port for the game stream you need to adjust the last command.
 
