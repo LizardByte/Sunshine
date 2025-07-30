@@ -256,6 +256,8 @@
     "log_path_desc": "El archivo donde se almacenan los registros actuales de Sunshine.",
     "max_bitrate": "Tasa de bits máxima",
     "max_bitrate_desc": "La tasa de bits máxima (en Kbps) que Sunshine codificará la secuencia. Si se establece en 0, siempre utilizará la tasa de bits solicitada por la luz lunar.",
+    "minimum_fps_target": "Objetivo mínimo de FPS",
+    "minimum_fps_target_desc": "El FPS efectivo más bajo que una corriente puede alcanzar. Un valor de 0 es tratado como aproximadamente la mitad del FPS del flujo. Se recomienda un ajuste de 20 si transmite contenido de 24 o 30 fps.",
     "min_threads": "Recuento mínimo de hilos de CPU",
     "min_threads_desc": "Incrementar el valor reduce ligeramente la eficiencia de la codificación, pero la compensación suele valer la pena para obtener el uso de más núcleos de CPU para la codificación. El valor ideal es el valor más bajo que puede codificar de forma fiable en los ajustes de streaming deseados en su hardware.",
     "misc": "Opciones varias",
