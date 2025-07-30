@@ -55,9 +55,6 @@ namespace platf::dxgi {
     }
   }
 
-  ipc_session_t::~ipc_session_t() {
-    cleanup();
-  }
 
   int ipc_session_t::init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device) {
     _process_helper = std::make_unique<ProcessHandler>();
@@ -121,7 +118,7 @@ namespace platf::dxgi {
     auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
     if (!raw_pipe) {
       BOOST_LOG(error) << "IPC pipe setup failed - aborting WGC session";
-      cleanup();
+      // No need to call cleanup() - RAII destructors will handle everything
       return;
     }
     _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
@@ -162,35 +159,7 @@ namespace platf::dxgi {
       _initialized.store(true);
     } else {
       BOOST_LOG(error) << "Failed to receive handle data from helper process! Helper is likely deadlocked!";
-      cleanup();
     }
-  }
-
-  void ipc_session_t::cleanup() {
-    // Stop pipe communication first if active
-    if (_pipe) {
-      _pipe->stop();
-    }
-
-    // Terminate process if running
-    if (_process_helper) {
-      _process_helper->terminate();
-    }
-
-    // Reset all resources - RAII handles automatic cleanup
-    _pipe.reset();
-    _process_helper.reset();
-    _keyed_mutex.reset();
-    _shared_texture.reset();
-
-    // Reset frame state
-    _frame_ready.store(false, std::memory_order_release);
-
-    // Reset state flags
-    _should_swap_to_dxgi.store(false);
-    _force_reinit.store(false);
-
-    _initialized.store(false);
   }
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
@@ -214,13 +183,13 @@ namespace platf::dxgi {
   }
 
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
-    // Additional error check: ensure required resources are valid
-    if (!_shared_texture || !_keyed_mutex) {
-      return capture_e::error;
+    if (!wait_for_frame(timeout)) {
+      return capture_e::timeout;
     }
 
-    if (bool frame_available = wait_for_frame(timeout); !frame_available) {
-      return capture_e::timeout;
+    // Additional validation: ensure required resources are available
+    if (!_shared_texture || !_keyed_mutex) {
+      return capture_e::error;
     }
 
     HRESULT hr = _keyed_mutex->AcquireSync(1, 200);
@@ -261,31 +230,31 @@ namespace platf::dxgi {
       return false;
     }
 
-    HRESULT hr;
-
-    safe_com_ptr<ID3D11Texture2D> texture;
+    // Open shared texture directly into safe_com_ptr
     ID3D11Texture2D *raw_texture = nullptr;
-    hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
+    HRESULT hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to open shared texture: " << hr;
       return false;
     }
 
-    texture.reset(raw_texture);
+    safe_com_ptr<ID3D11Texture2D> texture(raw_texture);
 
     // Get texture description to set the capture format
     D3D11_TEXTURE2D_DESC desc;
     texture->GetDesc(&desc);
 
-    safe_com_ptr<IDXGIKeyedMutex> keyed_mutex;
+
     IDXGIKeyedMutex *raw_mutex = nullptr;
     hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to get keyed mutex: " << hr;
       return false;
     }
-    keyed_mutex.reset(raw_mutex);
 
+    safe_com_ptr<IDXGIKeyedMutex> keyed_mutex(raw_mutex);
+
+    // Move into member variables
     _shared_texture = std::move(texture);
     _keyed_mutex = std::move(keyed_mutex);
 

@@ -19,11 +19,7 @@ namespace platf::dxgi {
 
   display_wgc_ipc_vram_t::display_wgc_ipc_vram_t() = default;
 
-  display_wgc_ipc_vram_t::~display_wgc_ipc_vram_t() {
-    if (_ipc_session) {
-      _ipc_session->cleanup();
-    }
-  }
+  display_wgc_ipc_vram_t::~display_wgc_ipc_vram_t() = default;
 
   int display_wgc_ipc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
     _config = config;
@@ -162,7 +158,7 @@ namespace platf::dxgi {
 
     // Wrap the texture with our safe_ptr wrapper
     src.reset(gpu_tex);
-    gpu_tex->AddRef();  // AddRef since both session and src will reference it
+    gpu_tex->AddRef();  // AddRef since both _ipc_session and src will reference it
 
     return capture_e::ok;
   }
@@ -217,11 +213,7 @@ namespace platf::dxgi {
 
   display_wgc_ipc_ram_t::display_wgc_ipc_ram_t() = default;
 
-  display_wgc_ipc_ram_t::~display_wgc_ipc_ram_t() {
-    if (_ipc_session) {
-      _ipc_session->cleanup();
-    }
-  }
+  display_wgc_ipc_ram_t::~display_wgc_ipc_ram_t() = default;
 
   int display_wgc_ipc_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
     // Save config for later use

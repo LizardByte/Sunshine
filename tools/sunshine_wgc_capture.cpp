@@ -315,16 +315,7 @@ public:
     return success;
   }
 
-  /**
-   * @brief Cleans up MMCSS resources.
-   *
-   * Resets the MMCSS handle and updates internal state flags.
-   * Safe to call multiple times.
-   */
-  void cleanup() noexcept {
-    _mmcss_handle.reset();
-    _mmcss_characteristics_set = false;
-  }
+
 
   /**
    * @brief Checks if DPI awareness was successfully set.
@@ -361,11 +352,9 @@ public:
   /**
    * @brief Destructor for SystemInitializer.
    *
-   * Calls cleanup() to release MMCSS resources.
+   * RAII automatically releases MMCSS resources.
    */
-  ~SystemInitializer() noexcept {
-    cleanup();
-  }
+  ~SystemInitializer() noexcept = default;
 };
 
 /**
@@ -468,17 +457,7 @@ public:
     return create_device() && create_winrt_interop();
   }
 
-  /**
-   * @brief Cleans up D3D11 device and context resources.
-   *
-   * Resets the device and context smart pointers. Most cleanup is handled by RAII.
-   * Safe to call multiple times.
-   */
-  void cleanup() noexcept {
-    // RAII handles cleanup automatically
-    _context.reset();
-    _device.reset();
-  }
+
 
   /**
    * @brief Gets the underlying D3D11 device pointer.
@@ -510,11 +489,9 @@ public:
   /**
    * @brief Destructor for D3D11DeviceManager.
    *
-   * Calls cleanup() to release device and context resources.
+   * RAII automatically releases device and context resources.
    */
-  ~D3D11DeviceManager() noexcept {
-    cleanup();
-  }
+  ~D3D11DeviceManager() noexcept = default;
 };
 
 /**
@@ -679,7 +656,7 @@ class SharedResourceManager {
 private:
   safe_com_ptr<ID3D11Texture2D> _shared_texture = nullptr;  ///< Shared D3D11 texture for frame data
   safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex = nullptr;  ///< Keyed mutex for synchronization
-  HANDLE _shared_handle = nullptr;  ///< Handle for cross-process sharing
+  safe_handle _shared_handle = nullptr;  ///< Handle for cross-process sharing (RAII)
   UINT _width = 0;  ///< Texture width in pixels
   UINT _height = 0;  ///< Texture height in pixels
 
@@ -772,20 +749,20 @@ public:
       return false;
     }
 
-    IDXGIResource *dxgi_resource = nullptr;
-    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIResource), (void **) (&dxgi_resource));
+    winrt::com_ptr<IDXGIResource> dxgi_resource;
+    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIResource), dxgi_resource.put_void());
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to query DXGI resource interface";
       return false;
     }
 
-    hr = dxgi_resource->GetSharedHandle(&_shared_handle);
-    dxgi_resource->Release();
-    if (FAILED(hr) || !_shared_handle) {
+    HANDLE raw_handle = nullptr;
+    hr = dxgi_resource->GetSharedHandle(&raw_handle);
+    if (FAILED(hr) || !raw_handle) {
       BOOST_LOG(error) << "Failed to get shared handle";
       return false;
     }
-
+    _shared_handle.reset(raw_handle);
     return true;
   }
 
@@ -810,16 +787,11 @@ public:
    * @return shared_handle_data_t struct containing the handle and texture dimensions.
    */
   platf::dxgi::shared_handle_data_t get_shared_handle_data() const {
-    return {_shared_handle, _width, _height};
-  }
-
-  /**
-   * @brief Cleans up all managed shared resources. Resets all internal handles and pointers. Safe to call multiple times.
-   */
-  void cleanup() noexcept {
-    // RAII handles cleanup automatically
-    _keyed_mutex.reset();
-    _shared_texture.reset();
+    platf::dxgi::shared_handle_data_t data;
+    data.texture_handle = const_cast<HANDLE>(_shared_handle.get());
+    data.width = _width;
+    data.height = _height;
+    return data;
   }
 
   /**
@@ -839,12 +811,10 @@ public:
   }
 
   /**
-   * @brief Destructor for SharedResourceManager.\
-   * Calls cleanup() to release all managed resources. All resources are managed using RAII.
+   * @brief Destructor for SharedResourceManager.
+   * Uses RAII to automatically dispose resources
    */
-  ~SharedResourceManager() noexcept {
-    cleanup();
-  }
+  ~SharedResourceManager() = default;
 };
 
 /**
@@ -904,12 +874,45 @@ public:
   /**
    * @brief Destructor for WgcCaptureManager.
    *
-   * Automatically calls cleanup() to release all managed resources.
+   * Automatically cleans up capture session and frame pool resources.
    */
   ~WgcCaptureManager() noexcept {
-    cleanup();
+    cleanup_capture_session();
+    cleanup_frame_pool();
   }
 
+private:
+  void cleanup_capture_session() noexcept {
+    try {
+      if (_capture_session) {
+        _capture_session.Close();
+        _capture_session = nullptr;
+      }
+    } catch (const winrt::hresult_error &ex) {
+      BOOST_LOG(error) << "Exception during _capture_session.Close(): " << ex.code() << " - " << winrt::to_string(ex.message());
+    } catch (...) {
+      BOOST_LOG(error) << "Unknown exception during _capture_session.Close()";
+    }
+  }
+
+  void cleanup_frame_pool() noexcept {
+    try {
+      if (_frame_pool) {
+        if (_frame_arrived_token.value != 0) {
+          _frame_pool.FrameArrived(_frame_arrived_token); // Remove handler
+          _frame_arrived_token.value = 0;
+        }
+        _frame_pool.Close();
+        _frame_pool = nullptr;
+      }
+    } catch (const winrt::hresult_error &ex) {
+      BOOST_LOG(error) << "Exception during _frame_pool.Close(): " << ex.code() << " - " << winrt::to_string(ex.message());
+    } catch (...) {
+      BOOST_LOG(error) << "Unknown exception during _frame_pool.Close()";
+    }
+  }
+
+public:
   /**
    * @brief Deleted copy constructor to prevent resource duplication.
    */
@@ -1009,8 +1012,6 @@ public:
         // Log error
         BOOST_LOG(error) << "WinRT error in frame processing: " << ex.code() << " - " << winrt::to_string(ex.message());
       }
-      surface.Close();
-      frame.Close();
     } else {
       // Frame drop detected - record timestamp for sliding window analysis
       auto now = std::chrono::steady_clock::now();
@@ -1193,21 +1194,6 @@ public:
     if (_capture_session) {
       _capture_session.StartCapture();
       BOOST_LOG(info) << "Helper process started. Capturing frames using WGC...";
-    }
-  }
-
-  /**
-   * @brief Cleans up the capture session and frame pool resources.
-   */
-  void cleanup() noexcept {
-    if (_capture_session) {
-      _capture_session.Close();
-      _capture_session = nullptr;
-    }
-    if (_frame_pool && _frame_arrived_token.value != 0) {
-      _frame_pool.FrameArrived(_frame_arrived_token);
-      _frame_pool.Close();
-      _frame_pool = nullptr;
     }
   }
 
@@ -1498,7 +1484,6 @@ int main(int argc, char *argv[]) {
   // Create GraphicsCaptureItem for monitor using interop
   GraphicsCaptureItem item = nullptr;
   if (!display_manager.create_graphics_capture_item(item)) {
-    d3d11_manager.cleanup();
     return 1;
   }
 
@@ -1567,8 +1552,6 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG(info) << "Main process disconnected, shutting down...";
 
-  // Cleanup is handled automatically by RAII destructors
-  wgc_capture_manager.cleanup();
   pipe.stop();
 
   // Flush logs before exit
@@ -1576,6 +1559,5 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG(info) << "WGC Helper process terminated";
 
-  // Cleanup managed by destructors
   return 0;
 }

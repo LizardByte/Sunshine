@@ -83,6 +83,10 @@ void ProcessHandler::terminate() {
 }
 
 ProcessHandler::~ProcessHandler() {
+  // Terminate process first if it's still running
+  terminate();
+  
+  // Clean up handles
   if (pi_.hProcess) {
     CloseHandle(pi_.hProcess);
   }

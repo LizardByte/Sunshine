@@ -38,7 +38,7 @@ namespace platf::dxgi {
    */
   class ipc_session_t {
   public:
-    ~ipc_session_t();
+    ~ipc_session_t() = default;
 
     /**
      * Initialize the session with configuration and display name.
@@ -58,15 +58,6 @@ namespace platf::dxgi {
      * This is typically called before attempting to acquire frames or interact with the shared session.
      */
     void initialize_if_needed();
-
-    /**
-     * @brief Clean up all resources associated with the IPC session.
-     *
-     * This method releases the helper process, IPC pipe, shared texture, keyed-mutex,
-     * and any other resources owned by the session. After calling this method,
-     * the session will be uninitialized and must be re-initialized before use.
-     */
-    void cleanup();
 
     /**
      * Blocking acquire of the next frame.
