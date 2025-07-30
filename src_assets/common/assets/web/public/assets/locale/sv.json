@@ -256,6 +256,8 @@
     "log_path_desc": "Filen där de aktuella loggarna av Sunshine lagras.",
     "max_bitrate": "Maximal bithastighet",
     "max_bitrate_desc": "Maximal bithastighet (i Kbps) som Sunshine kommer att koda strömmen på. Om satt till 0, kommer den alltid att använda den bithastighet som Moonlight begärt.",
+    "minimum_fps_target": "Minsta FPS mål",
+    "minimum_fps_target_desc": "Den lägsta effektiva FPS en ström kan nå. Värdet 0 behandlas som ungefär hälften av strömmens FPS. En inställning på 20 rekommenderas om du strömmar 24 eller 30 fps innehåll.",
     "min_threads": "Minsta antal CPU-trådar",
     "min_threads_desc": "Öka värdet något minskar kodningseffektivitet, men avvägningen är oftast värt det för att få användning av fler CPU-kärnor för kodning. Det ideala värdet är det lägsta värdet som tillförlitligt kan koda på dina önskade strömningsinställningar på din hårdvara.",
     "misc": "Diverse alternativ",
