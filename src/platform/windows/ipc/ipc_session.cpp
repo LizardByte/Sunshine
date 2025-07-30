@@ -68,7 +68,15 @@ namespace platf::dxgi {
   }
 
   void ipc_session_t::initialize_if_needed() {
-    if (_initialized) {
+    if (_initialized.load()) {
+      return;
+    }
+
+    if (bool expected = false; !_initialized.compare_exchange_strong(expected, true)) {
+      // Another thread is already initializing, wait for it to complete
+      while (_initialized.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      }
       return;
     }
 
@@ -87,7 +95,7 @@ namespace platf::dxgi {
     if (!_process_helper->start(exe_path.wstring(), L"")) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
-               << " (error code: " << err << ")";
+                       << " (error code: " << err << ")";
       return;
     }
 
@@ -151,7 +159,7 @@ namespace platf::dxgi {
     }
 
     if (handle_received) {
-      _initialized = true;
+      _initialized.store(true);
     } else {
       BOOST_LOG(error) << "Failed to receive handle data from helper process! Helper is likely deadlocked!";
       cleanup();
@@ -182,9 +190,8 @@ namespace platf::dxgi {
     _should_swap_to_dxgi.store(false);
     _force_reinit.store(false);
 
-    _initialized = false;
+    _initialized.store(false);
   }
-
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
     auto start_time = std::chrono::steady_clock::now();

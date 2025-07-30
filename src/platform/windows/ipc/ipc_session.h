@@ -156,7 +156,7 @@ namespace platf::dxgi {
     ID3D11Device *_device = nullptr;
     std::atomic<bool> _frame_ready {false};
     std::atomic<uint64_t> _frame_qpc {0};
-    bool _initialized = false;
+    std::atomic<bool> _initialized  {false};
     std::atomic<bool> _should_swap_to_dxgi {false};
     std::atomic<bool> _force_reinit {false};
     UINT _width = 0;

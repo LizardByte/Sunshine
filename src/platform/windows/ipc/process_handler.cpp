@@ -15,6 +15,7 @@
 // local includes
 #include "process_handler.h"
 #include "src/platform/windows/misc.h"
+#include "src/utility.h"
 
 
 bool ProcessHandler::start(const std::wstring &application, std::wstring_view arguments) {
@@ -27,45 +28,12 @@ bool ProcessHandler::start(const std::wstring &application, std::wstring_view ar
   if (ec) {
     return false;
   }
-
-  // Use a simple scope guard to ensure the attribute list is freed
-  struct AttrListGuard {
-    LPPROC_THREAD_ATTRIBUTE_LIST list;
-
-    // Explicit constructor
-    explicit AttrListGuard(LPPROC_THREAD_ATTRIBUTE_LIST l):
-        list(l) {}
-
-    // Delete copy constructor and copy assignment operator
-    AttrListGuard(const AttrListGuard &) = delete;
-    AttrListGuard &operator=(const AttrListGuard &) = delete;
-
-    // Define move constructor
-    AttrListGuard(AttrListGuard &&other) noexcept:
-        list(other.list) {
-      other.list = nullptr;
+  
+  auto guard = util::fail_guard([&]() {
+    if (startup_info.lpAttributeList) {
+      platf::free_proc_thread_attr_list(startup_info.lpAttributeList);
     }
-
-    // Define move assignment operator
-    AttrListGuard &operator=(AttrListGuard &&other) noexcept {
-      if (this != &other) {
-        if (list) {
-          platf::free_proc_thread_attr_list(list);
-        }
-        list = other.list;
-        other.list = nullptr;
-      }
-      return *this;
-    }
-
-    ~AttrListGuard() {
-      if (list) {
-        platf::free_proc_thread_attr_list(list);
-      }
-    }
-  };
-
-  AttrListGuard guard {startup_info.lpAttributeList};
+  });
 
   ZeroMemory(&pi_, sizeof(pi_));
 

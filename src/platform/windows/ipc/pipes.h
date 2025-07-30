@@ -64,10 +64,12 @@ namespace platf::dxgi {
    * This structure is used to send frame ready notifications from the WGC helper
    * process to the main process, including precise timing information.
    */
+  #pragma pack(push,1) // required to remove padding from compiler
   struct frame_ready_msg_t {
     uint8_t message_type = FRAME_READY_MSG; 
     uint64_t frame_qpc = 0;   
   };
+  #pragma pack(pop) // required to remove padding from compiler
 
   enum class PipeResult {
     Success,
