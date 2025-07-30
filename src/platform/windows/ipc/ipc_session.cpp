@@ -36,8 +36,14 @@ namespace platf::dxgi {
   }
 
   void ipc_session_t::handle_frame_notification(const std::vector<uint8_t> &msg) {
-    if (msg.size() == 1 && msg[0] == FRAME_READY_MSG) {
-      _frame_ready.store(true, std::memory_order_release);
+    if (msg.size() == sizeof(frame_ready_msg_t)) {
+      frame_ready_msg_t frame_msg;
+      memcpy(&frame_msg, msg.data(), sizeof(frame_msg));
+
+      if (frame_msg.message_type == FRAME_READY_MSG) {
+        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
+        _frame_ready.store(true, std::memory_order_release);
+      }
     }
   }
 
@@ -200,7 +206,7 @@ namespace platf::dxgi {
     }
   }
 
-  capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out) {
+  capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
     // Additional error check: ensure required resources are valid
     if (!_shared_texture || !_keyed_mutex) {
       return capture_e::error;
@@ -223,6 +229,7 @@ namespace platf::dxgi {
 
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
+    frame_qpc_out = _frame_qpc.load(std::memory_order_acquire);
 
     return capture_e::ok;
   }

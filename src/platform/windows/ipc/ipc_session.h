@@ -72,8 +72,9 @@ namespace platf::dxgi {
      * Blocking acquire of the next frame.
      * @param timeout Maximum time to wait for frame
      * @param gpu_tex_out Output parameter for the GPU texture pointer
+     * @param frame_qpc_out Output parameter for the frame QPC timestamp (0 if unavailable)
      */
-    capture_e acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out);
+    capture_e acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out);
 
     /**
      * @brief Release the keyed mutex and send a heartbeat to the helper process.
@@ -154,6 +155,7 @@ namespace platf::dxgi {
     safe_com_ptr<ID3D11Texture2D> _shared_texture;
     ID3D11Device *_device = nullptr;
     std::atomic<bool> _frame_ready {false};
+    std::atomic<uint64_t> _frame_qpc {0};
     bool _initialized = false;
     std::atomic<bool> _should_swap_to_dxgi {false};
     std::atomic<bool> _force_reinit {false};

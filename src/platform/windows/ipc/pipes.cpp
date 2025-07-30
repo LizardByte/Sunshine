@@ -351,7 +351,7 @@ namespace platf::dxgi {
 
     while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3) && !ack_ok) {
       if (PipeResult result = pipe->receive(ack, 1000); result == Success) {
-        if (ack.size() == 1 && ack[0] == 0xA5) {
+        if (ack.size() == 1 && ack[0] == ACK_MSG) {
           ack_ok = true;
         } else if (!ack.empty()) {
           BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();

@@ -153,11 +153,8 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
-    // Capture the QPC timestamp here to measure the time from when we request a frame until we receive it from the GPU.
-    // This is more reliable than trying to get the timestamp from the external process, since the pipe may have many queued frames.
-    frame_qpc = qpc_counter();
     ID3D11Texture2D *gpu_tex = nullptr;
-    auto status = _ipc_session->acquire(timeout, gpu_tex);
+    auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
 
     if (status != capture_e::ok) {
       return status;
@@ -271,13 +268,13 @@ namespace platf::dxgi {
     }
 
     ID3D11Texture2D *gpu_tex = nullptr;
-    auto status = _ipc_session->acquire(timeout, gpu_tex);
+    uint64_t frame_qpc = 0;
+    auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
 
     if (status != capture_e::ok) {
       return status;
     }
 
-    auto frame_qpc = qpc_counter();
 
     // Get description of the captured texture
     D3D11_TEXTURE2D_DESC desc;

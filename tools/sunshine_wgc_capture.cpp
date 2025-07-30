@@ -1002,7 +1002,9 @@ public:
       auto surface = frame.Surface();
 
       try {
-        process_surface_to_texture(surface);
+        // Get frame timing information from the WGC frame
+        uint64_t frame_qpc = frame.SystemRelativeTime().count();
+        process_surface_to_texture(surface, frame_qpc);
       } catch (const winrt::hresult_error &ex) {
         // Log error
         BOOST_LOG(error) << "WinRT error in frame processing: " << ex.code() << " - " << winrt::to_string(ex.message());
@@ -1120,8 +1122,9 @@ private:
   /**
    * @brief Copies the captured surface to the shared texture and notifies the main process.
    * @param surface The captured D3D11 surface.
+   * @param frame_qpc The QPC timestamp from when the frame was captured.
    */
-  void process_surface_to_texture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface) {
+  void process_surface_to_texture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t frame_qpc) {
     if (!_resource_manager || !_d3d_context || !_pipe) {
       return;
     }
@@ -1150,7 +1153,15 @@ private:
     // Copy frame data and release mutex
     _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
     _resource_manager->get_keyed_mutex()->ReleaseSync(1);
-    _pipe->send({FRAME_READY_MSG});
+
+    // Send frame ready message with QPC timing data
+    frame_ready_msg_t frame_msg;
+    frame_msg.frame_qpc = frame_qpc;
+
+    std::vector<uint8_t> message(sizeof(frame_msg));
+    memcpy(message.data(), &frame_msg, sizeof(frame_msg));
+
+    _pipe->send(message);
   }
 
 public:

@@ -30,9 +30,44 @@
 namespace platf::dxgi {
 
   constexpr uint8_t HEARTBEAT_MSG = 0x01;
-  constexpr uint8_t FRAME_READY_MSG = 0x03;
   constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;
-  constexpr uint8_t ACK_MSG = 0xA5;
+  constexpr uint8_t ACK_MSG = 0x03;
+  constexpr uint8_t FRAME_READY_MSG = 0x04;
+
+    /**
+   * @brief Structure for sharing handle and texture metadata via IPC.
+   * @param texture_handle Shared texture handle.
+   * @param width Width of the texture.
+   * @param height Height of the texture.
+   */
+  struct shared_handle_data_t {
+    HANDLE texture_handle;
+    UINT width;
+    UINT height;
+  };
+
+  /**
+   * @brief Structure for configuration data shared via IPC.
+   * @param dynamic_range Dynamic range setting.
+   * @param log_level Logging level.
+   * @param display_name Display name (wide string, max 32 chars).
+   */
+  struct config_data_t {
+    int dynamic_range;
+    int log_level;
+    wchar_t display_name[32];
+  };
+
+  /**
+   * @brief Message structure for frame ready notifications with QPC timing data.
+   * 
+   * This structure is used to send frame ready notifications from the WGC helper
+   * process to the main process, including precise timing information.
+   */
+  struct frame_ready_msg_t {
+    uint8_t message_type = FRAME_READY_MSG; 
+    uint64_t frame_qpc = 0;   
+  };
 
   enum class PipeResult {
     Success,
