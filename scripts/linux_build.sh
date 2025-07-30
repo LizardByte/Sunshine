@@ -460,6 +460,8 @@ function run_install() {
     nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
     echo "nvm url: ${nvm_url}"
     wget -qO- ${nvm_url} | bash
+
+    # shellcheck source=/dev/null  # we don't care that shellcheck cannot find nvm.sh
     source "$HOME/.nvm/nvm.sh"
     nvm install node
     nvm use node

@@ -97,9 +97,6 @@ tar -xzf %{SOURCE0} -C %{_builddir}/Sunshine
 # list directory
 ls -a %{_builddir}/Sunshine
 
-# patches
-%autopatch -p1
-
 %build
 # exit on error
 set -e

@@ -199,12 +199,12 @@ jobs:
           ignore_list=$(IFS=,; echo "${ignore_packages[*]}")
 
           # install pinned dependencies
-          if [ -n "$tarballs" ]; then
-            pacman -U --noconfirm ${tarballs}
+          if [ -n "${tarballs}" ]; then
+            pacman -U --noconfirm "${tarballs}"
           fi
 
           # Only add --ignore if we have packages to ignore
-          if [ -n "$ignore_list" ]; then
+          if [ -n "${ignore_list}" ]; then
             pacman -Syu --noconfirm --ignore="${ignore_list}" "${dependencies[@]}"
           else
             pacman -Syu --noconfirm "${dependencies[@]}"
@@ -251,7 +251,7 @@ jobs:
 
           # step output
           echo "python-path=${python_path}"
-          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+          echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Windows
         shell: msys2 {0}
@@ -272,7 +272,9 @@ jobs:
             -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
             -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
             -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+          echo "::add-matcher::.github/matchers/gcc.json"
           ninja -C build
+          echo "::remove-matcher owner=gcc::"
 
       - name: Package Windows
         shell: msys2 {0}

@@ -16,6 +16,10 @@ on:
         required: false
       COPR_CLI_CONFIG:
         required: false
+      GH_BOT_TOKEN:
+        required: false
+      VIRUSTOTAL_API_KEY:
+        required: false
 
 concurrency:
   group: "_${{ github.workflow }}-${{ github.ref }}"

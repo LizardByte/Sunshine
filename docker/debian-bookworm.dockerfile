@@ -42,7 +42,6 @@ _BUILD
 
 # run tests
 WORKDIR /build/sunshine/build/tests
-# hadolint ignore=SC1091
 RUN <<_TEST
 #!/bin/bash
 set -e
