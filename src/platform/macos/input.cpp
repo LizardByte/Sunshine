@@ -18,6 +18,8 @@
 #include "src/input.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/macos/misc.h"
+#include "src/platform/macos/permissions_manager.h"
 #include "src/utility.h"
 
 /**
@@ -251,6 +253,8 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     BOOST_LOG(debug) << "got keycode: 0x"sv << std::hex << modcode << ", translated to: 0x" << std::hex << key << ", release:" << release;
 
+    permissions_manager.print_accessibility_status(true, release);
+
     if (key < 0) {
       return;
     }
@@ -433,6 +437,8 @@ const KeyCodeMap kKeyCodesMap[] = {
         return;
     }
 
+    permissions_manager.print_accessibility_status(false, release);
+
     macos_input->mouse_down[mac_button] = !release;
 
     // if the last mouse down was less than MULTICLICK_DELAY_MS, we send a double click event
@@ -525,6 +531,10 @@ const KeyCodeMap kKeyCodesMap[] = {
     input_t result {new macos_input_t()};
 
     const auto macos_input = static_cast<macos_input_t *>(result.get());
+
+    if (permissions_manager.request_accessibility_permission()) {
+      BOOST_LOG(info) << PermissionsManager::default_accessibility_log_msg() << ", to allow mouse clicks and keyboard inputs.";
+    }
 
     // Default to main display
     macos_input->display = CGMainDisplayID();
