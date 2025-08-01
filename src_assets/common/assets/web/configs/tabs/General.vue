@@ -131,6 +131,14 @@ function removeCmd(index) {
               v-model="config.notify_pre_releases"
               default="false"
     ></Checkbox>
+
+    <!-- Update Check Interval -->
+    <div class="mb-3">
+      <label for="update_check_interval" class="form-label">{{ $t('config.update_check_interval') }}</label>
+      <input type="number" min="0" max="8760" class="form-control" id="update_check_interval" 
+             :placeholder="6" v-model="config.update_check_interval" />
+      <div class="form-text">{{ $t('config.update_check_interval_desc') }}</div>
+    </div>
   </div>
 </template>
 

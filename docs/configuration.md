@@ -261,6 +261,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### update_check_interval
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            How often to check for Sunshine updates, in hours. Set to 0 to disable automatic update checking.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            6
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            update_check_interval = 12
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller

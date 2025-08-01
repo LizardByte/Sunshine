@@ -249,6 +249,9 @@ int main(int argc, char *argv[]) {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   // create tray thread and detach it
   system_tray::run_tray();
+  
+  // initialize update checker for system tray notifications
+  system_tray::init_update_checker();
 #endif
 
   // Create signal handler after logging has been initialized
@@ -362,6 +365,7 @@ int main(int argc, char *argv[]) {
 
   // stop system tray
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+  system_tray::cleanup_update_checker();
   system_tray::end_tray();
 #endif
 
