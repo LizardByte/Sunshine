@@ -64,6 +64,9 @@ const config = ref(props.config)
       <select id="capture" class="form-select" v-model="config.capture">
         <option value="">{{ $t('_common.autodetect') }}</option>
         <PlatformLayout :platform="platform">
+          <template #freebsd>
+            <option value="x11">X11</option>
+          </template>
           <template #linux>
             <option value="nvfbc">NvFBC</option>
             <option value="wlr">wlroots</option>
@@ -89,6 +92,9 @@ const config = ref(props.config)
             <option value="nvenc">NVIDIA NVENC</option>
             <option value="quicksync">Intel QuickSync</option>
             <option value="amdvce">AMD AMF/VCE</option>
+          </template>
+          <template #freebsd>
+            <option value="vaapi">VA-API</option>
           </template>
           <template #linux>
             <option value="nvenc">NVIDIA NVENC</option>
