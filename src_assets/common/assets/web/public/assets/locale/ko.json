@@ -256,6 +256,8 @@
     "log_path_desc": "Sunshine의 현재 로그가 저장된 파일입니다.",
     "max_bitrate": "최대 비트",
     "max_bitrate_desc": "Sunshine이 스트림을 인코딩할 최대 비트 전송률(Kbps)입니다. 0으로 설정하면 항상 Moonlight에서 요청한 비트레이트를 사용합니다.",
+    "minimum_fps_target": "최소 FPS 목표",
+    "minimum_fps_target_desc": "스트림이 도달할 수 있는 가장 낮은 유효 FPS입니다. 값이 0이면 스트림 FPS의 약 절반으로 간주됩니다. 24 또는 30fps 콘텐츠를 스트리밍하는 경우 20을 설정하는 것이 좋습니다.",
     "min_threads": "최소 CPU 스레드 수",
     "min_threads_desc": "이 값을 높이면 인코딩 효율이 약간 떨어지지만, 일반적으로 인코딩에 더 많은 CPU 코어를 사용할 수 있다는 점에서 그만한 가치가 있습니다. 이상적인 값은 하드웨어에서 원하는 스트리밍 설정으로 안정적으로 인코딩할 수 있는 가장 낮은 값입니다.",
     "misc": "기타 옵션",
