@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// local includes
+#include "update_checker.h"
+
 /**
  * @brief Handles the system tray icon and notification system.
  */
@@ -91,4 +94,25 @@ namespace system_tray {
    * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
    */
   void update_tray_require_pin();
+
+  /**
+   * @brief Callback for when update is available.
+   * @param update_info The update information.
+   */
+  void on_update_available(const update_checker::UpdateInfo &update_info);
+
+  /**
+   * @brief Show update notification in system tray.
+   */
+  void show_update_notification();
+
+  /**
+   * @brief Initialize the update checker for system tray notifications.
+   */
+  void init_update_checker();
+
+  /**
+   * @brief Cleanup the update checker.
+   */
+  void cleanup_update_checker();
 }  // namespace system_tray

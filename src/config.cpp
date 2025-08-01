@@ -577,6 +577,7 @@ namespace config {
     "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
+    std::chrono::hours(6),  // update_check_interval
     {},  // prep commands
   };
 
@@ -1227,6 +1228,10 @@ namespace config {
     bool_f(vars, "native_pen_touch", input.native_pen_touch);
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
+
+    int update_check_hours = sunshine.update_check_interval.count();
+    int_between_f(vars, "update_check_interval", update_check_hours, {1, 8760});  // 1 hour to 1 year
+    sunshine.update_check_interval = std::chrono::hours(update_check_hours);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});

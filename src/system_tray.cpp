@@ -42,12 +42,16 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
+  #include "update_checker.h"
 
 using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
+  static update_checker::UpdateInfo latest_update_info = {};
+  static std::chrono::steady_clock::time_point last_stream_start = {};
+  static bool pending_update_notification = false;
 
   void tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -93,6 +97,17 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
+  void tray_update_available_cb(struct tray_menu *item) {
+    BOOST_LOG(info) << "Opening update page from system tray"sv;
+    if (latest_update_info.has_prerelease_update && config::sunshine.notify_pre_releases) {
+      platf::open_url(latest_update_info.prerelease_version.html_url);
+    } else if (latest_update_info.has_stable_update) {
+      platf::open_url(latest_update_info.stable_version.html_url);
+    } else {
+      platf::open_url("https://github.com/LizardByte/Sunshine/releases");
+    }
+  }
+
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
@@ -122,6 +137,59 @@ namespace system_tray {
     .iconPathCount = 4,
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   };
+
+  void on_update_available(const update_checker::UpdateInfo &update_info) {
+    if (!tray_initialized) {
+      return;
+    }
+
+    latest_update_info = update_info;
+    pending_update_notification = true;
+    
+    BOOST_LOG(info) << "Update available - will notify after next stream";
+  }
+
+  void show_update_notification() {
+    if (!tray_initialized || !pending_update_notification) {
+      return;
+    }
+
+    pending_update_notification = false;
+
+    std::string notification_title;
+    std::string notification_text;
+    std::string url;
+
+    if (latest_update_info.has_prerelease_update && config::sunshine.notify_pre_releases) {
+      notification_title = "New Sunshine Pre-release Available";
+      notification_text = "Version " + latest_update_info.prerelease_version.version + " is available. Click to download.";
+      url = latest_update_info.prerelease_version.html_url;
+    } else if (latest_update_info.has_stable_update) {
+      notification_title = "New Sunshine Version Available";
+      notification_text = "Version " + latest_update_info.stable_version.version + " is available. Click to download.";
+      url = latest_update_info.stable_version.html_url;
+    } else {
+      return;  // No update to show
+    }
+
+    // Store the notification details in static variables so they persist
+    static std::string stored_title;
+    static std::string stored_text;
+    
+    stored_title = notification_title;
+    stored_text = notification_text;
+
+    tray.notification_title = stored_title.c_str();
+    tray.notification_text = stored_text.c_str();
+    tray.notification_icon = TRAY_ICON;
+    tray.notification_cb = []() {
+      tray_update_available_cb(nullptr);
+    };
+    
+    tray_update(&tray);
+    
+    BOOST_LOG(info) << "Showing update notification: " << stored_title;
+  }
 
   int system_tray() {
   #ifdef _WIN32
@@ -230,6 +298,9 @@ namespace system_tray {
       return;
     }
 
+    // Record when the stream started
+    last_stream_start = std::chrono::steady_clock::now();
+
     tray.notification_title = NULL;
     tray.notification_text = NULL;
     tray.notification_cb = NULL;
@@ -244,6 +315,14 @@ namespace system_tray {
     tray.tooltip = msg;
     tray.notification_icon = TRAY_ICON_PLAYING;
     tray_update(&tray);
+
+    // Schedule update notification 3 seconds after stream start
+    if (pending_update_notification) {
+      std::thread([=]() {
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+        show_update_notification();
+      }).detach();
+    }
   }
 
   void update_tray_pausing(std::string app_name) {
@@ -308,6 +387,17 @@ namespace system_tray {
       launch_ui_with_path("/pin");
     };
     tray_update(&tray);
+  }
+
+  void init_update_checker() {
+    BOOST_LOG(info) << "Initializing update checker for system tray notifications";
+    update_checker::init(on_update_available);
+    update_checker::start();
+  }
+
+  void cleanup_update_checker() {
+    BOOST_LOG(info) << "Cleaning up update checker";
+    update_checker::stop();
   }
 
 }  // namespace system_tray
