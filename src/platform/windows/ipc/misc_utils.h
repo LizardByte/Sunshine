@@ -31,15 +31,10 @@ namespace platf::dxgi {
 
   /**
    * @brief RAII wrapper for managing OVERLAPPED I/O context with event handle.
-   *
    * - Initializes an OVERLAPPED structure and creates an event for asynchronous I/O.
-   *
    * - Provides move semantics for safe transfer of ownership.
-   *
    * - Cleans up the event handle on destruction.
-   *
    * - Offers access to the underlying OVERLAPPED pointer and event handle.
-   *
    * - Allows checking if the context is valid.
    */
   class io_context {
