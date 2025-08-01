@@ -83,12 +83,12 @@ namespace platf::dxgi {
       return;
     }
 
-    // Get the directory of the main executable
-    std::string exePathBuffer(MAX_PATH, '\0');
-    GetModuleFileNameA(nullptr, exePathBuffer.data(), MAX_PATH);
-    exePathBuffer.resize(strlen(exePathBuffer.data()));
+    // Get the directory of the main executable (Unicode-safe)
+    std::wstring exePathBuffer(MAX_PATH, L'\0');
+    GetModuleFileNameW(nullptr, exePathBuffer.data(), MAX_PATH);
+    exePathBuffer.resize(wcslen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
-    std::filesystem::path exe_path = mainExeDir / "tools" / "sunshine_wgc_capture.exe";
+    std::filesystem::path exe_path = mainExeDir / L"tools" / L"sunshine_wgc_capture.exe";
     if (!_process_helper->start(exe_path.wstring(), L"")) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
