@@ -298,15 +298,6 @@ namespace platf::dxgi {
 
   /**
    * @brief Get the parent process ID for a specified process.
-   *
-   * Steps:
-   *
-   * - Takes a process ID as input.
-   *
-   * - Queries the system for the parent process of the given process ID.
-   *
-   * - Returns the parent process ID, or 0 if not found or on error.
-   *
    * @param process_id The process ID for which to retrieve the parent process ID.
    * @return The parent process ID, or 0 if not found or on error.
    */
