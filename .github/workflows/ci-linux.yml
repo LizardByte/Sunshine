@@ -79,8 +79,8 @@ jobs:
             --enable-x11 \
             --enable-glx \
             --enable-wayland \
-            --without-legacy  # emgd, nvctrl, fglrx
-          make -j $(nproc)
+            --without-legacy
+          make -j "$(nproc)"
           sudo make install
           cd .. && rm -rf libva-*
 
@@ -91,6 +91,7 @@ jobs:
           COMMIT: ${{ inputs.release_commit }}
         run: |
           chmod +x ./scripts/linux_build.sh
+          echo "::add-matcher::.github/matchers/gcc.json"
           ./scripts/linux_build.sh \
             --publisher-name='${{ github.repository_owner }}' \
             --publisher-website='https://app.lizardbyte.dev' \
@@ -98,12 +99,13 @@ jobs:
             --skip-cleanup \
             --skip-package \
             --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
+          echo "::remove-matcher owner=gcc::"
 
       - name: Set AppImage Version
         if: matrix.name == 'AppImage'
         run: |
           version=${{ inputs.release_version }}
-          echo "VERSION=${version}" >> $GITHUB_ENV
+          echo "VERSION=${version}" >> "${GITHUB_ENV}"
 
       - name: Package Linux - AppImage
         if: matrix.name == 'AppImage'
