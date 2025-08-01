@@ -22,6 +22,16 @@
 #include "upnp.h"
 #include "video.h"
 
+#ifdef _WIN32
+  #define WIN32_LEAN_AND_MEAN
+  #include "platform/windows/misc.h"
+
+// clang-format off
+  #include <Windows.h>  // must come before dbt.h
+  #include <Dbt.h>
+// clang-format on
+#endif
+
 extern "C" {
 #include "rswrapper.h"
 }
@@ -72,6 +82,17 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
         // Terminate ourselves with a blocking exit call
         std::cout << "Received WM_ENDSESSION"sv << std::endl;
         lifetime::exit_sunshine(0, false);
+        return 0;
+      }
+    case WM_DEVICECHANGE:
+      {
+        // Check if streaming
+        if (platf::is_streaming) {
+          // Check if devices change
+          if (wParam == DBT_DEVNODES_CHANGED) {
+            platf::check_and_force_cursor_visibility();
+          }
+        }
         return 0;
       }
     default:
