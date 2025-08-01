@@ -121,7 +121,7 @@
     "amd_usage_transcoding": "Chuyển mã -- Chuyển mã (chậm nhất)",
     "amd_usage_ultralowlatency": "ultralowlatency - độ trễ cực thấp (nhanh nhất; mặc định)",
     "amd_usage_webcam": "webcam -- webcam (chậm)",
-    "amd_vbaq": "AMF Lượng tử hóa thích ứng dựa trên độ lệch (VBAQ)",
+    "amd_vbaq": "Cơ chế nén thích nghi theo mức độ thay đổi hình ảnh (VBAQ) của AMF",
     "amd_vbaq_desc": "Hệ thống thị giác của con người thường ít nhạy cảm hơn với các hiện tượng nhiễu trong các vùng có kết cấu phức tạp. Trong chế độ VBAQ, độ biến thiên của pixel được sử dụng để chỉ ra độ phức tạp của kết cấu không gian, cho phép bộ mã hóa phân bổ nhiều bit hơn cho các vùng mịn hơn. Kích hoạt tính năng này mang lại cải thiện về chất lượng hình ảnh chủ quan với một số nội dung.",
     "apply_note": "Nhấp vào 'Áp dụng' để khởi động lại Sunshine và áp dụng các thay đổi. Điều này sẽ kết thúc tất cả các phiên đang chạy.",
     "audio_sink": "Bộ thu âm thanh",
