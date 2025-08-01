@@ -280,7 +280,7 @@
     "nvenc_preset_7": "(slowest)",
     "nvenc_preset_desc": "Higher numbers improve compression (quality at given bitrate) at the cost of increased encoding latency. Recommended to change only when limited by network or decoder, otherwise similar effect can be accomplished by increasing bitrate.",
     "nvenc_realtime_hags": "Use realtime priority in hardware accelerated gpu scheduling",
-    "nvenc_realtime_hags_desc": "Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum. Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded.",
+    "nvenc_realtime_hags_desc": "Currently NVIDIA drivers may freeze in encoder when HAGS is enabled, realtime priority is used and VRAM utilization is close to maximum. Disabling this option lowers the priority to high, sidestepping the freeze at the cost of reduced capture performance when the GPU is heavily loaded. Alternatively, you can swap your capture method to Windows.Graphic.Capture in advanced settings tab. This also mitigates this freezing issue without any performance hit.",
     "nvenc_spatial_aq": "Spatial AQ",
     "nvenc_spatial_aq_desc": "Assign higher QP values to flat regions of the video. Recommended to enable when streaming at lower bitrates.",
     "nvenc_twopass": "Two-pass mode",
