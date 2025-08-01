@@ -949,6 +949,112 @@ namespace config {
     }
   }
 
+  void global_event_actions_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, event_actions::event_actions_t &input) {
+    std::string string;
+    string_f(vars, name, string);
+
+    if (string.empty()) {
+      return;
+    }
+
+    std::stringstream jsonStream;
+    jsonStream << string;
+
+    try {
+      boost::property_tree::ptree jsonTree;
+      boost::property_tree::read_json(jsonStream, jsonTree);
+
+      // New format: array of action objects with "action" containing stages and commands
+      for (auto &[_, action_node] : jsonTree) {
+        std::string action_name = action_node.get<std::string>("name", "Unnamed Action");
+        
+        if (action_node.get_child_optional("action")) {
+          auto action_block = action_node.get_child("action");
+          
+          // Process startup commands
+          if (action_block.get_child_optional("startup_commands")) {
+            auto startup_node = action_block.get_child("startup_commands");
+            std::string startup_stage = action_block.get<std::string>("startup_stage", "");
+            
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(startup_stage);
+            if (stage_opt) {
+              event_actions::command_group_t group;
+              group.name = action_name;
+              
+              auto policy_str = startup_node.get<std::string>("failure_policy", "FAIL_FAST");
+              group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
+                                     event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
+                                     event_actions::failure_policy_e::FAIL_FAST;
+
+              if (startup_node.get_child_optional("commands")) {
+                for (auto &[_, cmd_node] : startup_node.get_child("commands")) {
+                  event_actions::command_t command;
+                  command.cmd = cmd_node.get<std::string>("cmd", "");
+                  command.elevated = cmd_node.get<bool>("elevated", false);
+                  command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                  command.async = cmd_node.get<bool>("async", false);
+                  command.ignore_error = cmd_node.get<bool>("ignore_error", false);
+                  
+                  if (!command.cmd.empty()) {
+                    group.commands.push_back(command);
+                  }
+                }
+              }
+              
+              if (!group.commands.empty()) {
+                input.stages[*stage_opt].groups.push_back(group);
+              }
+            } else {
+              BOOST_LOG(warning) << "Unknown event-action startup_stage: " << startup_stage;
+            }
+          }
+          
+          // Process cleanup commands
+          if (action_block.get_child_optional("cleanup_commands")) {
+            auto cleanup_node = action_block.get_child("cleanup_commands");
+            std::string shutdown_stage = action_block.get<std::string>("shutdown_stage", "");
+            
+            auto stage_opt = event_actions::event_action_handler_t::string_to_stage(shutdown_stage);
+            if (stage_opt) {
+              event_actions::command_group_t group;
+              group.name = action_name + " (cleanup)";
+              
+              auto policy_str = cleanup_node.get<std::string>("failure_policy", "CONTINUE_ON_FAILURE");
+              group.failure_policy = (policy_str == "CONTINUE_ON_FAILURE") ? 
+                                     event_actions::failure_policy_e::CONTINUE_ON_FAILURE : 
+                                     event_actions::failure_policy_e::FAIL_FAST;
+
+              if (cleanup_node.get_child_optional("commands")) {
+                for (auto &[_, cmd_node] : cleanup_node.get_child("commands")) {
+                  event_actions::command_t command;
+                  command.cmd = cmd_node.get<std::string>("cmd", "");
+                  command.elevated = cmd_node.get<bool>("elevated", false);
+                  command.timeout_seconds = cmd_node.get<int>("timeout_seconds", 30);
+                  command.async = cmd_node.get<bool>("async", false);
+                  command.ignore_error = cmd_node.get<bool>("ignore_error", true); // Default to true for cleanup
+                  
+                  if (!command.cmd.empty()) {
+                    group.commands.push_back(command);
+                  }
+                }
+              }
+              
+              if (!group.commands.empty()) {
+                input.stages[*stage_opt].groups.push_back(group);
+              }
+            } else {
+              BOOST_LOG(warning) << "Unknown event-action shutdown_stage: " << shutdown_stage;
+            }
+          }
+        }
+      }
+
+      BOOST_LOG(info) << "Loaded global event-actions for " << input.stages.size() << " stages";
+    } catch (const std::exception &e) {
+      BOOST_LOG(error) << "Failed to parse global event-actions: " << e.what();
+    }
+  }
+
   void list_int_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<int> &input) {
     std::vector<std::string> list;
     list_string_f(vars, name, list);
@@ -1161,6 +1267,8 @@ namespace config {
 
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
+    // Support current naming with underscores
+    global_event_actions_f(vars, "global_event_actions", config::sunshine.global_event_actions);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
