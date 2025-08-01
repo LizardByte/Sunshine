@@ -72,6 +72,7 @@ namespace audio {
   using audio_ctx_ref_t = safe::shared_t<audio_ctx_t>::ptr_t;
 
   void capture(safe::mail_t mail, config_t config, void *channel_data);
+  void mic_receive(safe::mail_t mail, config_t config, void *channel_data);
 
   /**
    * @brief Get the reference to the audio context.

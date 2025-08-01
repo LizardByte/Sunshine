@@ -550,11 +550,22 @@ namespace platf {
     virtual ~mic_t() = default;
   };
 
+  class mic_output_t {
+  public:
+    virtual int output_samples(const std::vector<float> &frame_buffer) = 0;
+    virtual int start() = 0;
+    virtual int stop() = 0;
+
+    virtual ~mic_output_t() = default;
+  };
+
   class audio_control_t {
   public:
     virtual int set_sink(const std::string &sink) = 0;
 
     virtual std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) = 0;
+
+    virtual std::unique_ptr<mic_output_t> mic_output(int channels, std::uint32_t sample_rate, const std::string &device_name) = 0;
 
     /**
      * @brief Check if the audio sink is available in the system.
@@ -564,6 +575,9 @@ namespace platf {
     virtual bool is_sink_available(const std::string &sink) = 0;
 
     virtual std::optional<sink_t> sink_info() = 0;
+
+    virtual int create_virtual_microphone(const std::string &virtual_mic_name = "sunshine-virtual-mic") = 0;
+    virtual int setup_virtual_mic_loopback(const std::string &virtual_mic_name = "sunshine-virtual-mic") = 0;
 
     virtual ~audio_control_t() = default;
   };

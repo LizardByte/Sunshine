@@ -511,8 +511,18 @@ namespace config {
   audio_t audio {
     {},  // audio_sink
     {},  // virtual_sink
+    {},  // mic_sink
     true,  // stream audio
     true,  // install_steam_drivers
+    false,  // enable_mic_passthrough
+    
+    // Advanced microphone settings
+    8,  // mic_max_clients
+    2,  // mic_max_streams_per_client
+    false,  // mic_encryption_enabled
+    "OPUS,PCM",  // mic_supported_codecs
+    "16000,48000",  // mic_supported_sample_rates
+    64000,  // mic_default_bitrate
   };
 
   stream_t stream {
@@ -1164,8 +1174,10 @@ namespace config {
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);
+    string_f(vars, "mic_sink", audio.mic_sink);
     bool_f(vars, "stream_audio", audio.stream);
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
+    bool_f(vars, "enable_mic_passthrough", audio.enable_mic_passthrough);
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
 

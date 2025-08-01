@@ -49,6 +49,8 @@ extern "C" {
 #define IDX_SET_MOTION_EVENT 13
 #define IDX_SET_RGB_LED 14
 #define IDX_SET_ADAPTIVE_TRIGGERS 15
+#define IDX_MIC_DATA 16
+#define IDX_MIC_CONFIG 17
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -67,6 +69,8 @@ static const short packetTypes[] = {
   0x5501,  // Set motion event (Sunshine protocol extension)
   0x5502,  // Set RGB LED (Sunshine protocol extension)
   0x5503,  // Set Adaptive triggers (Sunshine protocol extension)
+  0x5504,  // Microphone data (Sunshine protocol extension)
+  0x5505,  // Microphone config (Sunshine protocol extension)
 };
 
 namespace asio = boost::asio;
@@ -81,7 +85,8 @@ namespace stream {
 
   enum class socket_e : int {
     video,  ///< Video
-    audio  ///< Audio
+    audio,  ///< Audio
+    microphone  ///< Microphone
   };
 
 #pragma pack(push, 1)
@@ -331,11 +336,13 @@ namespace stream {
     std::thread video_thread;
     std::thread audio_thread;
     std::thread control_thread;
+    std::thread mic_thread;
 
     asio::io_context io_context;
 
     udp::socket video_sock {io_context};
     udp::socket audio_sock {io_context};
+    udp::socket mic_sock {io_context};
 
     control_server_t control_server;
   };
@@ -349,6 +356,7 @@ namespace stream {
 
     std::thread audioThread;
     std::thread videoThread;
+    std::thread micThread;
 
     std::chrono::steady_clock::time_point pingTimeout;
 
@@ -1584,6 +1592,43 @@ namespace stream {
     shutdown_event->raise(true);
   }
 
+  void micReceiveThread(udp::socket &sock) {
+    auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    auto mic_packets = mail::man->queue<audio::packet_t>(mail::mic_packets);
+
+    BOOST_LOG(info) << "Starting microphone receive thread"sv;
+
+    while (!shutdown_event->peek()) {
+      std::array<char, 2048> buffer;
+      udp::endpoint sender_endpoint;
+      boost::system::error_code ec;
+
+      auto bytes_received = sock.receive_from(asio::buffer(buffer), sender_endpoint, 0, ec);
+      
+      if (ec) {
+        if (ec == boost::asio::error::operation_aborted) {
+          break;
+        }
+        BOOST_LOG(warning) << "Microphone receive error: " << ec.message();
+        continue;
+      }
+
+      if (bytes_received < 8) {
+        continue; // Too small to be a valid packet
+      }
+
+      // Extract microphone data and forward to processing
+      auto mic_packet = std::make_pair(
+        (void*)buffer.data(),
+        audio::buffer_t(buffer.begin(), buffer.begin() + bytes_received)
+      );
+
+      mic_packets->raise(std::move(mic_packet));
+    }
+
+    BOOST_LOG(info) << "Microphone receive thread ended"sv;
+  }
+
   void audioBroadcastThread(udp::socket &sock) {
     auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
     auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
@@ -1694,6 +1739,7 @@ namespace stream {
     auto control_port = net::map_port(CONTROL_PORT);
     auto video_port = net::map_port(VIDEO_STREAM_PORT);
     auto audio_port = net::map_port(AUDIO_STREAM_PORT);
+    auto mic_port = net::map_port(MIC_STREAM_PORT);
 
     if (ctx.control_server.bind(address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
@@ -1737,11 +1783,29 @@ namespace stream {
       return -1;
     }
 
+    if (config::audio.enable_mic_passthrough) {
+      ctx.mic_sock.open(protocol, ec);
+      if (ec) {
+        BOOST_LOG(fatal) << "Couldn't open socket for Microphone server: "sv << ec.message();
+        return -1;
+      }
+
+      ctx.mic_sock.bind(udp::endpoint(protocol, mic_port), ec);
+      if (ec) {
+        BOOST_LOG(fatal) << "Couldn't bind Microphone server to port ["sv << mic_port << "]: "sv << ec.message();
+        return -1;
+      }
+    }
+
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
     ctx.video_thread = std::thread {videoBroadcastThread, std::ref(ctx.video_sock)};
     ctx.audio_thread = std::thread {audioBroadcastThread, std::ref(ctx.audio_sock)};
     ctx.control_thread = std::thread {controlBroadcastThread, &ctx.control_server};
+
+    if (config::audio.enable_mic_passthrough) {
+      ctx.mic_thread = std::thread {micReceiveThread, std::ref(ctx.mic_sock)};
+    }
 
     ctx.recv_thread = std::thread {recvThread, std::ref(ctx)};
 
@@ -1765,6 +1829,9 @@ namespace stream {
 
     ctx.video_sock.close();
     ctx.audio_sock.close();
+    if (ctx.mic_sock.is_open()) {
+      ctx.mic_sock.close();
+    }
 
     video_packets.reset();
     audio_packets.reset();
@@ -1777,6 +1844,12 @@ namespace stream {
     ctx.audio_thread.join();
     BOOST_LOG(debug) << "Waiting for main control thread to end..."sv;
     ctx.control_thread.join();
+    
+    if (ctx.mic_thread.joinable()) {
+      BOOST_LOG(debug) << "Waiting for microphone thread to end..."sv;
+      ctx.mic_thread.join();
+    }
+    
     BOOST_LOG(debug) << "All broadcasting threads ended"sv;
 
     broadcast_shutdown_event->reset();
@@ -1914,6 +1987,12 @@ namespace stream {
       session.videoThread.join();
       BOOST_LOG(debug) << "Waiting for audio to end..."sv;
       session.audioThread.join();
+      
+      if (session.micThread.joinable()) {
+        BOOST_LOG(debug) << "Waiting for microphone to end..."sv;
+        session.micThread.join();
+      }
+      
       BOOST_LOG(debug) << "Waiting for control to end..."sv;
       session.controlEnd.view();
       // Reset input on session stop to avoid stuck repeated keys
@@ -1970,6 +2049,10 @@ namespace stream {
 
       session.audioThread = std::thread {audioThread, &session};
       session.videoThread = std::thread {videoThread, &session};
+      
+      if (config::audio.enable_mic_passthrough) {
+        session.micThread = std::thread {audio::mic_receive, session.mail, session.config.audio, nullptr};
+      }
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 

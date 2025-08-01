@@ -47,6 +47,7 @@ namespace mail {
   MAIL(broadcast_shutdown);
   MAIL(video_packets);
   MAIL(audio_packets);
+  MAIL(mic_packets);
   MAIL(switch_display);
 
   // Local mail
