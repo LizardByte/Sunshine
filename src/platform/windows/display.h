@@ -528,9 +528,7 @@ namespace platf::dxgi {
   };
 
   /**
-   * @class temp_dxgi_vram_t
    * @brief Temporary DXGI VRAM display backend for secure desktop scenarios.
-   *
    * This display backend uses DXGI duplication for capturing the screen when secure desktop is active.
    * It periodically checks if secure desktop is no longer active and, if so, can swap back to WGC.
    */
