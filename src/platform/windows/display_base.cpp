@@ -984,11 +984,11 @@ namespace platf {
 
   /**
    * @brief Creates and initializes a display object based on the specified hardware device type, display name, and video configuration.
-   * 
+   *
    * This function selects the appropriate display implementation (VRAM or RAM, WGC or Desktop Duplication)
    * based on the provided hardware device type and capture configuration. It attempts to initialize the display,
    * and returns a shared pointer to the display object if successful, or nullptr on failure.
-   * 
+   *
    * @param hwdevice_type The type of hardware device memory to use (e.g., dxgi for VRAM, system for RAM).
    * @param display_name The name of the display to capture.
    * @param config The video configuration to use for display initialization.

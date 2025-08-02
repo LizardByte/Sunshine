@@ -267,7 +267,6 @@ namespace platf::dxgi {
       return status;
     }
 
-
     // Get description of the captured texture
     D3D11_TEXTURE2D_DESC desc;
     gpu_tex->GetDesc(&desc);

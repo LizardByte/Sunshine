@@ -113,6 +113,15 @@ enum class D3DKMT_SchedulingPriorityClass : LONG {
 using PD3DKMTSetProcessSchedulingPriorityClass = LONG(__stdcall *)(HANDLE, LONG);
 
 /**
+ * @brief D3D11 device creation flags for the WGC helper process.
+ *
+ * NOTE: This constant is NOT shared with the main process. It is defined here separately
+ * because including display.h would pull in too many dependencies for this standalone helper.
+ * If you change this flag, you MUST update it in both this file and src/platform/windows/display.h.
+ */
+constexpr UINT D3D11_CREATE_DEVICE_FLAGS = 0;
+
+/**
  * @brief Initial log level for the helper process.
  */
 const int INITIAL_LOG_LEVEL = 2;
@@ -120,7 +129,7 @@ const int INITIAL_LOG_LEVEL = 2;
 /**
  * @brief Global configuration data received from the main process.
  */
-static platf::dxgi::config_data_t g_config = {0, 0, L""};
+static platf::dxgi::config_data_t g_config = {0, 0, L"", {0, 0}};
 
 /**
  * @brief Flag indicating whether configuration data has been received from main process.
@@ -315,8 +324,6 @@ public:
     return success;
   }
 
-
-
   /**
    * @brief Checks if DPI awareness was successfully set.
    * @return true if DPI awareness is configured, false otherwise.
@@ -377,19 +384,80 @@ public:
   /**
    * @brief Creates a D3D11 device and context for graphics operations.
    *
-   * Creates a hardware-accelerated D3D11 device using default settings.
+   * Creates a hardware-accelerated D3D11 device using the specified adapter.
    * The device is used for texture operations and WinRT interop.
    * Also sets GPU thread priority to 7 for optimal capture performance.
+   * Uses the same D3D11_CREATE_DEVICE_FLAGS as the main Sunshine process.
    *
+   * @param adapter_luid LUID of the adapter to use, or all zeros for default adapter.
    * @return true if device creation succeeded, false otherwise.
    */
-  bool create_device() {
+  bool create_device(const LUID &adapter_luid) {
     ID3D11Device *raw_device = nullptr;
     ID3D11DeviceContext *raw_context = nullptr;
 
-    HRESULT hr = D3D11CreateDevice(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, 0, nullptr, 0, D3D11_SDK_VERSION, &raw_device, &_feature_level, &raw_context);
+    // Feature levels to try, matching the main process
+    D3D_FEATURE_LEVEL featureLevels[] {
+      D3D_FEATURE_LEVEL_11_1,
+      D3D_FEATURE_LEVEL_11_0,
+      D3D_FEATURE_LEVEL_10_1,
+      D3D_FEATURE_LEVEL_10_0,
+      D3D_FEATURE_LEVEL_9_3,
+      D3D_FEATURE_LEVEL_9_2,
+      D3D_FEATURE_LEVEL_9_1
+    };
+
+    // Find the adapter matching the LUID
+    winrt::com_ptr<IDXGIAdapter1> adapter;
+    if (adapter_luid.HighPart != 0 || adapter_luid.LowPart != 0) {
+      // Non-zero LUID provided, find the matching adapter
+      winrt::com_ptr<IDXGIFactory1> factory;
+      HRESULT hr = CreateDXGIFactory1(__uuidof(IDXGIFactory1), factory.put_void());
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "Failed to create DXGI factory for adapter lookup";
+        return false;
+      }
+
+      IDXGIAdapter1 *raw_adapter = nullptr;
+      for (UINT i = 0; factory->EnumAdapters1(i, &raw_adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+        winrt::com_ptr<IDXGIAdapter1> test_adapter;
+        test_adapter.attach(raw_adapter);
+        DXGI_ADAPTER_DESC1 desc;
+        if (SUCCEEDED(test_adapter->GetDesc1(&desc))) {
+          if (desc.AdapterLuid.HighPart == adapter_luid.HighPart &&
+              desc.AdapterLuid.LowPart == adapter_luid.LowPart) {
+            adapter = test_adapter;
+            BOOST_LOG(info) << "Found matching adapter: " << to_utf8(desc.Description);
+            break;
+          }
+        }
+      }
+
+      if (!adapter) {
+        BOOST_LOG(warning) << "Could not find adapter with LUID "
+                           << std::hex << adapter_luid.HighPart << ":" << adapter_luid.LowPart
+                           << std::dec << ", using default adapter";
+      }
+    } else {
+      BOOST_LOG(info) << "Using default adapter (no LUID specified)";
+    }
+
+    // Create the D3D11 device using the same flags as the main process
+    HRESULT hr = D3D11CreateDevice(
+      adapter.get(),  // nullptr if no specific adapter found
+      adapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE,
+      nullptr,
+      D3D11_CREATE_DEVICE_FLAGS,
+      featureLevels,
+      ARRAYSIZE(featureLevels),
+      D3D11_SDK_VERSION,
+      &raw_device,
+      &_feature_level,
+      &raw_context
+    );
+
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to create D3D11 device";
+      BOOST_LOG(error) << "Failed to create D3D11 device: " << std::hex << hr << std::dec;
       return false;
     }
 
@@ -449,15 +517,14 @@ public:
   /**
    * @brief Initializes the D3D11 device and WinRT interop device.
    *
-   * Calls create_device() to create a D3D11 device and context, then create_winrt_interop() to create the WinRT interop device.
+   * Calls create_device() with the specified adapter LUID, then create_winrt_interop() to create the WinRT interop device.
    *
+   * @param adapter_luid LUID of the adapter to use, or all zeros for default adapter.
    * @return true if both device and interop device are successfully created, false otherwise.
    */
-  bool initialize_all() {
-    return create_device() && create_winrt_interop();
+  bool initialize_all(const LUID &adapter_luid) {
+    return create_device(adapter_luid) && create_winrt_interop();
   }
-
-
 
   /**
    * @brief Gets the underlying D3D11 device pointer.
@@ -899,7 +966,7 @@ private:
     try {
       if (_frame_pool) {
         if (_frame_arrived_token.value != 0) {
-          _frame_pool.FrameArrived(_frame_arrived_token); // Remove handler
+          _frame_pool.FrameArrived(_frame_arrived_token);  // Remove handler
           _frame_arrived_token.value = 0;
         }
         _frame_pool.Close();
@@ -1159,7 +1226,7 @@ private:
     frame_ready_msg_t frame_msg;
     frame_msg.frame_qpc = frame_qpc;
 
-    std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t*>(&frame_msg), sizeof(frame_msg));
+    std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t *>(&frame_msg), sizeof(frame_msg));
     _pipe->send(msg_span);
   }
 
@@ -1313,7 +1380,9 @@ void handle_ipc_message(std::span<const uint8_t> message) {
       BOOST_LOG(info) << "Log level updated from config: " << g_config.log_level;
     }
     BOOST_LOG(info) << "Received config data: hdr: " << g_config.dynamic_range
-                    << ", display: '" << winrt::to_string(g_config.display_name) << "'";
+                    << ", display: '" << winrt::to_string(g_config.display_name) << "'"
+                    << ", adapter LUID: " << std::hex << g_config.adapter_luid.HighPart
+                    << ":" << g_config.adapter_luid.LowPart << std::dec;
   }
 }
 
@@ -1413,8 +1482,6 @@ int main(int argc, char *argv[]) {
   // Set up default config and log level
   auto log_deinit = logging::init(2, get_temp_log_path());
 
-
-
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer system_initializer;
   if (!system_initializer.initialize_all()) {
@@ -1442,9 +1509,17 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // Create D3D11 device and context
+  constexpr int max_wait_ms = 5000;
+  constexpr int poll_interval_ms = 10;
+  int waited_ms = 0;
+  while (!g_config_received && waited_ms < max_wait_ms) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(poll_interval_ms));
+    waited_ms += poll_interval_ms;
+  }
+
+  // Create D3D11 device and context using the same adapter as the main process
   D3D11DeviceManager d3d11_manager;
-  if (!d3d11_manager.initialize_all()) {
+  if (!d3d11_manager.initialize_all(g_config.adapter_luid)) {
     BOOST_LOG(error) << "D3D11 device initialization failed, exiting...";
     return 1;
   }
@@ -1484,7 +1559,7 @@ int main(int argc, char *argv[]) {
 
   // Send shared handle data via named pipe to main process
   platf::dxgi::shared_handle_data_t handle_data = shared_resource_manager.get_shared_handle_data();
-  std::span<const uint8_t> handle_message(reinterpret_cast<const uint8_t*>(&handle_data), sizeof(handle_data));
+  std::span<const uint8_t> handle_message(reinterpret_cast<const uint8_t *>(&handle_data), sizeof(handle_data));
 
   // Wait for connection and send the handle data
   BOOST_LOG(info) << "Waiting for main process to connect...";

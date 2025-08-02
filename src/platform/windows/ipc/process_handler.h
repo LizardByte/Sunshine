@@ -11,11 +11,11 @@
 // standard includes
 #include <string>
 
-// platform includes
-#include <windows.h>
+// local includes
 #include "src/platform/windows/ipc/misc_utils.h"
 
-
+// platform includes
+#include <windows.h>
 
 /**
  * @brief Handles launching, waiting, and terminating a Windows process.

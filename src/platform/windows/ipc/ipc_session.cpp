@@ -24,6 +24,9 @@
 
 // platform includes
 #include <avrt.h>
+#include <d3d11.h>
+#include <dxgi1_6.h>
+#include <winrt/base.h>
 
 namespace platf::dxgi {
 
@@ -56,7 +59,6 @@ namespace platf::dxgi {
       _should_swap_to_dxgi = true;
     }
   }
-
 
   int ipc_session_t::init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device) {
     _process_helper = std::make_unique<ProcessHandler>();
@@ -145,7 +147,17 @@ namespace platf::dxgi {
       config_data.display_name[0] = L'\0';
     }
 
-    _pipe->send(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&config_data), sizeof(config_data_t)));
+    // We need to make sure helper uses the same adapter for now.
+    // This won't be a problem in future versions when we add support for cross adapter capture.
+    // But for now, it is required that we use the exact same one.
+    if (_device) {
+      try_get_adapter_luid(config_data.adapter_luid);
+    } else {
+      BOOST_LOG(warning) << "No D3D11 device available, helper will use default adapter";
+      memset(&config_data.adapter_luid, 0, sizeof(LUID));
+    }
+
+    _pipe->send(std::span<const uint8_t>(reinterpret_cast<const uint8_t *>(&config_data), sizeof(config_data_t)));
 
     _pipe->start(on_message, on_error, on_broken_pipe);
 
@@ -185,6 +197,42 @@ namespace platf::dxgi {
     }
   }
 
+  bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
+    // Guarantee a clean value on failure
+    memset(&luid_out, 0, sizeof(LUID));
+
+    if (!_device) {
+      BOOST_LOG(warning) << "No D3D11 device available; default adapter will be used";
+      return false;
+    }
+
+    winrt::com_ptr<IDXGIDevice> dxgi_device;
+    winrt::com_ptr<IDXGIAdapter> adapter;
+
+    HRESULT hr =
+      _device->QueryInterface(__uuidof(IDXGIDevice), dxgi_device.put_void());
+    if (FAILED(hr)) {
+      BOOST_LOG(warning) << "QueryInterface(IDXGIDevice) failed; default adapter will be used";
+      return false;
+    }
+
+    hr = dxgi_device->GetAdapter(adapter.put());
+    if (FAILED(hr)) {
+      BOOST_LOG(warning) << "GetAdapter() failed; default adapter will be used";
+      return false;
+    }
+
+    DXGI_ADAPTER_DESC desc {};
+    hr = adapter->GetDesc(&desc);
+    if (FAILED(hr)) {
+      BOOST_LOG(warning) << "GetDesc() failed; default adapter will be used";
+      return false;
+    }
+
+    luid_out = desc.AdapterLuid;
+    return true;
+  }
+
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
     if (!wait_for_frame(timeout)) {
       return capture_e::timeout;
@@ -220,7 +268,6 @@ namespace platf::dxgi {
       // Think of it like an inverse mutex, we're signaling the helper that they can work by releasing it first.
       _keyed_mutex->ReleaseSync(2);
     }
-
   }
 
   bool ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {
@@ -242,7 +289,6 @@ namespace platf::dxgi {
     // Get texture description to set the capture format
     D3D11_TEXTURE2D_DESC desc;
     texture->GetDesc(&desc);
-
 
     IDXGIKeyedMutex *raw_mutex = nullptr;
     hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);

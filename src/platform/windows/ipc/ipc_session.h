@@ -149,7 +149,7 @@ namespace platf::dxgi {
     ID3D11Device *_device = nullptr;
     std::atomic<bool> _frame_ready {false};
     std::atomic<uint64_t> _frame_qpc {0};
-    std::atomic<bool> _initialized  {false};
+    std::atomic<bool> _initialized {false};
     std::atomic<bool> _should_swap_to_dxgi {false};
     std::atomic<bool> _force_reinit {false};
     UINT _width = 0;
@@ -212,6 +212,18 @@ namespace platf::dxgi {
      * @return true if a frame became available, false if the timeout expired
      */
     bool wait_for_frame(std::chrono::milliseconds timeout);
+
+    /**
+     * @brief Attempt to retrieve the adapter LUID (Locally Unique Identifier) for the current D3D11 device.
+     *
+     * This function queries the underlying D3D11 device to obtain the adapter's LUID, which uniquely identifies
+     * the graphics adapter in the system. The LUID is used for matching or verifying the correct GPU is being used
+     * for shared texture operations and inter-process communication.
+     *
+     * @param[out] luid_out Reference to a LUID structure that will be set to the adapter's LUID on success.
+     * @return true if the adapter LUID was successfully retrieved and luid_out is set; false otherwise.
+     */
+    bool try_get_adapter_luid(LUID &luid_out);
   };
 
 }  // namespace platf::dxgi

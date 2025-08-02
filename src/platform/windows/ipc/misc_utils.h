@@ -161,8 +161,6 @@ namespace platf::dxgi {
     explicit operator bool() const;
   };
 
-
-
   /**
    * @brief RAII wrapper for Windows HANDLE resources.
    *
@@ -302,5 +300,11 @@ namespace platf::dxgi {
    * @return The parent process ID, or 0 if not found or on error.
    */
   DWORD get_parent_process_id(DWORD process_id);
+  /**
+   * @brief Convert a wide Unicode string (std::wstring) to a UTF-8 encoded std::string.
+   * @param wstr The wide string to convert.
+   * @return The UTF-8 encoded string.
+   */
+  std::string to_utf8(const std::wstring &wstr);
 
 }  // namespace platf::dxgi
