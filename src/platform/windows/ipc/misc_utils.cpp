@@ -263,42 +263,39 @@ namespace platf::dxgi {
     return false;
   }
 
-  DWORD get_parent_process_id(DWORD process_id) {
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (snapshot == INVALID_HANDLE_VALUE) {
-      return 0;
+  std::string generate_guid() {
+    GUID guid;
+    if (CoCreateGuid(&guid) != S_OK) {
+      return {};
     }
 
-    PROCESSENTRY32W processEntry = {};
-    processEntry.dwSize = sizeof(processEntry);
-
-    DWORD parent_pid = 0;
-    if (Process32FirstW(snapshot, &processEntry)) {
-      do {
-        if (processEntry.th32ProcessID == process_id) {
-          parent_pid = processEntry.th32ParentProcessID;
-          break;
-        }
-      } while (Process32NextW(snapshot, &processEntry));
+    std::array<WCHAR, 39> guidStr {};  // "{...}" format, 38 chars + null
+    if (StringFromGUID2(guid, guidStr.data(), 39) == 0) {
+      return {};
     }
 
-    CloseHandle(snapshot);
-    return parent_pid;
+    std::wstring wstr(guidStr.data());
+    return wide_to_utf8(wstr);
   }
 
-  DWORD get_parent_process_id() {
-    return get_parent_process_id(GetCurrentProcessId());
-  }
-
-  std::string to_utf8(const std::wstring &wstr) {
+  std::string wide_to_utf8(const std::wstring &wstr) {
     if (wstr.empty()) {
       return std::string();
     }
-
-    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), NULL, 0, NULL, NULL);
+    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), nullptr, 0, nullptr, nullptr);
     std::string strTo(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0], size_needed, NULL, NULL);
+    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0], size_needed, nullptr, nullptr);
     return strTo;
+  }
+
+  std::wstring utf8_to_wide(const std::string &str) {
+    if (str.empty()) {
+      return std::wstring();
+    }
+    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), nullptr, 0);
+    std::wstring wstrTo(size_needed, 0);
+    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), &wstrTo[0], size_needed);
+    return wstrTo;
   }
 
 }  // namespace platf::dxgi

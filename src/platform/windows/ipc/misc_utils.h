@@ -289,22 +289,22 @@ namespace platf::dxgi {
   HANDLE retrieve_users_token(bool elevated);
 
   /**
-   * @brief Get the parent process ID of the current process or a specific process.
-   * @return The parent process ID.
+   * @brief Generates a new GUID string.
+   * @return The generated GUID as a string.
    */
-  DWORD get_parent_process_id();
+  std::string generate_guid();
+  /**
+   * @brief Converts a UTF-8 encoded std::string to a wide Unicode string (std::wstring).
+   * @param str The UTF-8 encoded string to convert.
+   * @return The resulting wide Unicode string.
+   */
+  std::wstring utf8_to_wide(const std::string &str);
 
   /**
-   * @brief Get the parent process ID for a specified process.
-   * @param process_id The process ID for which to retrieve the parent process ID.
-   * @return The parent process ID, or 0 if not found or on error.
+   * @brief Converts a wide Unicode string (std::wstring) to a UTF-8 encoded std::string.
+   * @param wstr The wide Unicode string to convert.
+   * @return The resulting UTF-8 encoded string.
    */
-  DWORD get_parent_process_id(DWORD process_id);
-  /**
-   * @brief Convert a wide Unicode string (std::wstring) to a UTF-8 encoded std::string.
-   * @param wstr The wide string to convert.
-   * @return The UTF-8 encoded string.
-   */
-  std::string to_utf8(const std::wstring &wstr);
+  std::string wide_to_utf8(const std::wstring &wstr);
 
 }  // namespace platf::dxgi

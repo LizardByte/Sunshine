@@ -432,7 +432,7 @@ public:
           if (desc.AdapterLuid.HighPart == adapter_luid.HighPart &&
               desc.AdapterLuid.LowPart == adapter_luid.LowPart) {
             adapter = test_adapter;
-            BOOST_LOG(info) << "Found matching adapter: " << to_utf8(desc.Description);
+            BOOST_LOG(info) << "Found matching adapter: " << wide_to_utf8(desc.Description);
             break;
           }
         }
@@ -1434,9 +1434,6 @@ bool process_window_messages(bool &shutdown_requested) {
 }
 
 /**
-
-
-/**
  * @brief Helper function to setup desktop switch hook for secure desktop detection.
  *
  * @return true if the hook was successfully installed, false otherwise.
@@ -1479,13 +1476,22 @@ bool setup_desktop_switch_hook() {
  * 7. **Desktop Monitoring**: Sets up hooks to detect secure desktop transitions
  * 8. **Main Loop**: Processes window messages and handles capture events until shutdown
  *
- * @param argc Number of command line arguments (unused).
- * @param argv Array of command line argument strings (unused).
+ * @param argc Number of command line arguments. Expects at least 2 arguments.
+ * @param argv Array of command line argument strings. argv[1] should contain the pipe name GUID.
  * @return 0 on successful completion, 1 on initialization failure.
  */
 int main(int argc, char *argv[]) {
   // Set up default config and log level
   auto log_deinit = logging::init(2, get_temp_log_path());
+
+  // Check command line arguments for pipe name
+  if (argc < 2) {
+    BOOST_LOG(error) << "Usage: " << argv[0] << " <pipe_name_guid>";
+    return 1;
+  }
+
+  std::string pipe_name = argv[1];
+  BOOST_LOG(info) << "Using pipe name: " << pipe_name;
 
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer system_initializer;
@@ -1502,10 +1508,10 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
-  // Create named pipe for communication with main process
+  // Create named pipe for communication with main process using provided pipe name
   AnonymousPipeFactory pipe_factory;
 
-  auto comm_pipe = pipe_factory.create_client("SunshineWGCPipe");
+  auto comm_pipe = pipe_factory.create_client(pipe_name);
   AsyncNamedPipe pipe(std::move(comm_pipe));
   g_communication_pipe = &pipe;  // Store global reference for session.Closed handler
 

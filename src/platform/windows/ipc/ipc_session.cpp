@@ -92,11 +92,15 @@ namespace platf::dxgi {
     GetModuleFileNameW(nullptr, exePathBuffer.data(), MAX_PATH);
     exePathBuffer.resize(wcslen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
+    std::string pipe_guid = generate_guid();
+
     std::filesystem::path exe_path = mainExeDir / L"tools" / L"sunshine_wgc_capture.exe";
-    if (!_process_helper->start(exe_path.wstring(), L"")) {
+    std::wstring arguments = platf::from_utf8(pipe_guid);  // Convert GUID to wide string for arguments
+
+    if (!_process_helper->start(exe_path.wstring(), arguments)) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
-                       << " (error code: " << err << ")";
+                       << " with pipe GUID: " << pipe_guid << " (error code: " << err << ")";
       return;
     }
 
@@ -123,9 +127,9 @@ namespace platf::dxgi {
 
     auto anon_connector = std::make_unique<AnonymousPipeFactory>();
 
-    auto raw_pipe = anon_connector->create_server("SunshineWGCPipe");
+    auto raw_pipe = anon_connector->create_server(pipe_guid);
     if (!raw_pipe) {
-      BOOST_LOG(error) << "IPC pipe setup failed - aborting WGC session";
+      BOOST_LOG(error) << "IPC pipe setup failed with GUID: " << pipe_guid << " - aborting WGC session";
       // No need to call cleanup() - RAII destructors will handle everything
       return;
     }

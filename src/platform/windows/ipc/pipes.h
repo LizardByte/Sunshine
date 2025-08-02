@@ -478,11 +478,5 @@ namespace platf::dxgi {
      * @return Unique pointer to the connected INamedPipe.
      */
     std::unique_ptr<INamedPipe> connect_to_data_pipe(const std::string &pipeNameStr);
-
-    /**
-     * @brief Generates a new GUID string.
-     * @return The generated GUID as a string.
-     */
-    std::string generate_guid() const;
   };
 }  // namespace platf::dxgi

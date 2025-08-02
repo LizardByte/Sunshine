@@ -33,25 +33,6 @@
 namespace platf::dxgi {
 
   // Helper functions for proper string conversion
-  std::string wide_to_utf8(const std::wstring &wstr) {
-    if (wstr.empty()) {
-      return std::string();
-    }
-    int size_needed = WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), nullptr, 0, nullptr, nullptr);
-    std::string strTo(size_needed, 0);
-    WideCharToMultiByte(CP_UTF8, 0, &wstr[0], (int) wstr.size(), &strTo[0], size_needed, nullptr, nullptr);
-    return strTo;
-  }
-
-  std::wstring utf8_to_wide(const std::string &str) {
-    if (str.empty()) {
-      return std::wstring();
-    }
-    int size_needed = MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), nullptr, 0);
-    std::wstring wstrTo(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &str[0], (int) str.size(), &wstrTo[0], size_needed);
-    return wstrTo;
-  }
 
   bool init_sd_with_explicit_aces(SECURITY_DESCRIPTOR &desc, std::vector<EXPLICIT_ACCESS> &eaList, PACL *out_pacl) {
     if (!InitializeSecurityDescriptor(&desc, SECURITY_DESCRIPTOR_REVISION)) {
@@ -278,9 +259,7 @@ namespace platf::dxgi {
   AnonymousPipeFactory::AnonymousPipeFactory() = default;
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
-    DWORD pid = GetCurrentProcessId();
-    std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    auto first_pipe = _pipe_factory->create_server(pipeNameWithPid);
+    auto first_pipe = _pipe_factory->create_server(pipeName);
     if (!first_pipe) {
       return nullptr;
     }
@@ -288,9 +267,7 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName) {
-    DWORD pid = platf::dxgi::get_parent_process_id();
-    std::string pipeNameWithPid = std::format("{}_{}", pipeName, pid);
-    auto first_pipe = _pipe_factory->create_client(pipeNameWithPid);
+    auto first_pipe = _pipe_factory->create_client(pipeName);
     if (!first_pipe) {
       return nullptr;
     }
@@ -469,21 +446,6 @@ namespace platf::dxgi {
     }
 
     return data_pipe;
-  }
-
-  std::string AnonymousPipeFactory::generate_guid() const {
-    GUID guid;
-    if (CoCreateGuid(&guid) != S_OK) {
-      return {};
-    }
-
-    std::array<WCHAR, 39> guidStr {};  // "{...}" format, 38 chars + null
-    if (StringFromGUID2(guid, guidStr.data(), 39) == 0) {
-      return {};
-    }
-
-    std::wstring wstr(guidStr.data());
-    return wide_to_utf8(wstr);
   }
 
   WinPipe::WinPipe(HANDLE pipe, bool isServer):
