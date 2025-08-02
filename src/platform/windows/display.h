@@ -403,14 +403,10 @@ namespace platf::dxgi {
 
     /**
      * @brief Factory method to create a WGC IPC VRAM display instance or fallback.
-     *
-     * Returns a shared pointer to a display_t instance, using WGC IPC if available,
-     * or a secure desktop fallback if not. Chooses the appropriate backend based on
-     * the current system state and configuration.
-     *
+     * Chooses the appropriate backend based on the current system state and configuration.
      * @param config Video configuration parameters.
      * @param display_name Name of the display to capture.
-     * @return std::shared_ptr<display_t> Instance of the display backend.
+     * @return Instance of the display backend, using WGC IPC if available, or a secure desktop fallback if not.
      */
     static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
 
