@@ -92,15 +92,16 @@ namespace platf::dxgi {
      * @param timeout_ms Timeout in milliseconds for the send operation.
      * @return True if the data was sent successfully, false otherwise.
      */
-    virtual bool send(std::vector<uint8_t> bytes, int timeout_ms) = 0;
+    virtual bool send(std::span<const uint8_t> bytes, int timeout_ms) = 0;
 
     /**
-     * @brief Receives data from the pipe.
-     * @param bytes Reference to a vector to store received data.
+     * @brief Receives data from the pipe into a span buffer.
+     * @param dst Span buffer to store received data.
+     * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
      * @return PipeResult indicating the result of the receive operation.
      */
-    virtual PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) = 0;
+    virtual PipeResult receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) = 0;
 
     /**
      * @brief Waits for a client to connect to the pipe.
@@ -122,7 +123,7 @@ namespace platf::dxgi {
 
   class AsyncNamedPipe {
   public:
-    using MessageCallback = std::function<void(const std::vector<uint8_t> &)>;
+    using MessageCallback = std::function<void(std::span<const uint8_t>)>;
     using ErrorCallback = std::function<void(const std::string &)>;
     using BrokenPipeCallback = std::function<void()>;
 
@@ -155,7 +156,7 @@ namespace platf::dxgi {
      * @brief Sends a message asynchronously through the pipe.
      * @param message The message to send.
      */
-    void send(const std::vector<uint8_t> &message);
+    void send(std::span<const uint8_t> message);
 
     /**
      * @brief Waits for a client to connect to the pipe.
@@ -188,9 +189,9 @@ namespace platf::dxgi {
 
     /**
      * @brief Processes a received message.
-     * @param bytes The message bytes to process.
+     * @param bytes The message span to process.
      */
-    void process_message(const std::vector<uint8_t> &bytes) const;
+    void process_message(std::span<const uint8_t> bytes) const;
 
     /**
      * @brief Safely executes an operation, catching exceptions and reporting errors.
@@ -205,6 +206,7 @@ namespace platf::dxgi {
     MessageCallback _onMessage;
     ErrorCallback _onError;
     BrokenPipeCallback _onBrokenPipe;
+    std::array<uint8_t, 256> _buffer;  // Reusable buffer for receiving messages
   };
 
   class WinPipe: public INamedPipe {
@@ -227,15 +229,16 @@ namespace platf::dxgi {
      * @param timeout_ms Timeout in milliseconds for the send operation.
      * @return True if the data was sent successfully, false otherwise.
      */
-    bool send(std::vector<uint8_t> bytes, int timeout_ms) override;
+    bool send(std::span<const uint8_t> bytes, int timeout_ms) override;
 
     /**
-     * @brief Receives data from the pipe.
-     * @param bytes Reference to a vector to store received data.
+     * @brief Receives data from the pipe into a span buffer.
+     * @param dst Span buffer to store received data.
+     * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
      * @return PipeResult indicating the result of the receive operation.
      */
-    PipeResult receive(std::vector<uint8_t> &bytes, int timeout_ms) override;
+    PipeResult receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) override;
 
     /**
      * @brief Waits for a client to connect to the pipe.
@@ -295,21 +298,21 @@ namespace platf::dxgi {
      * @brief Handles errors during receive operations.
      * @param ctx IO context for the operation.
      * @param timeout_ms Timeout in milliseconds.
-     * @param buffer Buffer for receiving data.
-     * @param bytes Reference to a vector to store received data.
+     * @param dst Destination span for receiving data.
+     * @param bytesRead Reference to store the number of bytes read.
      * @return PipeResult indicating the result of the receive operation.
      */
-    PipeResult handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes);
+    PipeResult handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
 
     /**
      * @brief Handles a pending receive operation.
      * @param ctx IO context for the operation.
      * @param timeout_ms Timeout in milliseconds.
-     * @param buffer Buffer for receiving data.
-     * @param bytes Reference to a vector to store received data.
+     * @param dst Destination span for receiving data.
+     * @param bytesRead Reference to store the number of bytes read.
      * @return PipeResult indicating the result of the receive operation.
      */
-    PipeResult handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes);
+    PipeResult handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
 
     HANDLE _pipe;
     std::atomic<bool> _connected {false};

@@ -8,8 +8,10 @@
  */
 
 // standard includes
+#include <array>
 #include <chrono>
 #include <filesystem>
+#include <span>
 #include <string_view>
 #include <thread>
 
@@ -25,7 +27,7 @@
 
 namespace platf::dxgi {
 
-  void ipc_session_t::handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received) {
+  void ipc_session_t::handle_shared_handle_message(std::span<const uint8_t> msg, bool &handle_received) {
     if (msg.size() == sizeof(shared_handle_data_t)) {
       shared_handle_data_t handle_data;
       memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
@@ -35,7 +37,7 @@ namespace platf::dxgi {
     }
   }
 
-  void ipc_session_t::handle_frame_notification(const std::vector<uint8_t> &msg) {
+  void ipc_session_t::handle_frame_notification(std::span<const uint8_t> msg) {
     if (msg.size() == sizeof(frame_ready_msg_t)) {
       frame_ready_msg_t frame_msg;
       memcpy(&frame_msg, msg.data(), sizeof(frame_msg));
@@ -47,7 +49,7 @@ namespace platf::dxgi {
     }
   }
 
-  void ipc_session_t::handle_secure_desktop_message(const std::vector<uint8_t> &msg) {
+  void ipc_session_t::handle_secure_desktop_message(std::span<const uint8_t> msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
       // secure desktop detected
       BOOST_LOG(info) << "WGC can no longer capture the screen due to Secured Desktop, swapping to DXGI";
@@ -98,10 +100,14 @@ namespace platf::dxgi {
 
     bool handle_received = false;
 
-    auto on_message = [this, &handle_received](const std::vector<uint8_t> &msg) {
-      handle_shared_handle_message(msg, handle_received);
-      handle_frame_notification(msg);
-      handle_secure_desktop_message(msg);
+    auto on_message = [this, &handle_received](std::span<const uint8_t> msg) {
+      if (msg.size() == sizeof(shared_handle_data_t)) {
+        handle_shared_handle_message(msg, handle_received);
+      } else if (msg.size() == sizeof(frame_ready_msg_t)) {
+        handle_frame_notification(msg);
+      } else if (msg.size() == 1) {
+        handle_secure_desktop_message(msg);
+      }
     };
 
     auto on_error = [](const std::string &err) {
@@ -139,10 +145,7 @@ namespace platf::dxgi {
       config_data.display_name[0] = L'\0';
     }
 
-    std::vector<uint8_t> config_message(sizeof(config_data_t));
-    memcpy(config_message.data(), &config_data, sizeof(config_data_t));
-
-    _pipe->send(config_message);
+    _pipe->send(std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(&config_data), sizeof(config_data_t)));
 
     _pipe->start(on_message, on_error, on_broken_pipe);
 
@@ -220,7 +223,8 @@ namespace platf::dxgi {
 
     // Send heartbeat to helper after each frame is released
     if (_pipe && _pipe->is_connected()) {
-      _pipe->send(std::vector<uint8_t> {HEARTBEAT_MSG});
+      uint8_t heartbeat = HEARTBEAT_MSG;
+      _pipe->send(std::span<const uint8_t>(&heartbeat, 1));
     }
   }
 

@@ -26,8 +26,8 @@
 #include <Windows.h>
 
 // local includes
-#include "pipes.h"
 #include "misc_utils.h"
+#include "pipes.h"
 #include "src/utility.h"
 
 namespace platf::dxgi {
@@ -323,8 +323,10 @@ namespace platf::dxgi {
     AnonConnectMsg message {};
     wcsncpy_s(message.pipe_name, wpipe_name.c_str(), _TRUNCATE);
 
-    std::vector<uint8_t> bytes(sizeof(AnonConnectMsg));
-    std::memcpy(bytes.data(), &message, sizeof(AnonConnectMsg));
+    auto bytes = std::span<const uint8_t>(
+      reinterpret_cast<const uint8_t *>(&message),
+      sizeof(message)
+    );
 
     pipe->wait_for_client_connection(3000);
 
@@ -345,16 +347,17 @@ namespace platf::dxgi {
 
   bool AnonymousPipeFactory::wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const {
     using enum platf::dxgi::PipeResult;
-    std::vector<uint8_t> ack;
+    std::array<uint8_t, 16> ack_buffer;  // Small buffer for ACK message
     bool ack_ok = false;
     auto t0 = std::chrono::steady_clock::now();
 
     while (std::chrono::steady_clock::now() - t0 < std::chrono::seconds(3) && !ack_ok) {
-      if (PipeResult result = pipe->receive(ack, 1000); result == Success) {
-        if (ack.size() == 1 && ack[0] == ACK_MSG) {
+      size_t bytes_read = 0;
+      if (PipeResult result = pipe->receive(ack_buffer, bytes_read, 1000); result == Success) {
+        if (bytes_read == 1 && ack_buffer[0] == ACK_MSG) {
           ack_ok = true;
-        } else if (!ack.empty()) {
-          BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << ack.size();
+        } else if (bytes_read > 0) {
+          BOOST_LOG(warning) << "Received unexpected data during ACK wait, size=" << bytes_read;
         }
       } else if (result == BrokenPipe || result == Error || result == Disconnected) {
         BOOST_LOG(error) << "Pipe error during handshake ACK wait";
@@ -394,14 +397,15 @@ namespace platf::dxgi {
 
   bool AnonymousPipeFactory::receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg) const {
     using enum platf::dxgi::PipeResult;
-    std::vector<uint8_t> bytes;
+    std::array<uint8_t, 256> buffer;  // Buffer for handshake message
     auto start = std::chrono::steady_clock::now();
     bool received = false;
     bool error_occurred = false;
+    size_t bytes_read = 0;
 
     while (std::chrono::steady_clock::now() - start < std::chrono::seconds(3) && !received && !error_occurred) {
-      if (PipeResult result = pipe->receive(bytes, 500); result == Success) {
-        if (!bytes.empty()) {
+      if (PipeResult result = pipe->receive(buffer, bytes_read, 500); result == Success) {
+        if (bytes_read > 0) {
           received = true;
         }
       } else if (result == BrokenPipe || result == Error || result == Disconnected) {
@@ -409,7 +413,7 @@ namespace platf::dxgi {
         error_occurred = true;
       }
       if (!received && !error_occurred) {
-        if (bytes.empty()) {
+        if (bytes_read == 0) {
           BOOST_LOG(warning) << "Received 0 bytes during handshake - server may have closed pipe";
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -422,24 +426,26 @@ namespace platf::dxgi {
       return false;
     }
 
-    if (bytes.size() < sizeof(AnonConnectMsg)) {
-      BOOST_LOG(error) << "Received incomplete handshake message (size=" << bytes.size()
+    if (bytes_read < sizeof(AnonConnectMsg)) {
+      BOOST_LOG(error) << "Received incomplete handshake message (size=" << bytes_read
                        << ", expected=" << sizeof(AnonConnectMsg) << "). Disconnecting client.";
       pipe->disconnect();
       return false;
     }
 
-    std::memcpy(&msg, bytes.data(), sizeof(AnonConnectMsg));
+    std::memcpy(&msg, buffer.data(), sizeof(AnonConnectMsg));
     return true;
   }
 
   bool AnonymousPipeFactory::send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const {
-    if (!pipe->send({ACK_MSG}, 5000)) {
+    uint8_t ack = ACK_MSG;
+    if (!pipe->send(std::span<const uint8_t>(&ack, 1), 5000)) {
       BOOST_LOG(error) << "Failed to send handshake ACK to server";
       pipe->disconnect();
       return false;
     }
 
+    // TODO: Add to interface
     static_cast<WinPipe *>(pipe.get())->flush_buffers();
     return true;
   }
@@ -498,7 +504,7 @@ namespace platf::dxgi {
     }
   }
 
-  bool WinPipe::send(std::vector<uint8_t> bytes, int timeout_ms) {
+  bool WinPipe::send(std::span<const uint8_t> bytes, int timeout_ms) {
     if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
       return false;
     }
@@ -555,8 +561,8 @@ namespace platf::dxgi {
     }
   }
 
-  PipeResult WinPipe::receive(std::vector<uint8_t> &bytes, int timeout_ms) {
-    bytes.clear();
+  PipeResult WinPipe::receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) {
+    bytesRead = 0;
     if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
       return PipeResult::Disconnected;
     }
@@ -567,23 +573,21 @@ namespace platf::dxgi {
       return PipeResult::Error;
     }
 
-    std::vector<uint8_t> buffer(4096);
-    DWORD bytesRead = 0;
-    BOOL result = ReadFile(_pipe, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead, ctx->get());
+    DWORD bytesReadWin = 0;
+    BOOL result = ReadFile(_pipe, dst.data(), static_cast<DWORD>(dst.size()), &bytesReadWin, ctx->get());
 
     if (result) {
-      buffer.resize(bytesRead);
-      bytes = std::move(buffer);
+      bytesRead = static_cast<size_t>(bytesReadWin);
       return PipeResult::Success;
     } else {
-      return handle_receive_error(ctx, timeout_ms, buffer, bytes);
+      return handle_receive_error(ctx, timeout_ms, dst, bytesRead);
     }
   }
 
-  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
-      return handle_pending_receive_operation(ctx, timeout_ms, buffer, bytes);
+      return handle_pending_receive_operation(ctx, timeout_ms, dst, bytesRead);
     } else if (err == ERROR_BROKEN_PIPE) {
       BOOST_LOG(warning) << "Pipe broken during ReadFile (ERROR_BROKEN_PIPE)";
       return PipeResult::BrokenPipe;
@@ -593,15 +597,14 @@ namespace platf::dxgi {
     }
   }
 
-  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::vector<uint8_t> &buffer, std::vector<uint8_t> &bytes) {
+  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
     using enum platf::dxgi::PipeResult;
     DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
-    DWORD bytesRead = 0;
+    DWORD bytesReadWin = 0;
 
     if (waitResult == WAIT_OBJECT_0) {
-      if (GetOverlappedResult(_pipe, ctx->get(), &bytesRead, FALSE)) {
-        buffer.resize(bytesRead);
-        bytes = std::move(buffer);
+      if (GetOverlappedResult(_pipe, ctx->get(), &bytesReadWin, FALSE)) {
+        bytesRead = static_cast<size_t>(bytesReadWin);
         return Success;
       } else {
         DWORD overlappedErr = GetLastError();
@@ -761,8 +764,8 @@ namespace platf::dxgi {
     }
   }
 
-  void AsyncNamedPipe::send(const std::vector<uint8_t> &message) {
-    safe_execute_operation("send", [this, &message]() {
+  void AsyncNamedPipe::send(std::span<const uint8_t> message) {
+    safe_execute_operation("send", [this, message]() {
       if (_pipe && _pipe->is_connected() && !_pipe->send(message, 5000)) {  // 5 second timeout for async sends
         BOOST_LOG(warning) << "Failed to send message through AsyncNamedPipe (timeout or error)";
       }
@@ -807,8 +810,8 @@ namespace platf::dxgi {
 
     // No need to add a sleep here: _pipe->receive() blocks until data arrives or times out, so messages are delivered to callbacks as soon as they are available.
     while (_running.load(std::memory_order_acquire)) {
-      std::vector<uint8_t> message;
-      PipeResult res = _pipe->receive(message, 1000);
+      size_t bytesRead = 0;
+      PipeResult res = _pipe->receive(_buffer, bytesRead, 1000);
 
       // Fast cancel – bail out even before decoding res
       if (!_running.load(std::memory_order_acquire)) {
@@ -818,9 +821,11 @@ namespace platf::dxgi {
       switch (res) {
         case Success:
           {
-            if (message.empty()) {  // remote closed
+            if (bytesRead == 0) {  // remote closed
               return;
             }
+            // Create span from only the valid portion of the buffer
+            std::span<const uint8_t> message(_buffer.data(), bytesRead);
             process_message(message);
             break;  // keep looping
           }
@@ -859,12 +864,12 @@ namespace platf::dxgi {
     return _pipe->is_connected();
   }
 
-  void AsyncNamedPipe::process_message(const std::vector<uint8_t> &bytes) const {
+  void AsyncNamedPipe::process_message(std::span<const uint8_t> bytes) const {
     if (!_onMessage) {
       return;
     }
 
-    safe_execute_operation("message callback", [this, &bytes]() {
+    safe_execute_operation("message callback", [this, bytes]() {
       _onMessage(bytes);
     });
   }

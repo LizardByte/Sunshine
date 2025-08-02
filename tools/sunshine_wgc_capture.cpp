@@ -1159,10 +1159,8 @@ private:
     frame_ready_msg_t frame_msg;
     frame_msg.frame_qpc = frame_qpc;
 
-    std::vector<uint8_t> message(sizeof(frame_msg));
-    memcpy(message.data(), &frame_msg, sizeof(frame_msg));
-
-    _pipe->send(message);
+    std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t*>(&frame_msg), sizeof(frame_msg));
+    _pipe->send(msg_span);
   }
 
 public:
@@ -1250,7 +1248,10 @@ void CALLBACK desktop_switch_hook_proc(HWINEVENTHOOK /*h_win_event_hook*/, DWORD
 
       // Send notification to main process
       if (g_communication_pipe && g_communication_pipe->is_connected()) {
-        g_communication_pipe->send({SECURE_DESKTOP_MSG});
+        {
+          uint8_t msg = SECURE_DESKTOP_MSG;
+          g_communication_pipe->send(std::span<const uint8_t>(&msg, 1));
+        }
         BOOST_LOG(info) << "Sent secure desktop notification to main process (0x02)";
       }
     } else if (!secure_desktop_active && g_secure_desktop_detected) {
@@ -1298,7 +1299,7 @@ std::string get_temp_log_path() {
  * @param message The received message bytes from the named pipe.
  * @param last_msg_time Reference to track the last message timestamp for heartbeat monitoring.
  */
-void handle_ipc_message(const std::vector<uint8_t> &message, std::chrono::steady_clock::time_point &last_msg_time) {
+void handle_ipc_message(std::span<const uint8_t> message, std::chrono::steady_clock::time_point &last_msg_time) {
   // Heartbeat message: single byte 0x01
   if (message.size() == 1 && message[0] == 0x01) {
     last_msg_time = std::chrono::steady_clock::now();
@@ -1333,7 +1334,7 @@ void handle_ipc_message(const std::vector<uint8_t> &message, std::chrono::steady
  * @return true if the pipe was successfully configured and started, false otherwise.
  */
 bool setup_pipe_callbacks(AsyncNamedPipe &pipe, std::chrono::steady_clock::time_point &last_msg_time) {
-  auto on_message = [&last_msg_time](const std::vector<uint8_t> &message) {
+  auto on_message = [&last_msg_time](std::span<const uint8_t> message) {
     handle_ipc_message(message, last_msg_time);
   };
 
@@ -1504,8 +1505,7 @@ int main(int argc, char *argv[]) {
 
   // Send shared handle data via named pipe to main process
   platf::dxgi::shared_handle_data_t handle_data = shared_resource_manager.get_shared_handle_data();
-  std::vector<uint8_t> handle_message(sizeof(platf::dxgi::shared_handle_data_t));
-  memcpy(handle_message.data(), &handle_data, sizeof(platf::dxgi::shared_handle_data_t));
+  std::span<const uint8_t> handle_message(reinterpret_cast<const uint8_t*>(&handle_data), sizeof(handle_data));
 
   // Wait for connection and send the handle data
   BOOST_LOG(info) << "Waiting for main process to connect...";

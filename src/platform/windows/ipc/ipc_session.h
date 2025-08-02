@@ -11,10 +11,12 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <d3d11.h>
 #include <memory>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -178,7 +180,7 @@ namespace platf::dxgi {
      * @param msg The message data received from the helper process
      * @param handle_received Output parameter set to true if a new handle was processed
      */
-    void handle_shared_handle_message(const std::vector<uint8_t> &msg, bool &handle_received);
+    void handle_shared_handle_message(std::span<const uint8_t> msg, bool &handle_received);
 
     /**
      * @brief Handle a frame notification message from the helper process.
@@ -188,7 +190,7 @@ namespace platf::dxgi {
      *
      * @param msg The message data received from the helper process
      */
-    void handle_frame_notification(const std::vector<uint8_t> &msg);
+    void handle_frame_notification(std::span<const uint8_t> msg);
 
     /**
      * @brief Handle a secure desktop notification from the helper process.
@@ -198,7 +200,7 @@ namespace platf::dxgi {
      *
      * @param msg The message data received from the helper process
      */
-    void handle_secure_desktop_message(const std::vector<uint8_t> &msg);
+    void handle_secure_desktop_message(std::span<const uint8_t> msg);
 
     /**
      * @brief Wait for a new frame to become available.
