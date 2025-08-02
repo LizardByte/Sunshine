@@ -397,7 +397,6 @@ namespace platf::dxgi {
 
     /**
      * @brief Destructor for display_wgc_ipc_vram_t.
-     *
      * Cleans up resources and IPC session associated with the WGC IPC VRAM display backend.
      */
     ~display_wgc_ipc_vram_t() override;
