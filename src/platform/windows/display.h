@@ -440,16 +440,11 @@ namespace platf::dxgi {
   protected:
     /**
      * @brief Acquires the next frame from the display.
-     *
-     * Attempts to retrieve the next available frame from the display using IPC,
-     * with an optional timeout and cursor visibility control. Outputs the source texture
-     * and frame QPC (Query Performance Counter) value.
-     *
      * @param timeout Maximum time to wait for a frame.
      * @param src Output parameter for the source texture.
      * @param frame_qpc Output parameter for the frame's QPC timestamp.
      * @param cursor_visible Whether the cursor should be included in the capture.
-     * @return capture_e Status of the frame acquisition operation.
+     * @return Status of the frame acquisition operation.
      */
     capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
 
