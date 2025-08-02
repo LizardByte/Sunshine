@@ -22,6 +22,7 @@
 #include <queue>
 #include <string>
 #include <thread>
+#include <utility>
 
 // local includes
 #include "src/logging.h"
@@ -185,16 +186,21 @@ public:
    */
   bool initialize_dpi_awareness() {
     // Try newer API first
-    if (HMODULE user32 = GetModuleHandleA("user32.dll")) {
-      typedef BOOL(WINAPI * set_process_dpi_awareness_context_func)(DPI_AWARENESS_CONTEXT);
-      auto set_dpi_context_func = (set_process_dpi_awareness_context_func) GetProcAddress(user32, "SetProcessDpiAwarenessContext");
-      if (set_dpi_context_func && set_dpi_context_func((DPI_AWARENESS_CONTEXT) -4)) {
+    if (HMODULE user32_module = GetModuleHandleA("user32.dll")) {
+      using set_process_dpi_awareness_context_fn = BOOL(WINAPI *)(DPI_AWARENESS_CONTEXT);
+      auto set_process_dpi_awareness_context =
+        reinterpret_cast<set_process_dpi_awareness_context_fn>(
+          GetProcAddress(user32_module, "SetProcessDpiAwarenessContext")
+        );
+
+      if (set_process_dpi_awareness_context &&
+          set_process_dpi_awareness_context(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)) {
         _dpi_awareness_set = true;
         return true;
       }
     }
 
-    // Fallback to older API
+    // Fallback to older API (Win 8.1+)
     if (SUCCEEDED(SetProcessDpiAwareness(PROCESS_PER_MONITOR_DPI_AWARE))) {
       _dpi_awareness_set = true;
       return true;
@@ -256,8 +262,7 @@ public:
   /**
    * @brief Sets GPU scheduling priority for optimal capture performance under high GPU load.
    *
-   * Configures the process GPU scheduling priority to HIGH or REALTIME depending on GPU vendor
-   * and Hardware-Accelerated GPU Scheduling (HAGS) status. This is critical for maintaining
+   * Configures the process GPU scheduling priority to REALTIME. This is critical for maintaining
    * capture performance when the GPU is under heavy load from games or other applications.
    *
    * @return true if GPU priority was successfully set, false otherwise.
