@@ -981,7 +981,6 @@ namespace platf::dxgi {
 }  // namespace platf::dxgi
 
 namespace platf {
-
   /**
    * @brief Creates and initializes a display object based on the specified hardware device type, display name, and video configuration.
    *
