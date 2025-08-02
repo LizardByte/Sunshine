@@ -390,7 +390,6 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Constructs a new display_wgc_ipc_vram_t object.
-     *
      * Initializes the WGC IPC VRAM display backend for hardware encoding.
      * Sets up internal state and prepares for display capture via IPC.
      */
