@@ -26,4 +26,6 @@ jobs:
     uses: LizardByte/.github/.github/workflows/__call-update-flathub-repo.yml@master
     if: github.repository_owner == 'LizardByte'
     secrets:
+      GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GH_NAME: ${{ secrets.GH_BOT_NAME }}
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
