@@ -514,10 +514,7 @@ namespace platf::dxgi {
   protected:
     /**
      * @brief Releases resources or state after a snapshot.
-     *
-     * Cleans up any temporary resources or state used during the snapshot operation.
-     *
-     * @return capture_e Status of the release operation.
+     * @return Status of the release operation.
      */
     capture_e release_snapshot() override;
 
