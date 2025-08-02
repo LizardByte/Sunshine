@@ -485,12 +485,9 @@ namespace platf::dxgi {
 
     /**
      * @brief Initializes the WGC IPC RAM display backend.
-     *
-     * Sets up the display backend with the provided configuration and display name.
-     *
      * @param config Video configuration parameters.
      * @param display_name Name of the display to capture.
-     * @return int 0 on success, negative on failure.
+     * @return 0 on success, negative on failure.
      */
     int init(const ::video::config_t &config, const std::string &display_name);
 
