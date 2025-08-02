@@ -362,7 +362,6 @@ namespace platf::dxgi {
   /**
    * @class display_wgc_vram_t
    * @brief Factory class for initializing Windows.Graphics.Capture (WGC) display backends using VRAM.
-   *
    * Provides a static factory method to create and initialize a display backend for capturing
    * displays via the Windows.Graphics.Capture API, utilizing hardware encoding when available.
    */
