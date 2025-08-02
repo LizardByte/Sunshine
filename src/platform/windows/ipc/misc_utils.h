@@ -85,15 +85,10 @@ namespace platf::dxgi {
 
   /**
    * @brief Specialized RAII wrapper for DACL (Discretionary Access Control List).
-   *
    * - Manages a PACL pointer, ensuring proper cleanup.
-   *
    * - Provides move semantics for safe transfer of ownership.
-   *
    * - Disallows copy semantics.
-   *
    * - Allows resetting, accessing, and releasing the underlying PACL.
-   *
    * - Supports boolean conversion to check validity.
    */
   struct safe_dacl {
