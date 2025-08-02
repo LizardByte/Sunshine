@@ -158,9 +158,7 @@ namespace platf::dxgi {
 
   /**
    * @brief RAII wrapper for Windows HANDLE resources.
-   *
    * - Inherits from util::safe_ptr_v2 for automatic handle management.
-   *
    * - Provides boolean conversion to check handle validity.
    */
   struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
