@@ -1991,8 +1991,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>ddx</td>
-        Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
-        <td>
+        <td>Use DirectX Desktop Duplication API to capture the display. This is well-supported on Windows machines.
             @note{Applies to Windows only.}</td>
     </tr>
     <tr>
