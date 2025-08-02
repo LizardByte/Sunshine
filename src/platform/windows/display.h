@@ -465,7 +465,6 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Constructs a new display_wgc_ipc_ram_t object.
-     *
      * Initializes internal state for the WGC IPC RAM display backend.
      */
     display_wgc_ipc_ram_t();
