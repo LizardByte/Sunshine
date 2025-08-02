@@ -1,11 +1,6 @@
-
 /**
- * @file misc_utils.h
- * @brief Minimal utility functions for WGC helper without heavy dependencies.
- *
- * This header provides RAII wrappers and utility types for Windows-specific IPC and resource management
- * in the DXGI platform layer, with minimal dependencies. It includes safe handle management, memory views,
- * COM object wrappers, and helpers for process and security token operations.
+ * @file src/platform/windows/ipc/misc_utils.h
+ * @brief Utility declarations for WGC helper.
  */
 #pragma once
 
