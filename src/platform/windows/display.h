@@ -542,9 +542,7 @@ namespace platf::dxgi {
   };
 
   /**
-   * @class temp_dxgi_ram_t
    * @brief Display backend that uses DXGI duplication for secure desktop scenarios.
-   *
    * This display can detect when secure desktop is no longer active and swap back to WGC.
    */
   class temp_dxgi_ram_t: public display_ddup_ram_t {
