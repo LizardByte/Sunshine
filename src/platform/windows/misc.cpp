@@ -881,6 +881,77 @@ namespace platf {
   }
 
   /**
+   * @brief Launch a process with user impersonation (for use when running as SYSTEM).
+   */
+  bool launch_process_with_impersonation(bool elevated, const std::string &cmd, const std::wstring &start_dir, DWORD creation_flags, STARTUPINFOEXW &startup_info, PROCESS_INFORMATION &process_info, std::error_code &ec) {
+    // Duplicate the current user's token
+    HANDLE user_token = retrieve_users_token(elevated);
+    if (!user_token) {
+      // Fail the launch rather than risking launching with Sunshine's permissions unmodified.
+      ec = std::make_error_code(std::errc::permission_denied);
+      return false;
+    }
+
+    // Use RAII to ensure the shell token is closed when we're done with it
+    auto token_close = util::fail_guard([user_token]() {
+      CloseHandle(user_token);
+    });
+
+    // Create environment block with user-specific environment variables
+    bp::environment cloned_env = boost::this_process::environment();
+    if (!merge_user_environment_block(cloned_env, user_token)) {
+      ec = std::make_error_code(std::errc::not_enough_memory);
+      return false;
+    }
+
+    // Open the process as the current user account, elevation is handled in the token itself.
+    BOOL ret = FALSE;
+    ec = impersonate_current_user(user_token, [&]() {
+      std::wstring env_block = create_environment_block(cloned_env);
+      std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
+      // Allocate a writable buffer for the command string
+      std::vector<wchar_t> wcmd_buf(wcmd.begin(), wcmd.end());
+      wcmd_buf.push_back(L'\0');
+      ret = CreateProcessAsUserW(user_token, nullptr, wcmd_buf.data(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? nullptr : start_dir.c_str(), reinterpret_cast<LPSTARTUPINFOW>(&startup_info), &process_info);
+    });
+
+    if (!ret && !ec) {
+      BOOST_LOG(error) << "Failed to launch process: " << GetLastError();
+      ec = std::make_error_code(std::errc::invalid_argument);
+    }
+
+    return ret != FALSE;
+  }
+
+  /**
+   * @brief Launch a process without impersonation (for use when running as regular user).
+   */
+  bool launch_process_without_impersonation(const std::string &cmd, const std::wstring &start_dir, DWORD creation_flags, STARTUPINFOEXW &startup_info, PROCESS_INFORMATION &process_info, std::error_code &ec) {
+    // Open our current token to resolve environment variables
+    HANDLE process_token;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY | TOKEN_DUPLICATE, &process_token)) {
+      ec = std::make_error_code(std::errc::permission_denied);
+      return false;
+    }
+    auto token_close = util::fail_guard([process_token]() {
+      CloseHandle(process_token);
+    });
+
+    std::wstring wcmd = resolve_command_string(cmd, start_dir, nullptr, creation_flags);
+    // Allocate a writable buffer for the command string
+    std::vector<wchar_t> wcmd_buf(wcmd.begin(), wcmd.end());
+    wcmd_buf.push_back(L'\0');
+    BOOL ret = CreateProcessW(nullptr, wcmd_buf.data(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, nullptr, start_dir.empty() ? nullptr : start_dir.c_str(), reinterpret_cast<LPSTARTUPINFOW>(&startup_info), &process_info);
+
+    if (!ret) {
+      BOOST_LOG(error) << "Failed to launch process: " << GetLastError();
+      ec = std::make_error_code(std::errc::invalid_argument);
+    }
+
+    return ret != FALSE;
+  }
+
+  /**
    * @brief Run a command on the users profile.
    *
    * Launches a child process as the user, using the current user's environment and a specific working directory.
