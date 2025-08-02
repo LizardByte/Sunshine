@@ -431,11 +431,9 @@ namespace platf::dxgi {
 
     /**
      * @brief Fills an image with dummy data.
-     *
      * Used for testing or fallback scenarios where a real image is not available.
-     *
      * @param img_base Pointer to the image to fill.
-     * @return int 0 on success, negative on failure.
+     * @return 0 on success, negative on failure.
      */
     int dummy_img(platf::img_t *img_base) override;
 
