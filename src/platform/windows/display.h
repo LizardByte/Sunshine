@@ -380,7 +380,6 @@ namespace platf::dxgi {
   /**
    * @class display_wgc_ipc_vram_t
    * @brief Display capture backend using Windows.Graphics.Capture (WGC) via a separate capture process.
-   *
    * This backend utilizes a separate capture process and synchronizes frames to Sunshine,
    * allowing screen capture even when running as a SYSTEM service.
    */
