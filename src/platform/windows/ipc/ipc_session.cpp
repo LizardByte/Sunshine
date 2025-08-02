@@ -221,11 +221,6 @@ namespace platf::dxgi {
       _keyed_mutex->ReleaseSync(2);
     }
 
-    // Send heartbeat to helper after each frame is released
-    if (_pipe && _pipe->is_connected()) {
-      uint8_t heartbeat = HEARTBEAT_MSG;
-      _pipe->send(std::span<const uint8_t>(&heartbeat, 1));
-    }
   }
 
   bool ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {

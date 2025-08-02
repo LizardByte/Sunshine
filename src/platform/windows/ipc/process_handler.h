@@ -13,6 +13,9 @@
 
 // platform includes
 #include <windows.h>
+#include "src/platform/windows/ipc/misc_utils.h"
+
+
 
 /**
  * @brief Handles launching, waiting, and terminating a Windows process.
@@ -59,6 +62,13 @@ public:
   void terminate();
 
   /**
+   * @brief Constructs a new ProcessHandler object.
+   *
+   * Initializes internal state and prepares for process management.
+   */
+  ProcessHandler();
+
+  /**
    * @brief Cleans up process handles and resources.
    */
   ~ProcessHandler();
@@ -66,4 +76,12 @@ public:
 private:
   PROCESS_INFORMATION pi_ {};
   bool running_ = false;
+  platf::dxgi::safe_handle job_;
 };
+
+/**
+ * @brief Creates a Windows Job object that ensures all associated processes are terminated when the last handle is closed.
+ * This function creates a job object with the "kill on job close" limit set. Any process assigned to this job will be automatically terminated when the job handle is closed.
+ * @returns A safe_handle wrapping the created job object, or an invalid handle if creation fails.
+ */
+platf::dxgi::safe_handle create_kill_on_close_job();

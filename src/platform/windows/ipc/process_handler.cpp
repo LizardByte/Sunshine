@@ -7,6 +7,9 @@
  * including support for attribute lists and impersonation as needed for the Sunshine project.
  */
 
+// platform includes
+#include <windows.h>
+
 // standard includes
 #include <algorithm>
 #include <system_error>
@@ -17,6 +20,8 @@
 #include "src/platform/windows/misc.h"
 #include "src/utility.h"
 
+ProcessHandler::ProcessHandler():
+    job_(create_kill_on_close_job()) {}
 
 bool ProcessHandler::start(const std::wstring &application, std::wstring_view arguments) {
   if (running_) {
@@ -24,11 +29,12 @@ bool ProcessHandler::start(const std::wstring &application, std::wstring_view ar
   }
 
   std::error_code ec;
-  STARTUPINFOEXW startup_info = platf::create_startup_info(nullptr, nullptr, ec);
+  HANDLE job_handle = job_ ? job_.get() : nullptr;
+  STARTUPINFOEXW startup_info = platf::create_startup_info(nullptr, &job_handle, ec);
   if (ec) {
     return false;
   }
-  
+
   auto guard = util::fail_guard([&]() {
     if (startup_info.lpAttributeList) {
       platf::free_proc_thread_attr_list(startup_info.lpAttributeList);
@@ -85,7 +91,7 @@ void ProcessHandler::terminate() {
 ProcessHandler::~ProcessHandler() {
   // Terminate process first if it's still running
   terminate();
-  
+
   // Clean up handles
   if (pi_.hProcess) {
     CloseHandle(pi_.hProcess);
@@ -93,4 +99,19 @@ ProcessHandler::~ProcessHandler() {
   if (pi_.hThread) {
     CloseHandle(pi_.hThread);
   }
+  // job_ is a safe_handle and will auto-cleanup
+}
+
+platf::dxgi::safe_handle create_kill_on_close_job() {
+  HANDLE job = CreateJobObjectW(nullptr, nullptr);
+  if (!job) {
+    return {};
+  }
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
+  info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+  if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info, sizeof(info))) {
+    CloseHandle(job);
+    return {};
+  }
+  return platf::dxgi::safe_handle(job);
 }

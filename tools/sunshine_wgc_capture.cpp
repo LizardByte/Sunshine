@@ -1293,18 +1293,13 @@ std::string get_temp_log_path() {
  * @brief Helper function to handle IPC messages from the main process.
  *
  * Processes incoming messages from the main Sunshine process via named pipe:
- * - Heartbeat messages (0x01): Updates the last message timestamp to prevent timeout
+ *
  * - Configuration messages: Receives and stores config_data_t structure with display settings
  *
  * @param message The received message bytes from the named pipe.
- * @param last_msg_time Reference to track the last message timestamp for heartbeat monitoring.
+ *
  */
-void handle_ipc_message(std::span<const uint8_t> message, std::chrono::steady_clock::time_point &last_msg_time) {
-  // Heartbeat message: single byte 0x01
-  if (message.size() == 1 && message[0] == 0x01) {
-    last_msg_time = std::chrono::steady_clock::now();
-    return;
-  }
+void handle_ipc_message(std::span<const uint8_t> message) {
   // Handle config data message
   if (message.size() == sizeof(platf::dxgi::config_data_t) && !g_config_received) {
     memcpy(&g_config, message.data(), sizeof(platf::dxgi::config_data_t));
@@ -1330,12 +1325,12 @@ void handle_ipc_message(std::span<const uint8_t> message, std::chrono::steady_cl
  * - on_error: Handles pipe communication errors (currently empty handler)
  *
  * @param pipe Reference to the AsyncNamedPipe to configure.
- * @param last_msg_time Reference to track heartbeat timing for timeout detection.
+ *
  * @return true if the pipe was successfully configured and started, false otherwise.
  */
-bool setup_pipe_callbacks(AsyncNamedPipe &pipe, std::chrono::steady_clock::time_point &last_msg_time) {
-  auto on_message = [&last_msg_time](std::span<const uint8_t> message) {
-    handle_ipc_message(message, last_msg_time);
+bool setup_pipe_callbacks(AsyncNamedPipe &pipe) {
+  auto on_message = [](std::span<const uint8_t> message) {
+    handle_ipc_message(message);
   };
 
   auto on_error = [](std::string_view /*err*/) {
@@ -1365,22 +1360,7 @@ bool process_window_messages(bool &shutdown_requested) {
 }
 
 /**
- * @brief Helper function to check heartbeat timeout.
- *
- * @param last_msg_time The timestamp of the last received message.
- * @param shutdown_requested Reference to shutdown flag that may be set on timeout.
- * @return true if heartbeat is valid, false if timeout occurred.
- */
-bool check_heartbeat_timeout(const std::chrono::steady_clock::time_point &last_msg_time, bool &shutdown_requested) {
-  auto now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::seconds>(now - last_msg_time).count() > 5) {
-    BOOST_LOG(warning) << "No heartbeat received from main process for 5 seconds, requesting controlled shutdown...";
-    shutdown_requested = true;
-    PostQuitMessage(0);
-    return false;
-  }
-  return true;
-}
+
 
 /**
  * @brief Helper function to setup desktop switch hook for secure desktop detection.
@@ -1433,8 +1413,7 @@ int main(int argc, char *argv[]) {
   // Set up default config and log level
   auto log_deinit = logging::init(2, get_temp_log_path());
 
-  // Heartbeat mechanism: track last heartbeat time
-  auto last_msg_time = std::chrono::steady_clock::now();
+
 
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer system_initializer;
@@ -1458,7 +1437,7 @@ int main(int argc, char *argv[]) {
   AsyncNamedPipe pipe(std::move(comm_pipe));
   g_communication_pipe = &pipe;  // Store global reference for session.Closed handler
 
-  if (!setup_pipe_callbacks(pipe, last_msg_time)) {
+  if (!setup_pipe_callbacks(pipe)) {
     BOOST_LOG(error) << "Failed to start communication pipe";
     return 1;
   }
@@ -1540,11 +1519,6 @@ int main(int argc, char *argv[]) {
     // Process window messages and check for shutdown
     if (!process_window_messages(shutdown_requested)) {
       break;
-    }
-
-    // Check heartbeat timeout
-    if (!check_heartbeat_timeout(last_msg_time, shutdown_requested)) {
-      continue;
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1));  // Reduced from 5ms for lower IPC jitter
