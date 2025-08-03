@@ -907,6 +907,7 @@ private:
   SharedResourceManager *_resource_manager = nullptr;  ///< Pointer to shared resource manager
   ID3D11DeviceContext *_d3d_context = nullptr;  ///< D3D11 context for texture operations
   AsyncNamedPipe *_pipe = nullptr;  ///< Communication pipe with main process
+  INamedPipe *_frame_pipe = nullptr;  ///< Dedicated frame notification pipe
 
   uint32_t _current_buffer_size = 1;  ///< Current frame buffer size for dynamic adjustment
   static constexpr uint32_t MAX_BUFFER_SIZE = 4;  ///< Maximum allowed buffer size
@@ -1053,11 +1054,13 @@ public:
    * @param res_mgr Pointer to the shared resource manager.
    * @param context Pointer to the D3D11 device context.
    * @param pipe Pointer to the async named pipe for IPC.
+   * @param frame_pipe Pointer to the dedicated frame notification pipe.
    */
-  void attach_frame_arrived_handler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe) {
+  void attach_frame_arrived_handler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe, INamedPipe *frame_pipe) {
     _resource_manager = res_mgr;
     _d3d_context = context;
     _pipe = pipe;
+    _frame_pipe = frame_pipe;
 
     _frame_arrived_token = _frame_pool.FrameArrived([this](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &) {
       // Track outstanding frames for buffer occupancy monitoring
@@ -1199,7 +1202,7 @@ private:
    * @param frame_qpc The QPC timestamp from when the frame was captured.
    */
   void process_surface_to_texture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t frame_qpc) {
-    if (!_resource_manager || !_d3d_context || !_pipe) {
+    if (!_resource_manager || !_d3d_context || !_frame_pipe) {
       return;
     }
 
@@ -1228,12 +1231,12 @@ private:
     _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
     _resource_manager->get_keyed_mutex()->ReleaseSync(1);
 
-    // Send frame ready message with QPC timing data
+    // Send frame ready message with QPC timing data via dedicated frame pipe
     frame_ready_msg_t frame_msg;
     frame_msg.frame_qpc = frame_qpc;
 
     std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t *>(&frame_msg), sizeof(frame_msg));
-    _pipe->send(msg_span);
+    _frame_pipe->send(msg_span, 5000);
   }
 
 public:
@@ -1498,14 +1501,16 @@ int main(int argc, char *argv[]) {
   // Set up default config and log level
   auto log_deinit = logging::init(2, get_temp_log_path());
 
-  // Check command line arguments for pipe name
-  if (argc < 2) {
-    BOOST_LOG(error) << "Usage: " << argv[0] << " <pipe_name_guid>";
+  // Check command line arguments for pipe names
+  if (argc < 3) {
+    BOOST_LOG(error) << "Usage: " << argv[0] << " <pipe_name_guid> <frame_pipe_name_guid>";
     return 1;
   }
 
   std::string pipe_name = argv[1];
+  std::string frame_pipe_name = argv[2];
   BOOST_LOG(info) << "Using pipe name: " << pipe_name;
+  BOOST_LOG(info) << "Using frame pipe name: " << frame_pipe_name;
 
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer system_initializer;
@@ -1522,17 +1527,23 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG(info) << "Starting Windows Graphics Capture helper process...";
 
-  // Create named pipe for communication with main process using provided pipe name
+  // Create named pipes for communication with main process using provided pipe names
   AnonymousPipeFactory pipe_factory;
 
   auto comm_pipe = pipe_factory.create_client(pipe_name);
   AsyncNamedPipe pipe(std::move(comm_pipe));
   g_communication_pipe = &pipe;  // Store global reference for session.Closed handler
 
+  auto frame_pipe = pipe_factory.create_client(frame_pipe_name);
+
   if (!setup_pipe_callbacks(pipe)) {
     BOOST_LOG(error) << "Failed to start communication pipe";
     return 1;
   }
+
+  // Frame pipe doesn't need callbacks since we only send on it
+  // Just wait for connection
+  frame_pipe->wait_for_client_connection(5000);
 
   constexpr int max_wait_ms = 5000;
   constexpr int poll_interval_ms = 10;
@@ -1601,7 +1612,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  wgc_capture_manager.attach_frame_arrived_handler(&shared_resource_manager, d3d11_manager.get_context(), &pipe);
+  wgc_capture_manager.attach_frame_arrived_handler(&shared_resource_manager, d3d11_manager.get_context(), &pipe, frame_pipe.get());
 
   if (!wgc_capture_manager.create_capture_session()) {
     BOOST_LOG(error) << "Failed to create capture session";
@@ -1615,7 +1626,7 @@ int main(int argc, char *argv[]) {
 
   // Main message loop
   bool shutdown_requested = false;
-  while (pipe.is_connected() && !shutdown_requested) {
+  while ((pipe.is_connected() && frame_pipe->is_connected()) && !shutdown_requested) {
     // Process window messages and check for shutdown
     if (!process_window_messages(shutdown_requested)) {
       break;
