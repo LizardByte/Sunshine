@@ -139,7 +139,7 @@
     "back_button_timeout": "Home/Guide Button Emulation Timeout",
     "back_button_timeout_desc": "If the Back/Select button is held down for the specified number of milliseconds, a Home/Guide button press is emulated. If set to a value < 0 (default), holding the Back/Select button will not emulate the Home/Guide button.",
     "capture": "Force a Specific Capture Method",
-    "capture_desc": "On automatic mode Sunshine will use the first one that works. NvFBC requires patched nvidia drivers.",
+    "capture_desc": "On automatic mode Sunshine will use the first one that works. NvFBC requires patched nvidia drivers. Variable Framerate WGC is only available on Windows 24H2 or later.",
     "cert": "Certificate",
     "cert_desc": "The certificate used for the web UI and Moonlight client pairing. For best compatibility, this should have an RSA-2048 public key.",
     "channels": "Maximum Connected Clients",

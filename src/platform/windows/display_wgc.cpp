@@ -124,12 +124,11 @@ namespace platf::dxgi {
 
       return capture_e::ok;
 
-    } else if (capture_status == capture_e::timeout && last_cached_frame) {
+    } else if (capture_status == capture_e::timeout && config::video.capture == "wgcc" && last_cached_frame) {
       // No new frame available, but we have a cached frame - forward it
       // This mimics the DDUP ofa::forward_last_img behavior
       // Only do this for genuine timeouts, not for errors
       img_out = last_cached_frame;
-
       // Update timestamp to current time to maintain proper timing
       if (img_out) {
         img_out->frame_timestamp = std::chrono::steady_clock::now();
@@ -138,8 +137,8 @@ namespace platf::dxgi {
       return capture_e::ok;
 
     } else {
-      // Return the actual error/timeout from acquire_next_frame
-      // This preserves proper error semantics (e.g., when helper process is unavailable)
+      // For variable FPS mode (wgcv) just return the capture status on timeouts.
+      // This works fine only for 24H2 users in my testing, which is why the option is hidden unless they have it.
       return capture_status;
     }
   }
@@ -264,6 +263,22 @@ namespace platf::dxgi {
     auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
 
     if (status != capture_e::ok) {
+      // For constant FPS mode (wgcc), try to return cached frame on timeout
+      if (status == capture_e::timeout && config::video.capture == "wgcc" && last_cached_frame) {
+        // No new frame available, but we have a cached frame - forward it
+        // This mimics the DDUP ofa::forward_last_img behavior
+        // Only do this for genuine timeouts, not for errors
+        img_out = last_cached_frame;
+        // Update timestamp to current time to maintain proper timing
+        if (img_out) {
+          img_out->frame_timestamp = std::chrono::steady_clock::now();
+        }
+
+        return capture_e::ok;
+      }
+
+      // For variable FPS mode (wgcv) just return the capture status on timeouts.
+      // This works fine only for 24H2 users in my testing, which is why the option is hidden unless they have it.
       return status;
     }
 
@@ -370,6 +385,9 @@ namespace platf::dxgi {
 
     auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
     img->frame_timestamp = frame_timestamp;
+
+    // Cache this frame for potential reuse in constant FPS mode
+    last_cached_frame = img_out;
 
     _ipc_session->release();
     return capture_e::ok;

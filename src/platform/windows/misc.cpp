@@ -373,6 +373,30 @@ namespace platf {
     return ret;
   }
 
+  /**
+   * @brief Check if the current Windows version is 24H2 or higher (supports WGC variable framerate).
+   * @return `true` if Windows version >= 11 24H2 (build 26100), `false` otherwise.
+   */
+  bool is_windows_24H2_or_higher() {
+#ifdef _WIN32
+    OSVERSIONINFOEXA os_version_info;
+    os_version_info.dwOSVersionInfoSize = sizeof(os_version_info);
+    os_version_info.dwMajorVersion = HIBYTE(_WIN32_WINNT_WIN10);
+    os_version_info.dwMinorVersion = LOBYTE(_WIN32_WINNT_WIN10);
+    os_version_info.dwBuildNumber = 26100;  // Windows 11 24H2 build number
+
+    ULONGLONG condition_mask {0};
+    condition_mask = VerSetConditionMask(condition_mask, VER_MAJORVERSION, VER_GREATER_EQUAL);
+    condition_mask = VerSetConditionMask(condition_mask, VER_MINORVERSION, VER_GREATER_EQUAL);
+    condition_mask = VerSetConditionMask(condition_mask, VER_BUILDNUMBER, VER_GREATER_EQUAL);
+
+    BOOL result = VerifyVersionInfoA(&os_version_info, VER_MAJORVERSION | VER_MINORVERSION | VER_BUILDNUMBER, condition_mask);
+    return result != FALSE;
+#else
+    return false;  // Non-Windows platforms don't support WGC
+#endif
+  }
+
   // Note: This does NOT append a null terminator
   void append_string_to_environment_block(wchar_t *env_block, int &offset, const std::wstring &wstr) {
     std::memcpy(&env_block[offset], wstr.data(), wstr.length() * sizeof(wchar_t));

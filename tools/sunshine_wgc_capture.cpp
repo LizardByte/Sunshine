@@ -130,7 +130,7 @@ const int INITIAL_LOG_LEVEL = 2;
 /**
  * @brief Global configuration data received from the main process.
  */
-static platf::dxgi::config_data_t g_config = {0, 0, L"", {0, 0}};
+static platf::dxgi::config_data_t g_config = {0, 0, L"", {0, 0}, 0};
 
 /**
  * @brief Flag indicating whether configuration data has been received from main process.
@@ -922,6 +922,10 @@ private:
   UINT _width = 0;  ///< Capture width in pixels
   GraphicsCaptureItem _graphics_item = nullptr;  ///< WinRT graphics capture item (monitor/window)
 
+  // FPS logging
+  uint64_t _frame_count = 0;
+  std::chrono::steady_clock::time_point _last_fps_log = std::chrono::steady_clock::now();
+
 public:
   /**
    * @brief Constructor for WgcCaptureManager.
@@ -1083,6 +1087,17 @@ public:
       } catch (const winrt::hresult_error &ex) {
         // Log error
         BOOST_LOG(error) << "WinRT error in frame processing: " << ex.code() << " - " << winrt::to_string(ex.message());
+      }
+
+      // FPS tracking
+      ++_frame_count;
+      auto now = std::chrono::steady_clock::now();
+      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - _last_fps_log).count();
+      if (elapsed >= 5) {
+        double fps = static_cast<double>(_frame_count) / elapsed;
+        BOOST_LOG(info) << "Capture FPS: " << fps;
+        _frame_count = 0;
+        _last_fps_log = now;
       }
     } else {
       // Frame drop detected - record timestamp for sliding window analysis
@@ -1248,6 +1263,18 @@ public:
     _capture_session = _frame_pool.CreateCaptureSession(_graphics_item);
     _capture_session.IsBorderRequired(false);
 
+    // Set DirtyRegionMode based on capture mode configuration
+    // See: https://learn.microsoft.com/en-us/uwp/api/windows.graphics.capture.graphicscapturedirtyregionmode
+    if (g_config_received && g_config.wgc_capture_mode == 1) {
+      // Dynamic FPS mode: only render when content changes
+      _capture_session.DirtyRegionMode(winrt::Windows::Graphics::Capture::GraphicsCaptureDirtyRegionMode::ReportOnly);
+      BOOST_LOG(debug) << "WGC capture mode: Dynamic FPS (ReportOnly)";
+    } else {
+      // Constant FPS mode (default): always render full frames
+      _capture_session.DirtyRegionMode(winrt::Windows::Graphics::Capture::GraphicsCaptureDirtyRegionMode::ReportAndRender);
+      BOOST_LOG(debug) << "WGC capture mode: Constant FPS (ReportAndRender)";
+    }
+
     // Technically this is not required for users that have 24H2, but there's really no functional difference.
     // So instead of coding out a version check, we'll just set it for everyone.
     if (winrt::Windows::Foundation::Metadata::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
@@ -1386,6 +1413,7 @@ void handle_ipc_message(std::span<const uint8_t> message) {
     }
     BOOST_LOG(info) << "Received config data: hdr: " << g_config.dynamic_range
                     << ", display: '" << winrt::to_string(g_config.display_name) << "'"
+                    << ", wgc_capture_mode: " << g_config.wgc_capture_mode
                     << ", adapter LUID: " << std::hex << g_config.adapter_luid.HighPart
                     << ":" << g_config.adapter_luid.LowPart << std::dec;
   }

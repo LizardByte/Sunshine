@@ -31,6 +31,9 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
+#ifdef _WIN32
+  #include "platform/windows/misc.h"
+#endif
 #include "process.h"
 #include "utility.h"
 #include "uuid.h"
@@ -825,6 +828,37 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the platform capabilities.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/capabilities| GET| null}
+   */
+  void getCapabilities(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    output_tree["platform"] = SUNSHINE_PLATFORM;
+    
+    // Platform input capabilities (pen/touch, controller touch, etc.)
+    output_tree["input_capabilities"] = platf::get_capabilities();
+
+#ifdef _WIN32
+    // Windows-specific capabilities
+    output_tree["supports_wgc_variable_framerate"] = platf::is_windows_24H2_or_higher();
+#else
+    output_tree["supports_wgc_variable_framerate"] = false;
+#endif
+
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Get the configuration settings.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1204,6 +1238,7 @@ namespace confighttp {
     server.resource["^/api/apps$"]["POST"] = saveApp;
     server.resource["^/api/config$"]["GET"] = getConfig;
     server.resource["^/api/config$"]["POST"] = saveConfig;
+    server.resource["^/api/capabilities$"]["GET"] = getCapabilities;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;

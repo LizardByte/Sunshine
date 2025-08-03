@@ -43,6 +43,12 @@ namespace platf {
   bool is_running_as_system();
 
   /**
+   * @brief Check if the current Windows version is 24H2 or higher (supports WGC variable framerate).
+   * @return `true` if Windows version >= 11 24H2 (build 26100), `false` otherwise.
+   */
+  bool is_windows_24H2_or_higher();
+
+  /**
    * @brief Launch a process with user impersonation (for use when running as SYSTEM).
    * @param elevated Specify whether to elevate the process.
    * @param cmd The command to run.

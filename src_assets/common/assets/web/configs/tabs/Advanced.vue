@@ -1,14 +1,20 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import PlatformLayout from '../../PlatformLayout.vue'
 
 const props = defineProps([
   'platform',
   'config',
-  'global_prep_cmd'
+  'global_prep_cmd',
+  'supports_wgc_variable_framerate'
 ])
 
 const config = ref(props.config)
+
+// Use backend-provided capability information for Windows WGC variable framerate support
+const supportsWgcVariableFramerate = computed(() => {
+  return props.platform === 'windows' && props.supports_wgc_variable_framerate === true
+})
 </script>
 
 <template>
@@ -72,7 +78,8 @@ const config = ref(props.config)
           </template>
           <template #windows>
             <option value="ddx">Desktop Duplication API</option>
-            <option value="wgc">Windows.Graphics.Capture</option>
+            <option value="wgcc">Windows.Graphics.Capture Constant Framerate</option>
+            <option value="wgcv" v-if="supportsWgcVariableFramerate">Windows.Graphics.Capture Variable Framerate</option>
           </template>
         </PlatformLayout>
       </select>

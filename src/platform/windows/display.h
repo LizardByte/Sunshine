@@ -525,6 +525,9 @@ namespace platf::dxgi {
     UINT _last_width = 0;
     UINT _last_height = 0;
     DXGI_FORMAT _last_format = DXGI_FORMAT_UNKNOWN;
+    
+    // Cache for frame forwarding when no new frame is available
+    std::shared_ptr<platf::img_t> last_cached_frame;
   };
 
   /**

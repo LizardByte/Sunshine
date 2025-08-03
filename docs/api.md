@@ -33,6 +33,9 @@ basic authentication with the admin username and password.
 ## GET /api/config
 @copydoc confighttp::getConfig()
 
+## GET /api/capabilities
+@copydoc confighttp::getCapabilities()
+
 ## GET /api/configLocale
 @copydoc confighttp::getLocale()
 
