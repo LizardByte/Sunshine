@@ -922,9 +922,6 @@ private:
   UINT _width = 0;  ///< Capture width in pixels
   GraphicsCaptureItem _graphics_item = nullptr;  ///< WinRT graphics capture item (monitor/window)
 
-  // FPS logging
-  uint64_t _frame_count = 0;
-  std::chrono::steady_clock::time_point _last_fps_log = std::chrono::steady_clock::now();
 
 public:
   /**
@@ -1087,17 +1084,6 @@ public:
       } catch (const winrt::hresult_error &ex) {
         // Log error
         BOOST_LOG(error) << "WinRT error in frame processing: " << ex.code() << " - " << winrt::to_string(ex.message());
-      }
-
-      // FPS tracking
-      ++_frame_count;
-      auto now = std::chrono::steady_clock::now();
-      auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - _last_fps_log).count();
-      if (elapsed >= 5) {
-        double fps = static_cast<double>(_frame_count) / elapsed;
-        BOOST_LOG(info) << "Capture FPS: " << fps;
-        _frame_count = 0;
-        _last_fps_log = now;
       }
     } else {
       // Frame drop detected - record timestamp for sliding window analysis
