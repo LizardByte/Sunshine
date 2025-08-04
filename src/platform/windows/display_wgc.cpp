@@ -138,7 +138,6 @@ namespace platf::dxgi {
 
     } else {
       // For variable FPS mode (wgcv) just return the capture status on timeouts.
-      // This works fine only for 24H2 users in my testing, which is why the option is hidden unless they have it.
       return capture_status;
     }
   }
@@ -278,7 +277,6 @@ namespace platf::dxgi {
       }
 
       // For variable FPS mode (wgcv) just return the capture status on timeouts.
-      // This works fine only for 24H2 users in my testing, which is why the option is hidden unless they have it.
       return status;
     }
 

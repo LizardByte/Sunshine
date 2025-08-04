@@ -141,13 +141,6 @@ namespace platf::dxgi {
     config_data_t config_data = {};
     config_data.dynamic_range = _config.dynamicRange;
     config_data.log_level = config::sunshine.min_log_level;
-    
-    // Set capture mode based on capture method string
-    if (config::video.capture == "wgcv") {
-      config_data.wgc_capture_mode = 1; // Variable/Dynamic FPS this only works well on 24H2
-    } else {
-      config_data.wgc_capture_mode = 0; // Constant FPS (default)
-    }
 
     // Convert display_name (std::string) to wchar_t[32]
     if (!_display_name.empty()) {

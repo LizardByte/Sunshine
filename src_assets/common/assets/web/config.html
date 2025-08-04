@@ -69,8 +69,7 @@
       <advanced
         v-if="currentTab === 'advanced'"
         :config="config"
-        :platform="platform"
-        :supports_wgc_variable_framerate="supportsWgcVariableFramerate">
+        :platform="platform">
       </advanced>
 
       <container-encoders
@@ -127,7 +126,6 @@
         restarted: false,
         config: null,
         currentTab: "general",
-        supportsWgcVariableFramerate: false,
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -292,7 +290,6 @@
        }
     },
     created() {
-      // Fetch configuration
       fetch("./api/config")
         .then((r) => r.json())
         .then((r) => {
@@ -340,17 +337,6 @@
               }
             });
           });
-        });
-
-      // Fetch platform capabilities
-      fetch("./api/capabilities")
-        .then((r) => r.json())
-        .then((r) => {
-          this.supportsWgcVariableFramerate = r.supports_wgc_variable_framerate || false;
-        })
-        .catch((err) => {
-          console.warn("Failed to fetch platform capabilities:", err);
-          this.supportsWgcVariableFramerate = false;
         });
     },
     methods: {

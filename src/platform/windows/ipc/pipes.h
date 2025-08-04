@@ -52,14 +52,12 @@ namespace platf::dxgi {
    * @param log_level Logging level.
    * @param display_name Display name (wide string, max 32 chars).
    * @param adapter_luid LUID of the DXGI adapter to use for D3D11 device creation.
-   * @param wgc_capture_mode WGC capture mode: 0 = constant FPS (cache last frame), 1 = dynamic FPS
    */
   struct config_data_t {
     int dynamic_range;
     int log_level;
     wchar_t display_name[32];
     LUID adapter_luid;
-    int wgc_capture_mode;
   };
 
 /**
