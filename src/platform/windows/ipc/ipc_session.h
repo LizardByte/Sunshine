@@ -144,10 +144,10 @@ namespace platf::dxgi {
   private:
     std::unique_ptr<ProcessHandler> _process_helper;
     std::unique_ptr<AsyncNamedPipe> _pipe;
-    std::unique_ptr<INamedPipe> _frame_pipe;
     safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;
     safe_com_ptr<ID3D11Texture2D> _shared_texture;
     ID3D11Device *_device = nullptr;
+    std::atomic<bool> _frame_ready {false};
     std::atomic<uint64_t> _frame_qpc {0};
     std::atomic<bool> _initialized {false};
     std::atomic<bool> _should_swap_to_dxgi {false};
@@ -203,12 +203,10 @@ namespace platf::dxgi {
     void handle_secure_desktop_message(std::span<const uint8_t> msg);
 
     /**
-     * @brief Wait for a new frame to become available from the dedicated frame notification pipe.
+     * @brief Wait for a new frame to become available.
      *
      * Blocks until a new frame is signaled by the helper process or the timeout expires.
-     * Used to synchronize frame acquisition between processes. This method uses a dedicated
-     * frame notification pipe with condition variable synchronization for better performance
-     * compared to polling.
+     * Used to synchronize frame acquisition between processes.
      *
      * @param timeout Maximum duration to wait for a frame
      * @return true if a frame became available, false if the timeout expired

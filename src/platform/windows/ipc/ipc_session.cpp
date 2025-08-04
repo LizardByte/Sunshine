@@ -40,6 +40,17 @@ namespace platf::dxgi {
     }
   }
 
+  void ipc_session_t::handle_frame_notification(std::span<const uint8_t> msg) {
+    if (msg.size() == sizeof(frame_ready_msg_t)) {
+      frame_ready_msg_t frame_msg;
+      memcpy(&frame_msg, msg.data(), sizeof(frame_msg));
+
+      if (frame_msg.message_type == FRAME_READY_MSG) {
+        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
+        _frame_ready.store(true, std::memory_order_release);
+      }
+    }
+  }
 
   void ipc_session_t::handle_secure_desktop_message(std::span<const uint8_t> msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
@@ -82,15 +93,14 @@ namespace platf::dxgi {
     exePathBuffer.resize(wcslen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::string pipe_guid = generate_guid();
-    std::string frame_pipe_guid = generate_guid();
 
     std::filesystem::path exe_path = mainExeDir / L"tools" / L"sunshine_wgc_capture.exe";
-    std::wstring arguments = platf::from_utf8(pipe_guid + " " + frame_pipe_guid);  // Convert GUIDs to wide string for arguments
+    std::wstring arguments = platf::from_utf8(pipe_guid);  // Convert GUID to wide string for arguments
 
     if (!_process_helper->start(exe_path.wstring(), arguments)) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
-                       << " with pipe GUID: " << pipe_guid << " and frame pipe GUID: " << frame_pipe_guid << " (error code: " << err << ")";
+                       << " with pipe GUID: " << pipe_guid << " (error code: " << err << ")";
       return;
     }
 
@@ -99,6 +109,8 @@ namespace platf::dxgi {
     auto on_message = [this, &handle_received](std::span<const uint8_t> msg) {
       if (msg.size() == sizeof(shared_handle_data_t)) {
         handle_shared_handle_message(msg, handle_received);
+      } else if (msg.size() == sizeof(frame_ready_msg_t)) {
+        handle_frame_notification(msg);
       } else if (msg.size() == 1) {
         handle_secure_desktop_message(msg);
       }
@@ -118,29 +130,23 @@ namespace platf::dxgi {
     auto raw_pipe = anon_connector->create_server(pipe_guid);
     if (!raw_pipe) {
       BOOST_LOG(error) << "IPC pipe setup failed with GUID: " << pipe_guid << " - aborting WGC session";
+      // No need to call cleanup() - RAII destructors will handle everything
       return;
     }
     _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
 
-    _frame_pipe = anon_connector->create_server(frame_pipe_guid);
-    if (!_frame_pipe) {
-      BOOST_LOG(error) << "IPC frame pipe queue pipe failed with GUID: " << frame_pipe_guid << " - aborting WGC session";
-      return;
-    }
-
     _pipe->wait_for_client_connection(3000);
-    _frame_pipe->wait_for_client_connection(3000);
 
     // Send config data to helper process
     config_data_t config_data = {};
     config_data.dynamic_range = _config.dynamicRange;
     config_data.log_level = config::sunshine.min_log_level;
-
+    
     // Set capture mode based on capture method string
     if (config::video.capture == "wgcv") {
-      config_data.wgc_capture_mode = 1;  // Variable/Dynamic FPS this only works well on 24H2
+      config_data.wgc_capture_mode = 1; // Variable/Dynamic FPS this only works well on 24H2
     } else {
-      config_data.wgc_capture_mode = 0;  // Constant FPS (default)
+      config_data.wgc_capture_mode = 0; // Constant FPS (default)
     }
 
     // Convert display_name (std::string) to wchar_t[32]
@@ -183,27 +189,26 @@ namespace platf::dxgi {
   }
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
-    if (!_frame_pipe || !_frame_pipe->is_connected()) {
-      return false;
-    }
+    auto start_time = std::chrono::steady_clock::now();
 
-    // Because frame queue is time sensitive we use a dedicated IPC Pipe just for frame timing.
-    std::array<uint8_t, sizeof(frame_ready_msg_t)> buffer;
-    size_t bytes_read = 0;
-    
-    
-    if (auto result = _frame_pipe->receive(std::span<uint8_t>(buffer), bytes_read, static_cast<int>(timeout.count())); result == PipeResult::Success && bytes_read == sizeof(frame_ready_msg_t)) {
-      frame_ready_msg_t frame_msg;
-      memcpy(&frame_msg, buffer.data(), sizeof(frame_msg));
-      
-      if (frame_msg.message_type == FRAME_READY_MSG) {
-        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
+    while (true) {
+      // Check if frame is ready
+      if (_frame_ready.load(std::memory_order_acquire)) {
+        _frame_ready.store(false, std::memory_order_release);
         return true;
       }
+
+      // Check timeout
+      if (auto elapsed = std::chrono::steady_clock::now() - start_time; elapsed >= timeout) {
+        return false;
+      }
+
+      // Small sleep to avoid busy waiting
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
-    
-    return false;
-  }  bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
+  }
+
+  bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
     // Guarantee a clean value on failure
     memset(&luid_out, 0, sizeof(LUID));
 

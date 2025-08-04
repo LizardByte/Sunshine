@@ -517,29 +517,16 @@ namespace platf::dxgi {
     capture_e release_snapshot() override;
 
   private:
-    /**
-     * @brief IPC session for communication with capture helper.
-     */
-    std::unique_ptr<class ipc_session_t> _ipc_session;
-
-    /**
-     * @brief Video configuration used for capture.
-     */
-    ::video::config_t _config;
-
-    /**
-     * @brief Name of the display being captured.
-     */
-    std::string _display_name;
+    std::unique_ptr<class ipc_session_t> _ipc_session;  ///< IPC session for communication with capture helper.
+    ::video::config_t _config;  /// Video configuration used for capture.
+    std::string _display_name;  /// Name of the display being captured.
 
     // Track last staging texture properties for base class texture
     UINT _last_width = 0;
     UINT _last_height = 0;
     DXGI_FORMAT _last_format = DXGI_FORMAT_UNKNOWN;
-
-    /**
-     * @brief Cache for frame forwarding when no new frame is available.
-     */
+    
+    // Cache for frame forwarding when no new frame is available
     std::shared_ptr<platf::img_t> last_cached_frame;
   };
 
