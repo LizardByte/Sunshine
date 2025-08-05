@@ -728,7 +728,7 @@ class SharedResourceManager {
 private:
   safe_com_ptr<ID3D11Texture2D> _shared_texture = nullptr;  ///< Shared D3D11 texture for frame data
   safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex = nullptr;  ///< Keyed mutex for synchronization
-  HANDLE _shared_handle = nullptr;  ///< Shared handle for cross-process sharing
+  safe_handle _shared_handle = nullptr;  ///< Shared handle for cross-process sharing
   UINT _width = 0;  ///< Texture width in pixels
   UINT _height = 0;  ///< Texture height in pixels
 
@@ -864,7 +864,7 @@ public:
    */
   platf::dxgi::shared_handle_data_t get_shared_handle_data() const {
     platf::dxgi::shared_handle_data_t data = {};
-    data.texture_handle = _shared_handle;
+    data.texture_handle = const_cast<HANDLE>(_shared_handle.get());
     data.width = _width;
     data.height = _height;
     return data;

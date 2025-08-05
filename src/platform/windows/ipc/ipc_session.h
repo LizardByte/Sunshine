@@ -171,38 +171,6 @@ namespace platf::dxgi {
     bool setup_shared_texture_from_shared_handle(HANDLE shared_handle, UINT width, UINT height);
 
     /**
-     * @brief Handle an incoming shared handle message from the helper process.
-     *
-     * Processes a message containing a new shared handle for the texture. Updates the session's
-     * shared texture if a new handle is received.
-     *
-     * @param msg The message data received from the helper process
-     * @param handle_received Output parameter set to true if a new handle was processed
-     */
-    void handle_shared_handle_message(std::span<const uint8_t> msg, bool &handle_received);
-
-    /**
-     * @brief Handle a shared handle message from the helper process.
-     *
-     * Processes a message containing shared handle data and attempts to duplicate and
-     * set up the shared texture using the shared handle.
-     *
-     * @param msg The message data received from the helper process
-     * @param handle_received Output parameter set to true if a new handle was processed
-     */
-    void handle_named_handle_message(std::span<const uint8_t> msg, bool &handle_received);
-
-    /**
-     * @brief Handle a frame notification message from the helper process.
-     *
-     * Processes a message indicating that a new frame is available in the shared texture.
-     * Updates internal state to signal that the frame can be acquired.
-     *
-     * @param msg The message data received from the helper process
-     */
-    void handle_frame_notification(std::span<const uint8_t> msg);
-
-    /**
      * @brief Handle a secure desktop notification from the helper process.
      *
      * Processes a message indicating that the system has entered a secure desktop environment
