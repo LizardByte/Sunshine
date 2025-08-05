@@ -22,13 +22,13 @@
 #include <iphlpapi.h>
 #include <iterator>
 #include <timeapi.h>
-#include <userenv.h>
-#include <winsock2.h>
-#include <windows.h>
-#include <winuser.h>
+#include <UserEnv.h>
+#include <WinSock2.h>
+#include <Windows.h>
+#include <WinUser.h>
 #include <wlanapi.h>
-#include <ws2tcpip.h>
-#include <wtsapi32.h>
+#include <WS2tcpip.h>
+#include <WtsApi32.h>
 #include <sddl.h>
 // clang-format on
 

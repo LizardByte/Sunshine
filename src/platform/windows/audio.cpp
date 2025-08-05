@@ -5,7 +5,7 @@
 #define INITGUID
 
 // platform includes
-#include <audioclient.h>
+#include <Audioclient.h>
 #include <avrt.h>
 #include <mmdeviceapi.h>
 #include <newdev.h>
