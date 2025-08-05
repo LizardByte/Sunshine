@@ -108,6 +108,15 @@ namespace platf::dxgi {
     virtual PipeResult receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) = 0;
 
     /**
+     * @brief Flushes the message queue and retrieves the latest message from the pipe.
+     * @param dst Span buffer to store the latest received data.
+     * @param bytesRead Reference to store the number of bytes actually read.
+     * @param timeout_ms Timeout in milliseconds for the receive operation.
+     * @return PipeResult indicating the result of the receive operation.
+     */
+    virtual PipeResult receive_latest(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) = 0;
+
+    /**
      * @brief Waits for a client to connect to the pipe.
      * @param milliseconds Timeout in milliseconds to wait for connection.
      */
@@ -260,6 +269,15 @@ namespace platf::dxgi {
      * @return True if connected, false otherwise.
      */
     bool is_connected() override;
+
+    /**
+     * @brief Flushes the message queue and retrieves the latest message from the pipe.
+     * @param dst Span buffer to store the latest received data.
+     * @param bytesRead Reference to store the number of bytes actually read.
+     * @param timeout_ms Timeout in milliseconds for the receive operation.
+     * @return PipeResult indicating the result of the receive operation.
+     */
+    PipeResult receive_latest(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) override;
 
     /**
      * @brief Flushes the pipe's buffers.

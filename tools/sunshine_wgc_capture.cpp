@@ -906,7 +906,7 @@ private:
   winrt::event_token _frame_arrived_token {};  ///< Event token for frame arrival notifications
   SharedResourceManager *_resource_manager = nullptr;  ///< Pointer to shared resource manager
   ID3D11DeviceContext *_d3d_context = nullptr;  ///< D3D11 context for texture operations
-  AsyncNamedPipe *_pipe = nullptr;  ///< Communication pipe with main process
+  INamedPipe *_pipe = nullptr;  ///< Communication pipe with main process
 
   uint32_t _current_buffer_size = 1;  ///< Current frame buffer size for dynamic adjustment
   static constexpr uint32_t MAX_BUFFER_SIZE = 4;  ///< Maximum allowed buffer size
@@ -1053,7 +1053,7 @@ public:
    * @param context Pointer to the D3D11 device context.
    * @param pipe Pointer to the async named pipe for IPC.
    */
-  void attach_frame_arrived_handler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, AsyncNamedPipe *pipe) {
+  void attach_frame_arrived_handler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, INamedPipe *pipe) {
     _resource_manager = res_mgr;
     _d3d_context = context;
     _pipe = pipe;
@@ -1100,39 +1100,6 @@ public:
   }
 
 private:
-  /**
-   * @brief Handles ping-pong mutex acquisition for frame synchronization.
-   * @param is_first_frame Reference to the first frame flag.
-   * @return HRESULT of the acquisition attempt.
-   */
-  HRESULT acquire_frame_mutex() {
-    static std::atomic<bool> is_first_frame {true};
-    const bool first = is_first_frame.load();
-    const UINT acquire_key = is_first_frame ? 0 : 2;
-    const DWORD timeout_ms = is_first_frame ? 2 : INFINITE;
-
-    //  We use ping-pong mutexes to prevent deadlocks between the capture and encoding threads.
-    //  First frame: the helper locks key 0, then unlocks key 1 so the main process can acquire it.
-    //  The main process locks key 1 and then unlocks key 2.
-    //  Later frames: the helper locks key 2 (just unlocked by the main process) and then unlocks key 1.
-    //  The main process always locks key 1 (just unlocked by the helper) and then unlocks key 2.
-    //  Because the capture and encoder acquire 0, there is a small risk of deadlocking during the initial handshake.
-    //  This because we cannot unlock key 1 until we have locked key 0 first and then release 1
-
-    if (first) {
-      // Use retry logic for first frame to avoid deadlock
-      for (int i = 0; i < 100; ++i) {
-        const HRESULT r = _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
-        if (r == S_OK || r != WAIT_TIMEOUT) {
-          is_first_frame.store(false);
-          return r;
-        }
-      }
-      return WAIT_TIMEOUT;
-    }
-
-    return _resource_manager->get_keyed_mutex()->AcquireSync(acquire_key, timeout_ms);
-  }
 
   /**
    * @brief Prunes old frame drop timestamps from the sliding window.
@@ -1216,23 +1183,22 @@ private:
       return;
     }
 
-    HRESULT hr = acquire_frame_mutex();
+    HRESULT hr = _resource_manager->get_keyed_mutex()->AcquireSync(0, 200);
     if (hr != S_OK) {
-      BOOST_LOG(error) << "Failed to acquire initial mutex key 0"
-                       << (hr == WAIT_TIMEOUT ? " after 100 retries: WAIT_TIMEOUT" : std::format(": 0x{:08X}", hr));
+      BOOST_LOG(error) << "Failed to acquire mutex key 0: " << std::format(": 0x{:08X}", hr);
       return;
     }
 
     // Copy frame data and release mutex
     _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
-    _resource_manager->get_keyed_mutex()->ReleaseSync(1);
+    _resource_manager->get_keyed_mutex()->ReleaseSync(0);
 
     // Send frame ready message with QPC timing data
     frame_ready_msg_t frame_msg;
     frame_msg.frame_qpc = frame_qpc;
 
     std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t *>(&frame_msg), sizeof(frame_msg));
-    _pipe->send(msg_span);
+    _pipe->send(msg_span, 5000);
   }
 
 public:
@@ -1484,14 +1450,16 @@ int main(int argc, char *argv[]) {
   // Set up default config and log level
   auto log_deinit = logging::init(2, get_temp_log_path());
 
-  // Check command line arguments for pipe name
-  if (argc < 2) {
-    BOOST_LOG(error) << "Usage: " << argv[0] << " <pipe_name_guid>";
+  // Check command line arguments for pipe names
+  if (argc < 3) {
+    BOOST_LOG(error) << "Usage: " << argv[0] << " <pipe_name_guid> <frame_queue_pipe_name_guid>";
     return 1;
   }
 
   std::string pipe_name = argv[1];
+  std::string frame_queue_pipe_name = argv[2];
   BOOST_LOG(info) << "Using pipe name: " << pipe_name;
+  BOOST_LOG(info) << "Using frame queue pipe name: " << frame_queue_pipe_name;
 
   // Initialize system settings (DPI awareness, thread priority, MMCSS)
   SystemInitializer system_initializer;
@@ -1512,6 +1480,7 @@ int main(int argc, char *argv[]) {
   AnonymousPipeFactory pipe_factory;
 
   auto comm_pipe = pipe_factory.create_client(pipe_name);
+  auto frame_queue_pipe = pipe_factory.create_client(frame_queue_pipe_name);
   AsyncNamedPipe pipe(std::move(comm_pipe));
   g_communication_pipe = &pipe;  // Store global reference for session.Closed handler
 
@@ -1587,7 +1556,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  wgc_capture_manager.attach_frame_arrived_handler(&shared_resource_manager, d3d11_manager.get_context(), &pipe);
+  wgc_capture_manager.attach_frame_arrived_handler(&shared_resource_manager, d3d11_manager.get_context(), frame_queue_pipe.get());
 
   if (!wgc_capture_manager.create_capture_session()) {
     BOOST_LOG(error) << "Failed to create capture session";

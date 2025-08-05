@@ -422,8 +422,6 @@ namespace platf::dxgi {
       return false;
     }
 
-    // TODO: Add to interface
-    static_cast<WinPipe *>(pipe.get())->flush_buffers();
     return true;
   }
 
@@ -544,6 +542,31 @@ namespace platf::dxgi {
     } else {
       return handle_receive_error(ctx, timeout_ms, dst, bytesRead);
     }
+  }
+
+  PipeResult WinPipe::receive_latest(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) {
+    PipeResult result = receive(dst, bytesRead, timeout_ms);
+    if (result != PipeResult::Success) {
+      return result;
+    }
+
+    size_t lastBytesRead = bytesRead;
+    PipeResult lastResult = result;
+    while (true) {
+      size_t tempBytesRead = 0;
+      PipeResult next = receive(dst, tempBytesRead, 0);
+      if (next == PipeResult::Success) {
+        lastBytesRead = tempBytesRead;
+        lastResult = next;
+      } else if (next == PipeResult::Timeout) {
+        break;
+      } else {
+        // If we get an error, broken pipe, or disconnected, return immediately
+        return next;
+      }
+    }
+    bytesRead = lastBytesRead;
+    return lastResult;
   }
 
   PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {

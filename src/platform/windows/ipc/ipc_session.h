@@ -144,6 +144,7 @@ namespace platf::dxgi {
   private:
     std::unique_ptr<ProcessHandler> _process_helper;
     std::unique_ptr<AsyncNamedPipe> _pipe;
+    std::unique_ptr<INamedPipe> _frame_queue_pipe;
     safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;
     safe_com_ptr<ID3D11Texture2D> _shared_texture;
     ID3D11Device *_device = nullptr;
@@ -152,6 +153,7 @@ namespace platf::dxgi {
     std::atomic<bool> _initialized {false};
     std::atomic<bool> _should_swap_to_dxgi {false};
     std::atomic<bool> _force_reinit {false};
+    std::atomic<bool> _should_release {false};
     UINT _width = 0;
     UINT _height = 0;
     uint32_t _timeout_count = 0;

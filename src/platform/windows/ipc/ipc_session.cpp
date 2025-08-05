@@ -40,17 +40,6 @@ namespace platf::dxgi {
     }
   }
 
-  void ipc_session_t::handle_frame_notification(std::span<const uint8_t> msg) {
-    if (msg.size() == sizeof(frame_ready_msg_t)) {
-      frame_ready_msg_t frame_msg;
-      memcpy(&frame_msg, msg.data(), sizeof(frame_msg));
-
-      if (frame_msg.message_type == FRAME_READY_MSG) {
-        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
-        _frame_ready.store(true, std::memory_order_release);
-      }
-    }
-  }
 
   void ipc_session_t::handle_secure_desktop_message(std::span<const uint8_t> msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
@@ -93,14 +82,16 @@ namespace platf::dxgi {
     exePathBuffer.resize(wcslen(exePathBuffer.data()));
     std::filesystem::path mainExeDir = std::filesystem::path(exePathBuffer).parent_path();
     std::string pipe_guid = generate_guid();
+    std::string frame_queue_pipe_guid = generate_guid();
 
     std::filesystem::path exe_path = mainExeDir / L"tools" / L"sunshine_wgc_capture.exe";
-    std::wstring arguments = platf::from_utf8(pipe_guid);  // Convert GUID to wide string for arguments
+    // Pass both GUIDs as arguments, space-separated
+    std::wstring arguments = platf::from_utf8(pipe_guid + " " + frame_queue_pipe_guid);
 
     if (!_process_helper->start(exe_path.wstring(), arguments)) {
       auto err = GetLastError();
       BOOST_LOG(error) << "Failed to start sunshine_wgc_capture executable at: " << exe_path.wstring()
-                       << " with pipe GUID: " << pipe_guid << " (error code: " << err << ")";
+                       << " with pipe GUID: " << pipe_guid << ", frame queue pipe GUID: " << frame_queue_pipe_guid << " (error code: " << err << ")";
       return;
     }
 
@@ -109,8 +100,6 @@ namespace platf::dxgi {
     auto on_message = [this, &handle_received](std::span<const uint8_t> msg) {
       if (msg.size() == sizeof(shared_handle_data_t)) {
         handle_shared_handle_message(msg, handle_received);
-      } else if (msg.size() == sizeof(frame_ready_msg_t)) {
-        handle_frame_notification(msg);
       } else if (msg.size() == 1) {
         handle_secure_desktop_message(msg);
       }
@@ -128,14 +117,16 @@ namespace platf::dxgi {
     auto anon_connector = std::make_unique<AnonymousPipeFactory>();
 
     auto raw_pipe = anon_connector->create_server(pipe_guid);
-    if (!raw_pipe) {
-      BOOST_LOG(error) << "IPC pipe setup failed with GUID: " << pipe_guid << " - aborting WGC session";
-      // No need to call cleanup() - RAII destructors will handle everything
+    auto frame_queue_pipe = anon_connector->create_server(frame_queue_pipe_guid);
+    if (!raw_pipe || !frame_queue_pipe) {
+      BOOST_LOG(error) << "IPC pipe setup failed with GUID: " << pipe_guid << " or frame queue pipe GUID: " << frame_queue_pipe_guid << " - aborting WGC session";
       return;
     }
     _pipe = std::make_unique<AsyncNamedPipe>(std::move(raw_pipe));
+    _frame_queue_pipe = std::move(frame_queue_pipe);
 
-    _pipe->wait_for_client_connection(3000);
+    _pipe->wait_for_client_connection(5000);
+    _frame_queue_pipe->wait_for_client_connection(5000);
 
     // Send config data to helper process
     config_data_t config_data = {};
@@ -182,24 +173,19 @@ namespace platf::dxgi {
   }
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
-    auto start_time = std::chrono::steady_clock::now();
-
-    while (true) {
-      // Check if frame is ready
-      if (_frame_ready.load(std::memory_order_acquire)) {
-        _frame_ready.store(false, std::memory_order_release);
-        return true;
-      }
-
-      // Check timeout
-      if (auto elapsed = std::chrono::steady_clock::now() - start_time; elapsed >= timeout) {
-        return false;
-      }
-
-      // Small sleep to avoid busy waiting
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    frame_ready_msg_t frame_msg{};
+    size_t bytesRead = 0;
+    // Use a span over the frame_msg buffer
+    auto result = _frame_queue_pipe->receive_latest(std::span<uint8_t>(reinterpret_cast<uint8_t*>(&frame_msg), sizeof(frame_msg)), bytesRead, static_cast<int>(timeout.count()));
+    if (result == PipeResult::Success && bytesRead == sizeof(frame_ready_msg_t)) {
+        if (frame_msg.message_type == FRAME_READY_MSG) {
+            _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
+            _frame_ready.store(true, std::memory_order_release);
+            return true;
+        }
     }
-  }
+    return false;
+}
 
   bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
     // Guarantee a clean value on failure
@@ -238,6 +224,7 @@ namespace platf::dxgi {
   }
 
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
+    _should_release = false;
     if (!wait_for_frame(timeout)) {
       return capture_e::timeout;
     }
@@ -247,7 +234,7 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
-    HRESULT hr = _keyed_mutex->AcquireSync(1, 200);
+    HRESULT hr = _keyed_mutex->AcquireSync(0, 1000);
 
     if (hr == WAIT_ABANDONED) {
       BOOST_LOG(error) << "Helper process abandoned the keyed mutex, implying it may have crashed or was forcefully terminated.";
@@ -256,6 +243,10 @@ namespace platf::dxgi {
       return capture_e::reinit;
     } else if (hr != S_OK || hr == WAIT_TIMEOUT) {
       return capture_e::error;
+
+    }
+    else {
+      _should_release = true;
     }
 
     // Set output parameters
@@ -266,11 +257,8 @@ namespace platf::dxgi {
   }
 
   void ipc_session_t::release() {
-    if (_keyed_mutex) {
-      // The keyed mutex has two behaviors, traditional mutex and signal-style/ping-pong.
-      // If you use a key > 0, you must first RELEASE that key, even though it was never acquired.
-      // Think of it like an inverse mutex, we're signaling the helper that they can work by releasing it first.
-      _keyed_mutex->ReleaseSync(2);
+    if (_keyed_mutex && _should_release.load()) {
+      _keyed_mutex->ReleaseSync(0);
     }
   }
 
