@@ -5,7 +5,7 @@
 #define WINVER 0x0A00
 
 // platform includes
-#include <windows.h>
+#include <Windows.h>
 
 // standard includes
 #include <cmath>

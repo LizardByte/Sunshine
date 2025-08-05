@@ -5,7 +5,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <string>
 #include <Windows.h>
-#include <wtsapi32.h>
+#include <WtsApi32.h>
 
 // PROC_THREAD_ATTRIBUTE_JOB_LIST is currently missing from MinGW headers
 #ifndef PROC_THREAD_ATTRIBUTE_JOB_LIST
