@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <chrono>
 #include <wrl/client.h>
+#include <dxgi1_2.h>
 
 namespace platf::dxgi {
 
@@ -102,19 +103,38 @@ namespace platf::dxgi {
 
       auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
       d3d_img->blank = false;  // image is always ready for capture
-      if (complete_img(d3d_img.get(), false) == 0) {
-        // Lock the capture texture mutex directly
-        HRESULT mutex_status = d3d_img->capture_mutex->AcquireSync(0, INFINITE);
-        if (mutex_status == S_OK) {
-          device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
-          d3d_img->capture_mutex->ReleaseSync(0);
-        } else {
-          BOOST_LOG(error) << "Failed to lock capture texture [0x"sv << util::hex(mutex_status).to_string_view() << ']';
-          return capture_e::error;
-        }
-      } else {
+      
+      // Assign the shared texture from the session to the img_d3d_t
+      d3d_img->capture_texture.reset(src.get());
+      src.get()->AddRef();  // Ensure the texture stays valid while we use it
+      
+      // Get the keyed mutex from the shared texture
+      HRESULT status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&d3d_img->capture_mutex);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex from shared texture [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
       }
+
+      // Get the shared handle for the encoder
+      resource1_t resource;
+      status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **)&resource);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+
+      // Create NT shared handle for the encoder device to use
+      status = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ, nullptr, &d3d_img->encoder_texture_handle);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create NT shared texture handle [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+
+      // Set the format and other properties
+      d3d_img->format = capture_format;
+      d3d_img->pixel_pitch = get_pixel_pitch();
+      d3d_img->row_pitch = d3d_img->pixel_pitch * d3d_img->width;
+      d3d_img->data = (std::uint8_t *)d3d_img->capture_texture.get();
 
       img->frame_timestamp = frame_timestamp;
       img_out = img;

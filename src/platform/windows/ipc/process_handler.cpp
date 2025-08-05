@@ -102,6 +102,10 @@ ProcessHandler::~ProcessHandler() {
   // job_ is a safe_handle and will auto-cleanup
 }
 
+HANDLE ProcessHandler::get_process_handle() const {
+  return running_ ? pi_.hProcess : nullptr;
+}
+
 platf::dxgi::safe_handle create_kill_on_close_job() {
   HANDLE job = CreateJobObjectW(nullptr, nullptr);
   if (!job) {

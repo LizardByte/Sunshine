@@ -161,17 +161,14 @@ namespace platf::dxgi {
     std::string _display_name;
 
     /**
-     * @brief Set up the shared D3D11 texture for inter-process communication.
+     * @brief Set up shared texture from a shared handle by duplicating it.
      *
-     * Creates or opens a shared D3D11 texture using the provided handle, width, and height.
-     * This texture is used for sharing frame data between the capture process and the helper process.
-     *
-     * @param shared_handle Handle to the shared texture (from the helper process)
-     * @param width Width of the texture in pixels
-     * @param height Height of the texture in pixels
-     * @return true if the texture was successfully set up, false otherwise
+     * @param shared_handle Shared handle from the helper process to duplicate
+     * @param width Width of the texture  
+     * @param height Height of the texture
+     * @return true if setup was successful, false otherwise
      */
-    bool setup_shared_texture(HANDLE shared_handle, UINT width, UINT height);
+    bool setup_shared_texture_from_shared_handle(HANDLE shared_handle, UINT width, UINT height);
 
     /**
      * @brief Handle an incoming shared handle message from the helper process.
@@ -183,6 +180,17 @@ namespace platf::dxgi {
      * @param handle_received Output parameter set to true if a new handle was processed
      */
     void handle_shared_handle_message(std::span<const uint8_t> msg, bool &handle_received);
+
+    /**
+     * @brief Handle a shared handle message from the helper process.
+     *
+     * Processes a message containing shared handle data and attempts to duplicate and
+     * set up the shared texture using the shared handle.
+     *
+     * @param msg The message data received from the helper process
+     * @param handle_received Output parameter set to true if a new handle was processed
+     */
+    void handle_named_handle_message(std::span<const uint8_t> msg, bool &handle_received);
 
     /**
      * @brief Handle a frame notification message from the helper process.

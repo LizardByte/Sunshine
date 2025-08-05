@@ -728,7 +728,7 @@ class SharedResourceManager {
 private:
   safe_com_ptr<ID3D11Texture2D> _shared_texture = nullptr;  ///< Shared D3D11 texture for frame data
   safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex = nullptr;  ///< Keyed mutex for synchronization
-  safe_handle _shared_handle = nullptr;  ///< Handle for cross-process sharing (RAII)
+  HANDLE _shared_handle = nullptr;  ///< Shared handle for cross-process sharing
   UINT _width = 0;  ///< Texture width in pixels
   UINT _height = 0;  ///< Texture height in pixels
 
@@ -781,12 +781,13 @@ public:
     tex_desc.SampleDesc.Count = 1;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
     tex_desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
-    tex_desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX;
+    // Use NT shared handles exclusively
+    tex_desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
 
     ID3D11Texture2D *raw_texture = nullptr;
     HRESULT hr = device->CreateTexture2D(&tex_desc, nullptr, &raw_texture);
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to create shared texture";
+      BOOST_LOG(error) << "Failed to create NT shared texture: " << hr;
       return false;
     }
     _shared_texture.reset(raw_texture);
@@ -805,7 +806,7 @@ public:
     IDXGIKeyedMutex *raw_mutex = nullptr;
     HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) (&raw_mutex));
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to get keyed mutex";
+      BOOST_LOG(error) << "Failed to get keyed mutex: " << hr;
       return false;
     }
     _keyed_mutex.reset(raw_mutex);
@@ -813,28 +814,31 @@ public:
   }
 
   /**
-   * @brief Obtains a shared handle for the texture to allow sharing with other processes.
-   * @return true if the shared handle was successfully obtained; false otherwise.
+   * @brief Creates a shared handle for the texture resource.
+   *
+   * @return true if the handle was successfully created; false otherwise.
    */
   bool create_shared_handle() {
     if (!_shared_texture) {
+      BOOST_LOG(error) << "Cannot create shared handle - no shared texture available";
       return false;
     }
 
-    winrt::com_ptr<IDXGIResource> dxgi_resource;
-    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIResource), dxgi_resource.put_void());
+    winrt::com_ptr<IDXGIResource1> dxgi_resource1;
+    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIResource1), dxgi_resource1.put_void());
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to query DXGI resource interface";
+      BOOST_LOG(error) << "Failed to query DXGI resource1 interface: " << hr;
       return false;
     }
 
+    // Create the shared handle
     HANDLE raw_handle = nullptr;
-    hr = dxgi_resource->GetSharedHandle(&raw_handle);
+    hr = dxgi_resource1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &raw_handle);
     if (FAILED(hr) || !raw_handle) {
-      BOOST_LOG(error) << "Failed to get shared handle";
+      BOOST_LOG(error) << "Failed to create shared handle: " << hr;
       return false;
     }
-    _shared_handle.reset(raw_handle);
+    _shared_handle = raw_handle;
     return true;
   }
 
@@ -855,12 +859,12 @@ public:
   }
 
   /**
-   * @brief Gets the shared handle data (handle, width, height) for inter-process sharing.
-   * @return shared_handle_data_t struct containing the handle and texture dimensions.
+   * @brief Gets the shared handle data for inter-process sharing.
+   * @return shared_handle_data_t struct containing the shared handle and texture dimensions.
    */
   platf::dxgi::shared_handle_data_t get_shared_handle_data() const {
-    platf::dxgi::shared_handle_data_t data;
-    data.texture_handle = const_cast<HANDLE>(_shared_handle.get());
+    platf::dxgi::shared_handle_data_t data = {};
+    data.texture_handle = _shared_handle;
     data.width = _width;
     data.height = _height;
     return data;
@@ -1539,6 +1543,7 @@ int main(int argc, char *argv[]) {
 
   // Send shared handle data via named pipe to main process
   platf::dxgi::shared_handle_data_t handle_data = shared_resource_manager.get_shared_handle_data();
+  BOOST_LOG(info) << "Prepared shared handle message - Size: " << sizeof(handle_data) << " bytes, Handle: 0x" << std::hex << reinterpret_cast<uintptr_t>(handle_data.texture_handle) << std::dec;
   std::span<const uint8_t> handle_message(reinterpret_cast<const uint8_t *>(&handle_data), sizeof(handle_data));
 
   // Wait for connection and send the handle data
@@ -1546,8 +1551,9 @@ int main(int argc, char *argv[]) {
   while (!pipe.is_connected()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
-  BOOST_LOG(info) << "Connected! Sending handle data...";
+  BOOST_LOG(info) << "Connected! Sending duplicated handle data...";
   pipe.send(handle_message);
+  BOOST_LOG(info) << "Duplicated handle data sent successfully to main process";
 
   // Create WGC capture manager
   WgcCaptureManager wgc_capture_manager {d3d11_manager.get_winrt_device(), capture_format, display_manager.get_width(), display_manager.get_height(), item};

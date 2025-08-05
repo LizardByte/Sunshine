@@ -19,27 +19,18 @@
 #include "config.h"
 #include "ipc_session.h"
 #include "misc_utils.h"
+#include "src/utility.h"
 #include "src/logging.h"
 #include "src/platform/windows/misc.h"
 
 // platform includes
 #include <avrt.h>
 #include <d3d11.h>
+#include <d3d11_1.h>
 #include <dxgi1_6.h>
 #include <winrt/base.h>
 
 namespace platf::dxgi {
-
-  void ipc_session_t::handle_shared_handle_message(std::span<const uint8_t> msg, bool &handle_received) {
-    if (msg.size() == sizeof(shared_handle_data_t)) {
-      shared_handle_data_t handle_data;
-      memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
-      if (setup_shared_texture(handle_data.texture_handle, handle_data.width, handle_data.height)) {
-        handle_received = true;
-      }
-    }
-  }
-
 
   void ipc_session_t::handle_secure_desktop_message(std::span<const uint8_t> msg) {
     if (msg.size() == 1 && msg[0] == SECURE_DESKTOP_MSG) {
@@ -99,7 +90,11 @@ namespace platf::dxgi {
 
     auto on_message = [this, &handle_received](std::span<const uint8_t> msg) {
       if (msg.size() == sizeof(shared_handle_data_t)) {
-        handle_shared_handle_message(msg, handle_received);
+        shared_handle_data_t handle_data;
+        memcpy(&handle_data, msg.data(), sizeof(shared_handle_data_t));
+        if (setup_shared_texture_from_shared_handle(handle_data.texture_handle, handle_data.width, handle_data.height)) {
+          handle_received = true;
+        }
       } else if (msg.size() == 1) {
         handle_secure_desktop_message(msg);
       }
@@ -224,7 +219,6 @@ namespace platf::dxgi {
   }
 
   capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
-    _should_release = false;
     if (!wait_for_frame(timeout)) {
       return capture_e::timeout;
     }
@@ -234,7 +228,7 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
-    HRESULT hr = _keyed_mutex->AcquireSync(0, 1000);
+    HRESULT hr = _keyed_mutex->AcquireSync(0, 3000);
 
     if (hr == WAIT_ABANDONED) {
       BOOST_LOG(error) << "Helper process abandoned the keyed mutex, implying it may have crashed or was forcefully terminated.";
@@ -245,9 +239,6 @@ namespace platf::dxgi {
       return capture_e::error;
 
     }
-    else {
-      _should_release = true;
-    }
 
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
@@ -257,47 +248,87 @@ namespace platf::dxgi {
   }
 
   void ipc_session_t::release() {
-    if (_keyed_mutex && _should_release.load()) {
+    if (_keyed_mutex) {
       _keyed_mutex->ReleaseSync(0);
     }
   }
 
-  bool ipc_session_t::setup_shared_texture(HANDLE shared_handle, UINT width, UINT height) {
+  bool ipc_session_t::setup_shared_texture_from_shared_handle(HANDLE shared_handle, UINT width, UINT height) {
     if (!_device) {
-      BOOST_LOG(error) << "No D3D11 device available for setup_shared_texture";
+      BOOST_LOG(error) << "No D3D11 device available for setup_shared_texture_from_shared_handle";
       return false;
     }
 
-    // Open shared texture directly into safe_com_ptr
+    if (!shared_handle || shared_handle == INVALID_HANDLE_VALUE) {
+      BOOST_LOG(error) << "Invalid shared handle provided";
+      return false;
+    }
+
+    // Get the helper process handle to duplicate from
+    HANDLE helper_process_handle = _process_helper->get_process_handle();
+    if (!helper_process_handle) {
+      BOOST_LOG(error) << "Failed to get helper process handle for duplication";
+      return false;
+    }
+
+    // Duplicate the handle from the helper process into this process
+    // We copy from the helper process because it runs at a lower integrity level
+    HANDLE duplicated_handle = nullptr;
+    BOOL dup_result = DuplicateHandle(
+      helper_process_handle,  // Source process (helper process)
+      shared_handle,          // Source handle
+      GetCurrentProcess(),    // Target process (this process)
+      &duplicated_handle,     // Target handle
+      0,                      // Desired access (0 = same as source)
+      FALSE,                  // Don't inherit
+      DUPLICATE_SAME_ACCESS   // Same access rights
+    );
+
+    if (!dup_result) {
+      BOOST_LOG(error) << "Failed to duplicate handle from helper process: " << GetLastError();
+      return false;
+    }
+
+    auto fg = util::fail_guard([&]() {
+      if (duplicated_handle) {
+        CloseHandle(duplicated_handle);
+      }
+    });
+
+    // Use ID3D11Device1 for opening shared resources by handle
+    ID3D11Device1 *device1 = nullptr;
+    HRESULT hr = _device->QueryInterface(__uuidof(ID3D11Device1), (void**)&device1);
+    if (FAILED(hr)) {
+      BOOST_LOG(error) << "Failed to get ID3D11Device1 interface for duplicated handle: " << hr;
+      return false;
+    }
+
     ID3D11Texture2D *raw_texture = nullptr;
-    HRESULT hr = _device->OpenSharedResource(shared_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
+    hr = device1->OpenSharedResource1(duplicated_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
+    device1->Release();
+    
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to open shared texture: " << hr;
+      BOOST_LOG(error) << "Failed to open shared texture from duplicated handle: 0x" << std::hex << hr << " (decimal: " << std::dec << (int32_t)hr << ")";
       return false;
     }
 
-    safe_com_ptr<ID3D11Texture2D> texture(raw_texture);
-
-    // Get texture description to set the capture format
+    // Verify texture properties
     D3D11_TEXTURE2D_DESC desc;
-    texture->GetDesc(&desc);
+    raw_texture->GetDesc(&desc);
 
-    IDXGIKeyedMutex *raw_mutex = nullptr;
-    hr = texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
-    if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to get keyed mutex: " << hr;
-      return false;
-    }
-
-    safe_com_ptr<IDXGIKeyedMutex> keyed_mutex(raw_mutex);
-
-    // Move into member variables
-    _shared_texture = std::move(texture);
-    _keyed_mutex = std::move(keyed_mutex);
-
+    _shared_texture.reset(raw_texture);
     _width = width;
     _height = height;
 
+    // Get keyed mutex interface for synchronization
+    IDXGIKeyedMutex *raw_mutex = nullptr;
+    hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
+    if (FAILED(hr)) {
+      BOOST_LOG(error) << "Failed to get keyed mutex interface from shared texture: " << hr;
+      _shared_texture.reset();
+      return false;
+    }
+    _keyed_mutex.reset(raw_mutex);
     return true;
   }
 

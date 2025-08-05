@@ -73,6 +73,12 @@ public:
    */
   ~ProcessHandler();
 
+  /**
+   * @brief Gets the process handle for the running process.
+   * @return HANDLE to the process, or nullptr if no process is running.
+   */
+  HANDLE get_process_handle() const;
+
 private:
   PROCESS_INFORMATION pi_ {};
   bool running_ = false;
