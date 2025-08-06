@@ -31,7 +31,7 @@ See [Docker](../DOCKER_README.md) for more information.
 CUDA is used for NVFBC capture.
 
 @tip{See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
-The table below applies to packages provided by LizardByte. If you use an official LizardByte package then you do not
+The table below applies to packages provided by LizardByte. If you use an official LizardByte package, then you do not
 need to install CUDA.}
 
 <table>
@@ -43,9 +43,9 @@ need to install CUDA.}
         <th>Package</th>
     </tr>
     <tr>
-        <td rowspan="3">11.8.0</td>
-        <td rowspan="3">450.80.02</td>
-        <td rowspan="3">35;50;52;60;61;62;70;72;75;80;86;87;89;90</td>
+        <td rowspan="8">12.9.1</td>
+        <td rowspan="8">575.57.08</td>
+        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
@@ -55,27 +55,18 @@ need to install CUDA.}
         <td>sunshine-ubuntu-24.04-{arch}.deb</td>
     </tr>
     <tr>
-        <td rowspan="1">12.0.0</td>
-        <td rowspan="1">525.60.13</td>
-        <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
-        <td>sunshine-debian-bookworm-{arch}.deb</td>
+        <td>sunshine-debian-trixie-{arch}.deb</td>
     </tr>
     <tr>
-        <td rowspan="2">12.6.2</td>
-        <td rowspan="2">560.35.03</td>
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
         <td>Sunshine (copr - Fedora 41)</td>
     </tr>
     <tr>
-        <td rowspan="1">12.8.1</td>
-        <td rowspan="1">570.124.06</td>
         <td>Sunshine (copr - Fedora 42)</td>
     </tr>
     <tr>
-        <td rowspan="1">12.9.1</td>
-        <td rowspan="1">575.57.08</td>
         <td>sunshine.pkg.tar.zst</td>
     </tr>
 </table>
@@ -89,13 +80,15 @@ According to AppImageLint the supported distro matrix of the AppImage is below.
 - ✔ Debian bookworm
 - ✔ Debian trixie
 - ✔ Debian sid
+- ✔ Ubuntu plucky
 - ✔ Ubuntu noble
 - ✔ Ubuntu jammy
 - ✖ Ubuntu focal
 - ✖ Ubuntu bionic
 - ✖ Ubuntu xenial
 - ✖ Ubuntu trusty
-- ✖ CentOS 7
+- ✖ Rocky Linux 8
+- ✖ Rocky Linux 9
 
 ##### Install
 1. Download [sunshine.AppImage](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage)
