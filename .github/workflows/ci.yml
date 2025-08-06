@@ -137,8 +137,6 @@ jobs:
         include:
           - name: Linux-AppImage
             coverage: true
-          - name: Homebrew-macos-13
-            coverage: false
           - name: Homebrew-macos-14
             coverage: false
           - name: Homebrew-macos-15

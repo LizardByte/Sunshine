@@ -12,6 +12,7 @@ extern "C" {
 // standard includes
 #include <array>
 #include <cctype>
+#include <format>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -864,7 +865,7 @@ namespace rtsp_stream {
     session_option.next = &port_option;
 
     // Moonlight merely requires 'server_port=<port>'
-    auto port_value = "server_port=" + std::to_string(port);
+    auto port_value = std::format("server_port={}", static_cast<int>(port));
 
     port_option.option = const_cast<char *>("Transport");
     port_option.content = port_value.data();

@@ -3,6 +3,7 @@
  * @brief Handles launching Sunshine.exe into user sessions as SYSTEM
  */
 #define WIN32_LEAN_AND_MEAN
+#include <format>
 #include <string>
 #include <Windows.h>
 #include <WtsApi32.h>
@@ -137,7 +138,7 @@ bool RunTerminationHelper(HANDLE console_token, DWORD pid) {
   command += L'"';
   command += module_path;
   command += L'"';
-  command += L" --terminate " + std::to_wstring(pid);
+  command += std::format(L" --terminate {}", pid);
 
   STARTUPINFOW startup_info = {};
   startup_info.cb = sizeof(startup_info);

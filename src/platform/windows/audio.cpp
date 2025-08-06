@@ -4,6 +4,9 @@
  */
 #define INITGUID
 
+// standard includes
+#include <format>
+
 // platform includes
 #include <Audioclient.h>
 #include <avrt.h>
@@ -168,8 +171,7 @@ namespace {
                          waveformat.SubFormat == KSDATAFORMAT_SUBTYPE_PCM        ? "S" :
                                                                                    "UNKNOWN";
 
-    result += std::to_string(waveformat.Samples.wValidBitsPerSample) + " " +
-              std::to_string(waveformat.Format.nSamplesPerSec) + " ";
+    result += std::format("{} {} ", static_cast<int>(waveformat.Samples.wValidBitsPerSample), static_cast<int>(waveformat.Format.nSamplesPerSec));
 
     switch (waveformat.dwChannelMask) {
       case waveformat_mask_stereo:
@@ -189,7 +191,7 @@ namespace {
         break;
 
       default:
-        result += std::to_string(waveformat.Format.nChannels) + " channels (unrecognized)";
+        result += std::format("{} channels (unrecognized)", static_cast<int>(waveformat.Format.nChannels));
         break;
     }
 
