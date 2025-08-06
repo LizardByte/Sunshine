@@ -1606,13 +1606,9 @@ namespace platf::dxgi {
 
   /**
    * @brief Creates a new display_wgc_vram_t instance.
-   *
-   * This function creates and returns a shared pointer to a display_t object using the provided
-   * video configuration and display name. It delegates creation to display_wgc_ipc_vram_t::create.
-   *
    * @param config The video configuration to use for the display.
    * @param display_name The name of the display to create.
-   * @return std::shared_ptr<display_t> A shared pointer to the created display object.
+   * @return A shared pointer to the created display object.
    */
   std::shared_ptr<display_t> display_wgc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
     return display_wgc_ipc_vram_t::create(config, display_name);

@@ -563,15 +563,13 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Captures a snapshot of the display using DXGI duplication.
-     *
      * This method attempts to capture the current frame from the display, handling secure desktop scenarios.
      * If secure desktop is no longer active, it can swap back to WGC.
-     *
      * @param pull_free_image_cb Callback to pull a free image buffer.
      * @param img_out Output parameter for the captured image.
      * @param timeout Maximum time to wait for a frame.
      * @param cursor_visible Whether the cursor should be included in the capture.
-     * @return capture_e Status of the capture operation.
+     * @return Status of the capture operation.
      */
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
   };

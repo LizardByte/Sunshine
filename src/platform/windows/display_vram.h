@@ -1,12 +1,7 @@
-
 /**
- * @file display_vram.h
+ * @file src/platform/windows/display_vram.h
  * @brief DXGI/D3D11 VRAM image structures and utilities for Windows platform display capture.
- *
- * Defines the img_d3d_t structure and related types for handling captured desktop frames
- * using Direct3D 11 and DXGI APIs. Used internally by the Windows platform display backend.
  */
-
 #pragma once
 
 // standard includes

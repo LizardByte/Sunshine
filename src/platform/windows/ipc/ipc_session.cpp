@@ -1,12 +1,9 @@
-
 /**
- * @file ipc_session.cpp
+ * @file src/platform/windows/ipc/ipc_session.cpp
  * @brief Implements the IPC session logic for Windows WGC capture integration.
- *
  * Handles inter-process communication, shared texture setup, and frame synchronization
  * between the main process and the WGC capture helper process.
  */
-
 // standard includes
 #include <array>
 #include <chrono>

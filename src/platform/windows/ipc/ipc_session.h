@@ -1,13 +1,7 @@
-
 /**
- * @file ipc_session.h
- * @brief Shared IPC session for WGC capture that can be used by both RAM and VRAM implementations.
- *
- * This file defines the platf::dxgi::ipc_session_t class, which manages the shared IPC session for Windows Graphics Capture (WGC).
- * It handles the helper process, IPC pipe, shared texture, keyed-mutex, frame event, and metadata mapping, providing all shared resources
- * required by both RAM and VRAM capture implementations.
+ * @file src/platform/windows/ipc/ipc_session.h
+ * @brief Definitions for shared IPC session for WGC capture that can be used by both RAM and VRAM implementations.
  */
-
 #pragma once
 
 // standard includes
@@ -30,10 +24,8 @@
 namespace platf::dxgi {
 
   /**
-   * @class ipc_session_t
    * @brief Shared WGC IPC session that owns the helper process, pipe, shared texture,
    * keyed-mutex, frame event, metadata mapping, and all resources required by both RAM & VRAM capture paths.
-   *
    * This class manages the lifecycle and communication with the WGC helper process, handles the creation and sharing
    * of textures between processes, and synchronizes frame acquisition using keyed mutexes and events.
    * It provides a unified interface for both RAM and VRAM capture implementations to interact with the shared IPC session.
@@ -52,17 +44,15 @@ namespace platf::dxgi {
     int init(const ::video::config_t &config, std::string_view display_name, ID3D11Device *device);
     /**
      * @brief Start the helper process and set up IPC connection on demand.
-     *
      * This method ensures that the helper process is running and the IPC connection is established.
      * If the session is not already initialized, it will launch the helper process and create the necessary
      * IPC resources for communication and shared texture access.
-     *
      * This is typically called before attempting to acquire frames or interact with the shared session.
      */
     void initialize_if_needed();
 
     /**
-     * Blocking acquire of the next frame.
+     * @brief Blocking acquire of the next frame.
      * @param timeout Maximum time to wait for frame
      * @param gpu_tex_out Output parameter for the GPU texture pointer
      * @param frame_qpc_out Output parameter for the frame QPC timestamp (0 if unavailable)
@@ -71,7 +61,6 @@ namespace platf::dxgi {
 
     /**
      * @brief Release the keyed mutex and send a heartbeat to the helper process.
-     *
      * This method releases the keyed mutex associated with the shared texture,
      * allowing the helper process to acquire it for the next frame. It also sends
      * a heartbeat message to the helper process to indicate that the session is still active.
@@ -81,11 +70,9 @@ namespace platf::dxgi {
 
     /**
      * @brief Check if the session should swap to DXGI due to secure desktop.
-     *
      * This method indicates whether the capture session should switch to using DXGI capture,
      * typically in response to entering a secure desktop environment (such as UAC prompts or login screens)
      * where the current capture method is no longer viable.
-     *
      * @return true if a swap to DXGI is needed, false otherwise.
      */
     bool should_swap_to_dxgi() const {
@@ -94,24 +81,18 @@ namespace platf::dxgi {
 
     /**
      * @brief Check if the session should be reinitialized due to helper process issues.
-     *
      * This method returns whether the IPC session needs to be reinitialized, typically
      * due to errors or failures detected in the helper process or IPC communication.
      * When this returns true, the session should be cleaned up and re-initialized before further use.
-     *
      * @return true if reinitialization is needed, false otherwise.
      */
     bool should_reinit() const {
       return _force_reinit.load();
     }
 
-    // Accessors for texture properties
     /**
      * @brief Get the width of the shared texture.
-     *
-     * Returns the width, in pixels, of the shared texture managed by this IPC session.
      * This value is set during initialization and used for texture operations.
-     *
      * @return Width of the shared texture in pixels.
      */
     UINT width() const {
@@ -120,10 +101,7 @@ namespace platf::dxgi {
 
     /**
      * @brief Get the height of the shared texture.
-     *
-     * Returns the height, in pixels, of the shared texture managed by this IPC session.
      * This value is set during initialization and used for texture operations.
-     *
      * @return Height of the shared texture in pixels.
      */
     UINT height() const {
@@ -132,9 +110,6 @@ namespace platf::dxgi {
 
     /**
      * @brief Check if the IPC session is initialized.
-     *
-     * Indicates whether the session has been successfully initialized and is ready for use.
-     *
      * @return true if the session is initialized, false otherwise.
      */
     bool is_initialized() const {
@@ -172,20 +147,16 @@ namespace platf::dxgi {
 
     /**
      * @brief Handle a secure desktop notification from the helper process.
-     *
      * Processes a message indicating that the system has entered a secure desktop environment
      * (such as UAC prompt or login screen), which may require the session to swap capture methods.
-     *
      * @param msg The message data received from the helper process
      */
     void handle_secure_desktop_message(std::span<const uint8_t> msg);
 
     /**
      * @brief Wait for a new frame to become available.
-     *
      * Blocks until a new frame is signaled by the helper process or the timeout expires.
      * Used to synchronize frame acquisition between processes.
-     *
      * @param timeout Maximum duration to wait for a frame
      * @return true if a frame became available, false if the timeout expired
      */
