@@ -1998,12 +1998,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>wgc</td>
         <td>Use Windows.Graphics.Capture to capture the display. Captures at a variable rate.
             @note{Windows only.}
+            @note{NVIDIA Ultra Low Latency Mode (ULLM) can hurt performance; avoid this by either using a monitor whose refresh rate exceeds the stream and capping FPS to stop ULLM from engaging, or simply disable Low Latency Mode in the driver.}
             @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
     </tr>
     <tr>
         <td>wgcc</td>
         <td>Use Windows.Graphics.Capture to capture the display. Captures at a constant rate.
             @note{Windows only.}
+            @note{NVIDIA Ultra Low Latency Mode (ULLM) can hurt performance; avoid this by either using a monitor whose refresh rate exceeds the stream and capping FPS to stop ULLM from engaging, or simply disable Low Latency Mode in the driver.}
             @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
     </tr>
 </table>
