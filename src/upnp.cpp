@@ -72,12 +72,14 @@ namespace upnp {
       auto gs_http = std::to_string(net::map_port(nvhttp::PORT_HTTP));
       auto gs_https = std::to_string(net::map_port(nvhttp::PORT_HTTPS));
       auto wm_http = std::to_string(net::map_port(confighttp::PORT_HTTPS));
+      auto mic = std::to_string(net::map_port(stream::MIC_STREAM_PORT));
 
       mappings.assign({
         {{rtsp, rtsp, "TCP"s}, "Sunshine - RTSP"s},
         {{video, video, "UDP"s}, "Sunshine - Video"s},
         {{audio, audio, "UDP"s}, "Sunshine - Audio"s},
         {{control, control, "UDP"s}, "Sunshine - Control"s},
+        {{mic, mic, "UDP"s}, "Sunshine - Microphone"s},
         {{gs_http, gs_http, "TCP"s}, "Sunshine - Client HTTP"s},
         {{gs_https, gs_https, "TCP"s}, "Sunshine - Client HTTPS"s},
       });

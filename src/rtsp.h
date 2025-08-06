@@ -24,6 +24,7 @@ namespace rtsp_stream {
     uint32_t control_connect_data;
 
     bool host_audio;
+    bool client_mic_enabled;
     std::string unique_id;
     int width;
     int height;
