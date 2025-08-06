@@ -31,9 +31,6 @@
 #include "network.h"
 #include "nvhttp.h"
 #include "platform/common.h"
-#ifdef _WIN32
-  #include "platform/windows/misc.h"
-#endif
 #include "process.h"
 #include "utility.h"
 #include "uuid.h"
@@ -826,7 +823,6 @@ namespace confighttp {
     output_tree["status"] = true;
     send_response(response, output_tree);
   }
-
 
   /**
    * @brief Get the configuration settings.
