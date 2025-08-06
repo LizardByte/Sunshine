@@ -995,7 +995,7 @@ namespace platf {
    */
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (hwdevice_type == mem_type_e::dxgi) {
-      if (config::video.capture == "wgcc" || config::video.capture == "wgcv") {
+      if (config::video.capture.starts_with("wgc")) {
         return dxgi::display_wgc_ipc_vram_t::create(config, display_name);
       } else {
         auto disp = std::make_shared<dxgi::display_ddup_vram_t>();
@@ -1004,7 +1004,7 @@ namespace platf {
         }
       }
     } else if (hwdevice_type == mem_type_e::system) {
-      if (config::video.capture == "wgcc" || config::video.capture == "wgcv") {
+      if (config::video.capture.starts_with("wgc")) {
         return dxgi::display_wgc_ipc_ram_t::create(config, display_name);
       } else {
         auto disp = std::make_shared<dxgi::display_ddup_ram_t>();

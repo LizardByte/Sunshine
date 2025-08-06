@@ -157,7 +157,7 @@ namespace platf::dxgi {
       return capture_e::ok;
 
     } else {
-      // For variable FPS mode (wgcv) just return the capture status on timeouts.
+      // For the default mode just return the capture status on timeouts.
       return capture_status;
     }
   }
@@ -296,7 +296,7 @@ namespace platf::dxgi {
         return capture_e::ok;
       }
 
-      // For variable FPS mode (wgcv) just return the capture status on timeouts.
+      // For the default mode just return the capture status on timeouts.
       return status;
     }
 

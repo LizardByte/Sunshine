@@ -1996,6 +1996,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wgc</td>
+        <td>Use Windows.Graphics.Capture to capture the display. Captures at a variable rate.
+            @note{Windows only.}
+            @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
+    </tr>
+    <tr>
+        <td>wgcc</td>
         <td>Use Windows.Graphics.Capture to capture the display. Captures at a constant rate.
             @note{Windows only.}
             @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
