@@ -5,7 +5,7 @@
 #define INITGUID
 
 // platform includes
-#include <audioclient.h>
+#include <Audioclient.h>
 #include <avrt.h>
 #include <mmdeviceapi.h>
 #include <newdev.h>
@@ -172,19 +172,19 @@ namespace {
               std::to_string(waveformat.Format.nSamplesPerSec) + " ";
 
     switch (waveformat.dwChannelMask) {
-      case (waveformat_mask_stereo):
+      case waveformat_mask_stereo:
         result += "2.0";
         break;
 
-      case (waveformat_mask_surround51_with_backspeakers):
+      case waveformat_mask_surround51_with_backspeakers:
         result += "5.1";
         break;
 
-      case (waveformat_mask_surround51_with_sidespeakers):
+      case waveformat_mask_surround51_with_sidespeakers:
         result += "5.1 (sidespeakers)";
         break;
 
-      case (waveformat_mask_surround71):
+      case waveformat_mask_surround71:
         result += "7.1";
         break;
 

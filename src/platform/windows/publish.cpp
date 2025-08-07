@@ -3,12 +3,12 @@
  * @brief Definitions for Windows mDNS service registration.
  */
 // platform includes
-// winsock2.h must be included before windows.h
+// WinSock2.h must be included before Windows.h
 // clang-format off
-#include <winsock2.h>
-#include <windows.h>
+#include <WinSock2.h>
+#include <Windows.h>
 // clang-format on
-#include <windns.h>
+#include <WinDNS.h>
 #include <winerror.h>
 
 // local includes
