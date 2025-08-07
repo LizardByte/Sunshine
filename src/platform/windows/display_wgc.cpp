@@ -3,12 +3,11 @@
  * @brief Windows Game Capture (WGC) IPC display implementation with shared session helper and DXGI fallback.
  */
 
-
 // standard includes
 #include <algorithm>
 #include <chrono>
-#include <wrl/client.h>
 #include <dxgi1_2.h>
+#include <wrl/client.h>
 
 // local includes
 #include "src/logging.h"
@@ -108,13 +107,13 @@ namespace platf::dxgi {
 
       auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
       d3d_img->blank = false;  // image is always ready for capture
-      
+
       // Assign the shared texture from the session to the img_d3d_t
       d3d_img->capture_texture.reset(src.get());
       src.get()->AddRef();  // Ensure the texture stays valid while we use it
-      
+
       // Get the keyed mutex from the shared texture
-      HRESULT status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **)&d3d_img->capture_mutex);
+      HRESULT status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &d3d_img->capture_mutex);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex from shared texture [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
@@ -122,7 +121,7 @@ namespace platf::dxgi {
 
       // Get the shared handle for the encoder
       resource1_t resource;
-      status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **)&resource);
+      status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **) &resource);
       if (FAILED(status)) {
         BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
         return capture_e::error;
@@ -139,7 +138,7 @@ namespace platf::dxgi {
       d3d_img->format = capture_format;
       d3d_img->pixel_pitch = get_pixel_pitch();
       d3d_img->row_pitch = d3d_img->pixel_pitch * d3d_img->width;
-      d3d_img->data = (std::uint8_t *)d3d_img->capture_texture.get();
+      d3d_img->data = (std::uint8_t *) d3d_img->capture_texture.get();
 
       img->frame_timestamp = frame_timestamp;
       img_out = img;

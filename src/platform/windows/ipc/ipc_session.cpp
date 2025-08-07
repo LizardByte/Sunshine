@@ -16,9 +16,9 @@
 #include "config.h"
 #include "ipc_session.h"
 #include "misc_utils.h"
-#include "src/utility.h"
 #include "src/logging.h"
 #include "src/platform/windows/misc.h"
+#include "src/utility.h"
 
 // platform includes
 #include <avrt.h>
@@ -165,19 +165,19 @@ namespace platf::dxgi {
   }
 
   bool ipc_session_t::wait_for_frame(std::chrono::milliseconds timeout) {
-    frame_ready_msg_t frame_msg{};
+    frame_ready_msg_t frame_msg {};
     size_t bytesRead = 0;
     // Use a span over the frame_msg buffer
-    auto result = _frame_queue_pipe->receive_latest(std::span<uint8_t>(reinterpret_cast<uint8_t*>(&frame_msg), sizeof(frame_msg)), bytesRead, static_cast<int>(timeout.count()));
+    auto result = _frame_queue_pipe->receive_latest(std::span<uint8_t>(reinterpret_cast<uint8_t *>(&frame_msg), sizeof(frame_msg)), bytesRead, static_cast<int>(timeout.count()));
     if (result == PipeResult::Success && bytesRead == sizeof(frame_ready_msg_t)) {
-        if (frame_msg.message_type == FRAME_READY_MSG) {
-            _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
-            _frame_ready.store(true, std::memory_order_release);
-            return true;
-        }
+      if (frame_msg.message_type == FRAME_READY_MSG) {
+        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
+        _frame_ready.store(true, std::memory_order_release);
+        return true;
+      }
     }
     return false;
-}
+  }
 
   bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
     // Guarantee a clean value on failure
@@ -234,7 +234,6 @@ namespace platf::dxgi {
       return capture_e::reinit;
     } else if (hr != S_OK || hr == WAIT_TIMEOUT) {
       return capture_e::error;
-
     }
 
     // Set output parameters
@@ -273,12 +272,12 @@ namespace platf::dxgi {
     HANDLE duplicated_handle = nullptr;
     BOOL dup_result = DuplicateHandle(
       helper_process_handle,  // Source process (helper process)
-      shared_handle,          // Source handle
-      GetCurrentProcess(),    // Target process (this process)
-      &duplicated_handle,     // Target handle
-      0,                      // Desired access (0 = same as source)
-      FALSE,                  // Don't inherit
-      DUPLICATE_SAME_ACCESS   // Same access rights
+      shared_handle,  // Source handle
+      GetCurrentProcess(),  // Target process (this process)
+      &duplicated_handle,  // Target handle
+      0,  // Desired access (0 = same as source)
+      FALSE,  // Don't inherit
+      DUPLICATE_SAME_ACCESS  // Same access rights
     );
 
     if (!dup_result) {
@@ -294,7 +293,7 @@ namespace platf::dxgi {
 
     // Use ID3D11Device1 for opening shared resources by handle
     ID3D11Device1 *device1 = nullptr;
-    HRESULT hr = _device->QueryInterface(__uuidof(ID3D11Device1), (void**)&device1);
+    HRESULT hr = _device->QueryInterface(__uuidof(ID3D11Device1), (void **) &device1);
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to get ID3D11Device1 interface for duplicated handle: " << hr;
       return false;
@@ -303,9 +302,9 @@ namespace platf::dxgi {
     ID3D11Texture2D *raw_texture = nullptr;
     hr = device1->OpenSharedResource1(duplicated_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
     device1->Release();
-    
+
     if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to open shared texture from duplicated handle: 0x" << std::hex << hr << " (decimal: " << std::dec << (int32_t)hr << ")";
+      BOOST_LOG(error) << "Failed to open shared texture from duplicated handle: 0x" << std::hex << hr << " (decimal: " << std::dec << (int32_t) hr << ")";
       return false;
     }
 

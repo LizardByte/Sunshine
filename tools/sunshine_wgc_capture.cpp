@@ -1104,7 +1104,6 @@ public:
   }
 
 private:
-
   /**
    * @brief Prunes old frame drop timestamps from the sliding window.
    * @param now Current timestamp for comparison.

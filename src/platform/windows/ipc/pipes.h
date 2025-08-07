@@ -29,10 +29,10 @@
 
 namespace platf::dxgi {
 
-  constexpr uint8_t HEARTBEAT_MSG = 0x01;        ///< Message type for heartbeat communication
-  constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;   ///< Message type for secure desktop notifications
-  constexpr uint8_t ACK_MSG = 0x03;              ///< Message type for acknowledgment responses
-  constexpr uint8_t FRAME_READY_MSG = 0x04;      ///< Message type for frame ready notifications
+  constexpr uint8_t HEARTBEAT_MSG = 0x01;  ///< Message type for heartbeat communication
+  constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;  ///< Message type for secure desktop notifications
+  constexpr uint8_t ACK_MSG = 0x03;  ///< Message type for acknowledgment responses
+  constexpr uint8_t FRAME_READY_MSG = 0x04;  ///< Message type for frame ready notifications
 
   /**
    * @brief Structure for sharing handle and texture metadata via IPC.
@@ -79,11 +79,11 @@ namespace platf::dxgi {
    * @brief Result codes for pipe operations.
    */
   enum class PipeResult {
-    Success,        ///< Operation completed successfully
-    Timeout,        ///< Operation timed out
-    Disconnected,   ///< Pipe is disconnected
-    BrokenPipe,     ///< Pipe is broken or invalid
-    Error           ///< General error occurred
+    Success,  ///< Operation completed successfully
+    Timeout,  ///< Operation timed out
+    Disconnected,  ///< Pipe is disconnected
+    BrokenPipe,  ///< Pipe is broken or invalid
+    Error  ///< General error occurred
   };
 
   class INamedPipe {
@@ -140,8 +140,8 @@ namespace platf::dxgi {
   class AsyncNamedPipe {
   public:
     using MessageCallback = std::function<void(std::span<const uint8_t>)>;  ///< Callback for received messages
-    using ErrorCallback = std::function<void(const std::string &)>;         ///< Callback for error events  
-    using BrokenPipeCallback = std::function<void()>;                       ///< Callback for broken pipe events
+    using ErrorCallback = std::function<void(const std::string &)>;  ///< Callback for error events
+    using BrokenPipeCallback = std::function<void()>;  ///< Callback for broken pipe events
 
     /**
      * @brief Constructs an AsyncNamedPipe with the given pipe implementation.
