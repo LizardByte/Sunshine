@@ -1,20 +1,25 @@
 /**
  * @file src/platform/windows/display_wgc.cpp
- * @brief Refactored WGC IPC display implementations using shared session helper.
+ * @brief Windows Game Capture (WGC) IPC display implementation with shared session helper and DXGI fallback.
  */
 
-#include "ipc/ipc_session.h"
-#include "ipc/misc_utils.h"  // for is_secure_desktop_active
-#include "src/logging.h"
-#include "src/platform/windows/display.h"
-#include "src/platform/windows/display_vram.h"  // for img_d3d_t
-#include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
-#include "src/utility.h"  // for util::hex
 
+// standard includes
 #include <algorithm>
 #include <chrono>
 #include <wrl/client.h>
 #include <dxgi1_2.h>
+
+// local includes
+#include "src/logging.h"
+#include "src/utility.h"  // for util::hex
+
+// platform includes
+#include "ipc/ipc_session.h"
+#include "ipc/misc_utils.h"  // for is_secure_desktop_active
+#include "src/platform/windows/display.h"
+#include "src/platform/windows/display_vram.h"  // for img_d3d_t
+#include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
 
 namespace platf::dxgi {
 

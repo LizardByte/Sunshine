@@ -29,10 +29,10 @@
 
 namespace platf::dxgi {
 
-  constexpr uint8_t HEARTBEAT_MSG = 0x01;
-  constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;
-  constexpr uint8_t ACK_MSG = 0x03;
-  constexpr uint8_t FRAME_READY_MSG = 0x04;
+  constexpr uint8_t HEARTBEAT_MSG = 0x01;        ///< Message type for heartbeat communication
+  constexpr uint8_t SECURE_DESKTOP_MSG = 0x02;   ///< Message type for secure desktop notifications
+  constexpr uint8_t ACK_MSG = 0x03;              ///< Message type for acknowledgment responses
+  constexpr uint8_t FRAME_READY_MSG = 0x04;      ///< Message type for frame ready notifications
 
   /**
    * @brief Structure for sharing handle and texture metadata via IPC.
@@ -75,12 +75,15 @@ namespace platf::dxgi {
 
 #pragma pack(pop)  // required to remove padding from compiler
 
+  /**
+   * @brief Result codes for pipe operations.
+   */
   enum class PipeResult {
-    Success,
-    Timeout,
-    Disconnected,
-    BrokenPipe,
-    Error
+    Success,        ///< Operation completed successfully
+    Timeout,        ///< Operation timed out
+    Disconnected,   ///< Pipe is disconnected
+    BrokenPipe,     ///< Pipe is broken or invalid
+    Error           ///< General error occurred
   };
 
   class INamedPipe {
@@ -94,7 +97,7 @@ namespace platf::dxgi {
      * @brief Sends data through the pipe.
      * @param bytes The data to send.
      * @param timeout_ms Timeout in milliseconds for the send operation.
-     * @return True if the data was sent successfully, false otherwise.
+     * @return `true` if the data was sent successfully, `false` otherwise.
      */
     virtual bool send(std::span<const uint8_t> bytes, int timeout_ms) = 0;
 
@@ -103,7 +106,7 @@ namespace platf::dxgi {
      * @param dst Span buffer to store received data.
      * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
-     * @return PipeResult indicating the result of the receive operation.
+     * @return `PipeResult` indicating the result of the receive operation.
      */
     virtual PipeResult receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) = 0;
 
@@ -112,7 +115,7 @@ namespace platf::dxgi {
      * @param dst Span buffer to store the latest received data.
      * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
-     * @return PipeResult indicating the result of the receive operation.
+     * @return `PipeResult` indicating the result of the receive operation.
      */
     virtual PipeResult receive_latest(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) = 0;
 
@@ -129,16 +132,16 @@ namespace platf::dxgi {
 
     /**
      * @brief Checks if the pipe is connected.
-     * @return True if connected, false otherwise.
+     * @return `true` if connected, `false` otherwise.
      */
     virtual bool is_connected() = 0;
   };
 
   class AsyncNamedPipe {
   public:
-    using MessageCallback = std::function<void(std::span<const uint8_t>)>;
-    using ErrorCallback = std::function<void(const std::string &)>;
-    using BrokenPipeCallback = std::function<void()>;
+    using MessageCallback = std::function<void(std::span<const uint8_t>)>;  ///< Callback for received messages
+    using ErrorCallback = std::function<void(const std::string &)>;         ///< Callback for error events  
+    using BrokenPipeCallback = std::function<void()>;                       ///< Callback for broken pipe events
 
     /**
      * @brief Constructs an AsyncNamedPipe with the given pipe implementation.
@@ -156,7 +159,7 @@ namespace platf::dxgi {
      * @param onMessage Callback for received messages.
      * @param onError Callback for error events.
      * @param onBrokenPipe Optional callback for broken pipe events.
-     * @return True if started successfully, false otherwise.
+     * @return `true` if started successfully, `false` otherwise.
      */
     bool start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe = nullptr);
 
@@ -179,7 +182,7 @@ namespace platf::dxgi {
 
     /**
      * @brief Checks if the pipe is connected.
-     * @return True if connected, false otherwise.
+     * @return `true` if connected, `false` otherwise.
      */
     bool is_connected() const;
 
@@ -196,7 +199,7 @@ namespace platf::dxgi {
 
     /**
      * @brief Establishes a connection with the client.
-     * @return True if connection is established, false otherwise.
+     * @return `true` if connection is established, `false` otherwise.
      */
     bool establish_connection();
 
@@ -240,7 +243,7 @@ namespace platf::dxgi {
      * @brief Sends data through the pipe.
      * @param bytes The data to send.
      * @param timeout_ms Timeout in milliseconds for the send operation.
-     * @return True if the data was sent successfully, false otherwise.
+     * @return `true` if the data was sent successfully, `false` otherwise.
      */
     bool send(std::span<const uint8_t> bytes, int timeout_ms) override;
 
@@ -249,7 +252,7 @@ namespace platf::dxgi {
      * @param dst Span buffer to store received data.
      * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
-     * @return PipeResult indicating the result of the receive operation.
+     * @return `PipeResult` indicating the result of the receive operation.
      */
     PipeResult receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) override;
 
@@ -266,7 +269,7 @@ namespace platf::dxgi {
 
     /**
      * @brief Checks if the pipe is connected.
-     * @return True if connected, false otherwise.
+     * @return `true` if connected, `false` otherwise.
      */
     bool is_connected() override;
 
@@ -275,7 +278,7 @@ namespace platf::dxgi {
      * @param dst Span buffer to store the latest received data.
      * @param bytesRead Reference to store the number of bytes actually read.
      * @param timeout_ms Timeout in milliseconds for the receive operation.
-     * @return PipeResult indicating the result of the receive operation.
+     * @return `PipeResult` indicating the result of the receive operation.
      */
     PipeResult receive_latest(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) override;
 
@@ -343,13 +346,30 @@ namespace platf::dxgi {
 
   class IAsyncPipeFactory {
   public:
+    /**
+     * @brief Virtual destructor for IAsyncPipeFactory.
+     */
     virtual ~IAsyncPipeFactory() = default;
 
+    /**
+     * @brief Creates a client pipe instance.
+     * @param pipe_name The name of the pipe to connect to.
+     * @return Unique pointer to the created INamedPipe instance.
+     */
     virtual std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) = 0;
 
+    /**
+     * @brief Creates a server pipe instance.
+     * @param pipe_name The name of the pipe to create.
+     * @return Unique pointer to the created INamedPipe instance.
+     */
     virtual std::unique_ptr<INamedPipe> create_server(const std::string &pipe_name) = 0;
   };
 
+  /**
+   * @brief Message structure for anonymous pipe connection handshake.
+   * @param pipe_name Wide character pipe name for connection (max 40 chars).
+   */
   struct AnonConnectMsg {
     wchar_t pipe_name[40];
   };
@@ -375,7 +395,7 @@ namespace platf::dxgi {
      * @brief Creates a security descriptor for the pipe.
      * @param desc Reference to a SECURITY_DESCRIPTOR to initialize.
      * @param out_pacl Output pointer to the created PACL.
-     * @return True if successful, false otherwise.
+     * @return `true` if successful, `false` otherwise.
      */
     bool create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const;
 
@@ -383,7 +403,7 @@ namespace platf::dxgi {
      * @brief Obtains an access token for the current or system user.
      * @param isSystem True to obtain the system token, false for current user.
      * @param token Output safe_token to receive the token.
-     * @return True if successful, false otherwise.
+     * @return `true` if successful, `false` otherwise.
      */
     bool obtain_access_token(BOOL isSystem, safe_token &token) const;
 
@@ -392,14 +412,14 @@ namespace platf::dxgi {
      * @param token The token to extract from.
      * @param tokenUser Output pointer to TOKEN_USER structure.
      * @param raw_user_sid Output pointer to the raw user SID.
-     * @return True if successful, false otherwise.
+     * @return `true` if successful, `false` otherwise.
      */
     bool extract_user_sid_from_token(const safe_token &token, util::c_ptr<TOKEN_USER> &tokenUser, PSID &raw_user_sid) const;
 
     /**
      * @brief Creates a SID for the system account.
      * @param system_sid Output safe_sid to receive the system SID.
-     * @return True if successful, false otherwise.
+     * @return `true` if successful, `false` otherwise.
      */
     bool create_system_sid(safe_sid &system_sid) const;
 
@@ -410,14 +430,14 @@ namespace platf::dxgi {
      * @param raw_user_sid Pointer to the user SID.
      * @param system_sid Pointer to the system SID.
      * @param out_pacl Output pointer to the created PACL.
-     * @return True if successful, false otherwise.
+     * @return `true` if successful, `false` otherwise.
      */
     bool build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const;
 
     /**
      * @brief Creates a client pipe handle.
      * @param fullPipeName The full name of the pipe.
-     * @return A safe_handle to the created client pipe.
+     * @return `safe_handle` to the created client pipe.
      */
     safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
   };
@@ -449,14 +469,14 @@ namespace platf::dxgi {
     /**
      * @brief Performs the handshake as a server, establishing the connection.
      * @param pipe Unique pointer to the server INamedPipe.
-     * @return Unique pointer to the established INamedPipe.
+     * @return `Unique pointer` to the established INamedPipe.
      */
     std::unique_ptr<INamedPipe> handshake_server(std::unique_ptr<INamedPipe> pipe);
 
     /**
      * @brief Performs the handshake as a client, establishing the connection.
      * @param pipe Unique pointer to the client INamedPipe.
-     * @return Unique pointer to the established INamedPipe.
+     * @return `Unique pointer` to the established INamedPipe.
      */
     std::unique_ptr<INamedPipe> handshake_client(std::unique_ptr<INamedPipe> pipe);
 
@@ -464,14 +484,14 @@ namespace platf::dxgi {
      * @brief Sends a handshake message through the pipe.
      * @param pipe Reference to the pipe to send the message through.
      * @param pipe_name The name of the pipe for the handshake.
-     * @return True if the message was sent successfully, false otherwise.
+     * @return `true` if the message was sent successfully, `false` otherwise.
      */
     bool send_handshake_message(std::unique_ptr<INamedPipe> &pipe, const std::string &pipe_name) const;
 
     /**
      * @brief Waits for a handshake acknowledgment from the other side.
      * @param pipe Reference to the pipe to wait on.
-     * @return True if acknowledgment was received, false otherwise.
+     * @return `true` if acknowledgment was received, `false` otherwise.
      */
     bool wait_for_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const;
 
@@ -479,14 +499,14 @@ namespace platf::dxgi {
      * @brief Receives a handshake message from the pipe.
      * @param pipe Reference to the pipe to receive from.
      * @param msg Output AnonConnectMsg to store the received message.
-     * @return True if the message was received successfully, false otherwise.
+     * @return `true` if the message was received successfully, `false` otherwise.
      */
     bool receive_handshake_message(std::unique_ptr<INamedPipe> &pipe, AnonConnectMsg &msg) const;
 
     /**
      * @brief Sends a handshake acknowledgment through the pipe.
      * @param pipe Reference to the pipe to send the acknowledgment through.
-     * @return True if the acknowledgment was sent successfully, false otherwise.
+     * @return `true` if the acknowledgment was sent successfully, `false` otherwise.
      */
     bool send_handshake_ack(std::unique_ptr<INamedPipe> &pipe) const;
 

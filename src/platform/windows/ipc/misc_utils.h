@@ -26,11 +26,8 @@ namespace platf::dxgi {
 
   /**
    * @brief RAII wrapper for managing OVERLAPPED I/O context with event handle.
-   * - Initializes an OVERLAPPED structure and creates an event for asynchronous I/O.
-   * - Provides move semantics for safe transfer of ownership.
-   * - Cleans up the event handle on destruction.
-   * - Offers access to the underlying OVERLAPPED pointer and event handle.
-   * - Allows checking if the context is valid.
+   * Initializes an OVERLAPPED structure and creates an event for asynchronous I/O.
+   * Provides move semantics, cleans up the event handle on destruction, and allows access to the OVERLAPPED pointer and event handle.
    */
   class io_context {
   public:
@@ -85,11 +82,7 @@ namespace platf::dxgi {
 
   /**
    * @brief Specialized RAII wrapper for DACL (Discretionary Access Control List).
-   * - Manages a PACL pointer, ensuring proper cleanup.
-   * - Provides move semantics for safe transfer of ownership.
-   * - Disallows copy semantics.
-   * - Allows resetting, accessing, and releasing the underlying PACL.
-   * - Supports boolean conversion to check validity.
+   * Manages a PACL pointer, providing cleanup and move semantics.
    */
   struct safe_dacl {
     PACL dacl = nullptr;
