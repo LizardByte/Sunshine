@@ -256,6 +256,8 @@
     "log_path_desc": "Soubor, ve kterém jsou uloženy aktuální logy Sunshine.",
     "max_bitrate": "Maximální bitrate",
     "max_bitrate_desc": "Maximální bitrate (v Kb/s), kterým bude Sunshine kódovat datový tok. Pokud je nastaven na 0, bude vždy použit bitrate požadovaný aplikací Moonlight.",
+    "minimum_fps_target": "Minimální cíl FPS",
+    "minimum_fps_target_desc": "Nejnižší efektivní FPS proud může dosáhnout. Hodnota 0 se považuje za zhruba polovinu FPS streamu. Nastavení 20 se doporučuje, pokud vysíláte 24 nebo 30 fps obsah.",
     "min_threads": "Minimální počet vláken CPU",
     "min_threads_desc": "Zvýšení této hodnoty mírně snižuje efektivitu kódování, ale tento kompromis se obvykle vyplatí, protože získáte více jader procesoru pro kódování. Ideální hodnota je nejnižší hodnota, která dokáže spolehlivě enkódovat při požadovaném nastavení streamování na vašem hardwaru.",
     "misc": "Různé možnosti",
