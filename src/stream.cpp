@@ -22,6 +22,7 @@ extern "C" {
 // local includes
 #include "config.h"
 #include "display_device.h"
+#include "event_actions.h"
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
@@ -78,6 +79,9 @@ using asio::ip::udp;
 using namespace std::literals;
 
 namespace stream {
+
+  // Global counter for connected ENet clients
+  std::atomic_uint connected_clients;
 
   enum class socket_e : int {
     video,  ///< Video
@@ -405,6 +409,7 @@ namespace stream {
     } control;
 
     std::uint32_t launch_session_id;
+    bool is_resume;  // Flag to track if this session is from a resume
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
@@ -587,13 +592,42 @@ namespace stream {
           }
           break;
         case ENET_EVENT_TYPE_CONNECT:
-          BOOST_LOG(info) << "CLIENT CONNECTED"sv;
+          {
+            auto client_count = ++stream::connected_clients;  // Increment and get new count
+            BOOST_LOG(info) << "CLIENT CONNECTED - Session: " << session << ", Peer: " << platf::from_sockaddr((sockaddr *) &event.peer->address.address);
+            
+            if (client_count > 1) {
+              // This is an additional client connecting (not the first)
+              BOOST_LOG(info) << "Executing ADDITIONAL_CLIENT prep commands with client_count=" << client_count;
+              try {
+                proc::proc.execute_client_event_actions(event_actions::stage_e::ADDITIONAL_CLIENT, client_count);
+                BOOST_LOG(info) << "ADDITIONAL_CLIENT prep commands completed successfully";
+              } catch (const std::exception &e) {
+                BOOST_LOG(error) << "ADDITIONAL_CLIENT prep commands failed: " << e.what();
+              }
+            }
+            
+            // Check if any prep commands were actually configured/executed
+            // (This is a gap: if nothing is configured, log it)
+            // This is a best-effort log, as the proc::proc handler logs this too, but we surface it here for ENet context
+            if (!session) {
+              BOOST_LOG(warning) << "No session object available after client connect event (should not happen).";
+            }
+          }
           break;
         case ENET_EVENT_TYPE_DISCONNECT:
-          BOOST_LOG(info) << "CLIENT DISCONNECTED"sv;
+          {
+            --stream::connected_clients;
+
+            // If no prep commands were configured/executed, log it
+            // (Again, proc::proc logs this, but we surface it here for ENet context)
+            if (!session) {
+              BOOST_LOG(warning) << "No session object available after client disconnect event (should not happen).";
+            }
           // No more clients to send video data to ^_^
           if (session->state == session::state_e::RUNNING) {
-            session::stop(*session);
+              session::stop(*session);
+            }
           }
           break;
         case ENET_EVENT_TYPE_NONE:
@@ -1924,6 +1958,8 @@ namespace stream {
       if (--running_sessions == 0) {
         bool revert_display_config {config::video.dd.config_revert_on_disconnect};
         if (proc::proc.running()) {
+          // Stream is paused (app running but no active sessions)
+          proc::proc.execute_client_event_actions(event_actions::stage_e::STREAM_PAUSE, 0);
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_pausing(proc::proc.get_last_run_app_name());
 #endif
@@ -1979,6 +2015,17 @@ namespace stream {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
         system_tray::update_tray_playing(proc::proc.get_last_run_app_name());
 #endif
+
+        // Execute POST_STREAM_START event-actions for the first session (only if not a resume)
+        // or STREAM_RESUME if it is a resume
+        if (session.is_resume) {
+          proc::proc.execute_client_event_actions(event_actions::stage_e::STREAM_RESUME, running_sessions.load());
+        } else {
+          proc::proc.execute_client_event_actions(event_actions::stage_e::POST_STREAM_START, running_sessions.load());
+        }
+      } else if (running_sessions > 1) {
+        // This is the second client connecting - fire ADDITIONAL_CLIENT event
+        proc::proc.execute_client_event_actions(event_actions::stage_e::ADDITIONAL_CLIENT, running_sessions.load());
       }
 
       return 0;
@@ -1991,6 +2038,7 @@ namespace stream {
 
       session->shutdown_event = mail->event<bool>(mail::shutdown);
       session->launch_session_id = launch_session.id;
+      session->is_resume = launch_session.is_resume;
 
       session->config = config;
 

@@ -1,0 +1,281 @@
+/* Styles for EventActionsEditor component */
+.action-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+.action-card {
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  transition: box-shadow 0.2s;
+}
+.action-card:focus-within, .action-card:focus-visible {
+  outline: 2px solid #4a148c;
+  box-shadow: 0 0 0 2px #4a148c33;
+}
+.action-card-header {
+  background: #f5f5fa;
+  border-radius: 10px 10px 0 0;
+  border-bottom: 1px solid #e0e0e0;
+  min-height: 48px;
+}
+.action-title {
+  color: #4a148c;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.drag-handle {
+  color: #bdbdbd;
+  font-size: 1.2rem;
+  user-select: none;
+}
+.drag-handle:focus-visible {
+  outline: 2px solid #4a148c;
+}
+.commands {
+  display: grid;
+  grid-template-columns: 1fr 2px 1fr;
+  gap: 0 16px;
+  align-items: start;
+  background: #fff;
+}
+.startup, .cleanup {
+  background: #fafafa;
+  border-radius: 6px;
+  padding: 8px 8px 8px 8px;
+  min-width: 0;
+}
+.divider {
+  background: #e0e0e0;
+  width: 2px;
+  min-height: 100%;
+  margin: 0 4px;
+  border-radius: 2px;
+}
+.mirrored-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 44px;
+  padding-block: 10px;
+  padding-inline: 16px;
+  font-size: 1rem;
+  box-sizing: border-box;
+  background: var(--command-row-bg, #f3f4f6);
+  color: var(--command-row-text, #111827);
+  border-radius: 4px;
+}
+.command-text {
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
+  color: inherit;
+  background: transparent;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --command-row-bg: #1f2937;
+    --command-row-text: #f9fafb;
+  }
+}
+@media (prefers-color-scheme: light), (prefers-color-scheme: no-preference) {
+  :root {
+    --command-row-bg: #f3f4f6;
+    --command-row-text: #111827;
+  }
+}
+.placeholder {
+  color: #9ca3af;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.placeholder-row {
+  background-color: transparent !important;
+  pointer-events: none;
+  opacity: 0.7;
+}
+.badge {
+  font-size: 0.95em;
+  padding: 0.25em 0.6em;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.lucide {
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: -0.15em;
+}
+.action-card-footer {
+  background: #f5f5fa;
+  border-radius: 0 0 10px 10px;
+  border-top: 1px solid #e0e0e0;
+  min-height: 44px;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.timeout {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: default;
+}
+.log-drawer {
+  background: #23232b;
+  color: #fff;
+  border-radius: 0 0 10px 10px;
+  border-top: 2px solid #4a148c;
+  margin-top: -2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+.log-output {
+  font-family: 'Fira Mono', 'Consolas', 'Menlo', 'monospace';
+  font-size: 0.97em;
+  background: transparent;
+  color: #fff;
+  margin: 0;
+}
+button:focus-visible, input[type="checkbox"]:focus-visible, .mirrored-row:focus-visible, .drag-handle:focus-visible, .card-drag-handle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+  z-index: 2;
+}
+.bulk-action-bar {
+  position: sticky;
+  top: 20px;
+  z-index: 10;
+  background: #f5faff;
+  border-left: 4px solid #2684ff;
+  box-shadow: 0 2px 8px rgba(38,132,255,0.07);
+  border-radius: 8px;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.event-actions-editor .modal.show {
+  z-index: 2000 !important;
+}
+
+.event-actions-editor .modal-backdrop.show {
+  z-index: 1950 !important;
+  pointer-events: none !important;
+}
+@media (max-width: 768px) {
+  .commands {
+    grid-template-columns: 1fr !important;
+    gap: 0;
+  }
+  .divider {
+    display: none;
+  }
+  .startup, .cleanup {
+    margin-bottom: 12px;
+  }
+}
+
+/* Timeout pill styling */
+.timeout-pill {
+  font-size: 12px;
+  color: #6b7280;
+  padding: 2px 6px;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+/* Error state styling */
+.mirrored-row.has-error {
+  background-color: #fef2f2;
+  border-left: 3px solid #dc2626;
+}
+
+.error-icon {
+  color: #dc2626;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.error-icon:hover {
+  color: #b91c1c;
+}
+
+/* Drag handle improvements */
+.drag-handle {
+  color: #6b7280;
+  font-size: 1.3em;
+  user-select: none;
+  cursor: grab;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.drag-handle:hover {
+  background-color: #f3f4f6;
+}
+
+.drag-handle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Card drag handle improvements */
+.card-drag-handle {
+  color: #6b7280;
+  cursor: grab;
+  padding: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.card-drag-handle:hover {
+  background-color: #f3f4f6;
+}
+
+.card-drag-handle:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Improved footer button spacing */
+.action-card-footer .d-flex {
+  gap: 8px;
+}
+
+/* All focus states consistency */
+*:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* Disabled action styling */
+.disabled-action {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.disabled-action .action-title {
+  color: #6b7280;
+}

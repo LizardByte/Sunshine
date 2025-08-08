@@ -22,6 +22,7 @@
 // local includes
 #include "config.h"
 #include "display_device.h"
+#include "event_actions.h"
 #include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
@@ -277,7 +278,7 @@ namespace nvhttp {
     }
   }
 
-  std::shared_ptr<rtsp_stream::launch_session_t> make_launch_session(bool host_audio, const args_t &args) {
+  std::shared_ptr<rtsp_stream::launch_session_t> make_launch_session(bool host_audio, const args_t &args, bool is_resume) {
     auto launch_session = std::make_shared<rtsp_stream::launch_session_t>();
 
     launch_session->id = ++session_id_counter;
@@ -286,6 +287,7 @@ namespace nvhttp {
     std::copy(rikey.cbegin(), rikey.cend(), std::back_inserter(launch_session->gcm_key));
 
     launch_session->host_audio = host_audio;
+    launch_session->is_resume = is_resume;  // Set the resume flag
     std::stringstream mode = std::stringstream(get_arg(args, "mode", "0x0x0"));
     // Split mode by the char "x", to populate width/height/fps
     int x = 0;
@@ -850,21 +852,36 @@ namespace nvhttp {
     }
 
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-    auto launch_session = make_launch_session(host_audio, args);
+    auto launch_session = make_launch_session(host_audio, args, false);  // false = not a resume, this is a launch
 
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;
+
+      // Execute PRE_DISPLAY_CHECK event-action before encoder probing
+      event_actions::execution_context_t context;
+      context.app_id = "0";  // Use 0 for system-level operations
+      context.app_name = "Stream Launch";
+      context.client_count = 0;  // No clients during display validation
+      context.current_stage = event_actions::stage_e::PRE_DISPLAY_CHECK;
+      int pre_display_result = event_actions::event_handler.execute_stage(event_actions::stage_e::PRE_DISPLAY_CHECK, context);
+      if (pre_display_result != 0) {
+        tree.put("root.<xmlattr>.status_code", 503);
+        tree.put("root.<xmlattr>.status_message", "PRE_DISPLAY_CHECK event-action failed");
+        tree.put("root.gamesession", 0);
+        return;
+      }
+
+      // Probe encoders again before streaming to ensure our chosen
+      // encoder matches the active GPU (which could have changed
+      // due to hotplugging, driver crash, primary monitor change,
+      // or any number of other factors).
 
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
       // change the active displays.
       display_device::configure_display(config::video, *launch_session);
 
-      // Probe encoders again before streaming to ensure our chosen
-      // encoder matches the active GPU (which could have changed
-      // due to hotplugging, driver crash, primary monitor change,
-      // or any number of other factors).
       if (video::probe_encoders()) {
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
@@ -954,7 +971,7 @@ namespace nvhttp {
     if (no_active_sessions && args.find("localAudioPlayMode"s) != std::end(args)) {
       host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     }
-    const auto launch_session = make_launch_session(host_audio, args);
+    const auto launch_session = make_launch_session(host_audio, args, true);  // true = this is a resume
 
     if (no_active_sessions) {
       // We want to prepare display only if there are no active sessions at
@@ -966,6 +983,15 @@ namespace nvhttp {
       // encoder matches the active GPU (which could have changed
       // due to hotplugging, driver crash, primary monitor change,
       // or any number of other factors).
+
+      // Execute PRE_DISPLAY_CHECK event-action before encoder probing
+      event_actions::execution_context_t context;
+      context.app_id = "0";  // Use 0 for system-level operations
+      context.app_name = "Stream Resume";
+      context.client_count = 0;  // No clients during display validation
+      context.current_stage = event_actions::stage_e::PRE_DISPLAY_CHECK;
+      event_actions::event_handler.execute_stage(event_actions::stage_e::PRE_DISPLAY_CHECK, context);
+
       if (video::probe_encoders()) {
         tree.put("root.resume", 0);
         tree.put("root.<xmlattr>.status_code", 503);
@@ -973,6 +999,10 @@ namespace nvhttp {
 
         return;
       }
+
+      // Execute POST_DISPLAY_CHECK event-action after successful encoder probing
+      context.current_stage = event_actions::stage_e::POST_DISPLAY_CHECK;
+      event_actions::event_handler.execute_stage(event_actions::stage_e::POST_DISPLAY_CHECK, context);
     }
 
     auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());

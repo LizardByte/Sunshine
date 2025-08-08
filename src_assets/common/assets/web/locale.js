@@ -1,4 +1,4 @@
-import {createI18n} from "vue-i18n";
+import { createI18n } from "vue-i18n";
 
 // Import only the fallback language files
 import en from './public/assets/locale/en.json'
