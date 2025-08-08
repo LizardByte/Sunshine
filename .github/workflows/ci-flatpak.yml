@@ -30,16 +30,12 @@ jobs:
           - arch: aarch64
             runner: ubuntu-22.04-arm
     steps:
-      - name: Maximize build space
+      - name: More space
         if: matrix.arch == 'x86_64'
-        uses: easimon/maximize-build-space@v10
+        uses: LizardByte/actions/actions/more_space@v2025.814.40518
         with:
-          root-reserve-mb: 10240
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
+          analyze-space-savings: true
+          clean-all: true
 
       - name: Checkout
         uses: actions/checkout@v5
