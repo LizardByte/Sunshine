@@ -20,6 +20,9 @@ option(SUNSHINE_ENABLE_TRAY "Enable system tray icon. This option will be ignore
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
+option(CPM_USE_LOCAL_PACKAGES "Try to use local packages instead of downloading them." OFF)
+option(CPM_LOCAL_PACKAGES_ONLY "Only use local packages, do not download them." OFF)
+
 if(APPLE)
     option(BOOST_USE_STATIC "Use static boost libraries." OFF)
 else()
