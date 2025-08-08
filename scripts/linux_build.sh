@@ -3,6 +3,7 @@ set -e
 
 # Default value for arguments
 appimage_build=0
+cuda_patches=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
 publisher_website=""
@@ -28,6 +29,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --cuda-patches           Apply cuda patches.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
@@ -54,6 +56,9 @@ while getopts ":hs-:" opt; do
         appimage-build)
           appimage_build=1
           skip_libva=1
+          ;;
+        cuda-patches)
+          cuda_patches=1
           ;;
         num-processors=*)
           num_processors="${OPTARG#*=}"
@@ -185,7 +190,15 @@ function add_debian_based_deps() {
   fi
 }
 
+function add_test_ppa() {
+  if [ "$ubuntu_test_repo" == 1 ]; then
+    $package_install_command "software-properties-common"
+    ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
+  fi
+}
+
 function add_debian_deps() {
+  add_test_ppa
   add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
@@ -193,11 +206,7 @@ function add_debian_deps() {
 }
 
 function add_ubuntu_deps() {
-  if [ "$ubuntu_test_repo" == 1 ]; then
-    # allow newer gcc
-    ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
-  fi
-
+  add_test_ppa
   add_debian_based_deps
   dependencies+=(
     "libappindicator3-dev"
@@ -298,6 +307,24 @@ function install_cuda() {
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
   rm "${build_dir}/cuda.run"
   nvcc_path="${build_dir}/cuda/bin/nvcc"
+
+  # run cuda patches
+  if [ "$cuda_patches" == 1 ]; then
+    echo "Applying CUDA patches"
+    local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
+    if [ -d "$patch_dir" ]; then
+      for patch in "$patch_dir"/*.patch; do
+        echo "Applying patch: $patch"
+        patch -p2 \
+          --backup \
+          --directory="${build_dir}/cuda" \
+          --verbose \
+          < "$patch"
+      done
+    else
+      echo "No patches found for architecture: $architecture"
+    fi
+  fi
 }
 
 function check_version() {
@@ -536,27 +563,26 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.0.0"
-  cuda_build="525.60.13"
-  gcc_version="12"
-  nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f40\"" /etc/os-release; then
-  distro="fedora"
-  version="40"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.6.3
-  cuda_build=560.35.05
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
   gcc_version="13"
   nvm_node=0
-  dev_tools_group="Development Tools"
+elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
+  distro="debian"
+  version="13"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
   distro="fedora"
   version="41"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.6.3
-  cuda_build=560.35.05
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
   gcc_version="13"
   nvm_node=0
   dev_tools_group="development-tools"
@@ -565,8 +591,8 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   version="42"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.8.1
-  cuda_build=570.124.06
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
   dev_tools_group="development-tools"
@@ -575,27 +601,27 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
   version="22.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="13"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"
   version="24.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
   nvm_node=0
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
   distro="ubuntu"
   version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
   nvm_node=0
 else
   echo "Unsupported Distro or Version"

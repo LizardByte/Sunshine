@@ -56,6 +56,7 @@ jobs:
     uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
     with:
       maximize_build_space: true
+      maximize_build_space_root_reserve_size: 32768
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
