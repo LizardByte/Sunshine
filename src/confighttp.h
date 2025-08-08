@@ -33,7 +33,7 @@ namespace confighttp {
   };
 
   // Authentication functions
-  AuthResult check_auth(const req_https_t &request);  // (if still required elsewhere)
+  AuthResult check_auth(const req_https_t &request);
   bool authenticate(resp_https_t response, req_https_t request);
 
   TokenScope scope_from_string(std::string_view s);

@@ -386,7 +386,7 @@ namespace confighttp {
 
   /// @brief Retrieves the currently loaded API in a read-only manner.
   const std::map<std::string, ApiTokenInfo, std::less<>> &ApiTokenManager::retrieve_loaded_api_tokens() const {
-    return api_tokens;  // guarded by mutex_ for writes; read-only access assumes external sync
+    return api_tokens;
   }
 
   /**
