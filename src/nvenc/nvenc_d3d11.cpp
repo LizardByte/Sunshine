@@ -12,13 +12,13 @@ namespace nvenc {
 
   nvenc_d3d11::nvenc_d3d11(NV_ENC_DEVICE_TYPE device_type):
       nvenc_base(device_type) {
-    async_event_handle = CreateEvent(NULL, FALSE, FALSE, NULL);
+    async_event_handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
   }
 
   nvenc_d3d11::~nvenc_d3d11() {
     if (dll) {
       FreeLibrary(dll);
-      dll = NULL;
+      dll = nullptr;
     }
     if (async_event_handle) {
       CloseHandle(async_event_handle);
@@ -36,7 +36,7 @@ namespace nvenc {
     constexpr auto dll_name = "nvEncodeAPI.dll";
   #endif
 
-    if ((dll = LoadLibraryEx(dll_name, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
+    if ((dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
       if (auto create_instance = (decltype(NvEncodeAPICreateInstance) *) GetProcAddress(dll, "NvEncodeAPICreateInstance")) {
         auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
         new_nvenc->version = min_struct_version(NV_ENCODE_API_FUNCTION_LIST_VER);
@@ -55,7 +55,7 @@ namespace nvenc {
 
     if (dll) {
       FreeLibrary(dll);
-      dll = NULL;
+      dll = nullptr;
     }
 
     return false;

@@ -1421,7 +1421,7 @@ namespace config {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
         WCHAR executable[MAX_PATH];
-        GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable));
+        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
 
         SHELLEXECUTEINFOW shell_exec_info {};
         shell_exec_info.cbSize = sizeof(shell_exec_info);

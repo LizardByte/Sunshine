@@ -186,7 +186,7 @@ int main(int argc, char *argv[]) {
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
     wnd_class.lpfnWndProc = SessionMonitorWindowProc;
     if (!RegisterClassA(&wnd_class)) {
-      session_monitor_hwnd_promise.set_value(NULL);
+      session_monitor_hwnd_promise.set_value(nullptr);
       BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
       return;
     }

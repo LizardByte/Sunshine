@@ -191,8 +191,8 @@ namespace service_ctrl {
     }
 
   private:
-    SC_HANDLE scm_handle = NULL;
-    SC_HANDLE service_handle = NULL;
+    SC_HANDLE scm_handle = nullptr;
+    SC_HANDLE service_handle = nullptr;
   };
 
   bool is_service_running() {

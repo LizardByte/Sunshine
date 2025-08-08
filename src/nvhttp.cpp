@@ -155,7 +155,7 @@ namespace nvhttp {
   std::string get_arg(const args_t &args, const char *name, const char *default_value = nullptr) {
     auto it = args.find(name);
     if (it == std::end(args)) {
-      if (default_value != NULL) {
+      if (default_value != nullptr) {
         return std::string(default_value);
       }
 
