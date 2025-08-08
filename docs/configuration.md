@@ -1685,6 +1685,36 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### session_token_ttl_seconds
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Web UI session timeout in seconds. Determines how long a login session remains valid before re-authentication is required.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            7200
+            @endcode (2 hours)
+        </td>
+    </tr>
+    <tr>
+        <td>Notes</td>
+        <td colspan="2">
+            For higher security on shared systems, reduce this value (e.g. 3600 for 1 hour). Minimum is 1 second.
+        </td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            session_token_ttl_seconds = 3600
+            @endcode</td>
+    </tr>
+</table>
+
 ### log_path
 
 <table>
@@ -2324,7 +2354,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         </td>
     </tr>
     <tr>
-        <td>Default</td>
+               <td>Default</td>
         <td colspan="2">@code{}
             medium
             @endcode</td>

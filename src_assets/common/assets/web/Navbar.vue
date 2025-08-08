@@ -29,7 +29,13 @@
             <a class="nav-link" href="./troubleshooting"><i class="fas fa-fw fa-info"></i> {{ $t('navbar.troubleshoot') }}</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="./api-tokens"><i class="fas fa-fw fa-key"></i>{{ $t('navbar.api_tokens') }}</a>
+          </li>
+          <li class="nav-item">
             <ThemeToggle/>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#" @click.prevent="logout"><i class="fas fa-fw fa-sign-out-alt"></i> {{ $t('navbar.logout') }}</a>
           </li>
         </ul>
       </div>
@@ -50,6 +56,17 @@ export default {
     let el = document.querySelector("a[href='" + document.location.pathname + "']");
     if (el) el.classList.add("active")
     initDiscord();
+  },
+  methods: {
+    async logout() {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      } catch (e) {
+        // Log the error to the console for debugging purposes
+        console.error('Logout failed:', e);
+      }
+      window.location.href = './login';
+    }
   }
 }
 </script>

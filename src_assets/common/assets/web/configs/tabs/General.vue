@@ -124,6 +124,14 @@ function removeCmd(index) {
       </button>
     </div>
 
+    <!-- Session Token TTL -->
+    <div class="mb-3">
+      <label for="session_token_ttl_seconds" class="form-label">{{ $t('config.session_token_ttl_seconds') }}</label>
+      <input type="number" min="60" step="60" class="form-control" id="session_token_ttl_seconds"
+             v-model.number="config.session_token_ttl_seconds" />
+      <div class="form-text">{{ $t('config.session_token_ttl_seconds_desc') }}</div>
+    </div>
+
     <!-- Notify Pre-Releases -->
     <Checkbox class="mb-3"
               id="notify_pre_releases"

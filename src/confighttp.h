@@ -5,16 +5,48 @@
 #pragma once
 
 // standard includes
+#include <chrono>
+#include <functional>
+#include <map>
+#include <set>
 #include <string>
+#include <unordered_map>
 
 // local includes
+#include "http_auth.h"
 #include "thread_safe.h"
+
+#include <Simple-Web-Server/server_https.hpp>
 
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
 namespace confighttp {
+  using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
+  using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+
   constexpr auto PORT_HTTPS = 1;
   void start();
+
+  enum class TokenScope {
+    Read,
+    Write
+  };
+
+  // Authentication functions
+  AuthResult check_auth(const req_https_t &request);
+  bool authenticate(resp_https_t response, req_https_t request);
+
+  TokenScope scope_from_string(std::string_view s);
+  std::string scope_to_string(TokenScope scope);
+
+  // Web UI endpoints
+  void listApiTokens(resp_https_t response, req_https_t request);
+  void revokeApiToken(resp_https_t response, req_https_t request);
+  void getTokenPage(resp_https_t response, req_https_t request);
+  void loginUser(resp_https_t response, req_https_t request);
+  void logoutUser(resp_https_t response, req_https_t request);
+  void getLoginPage(resp_https_t response, req_https_t request);
+
 }  // namespace confighttp
 
 // mime types map
