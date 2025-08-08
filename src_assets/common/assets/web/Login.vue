@@ -62,20 +62,51 @@ const requestedRedirect = ref('/')
 const safeRedirect = ref('/')
 const { t } = useI18n ? useI18n() : { t: (k, d) => d || k }
 
-onMounted(() => {
-  // Set the document title using the localized string
-  document.title = `Sunshine - ${t('auth.login_title')}`
+function sanitizeRedirect(raw) {
+  try {
+    if (!raw || typeof raw !== 'string') return '/'
+    // decode then re-encode for validation of % sequences
+    try { raw = decodeURIComponent(raw) } catch { /* ignore */ }
+    // Must start with single slash, no protocol, no double slash at start, limit length
+    if (!raw.startsWith('/')) return '/'
+    if (raw.startsWith('//')) return '/'
+    if (raw.includes('://')) return '/'
+    if (raw.length > 512) return '/'
+    // Strip any /login recursion to avoid loop
+    if (raw.startsWith('/login')) return '/'
+    return raw
+  } catch { return '/' }
+}
 
+function hasSessionCookie() {
+  return document.cookie.split(';').some(c => c.trim().startsWith('session_token='))
+}
+
+function redirectNowIfAuthenticated() {
+  if (hasSessionCookie()) {
+    // Use any pending redirect or default to root
+    const target = sanitizeRedirect(sessionStorage.getItem('pending_redirect') || safeRedirect.value || '/')
+    // Replace to avoid leaving /login in history so back button won't return here
+    window.location.replace(target)
+  }
+}
+
+onMounted(() => {
+  document.title = `Sunshine - ${t('auth.login_title')}`
   const urlParams = new URLSearchParams(window.location.search)
   const redirectParam = urlParams.get('redirect')
   if (redirectParam) {
-    sessionStorage.setItem('pending_redirect', redirectParam)
+    const sanitized = sanitizeRedirect(redirectParam)
+    sessionStorage.setItem('pending_redirect', sanitized)
     urlParams.delete('redirect')
     const cleanUrl = window.location.pathname + (urlParams.toString() ? '?' + urlParams.toString() : '')
     window.history.replaceState({}, document.title, cleanUrl)
   }
   requestedRedirect.value = sessionStorage.getItem('pending_redirect') || '/'
-  safeRedirect.value = '/'
+  safeRedirect.value = sanitizeRedirect(requestedRedirect.value)
+
+  // If already authenticated (user pressed back into login or bookmarked it), redirect immediately
+  redirectNowIfAuthenticated()
 })
 
 /**
@@ -88,23 +119,20 @@ async function login() {
   try {
     const response = await fetch('/api/auth/login', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username: credentials.value.username,
         password: credentials.value.password,
-        redirect: encodeURIComponent(requestedRedirect.value)
+        // Send raw (already sanitized) path, do NOT encode again to avoid server rejecting it
+        redirect: requestedRedirect.value
       })
     })
-    const data = await response.json()
+    const data = await response.json().catch(() => ({}))
     if (response.ok && data.status) {
       isLoggedIn.value = true
-      safeRedirect.value = data.redirect || '/'
+      safeRedirect.value = sanitizeRedirect(data.redirect) || '/'
       sessionStorage.removeItem('pending_redirect')
-      setTimeout(() => {
-        redirectToApp()
-      }, 1000)
+      setTimeout(() => { redirectToApp() }, 500)
     } else {
       error.value = data.error || t('auth.login_failed')
     }
@@ -121,7 +149,7 @@ async function login() {
  * @returns {void}
  */
 function redirectToApp() {
-  window.location.href = encodeURI(safeRedirect.value)
+  window.location.replace(safeRedirect.value)
 }
 </script>
 

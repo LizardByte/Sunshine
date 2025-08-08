@@ -490,6 +490,22 @@
     "login_loading": "Loading...",
     "login_failed": "Login failed",
     "login_network_error": "Network error. Please try again.",
-    "login_success": "Login successful! Redirecting..."
+    "login_success": "Login successful! Redirecting...",
+    "generate_token_help": "Select one or more API routes and allowed HTTP methods to embed in the new token.",
+    "selected_scopes": "Selected Scopes",
+    "copy_token": "Copy Token",
+    "token_copied": "Copied!",
+    "refresh": "Refresh",
+    "search_tokens": "Search by hash, user, or path...",
+    "no_matching_tokens": "No tokens match your search.",
+    "generate_disabled_hint": "Add at least one scope to generate a token.",
+    "testing_help": "Use this form to validate an existing token against a read-only endpoint.",
+    "loading": "Loading...",
+    "copy_hash": "Copy",
+    "hash_copied": "Copied!",
+    "sort_field": "Sort",
+    "sort_direction": "Direction",
+    "asc": "Asc",
+    "desc": "Desc"
   }
 }
