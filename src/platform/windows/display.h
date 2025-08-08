@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <atomic>
+
 // platform includes
 #include <d3d11.h>
 #include <d3d11_4.h>
@@ -13,9 +16,12 @@
 #include <dxgi1_6.h>
 #include <Unknwn.h>
 #include <winrt/windows.graphics.capture.h>
+#include <wrl/client.h>
 
 // local includes
 #include "src/platform/common.h"
+#include "src/platform/windows/ipc/pipes.h"
+#include "src/platform/windows/ipc/process_handler.h"
 #include "src/utility.h"
 #include "src/video.h"
 
@@ -338,50 +344,257 @@ namespace platf::dxgi {
   };
 
   /**
-   * Display duplicator that uses the Windows.Graphics.Capture API.
-   */
-  class wgc_capture_t {
-    winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DDevice uwp_device {nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureItem item {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool frame_pool {nullptr};
-    winrt::Windows::Graphics::Capture::GraphicsCaptureSession capture_session {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame {nullptr}, consumed_frame {nullptr};
-    SRWLOCK frame_lock = SRWLOCK_INIT;
-    CONDITION_VARIABLE frame_present_cv;
-
-    void on_frame_arrived(winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &);
-
-  public:
-    wgc_capture_t();
-    ~wgc_capture_t();
-
-    int init(display_base_t *display, const ::video::config_t &config);
-    capture_e next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time);
-    capture_e release_frame();
-    int set_cursor_visible(bool);
-  };
-
-  /**
    * Display backend that uses Windows.Graphics.Capture with a software encoder.
+   * This now always uses IPC implementation via display_wgc_ipc_ram_t.
    */
-  class display_wgc_ram_t: public display_ram_t {
-    wgc_capture_t dup;
-
+  class display_wgc_ram_t {
   public:
-    int init(const ::video::config_t &config, const std::string &display_name);
-    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
-    capture_e release_snapshot() override;
+    /**
+     * @brief Factory method for initializing WGC RAM capture backend.
+     * Always returns the IPC implementation for Windows.Graphics.Capture using a software encoder.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return Shared pointer to the initialized display backend.
+     */
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
   };
 
   /**
-   * Display backend that uses Windows.Graphics.Capture with a hardware encoder.
+   * @class display_wgc_vram_t
+   * @brief Factory class for initializing Windows.Graphics.Capture (WGC) display backends using VRAM.
+   * Provides a static factory method to create and initialize a display backend for capturing
+   * displays via the Windows.Graphics.Capture API, utilizing hardware encoding when available.
    */
-  class display_wgc_vram_t: public display_vram_t {
-    wgc_capture_t dup;
+  class display_wgc_vram_t {
+  public:
+    /**
+     * @brief Factory method for initializing WGC VRAM capture backend.
+     * Always returns the IPC implementation for Windows.Graphics.Capture using a hardware encoder.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return Shared pointer to the initialized display backend.
+     */
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+  };
+
+  /**
+   * @class display_wgc_ipc_vram_t
+   * @brief Display capture backend using Windows.Graphics.Capture (WGC) via a separate capture process.
+   * This backend utilizes a separate capture process and synchronizes frames to Sunshine,
+   * allowing screen capture even when running as a SYSTEM service.
+   */
+  class display_wgc_ipc_vram_t: public display_vram_t {
+    // Cache for frame forwarding when no new frame is available
+    std::shared_ptr<platf::img_t> last_cached_frame;
 
   public:
+    /**
+     * @brief Constructs a new display_wgc_ipc_vram_t object.
+     * Initializes the WGC IPC VRAM display backend for hardware encoding.
+     * Sets up internal state and prepares for display capture via IPC.
+     */
+    display_wgc_ipc_vram_t();
+
+    /**
+     * @brief Destructor for display_wgc_ipc_vram_t.
+     * Cleans up resources and IPC session associated with the WGC IPC VRAM display backend.
+     */
+    ~display_wgc_ipc_vram_t() override;
+
+    /**
+     * @brief Factory method to create a WGC IPC VRAM display instance or fallback.
+     * Chooses the appropriate backend based on the current system state and configuration.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return Instance of the display backend, using WGC IPC if available, or a secure desktop fallback if not.
+     */
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+
+    /**
+     * @brief Initializes the WGC IPC VRAM display backend.
+     * Sets up the display backend with the provided configuration and display name.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return 0 on success, negative on failure.
+     */
     int init(const ::video::config_t &config, const std::string &display_name);
+
+    /**
+     * @brief Captures a snapshot of the display.
+     * @param pull_free_image_cb Callback to pull a free image buffer.
+     * @param img_out Output parameter for the captured image.
+     * @param timeout Maximum time to wait for a frame.
+     * @param cursor_visible Whether the cursor should be included in the capture.
+     * @return Status of the capture operation.
+     */
     capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+
+    /**
+     * @brief Fills an image with dummy data.
+     * Used for testing or fallback scenarios where a real image is not available.
+     * @param img_base Pointer to the image to fill.
+     * @return 0 on success, negative on failure.
+     */
+    int dummy_img(platf::img_t *img_base) override;
+
+  protected:
+    /**
+     * @brief Acquires the next frame from the display.
+     * @param timeout Maximum time to wait for a frame.
+     * @param src Output parameter for the source texture.
+     * @param frame_qpc Output parameter for the frame's QPC timestamp.
+     * @param cursor_visible Whether the cursor should be included in the capture.
+     * @return Status of the frame acquisition operation.
+     */
+    capture_e acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible);
+
+    /**
+     * @brief Releases resources or state after a snapshot.
+     * @return Status of the release operation.
+     */
     capture_e release_snapshot() override;
+
+  private:
+    std::unique_ptr<class ipc_session_t> _ipc_session;
+    ::video::config_t _config;
+    std::string _display_name;
+    bool _session_initialized_logged = false;
   };
+
+  class display_wgc_ipc_ram_t: public display_ram_t {
+  public:
+    /**
+     * @brief Constructs a new display_wgc_ipc_ram_t object.
+     * Initializes internal state for the WGC IPC RAM display backend.
+     */
+    display_wgc_ipc_ram_t();
+
+    /**
+     * @brief Destructor for display_wgc_ipc_ram_t.
+     * Cleans up resources associated with the WGC IPC RAM display backend.
+     */
+    ~display_wgc_ipc_ram_t() override;
+
+    /**
+     * @brief Factory method to create a WGC IPC RAM display instance or fallback.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return Instance of the display backend.
+     */
+    static std::shared_ptr<display_t> create(const ::video::config_t &config, const std::string &display_name);
+
+    /**
+     * @brief Initializes the WGC IPC RAM display backend.
+     * @param config Video configuration parameters.
+     * @param display_name Name of the display to capture.
+     * @return 0 on success, negative on failure.
+     */
+    int init(const ::video::config_t &config, const std::string &display_name);
+
+    /**
+     * @brief Captures a snapshot of the display.
+     * @param pull_free_image_cb Callback to pull a free image buffer.
+     * @param img_out Output parameter for the captured image.
+     * @param timeout Maximum time to wait for a frame.
+     * @param cursor_visible Whether the cursor should be included in the capture.
+     * @return Status of the capture operation.
+     */
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+
+    /**
+     * @brief Fills an image with dummy data.
+     * Used for testing or fallback scenarios where a real image is not available.
+     * @param img_base Pointer to the image to fill.
+     * @return 0 on success, negative on failure.
+     */
+    int dummy_img(platf::img_t *img_base) override;
+
+  protected:
+    /**
+     * @brief Releases resources or state after a snapshot.
+     * @return Status of the release operation.
+     */
+    capture_e release_snapshot() override;
+
+  private:
+    /**
+     * @brief IPC session for communication with capture helper.
+     */
+    std::unique_ptr<class ipc_session_t> _ipc_session;
+    /**
+     * @brief Video configuration used for capture.
+     */
+    ::video::config_t _config;
+    /**
+     * @brief Name of the display being captured.
+     */
+    std::string _display_name;
+
+    /**
+     * @brief Last width of the staging texture for the base class texture.
+     */
+    UINT _last_width = 0;
+    /**
+     * @brief Last height of the staging texture for the base class texture.
+     */
+    UINT _last_height = 0;
+    /**
+     * @brief Last DXGI format of the staging texture for the base class texture.
+     */
+    DXGI_FORMAT _last_format = DXGI_FORMAT_UNKNOWN;
+
+    /**
+     * @brief Cache for frame forwarding when no new frame is available, only used in constant capture mode.
+     */
+    std::shared_ptr<platf::img_t> last_cached_frame;
+  };
+
+  /**
+   * @brief Temporary DXGI VRAM display backend for secure desktop scenarios.
+   * This display backend uses DXGI duplication for capturing the screen when secure desktop is active.
+   * It periodically checks if secure desktop is no longer active and, if so, can swap back to WGC.
+   */
+  class temp_dxgi_vram_t: public display_ddup_vram_t {
+  private:
+    std::chrono::steady_clock::time_point _last_check_time;
+    static constexpr std::chrono::seconds CHECK_INTERVAL {2};  // Check every 2 seconds
+
+  public:
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+  };
+
+  /**
+   * @brief Display backend that uses DXGI duplication for secure desktop scenarios.
+   * This display can detect when secure desktop is no longer active and swap back to WGC.
+   */
+  class temp_dxgi_ram_t: public display_ddup_ram_t {
+  private:
+    /**
+     * @brief The last time a check for secure desktop status was performed.
+     */
+    std::chrono::steady_clock::time_point _last_check_time;
+
+    /**
+     * @brief Interval between secure desktop status checks (every 2 seconds).
+     */
+    static constexpr std::chrono::seconds CHECK_INTERVAL {2};
+
+  public:
+    /**
+     * @brief Captures a snapshot of the display using DXGI duplication.
+     * This method attempts to capture the current frame from the display, handling secure desktop scenarios.
+     * If secure desktop is no longer active, it can swap back to WGC.
+     * @param pull_free_image_cb Callback to pull a free image buffer.
+     * @param img_out Output parameter for the captured image.
+     * @param timeout Maximum time to wait for a frame.
+     * @param cursor_visible Whether the cursor should be included in the capture.
+     * @return Status of the capture operation.
+     */
+    capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) override;
+  };
+
+  // Type aliases for WGC data structures
+  using shared_handle_data_t = platf::dxgi::shared_handle_data_t;
+  using config_data_t = platf::dxgi::config_data_t;
+
 }  // namespace platf::dxgi
