@@ -38,40 +38,16 @@ namespace confighttp {
   SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
   SessionTokenAPI sessionTokenAPI(sessionTokenManager);
 
-  /**
-   * @class InvalidScopeException
-   * @brief Exception thrown for invalid API token scopes.
-   */
   InvalidScopeException::InvalidScopeException(const std::string &msg):
       message_(msg) {}
 
-  /**
-   * @brief Returns the exception message.
-   * @return The exception message as a C-string.
-   */
   const char *InvalidScopeException::what() const noexcept {
     return message_.c_str();
   }
 
-  /**
-   * @class ApiTokenManager
-   * @brief Manages API tokens, their creation, validation, and revocation.
-   */
-
-  /**
-   * @brief Constructs an ApiTokenManager with dependencies for testability.
-   * @param dependencies Struct of function dependencies for I/O, clock, random, and hash operations.
-   */
   ApiTokenManager::ApiTokenManager(const ApiTokenManagerDependencies &dependencies):
       dependencies_(dependencies) {}
 
-  /**
-   * @brief Checks if a bearer token is valid for the request using primitives.
-   * @param token The token string (without "Bearer " prefix).
-   * @param path The request path.
-   * @param method The HTTP method.
-   * @return true if authenticated, false otherwise.
-   */
   bool ApiTokenManager::authenticate_token(const std::string &token, const std::string &path, const std::string &method) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
@@ -107,13 +83,6 @@ namespace confighttp {
     });
   }
 
-  /**
-   * @brief Checks if a bearer token is valid for the request using primitives.
-   * @param rawAuth The raw Authorization header value.
-   * @param path The request path.
-   * @param method The HTTP method.
-   * @return true if authenticated, false otherwise.
-   */
   bool ApiTokenManager::authenticate_bearer(std::string_view rawAuth, const std::string &path, const std::string &method) {
     if (rawAuth.length() <= 7 || !rawAuth.starts_with("Bearer ")) {
       return false;
@@ -122,12 +91,6 @@ namespace confighttp {
     return authenticate_token(token, path, method);
   }
 
-  /**
-   * @brief Creates a new API token from JSON scopes using primitives.
-   * @param scopes_json The JSON array of scopes.
-   * @param username The username for the token.
-   * @return Optional token string, or nullopt on error.
-   */
   std::optional<std::string> ApiTokenManager::create_api_token(const nlohmann::json &scopes_json, const std::string &username) {
     auto path_methods = parse_json_scopes(scopes_json);
     if (!path_methods) {
@@ -144,12 +107,6 @@ namespace confighttp {
     return token;
   }
 
-  /**
-   * @brief Generates a new API token from JSON request body.
-   * @param request_body The JSON request body as string.
-   * @param username The username for the token.
-   * @return Optional JSON response string, or nullopt on error.
-   */
   std::optional<std::string> ApiTokenManager::generate_api_token(const std::string &request_body, const std::string &username) {
     nlohmann::json input;
     try {
@@ -163,11 +120,6 @@ namespace confighttp {
     return create_api_token(input["scopes"], username);
   }
 
-  /**
-   * @brief Helper to parse scopes from JSON without HTTP dependencies.
-   * @param scopes_json The JSON array of scopes.
-   * @return Optional map of path to allowed methods.
-   */
   std::optional<std::map<std::string, std::set<std::string, std::less<>>, std::less<>>>
     ApiTokenManager::parse_json_scopes(const nlohmann::json &scopes_json) const {
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> path_methods;
@@ -190,10 +142,6 @@ namespace confighttp {
     return path_methods;
   }
 
-  /**
-   * @brief Returns a JSON list of all API tokens.
-   * @return JSON array of tokens.
-   */
   nlohmann::json ApiTokenManager::get_api_tokens_list() const {
     nlohmann::json arr = nlohmann::json::array();
     std::scoped_lock lock(mutex_);
@@ -211,19 +159,10 @@ namespace confighttp {
     return arr;
   }
 
-  /**
-   * @brief Returns a JSON string of all API tokens.
-   * @return JSON string representation of tokens.
-   */
   std::string ApiTokenManager::list_api_tokens_json() const {
     return get_api_tokens_list().dump();
   }
 
-  /**
-   * @brief Revokes an API token by hash using primitives.
-   * @param hash The token hash to revoke.
-   * @return true if token was found and revoked, false if not found.
-   */
   bool ApiTokenManager::revoke_api_token_by_hash(const std::string &hash) {
     if (hash.empty()) {
       return false;
@@ -239,9 +178,6 @@ namespace confighttp {
     return erased;
   }
 
-  /**
-   * @brief Saves all API tokens to persistent storage.
-   */
   void ApiTokenManager::save_api_tokens() const {
     nlohmann::json j;
     {
@@ -286,11 +222,6 @@ namespace confighttp {
     dependencies_.write_json(config::nvhttp.file_state, root);
   }
 
-  /**
-   * @brief Parses a scope from a property tree.
-   * @param scope_tree The property tree representing a scope.
-   * @return Optional pair of path and set of methods.
-   */
   std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> ApiTokenManager::parse_scope(const pt::ptree &scope_tree) const {
     const std::string path = scope_tree.get<std::string>("path", "");
     if (path.empty()) {
@@ -308,11 +239,6 @@ namespace confighttp {
     return std::make_pair(path, std::move(methods));
   }
 
-  /**
-   * @brief Builds a map of scopes from a property tree.
-   * @param scopes_node The property tree node containing scopes.
-   * @return Map of path to set of allowed methods.
-   */
   std::map<std::string, std::set<std::string, std::less<>>, std::less<>> ApiTokenManager::build_scope_map(const pt::ptree &scopes_node) const {
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> out;
     for (const auto &[_, scope_tree] : scopes_node) {
@@ -324,9 +250,6 @@ namespace confighttp {
     return out;
   }
 
-  /**
-   * @brief Loads API tokens from persistent storage.
-   */
   void ApiTokenManager::load_api_tokens() {
     std::scoped_lock lock(mutex_);
     api_tokens.clear();
@@ -357,10 +280,6 @@ namespace confighttp {
     }
   }
 
-  /**
-   * @brief Creates and returns the default delegates for ApiTokenManager.
-   * @return Struct of default function dependencies.
-   */
   ApiTokenManagerDependencies ApiTokenManager::make_default_dependencies() {
     ApiTokenManagerDependencies dependencies;
     dependencies.file_exists = [](const std::string &path) {
@@ -384,22 +303,12 @@ namespace confighttp {
     return dependencies;
   }
 
-  /// @brief Retrieves the currently loaded API in a read-only manner.
   const std::map<std::string, ApiTokenInfo, std::less<>> &ApiTokenManager::retrieve_loaded_api_tokens() const {
     return api_tokens;
   }
 
-  /**
-   * @brief Constructs a SessionTokenManager with dependencies for testability.
-   * @param dependencies Struct of function dependencies for clock, random, and hash operations.
-   */
   SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies):
       dependencies_(dependencies) {}
-
-  /**
-   * @brief Creates and returns the default delegates for SessionTokenManager.
-   * @return Struct of default function dependencies.
-   */
 
   SessionTokenManagerDependencies SessionTokenManager::make_default_dependencies() {
     SessionTokenManagerDependencies deps;
@@ -416,11 +325,6 @@ namespace confighttp {
     return deps;
   }
 
-  /**
-   * @brief Generates a new session token for the specified username.
-   * @param username The username to associate with the session token.
-   * @return The generated session token string.
-   */
   std::string SessionTokenManager::generate_session_token(const std::string &username) {
     std::scoped_lock lock(mutex_);
     std::string token = dependencies_.rand_alphabet(64);
@@ -432,11 +336,6 @@ namespace confighttp {
     return token;
   }
 
-  /**
-   * @brief Validates whether a session token is valid and not expired.
-   * @param token The session token to validate.
-   * @return true if the token is valid and not expired, false otherwise.
-   */
   bool SessionTokenManager::validate_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
@@ -451,19 +350,12 @@ namespace confighttp {
     return true;
   }
 
-  /**
-   * @brief Revokes a session token by removing it from the active tokens.
-   * @param token The session token to revoke.
-   */
   void SessionTokenManager::revoke_session_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
     session_tokens_.erase(token_hash);
   }
 
-  /**
-   * @brief Removes all expired session tokens from storage.
-   */
   void SessionTokenManager::cleanup_expired_session_tokens() {
     auto now = dependencies_.now();
     std::erase_if(session_tokens_, [now](const auto &pair) {
@@ -471,11 +363,6 @@ namespace confighttp {
     });
   }
 
-  /**
-   * @brief Retrieves the username associated with a valid session token.
-   * @param token The session token to look up.
-   * @return Optional username string if token is valid, nullopt otherwise.
-   */
   std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
     std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
@@ -485,29 +372,14 @@ namespace confighttp {
     return std::nullopt;
   }
 
-  /**
-   * @brief Returns the current number of active session tokens.
-   * @return The count of active session tokens.
-   */
   size_t SessionTokenManager::session_count() const {
     std::scoped_lock lock(mutex_);
     return session_tokens_.size();
   }
 
-  /**
-   * @brief Constructs a SessionTokenAPI with a session manager reference.
-   * @param session_manager Reference to the session token manager.
-   */
   SessionTokenAPI::SessionTokenAPI(SessionTokenManager &session_manager):
       session_manager_(session_manager) {}
 
-  /**
-   * @brief Authenticates user credentials and generates a session token.
-   * @param username The username to authenticate.
-   * @param password The password to authenticate.
-   * @param redirect_url The URL to redirect to after successful login.
-   * @return APIResponse containing session token and redirect information.
-   */
   APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url) {
     if (!validate_credentials(username, password)) {
       BOOST_LOG(info) << "Web UI: Login failed for user: " << username;
@@ -558,11 +430,6 @@ namespace confighttp {
     return response;
   }
 
-  /**
-   * @brief Logs out a user by revoking their session token.
-   * @param session_token The session token to revoke.
-   * @return APIResponse confirming successful logout.
-   */
   APIResponse SessionTokenAPI::logout(const std::string &session_token) {
     if (!session_token.empty()) {
       session_manager_.revoke_session_token(session_token);
@@ -579,11 +446,6 @@ namespace confighttp {
     return response;
   }
 
-  /**
-   * @brief Validates whether a session token is valid and not expired.
-   * @param session_token The session token to validate.
-   * @return APIResponse indicating validation result.
-   */
   APIResponse SessionTokenAPI::validate_session(const std::string &session_token) {
     if (session_token.empty()) {
       return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
@@ -596,12 +458,6 @@ namespace confighttp {
     return create_success_response();
   }
 
-  /**
-   * @brief Validates user credentials against configured username and password.
-   * @param username The username to validate.
-   * @param password The password to validate.
-   * @return true if credentials are valid, false otherwise.
-   */
   bool SessionTokenAPI::validate_credentials(const std::string &username, const std::string &password) const {
     if (auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
         !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
@@ -611,21 +467,12 @@ namespace confighttp {
   }
 
   namespace {
-    /**
-     * @brief Get the CORS origin for localhost (no wildcard).
-     * @return The CORS origin string.
-     */
     std::string get_cors_origin() {
       std::uint16_t https_port = net::map_port(confighttp::PORT_HTTPS);
       return std::format("https://localhost:{}", https_port);
     }
   }  // namespace
 
-  /**
-   * @brief Creates a standardized success API response with JSON data.
-   * @param data The JSON data to include in the response body.
-   * @return APIResponse with success status and provided data.
-   */
   APIResponse SessionTokenAPI::create_success_response(const nlohmann::json &data) const {
     nlohmann::json response_body;
     response_body["status"] = true;
@@ -638,12 +485,6 @@ namespace confighttp {
     return APIResponse(StatusCode::success_ok, response_body.dump(), headers);
   }
 
-  /**
-   * @brief Creates a standardized error API response with error message.
-   * @param error_message The error message to include in the response.
-   * @param status_code The HTTP status code for the error response.
-   * @return APIResponse with error status and message.
-   */
   APIResponse SessionTokenAPI::create_error_response(const std::string &error_message, StatusCode status_code) const {
     nlohmann::json response_body;
     response_body["status"] = false;
@@ -654,16 +495,6 @@ namespace confighttp {
     return APIResponse(status_code, response_body.dump(), headers);
   }
 
-  /**
-   * @brief Authenticates a user using HTTP Basic Authentication.
-   *
-   * This function decodes the provided Base64-encoded HTTP Basic Auth string,
-   * extracts the username and password, hashes the password with a configured salt,
-   * and compares the credentials against the configured username and password hash.
-   *
-   * @param rawAuth The raw "Authorization" header value (expected to start with "Basic ").
-   * @return true if authentication succeeds, false otherwise.
-   */
   bool authenticate_basic(const std::string_view rawAuth) {
     auto base64 = std::string(rawAuth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
@@ -680,14 +511,6 @@ namespace confighttp {
     return true;
   }
 
-  /**
-   * @brief Helper to build an AuthResult for error responses.
-   * @param code The HTTP status code for the error.
-   * @param error The error message to include.
-   * @param add_www_auth Whether to add WWW-Authenticate header.
-   * @param location Optional location header for redirects.
-   * @return AuthResult configured with error response data.
-   */
   AuthResult make_auth_error(StatusCode code, const std::string &error, bool add_www_auth, const std::string &location) {
     AuthResult result {false, code, {}, {}};
     if (!location.empty()) {
@@ -708,13 +531,6 @@ namespace confighttp {
     return result;
   }
 
-  /**
-   * @brief Helper to check Bearer authentication.
-   * @param rawAuth The raw authorization header value.
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
   AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
     if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
       return make_auth_error(StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
@@ -722,11 +538,6 @@ namespace confighttp {
     return {true, StatusCode::success_ok, {}, {}};
   }
 
-  /**
-   * @brief Helper to check Basic authentication.
-   * @param rawAuth The raw authorization header value.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
   AuthResult check_basic_auth(const std::string &rawAuth) {
     if (!authenticate_basic(rawAuth)) {
       return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
@@ -734,11 +545,6 @@ namespace confighttp {
     return {true, StatusCode::success_ok, {}, {}};
   }
 
-  /**
-   * @brief Helper to check session token authentication.
-   * @param rawAuth The raw authorization header value.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
   AuthResult check_session_auth(const std::string &rawAuth) {
     if (rawAuth.rfind("Session ", 0) != 0) {
       return make_auth_error(StatusCode::client_error_unauthorized, "Invalid session token format", true);
@@ -753,11 +559,6 @@ namespace confighttp {
     return make_auth_error(StatusCode::client_error_unauthorized, "Invalid or expired session token", true);
   }
 
-  /**
-   * @brief Helper to determine if request is for HTML page vs API.
-   * @param path The request path.
-   * @return True if this is a request for an HTML page.
-   */
   bool is_html_request(const std::string &path) {
     // API requests start with /api/
     if (path.rfind("/api/", 0) == 0) {
@@ -783,14 +584,6 @@ namespace confighttp {
     return true;
   }
 
-  /**
-   * @brief Check authentication and authorization with raw parameters.
-   * @param remote_address The normalized remote address string.
-   * @param auth_header The authorization header value (empty if not present).
-   * @param path The requested path.
-   * @param method The HTTP method.
-   * @return AuthResult with outcome and response details if not authorized.
-   */
   AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method) {
     // Strip query string from path for matching
     auto base_path = path;
@@ -855,11 +648,6 @@ namespace confighttp {
     return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
   }
 
-  /**
-   * @brief Extract session token from Cookie header if present.
-   * @param headers The HTTP headers map.
-   * @return Session token string if found, empty string otherwise.
-   */
   std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers) {
     if (auto cookie_it = headers.find("Cookie"); cookie_it != headers.end()) {
       const std::string &cookies = cookie_it->second;
