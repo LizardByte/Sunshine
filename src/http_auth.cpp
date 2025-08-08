@@ -38,9 +38,6 @@ namespace confighttp {
   SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
   SessionTokenAPI sessionTokenAPI(sessionTokenManager);
 
-  // Session token validity duration (
-  constexpr std::chrono::hours SESSION_TOKEN_DURATION {2};
-
   /**
    * @class InvalidScopeException
    * @brief Exception thrown for invalid API token scopes.
@@ -76,6 +73,7 @@ namespace confighttp {
    * @return true if authenticated, false otherwise.
    */
   bool ApiTokenManager::authenticate_token(const std::string &token, const std::string &path, const std::string &method) {
+    std::scoped_lock lock(mutex_);
     std::string token_hash = dependencies_.hash(token);
     auto it = api_tokens.find(token_hash);
     if (it == api_tokens.end()) {
@@ -135,11 +133,13 @@ namespace confighttp {
     if (!path_methods) {
       return std::nullopt;
     }
-
     std::string token = dependencies_.rand_alphabet(32);
     std::string token_hash = dependencies_.hash(token);
     ApiTokenInfo info {token_hash, *path_methods, username, dependencies_.now()};
-    api_tokens[token_hash] = info;
+    {
+      std::scoped_lock lock(mutex_);
+      api_tokens[token_hash] = info;
+    }
     save_api_tokens();
     return token;
   }
@@ -154,18 +154,13 @@ namespace confighttp {
     nlohmann::json input;
     try {
       input = nlohmann::json::parse(request_body);
-    } catch (const nlohmann::json::exception &e) {
-      return nlohmann::json {{"error", std::string("Invalid JSON: ") + e.what()}}.dump();
+    } catch (const nlohmann::json::exception &) {
+      return std::nullopt;
     }
     if (!input.contains("scopes") || !input["scopes"].is_array()) {
-      return nlohmann::json {{"error", "Missing scopes array"}}.dump();
+      return std::nullopt;
     }
-
-    auto token = create_api_token(input["scopes"], username);
-    if (!token) {
-      return nlohmann::json {{"error", "Invalid scope value"}}.dump();
-    }
-    return nlohmann::json {{"token", *token}}.dump();
+    return create_api_token(input["scopes"], username);
   }
 
   /**
@@ -201,6 +196,7 @@ namespace confighttp {
    */
   nlohmann::json ApiTokenManager::get_api_tokens_list() const {
     nlohmann::json arr = nlohmann::json::array();
+    std::scoped_lock lock(mutex_);
     for (const auto &[hash, info] : api_tokens) {
       nlohmann::json obj;
       obj["hash"] = hash;
@@ -229,11 +225,18 @@ namespace confighttp {
    * @return true if token was found and revoked, false if not found.
    */
   bool ApiTokenManager::revoke_api_token_by_hash(const std::string &hash) {
-    if (hash.empty() || api_tokens.erase(hash) == 0) {
+    if (hash.empty()) {
       return false;
     }
-    save_api_tokens();
-    return true;
+    bool erased = false;
+    {
+      std::scoped_lock lock(mutex_);
+      erased = api_tokens.erase(hash) > 0;
+    }
+    if (erased) {
+      save_api_tokens();
+    }
+    return erased;
   }
 
   /**
@@ -241,16 +244,19 @@ namespace confighttp {
    */
   void ApiTokenManager::save_api_tokens() const {
     nlohmann::json j;
-    for (const auto &[hash, info] : api_tokens) {
-      nlohmann::json obj;
-      obj["hash"] = hash;
-      obj["username"] = info.username;
-      obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
-      obj["scopes"] = nlohmann::json::array();
-      for (const auto &[path, methods] : info.path_methods) {
-        obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+    {
+      std::scoped_lock lock(mutex_);
+      for (const auto &[hash, info] : api_tokens) {
+        nlohmann::json obj;
+        obj["hash"] = hash;
+        obj["username"] = info.username;
+        obj["created_at"] = std::chrono::duration_cast<std::chrono::seconds>(info.created_at.time_since_epoch()).count();
+        obj["scopes"] = nlohmann::json::array();
+        for (const auto &[path, methods] : info.path_methods) {
+          obj["scopes"].push_back({{"path", path}, {"methods", methods}});
+        }
+        j.push_back(obj);
       }
-      j.push_back(obj);
     }
     pt::ptree root;
     if (dependencies_.file_exists(config::nvhttp.file_state)) {
@@ -322,6 +328,7 @@ namespace confighttp {
    * @brief Loads API tokens from persistent storage.
    */
   void ApiTokenManager::load_api_tokens() {
+    std::scoped_lock lock(mutex_);
     api_tokens.clear();
     if (!dependencies_.file_exists(config::nvhttp.file_state)) {
       return;
@@ -379,7 +386,7 @@ namespace confighttp {
 
   /// @brief Retrieves the currently loaded API in a read-only manner.
   const std::map<std::string, ApiTokenInfo, std::less<>> &ApiTokenManager::retrieve_loaded_api_tokens() const {
-    return api_tokens;
+    return api_tokens;  // guarded by mutex_ for writes; read-only access assumes external sync
   }
 
   /**
@@ -419,7 +426,7 @@ namespace confighttp {
     std::string token = dependencies_.rand_alphabet(64);
     std::string token_hash = dependencies_.hash(token);
     auto now = dependencies_.now();
-    auto expires = now + SESSION_TOKEN_DURATION;
+    auto expires = now + config::sunshine.session_token_ttl;
     session_tokens_[token_hash] = SessionToken {username, now, expires};
     cleanup_expired_session_tokens();
     return token;
@@ -511,7 +518,7 @@ namespace confighttp {
 
     nlohmann::json response_data;
     response_data["token"] = session_token;
-    response_data["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(SESSION_TOKEN_DURATION).count();
+    response_data["expires_in"] = std::chrono::duration_cast<std::chrono::seconds>(config::sunshine.session_token_ttl).count();
 
     // Hardened secure redirect handling
     std::string safe_redirect = "/";
@@ -522,7 +529,7 @@ namespace confighttp {
       if (!boost::algorithm::contains(lower, "://") &&
           !boost::algorithm::contains(lower, "%2f") &&
           !boost::algorithm::contains(lower, "\\") &&
-          !boost::algorithm::contains(lower, "..") &&
+          !boost::algorithm::contains(lower, "/..") &&
           !(redirect_url.size() > 1 && redirect_url[1] == '/')) {  // reject double slash
         // Unicode normalization: reject if normalized path differs
         std::string norm = redirect_url;
@@ -696,7 +703,7 @@ namespace confighttp {
     result.headers.emplace("Content-Type", "application/json");
     result.headers.emplace("Access-Control-Allow-Origin", get_cors_origin());
     if (add_www_auth) {
-      result.headers.emplace("WWW-Authenticate", R"(Basic realm=\"Sunshine Gamestream Host\", charset=\"UTF-8\")");
+      result.headers.emplace("WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")");
     }
     return result;
   }

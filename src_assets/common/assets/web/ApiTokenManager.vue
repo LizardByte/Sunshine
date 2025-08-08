@@ -264,7 +264,10 @@ export default defineComponent({
     }
   },
   computed: {
-    validScopes() { return this.scopes.filter(s => s.path && s.methods && s.methods.length) },
+    validScopes() { 
+      const filtered = this.scopes.filter(s => s.path && s.methods && Array.isArray(s.methods) && s.methods.length > 0)
+      return filtered
+    },
     isGenerateDisabled() { return !this.validScopes.length || this.isGenerating },
     filteredTokens() {
       const filter = (this.debouncedFilter || '').trim().toLowerCase()

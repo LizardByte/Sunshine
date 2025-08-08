@@ -21,6 +21,9 @@
 #define WEB_DIR SUNSHINE_ASSETS_DIR "/web/"
 
 namespace confighttp {
+  using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
+  using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+
   constexpr auto PORT_HTTPS = 1;
   void start();
 
@@ -30,12 +33,9 @@ namespace confighttp {
   };
 
   // Authentication functions
-  AuthResult check_auth(const req_https_t &request);
+  AuthResult check_auth(const req_https_t &request);  // (if still required elsewhere)
   bool authenticate(resp_https_t response, req_https_t request);
-  void save_api_tokens();
-  void load_api_tokens();
-  using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
-  using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+
   TokenScope scope_from_string(std::string_view s);
   std::string scope_to_string(TokenScope scope);
 
@@ -46,12 +46,6 @@ namespace confighttp {
   void loginUser(resp_https_t response, req_https_t request);
   void logoutUser(resp_https_t response, req_https_t request);
   void getLoginPage(resp_https_t response, req_https_t request);
-
-  // Session token management
-  std::string generate_session_token(const std::string &username);
-  bool validate_session_token(const std::string &token);
-  void revoke_session_token(const std::string &token);
-  void cleanup_expired_session_tokens();
 
 }  // namespace confighttp
 

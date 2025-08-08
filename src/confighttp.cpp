@@ -55,8 +55,6 @@ namespace confighttp {
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
 
-  static constexpr std::chrono::hours SESSION_TOKEN_DURATION {24};  // for API compatibility
-
   enum class op_e {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
@@ -1234,18 +1232,18 @@ namespace confighttp {
       return;
     }
 
-    std::string request_body;
-    request->content >> request_body;
-    auto result = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    const std::string request_body = ss.str();
+    auto token_opt = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
     nlohmann::json output_tree;
-    if (result) {
-      // Use send_response to return the token in JSON
-      output_tree["token"] = *result;
+    if (!token_opt) {
+      output_tree["error"] = "Invalid token request";
       send_response(response, output_tree);
-    } else {
-      output_tree["error"] = "Internal server error";
-      send_response(response, output_tree);
+      return;
     }
+    output_tree["token"] = *token_opt;
+    send_response(response, output_tree);
   }
 
   /**
@@ -1303,13 +1301,11 @@ namespace confighttp {
     send_response(response, output_tree);
   }
 
-
   void start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
     auto address_family = net::af_from_enum_string(config::sunshine.address_family);
-
 
     https_server_t server(config::nvhttp.cert, config::nvhttp.pkey);
     server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {

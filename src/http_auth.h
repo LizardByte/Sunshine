@@ -58,6 +58,7 @@ namespace confighttp {
   public:
     explicit InvalidScopeException(const std::string &msg);
     const char *what() const noexcept override;
+
   private:
     std::string message_;
   };
@@ -77,12 +78,14 @@ namespace confighttp {
     void load_api_tokens();
     static ApiTokenManagerDependencies make_default_dependencies();
     const std::map<std::string, ApiTokenInfo, std::less<>> &retrieve_loaded_api_tokens() const;
+
   private:
     std::optional<std::map<std::string, std::set<std::string, std::less<>>, std::less<>>>
       parse_json_scopes(const nlohmann::json &scopes_json) const;
     std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> parse_scope(const boost::property_tree::ptree &scope_tree) const;
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> build_scope_map(const boost::property_tree::ptree &scopes_node) const;
     ApiTokenManagerDependencies dependencies_;
+    mutable std::mutex mutex_;
     std::map<std::string, ApiTokenInfo, std::less<>> api_tokens;
   };
 
@@ -113,21 +116,27 @@ namespace confighttp {
     std::optional<std::string> get_username_for_token(const std::string &token);
     size_t session_count() const;
     static SessionTokenManagerDependencies make_default_dependencies();
+
   private:
     SessionTokenManagerDependencies dependencies_;
     mutable std::mutex mutex_;
+
     struct TransparentStringHash {
       using is_transparent = void;
+
       std::size_t operator()(std::string_view txt) const noexcept {
-        return std::hash<std::string_view>{}(txt);
+        return std::hash<std::string_view> {}(txt);
       }
+
       std::size_t operator()(const std::string &txt) const noexcept {
-        return std::hash<std::string_view>{}(txt);
+        return std::hash<std::string_view> {}(txt);
       }
+
       std::size_t operator()(const char *txt) const noexcept {
-        return std::hash<std::string_view>{}(txt);
+        return std::hash<std::string_view> {}(txt);
       }
     };
+
     std::unordered_map<std::string, SessionToken, TransparentStringHash, std::equal_to<>> session_tokens_;
   };
 
@@ -135,6 +144,7 @@ namespace confighttp {
     StatusCode status_code;
     std::string body;
     SimpleWeb::CaseInsensitiveMultimap headers;
+
     APIResponse(StatusCode code, std::string response_body = "", SimpleWeb::CaseInsensitiveMultimap response_headers = {}):
         status_code(code),
         body(std::move(response_body)),
@@ -147,9 +157,9 @@ namespace confighttp {
     APIResponse login(const std::string &username, const std::string &password, const std::string &redirect_url = "/");
     APIResponse logout(const std::string &session_token);
     APIResponse validate_session(const std::string &session_token);
+
   private:
     SessionTokenManager &session_manager_;
-    static constexpr std::chrono::hours SESSION_TOKEN_DURATION {2};
     bool validate_credentials(const std::string &username, const std::string &password) const;
     APIResponse create_success_response(const nlohmann::json &data = {}) const;
     APIResponse create_error_response(const std::string &error_message, StatusCode status_code = StatusCode::client_error_bad_request) const;
@@ -161,8 +171,7 @@ namespace confighttp {
   AuthResult check_basic_auth(const std::string &rawAuth);
   AuthResult check_session_auth(const std::string &rawAuth);
   bool is_html_request(const std::string &path);
-  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, 
-                       const std::string &path, const std::string &method);
+  AuthResult check_auth(const std::string &remote_address, const std::string &auth_header, const std::string &path, const std::string &method);
   std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers);
   extern ApiTokenManager apiTokenManager;
   extern SessionTokenManager sessionTokenManager;

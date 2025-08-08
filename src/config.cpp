@@ -578,6 +578,7 @@ namespace config {
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
     {},  // prep commands
+    std::chrono::hours {2}  // session_token_ttl default 2h
   };
 
   bool endline(char ch) {
@@ -1296,6 +1297,15 @@ namespace config {
       apply_flags(it->second.c_str());
 
       vars.erase(it);
+    }
+
+    // Parse session token TTL (seconds) if provided
+    {
+      int ttl_secs = -1;
+      int_between_f(vars, "session_token_ttl_seconds", ttl_secs, {1, std::numeric_limits<int>::max()});
+      if (ttl_secs > 0) {
+        sunshine.session_token_ttl = std::chrono::seconds {ttl_secs};
+      }
     }
 
     if (sunshine.min_log_level <= 3) {
