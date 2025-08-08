@@ -1,0 +1,236 @@
+---
+name: CI-Homebrew
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      publish_release:
+        required: true
+        type: string
+      release_commit:
+        required: true
+        type: string
+      release_tag:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+      GIT_EMAIL:
+        required: true
+      GIT_USERNAME:
+        required: true
+
+jobs:
+  build_homebrew:
+    name: ${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }}
+    runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
+          # while GitHub has larger macOS runners, they are not available for our repos :(
+          - os_version: "13"
+            os_name: "macos"
+          - os_version: "14"
+            os_name: "macos"
+          - os_version: "15"
+            os_name: "macos"
+          - os_version: "latest"
+            os_name: "ubuntu"
+          - os_version: "latest"  # this job will only configure the formula for release, no validation
+            os_name: "ubuntu"
+            release: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Fix homebrew python
+        if: matrix.os_name == 'macos' && matrix.os_version == '13'
+        run: |
+          rm '/usr/local/bin/2to3'
+          rm '/usr/local/bin/2to3-3.12'
+          rm '/usr/local/bin/idle3'
+          rm '/usr/local/bin/idle3.12'
+          rm '/usr/local/bin/idle3.13'
+          rm '/usr/local/bin/pip3.12'
+          rm '/usr/local/bin/pip3.13'
+          rm '/usr/local/bin/pydoc3'
+          rm '/usr/local/bin/pydoc3.12'
+          rm '/usr/local/bin/pydoc3.13'
+          rm '/usr/local/bin/python3'
+          rm '/usr/local/bin/python3.12'
+          rm '/usr/local/bin/python3.13'
+          rm '/usr/local/bin/python3-config'
+          rm '/usr/local/bin/python3.12-config'
+          rm '/usr/local/bin/python3.13-config'
+          brew install python3
+
+      - name: Configure formula
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
+        run: |
+          # variables for formula
+          branch="${{ env.HEAD_REF }}"
+          build_version=${{ inputs.release_version }}
+          commit=${{ inputs.release_commit }}
+
+          # check the branch variable
+          if [ -z "$branch" ]
+          then
+            echo "This is a PUSH event"
+            clone_url=${{ github.event.repository.clone_url }}
+            branch="${{ github.ref_name }}"
+            default_branch="${{ github.event.repository.default_branch }}"
+
+            if [ "${{ matrix.release }}" == "true" ]; then
+              # we will publish the formula with the release tag
+              tag="${{ inputs.release_tag }}"
+            else
+              tag="${{ github.ref_name }}"
+            fi
+          else
+            echo "This is a PR event"
+            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            branch="${{ env.PR_HEAD_REF }}"
+            default_branch="${{ env.PR_DEFAULT_BRANCH }}"
+            tag="${{ env.PR_HEAD_REF }}"
+          fi
+          echo "Branch: ${branch}"
+          echo "Clone URL: ${clone_url}"
+          echo "Tag: ${tag}"
+
+          export BRANCH=${branch}
+          export BUILD_VERSION=${build_version}
+          export CLONE_URL=${clone_url}
+          export COMMIT=${commit}
+          export TAG=${tag}
+
+          mkdir -p build
+          cmake \
+            -B build \
+            -S . \
+            -DGITHUB_DEFAULT_BRANCH="${default_branch}" \
+            -DSUNSHINE_CONFIGURE_HOMEBREW=ON \
+            -DSUNSHINE_CONFIGURE_ONLY=ON
+
+          # copy formula to artifacts
+          mkdir -p homebrew
+          cp -f ./build/sunshine.rb ./homebrew/sunshine.rb
+
+          # testing
+          cat ./homebrew/sunshine.rb
+
+      - name: Upload Artifacts
+        if: matrix.release
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-Homebrew
+          path: homebrew/
+          if-no-files-found: error
+
+      - name: Setup Xvfb
+        if: matrix.release != true && runner.os == 'Linux'
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            xvfb
+
+          export DISPLAY=:1
+          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+
+          echo "DISPLAY=${DISPLAY}" >> "${GITHUB_ENV}"
+
+      - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
+      - name: Validate Homebrew Formula
+        id: test
+        if: matrix.release != true
+        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
+          git_email: ${{ secrets.GIT_EMAIL }}
+          git_username: ${{ secrets.GIT_USERNAME }}
+          publish: false
+          token: ${{ secrets.GH_TOKEN }}
+          validate: true
+      - run: echo "::remove-matcher owner=gcc-strip3::"
+
+      - name: Setup python
+        id: python
+        if: false
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Generate gcov report
+        id: test_report
+        # any except canceled or skipped
+        # TODO: fix coverage, no .gcno files are being created
+        # TODO: .gcno files are supposed to be created next to .o files
+        if: false
+        # if: >-
+        #   always() &&
+        #   matrix.release != true &&
+        #   (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        run: |
+          cp -rf ${{ steps.test.outputs.buildpath }}/build/ ./build/
+          cd build
+          ls -Ra
+
+          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --verbose \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          matrix.release != true &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
+          startsWith(github.repository, 'LizardByte/')
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
+          path: |
+            build/coverage.xml
+            ${{ steps.test.outputs.testpath }}/test_results.xml
+          if-no-files-found: error
+
+      - name: Patch homebrew formula
+        # create beta version of the formula
+        # don't run this on macOS, as the sed command fails
+        if: matrix.release
+        run: |
+          # variables
+          formula_file="homebrew/sunshine-beta.rb"
+
+          # rename the file
+          mv homebrew/sunshine.rb $formula_file
+
+          # update the formula
+          sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
+          sed -i 's/# conflicts_with/conflicts_with/' $formula_file
+
+          # print new file
+          echo "New formula:"
+          cat $formula_file
+
+      - name: Upload Artifacts (Beta)
+        if: matrix.release
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-Homebrew
+          path: homebrew/
+          if-no-files-found: error

@@ -96,9 +96,11 @@ function add_arch_deps() {
     'base-devel'
     'cmake'
     'curl'
+    'doxygen'
     "gcc${gcc_version}"
     "gcc${gcc_version}-libs"
     'git'
+    'graphviz'
     'libayatana-appindicator'
     'libcap'
     'libdrm'
@@ -400,7 +402,7 @@ function run_install() {
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
       if [ -e "$file_path" ]; then
-        mv "$file_path" "$file_path.bak"
+        ${sudo_cmd} mv "$file_path" "$file_path.bak"
       fi
     done
 
@@ -439,12 +441,14 @@ function run_install() {
       echo "Compiling doxygen"
       doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/doxygen-${doxygen_min}.src.tar.gz"
       echo "doxygen url: ${doxygen_url}"
-      wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/doxygen.tar.gz"
-      tar -xzf "${build_dir}/doxygen.tar.gz"
-      cd "doxygen-${doxygen_min}"
-      cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
-      ninja -C "build" -j"${num_processors}"
-      ninja -C "build" install
+      pushd "${build_dir}"
+        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "doxygen.tar.gz"
+        tar -xzf "doxygen.tar.gz"
+        cd "doxygen-${doxygen_min}"
+        cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
+        ninja -C "build" -j"${num_processors}"
+        ${sudo_cmd} ninja -C "build" install
+      popd
     else
       echo "Doxygen version not in range, skipping docs"
       cmake_args+=("-DBUILD_DOCS=OFF")
@@ -456,6 +460,8 @@ function run_install() {
     nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
     echo "nvm url: ${nvm_url}"
     wget -qO- ${nvm_url} | bash
+
+    # shellcheck source=/dev/null  # we don't care that shellcheck cannot find nvm.sh
     source "$HOME/.nvm/nvm.sh"
     nvm install node
     nvm use node

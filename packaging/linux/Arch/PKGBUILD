@@ -67,7 +67,7 @@ prepare() {
 
 build() {
     export BRANCH="@GITHUB_BRANCH@"
-    export BUILD_VERSION="@GITHUB_BUILD_VERSION@"
+    export BUILD_VERSION="@BUILD_VERSION@"
     export COMMIT="@GITHUB_COMMIT@"
 
     export CC="gcc-${_gcc_version}"

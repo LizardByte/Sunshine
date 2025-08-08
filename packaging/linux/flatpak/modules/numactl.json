@@ -1,22 +1,24 @@
 {
   "name": "numactl",
-  "buildsystem": "autotools",
-  "cleanup": [
-    "/bin"
-  ],
   "sources": [
     {
       "type": "git",
-      "url": "https://salsa.debian.org/debian/numactl.git",
-      "commit": "640bb34497702f9aaeb8af1b491f32b91d03ec80",
-      "tag": "debian/2.0.16-1",
+      "url": "https://github.com/numactl/numactl.git",
+      "tag": "v2.0.19",
+      "commit": "3bc85e37d5a30da6790cb7e8bb488bb8f679170f",
       "x-checker-data": {
         "type": "git",
-        "tag-pattern": "^debian\\/(\\d.+)$",
-        "versions": {
-          "<": "2.0.17"
-        }
+        "tag-pattern": "^v([\\d.]+)$"
       }
     }
+  ],
+  "rm-configure": true,
+  "cleanup": [
+    "/include",
+    "/lib/pkgconfig",
+    "/lib/*.a",
+    "/lib/*.la",
+    "/lib/*.so",
+    "/share/man"
   ]
 }

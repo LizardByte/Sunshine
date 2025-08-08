@@ -5,7 +5,7 @@
 #define INITGUID
 
 // platform includes
-#include <audioclient.h>
+#include <Audioclient.h>
 #include <codecvt>
 #include <iostream>
 #include <locale>

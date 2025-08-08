@@ -1,0 +1,44 @@
+/**
+ * @file src/platform/windows/windows.rc
+ * @brief Windows resource file.
+ */
+#include "winver.h"
+
+#define STRINGIFY(x) #x
+#define TOSTRING(x) STRINGIFY(x)
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     PROJECT_VERSION_MAJOR,PROJECT_VERSION_MINOR,PROJECT_VERSION_PATCH,0
+PRODUCTVERSION  PROJECT_VERSION_MAJOR,PROJECT_VERSION_MINOR,PROJECT_VERSION_PATCH,0
+FILEOS          VOS__WINDOWS32
+FILETYPE        VFT_APP
+FILESUBTYPE     VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904E4"
+        BEGIN
+            VALUE "CompanyName",      TOSTRING(PROJECT_VENDOR)
+            VALUE "FileDescription",  TOSTRING(PROJECT_NAME)
+            VALUE "FileVersion",      TOSTRING(PROJECT_VERSION)
+            VALUE "InternalName",     TOSTRING(PROJECT_NAME)
+            VALUE "ProductName",      TOSTRING(PROJECT_NAME)
+            VALUE "ProductVersion",   TOSTRING(PROJECT_VERSION)
+            VALUE "LegalCopyright",   "https://raw.githubusercontent.com/LizardByte/Sunshine/master/LICENSE"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        /* The following line should only be modified for localized versions.     */
+        /* It consists of any number of WORD,WORD pairs, with each pair           */
+        /* describing a language,codepage combination supported by the file.      */
+        /*                                                                        */
+        /* For example, a file might have values "0x409,1252" indicating that it  */
+        /* supports English language (0x409) in the Windows ANSI codepage (1252). */
+
+        VALUE "Translation", 0x409, 1252
+
+    END
+END
+SuperDuperAmazing   ICON    DISCARDABLE    PROJECT_ICON_PATH

@@ -19,7 +19,6 @@ ENV DISPLAY=:0
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # install dependencies
-# hadolint ignore=SC1091
 RUN <<_DEPS
 #!/bin/bash
 set -e
@@ -74,7 +73,6 @@ WORKDIR /build/cuda
 # versions: https://developer.nvidia.com/cuda-toolkit-archive
 ENV CUDA_VERSION="11.8.0"
 ENV CUDA_BUILD="520.61.05"
-# hadolint ignore=SC3010
 RUN <<_INSTALL_CUDA
 #!/bin/bash
 set -e

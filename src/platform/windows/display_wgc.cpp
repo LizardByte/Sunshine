@@ -13,7 +13,7 @@
 // Gross hack to work around MINGW-packages#22160
 #define ____FIReference_1_boolean_INTERFACE_DEFINED__
 
-#include <windows.graphics.capture.interop.h>
+#include <Windows.Graphics.Capture.Interop.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.metadata.h>
 #include <winrt/windows.graphics.directx.direct3d11.h>
