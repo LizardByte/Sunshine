@@ -33,4 +33,14 @@ namespace platf {
    * @return The converted UTF-8 string.
    */
   std::string to_utf8(const std::wstring &string);
+
+  /**
+   * @brief Checks if a mouse is physically present and, if not, toggles Mouse Keys
+   * to force the software cursor to become visible.
+   * @details This is used as a workaround for KVM switches that do not send
+   * standard device removal messages, which can cause the cursor to disappear.
+   */
+  void check_and_force_cursor_visibility();
+
+  extern bool is_streaming;
 }  // namespace platf
