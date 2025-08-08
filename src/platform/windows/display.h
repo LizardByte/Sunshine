@@ -173,6 +173,7 @@ namespace platf::dxgi {
     int height_before_rotation;
 
     int client_frame_rate;
+    DXGI_RATIONAL client_frame_rate_strict;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;
