@@ -34,25 +34,25 @@ namespace fs = std::filesystem;
 namespace confighttp {
 
   // Global instances for authentication
-  ApiTokenManager apiTokenManager;
-  SessionTokenManager sessionTokenManager(SessionTokenManager::make_default_dependencies());
-  SessionTokenAPI sessionTokenAPI(sessionTokenManager);
+  ApiTokenManager api_token_manager;
+  SessionTokenManager session_token_manager(SessionTokenManager::make_default_dependencies());
+  SessionTokenAPI session_token_api(session_token_manager);
 
   InvalidScopeException::InvalidScopeException(const std::string &msg):
-      message_(msg) {}
+      _message(msg) {}
 
   const char *InvalidScopeException::what() const noexcept {
-    return message_.c_str();
+    return _message.c_str();
   }
 
   ApiTokenManager::ApiTokenManager(const ApiTokenManagerDependencies &dependencies):
-      dependencies_(dependencies) {}
+      _dependencies(dependencies) {}
 
   bool ApiTokenManager::authenticate_token(const std::string &token, const std::string &path, const std::string &method) {
-    std::scoped_lock lock(mutex_);
-    std::string token_hash = dependencies_.hash(token);
-    auto it = api_tokens.find(token_hash);
-    if (it == api_tokens.end()) {
+    std::scoped_lock lock(_mutex);
+    std::string token_hash = _dependencies.hash(token);
+    auto it = _api_tokens.find(token_hash);
+    if (it == _api_tokens.end()) {
       return false;
     }
 
@@ -83,11 +83,11 @@ namespace confighttp {
     });
   }
 
-  bool ApiTokenManager::authenticate_bearer(std::string_view rawAuth, const std::string &path, const std::string &method) {
-    if (rawAuth.length() <= 7 || !rawAuth.starts_with("Bearer ")) {
+  bool ApiTokenManager::authenticate_bearer(std::string_view raw_auth, const std::string &path, const std::string &method) {
+    if (raw_auth.length() <= 7 || !raw_auth.starts_with("Bearer ")) {
       return false;
     }
-    auto token = std::string(rawAuth.substr(7));
+    auto token = std::string(raw_auth.substr(7));
     return authenticate_token(token, path, method);
   }
 
@@ -96,12 +96,12 @@ namespace confighttp {
     if (!path_methods) {
       return std::nullopt;
     }
-    std::string token = dependencies_.rand_alphabet(32);
-    std::string token_hash = dependencies_.hash(token);
-    ApiTokenInfo info {token_hash, *path_methods, username, dependencies_.now()};
+    std::string token = _dependencies.rand_alphabet(32);
+    std::string token_hash = _dependencies.hash(token);
+    ApiTokenInfo info {token_hash, *path_methods, username, _dependencies.now()};
     {
-      std::scoped_lock lock(mutex_);
-      api_tokens[token_hash] = info;
+      std::scoped_lock lock(_mutex);
+      _api_tokens[token_hash] = info;
     }
     save_api_tokens();
     return token;
@@ -144,8 +144,8 @@ namespace confighttp {
 
   nlohmann::json ApiTokenManager::get_api_tokens_list() const {
     nlohmann::json arr = nlohmann::json::array();
-    std::scoped_lock lock(mutex_);
-    for (const auto &[hash, info] : api_tokens) {
+    std::scoped_lock lock(_mutex);
+    for (const auto &[hash, info] : _api_tokens) {
       nlohmann::json obj;
       obj["hash"] = hash;
       obj["username"] = info.username;
@@ -169,8 +169,8 @@ namespace confighttp {
     }
     bool erased = false;
     {
-      std::scoped_lock lock(mutex_);
-      erased = api_tokens.erase(hash) > 0;
+      std::scoped_lock lock(_mutex);
+      erased = _api_tokens.erase(hash) > 0;
     }
     if (erased) {
       save_api_tokens();
@@ -181,8 +181,8 @@ namespace confighttp {
   void ApiTokenManager::save_api_tokens() const {
     nlohmann::json j;
     {
-      std::scoped_lock lock(mutex_);
-      for (const auto &[hash, info] : api_tokens) {
+      std::scoped_lock lock(_mutex);
+      for (const auto &[hash, info] : _api_tokens) {
         nlohmann::json obj;
         obj["hash"] = hash;
         obj["username"] = info.username;
@@ -195,8 +195,8 @@ namespace confighttp {
       }
     }
     pt::ptree root;
-    if (dependencies_.file_exists(config::nvhttp.file_state)) {
-      dependencies_.read_json(config::nvhttp.file_state, root);
+    if (_dependencies.file_exists(config::nvhttp.file_state)) {
+      _dependencies.read_json(config::nvhttp.file_state, root);
     }
     pt::ptree tokens_pt;
     for (const auto &tok : j) {
@@ -219,7 +219,7 @@ namespace confighttp {
       tokens_pt.push_back({"", t});
     }
     root.put_child("root.api_tokens", tokens_pt);
-    dependencies_.write_json(config::nvhttp.file_state, root);
+    _dependencies.write_json(config::nvhttp.file_state, root);
   }
 
   std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> ApiTokenManager::parse_scope(const pt::ptree &scope_tree) const {
@@ -251,13 +251,13 @@ namespace confighttp {
   }
 
   void ApiTokenManager::load_api_tokens() {
-    std::scoped_lock lock(mutex_);
-    api_tokens.clear();
-    if (!dependencies_.file_exists(config::nvhttp.file_state)) {
+    std::scoped_lock lock(_mutex);
+    _api_tokens.clear();
+    if (!_dependencies.file_exists(config::nvhttp.file_state)) {
       return;
     }
     pt::ptree root;
-    dependencies_.read_json(config::nvhttp.file_state, root);
+    _dependencies.read_json(config::nvhttp.file_state, root);
     if (auto api_tokens_node = root.get_child_optional("root.api_tokens")) {
       for (const auto &[_, token_tree] : *api_tokens_node) {
         const std::string hash = token_tree.get<std::string>("hash", "");
@@ -275,7 +275,7 @@ namespace confighttp {
         if (auto scopes_node = token_tree.get_child_optional("scopes")) {
           info.path_methods = build_scope_map(*scopes_node);
         }
-        api_tokens.try_emplace(hash, std::move(info));
+        _api_tokens.try_emplace(hash, std::move(info));
       }
     }
   }
@@ -304,11 +304,11 @@ namespace confighttp {
   }
 
   const std::map<std::string, ApiTokenInfo, std::less<>> &ApiTokenManager::retrieve_loaded_api_tokens() const {
-    return api_tokens;
+    return _api_tokens;
   }
 
   SessionTokenManager::SessionTokenManager(const SessionTokenManagerDependencies &dependencies):
-      dependencies_(dependencies) {}
+      _dependencies(dependencies) {}
 
   SessionTokenManagerDependencies SessionTokenManager::make_default_dependencies() {
     SessionTokenManagerDependencies deps;
@@ -326,59 +326,59 @@ namespace confighttp {
   }
 
   std::string SessionTokenManager::generate_session_token(const std::string &username) {
-    std::scoped_lock lock(mutex_);
-    std::string token = dependencies_.rand_alphabet(64);
-    std::string token_hash = dependencies_.hash(token);
-    auto now = dependencies_.now();
+    std::scoped_lock lock(_mutex);
+    std::string token = _dependencies.rand_alphabet(64);
+    std::string token_hash = _dependencies.hash(token);
+    auto now = _dependencies.now();
     auto expires = now + config::sunshine.session_token_ttl;
-    session_tokens_[token_hash] = SessionToken {username, now, expires};
+    _session_tokens[token_hash] = SessionToken {username, now, expires};
     cleanup_expired_session_tokens();
     return token;
   }
 
   bool SessionTokenManager::validate_session_token(const std::string &token) {
-    std::scoped_lock lock(mutex_);
-    std::string token_hash = dependencies_.hash(token);
-    auto it = session_tokens_.find(token_hash);
-    if (it == session_tokens_.end()) {
+    std::scoped_lock lock(_mutex);
+    std::string token_hash = _dependencies.hash(token);
+    auto it = _session_tokens.find(token_hash);
+    if (it == _session_tokens.end()) {
       return false;
     }
-    if (auto now = dependencies_.now(); now > it->second.expires_at) {
-      session_tokens_.erase(it);
+    if (auto now = _dependencies.now(); now > it->second.expires_at) {
+      _session_tokens.erase(it);
       return false;
     }
     return true;
   }
 
   void SessionTokenManager::revoke_session_token(const std::string &token) {
-    std::scoped_lock lock(mutex_);
-    std::string token_hash = dependencies_.hash(token);
-    session_tokens_.erase(token_hash);
+    std::scoped_lock lock(_mutex);
+    std::string token_hash = _dependencies.hash(token);
+    _session_tokens.erase(token_hash);
   }
 
   void SessionTokenManager::cleanup_expired_session_tokens() {
-    auto now = dependencies_.now();
-    std::erase_if(session_tokens_, [now](const auto &pair) {
+    auto now = _dependencies.now();
+    std::erase_if(_session_tokens, [now](const auto &pair) {
       return now > pair.second.expires_at;
     });
   }
 
   std::optional<std::string> SessionTokenManager::get_username_for_token(const std::string &token) {
-    std::scoped_lock lock(mutex_);
-    std::string token_hash = dependencies_.hash(token);
-    if (auto it = session_tokens_.find(token_hash); it != session_tokens_.end() && dependencies_.now() <= it->second.expires_at) {
+    std::scoped_lock lock(_mutex);
+    std::string token_hash = _dependencies.hash(token);
+    if (auto it = _session_tokens.find(token_hash); it != _session_tokens.end() && _dependencies.now() <= it->second.expires_at) {
       return it->second.username;
     }
     return std::nullopt;
   }
 
   size_t SessionTokenManager::session_count() const {
-    std::scoped_lock lock(mutex_);
-    return session_tokens_.size();
+    std::scoped_lock lock(_mutex);
+    return _session_tokens.size();
   }
 
   SessionTokenAPI::SessionTokenAPI(SessionTokenManager &session_manager):
-      session_manager_(session_manager) {}
+      _session_manager(session_manager) {}
 
   APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url) {
     if (!validate_credentials(username, password)) {
@@ -386,7 +386,7 @@ namespace confighttp {
       return create_error_response("Invalid credentials", StatusCode::client_error_unauthorized);
     }
 
-    std::string session_token = session_manager_.generate_session_token(username);
+    std::string session_token = _session_manager.generate_session_token(username);
 
     nlohmann::json response_data;
     response_data["token"] = session_token;
@@ -432,7 +432,7 @@ namespace confighttp {
 
   APIResponse SessionTokenAPI::logout(const std::string &session_token) {
     if (!session_token.empty()) {
-      session_manager_.revoke_session_token(session_token);
+      _session_manager.revoke_session_token(session_token);
     }
 
     nlohmann::json response_data;
@@ -451,7 +451,7 @@ namespace confighttp {
       return create_error_response("Session token required", SimpleWeb::StatusCode::client_error_unauthorized);
     }
 
-    if (bool is_valid = session_manager_.validate_session_token(session_token); !is_valid) {
+    if (bool is_valid = _session_manager.validate_session_token(session_token); !is_valid) {
       return create_error_response("Invalid or expired session token", SimpleWeb::StatusCode::client_error_unauthorized);
     }
 
@@ -495,8 +495,8 @@ namespace confighttp {
     return APIResponse(status_code, response_body.dump(), headers);
   }
 
-  bool authenticate_basic(const std::string_view rawAuth) {
-    auto base64 = std::string(rawAuth.substr(6));
+  bool authenticate_basic(const std::string_view raw_auth) {
+    auto base64 = std::string(raw_auth.substr(6));
     auto authData = SimpleWeb::Crypto::Base64::decode(base64);
     std::string::size_type index = authData.find(':');
     if (index == std::string::npos || index >= authData.size() - 1) {
@@ -531,28 +531,28 @@ namespace confighttp {
     return result;
   }
 
-  AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method) {
-    if (!apiTokenManager.authenticate_bearer(rawAuth, path, method)) {
+  AuthResult check_bearer_auth(const std::string &raw_auth, const std::string &path, const std::string &method) {
+    if (!api_token_manager.authenticate_bearer(raw_auth, path, method)) {
       return make_auth_error(StatusCode::client_error_forbidden, "Forbidden: Token does not have permission for this path/method.");
     }
     return {true, StatusCode::success_ok, {}, {}};
   }
 
-  AuthResult check_basic_auth(const std::string &rawAuth) {
-    if (!authenticate_basic(rawAuth)) {
+  AuthResult check_basic_auth(const std::string &raw_auth) {
+    if (!authenticate_basic(raw_auth)) {
       return make_auth_error(StatusCode::client_error_unauthorized, "Unauthorized", true);
     }
     return {true, StatusCode::success_ok, {}, {}};
   }
 
-  AuthResult check_session_auth(const std::string &rawAuth) {
-    if (rawAuth.rfind("Session ", 0) != 0) {
+  AuthResult check_session_auth(const std::string &raw_auth) {
+    if (raw_auth.rfind("Session ", 0) != 0) {
       return make_auth_error(StatusCode::client_error_unauthorized, "Invalid session token format", true);
     }
 
-    std::string token = rawAuth.substr(8);
+    std::string token = raw_auth.substr(8);
 
-    if (APIResponse api_response = sessionTokenAPI.validate_session(token); api_response.status_code == StatusCode::success_ok) {
+    if (APIResponse api_response = session_token_api.validate_session(token); api_response.status_code == StatusCode::success_ok) {
       return {true, StatusCode::success_ok, {}, {}};
     }
 

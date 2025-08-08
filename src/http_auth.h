@@ -76,7 +76,7 @@ namespace confighttp {
     const char *what() const noexcept override;
 
   private:
-    std::string message_;
+    std::string _message;  ///< Stored explanatory message
   };
 
   class ApiTokenManager {
@@ -88,17 +88,17 @@ namespace confighttp {
     explicit ApiTokenManager(const ApiTokenManagerDependencies &dependencies = ApiTokenManager::make_default_dependencies());
     /**
      * @brief Authenticate a Bearer token for a given path and method.
-     * @param rawAuth Raw Authorization header value (e.g. "Bearer <token>").
+     * @param raw_auth Raw Authorization header value (e.g. "Bearer <token>").
      * @param path Requested URI path.
      * @param method HTTP method (e.g. GET / POST ...).
      * @return `true` if authorized for the requested scope.
      */
-    bool authenticate_bearer(std::string_view rawAuth, const std::string &path, const std::string &method);
+    bool authenticate_bearer(std::string_view raw_auth, const std::string &path, const std::string &method);
     /**
      * @brief Generate a new API token from a creation request body.
      * @param request_body JSON string describing requested scopes.
      * @param username User who owns the token.
-     * @return The plain token string (not hashed) or empty on failure.
+     * @return The plain token string (not hashed) or `std::nullopt` on failure.
      */
     std::optional<std::string> generate_api_token(const std::string &request_body, const std::string &username);
     /**
@@ -109,7 +109,7 @@ namespace confighttp {
     /**
      * @brief Revoke a token by its hash string.
      * @param token_hash Hash identifying the token.
-     * @return Username owning the revoked token, or empty if not found.
+     * @return Username owning the revoked token, or `std::nullopt` if not found.
      */
     std::optional<std::string> revoke_api_token(const std::string &token_hash) const;
     /**
@@ -124,7 +124,7 @@ namespace confighttp {
      * @brief Create and store a token from structured JSON scopes.
      * @param scopes_json JSON specifying scopes (path->methods mapping).
      * @param username Owner username.
-     * @return The plain token value, or empty if validation fails.
+     * @return The plain token value, or `std::nullopt` if validation fails.
      */
     std::optional<std::string> create_api_token(const nlohmann::json &scopes_json, const std::string &username);
     /**
@@ -161,14 +161,14 @@ namespace confighttp {
     /**
      * @brief Parse scope JSON into internal map form.
      * @param scopes_json Incoming JSON object.
-     * @return Scope map or empty on validation error.
+     * @return Scope map or `std::nullopt` on validation error.
      */
     std::optional<std::map<std::string, std::set<std::string, std::less<>>, std::less<>>>
       parse_json_scopes(const nlohmann::json &scopes_json) const;
     /**
      * @brief Parse a single scope entry from a property tree representation.
      * @param scope_tree Scope node tree.
-     * @return Pair of path and method set or empty if invalid.
+     * @return Pair of path and method set or `std::nullopt` if invalid.
      */
     std::optional<std::pair<std::string, std::set<std::string, std::less<>>>> parse_scope(const boost::property_tree::ptree &scope_tree) const;
     /**
@@ -177,9 +177,9 @@ namespace confighttp {
      * @return Map path->allowed methods set.
      */
     std::map<std::string, std::set<std::string, std::less<>>, std::less<>> build_scope_map(const boost::property_tree::ptree &scopes_node) const;
-    ApiTokenManagerDependencies dependencies_;
-    mutable std::mutex mutex_;
-    std::map<std::string, ApiTokenInfo, std::less<>> api_tokens;
+    ApiTokenManagerDependencies _dependencies;  ///< Injected dependencies
+    mutable std::mutex _mutex;  ///< Guards token container
+    std::map<std::string, ApiTokenInfo, std::less<>> _api_tokens;  ///< Token storage keyed by hash
   };
 
   struct SessionToken {
@@ -218,7 +218,7 @@ namespace confighttp {
      * @return `true` if exists and not expired.
      */
     bool validate_session_token(const std::string &token);
-    /**7
+    /**
      * @brief Revoke (delete) a session token.
      * @param token Token to remove.
      */
@@ -230,7 +230,7 @@ namespace confighttp {
     /**
      * @brief Lookup username for a token.
      * @param token Token string.
-     * @return Username or empty if not found/expired.
+     * @return Username or `std::nullopt` if not found/expired.
      */
     std::optional<std::string> get_username_for_token(const std::string &token);
     /**
@@ -245,8 +245,8 @@ namespace confighttp {
     static SessionTokenManagerDependencies make_default_dependencies();
 
   private:
-    SessionTokenManagerDependencies dependencies_;
-    mutable std::mutex mutex_;
+    SessionTokenManagerDependencies _dependencies;  ///< Injected dependencies
+    mutable std::mutex _mutex;  ///< Guards session token map
 
     struct TransparentStringHash {
       using is_transparent = void;
@@ -264,7 +264,7 @@ namespace confighttp {
       }
     };
 
-    std::unordered_map<std::string, SessionToken, TransparentStringHash, std::equal_to<>> session_tokens_;
+    std::unordered_map<std::string, SessionToken, TransparentStringHash, std::equal_to<>> _session_tokens;  ///< Active session tokens keyed by hash
   };
 
   struct APIResponse {
@@ -313,7 +313,7 @@ namespace confighttp {
     APIResponse validate_session(const std::string &session_token);
 
   private:
-    SessionTokenManager &session_manager_;
+    SessionTokenManager &_session_manager;  ///< Managed session token store reference
     /**
      * @brief Validate supplied credentials (implementation-defined policy).
      * @param username Name.
@@ -324,7 +324,7 @@ namespace confighttp {
     /**
      * @brief Build a success JSON response.
      * @param data Additional JSON payload.
-     * @return Response with status 200 and JSON body.
+     * @return Response with status `200` and JSON body.
      */
     APIResponse create_success_response(const nlohmann::json &data = {}) const;
     /**
@@ -338,10 +338,10 @@ namespace confighttp {
 
   /**
    * @brief Validate basic auth header credentials.
-   * @param rawAuth Raw Authorization header value.
+   * @param raw_auth Raw Authorization header value.
    * @return `true` if credentials are valid.
    */
-  bool authenticate_basic(const std::string_view rawAuth);
+  bool authenticate_basic(const std::string_view raw_auth);
   /**
    * @brief Construct an AuthResult representing an authentication error.
    * @param code HTTP status to return.
@@ -353,24 +353,24 @@ namespace confighttp {
   AuthResult make_auth_error(StatusCode code, const std::string &error, bool add_www_auth = false, const std::string &location = {});
   /**
    * @brief Check a Bearer token Authorization header.
-   * @param rawAuth Header value.
+   * @param raw_auth Header value.
    * @param path Requested path.
    * @param method HTTP method.
    * @return AuthResult with authorization outcome.
    */
-  AuthResult check_bearer_auth(const std::string &rawAuth, const std::string &path, const std::string &method);
+  AuthResult check_bearer_auth(const std::string &raw_auth, const std::string &path, const std::string &method);
   /**
    * @brief Check a Basic auth header.
-   * @param rawAuth Header value.
+   * @param raw_auth Header value.
    * @return AuthResult with outcome.
    */
-  AuthResult check_basic_auth(const std::string &rawAuth);
+  AuthResult check_basic_auth(const std::string &raw_auth);
   /**
    * @brief Check session cookie / header authentication.
-   * @param rawAuth Raw header or cookie string.
+   * @param raw_auth Raw header or cookie string.
    * @return AuthResult with outcome.
    */
-  AuthResult check_session_auth(const std::string &rawAuth);
+  AuthResult check_session_auth(const std::string &raw_auth);
   /**
    * @brief Determine whether a request path expects an HTML response.
    * @param path Requested URI path.
@@ -392,8 +392,8 @@ namespace confighttp {
    * @return Token string (may be empty if not present).
    */
   std::string extract_session_token_from_cookie(const SimpleWeb::CaseInsensitiveMultimap &headers);
-  extern ApiTokenManager apiTokenManager;
-  extern SessionTokenManager sessionTokenManager;
-  extern SessionTokenAPI sessionTokenAPI;
+  extern ApiTokenManager api_token_manager;
+  extern SessionTokenManager session_token_manager;
+  extern SessionTokenAPI session_token_api;
 
 }  // namespace confighttp

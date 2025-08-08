@@ -1235,7 +1235,7 @@ namespace confighttp {
     std::stringstream ss;
     ss << request->content.rdbuf();
     const std::string request_body = ss.str();
-    auto token_opt = apiTokenManager.generate_api_token(request_body, config::sunshine.username);
+    auto token_opt = api_token_manager.generate_api_token(request_body, config::sunshine.username);
     nlohmann::json output_tree;
     if (!token_opt) {
       output_tree["error"] = "Invalid token request";
@@ -1269,7 +1269,7 @@ namespace confighttp {
     if (!authenticate(response, request)) {
       return;
     }
-    nlohmann::json output_tree = nlohmann::json::parse(apiTokenManager.list_api_tokens_json());
+    nlohmann::json output_tree = nlohmann::json::parse(api_token_manager.list_api_tokens_json());
     send_response(response, output_tree);
   }
 
@@ -1291,7 +1291,7 @@ namespace confighttp {
     if (request->path_match.size() > 1) {
       hash = request->path_match[1];
     }
-    bool result = apiTokenManager.revoke_api_token_by_hash(hash);
+    bool result = api_token_manager.revoke_api_token_by_hash(hash);
     nlohmann::json output_tree;
     if (result) {
       output_tree["status"] = true;
@@ -1376,13 +1376,13 @@ namespace confighttp {
     };
     std::thread tcp {accept_and_run, &server};
 
-    apiTokenManager.load_api_tokens();
+    api_token_manager.load_api_tokens();
 
     // Start a background task to clean up expired session tokens every hour
     std::jthread cleanup_thread([shutdown_event]() {
       while (!shutdown_event->peek()) {
         std::this_thread::sleep_for(std::chrono::hours(1));
-        sessionTokenManager.cleanup_expired_session_tokens();
+        session_token_manager.cleanup_expired_session_tokens();
       }
     });
 
@@ -1489,7 +1489,7 @@ namespace confighttp {
       std::string password = input_tree["password"].get<std::string>();
       std::string redirect_url = input_tree.value("redirect", "/");
 
-      APIResponse api_response = sessionTokenAPI.login(username, password, redirect_url);
+      APIResponse api_response = session_token_api.login(username, password, redirect_url);
       write_api_response(response, api_response);
 
     } catch (const nlohmann::json::exception &e) {
@@ -1514,7 +1514,7 @@ namespace confighttp {
       session_token = auth->second.substr(8);
     }
 
-    APIResponse api_response = sessionTokenAPI.logout(session_token);
+    APIResponse api_response = session_token_api.logout(session_token);
     write_api_response(response, api_response);
   }
 }  // namespace confighttp
