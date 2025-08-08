@@ -23,6 +23,9 @@ const config = ref(props.config)
           {{ $t('config.adapter_name_desc_windows') }}<br>
           <pre>tools\dxgi-info.exe</pre>
         </template>
+        <template #freebsd>
+          <pre>todo</pre>
+        </template>
         <template #linux>
           {{ $t('config.adapter_name_desc_linux_1') }}<br>
           <pre>ls /dev/dri/renderD*  # {{ $t('config.adapter_name_desc_linux_2') }}</pre>

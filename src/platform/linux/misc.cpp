@@ -35,6 +35,30 @@
 #include "src/platform/common.h"
 #include "vaapi.h"
 
+#ifdef __FreeBSD__
+  #include <netinet/in.h>
+  #include <sys/socket.h>
+  // Define constants that are missing in FreeBSD
+  #ifndef IP_PKTINFO  // packet info for IPv4
+    #define IP_PKTINFO IP_RECVDSTADDR
+  #endif
+  #ifndef SOL_IP  // socket level for IPv4
+    #define SOL_IP IPPROTO_IP
+  #endif
+  #ifndef SOL_IPV6  // socket level for IPv6
+    #define SOL_IPV6 IPPROTO_IPV6
+  #endif
+  #ifndef SO_PRIORITY  // socket option for priority, disabled for FreeBSD
+    #define SO_PRIORITY -1
+  #endif
+// Define in_pktinfo structure for IPv4 packet info
+struct in_pktinfo {
+  struct in_addr ipi_addr;
+  struct in_addr ipi_spec_dst;
+  int ipi_ifindex;
+};
+#endif
+
 #ifdef __GNUC__
   #define SUNSHINE_GNUC_EXTENSION __extension__
 #else
@@ -507,8 +531,8 @@ namespace platf {
 
     {
       // If GSO is not supported, use sendmmsg() instead.
-      struct mmsghdr msgs[send_info.block_count];
-      struct iovec iovs[send_info.block_count * (send_info.headers ? 2 : 1)];
+      std::vector<struct mmsghdr> msgs(send_info.block_count);
+      std::vector<struct iovec> iovs(send_info.block_count * (send_info.headers ? 2 : 1));
       int iov_idx = 0;
       for (size_t i = 0; i < send_info.block_count; i++) {
         msgs[i].msg_len = 0;
@@ -753,6 +777,10 @@ namespace platf {
     // reset SO_PRIORITY back to 0.
     //
     // 6 is the highest priority that can be used without SYS_CAP_ADMIN.
+#ifdef __FreeBSD__
+    // FreeBSD doesn't support SO_PRIORITY, so we skip this
+    BOOST_LOG(debug) << "SO_PRIORITY not supported on FreeBSD, skipping traffic priority setting";
+#else
     int priority = data_type == qos_data_type_e::audio ? 6 : 5;
     if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
       // Reset SO_PRIORITY to 0 when QoS is disabled
@@ -760,6 +788,7 @@ namespace platf {
     } else {
       BOOST_LOG(error) << "Failed to set SO_PRIORITY: "sv << errno;
     }
+#endif
 
     return std::make_unique<qos_t>(sockfd, reset_options);
   }
