@@ -2222,7 +2222,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
             @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
-            @tip{Changing the capture method to Windows.Graphic.Capture also resolves this problem without any additional changes.}
+            @tip{Changing the capture method to Windows.Graphics.Capture also resolves this problem without any additional changes.}
         </td>
     </tr>
     <tr>

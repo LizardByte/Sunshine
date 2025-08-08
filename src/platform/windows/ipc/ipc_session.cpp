@@ -46,23 +46,35 @@ namespace platf::dxgi {
   }
 
   void ipc_session_t::initialize_if_needed() {
-    if (_initialized.load()) {
+    // Fast path: already successfully initialized
+    if (_initialized.load(std::memory_order_acquire)) {
       return;
     }
 
-    if (bool expected = false; !_initialized.compare_exchange_strong(expected, true)) {
-      // Another thread is already initializing, wait for it to complete
-      while (_initialized.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Attempt to become the initializing thread
+    bool expected = false;
+    if (!_initializing.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+      // Another thread is initializing; wait until it finishes (either success or failure)
+      while (_initializing.load(std::memory_order_acquire)) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
-      return;
+      return;  // After wait, either initialized is true (success) or false (failure); caller can retry later
     }
+
+    // We are the initializing thread now. Ensure we clear the flag on all exit paths.
+    auto clear_initializing = util::fail_guard([this]() {
+      _initializing.store(false, std::memory_order_release);
+    });
 
     // Check if properly initialized via init() first
     if (!_process_helper) {
-      BOOST_LOG(debug) << "Cannot lazy_init without proper initialization";
+      BOOST_LOG(debug) << "Cannot initialize_if_needed without prior init()";
+      _initialized.store(false, std::memory_order_release);
       return;
     }
+
+    // Reset success flag before attempting
+    _initialized.store(false, std::memory_order_release);
 
     // Get the directory of the main executable (Unicode-safe)
     std::wstring exePathBuffer(MAX_PATH, L'\0');
@@ -158,9 +170,10 @@ namespace platf::dxgi {
     }
 
     if (handle_received) {
-      _initialized.store(true);
+      _initialized.store(true, std::memory_order_release);
     } else {
       BOOST_LOG(error) << "Failed to receive handle data from helper process! Helper is likely deadlocked!";
+      _initialized.store(false, std::memory_order_release);
     }
   }
 

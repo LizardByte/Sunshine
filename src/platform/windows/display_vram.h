@@ -23,14 +23,14 @@ namespace platf::dxgi {
    * inter-process texture sharing.
    */
   struct img_d3d_t: public platf::img_t {
-    texture2d_t capture_texture;        ///< Staging/CPU readable or GPU shared texture.
-    render_target_t capture_rt;         ///< Render target bound when copying / compositing.
-    keyed_mutex_t capture_mutex;        ///< Keyed mutex for cross-process synchronization.
-    HANDLE encoder_texture_handle = {}; ///< Duplicated shared handle opened by encoder side.
-    bool dummy = false;                 ///< True if placeholder prior to first successful frame.
-    bool blank = true;                  ///< True if contains no desktop or cursor content.
-    uint32_t id = 0;                    ///< Monotonically increasing identifier.
-    DXGI_FORMAT format;                 ///< Underlying DXGI texture format.
+    texture2d_t capture_texture;  ///< Staging/CPU readable or GPU shared texture.
+    render_target_t capture_rt;  ///< Render target bound when copying / compositing.
+    keyed_mutex_t capture_mutex;  ///< Keyed mutex for cross-process synchronization.
+    HANDLE encoder_texture_handle = {};  ///< Duplicated shared handle opened by encoder side.
+    bool dummy = false;  ///< True if placeholder prior to first successful frame.
+    bool blank = true;  ///< True if contains no desktop or cursor content.
+    uint32_t id = 0;  ///< Monotonically increasing identifier.
+    DXGI_FORMAT format;  ///< Underlying DXGI texture format.
 
     ~img_d3d_t() override {
       if (encoder_texture_handle) {

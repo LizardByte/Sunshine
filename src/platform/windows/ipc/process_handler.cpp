@@ -20,9 +20,8 @@
 #include "src/platform/windows/misc.h"
 #include "src/utility.h"
 
-
-ProcessHandler::ProcessHandler()
-    : job_(create_kill_on_close_job()) {}
+ProcessHandler::ProcessHandler():
+    job_(create_kill_on_close_job()) {}
 
 bool ProcessHandler::start(const std::wstring &application_path, std::wstring_view arguments) {
   if (running_) {

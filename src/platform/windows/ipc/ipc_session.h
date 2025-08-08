@@ -60,7 +60,7 @@ namespace platf::dxgi {
     capture_e acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out);
 
     /**
-     * @brief Release the keyed mutex and send a heartbeat to the helper process.
+     * @brief Release the keyed mutex.
      */
     void release();
 
@@ -135,22 +135,23 @@ namespace platf::dxgi {
     bool try_get_adapter_luid(LUID &luid_out);
 
     // --- members ---
-    std::unique_ptr<ProcessHandler> _process_helper; ///< Helper process owner.
-    std::unique_ptr<AsyncNamedPipe> _pipe; ///< Async control/message pipe.
-    std::unique_ptr<INamedPipe> _frame_queue_pipe; ///< Pipe providing frame ready notifications.
-    safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex; ///< Keyed mutex for shared texture.
-    safe_com_ptr<ID3D11Texture2D> _shared_texture; ///< Shared texture duplicated from helper.
-    ID3D11Device *_device = nullptr; ///< D3D11 device pointer (not owned).
-    std::atomic<bool> _frame_ready {false}; ///< Flag set when a new frame is ready.
-    std::atomic<uint64_t> _frame_qpc {0}; ///< QPC timestamp of latest frame.
-    std::atomic<bool> _initialized {false}; ///< True once initialization succeeded.
-    std::atomic<bool> _should_swap_to_dxgi {false}; ///< True if capture should fallback.
-    std::atomic<bool> _force_reinit {false}; ///< True if reinit required due to errors.
-    UINT _width = 0; ///< Shared texture width.
-    UINT _height = 0; ///< Shared texture height.
-    uint32_t _timeout_count = 0; ///< Consecutive acquire timeout counter.
-    ::video::config_t _config; ///< Cached video config.
-    std::string _display_name; ///< Display name copy.
+    std::unique_ptr<ProcessHandler> _process_helper;  ///< Helper process owner.
+    std::unique_ptr<AsyncNamedPipe> _pipe;  ///< Async control/message pipe.
+    std::unique_ptr<INamedPipe> _frame_queue_pipe;  ///< Pipe providing frame ready notifications.
+    safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;  ///< Keyed mutex for shared texture.
+    safe_com_ptr<ID3D11Texture2D> _shared_texture;  ///< Shared texture duplicated from helper.
+    ID3D11Device *_device = nullptr;  ///< D3D11 device pointer (not owned).
+    std::atomic<bool> _frame_ready {false};  ///< Flag set when a new frame is ready.
+    std::atomic<uint64_t> _frame_qpc {0};  ///< QPC timestamp of latest frame.
+    std::atomic<bool> _initializing {false};  ///< True while an initialization attempt is in progress.
+    std::atomic<bool> _initialized {false};  ///< True once the most recent initialization attempt succeeded.
+    std::atomic<bool> _should_swap_to_dxgi {false};  ///< True if capture should fallback.
+    std::atomic<bool> _force_reinit {false};  ///< True if reinit required due to errors.
+    UINT _width = 0;  ///< Shared texture width.
+    UINT _height = 0;  ///< Shared texture height.
+    uint32_t _timeout_count = 0;  ///< Consecutive acquire timeout counter.
+    ::video::config_t _config;  ///< Cached video config.
+    std::string _display_name;  ///< Display name copy.
   };
 
 }  // namespace platf::dxgi

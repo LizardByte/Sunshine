@@ -11,14 +11,14 @@
 
 // local includes
 #include "src/logging.h"
-#include "src/utility.h"  // for util::hex
+#include "src/utility.h"
 
 // platform includes
 #include "ipc/ipc_session.h"
-#include "ipc/misc_utils.h"  // for is_secure_desktop_active
+#include "ipc/misc_utils.h" 
 #include "src/platform/windows/display.h"
-#include "src/platform/windows/display_vram.h"  // for img_d3d_t
-#include "src/platform/windows/misc.h"  // for qpc_time_difference, qpc_counter
+#include "src/platform/windows/display_vram.h"  
+#include "src/platform/windows/misc.h" 
 
 namespace platf::dxgi {
 
@@ -51,12 +51,11 @@ namespace platf::dxgi {
     }
 
     // We return capture::reinit for most scenarios because the logic in picking which mode to capture is all handled in the factory function.
-
     if (_ipc_session->should_swap_to_dxgi()) {
       return capture_e::reinit;
     }
 
-    // Check if forced reinit was triggered by helper process issues (such as process closed or crashed)
+    // Generally this only becomes true if the helper process has crashed or is otherwise not responding.
     if (_ipc_session->should_reinit()) {
       return capture_e::reinit;
     }
