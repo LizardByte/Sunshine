@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <csignal>
+#include <format>
 #include <iostream>
 #include <thread>
 
@@ -25,13 +26,11 @@ extern "C" {
 
 using namespace std::literals;
 
-void launch_ui() {
-  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS));
-  platf::open_url(url);
-}
-
-void launch_ui_with_path(std::string path) {
-  std::string url = "https://localhost:" + std::to_string(net::map_port(confighttp::PORT_HTTPS)) + path;
+void launch_ui(const std::optional<std::string> &path) {
+  std::string url = std::format("https://localhost:{}", static_cast<int>(net::map_port(confighttp::PORT_HTTPS)));
+  if (path) {
+    url += *path;
+  }
   platf::open_url(url);
 }
 

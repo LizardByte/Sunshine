@@ -37,6 +37,10 @@ class @PROJECT_NAME@ < Formula
   depends_on "opus"
   depends_on "icu4c" => :recommended
 
+  on_macos do
+    depends_on xcode: ["15.3", :build]
+  end
+
   on_linux do
     depends_on "avahi"
     depends_on "libayatana-appindicator"
@@ -57,6 +61,16 @@ class @PROJECT_NAME@ < Formula
     depends_on "pulseaudio"
     depends_on "systemd"
     depends_on "wayland"
+  end
+
+  fails_with :clang do
+    build 1400
+    cause "Requires C++23 support"
+  end
+
+  fails_with :gcc do
+    version "12" # fails with GCC 12.x and earlier
+    cause "Requires C++23 support"
   end
 
   def install

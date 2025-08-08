@@ -36,8 +36,6 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "13"
-            os_name: "macos"
           - os_version: "14"
             os_name: "macos"
           - os_version: "15"

@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fcntl.h>
+#include <format>
 #include <sstream>
 #include <string>
 
@@ -574,7 +575,7 @@ namespace va {
     if (!display) {
       char string[1024];
 
-      auto bytes = readlink(("/proc/self/fd/" + std::to_string(fd)).c_str(), string, sizeof(string));
+      auto bytes = readlink(std::format("/proc/self/fd/{}", fd).c_str(), string, sizeof(string));
 
       std::string_view render_device {string, (std::size_t) bytes};
 
