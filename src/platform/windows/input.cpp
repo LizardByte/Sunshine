@@ -293,7 +293,7 @@ namespace platf {
 
       if (gamepad.repeat_task) {
         task_pool.cancel(gamepad.repeat_task);
-        gamepad.repeat_task = 0;
+        gamepad.repeat_task = nullptr;
       }
 
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
@@ -1452,7 +1452,7 @@ namespace platf {
     // Cancel any pending updates. We will requeue one here when we're finished.
     if (gamepad.repeat_task) {
       task_pool.cancel(gamepad.repeat_task);
-      gamepad.repeat_task = 0;
+      gamepad.repeat_task = nullptr;
     }
 
     if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {

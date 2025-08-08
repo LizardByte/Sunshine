@@ -377,7 +377,7 @@ namespace platf::audio {
         *ppvInterface = (IMMNotificationClient *) this;
         return S_OK;
       } else {
-        *ppvInterface = NULL;
+        *ppvInterface = nullptr;
         return E_NOINTERFACE;
       }
     }
@@ -679,7 +679,7 @@ namespace platf::audio {
     float *sample_buf_pos;
     int channels;
 
-    HANDLE mmcss_task_handle = NULL;
+    HANDLE mmcss_task_handle = nullptr;
   };
 
   class audio_control_t: public ::platf::audio_control_t {

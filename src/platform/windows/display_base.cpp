@@ -601,12 +601,12 @@ namespace platf::dxgi {
       LUID val;
 
       if (OpenProcessToken(GetCurrentProcess(), flags, &token) &&
-          !!LookupPrivilegeValue(NULL, SE_INC_BASE_PRIORITY_NAME, &val)) {
+          !!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME, &val)) {
         tp.PrivilegeCount = 1;
         tp.Privileges[0].Luid = val;
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
-        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), NULL, NULL)) {
+        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), nullptr, nullptr)) {
           BOOST_LOG(warning) << "Could not set privilege to increase GPU priority";
         }
       }
@@ -918,20 +918,20 @@ namespace platf::dxgi {
     "DXGI_FORMAT_A8P8",
     "DXGI_FORMAT_B4G4R4A4_UNORM",
 
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
 
     "DXGI_FORMAT_P208",
     "DXGI_FORMAT_V208",

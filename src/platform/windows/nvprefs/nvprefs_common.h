@@ -21,7 +21,7 @@ namespace nvprefs {
 
     explicit operator bool() const {
       auto handle = get();
-      return handle != NULL && handle != INVALID_HANDLE_VALUE;
+      return handle != nullptr && handle != INVALID_HANDLE_VALUE;
     }
   };
 
