@@ -1,11 +1,7 @@
-
 /**
- * @file process_handler.h
- * @brief Defines the ProcessHandler class for managing Windows processes.
- *
- * Provides an interface for launching, waiting, terminating, and cleaning up Windows processes.
+ * @file src/platform/windows/ipc/process_handler.h
+ * @brief Windows helper process management utilities.
  */
-
 #pragma once
 
 // standard includes
@@ -18,64 +14,46 @@
 #include <windows.h>
 
 /**
- * @brief Handles launching, waiting, and terminating a Windows process.
+ * @brief RAII wrapper for launching and controlling a Windows helper process.
  *
- * Provides methods to start a process, wait for its completion, terminate it, and clean up resources.
+ * Provides minimal operations needed by the WGC capture helper: start, wait, terminate
+ * and access to the native process handle. Ensures handles are cleaned up on destruction.
  */
 class ProcessHandler {
 public:
   /**
-   * @brief Starts a process with the given application path and arguments.
-   *
-   * - Launches the specified application with provided arguments.
-   *
-   * - Initializes process information for later management.
-   *
-   * @param application The full path to the executable to launch.
-   *
-   * @param arguments The command-line arguments to pass to the process.
-   *
-   * @returns true if the process was started successfully, false otherwise.
-   */
-  bool start(const std::wstring &application, std::wstring_view arguments);
-
-  /**
-   * @brief Waits for the process to finish and retrieves its exit code.
-   *
-   * - Waits for the launched process to exit.
-   *
-   * - Retrieves the exit code of the process.
-   *
-   * @param exitCode Reference to a DWORD to receive the process exit code.
-   *
-   * @returns true if the process finished successfully, false otherwise.
-   */
-  bool wait(DWORD &exitCode);
-
-  /**
-   * @brief Terminates the process if it is running.
-   *
-   * - Checks if the process is active.
-   *
-   * - Attempts to terminate the process.
-   */
-  void terminate();
-
-  /**
-   * @brief Constructs a new ProcessHandler object.
-   *
-   * Initializes internal state and prepares for process management.
+   * @brief Construct an empty handler (no process started).
    */
   ProcessHandler();
 
   /**
-   * @brief Cleans up process handles and resources.
+   * @brief Destroy the handler and release any process / job handles.
    */
   ~ProcessHandler();
 
   /**
-   * @brief Gets the process handle for the running process.
-   * @return HANDLE to the process, or nullptr if no process is running.
+   * @brief Launch the target executable with arguments if no process is running.
+   * @param application_path Full path to executable.
+   * @param arguments Command line arguments (not including the executable path).
+   * @return `true` on successful launch, `false` otherwise.
+   */
+  bool start(const std::wstring &application_path, std::wstring_view arguments);
+
+  /**
+   * @brief Block until the process exits and obtain its exit code.
+   * @param exit_code Receives process exit code on success.
+   * @return `true` if the process was running and exited cleanly; `false` otherwise.
+   */
+  bool wait(DWORD &exit_code);
+
+  /**
+   * @brief Terminate the process if still running (best-effort).
+   */
+  void terminate();
+
+  /**
+   * @brief Get the native HANDLE of the managed process.
+   * @return Process HANDLE or `nullptr` if not running.
    */
   HANDLE get_process_handle() const;
 
@@ -86,8 +64,7 @@ private:
 };
 
 /**
- * @brief Creates a Windows Job object that ensures all associated processes are terminated when the last handle is closed.
- * This function creates a job object with the "kill on job close" limit set. Any process assigned to this job will be automatically terminated when the job handle is closed.
- * @returns A safe_handle wrapping the created job object, or an invalid handle if creation fails.
+ * @brief Create a Job object configured to kill remaining processes on last handle close.
+ * @return Valid `safe_handle` on success, otherwise invalid.
  */
 platf::dxgi::safe_handle create_kill_on_close_job();

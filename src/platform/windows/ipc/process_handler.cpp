@@ -20,22 +20,23 @@
 #include "src/platform/windows/misc.h"
 #include "src/utility.h"
 
-ProcessHandler::ProcessHandler():
-    job_(create_kill_on_close_job()) {}
 
-bool ProcessHandler::start(const std::wstring &application, std::wstring_view arguments) {
+ProcessHandler::ProcessHandler()
+    : job_(create_kill_on_close_job()) {}
+
+bool ProcessHandler::start(const std::wstring &application_path, std::wstring_view arguments) {
   if (running_) {
     return false;
   }
 
-  std::error_code ec;
+  std::error_code error_code;
   HANDLE job_handle = job_ ? job_.get() : nullptr;
-  STARTUPINFOEXW startup_info = platf::create_startup_info(nullptr, &job_handle, ec);
-  if (ec) {
+  STARTUPINFOEXW startup_info = platf::create_startup_info(nullptr, &job_handle, error_code);
+  if (error_code) {
     return false;
   }
 
-  auto guard = util::fail_guard([&]() {
+  auto fail_guard = util::fail_guard([&]() {
     if (startup_info.lpAttributeList) {
       platf::free_proc_thread_attr_list(startup_info.lpAttributeList);
     }
@@ -44,41 +45,42 @@ bool ProcessHandler::start(const std::wstring &application, std::wstring_view ar
   ZeroMemory(&pi_, sizeof(pi_));
 
   // Build command line: app path + space + arguments
-  auto cmd = std::wstring(application);
+  auto command = std::wstring(application_path);
   if (!arguments.empty()) {
-    cmd += L" ";
-    cmd += std::wstring(arguments);
+    command += L" ";
+    command += std::wstring(arguments);
   }
 
   DWORD creation_flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT | CREATE_NO_WINDOW;
 
-  std::string cmd_str = platf::to_utf8(cmd);
+  std::string command_str = platf::to_utf8(command);
   std::wstring working_dir;  // Empty working directory
 
   bool result;
   if (platf::is_running_as_system()) {
-    result = platf::launch_process_with_impersonation(false, cmd_str, working_dir, creation_flags, startup_info, pi_, ec);
+    result = platf::launch_process_with_impersonation(false, command_str, working_dir, creation_flags, startup_info, pi_, error_code);
   } else {
-    result = platf::launch_process_without_impersonation(cmd_str, working_dir, creation_flags, startup_info, pi_, ec);
+    result = platf::launch_process_without_impersonation(command_str, working_dir, creation_flags, startup_info, pi_, error_code);
   }
 
-  running_ = result && !ec;
+  running_ = result && !error_code;
   if (!running_) {
     ZeroMemory(&pi_, sizeof(pi_));
   }
   return running_;
 }
 
-bool ProcessHandler::wait(DWORD &exitCode) {
+bool ProcessHandler::wait(DWORD &exit_code) {
   if (!running_ || pi_.hProcess == nullptr) {
     return false;
   }
-  if (DWORD waitResult = WaitForSingleObject(pi_.hProcess, INFINITE); waitResult != WAIT_OBJECT_0) {
+  DWORD wait_result = WaitForSingleObject(pi_.hProcess, INFINITE);
+  if (wait_result != WAIT_OBJECT_0) {
     return false;
   }
-  BOOL gotCode = GetExitCodeProcess(pi_.hProcess, &exitCode);
+  BOOL got_code = GetExitCodeProcess(pi_.hProcess, &exit_code);
   running_ = false;
-  return gotCode != 0;
+  return got_code != 0;
 }
 
 void ProcessHandler::terminate() {
@@ -107,15 +109,15 @@ HANDLE ProcessHandler::get_process_handle() const {
 }
 
 platf::dxgi::safe_handle create_kill_on_close_job() {
-  HANDLE job = CreateJobObjectW(nullptr, nullptr);
-  if (!job) {
+  HANDLE job_handle = CreateJobObjectW(nullptr, nullptr);
+  if (!job_handle) {
     return {};
   }
-  JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = {};
-  info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-  if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation, &info, sizeof(info))) {
-    CloseHandle(job);
+  JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info = {};
+  job_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+  if (!SetInformationJobObject(job_handle, JobObjectExtendedLimitInformation, &job_info, sizeof(job_info))) {
+    CloseHandle(job_handle);
     return {};
   }
-  return platf::dxgi::safe_handle(job);
+  return platf::dxgi::safe_handle(job_handle);
 }

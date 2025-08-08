@@ -1,6 +1,5 @@
-
 /**
- * @file pipes.h
+ * @file src/platform/windows/ipc/pipes.h
  * @brief Windows Named and Anonymous Pipe IPC Abstractions for Sunshine
  *
  * This header defines interfaces and implementations for inter-process communication (IPC)
@@ -8,7 +7,6 @@
  * APIs for sending and receiving messages, as well as factories for creating server and
  * client pipe instances with appropriate security and access control.
  */
-
 #pragma once
 
 // standard includes
@@ -62,9 +60,7 @@ namespace platf::dxgi {
 
 /**
  * @brief Message structure for frame ready notifications with QPC timing data.
- *
- * This structure is used to send frame ready notifications from the WGC helper
- * process to the main process, including precise timing information.
+ * This is sent by the WGC helper to the main process with a high-resolution timestamp.
  */
 #pragma pack(push, 1)  // required to remove padding from compiler
 
@@ -156,12 +152,12 @@ namespace platf::dxgi {
 
     /**
      * @brief Starts the asynchronous message loop.
-     * @param onMessage Callback for received messages.
-     * @param onError Callback for error events.
-     * @param onBrokenPipe Optional callback for broken pipe events.
+     * @param on_message Callback for received messages.
+     * @param on_error Callback for error events.
+     * @param on_broken_pipe Optional callback for broken pipe events.
      * @return `true` if started successfully, `false` otherwise.
      */
-    bool start(const MessageCallback &onMessage, const ErrorCallback &onError, const BrokenPipeCallback &onBrokenPipe = nullptr);
+    bool start(const MessageCallback &on_message, const ErrorCallback &on_error, const BrokenPipeCallback &on_broken_pipe = nullptr);
 
     /**
      * @brief Stops the asynchronous message loop and worker thread.
@@ -513,7 +509,7 @@ namespace platf::dxgi {
     /**
      * @brief Connects to the data pipe after handshake.
      * @param pipeNameStr The name of the data pipe to connect to.
-     * @return Unique pointer to the connected INamedPipe.
+     * @return `Unique pointer` to the connected INamedPipe.
      */
     std::unique_ptr<INamedPipe> connect_to_data_pipe(const std::string &pipeNameStr);
   };

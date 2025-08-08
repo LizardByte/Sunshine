@@ -25,19 +25,17 @@ namespace platf::dxgi {
   using safe_local_mem = util::safe_ptr_v2<void, HLOCAL, &LocalFree>;
 
   /**
-   * @brief RAII wrapper for managing OVERLAPPED I/O context with event handle.
-   * Initializes an OVERLAPPED structure and creates an event for asynchronous I/O.
-   * Provides move semantics, cleans up the event handle on destruction, and allows access to the OVERLAPPED pointer and event handle.
+   * @brief RAII wrapper for OVERLAPPED asynchronous I/O with an auto-created event.
    */
   class io_context {
   public:
     /**
-     * @brief Constructs an io_context, initializing OVERLAPPED and creating an event.
+     * @brief Construct and initialize OVERLAPPED and its event.
      */
     io_context();
 
     /**
-     * @brief Destroys the io_context, closing the event handle.
+     * @brief Destroy context and close the event handle.
      */
     ~io_context();
 
@@ -45,33 +43,33 @@ namespace platf::dxgi {
     io_context &operator=(const io_context &) = delete;
 
     /**
-     * @brief Move constructor for io_context.
-     * @param other The io_context to move from.
+     * @brief Move construct from another context.
+     * @param other Source context.
      */
     io_context(io_context &&other) noexcept;
 
     /**
-     * @brief Move assignment operator for io_context.
-     * @param other The io_context to move from.
-     * @return Reference to this io_context.
+     * @brief Move-assign from another context.
+     * @param other Source context.
+     * @return Reference to this instance.
      */
     io_context &operator=(io_context &&other) noexcept;
 
     /**
-     * @brief Get a pointer to the underlying OVERLAPPED structure.
-     * @return Pointer to OVERLAPPED.
+     * @brief Get pointer to underlying OVERLAPPED.
+     * @return Pointer to the internal OVERLAPPED.
      */
     OVERLAPPED *get();
 
     /**
-     * @brief Get the event handle associated with the OVERLAPPED structure.
-     * @return The event HANDLE.
+     * @brief Get event handle associated with the OVERLAPPED.
+     * @return Event `HANDLE`.
      */
     HANDLE event() const;
 
     /**
-     * @brief Check if the io_context is valid (event handle is valid).
-     * @return true if valid, false otherwise.
+     * @brief Check validity of the context (event successfully created).
+     * @return `true` if valid, otherwise `false`.
      */
     bool is_valid() const;
 
@@ -81,38 +79,37 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Specialized RAII wrapper for DACL (Discretionary Access Control List).
-   * Manages a PACL pointer, providing cleanup and move semantics.
+   * @brief RAII wrapper for a DACL (PACL) allocated by Windows APIs.
    */
   struct safe_dacl {
-    PACL dacl = nullptr;
+    PACL _dacl = nullptr;
 
     /**
-     * @brief Constructs an empty safe_dacl.
+     * @brief Default construct empty wrapper.
      */
     safe_dacl();
 
     /**
-     * @brief Constructs a safe_dacl from a given PACL.
-     * @param p The PACL to manage.
+     * @brief Take ownership of an existing PACL.
+     * @param p PACL to manage.
      */
     explicit safe_dacl(PACL p);
 
     /**
-     * @brief Destroys the safe_dacl, freeing the PACL if owned.
+     * @brief Free the owned PACL (if any).
      */
     ~safe_dacl();
 
     /**
-     * @brief Move constructor for safe_dacl.
-     * @param other The safe_dacl to move from.
+     * @brief Move construct, transferring ownership.
+     * @param other Source.
      */
     safe_dacl(safe_dacl &&other) noexcept;
 
     /**
-     * @brief Move assignment operator for safe_dacl.
-     * @param other The safe_dacl to move from.
-     * @return Reference to this safe_dacl.
+     * @brief Move-assign, releasing any currently owned PACL.
+     * @param other Source.
+     * @return Reference to this instance.
      */
     safe_dacl &operator=(safe_dacl &&other) noexcept;
 
@@ -120,41 +117,39 @@ namespace platf::dxgi {
     safe_dacl &operator=(const safe_dacl &) = delete;
 
     /**
-     * @brief Reset the managed PACL, freeing the previous one if owned.
-     * @param p The new PACL to manage (default nullptr).
+     * @brief Replace the managed PACL.
+     * @param p New PACL (or `nullptr`).
      */
     void reset(PACL p = nullptr);
 
     /**
-     * @brief Get the underlying PACL pointer.
-     * @return The PACL pointer.
+     * @brief Get raw PACL pointer.
+     * @return Managed PACL pointer.
      */
     PACL get() const;
 
     /**
-     * @brief Release ownership of the PACL and return it.
-     * @return The PACL pointer.
+     * @brief Release ownership without freeing.
+     * @return Released PACL pointer.
      */
     PACL release();
 
     /**
-     * @brief Check if the safe_dacl holds a valid PACL.
-     * @return true if valid, false otherwise.
+     * @brief Test whether a PACL is owned.
+     * @return `true` if a PACL is set, else `false`.
      */
     explicit operator bool() const;
   };
 
   /**
-   * @brief RAII wrapper for Windows HANDLE resources.
-   * - Inherits from util::safe_ptr_v2 for automatic handle management.
-   * - Provides boolean conversion to check handle validity.
+   * @brief RAII wrapper for generic Windows `HANDLE` values.
    */
   struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
     using util::safe_ptr_v2<void, BOOL, CloseHandle>::safe_ptr_v2;
 
     /**
-     * @brief Check if the handle is valid (not NULL or INVALID_HANDLE_VALUE).
-     * @return true if valid, false otherwise.
+     * @brief Check handle validity (not `NULL` or `INVALID_HANDLE_VALUE`).
+     * @return `true` if valid, else `false`.
      */
     explicit operator bool() const {
       auto handle = get();
@@ -163,12 +158,12 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Deleter for memory views mapped with MapViewOfFile.
+   * @brief Deleter for views returned by `MapViewOfFile`.
    */
   struct memory_view_deleter {
     /**
-     * @brief Unmaps the memory view if pointer is not null.
-     * @param ptr Pointer to the mapped memory.
+     * @brief Unmap a mapped view if non-null.
+     * @param ptr Base address returned by `MapViewOfFile`.
      */
     void operator()(void *ptr) {
       if (ptr) {
@@ -178,18 +173,18 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Unique pointer type for memory views mapped with MapViewOfFile.
+   * @brief Unique pointer for a mapped file view.
    */
   using safe_memory_view = util::uniq_ptr<void, memory_view_deleter>;
 
   /**
-   * @brief Deleter for COM objects, calls Release on the pointer.
+   * @brief COM object deleter calling `Release()`.
    */
   struct com_deleter {
     /**
-     * @brief Releases the COM object if pointer is not null.
-     * @tparam T COM object type.
-     * @param ptr Pointer to the COM object.
+     * @brief Release COM object if non-null.
+     * @tparam T COM interface type.
+     * @param ptr Interface pointer.
      */
     template<typename T>
     void operator()(T *ptr) {
@@ -200,19 +195,19 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Unique pointer type for COM objects with automatic Release.
-   * @tparam T COM object type.
+   * @brief Unique pointer alias for COM interfaces.
+   * @tparam T COM interface type.
    */
   template<typename T>
   using safe_com_ptr = util::uniq_ptr<T, com_deleter>;
 
   /**
-   * @brief Deleter for Windows event hooks, calls UnhookWinEvent.
+   * @brief Deleter for WinEvent hooks (UnhookWinEvent).
    */
   struct winevent_hook_deleter {
     /**
-     * @brief Unhooks the event if hook is not null.
-     * @param hook The event hook handle.
+     * @brief Unhook if handle is non-null.
+     * @param hook WinEvent hook handle.
      */
     void operator()(HWINEVENTHOOK hook) {
       if (hook) {
@@ -222,17 +217,17 @@ namespace platf::dxgi {
   };
 
   /**
-   * @brief Unique pointer type for Windows event hooks.
+   * @brief Unique pointer for WinEvent hook handles.
    */
   using safe_winevent_hook = util::uniq_ptr<std::remove_pointer_t<HWINEVENTHOOK>, winevent_hook_deleter>;
 
   /**
-   * @brief Deleter for MMCSS handles, calls AvRevertMmThreadCharacteristics.
+   * @brief Deleter reverting MMCSS characteristics.
    */
   struct mmcss_handle_deleter {
     /**
-     * @brief Reverts MMCSS thread characteristics if handle is not null.
-     * @param handle The MMCSS handle.
+     * @brief Revert MMCSS thread characteristics if handle present.
+     * @param handle MMCSS task handle.
      */
     void operator()(HANDLE handle) {
       if (handle) {
@@ -244,48 +239,49 @@ namespace platf::dxgi {
   using safe_mmcss_handle = util::uniq_ptr<std::remove_pointer_t<HANDLE>, mmcss_handle_deleter>;
 
   /**
-   * @brief Check if a process with the given name is running.
-   * @param processName The name of the process to check for.
-   * @return `true` if the process is running, `false` otherwise.
+   * @brief Check if a process with the specified executable name is running.
+   * @param process_name Executable name (case-insensitive).
+   * @return `true` if at least one matching process exists, else `false`.
    */
-  bool is_process_running(const std::wstring &processName);
+  bool is_process_running(const std::wstring &process_name);
 
   /**
-   * @brief Check if we're on the secure desktop (UAC prompt or login screen).
-   * @return `true` if we're on the secure desktop, `false` otherwise.
+   * @brief Determine whether the secure (e.g. UAC / logon) desktop is active.
+   * @return `true` if the secure desktop is active, else `false`.
    */
   bool is_secure_desktop_active();
 
   /**
-   * @brief Check if the current process is running with system-level privileges.
-   * @return `true` if the current process has system-level privileges, `false` otherwise.
+   * @brief Check if the current process token belongs to Local System.
+   * @return `true` if running as SYSTEM, else `false`.
    */
   bool is_running_as_system();
 
   /**
-   * @brief Obtain the current sessions user's primary token with elevated privileges.
-   * @param elevated Specify whether to elevate the process.
-   * @return The user's token. If user has admin capability it will be elevated, otherwise it will be a limited token. On error, `nullptr`.
+   * @brief Retrieve the active session user's primary token (optionally elevated).
+   * @param elevated Request elevated token when available.
+   * @return User token `HANDLE`, or `nullptr` on failure.
    */
   HANDLE retrieve_users_token(bool elevated);
 
   /**
-   * @brief Generates a new GUID string.
-   * @return The generated GUID as a string.
+   * @brief Generate a random GUID in string form (RFC 4122 style).
+   * @return UTF-8 GUID string or empty on failure.
    */
   std::string generate_guid();
-  /**
-   * @brief Converts a UTF-8 encoded std::string to a wide Unicode string (std::wstring).
-   * @param str The UTF-8 encoded string to convert.
-   * @return The resulting wide Unicode string.
-   */
-  std::wstring utf8_to_wide(const std::string &str);
 
   /**
-   * @brief Converts a wide Unicode string (std::wstring) to a UTF-8 encoded std::string.
-   * @param wstr The wide Unicode string to convert.
-   * @return The resulting UTF-8 encoded string.
+   * @brief Convert UTF-8 string to wide string (UTF-16 on Windows).
+   * @param utf8_str Source UTF-8 string.
+   * @return Resulting wide string.
    */
-  std::string wide_to_utf8(const std::wstring &wstr);
+  std::wstring utf8_to_wide(const std::string &utf8_str);
+
+  /**
+   * @brief Convert wide string (UTF-16) to UTF-8.
+   * @param wide_str Source wide string.
+   * @return Resulting UTF-8 string.
+   */
+  std::string wide_to_utf8(const std::wstring &wide_str);
 
 }  // namespace platf::dxgi

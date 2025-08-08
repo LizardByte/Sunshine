@@ -16,33 +16,27 @@
 
 namespace platf::dxgi {
 
+  /**
+   * @brief Direct3D-backed image container used for WGC/DXGI capture paths.
+   *
+   * Extends platf::img_t with Direct3D 11 resources required for capture and
+   * inter-process texture sharing.
+   */
   struct img_d3d_t: public platf::img_t {
-    // These objects are owned by the display_t's ID3D11Device
-    texture2d_t capture_texture;
-    render_target_t capture_rt;
-    keyed_mutex_t capture_mutex;
+    texture2d_t capture_texture;        ///< Staging/CPU readable or GPU shared texture.
+    render_target_t capture_rt;         ///< Render target bound when copying / compositing.
+    keyed_mutex_t capture_mutex;        ///< Keyed mutex for cross-process synchronization.
+    HANDLE encoder_texture_handle = {}; ///< Duplicated shared handle opened by encoder side.
+    bool dummy = false;                 ///< True if placeholder prior to first successful frame.
+    bool blank = true;                  ///< True if contains no desktop or cursor content.
+    uint32_t id = 0;                    ///< Monotonically increasing identifier.
+    DXGI_FORMAT format;                 ///< Underlying DXGI texture format.
 
-    // This is the shared handle used by hwdevice_t to open capture_texture
-    HANDLE encoder_texture_handle = {};
-
-    // Set to true if the image corresponds to a dummy texture used prior to
-    // the first successful capture of a desktop frame
-    bool dummy = false;
-
-    // Set to true if the image is blank (contains no content at all, including a cursor)
-    bool blank = true;
-
-    // Unique identifier for this image
-    uint32_t id = 0;
-
-    // DXGI format of this image texture
-    DXGI_FORMAT format;
-
-    virtual ~img_d3d_t() override {
+    ~img_d3d_t() override {
       if (encoder_texture_handle) {
         CloseHandle(encoder_texture_handle);
       }
-    };
+    }
   };
 
 }  // namespace platf::dxgi
