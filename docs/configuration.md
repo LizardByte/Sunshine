@@ -261,6 +261,91 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### update_check_interval
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Interval in seconds between automatic checks for new Sunshine releases. Set to 0 to disable periodic checking.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            update_check_interval = 14400
+            @endcode</td>
+    </tr>
+</table>
+
+### update_command
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Command to execute when a new update is available. Runs detached. Use together with update_command_once_per_version to control frequency.
+            <br>
+            This command is only auto-executed on periodic checks when Sunshine is idle (no active stream). Manual "Check for Update" does not auto-run the command.
+            <br>
+            When executed, Sunshine also provides the following environment variables:
+            <ul>
+                <li><code>SUNSHINE_VERSION_CURRENT</code> – currently running version</li>
+                <li><code>SUNSHINE_VERSION_AVAILABLE</code> – latest stable version tag (may be empty)</li>
+                <li><code>SUNSHINE_VERSION_PRERELEASE</code> – latest pre-release tag (may be empty)</li>
+                <li><code>SUNSHINE_UPDATE_CHANNEL</code> – one of <code>stable</code>, <code>prerelease</code>, or <code>none</code></li>
+                <li><code>SUNSHINE_RELEASE_URL</code> – release HTML page URL</li>
+                <li><code>SUNSHINE_RELEASE_NAME</code> – release title/name</li>
+                <li><code>SUNSHINE_RELEASE_BODY</code> – release notes body</li>
+                <li><code>SUNSHINE_RELEASE_PUBLISHED_AT</code> – release publish timestamp (ISO 8601)</li>
+            </ul>
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            ""
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            update_command = powershell -File update-sunshine.ps1
+            @endcode</td>
+    </tr>
+</table>
+
+### update_command_once_per_version
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            When enabled, the update_command is only executed once for each discovered version. Disable to run the command on every periodic check while the version remains available.
+            <br>
+            Automatic execution only occurs on periodic checks while Sunshine is idle (no active stream). Manual "Check for Update" does not auto-run the command.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            update_command_once_per_version = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller

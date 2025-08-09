@@ -42,6 +42,7 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
+  #include "update.h"
 
 using namespace std::literals;
 
@@ -115,7 +116,9 @@ namespace system_tray {
   #ifdef _WIN32
         {.text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb},
   #endif
-        {.text = "Restart", .cb = tray_restart_cb},
+  {.text = "Check for Update", .cb = [](tray_menu*){ update::trigger_check(true, false); }},
+  {.text = "Run Update", .cb = [](tray_menu*){ update::run_update_command(); }},
+  {.text = "Restart", .cb = tray_restart_cb},
         {.text = "Quit", .cb = tray_quit_cb},
         {.text = nullptr}
       },
@@ -307,6 +310,25 @@ namespace system_tray {
     tray.notification_cb = []() {
       launch_ui("/pin");
     };
+    tray_update(&tray);
+  }
+
+  void tray_notify(const char *title, const char *text, void (*cb)()) {
+    if (!tray_initialized) return;
+
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
+    tray.icon = TRAY_ICON;
+    tray_update(&tray);
+
+    tray.icon = TRAY_ICON;
+    tray.notification_title = title;
+    tray.notification_text = text;
+    tray.notification_icon = TRAY_ICON;
+    tray.tooltip = PROJECT_NAME;
+    tray.notification_cb = cb;
     tray_update(&tray);
   }
 

@@ -32,6 +32,7 @@
 #include "process.h"
 #include "rtsp.h"
 #include "system_tray.h"
+#include "update.h"
 #include "utility.h"
 #include "uuid.h"
 #include "video.h"
@@ -178,7 +179,10 @@ namespace nvhttp {
 
     root.erase("root"s);
 
-    root.put("root.uniqueid", http::unique_id);
+  root.put("root.uniqueid", http::unique_id);
+  // Persist update notification state
+  root.put("root.last_notified_version", update::state.last_notified_version);
+  root.put("root.last_update_command_version", update::state.last_update_command_version);
     client_t &client = client_root;
     pt::ptree node;
 
@@ -216,13 +220,17 @@ namespace nvhttp {
       return;
     }
 
-    auto unique_id_p = tree.get_optional<std::string>("root.uniqueid");
+  auto unique_id_p = tree.get_optional<std::string>("root.uniqueid");
     if (!unique_id_p) {
       // This file doesn't contain moonlight credentials
       http::unique_id = uuid_util::uuid_t::generate().string();
       return;
     }
     http::unique_id = std::move(*unique_id_p);
+
+  // Load update notification state (optional fields)
+  update::state.last_notified_version = tree.get("root.last_notified_version", "");
+  update::state.last_update_command_version = tree.get("root.last_update_command_version", "");
 
     auto root = tree.get_child("root");
     client_t client;

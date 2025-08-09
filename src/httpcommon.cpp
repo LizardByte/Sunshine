@@ -197,6 +197,7 @@ namespace http {
       return false;
     }
 
+    // Perform the download
     curl_easy_setopt(curl, CURLOPT_SSLVERSION, ssl_version);  // NOSONAR
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, fwrite);
