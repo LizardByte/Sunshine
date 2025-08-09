@@ -578,9 +578,9 @@ namespace config {
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
     {},  // prep commands
-  0,   // update_check_interval_seconds (disabled by default)
-  {},  // update_command
-  true // update_command_once_per_version
+    0,  // update_check_interval_seconds (disabled by default)
+    {},  // update_command
+    true  // update_command_once_per_version
   };
 
   bool endline(char ch) {
@@ -1165,9 +1165,9 @@ namespace config {
     string_f(vars, "external_ip", nvhttp.external_ip);
     list_prep_cmd_f(vars, "global_prep_cmd", config::sunshine.prep_cmds);
 
-  int_f(vars, "update_check_interval", config::sunshine.update_check_interval_seconds);
-  string_f(vars, "update_command", config::sunshine.update_command);
-  bool_f(vars, "update_command_once_per_version", config::sunshine.update_command_once_per_version);
+    int_f(vars, "update_check_interval", config::sunshine.update_check_interval_seconds);
+    string_f(vars, "update_command", config::sunshine.update_command);
+    bool_f(vars, "update_command_once_per_version", config::sunshine.update_command_once_per_version);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);

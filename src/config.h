@@ -257,13 +257,13 @@ namespace config {
     bool notify_pre_releases;
     std::vector<prep_cmd_t> prep_cmds;
 
-  // --- Update checker configuration ---
-  // Interval in seconds between automatic update checks (0 disables periodic checks)
-  int update_check_interval_seconds {0};
-  // Command to run when user selects "Run Update" from tray (optional)
-  std::string update_command;
-  // If true, the update_command will only execute once per target version
-  bool update_command_once_per_version {true};
+    // --- Update checker configuration ---
+    // Interval in seconds between automatic update checks (0 disables periodic checks)
+    int update_check_interval_seconds {0};
+    // Command to run when user selects "Run Update" from tray (optional)
+    std::string update_command;
+    // If true, the update_command will only execute once per target version
+    bool update_command_once_per_version {true};
   };
 
   extern video_t video;

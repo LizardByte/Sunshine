@@ -28,10 +28,10 @@
 #include <boost/process/v1/environment.hpp>
 
 #ifndef SUNSHINE_REPO_OWNER
-#define SUNSHINE_REPO_OWNER "LizardByte"
+  #define SUNSHINE_REPO_OWNER "LizardByte"
 #endif
 #ifndef SUNSHINE_REPO_NAME
-#define SUNSHINE_REPO_NAME "Sunshine"
+  #define SUNSHINE_REPO_NAME "Sunshine"
 #endif
 
 using namespace std::literals;

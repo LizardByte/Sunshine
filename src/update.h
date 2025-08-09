@@ -30,7 +30,6 @@ namespace update {
 
   extern state_t state;
 
-
   /**
    * @brief Trigger an asynchronous update check.
    * Initiates a check for updates if not already running. If @p force is true, bypasses interval throttling.
@@ -39,7 +38,6 @@ namespace update {
    */
   void trigger_check(bool force, bool allow_auto_execute);
 
-
   /**
    * @brief Run the configured update command if allowed.
    * Executes the update command if it is configured and permitted.
@@ -47,20 +45,17 @@ namespace update {
    */
   bool run_update_command();
 
-
   /**
    * @brief Handle stream start event for update notification.
    * Called when a stream transitions from 0 to 1 clients to schedule a delayed update notification.
    */
   void on_stream_started();
 
-
   /**
    * @brief Periodic tick to evaluate update check timing.
    * Called from a task pool or timer to determine if the next update check is due.
    */
   void periodic();
-
 
   /**
    * @brief Download GitHub release data for a repository.
@@ -71,7 +66,6 @@ namespace update {
    * @return Returns `true` on success, otherwise `false`.
    */
   bool download_github_release_data(const std::string &owner, const std::string &repo, std::string &out_json);
-
 
   /**
    * @brief Open the last-notified release page.
