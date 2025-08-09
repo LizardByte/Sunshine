@@ -200,4 +200,10 @@ namespace nvhttp {
    * @examples_end
    */
   void erase_all_clients();
+
+  /**
+   * @brief Persist current nvhttp-related state (paired clients, update subsystem markers, etc.).
+   * @note Exposed so subsystems (e.g. update) can trigger a save after mutating persisted fields.
+   */
+  void save_state();
 }  // namespace nvhttp

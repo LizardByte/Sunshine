@@ -16,6 +16,30 @@ if(DEFINED ENV{TAG})
     set(GITHUB_TAG $ENV{TAG})
 endif()
 
+# Allow forks / CI to override which GitHub repo is used for update checks.
+# Cache variables can be provided via -DSUNSHINE_REPO_OWNER=... or -DSUNSHINE_REPO_NAME=...
+set(SUNSHINE_REPO_OWNER "LizardByte" CACHE STRING "GitHub repo owner for update checks")
+set(SUNSHINE_REPO_NAME "Sunshine" CACHE STRING "GitHub repo name for update checks")
+
+# Allow environment variables to override the cache values (useful in CI)
+if(DEFINED ENV{SUNSHINE_REPO_OWNER})
+    set(SUNSHINE_REPO_OWNER $ENV{SUNSHINE_REPO_OWNER})
+endif()
+if(DEFINED ENV{SUNSHINE_REPO_NAME})
+    set(SUNSHINE_REPO_NAME $ENV{SUNSHINE_REPO_NAME})
+endif()
+
+# Try to infer owner/name from the clone URL when available and the defaults are still in use
+if(DEFINED GITHUB_CLONE_URL AND (SUNSHINE_REPO_OWNER STREQUAL "LizardByte" OR SUNSHINE_REPO_NAME STREQUAL "Sunshine"))
+    string(REGEX MATCH "github.com[:/]+([^/]+)/([^/]+)(\\.git)?$" _match "${GITHUB_CLONE_URL}")
+    if(_match)
+        set(SUNSHINE_REPO_OWNER "${CMAKE_MATCH_1}")
+        string(REGEX REPLACE "\\.git$" "" _repo_name "${CMAKE_MATCH_2}")
+        set(SUNSHINE_REPO_NAME "${_repo_name}")
+        message(STATUS "Inferred GitHub repo: ${SUNSHINE_REPO_OWNER}/${SUNSHINE_REPO_NAME} from ${GITHUB_CLONE_URL}")
+    endif()
+endif()
+
 # Check if env vars are defined before attempting to access them, variables will be defined even if blank
 if((DEFINED ENV{BRANCH}) AND (DEFINED ENV{BUILD_VERSION}))  # cmake-lint: disable=W0106
     if((DEFINED ENV{BRANCH}) AND (NOT $ENV{BUILD_VERSION} STREQUAL ""))
@@ -139,3 +163,5 @@ list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION_MAJOR="${PROJECT_VERSION_MAJOR}
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION_MINOR="${PROJECT_VERSION_MINOR}")
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION_PATCH="${PROJECT_VERSION_PATCH}")
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION_COMMIT="${GITHUB_COMMIT}")
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_REPO_OWNER="${SUNSHINE_REPO_OWNER}")
+list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_REPO_NAME="${SUNSHINE_REPO_NAME}")
