@@ -51,10 +51,10 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     endif()
     set(FFMPEG_LIBRARIES
             "${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a"
+            "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
             "${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a"
             "${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a"
             "${FFMPEG_PREPARED_BINARIES}/lib/libSvtAv1Enc.a"
-            "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
             "${FFMPEG_PREPARED_BINARIES}/lib/libx264.a"
             "${FFMPEG_PREPARED_BINARIES}/lib/libx265.a"
             ${HDR10_PLUS_LIBRARY}
@@ -62,9 +62,9 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
 else()
     set(FFMPEG_LIBRARIES
         "${FFMPEG_PREPARED_BINARIES}/lib/libavcodec.a"
+        "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
         "${FFMPEG_PREPARED_BINARIES}/lib/libavutil.a"
         "${FFMPEG_PREPARED_BINARIES}/lib/libcbs.a"
-        "${FFMPEG_PREPARED_BINARIES}/lib/libswscale.a"
         ${FFMPEG_PLATFORM_LIBRARIES})
 endif()
 
