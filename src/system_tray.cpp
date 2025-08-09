@@ -28,6 +28,7 @@
 
   // standard includes
   #include <csignal>
+  #include <mutex>
   #include <string>
 
   // lib includes
@@ -48,6 +49,14 @@ using namespace std::literals;
 // system_tray namespace
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
+
+  // Persistent storage for C-string pointers written into `tray`.
+  // These keep the memory alive across function returns so the tray
+  // library doesn't end up with dangling pointers.
+  static std::mutex tray_mu;
+  static std::string g_tooltip;
+  static std::string g_notification_title;
+  static std::string g_notification_text;
 
   void tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -225,25 +234,41 @@ namespace system_tray {
     return 0;
   }
 
+  // Set tooltip/notification text/title and optionally set tray and
+  // notification icons. This clears previous transient fields and
+  // performs a single tray_update to apply all changes atomically.
+  static void set_texts(const std::string &tooltip, const std::string &note, const std::string &title = "", const char *icon = TRAY_ICON) {
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
+    tray.tooltip = nullptr;
+    tray_update(&tray);
+
+    // Store persistent copies
+    g_tooltip = tooltip;
+    g_notification_text = note;
+    g_notification_title = title;
+
+    // Apply values to tray struct
+    tray.icon = icon;
+    tray.tooltip = g_tooltip.c_str();
+    tray.notification_text = g_notification_text.c_str();
+    tray.notification_title = g_notification_title.empty() ? nullptr : g_notification_title.c_str();
+    tray.notification_icon = icon;
+
+    tray_update(&tray);
+  }
+
   void update_tray_playing(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PLAYING;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON_PLAYING;
-    tray.notification_title = "Stream Started";
-    char msg[256];
-    snprintf(msg, std::size(msg), "Streaming started for %s", app_name.c_str());
-    tray.notification_text = msg;
-    tray.tooltip = msg;
-    tray.notification_icon = TRAY_ICON_PLAYING;
-    tray_update(&tray);
+    std::lock_guard<std::mutex> lk(tray_mu);
+
+    std::string msg = "Streaming started for " + app_name;
+    set_texts(msg, msg, "Stream Started", TRAY_ICON_PLAYING);
   }
 
   void update_tray_pausing(std::string app_name) {
@@ -251,20 +276,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PAUSING;
-    tray_update(&tray);
-    char msg[256];
-    snprintf(msg, std::size(msg), "Streaming paused for %s", app_name.c_str());
-    tray.icon = TRAY_ICON_PAUSING;
-    tray.notification_title = "Stream Paused";
-    tray.notification_text = msg;
-    tray.tooltip = msg;
-    tray.notification_icon = TRAY_ICON_PAUSING;
-    tray_update(&tray);
+    std::lock_guard<std::mutex> lk(tray_mu);
+
+    std::string msg = "Streaming paused for " + app_name;
+    set_texts(msg, msg, "Stream Paused", TRAY_ICON_PAUSING);
   }
 
   void update_tray_stopped(std::string app_name) {
@@ -272,20 +287,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
-    tray_update(&tray);
-    char msg[256];
-    snprintf(msg, std::size(msg), "Application %s successfully stopped", app_name.c_str());
-    tray.icon = TRAY_ICON;
-    tray.notification_icon = TRAY_ICON;
-    tray.notification_title = "Application Stopped";
-    tray.notification_text = msg;
-    tray.tooltip = PROJECT_NAME;
-    tray_update(&tray);
+    std::lock_guard<std::mutex> lk(tray_mu);
+
+    std::string msg = "Application " + app_name + " successfully stopped";
+    set_texts(PROJECT_NAME, msg, "Application Stopped", TRAY_ICON);
   }
 
   void update_tray_require_pin() {
@@ -293,17 +298,11 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON;
-    tray.notification_title = "Incoming Pairing Request";
-    tray.notification_text = "Click here to complete the pairing process";
-    tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = PROJECT_NAME;
+    std::lock_guard<std::mutex> lk(tray_mu);
+
+    set_texts(PROJECT_NAME, "Click here to complete the pairing process", "Incoming Pairing Request", TRAY_ICON_LOCKED);
+
+    // Attach callback and re-apply so callback is set as well
     tray.notification_cb = []() {
       launch_ui("/pin");
     };
