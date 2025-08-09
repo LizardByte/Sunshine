@@ -155,6 +155,14 @@ function removeCmd(index) {
               v-model="config.update_command_once_per_version"
               default="true"
     ></Checkbox>
+
+    <!-- Update Command Elevated -->
+    <Checkbox class="mb-3"
+              id="update_command_elevated"
+              locale-prefix="config"
+              v-model="config.update_command_elevated"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 

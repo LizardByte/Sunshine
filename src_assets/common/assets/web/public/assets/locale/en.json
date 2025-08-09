@@ -275,6 +275,8 @@
   "update_command_desc": "Optional command to run from the tray to update Sunshine. It will be executed in the current working directory.",
   "update_command_once_per_version": "Run Update Command Once Per Version",
   "update_command_once_per_version_desc": "If enabled, the update command will only run once for each target version.",
+  "update_command_elevated": "Run Update Command with Elevation",
+  "update_command_elevated_desc": "If enabled, the update command will be run with elevated privileges (Windows only). This allows the updater to modify system files and perform administrative tasks.",
     "nvenc_h264_cavlc": "Prefer CAVLC over CABAC in H.264",
     "nvenc_h264_cavlc_desc": "Simpler form of entropy coding. CAVLC needs around 10% more bitrate for same quality. Only relevant for really old decoding devices.",
     "nvenc_latency_over_power": "Prefer lower encoding latency over power savings",

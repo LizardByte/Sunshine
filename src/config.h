@@ -264,6 +264,8 @@ namespace config {
     std::string update_command;
     // If true, the update_command will only execute once per target version
     bool update_command_once_per_version {true};
+    // If true, the update_command will be run with elevated privileges (Windows only)
+    bool update_command_elevated {false};
   };
 
   extern video_t video;

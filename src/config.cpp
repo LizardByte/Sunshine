@@ -580,7 +580,8 @@ namespace config {
     {},  // prep commands
     0,  // update_check_interval_seconds (disabled by default)
     {},  // update_command
-    true  // update_command_once_per_version
+    true,  // update_command_once_per_version
+    false  // update_command_elevated
   };
 
   bool endline(char ch) {
@@ -1168,6 +1169,7 @@ namespace config {
     int_f(vars, "update_check_interval", config::sunshine.update_check_interval_seconds);
     string_f(vars, "update_command", config::sunshine.update_command);
     bool_f(vars, "update_command_once_per_version", config::sunshine.update_command_once_per_version);
+    bool_f(vars, "update_command_elevated", config::sunshine.update_command_elevated);
 
     string_f(vars, "audio_sink", audio.sink);
     string_f(vars, "virtual_sink", audio.virtual_sink);

@@ -297,13 +297,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
             When executed, Sunshine also provides the following environment variables:
             <ul>
                 <li><code>SUNSHINE_VERSION_CURRENT</code> – currently running version</li>
-                <li><code>SUNSHINE_VERSION_AVAILABLE</code> – latest stable version tag (may be empty)</li>
-                <li><code>SUNSHINE_VERSION_PRERELEASE</code> – latest pre-release tag (may be empty)</li>
+                <li><code>SUNSHINE_VERSION_AVAILABLE</code> – version tag of the release chosen for the update (may be empty)</li>
                 <li><code>SUNSHINE_UPDATE_CHANNEL</code> – one of <code>stable</code>, <code>prerelease</code>, or <code>none</code></li>
                 <li><code>SUNSHINE_RELEASE_URL</code> – release HTML page URL</li>
                 <li><code>SUNSHINE_RELEASE_NAME</code> – release title/name</li>
                 <li><code>SUNSHINE_RELEASE_BODY</code> – release notes body</li>
                 <li><code>SUNSHINE_RELEASE_PUBLISHED_AT</code> – release publish timestamp (ISO 8601)</li>
+                <li><code>SUNSHINE_ASSET_COUNT</code> – total number of assets attached to the release</li>
+                <li><code>SUNSHINE_ASSETS_JSON</code> – JSON array containing all assets. Each array item is an object with the fields:
+                  <code>name</code>, <code>url</code>, <code>sha256</code>, <code>size</code>, and <code>content_type</code>.
+                </li>
             </ul>
         </td>
     </tr>
