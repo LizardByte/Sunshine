@@ -116,9 +116,10 @@ namespace system_tray {
   #ifdef _WIN32
         {.text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb},
   #endif
-  {.text = "Check for Update", .cb = [](tray_menu*){ update::trigger_check(true, false); }},
-  {.text = "Run Update", .cb = [](tray_menu*){ update::run_update_command(); }},
-  {.text = "Restart", .cb = tray_restart_cb},
+        {.text = "Check for Update", .cb = [](tray_menu *) {
+           update::trigger_check(true, false);
+         }},
+        {.text = "Restart", .cb = tray_restart_cb},
         {.text = "Quit", .cb = tray_quit_cb},
         {.text = nullptr}
       },
@@ -314,7 +315,9 @@ namespace system_tray {
   }
 
   void tray_notify(const char *title, const char *text, void (*cb)()) {
-    if (!tray_initialized) return;
+    if (!tray_initialized) {
+      return;
+    }
 
     tray.notification_title = nullptr;
     tray.notification_text = nullptr;
