@@ -315,6 +315,12 @@ namespace video {
     avcodec_encode_session_t(avcodec_encode_session_t &&other) noexcept = default;
 
     ~avcodec_encode_session_t() {
+      // Flush any remaining frames in the encoder
+      if (avcodec_send_frame(avcodec_ctx.get(), nullptr) == 0) {
+        packet_raw_avcodec pkt;
+        while (avcodec_receive_packet(avcodec_ctx.get(), pkt.av_packet) == 0);
+      }
+
       // Order matters here because the context relies on the hwdevice still being valid
       avcodec_ctx.reset();
       device.reset();
@@ -536,7 +542,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
-        {"filler_data"s, false},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -557,6 +563,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -582,6 +589,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -730,6 +738,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, "lowest_latency"s},
+        {"async_depth"s, 1},
         {"skip_frame"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -753,6 +762,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, 1},
+        {"async_depth"s, 1},
         {"skip_frame"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -791,6 +801,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, 1},
+        {"async_depth"s, 1},
         {"frame_skipping"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -1526,22 +1537,22 @@ namespace video {
         case 0:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
-          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_H264_HIGH_444_PREDICTIVE : FF_PROFILE_H264_HIGH;
+          ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_H264_HIGH_444_PREDICTIVE : AV_PROFILE_H264_HIGH;
           break;
 
         case 1:
           if (config.chromaSamplingType == 1) {
             // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
-            ctx->profile = FF_PROFILE_HEVC_REXT;
+            ctx->profile = AV_PROFILE_HEVC_REXT;
           } else {
-            ctx->profile = config.dynamicRange ? FF_PROFILE_HEVC_MAIN_10 : FF_PROFILE_HEVC_MAIN;
+            ctx->profile = config.dynamicRange ? AV_PROFILE_HEVC_MAIN_10 : AV_PROFILE_HEVC_MAIN;
           }
           break;
 
         case 2:
           // AV1 supports both 8 and 10 bit encoding with the same Main profile
           // but YUV 4:4:4 sampling requires High profile
-          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_AV1_HIGH : FF_PROFILE_AV1_MAIN;
+          ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_AV1_HIGH : AV_PROFILE_AV1_MAIN;
           break;
       }
 
