@@ -47,15 +47,15 @@ namespace platf::dxgi {
 
   void ipc_session_t::initialize_if_needed() {
     // Fast path: already successfully initialized
-    if (_initialized.load(std::memory_order_acquire)) {
+    if (_initialized) {
       return;
     }
 
     // Attempt to become the initializing thread
     bool expected = false;
-    if (!_initializing.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+    if (!_initializing.compare_exchange_strong(expected, true)) {
       // Another thread is initializing; wait until it finishes (either success or failure)
-      while (_initializing.load(std::memory_order_acquire)) {
+      while (_initializing) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       }
       return;  // After wait, either initialized is true (success) or false (failure); caller can retry later
@@ -63,18 +63,18 @@ namespace platf::dxgi {
 
     // We are the initializing thread now. Ensure we clear the flag on all exit paths.
     auto clear_initializing = util::fail_guard([this]() {
-      _initializing.store(false, std::memory_order_release);
+      _initializing = false;
     });
 
     // Check if properly initialized via init() first
     if (!_process_helper) {
       BOOST_LOG(debug) << "Cannot initialize_if_needed without prior init()";
-      _initialized.store(false, std::memory_order_release);
+      _initialized = false;
       return;
     }
 
     // Reset success flag before attempting
-    _initialized.store(false, std::memory_order_release);
+    _initialized = false;
 
     // Get the directory of the main executable (Unicode-safe)
     std::wstring exePathBuffer(MAX_PATH, L'\0');
@@ -115,7 +115,7 @@ namespace platf::dxgi {
 
     auto on_broken_pipe = [this]() {
       BOOST_LOG(warning) << "Broken pipe detected, forcing re-init";
-      _force_reinit.store(true);
+      _force_reinit = true;
     };
 
     auto anon_connector = std::make_unique<AnonymousPipeFactory>();
@@ -170,10 +170,10 @@ namespace platf::dxgi {
     }
 
     if (handle_received) {
-      _initialized.store(true, std::memory_order_release);
+      _initialized = true;
     } else {
       BOOST_LOG(error) << "Failed to receive handle data from helper process! Helper is likely deadlocked!";
-      _initialized.store(false, std::memory_order_release);
+      _initialized = false;
     }
   }
 
@@ -184,8 +184,8 @@ namespace platf::dxgi {
     auto result = _frame_queue_pipe->receive_latest(std::span<uint8_t>(reinterpret_cast<uint8_t *>(&frame_msg), sizeof(frame_msg)), bytesRead, static_cast<int>(timeout.count()));
     if (result == PipeResult::Success && bytesRead == sizeof(frame_ready_msg_t)) {
       if (frame_msg.message_type == FRAME_READY_MSG) {
-        _frame_qpc.store(frame_msg.frame_qpc, std::memory_order_release);
-        _frame_ready.store(true, std::memory_order_release);
+        _frame_qpc = frame_msg.frame_qpc;
+        _frame_ready = true;
         return true;
       }
     }
@@ -251,7 +251,7 @@ namespace platf::dxgi {
 
     // Set output parameters
     gpu_tex_out = _shared_texture.get();
-    frame_qpc_out = _frame_qpc.load(std::memory_order_acquire);
+    frame_qpc_out = _frame_qpc;
 
     return capture_e::ok;
   }

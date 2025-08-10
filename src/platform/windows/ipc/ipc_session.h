@@ -141,8 +141,8 @@ namespace platf::dxgi {
     safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;  ///< Keyed mutex for shared texture.
     safe_com_ptr<ID3D11Texture2D> _shared_texture;  ///< Shared texture duplicated from helper.
     ID3D11Device *_device = nullptr;  ///< D3D11 device pointer (not owned).
-    std::atomic<bool> _frame_ready {false};  ///< Flag set when a new frame is ready.
-    std::atomic<uint64_t> _frame_qpc {0};  ///< QPC timestamp of latest frame.
+    bool _frame_ready {false};  ///< Flag set when a new frame is ready.
+    uint64_t _frame_qpc {0};  ///< QPC timestamp of latest frame.
     std::atomic<bool> _initializing {false};  ///< True while an initialization attempt is in progress.
     std::atomic<bool> _initialized {false};  ///< True once the most recent initialization attempt succeeded.
     std::atomic<bool> _should_swap_to_dxgi {false};  ///< True if capture should fallback.
