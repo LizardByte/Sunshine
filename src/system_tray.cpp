@@ -57,19 +57,14 @@ using namespace std::literals;
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
   static std::atomic<bool> notifications_disabled = false;
-
-  // Worker thread for async notifications
-  static std::mutex notify_q_mu;
+  static std::mutex notify_q_mutex;
   static std::condition_variable notify_q_cv;
   static std::deque<std::function<void()>> notify_q;
   static std::thread notify_worker;
+  static std::once_flag notify_start_once;  // ensure worker is started once
   static std::atomic<bool> notify_worker_should_stop = false;
   static std::atomic<bool> notify_error_logged = false;
-
-  // Persistent storage for C-string pointers written into `tray`.
-  // These keep the memory alive across function returns so the tray
-  // library doesn't end up with dangling pointers.
-  static std::mutex tray_mu;
+  static std::mutex tray_mutex;
   static std::string g_tooltip;
   static std::string g_notification_title;
   static std::string g_notification_text;
@@ -77,7 +72,7 @@ namespace system_tray {
   static void log_notifications_disabled_once() {
     bool expected = false;
     if (notify_error_logged.compare_exchange_strong(expected, true)) {
-  #if defined(__linux__) || defined(linux) || defined(__linux)
+  #if defined(__linux__)
       BOOST_LOG(error) << "Notifications disabled due to errors (notification call exceeded 3s). Is a desktop notification service installed?"sv;
   #else
       BOOST_LOG(error) << "Notifications disabled due to errors (notification call exceeded 3s)."sv;
@@ -100,7 +95,7 @@ namespace system_tray {
     }
     start_notify_worker_if_needed();
     {
-      std::lock_guard<std::mutex> lk(notify_q_mu);
+      std::lock_guard<std::mutex> lk(notify_q_mutex);
       notify_q.emplace_back(std::move(fn));
     }
     notify_q_cv.notify_one();
@@ -279,37 +274,36 @@ namespace system_tray {
 
   int end_tray() {
     tray_initialized = false;
-    tray_exit();
     stop_notify_worker();
+    {
+      std::lock_guard<std::mutex> lk(tray_mutex);
+      tray_exit();
+    }
     return 0;
   }
 
-  // Set tooltip/notification text/title and optionally set tray and
-  // notification icons. This clears previous transient fields and
-  // performs a single tray_update to apply all changes atomically.
-  static void set_texts_locked(const std::string &tooltip, const std::string &note, const std::string &title = "", const char *icon = TRAY_ICON) {
-    // This function assumes tray_mu is already held
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.tooltip = nullptr;
-    tray_update(&tray);
-
-    // Store persistent copies
+  static void set_toast_notification(const std::string &tooltip, const std::string &note, const std::string &title = "", const char *icon = TRAY_ICON, void (*cb)() = nullptr) {
+    // To prevent dangling references, we will copy the strings into global variables
+    // We only need to do this for the notification, the icon and everything else will generally remain in scope.
     g_tooltip = tooltip;
     g_notification_text = note;
     g_notification_title = title;
 
-    // Apply values to tray struct
     tray.icon = icon;
     tray.tooltip = g_tooltip.c_str();
 
-    if (!notifications_disabled.load(std::memory_order_relaxed)) {
-      // Only set notification fields if notifications are enabled
+    if (!notifications_disabled.load(std::memory_order_acquire)) {
       tray.notification_text = g_notification_text.c_str();
-      tray.notification_title = g_notification_title.empty() ? nullptr : g_notification_title.c_str();
-      tray.notification_icon = icon;
+      tray.notification_title = g_notification_title.c_str();
+      tray.notification_icon = icon; 
+      tray.notification_cb = cb;
+    } else {
+      // Disable notifications: keep safe empties and clear callback
+      static const char empty_str[] = "";
+      tray.notification_text = empty_str;
+      tray.notification_title = empty_str;
+      tray.notification_icon = TRAY_ICON;
+      tray.notification_cb = nullptr;
     }
 
     tray_update(&tray);
@@ -318,12 +312,8 @@ namespace system_tray {
   static void enqueue_tray_update(const std::string &tooltip, const std::string &note, const std::string &title, const char *icon, void (*cb)() = nullptr) {
     enqueue_notify_job([=]() {
       try {
-        std::lock_guard<std::mutex> lk(tray_mu);
-        set_texts_locked(tooltip, note, title, icon);
-        if (!notifications_disabled.load(std::memory_order_relaxed) && cb) {
-          system_tray::tray.notification_cb = cb;
-          tray_update(&system_tray::tray);
-        }
+        std::lock_guard<std::mutex> lk(tray_mutex);
+        set_toast_notification(tooltip, note, title, icon, cb);
       } catch (...) {
         BOOST_LOG(error) << "Exception during tray notification update."sv;
       }
@@ -367,7 +357,7 @@ namespace system_tray {
     while (!notify_worker_should_stop.load(std::memory_order_relaxed)) {
       std::function<void()> job;
       {
-        std::unique_lock<std::mutex> lk(notify_q_mu);
+        std::unique_lock<std::mutex> lk(notify_q_mutex);
         notify_q_cv.wait(lk, [] {
           return notify_worker_should_stop.load(std::memory_order_relaxed) || !notify_q.empty();
         });
@@ -398,24 +388,24 @@ namespace system_tray {
   }
 
   static void start_notify_worker_if_needed() {
-    // Ensure a single worker is running
-    if (!notify_worker.joinable()) {
-      std::lock_guard<std::mutex> lk(notify_q_mu);
-      if (!notify_worker.joinable()) {
-        notify_worker_should_stop.store(false, std::memory_order_relaxed);
-        notify_worker = std::thread(notify_worker_loop);
-      }
-    }
+    // Ensure only a single worker is started.
+    std::call_once(notify_start_once, [] {
+      notify_worker_should_stop.store(false, std::memory_order_relaxed);
+      notify_worker = std::thread(notify_worker_loop);
+    });
   }
 
   static void stop_notify_worker() {
+    // Only clear the queue once the worker has stopped.
     notify_worker_should_stop.store(true, std::memory_order_relaxed);
     notify_q_cv.notify_all();
     if (notify_worker.joinable()) {
       notify_worker.join();
     }
+
+    // Worker is stopped, clear the notification queue.
     {
-      std::lock_guard<std::mutex> lk(notify_q_mu);
+      std::lock_guard<std::mutex> lk(notify_q_mutex);
       notify_q.clear();
     }
   }
