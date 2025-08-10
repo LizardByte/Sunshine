@@ -27,9 +27,16 @@
   #endif
 
   // standard includes
+  #include <atomic>
+  #include <chrono>
+  #include <condition_variable>
   #include <csignal>
+  #include <deque>
+  #include <functional>
+  #include <future>
   #include <mutex>
   #include <string>
+  #include <thread>
 
   // lib includes
   #include <boost/filesystem.hpp>
@@ -49,6 +56,15 @@ using namespace std::literals;
 // system_tray namespace
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
+  static std::atomic<bool> notifications_disabled = false;
+
+  // Worker thread for async notifications
+  static std::mutex notify_q_mu;
+  static std::condition_variable notify_q_cv;
+  static std::deque<std::function<void()>> notify_q;
+  static std::thread notify_worker;
+  static std::atomic<bool> notify_worker_should_stop = false;
+  static std::atomic<bool> notify_error_logged = false;
 
   // Persistent storage for C-string pointers written into `tray`.
   // These keep the memory alive across function returns so the tray
@@ -57,6 +73,38 @@ namespace system_tray {
   static std::string g_tooltip;
   static std::string g_notification_title;
   static std::string g_notification_text;
+
+  static void log_notifications_disabled_once() {
+    bool expected = false;
+    if (notify_error_logged.compare_exchange_strong(expected, true)) {
+  #if defined(__linux__) || defined(linux) || defined(__linux)
+      BOOST_LOG(error) << "Notifications disabled due to errors (notification call exceeded 3s). Is a desktop notification service installed?"sv;
+  #else
+      BOOST_LOG(error) << "Notifications disabled due to errors (notification call exceeded 3s)."sv;
+  #endif
+    }
+  }
+
+  static void start_notify_worker_if_needed();
+  static void stop_notify_worker();
+
+  // Enqueue a notification job to be executed on the worker thread. If notifications are
+  // disabled, log an error and drop the job without blocking the caller.
+  static void enqueue_notify_job(std::function<void()> fn) {
+    if (!tray_initialized) {
+      return;
+    }
+    if (notifications_disabled.load(std::memory_order_relaxed)) {
+      log_notifications_disabled_once();
+      return;
+    }
+    start_notify_worker_if_needed();
+    {
+      std::lock_guard<std::mutex> lk(notify_q_mu);
+      notify_q.emplace_back(std::move(fn));
+    }
+    notify_q_cv.notify_one();
+  }
 
   void tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -203,6 +251,7 @@ namespace system_tray {
     }
 
     tray_initialized = true;
+    start_notify_worker_if_needed();
     while (tray_loop(1) == 0) {
       BOOST_LOG(debug) << "System tray loop"sv;
     }
@@ -231,13 +280,15 @@ namespace system_tray {
   int end_tray() {
     tray_initialized = false;
     tray_exit();
+    stop_notify_worker();
     return 0;
   }
 
   // Set tooltip/notification text/title and optionally set tray and
   // notification icons. This clears previous transient fields and
   // performs a single tray_update to apply all changes atomically.
-  static void set_texts(const std::string &tooltip, const std::string &note, const std::string &title = "", const char *icon = TRAY_ICON) {
+  static void set_texts_locked(const std::string &tooltip, const std::string &note, const std::string &title = "", const char *icon = TRAY_ICON) {
+    // This function assumes tray_mu is already held
     tray.notification_title = nullptr;
     tray.notification_text = nullptr;
     tray.notification_cb = nullptr;
@@ -253,60 +304,120 @@ namespace system_tray {
     // Apply values to tray struct
     tray.icon = icon;
     tray.tooltip = g_tooltip.c_str();
-    tray.notification_text = g_notification_text.c_str();
-    tray.notification_title = g_notification_title.empty() ? nullptr : g_notification_title.c_str();
-    tray.notification_icon = icon;
+
+    if (!notifications_disabled.load(std::memory_order_relaxed)) {
+      // Only set notification fields if notifications are enabled
+      tray.notification_text = g_notification_text.c_str();
+      tray.notification_title = g_notification_title.empty() ? nullptr : g_notification_title.c_str();
+      tray.notification_icon = icon;
+    }
 
     tray_update(&tray);
+  }
+
+  static void enqueue_tray_update(const std::string &tooltip, const std::string &note, const std::string &title, const char *icon, void (*cb)() = nullptr) {
+    enqueue_notify_job([=]() {
+      try {
+        std::lock_guard<std::mutex> lk(tray_mu);
+        set_texts_locked(tooltip, note, title, icon);
+        if (!notifications_disabled.load(std::memory_order_relaxed) && cb) {
+          system_tray::tray.notification_cb = cb;
+          tray_update(&system_tray::tray);
+        }
+      } catch (...) {
+        BOOST_LOG(error) << "Exception during tray notification update."sv;
+      }
+    });
   }
 
   void update_tray_playing(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
-
-    std::lock_guard<std::mutex> lk(tray_mu);
-
     std::string msg = "Streaming started for " + app_name;
-    set_texts(msg, msg, "Stream Started", TRAY_ICON_PLAYING);
+    enqueue_tray_update(msg, msg, "Stream Started", TRAY_ICON_PLAYING);
   }
 
   void update_tray_pausing(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
-
-    std::lock_guard<std::mutex> lk(tray_mu);
-
     std::string msg = "Streaming paused for " + app_name;
-    set_texts(msg, msg, "Stream Paused", TRAY_ICON_PAUSING);
+    enqueue_tray_update(msg, msg, "Stream Paused", TRAY_ICON_PAUSING);
   }
 
   void update_tray_stopped(std::string app_name) {
     if (!tray_initialized) {
       return;
     }
-
-    std::lock_guard<std::mutex> lk(tray_mu);
-
     std::string msg = "Application " + app_name + " successfully stopped";
-    set_texts(PROJECT_NAME, msg, "Application Stopped", TRAY_ICON);
+    enqueue_tray_update(PROJECT_NAME, msg, "Application Stopped", TRAY_ICON);
   }
 
   void update_tray_require_pin() {
     if (!tray_initialized) {
       return;
     }
-
-    std::lock_guard<std::mutex> lk(tray_mu);
-
-    set_texts(PROJECT_NAME, "Click here to complete the pairing process", "Incoming Pairing Request", TRAY_ICON_LOCKED);
-
-    // Attach callback and re-apply so callback is set as well
-    tray.notification_cb = []() {
+    enqueue_tray_update(PROJECT_NAME, "Click here to complete the pairing process", "Incoming Pairing Request", TRAY_ICON_LOCKED, []() {
       launch_ui("/pin");
-    };
-    tray_update(&tray);
+    });
+  }
+
+  static void notify_worker_loop() {
+    while (!notify_worker_should_stop.load(std::memory_order_relaxed)) {
+      std::function<void()> job;
+      {
+        std::unique_lock<std::mutex> lk(notify_q_mu);
+        notify_q_cv.wait(lk, [] {
+          return notify_worker_should_stop.load(std::memory_order_relaxed) || !notify_q.empty();
+        });
+        if (notify_worker_should_stop.load(std::memory_order_relaxed)) {
+          break;
+        }
+        job = std::move(notify_q.front());
+        notify_q.pop_front();
+      }
+
+      if (job) {
+        // Run the job with a 3-second timeout
+        std::packaged_task<void()> task(std::move(job));
+        auto fut = task.get_future();
+        std::thread t(std::move(task));
+
+        if (fut.wait_for(std::chrono::seconds(3)) == std::future_status::timeout) {
+          // Job is stuck; disable notifications and detach the stuck thread
+          notifications_disabled.store(true, std::memory_order_relaxed);
+          log_notifications_disabled_once();
+          t.detach();
+        } else {
+          // Finished within timeout
+          t.join();
+        }
+      }
+    }
+  }
+
+  static void start_notify_worker_if_needed() {
+    // Ensure a single worker is running
+    if (!notify_worker.joinable()) {
+      std::lock_guard<std::mutex> lk(notify_q_mu);
+      if (!notify_worker.joinable()) {
+        notify_worker_should_stop.store(false, std::memory_order_relaxed);
+        notify_worker = std::thread(notify_worker_loop);
+      }
+    }
+  }
+
+  static void stop_notify_worker() {
+    notify_worker_should_stop.store(true, std::memory_order_relaxed);
+    notify_q_cv.notify_all();
+    if (notify_worker.joinable()) {
+      notify_worker.join();
+    }
+    {
+      std::lock_guard<std::mutex> lk(notify_q_mu);
+      notify_q.clear();
+    }
   }
 
 }  // namespace system_tray
