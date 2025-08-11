@@ -13,7 +13,9 @@
 
 // platform includes
 #ifdef _WIN32
+  #include <unknwn.h>
   #include <windows.h>
+  #include <winrt/base.h>
 #endif
 #include <avrt.h>
 #include <tlhelp32.h>
@@ -34,10 +36,11 @@ namespace platf::dxgi {
      */
     io_context();
 
-    /**
-     * @brief Destroy context and close the event handle.
-     */
-    ~io_context();
+  /**
+   * @brief Destroy context and close the event handle.
+   * Uses RAII via winrt::handle for automatic lifetime management.
+   */
+    ~io_context() = default;
 
     io_context(const io_context &) = delete;
     io_context &operator=(const io_context &) = delete;
@@ -61,21 +64,21 @@ namespace platf::dxgi {
      */
     OVERLAPPED *get();
 
-    /**
-     * @brief Get event handle associated with the OVERLAPPED.
-     * @return Event `HANDLE`.
-     */
+  /**
+   * @brief Get event handle associated with the OVERLAPPED.
+   * @return Event `HANDLE` (owned internally via winrt::handle).
+   */
     HANDLE event() const;
 
-    /**
-     * @brief Check validity of the context (event successfully created).
-     * @return `true` if valid, otherwise `false`.
-     */
+  /**
+   * @brief Check validity of the context (event successfully created).
+   * @return `true` if valid, otherwise `false`.
+   */
     bool is_valid() const;
 
   private:
-    OVERLAPPED _ovl;
-    HANDLE _event;
+  OVERLAPPED _ovl;
+  winrt::handle _event;
   };
 
   /**
@@ -140,66 +143,6 @@ namespace platf::dxgi {
      */
     explicit operator bool() const;
   };
-
-  /**
-   * @brief RAII wrapper for generic Windows `HANDLE` values.
-   */
-  struct safe_handle: public util::safe_ptr_v2<void, BOOL, CloseHandle> {
-    using util::safe_ptr_v2<void, BOOL, CloseHandle>::safe_ptr_v2;
-
-    /**
-     * @brief Check handle validity (not `NULL` or `INVALID_HANDLE_VALUE`).
-     * @return `true` if valid, else `false`.
-     */
-    explicit operator bool() const {
-      auto handle = get();
-      return handle != NULL && handle != INVALID_HANDLE_VALUE;
-    }
-  };
-
-  /**
-   * @brief Deleter for views returned by `MapViewOfFile`.
-   */
-  struct memory_view_deleter {
-    /**
-     * @brief Unmap a mapped view if non-null.
-     * @param ptr Base address returned by `MapViewOfFile`.
-     */
-    void operator()(void *ptr) {
-      if (ptr) {
-        UnmapViewOfFile(ptr);
-      }
-    }
-  };
-
-  /**
-   * @brief Unique pointer for a mapped file view.
-   */
-  using safe_memory_view = util::uniq_ptr<void, memory_view_deleter>;
-
-  /**
-   * @brief COM object deleter calling `Release()`.
-   */
-  struct com_deleter {
-    /**
-     * @brief Release COM object if non-null.
-     * @tparam T COM interface type.
-     * @param ptr Interface pointer.
-     */
-    template<typename T>
-    void operator()(T *ptr) {
-      if (ptr) {
-        ptr->Release();
-      }
-    }
-  };
-
-  /**
-   * @brief Unique pointer alias for COM interfaces.
-   * @tparam T COM interface type.
-   */
-  template<typename T>
-  using safe_com_ptr = util::uniq_ptr<T, com_deleter>;
 
   /**
    * @brief Deleter for WinEvent hooks (UnhookWinEvent).

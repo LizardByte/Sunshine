@@ -12,14 +12,10 @@
 
 // standard includes
 #include <atomic>
-#include <boost/format.hpp>
 #include <chrono>
-#include <condition_variable>
 #include <deque>
-#include <iomanip>  // for std::fixed, std::setprecision
-#include <iostream>
-#include <mutex>
-#include <queue>
+#include <memory>
+#include <optional>
 #include <string>
 #include <thread>
 #include <utility>
@@ -42,10 +38,6 @@
 #include <winrt/Windows.Foundation.Metadata.h>  // For ApiInformation
 #include <winrt/Windows.Graphics.Capture.h>
 #include <winrt/Windows.Graphics.DirectX.Direct3D11.h>
-#include <winrt/Windows.System.h>
-
-// Gross hack to work around MINGW-packages#22160
-#define ____FIReference_1_boolean_INTERFACE_DEFINED__
 
 // Manual declaration for CreateDirect3D11DeviceFromDXGIDevice if missing
 extern "C" {
@@ -97,8 +89,6 @@ using namespace winrt::Windows::Graphics;
 using namespace winrt::Windows::Graphics::Capture;
 using namespace winrt::Windows::Graphics::DirectX;
 using namespace winrt::Windows::Graphics::DirectX::Direct3D11;
-using namespace winrt::Windows::System;
-using namespace std::literals;
 using namespace platf::dxgi;
 
 // GPU scheduling priority definitions for optimal capture performance under high GPU load
@@ -138,14 +128,9 @@ static platf::dxgi::config_data_t g_config = {0, 0, L"", {0, 0}};
 static bool g_config_received = false;
 
 /**
- * @brief Global handle for frame metadata shared memory mapping.
- */
-static safe_handle g_metadata_mapping = nullptr;
-
-/**
  * @brief Global communication pipe for sending session closed notifications.
  */
-static AsyncNamedPipe *g_communication_pipe = nullptr;
+static std::weak_ptr<AsyncNamedPipe> g_communication_pipe_weak;
 
 /**
  * @brief Global Windows event hook for desktop switch detection.
@@ -378,8 +363,8 @@ public:
  */
 class D3D11DeviceManager {
 private:
-  safe_com_ptr<ID3D11Device> _device = nullptr;  ///< D3D11 device for graphics operations
-  safe_com_ptr<ID3D11DeviceContext> _context = nullptr;  ///< D3D11 device context for rendering
+  winrt::com_ptr<ID3D11Device> _device;  ///< D3D11 device for graphics operations
+  winrt::com_ptr<ID3D11DeviceContext> _context;  ///< D3D11 device context for rendering
   D3D_FEATURE_LEVEL _feature_level;  ///< D3D feature level supported by the device
   winrt::com_ptr<IDXGIDevice> _dxgi_device;  ///< DXGI device interface for WinRT interop
   winrt::com_ptr<::IDirect3DDevice> _interop_device;  ///< Intermediate interop device
@@ -398,9 +383,6 @@ public:
    * @return true if device creation succeeded, false otherwise.
    */
   bool create_device(const LUID &adapter_luid) {
-    ID3D11Device *raw_device = nullptr;
-    ID3D11DeviceContext *raw_context = nullptr;
-
     // Feature levels to try, matching the main process
     D3D_FEATURE_LEVEL featureLevels[] {
       D3D_FEATURE_LEVEL_11_1,
@@ -456,9 +438,9 @@ public:
       featureLevels,
       ARRAYSIZE(featureLevels),
       D3D11_SDK_VERSION,
-      &raw_device,
+      _device.put(),
       &_feature_level,
-      &raw_context
+      _context.put()
     );
 
     if (FAILED(hr)) {
@@ -466,14 +448,10 @@ public:
       return false;
     }
 
-    _device.reset(raw_device);
-    _context.reset(raw_context);
-
     // Set GPU thread priority to 7 for optimal capture performance under high GPU load
-    winrt::com_ptr<IDXGIDevice> dxgi_device;
-    hr = _device->QueryInterface(__uuidof(IDXGIDevice), dxgi_device.put_void());
-    if (SUCCEEDED(hr)) {
-      hr = dxgi_device->SetGPUThreadPriority(7);
+    _dxgi_device = _device.as<IDXGIDevice>();
+    if (_dxgi_device) {
+      hr = _dxgi_device->SetGPUThreadPriority(7);
       if (FAILED(hr)) {
         BOOST_LOG(warning) << "Failed to set GPU thread priority to 7: " << hr
                            << " (may require administrator privileges for optimal performance)";
@@ -503,13 +481,13 @@ public:
       return false;
     }
 
-    HRESULT hr = _device->QueryInterface(__uuidof(IDXGIDevice), _dxgi_device.put_void());
-    if (FAILED(hr)) {
+    _dxgi_device = _device.as<IDXGIDevice>();
+    if (!_dxgi_device) {
       BOOST_LOG(error) << "Failed to get DXGI device";
       return false;
     }
 
-    hr = CreateDirect3D11DeviceFromDXGIDevice(_dxgi_device.get(), reinterpret_cast<::IInspectable **>(winrt::put_abi(_interop_device)));
+    HRESULT hr = CreateDirect3D11DeviceFromDXGIDevice(_dxgi_device.get(), reinterpret_cast<::IInspectable **>(winrt::put_abi(_interop_device)));
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create interop device";
       return false;
@@ -532,21 +510,21 @@ public:
   }
 
   /**
-   * @brief Gets the underlying D3D11 device pointer.
+   * @brief Gets the underlying D3D11 device com_ptr.
    *
-   * @return Pointer to the managed ID3D11Device, or nullptr if not initialized.
+   * @return Pointer to the managed ID3D11Device, or empty if not initialized.
    */
-  ID3D11Device *get_device() {
-    return _device.get();
+  const winrt::com_ptr<ID3D11Device> &get_device() const {
+    return _device;
   }
 
   /**
-   * @brief Gets the underlying D3D11 device context pointer.
+   * @brief Gets the underlying D3D11 device context com_ptr.
    *
-   * @return Pointer to the managed ID3D11DeviceContext, or nullptr if not initialized.
+   * @return Pointer to the managed ID3D11DeviceContext, or empty if not initialized.
    */
-  ID3D11DeviceContext *get_context() {
-    return _context.get();
+  const winrt::com_ptr<ID3D11DeviceContext> &get_context() const {
+    return _context;
   }
 
   /**
@@ -726,9 +704,9 @@ public:
  */
 class SharedResourceManager {
 private:
-  safe_com_ptr<ID3D11Texture2D> _shared_texture = nullptr;  ///< Shared D3D11 texture for frame data
-  safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex = nullptr;  ///< Keyed mutex for synchronization
-  safe_handle _shared_handle = nullptr;  ///< Shared handle for cross-process sharing
+  winrt::com_ptr<ID3D11Texture2D> _shared_texture;  ///< Shared D3D11 texture for frame data
+  winrt::com_ptr<IDXGIKeyedMutex> _keyed_mutex;  ///< Keyed mutex for synchronization
+  winrt::handle _shared_handle;  ///< Shared handle for cross-process sharing
   UINT _width = 0;  ///< Texture width in pixels
   UINT _height = 0;  ///< Texture height in pixels
 
@@ -766,9 +744,8 @@ public:
    * @param texture_height Height of the texture in pixels.
    * @param format DXGI format for the texture.
    * @return true if the texture was successfully created; false otherwise.
-   *
    */
-  bool create_shared_texture(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
+  bool create_shared_texture(const winrt::com_ptr<ID3D11Device> &device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     _width = texture_width;
     _height = texture_height;
 
@@ -784,13 +761,11 @@ public:
     // Use NT shared handles exclusively
     tex_desc.MiscFlags = D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX | D3D11_RESOURCE_MISC_SHARED_NTHANDLE;
 
-    ID3D11Texture2D *raw_texture = nullptr;
-    HRESULT hr = device->CreateTexture2D(&tex_desc, nullptr, &raw_texture);
+    HRESULT hr = device->CreateTexture2D(&tex_desc, nullptr, _shared_texture.put());
     if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create NT shared texture: " << hr;
       return false;
     }
-    _shared_texture.reset(raw_texture);
     return true;
   }
 
@@ -803,13 +778,11 @@ public:
       return false;
     }
 
-    IDXGIKeyedMutex *raw_mutex = nullptr;
-    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) (&raw_mutex));
-    if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to get keyed mutex: " << hr;
+    _keyed_mutex = _shared_texture.as<IDXGIKeyedMutex>();
+    if (!_keyed_mutex) {
+      BOOST_LOG(error) << "Failed to get keyed mutex";
       return false;
     }
-    _keyed_mutex.reset(raw_mutex);
     return true;
   }
 
@@ -824,21 +797,18 @@ public:
       return false;
     }
 
-    winrt::com_ptr<IDXGIResource1> dxgi_resource1;
-    HRESULT hr = _shared_texture->QueryInterface(__uuidof(IDXGIResource1), dxgi_resource1.put_void());
-    if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to query DXGI resource1 interface: " << hr;
+    winrt::com_ptr<IDXGIResource1> dxgi_resource1 = _shared_texture.as<IDXGIResource1>();
+    if (!dxgi_resource1) {
+      BOOST_LOG(error) << "Failed to query DXGI resource1 interface";
       return false;
     }
 
     // Create the shared handle
-    HANDLE raw_handle = nullptr;
-    hr = dxgi_resource1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, &raw_handle);
-    if (FAILED(hr) || !raw_handle) {
+    HRESULT hr = dxgi_resource1->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ | DXGI_SHARED_RESOURCE_WRITE, nullptr, _shared_handle.put());
+    if (FAILED(hr)) {
       BOOST_LOG(error) << "Failed to create shared handle: " << hr;
       return false;
     }
-    _shared_handle = raw_handle;
     return true;
   }
 
@@ -850,9 +820,8 @@ public:
    * @param texture_height Height of the texture in pixels.
    * @param format DXGI format for the texture.
    * @return true if all resources were successfully initialized; false otherwise.
-   *
    */
-  bool initialize_all(ID3D11Device *device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
+  bool initialize_all(const winrt::com_ptr<ID3D11Device> &device, UINT texture_width, UINT texture_height, DXGI_FORMAT format) {
     return create_shared_texture(device, texture_width, texture_height, format) &&
            create_keyed_mutex() &&
            create_shared_handle();
@@ -874,16 +843,16 @@ public:
    * @brief Gets the underlying shared D3D11 texture pointer.
    * @return Pointer to the managed ID3D11Texture2D, or nullptr if not initialized.
    */
-  ID3D11Texture2D *get_shared_texture() {
-    return _shared_texture.get();
+  const winrt::com_ptr<ID3D11Texture2D> &get_shared_texture() const {
+    return _shared_texture;
   }
 
   /**
-   * @brief Gets the keyed mutex interface for the shared texture.
-   * @return Pointer to the managed IDXGIKeyedMutex, or nullptr if not initialized.
+   * @brief Gets the keyed mutex interface com_ptr for the shared texture.
+   * @return const winrt::com_ptr<IDXGIKeyedMutex>& (may be empty if not initialized).
    */
-  IDXGIKeyedMutex *get_keyed_mutex() {
-    return _keyed_mutex.get();
+  const winrt::com_ptr<IDXGIKeyedMutex> &get_keyed_mutex() const {
+    return _keyed_mutex;
   }
 
   /**
@@ -903,14 +872,21 @@ public:
  * - Frame rate optimization and adaptive buffering
  * - Integration with shared texture resources for inter-process communication
  */
+struct WgcCaptureDependencies {
+  // Required devices/resources
+  IDirect3DDevice winrt_device;  // WinRT Direct3D device (value-type COM handle)
+  GraphicsCaptureItem graphics_item;  // Target capture item
+  SharedResourceManager &resource_manager;  // Shared inter-process texture/mutex manager
+  winrt::com_ptr<ID3D11DeviceContext> d3d_context;  // D3D11 context for copies
+  INamedPipe &pipe;  // IPC pipe for frame-ready
+};
+
 class WgcCaptureManager {
 private:
   Direct3D11CaptureFramePool _frame_pool = nullptr;  ///< WinRT frame pool for capture operations
   GraphicsCaptureSession _capture_session = nullptr;  ///< WinRT capture session for monitor/window capture
   winrt::event_token _frame_arrived_token {};  ///< Event token for frame arrival notifications
-  SharedResourceManager *_resource_manager = nullptr;  ///< Pointer to shared resource manager
-  ID3D11DeviceContext *_d3d_context = nullptr;  ///< D3D11 context for texture operations
-  INamedPipe *_pipe = nullptr;  ///< Communication pipe with main process
+  std::optional<WgcCaptureDependencies> _deps;  ///< Dependencies for frame processing
 
   uint32_t _current_buffer_size = 1;  ///< Current frame buffer size for dynamic adjustment
   static constexpr uint32_t MAX_BUFFER_SIZE = 4;  ///< Maximum allowed buffer size
@@ -920,31 +896,28 @@ private:
   std::atomic<int> _peak_outstanding {0};  ///< Peak number of outstanding frames (for monitoring)
   std::chrono::steady_clock::time_point _last_quiet_start = std::chrono::steady_clock::now();  ///< Last time frame processing became quiet
   std::chrono::steady_clock::time_point _last_buffer_check = std::chrono::steady_clock::now();  ///< Last time buffer size was checked
-  IDirect3DDevice _winrt_device = nullptr;  ///< WinRT Direct3D device for capture operations
   DXGI_FORMAT _capture_format = DXGI_FORMAT_UNKNOWN;  ///< DXGI format for captured frames
   UINT _height = 0;  ///< Capture height in pixels
   UINT _width = 0;  ///< Capture width in pixels
-  GraphicsCaptureItem _graphics_item = nullptr;  ///< WinRT graphics capture item (monitor/window)
 
 public:
   /**
    * @brief Constructor for WgcCaptureManager.
    *
-   * Initializes the capture manager with the required WinRT device, capture format,
-   * dimensions, and graphics capture item. Sets up internal state for frame processing.
+   * Initializes the capture manager for the given dimensions and capture format and
+   * stores the dependencies bundle used during capture operations.
    *
-   * @param winrt_device WinRT Direct3D device for capture operations.
    * @param capture_format DXGI format for captured frames.
    * @param width Capture width in pixels.
    * @param height Capture height in pixels.
-   * @param item Graphics capture item representing the monitor or window to capture.
+   * @param deps Bundle of dependencies: winrt IDirect3DDevice, GraphicsCaptureItem,
+   *             reference to SharedResourceManager, D3D11 context com_ptr, and INamedPipe reference.
    */
-  WgcCaptureManager(IDirect3DDevice winrt_device, DXGI_FORMAT capture_format, UINT width, UINT height, GraphicsCaptureItem item):
-      _winrt_device(winrt_device),
+  WgcCaptureManager(DXGI_FORMAT capture_format, UINT width, UINT height, WgcCaptureDependencies deps):
+      _deps(std::move(deps)),
       _capture_format(capture_format),
       _height(height),
-      _width(width),
-      _graphics_item(item) {
+      _width(width) {
   }
 
   /**
@@ -1011,7 +984,7 @@ public:
    * @returns true if the frame pool was recreated successfully, false otherwise.
    */
   bool create_or_adjust_frame_pool(uint32_t buffer_size) {
-    if (!_winrt_device || _capture_format == DXGI_FORMAT_UNKNOWN) {
+    if (!_deps || !_deps->winrt_device || _capture_format == DXGI_FORMAT_UNKNOWN) {
       return false;
     }
 
@@ -1019,7 +992,7 @@ public:
       // Use the proper Recreate method instead of closing and re-creating
       try {
         _frame_pool.Recreate(
-          _winrt_device,
+          _deps->winrt_device,
           (_capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? DirectXPixelFormat::R16G16B16A16Float : DirectXPixelFormat::B8G8R8A8UIntNormalized,
           buffer_size,
           SizeInt32 {static_cast<int32_t>(_width), static_cast<int32_t>(_height)}
@@ -1035,7 +1008,7 @@ public:
     } else {
       // Initial creation case - create new frame pool
       _frame_pool = Direct3D11CaptureFramePool::CreateFreeThreaded(
-        _winrt_device,
+        _deps->winrt_device,
         (_capture_format == DXGI_FORMAT_R16G16B16A16_FLOAT) ? DirectXPixelFormat::R16G16B16A16Float : DirectXPixelFormat::B8G8R8A8UIntNormalized,
         buffer_size,
         SizeInt32 {static_cast<int32_t>(_width), static_cast<int32_t>(_height)}
@@ -1049,26 +1022,6 @@ public:
     }
 
     return false;
-  }
-
-  /**
-   * @brief Attaches the frame arrived event handler for frame processing.
-   * @param res_mgr Pointer to the shared resource manager.
-   * @param context Pointer to the D3D11 device context.
-   * @param pipe Pointer to the async named pipe for IPC.
-   */
-  void attach_frame_arrived_handler(SharedResourceManager *res_mgr, ID3D11DeviceContext *context, INamedPipe *pipe) {
-    _resource_manager = res_mgr;
-    _d3d_context = context;
-    _pipe = pipe;
-
-    _frame_arrived_token = _frame_pool.FrameArrived([this](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &) {
-      // Track outstanding frames for buffer occupancy monitoring
-      ++_outstanding_frames;
-      _peak_outstanding = std::max(_peak_outstanding.load(), _outstanding_frames.load());
-
-      process_frame(sender);
-    });
   }
 
   /**
@@ -1168,13 +1121,13 @@ private:
    * @param frame_qpc The QPC timestamp from when the frame was captured.
    */
   void process_surface_to_texture(winrt::Windows::Graphics::DirectX::Direct3D11::IDirect3DSurface surface, uint64_t frame_qpc) {
-    if (!_resource_manager || !_d3d_context || !_pipe) {
+    if (!_deps) {
       return;
     }
 
     // Get DXGI access
     winrt::com_ptr<IDirect3DDxgiInterfaceAccess> ia;
-    if (FAILED(winrt::get_unknown(surface)->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), winrt::put_abi(ia)))) {
+    if (FAILED(winrt::get_unknown(surface)->QueryInterface(__uuidof(IDirect3DDxgiInterfaceAccess), ia.put_void()))) {
       BOOST_LOG(error) << "Failed to query IDirect3DDxgiInterfaceAccess";
       return;
     }
@@ -1186,22 +1139,22 @@ private:
       return;
     }
 
-    HRESULT hr = _resource_manager->get_keyed_mutex()->AcquireSync(0, 200);
+    HRESULT hr = _deps->resource_manager.get_keyed_mutex()->AcquireSync(0, 200);
     if (hr != S_OK) {
       BOOST_LOG(error) << "Failed to acquire mutex key 0: " << std::format(": 0x{:08X}", hr);
       return;
     }
 
     // Copy frame data and release mutex
-    _d3d_context->CopyResource(_resource_manager->get_shared_texture(), frame_tex.get());
-    _resource_manager->get_keyed_mutex()->ReleaseSync(0);
+    _deps->d3d_context->CopyResource(_deps->resource_manager.get_shared_texture().get(), frame_tex.get());
+    _deps->resource_manager.get_keyed_mutex()->ReleaseSync(0);
 
     // Send frame ready message with QPC timing data
     frame_ready_msg_t frame_msg;
     frame_msg.frame_qpc = frame_qpc;
 
     std::span<const uint8_t> msg_span(reinterpret_cast<const uint8_t *>(&frame_msg), sizeof(frame_msg));
-    _pipe->send(msg_span, 5000);
+    _deps->pipe.send(msg_span, 5000);
   }
 
 public:
@@ -1214,7 +1167,13 @@ public:
       return false;
     }
 
-    _capture_session = _frame_pool.CreateCaptureSession(_graphics_item);
+    _frame_arrived_token = _frame_pool.FrameArrived([this](Direct3D11CaptureFramePool const &sender, winrt::Windows::Foundation::IInspectable const &) {
+      ++_outstanding_frames;
+      _peak_outstanding = std::max(_peak_outstanding.load(), _outstanding_frames.load());
+      process_frame(sender);
+    });
+
+    _capture_session = _frame_pool.CreateCaptureSession(_deps->graphics_item);
     _capture_session.IsBorderRequired(false);
 
     // Technically this is not required for users that have 24H2, but there's really no functional difference.
@@ -1288,12 +1247,12 @@ void CALLBACK desktop_switch_hook_proc(HWINEVENTHOOK /*h_win_event_hook*/, DWORD
       g_secure_desktop_detected = true;
 
       // Send notification to main process
-      if (g_communication_pipe && g_communication_pipe->is_connected()) {
-        {
+      if (auto pipe = g_communication_pipe_weak.lock()) {
+        if (pipe->is_connected()) {
           uint8_t msg = SECURE_DESKTOP_MSG;
-          g_communication_pipe->send(std::span<const uint8_t>(&msg, 1));
+          pipe->send(std::span<const uint8_t>(&msg, 1));
+          BOOST_LOG(info) << "Sent secure desktop notification to main process (0x02)";
         }
-        BOOST_LOG(info) << "Sent secure desktop notification to main process (0x02)";
       }
     } else if (!secure_desktop_active && g_secure_desktop_detected) {
       BOOST_LOG(info) << "Returned to normal desktop";
@@ -1484,10 +1443,10 @@ int main(int argc, char *argv[]) {
 
   auto comm_pipe = pipe_factory.create_client(pipe_name);
   auto frame_queue_pipe = pipe_factory.create_client(frame_queue_pipe_name);
-  AsyncNamedPipe pipe(std::move(comm_pipe));
-  g_communication_pipe = &pipe;  // Store global reference for session.Closed handler
+  auto pipe_shared = std::make_shared<AsyncNamedPipe>(std::move(comm_pipe));
+  g_communication_pipe_weak = pipe_shared;  // Store weak reference for desktop hook callback
 
-  if (!setup_pipe_callbacks(pipe)) {
+  if (!setup_pipe_callbacks(*pipe_shared)) {
     BOOST_LOG(error) << "Failed to start communication pipe";
     return 1;
   }
@@ -1547,21 +1506,28 @@ int main(int argc, char *argv[]) {
 
   // Wait for connection and send the handle data
   BOOST_LOG(info) << "Waiting for main process to connect...";
-  while (!pipe.is_connected()) {
+  while (!pipe_shared->is_connected()) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   BOOST_LOG(info) << "Connected! Sending duplicated handle data...";
-  pipe.send(handle_message);
+  pipe_shared->send(handle_message);
   BOOST_LOG(info) << "Duplicated handle data sent successfully to main process";
 
+  // Create dependencies for capture manager
+  WgcCaptureDependencies deps {
+    d3d11_manager.get_winrt_device(),
+    item,
+    shared_resource_manager,
+    d3d11_manager.get_context(),
+    *frame_queue_pipe
+  };
+
   // Create WGC capture manager
-  WgcCaptureManager wgc_capture_manager {d3d11_manager.get_winrt_device(), capture_format, display_manager.get_width(), display_manager.get_height(), item};
+  WgcCaptureManager wgc_capture_manager {capture_format, display_manager.get_width(), display_manager.get_height(), std::move(deps)};
   if (!wgc_capture_manager.create_or_adjust_frame_pool(1)) {
     BOOST_LOG(error) << "Failed to create frame pool";
     return 1;
   }
-
-  wgc_capture_manager.attach_frame_arrived_handler(&shared_resource_manager, d3d11_manager.get_context(), frame_queue_pipe.get());
 
   if (!wgc_capture_manager.create_capture_session()) {
     BOOST_LOG(error) << "Failed to create capture session";
@@ -1575,7 +1541,7 @@ int main(int argc, char *argv[]) {
 
   // Main message loop
   bool shutdown_requested = false;
-  while (pipe.is_connected() && !shutdown_requested) {
+  while (pipe_shared->is_connected() && !shutdown_requested) {
     // Process window messages and check for shutdown
     if (!process_window_messages(shutdown_requested)) {
       break;
@@ -1586,7 +1552,7 @@ int main(int argc, char *argv[]) {
 
   BOOST_LOG(info) << "Main process disconnected, shutting down...";
 
-  pipe.stop();
+  pipe_shared->stop();
 
   // Flush logs before exit
   boost::log::core::get()->flush();

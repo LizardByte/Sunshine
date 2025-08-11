@@ -60,11 +60,11 @@ public:
 private:
   PROCESS_INFORMATION pi_ {};
   bool running_ = false;
-  platf::dxgi::safe_handle job_;
+  winrt::handle job_;
 };
 
 /**
  * @brief Create a Job object configured to kill remaining processes on last handle close.
- * @return Valid `safe_handle` on success, otherwise invalid.
+ * @return Valid winrt::handle on success, otherwise invalid.
  */
-platf::dxgi::safe_handle create_kill_on_close_job();
+winrt::handle create_kill_on_close_job();

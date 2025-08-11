@@ -21,6 +21,9 @@
 #include "src/utility.h"
 #include "src/video.h"
 
+// platform includes
+#include <winrt/base.h>
+
 namespace platf::dxgi {
 
   /**
@@ -53,11 +56,11 @@ namespace platf::dxgi {
     /**
      * @brief Acquire the next frame, blocking until available or timeout.
      * @param timeout Maximum time to wait for a frame.
-     * @param gpu_tex_out Output pointer for the GPU texture (set on success).
+     * @param gpu_tex_out Output ComPtr for the GPU texture (set on success).
      * @param frame_qpc_out Output for the frame QPC timestamp (`0` if unavailable).
      * @return Capture result enum indicating success, timeout, or failure.
      */
-    capture_e acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out);
+    capture_e acquire(std::chrono::milliseconds timeout, winrt::com_ptr<ID3D11Texture2D> &gpu_tex_out, uint64_t &frame_qpc_out);
 
     /**
      * @brief Release the keyed mutex.
@@ -138,9 +141,9 @@ namespace platf::dxgi {
     std::unique_ptr<ProcessHandler> _process_helper;  ///< Helper process owner.
     std::unique_ptr<AsyncNamedPipe> _pipe;  ///< Async control/message pipe.
     std::unique_ptr<INamedPipe> _frame_queue_pipe;  ///< Pipe providing frame ready notifications.
-    safe_com_ptr<IDXGIKeyedMutex> _keyed_mutex;  ///< Keyed mutex for shared texture.
-    safe_com_ptr<ID3D11Texture2D> _shared_texture;  ///< Shared texture duplicated from helper.
-    ID3D11Device *_device = nullptr;  ///< D3D11 device pointer (not owned).
+    winrt::com_ptr<IDXGIKeyedMutex> _keyed_mutex;  ///< Keyed mutex for shared texture.
+    winrt::com_ptr<ID3D11Texture2D> _shared_texture;  ///< Shared texture duplicated from helper.
+    winrt::com_ptr<ID3D11Device> _device;  ///< D3D11 device pointer (not owned).
     bool _frame_ready {false};  ///< Flag set when a new frame is ready.
     uint64_t _frame_qpc {0};  ///< QPC timestamp of latest frame.
     std::atomic<bool> _initializing {false};  ///< True while an initialization attempt is in progress.

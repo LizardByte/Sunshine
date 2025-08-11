@@ -10,15 +10,16 @@
 #include <wrl/client.h>
 
 // local includes
+#include "ipc/ipc_session.h"
+#include "ipc/misc_utils.h"
 #include "src/logging.h"
+#include "src/platform/windows/display.h"
+#include "src/platform/windows/display_vram.h"
+#include "src/platform/windows/misc.h"
 #include "src/utility.h"
 
 // platform includes
-#include "ipc/ipc_session.h"
-#include "ipc/misc_utils.h" 
-#include "src/platform/windows/display.h"
-#include "src/platform/windows/display_vram.h"  
-#include "src/platform/windows/misc.h" 
+#include <winrt/base.h>
 
 namespace platf::dxgi {
 
@@ -108,8 +109,7 @@ namespace platf::dxgi {
       d3d_img->blank = false;  // image is always ready for capture
 
       // Assign the shared texture from the session to the img_d3d_t
-      d3d_img->capture_texture.reset(src.get());
-      src.get()->AddRef();  // Ensure the texture stays valid while we use it
+      d3d_img->capture_texture.reset(src.get()); // no need to AddRef() because acquire on ipc uses copy_to
 
       // Get the keyed mutex from the shared texture
       HRESULT status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &d3d_img->capture_mutex);
@@ -170,16 +170,14 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
-    ID3D11Texture2D *gpu_tex = nullptr;
+    winrt::com_ptr<ID3D11Texture2D> gpu_tex;
     auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
 
     if (status != capture_e::ok) {
       return status;
     }
 
-    // Wrap the texture with our safe_ptr wrapper
-    src.reset(gpu_tex);
-    gpu_tex->AddRef();  // AddRef since both _ipc_session and src will reference it
+    gpu_tex.copy_to(&src);
 
     return capture_e::ok;
   }
@@ -280,7 +278,7 @@ namespace platf::dxgi {
       return capture_e::error;
     }
 
-    ID3D11Texture2D *gpu_tex = nullptr;
+    winrt::com_ptr<ID3D11Texture2D> gpu_tex;
     uint64_t frame_qpc = 0;
     auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
 
@@ -359,7 +357,7 @@ namespace platf::dxgi {
     }
 
     // Copy from GPU to CPU
-    device_ctx->CopyResource(texture.get(), gpu_tex);
+    device_ctx->CopyResource(texture.get(), gpu_tex.get());
 
     // Get a free image from the pool
     if (!pull_free_image_cb(img_out)) {

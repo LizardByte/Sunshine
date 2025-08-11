@@ -14,33 +14,24 @@
 namespace platf::dxgi {
 
   io_context::io_context() {
-    _event = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+    _event = winrt::handle(CreateEventW(nullptr, FALSE, FALSE, nullptr));
     ZeroMemory(&_ovl, sizeof(_ovl));
-    _ovl.hEvent = _event;
-  }
-
-  io_context::~io_context() {
-    if (_event) {
-      CloseHandle(_event);
-    }
+    _ovl.hEvent = _event.get();
   }
 
   io_context::io_context(io_context &&other) noexcept
       :
       _ovl(other._ovl),
-      _event(other._event) {
-    other._event = nullptr;
+      _event(std::move(other._event)) {
+    other._ovl.hEvent = nullptr;
     ZeroMemory(&other._ovl, sizeof(other._ovl));
   }
 
   io_context &io_context::operator=(io_context &&other) noexcept {
     if (this != &other) {
-      if (_event) {
-        CloseHandle(_event);
-      }
       _ovl = other._ovl;
-      _event = other._event;
-      other._event = nullptr;
+      _event = std::move(other._event);
+      other._ovl.hEvent = nullptr;
       ZeroMemory(&other._ovl, sizeof(other._ovl));
     }
     return *this;
@@ -51,11 +42,11 @@ namespace platf::dxgi {
   }
 
   HANDLE io_context::event() const {
-    return _event;
+    return _event.get();
   }
 
   bool io_context::is_valid() const {
-    return _event != nullptr;
+    return static_cast<bool>(_event);
   }
 
   // safe_dacl implementation

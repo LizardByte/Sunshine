@@ -100,23 +100,23 @@ ProcessHandler::~ProcessHandler() {
   if (pi_.hThread) {
     CloseHandle(pi_.hThread);
   }
-  // job_ is a safe_handle and will auto-cleanup
+  // job_ is a winrt::handle and will auto-cleanup
 }
 
 HANDLE ProcessHandler::get_process_handle() const {
   return running_ ? pi_.hProcess : nullptr;
 }
 
-platf::dxgi::safe_handle create_kill_on_close_job() {
-  HANDLE job_handle = CreateJobObjectW(nullptr, nullptr);
+winrt::handle create_kill_on_close_job() {
+  winrt::handle job_handle {CreateJobObjectW(nullptr, nullptr)};
   if (!job_handle) {
     return {};
   }
   JOBOBJECT_EXTENDED_LIMIT_INFORMATION job_info = {};
   job_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-  if (!SetInformationJobObject(job_handle, JobObjectExtendedLimitInformation, &job_info, sizeof(job_info))) {
-    CloseHandle(job_handle);
+  if (!SetInformationJobObject(job_handle.get(), JobObjectExtendedLimitInformation, &job_info, sizeof(job_info))) {
+    // winrt::handle will auto-close on destruction
     return {};
   }
-  return platf::dxgi::safe_handle(job_handle);
+  return job_handle;
 }

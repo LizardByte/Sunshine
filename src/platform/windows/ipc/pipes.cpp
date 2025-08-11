@@ -9,12 +9,16 @@
  */
 
 // standard includes
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <cwchar>
 #include <format>
+#include <functional>
 #include <memory>
+#include <span>
 #include <string>
 #include <thread>
 #include <vector>
@@ -24,6 +28,7 @@
 #include <combaseapi.h>
 #include <sddl.h>
 #include <Windows.h>
+#include <winrt/base.h>
 
 // local includes
 #include "misc_utils.h"
@@ -51,7 +56,7 @@ namespace platf::dxgi {
   }
 
   bool NamedPipeFactory::create_security_descriptor(SECURITY_DESCRIPTOR &desc, PACL *out_pacl) const {
-    BOOL isSystem = platf::dxgi::is_running_as_system();
+    bool isSystem = platf::dxgi::is_running_as_system();
 
     safe_token token;
     if (!obtain_access_token(isSystem, token)) {
@@ -77,7 +82,7 @@ namespace platf::dxgi {
     return build_access_control_list(isSystem, desc, raw_user_sid, system_sid.get(), out_pacl);
   }
 
-  bool NamedPipeFactory::obtain_access_token(BOOL isSystem, safe_token &token) const {
+  bool NamedPipeFactory::obtain_access_token(bool isSystem, safe_token &token) const {
     if (isSystem) {
       token.reset(platf::dxgi::retrieve_users_token(false));
       if (!token) {
@@ -138,7 +143,7 @@ namespace platf::dxgi {
     return true;
   }
 
-  bool NamedPipeFactory::build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const {
+  bool NamedPipeFactory::build_access_control_list(bool isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const {
     std::vector<EXPLICIT_ACCESS> eaList;
     if (isSystem) {
       EXPLICIT_ACCESS eaSys {};
@@ -183,27 +188,31 @@ namespace platf::dxgi {
         BOOST_LOG(error) << "Failed to init security descriptor";
         return nullptr;
       }
-      secAttr = {sizeof(secAttr), &secDesc, FALSE};
+      secAttr.nLength = static_cast<DWORD>(sizeof(secAttr));
+      secAttr.lpSecurityDescriptor = &secDesc;
+      secAttr.bInheritHandle = FALSE;
       pSecAttr = &secAttr;
     }
 
-    safe_handle hPipe(CreateNamedPipeW(
-      fullPipeName.c_str(),
-      PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
-      PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
-      1,
-      65536,
-      65536,
-      0,
-      pSecAttr
-    ));
+    winrt::file_handle hPipe {
+      CreateNamedPipeW(
+        fullPipeName.c_str(),
+        PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
+        PIPE_TYPE_BYTE | PIPE_READMODE_BYTE | PIPE_WAIT,
+        1,
+        65536,
+        65536,
+        0,
+        pSecAttr
+      )
+    };
     if (!hPipe) {
       DWORD err = GetLastError();
       BOOST_LOG(error) << "CreateNamedPipeW failed (" << err << ")";
       return nullptr;
     }
 
-    auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), true);
+    auto pipeObj = std::make_unique<WinPipe>(std::move(hPipe), true);
     return pipeObj;
   }
 
@@ -211,55 +220,50 @@ namespace platf::dxgi {
     auto wPipeBase = utf8_to_wide(pipeName);
     std::wstring fullPipeName = (wPipeBase.find(LR"(\\.\pipe\)") == 0) ? wPipeBase : LR"(\\.\pipe\)" + wPipeBase;
 
-    safe_handle hPipe = create_client_pipe(fullPipeName);
+    winrt::file_handle hPipe = create_client_pipe(fullPipeName);
     if (!hPipe) {
       DWORD err = GetLastError();
       BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
       return nullptr;
     }
 
-    auto pipeObj = std::make_unique<WinPipe>(hPipe.release(), false);
+    auto pipeObj = std::make_unique<WinPipe>(std::move(hPipe), false);
     return pipeObj;
   }
 
-  safe_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeName) const {
-    const auto kTimeoutEnd = GetTickCount64() + 2000;  // 2s overall timeout instead of 5s for faster failure
-    safe_handle hPipe;
+  winrt::file_handle NamedPipeFactory::create_client_pipe(const std::wstring &fullPipeName) const {
+    const ULONGLONG deadline = GetTickCount64() + 2000;  // 2s
 
-    while (!hPipe && GetTickCount64() < kTimeoutEnd) {
-      hPipe.reset(CreateFileW(
-        fullPipeName.c_str(),
-        GENERIC_READ | GENERIC_WRITE,
-        0,
-        nullptr,  // ← always nullptr
-        OPEN_EXISTING,
-        FILE_FLAG_OVERLAPPED,
-        nullptr
-      ));
+    while (GetTickCount64() < deadline) {
+      winrt::file_handle pipe {
+        CreateFileW(fullPipeName.c_str(), GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr)
+      };
 
-      if (!hPipe) {
-        DWORD err = GetLastError();
-        if (err == ERROR_PIPE_BUSY) {
-          // Someone else already has the pipe – wait for a free instance
-          WaitNamedPipeW(fullPipeName.c_str(), 250);
-          continue;
-        }
-        if (err == ERROR_FILE_NOT_FOUND) {
-          // Server hasn't created the pipe yet – short back-off
-          Sleep(50);
-          continue;
-        }
-        BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
-        return safe_handle {};
+      if (pipe) {
+        return pipe;  // success
       }
+
+      const DWORD err = GetLastError();
+      if (err == ERROR_PIPE_BUSY) {
+        WaitNamedPipeW(fullPipeName.c_str(), 250);
+        continue;
+      }
+      if (err == ERROR_FILE_NOT_FOUND) {
+        Sleep(50);
+        continue;
+      }
+
+      BOOST_LOG(error) << "CreateFileW failed (" << err << ")";
+      break;  // unrecoverable error
     }
-    return hPipe;
+
+    return {};  // invalid handle
   }
 
   AnonymousPipeFactory::AnonymousPipeFactory() = default;
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_server(const std::string &pipeName) {
-    auto first_pipe = _pipe_factory->create_server(pipeName);
+    auto first_pipe = _pipe_factory.create_server(pipeName);
     if (!first_pipe) {
       return nullptr;
     }
@@ -267,7 +271,7 @@ namespace platf::dxgi {
   }
 
   std::unique_ptr<INamedPipe> AnonymousPipeFactory::create_client(const std::string &pipeName) {
-    auto first_pipe = _pipe_factory->create_client(pipeName);
+    auto first_pipe = _pipe_factory.create_client(pipeName);
     if (!first_pipe) {
       return nullptr;
     }
@@ -285,7 +289,7 @@ namespace platf::dxgi {
       return nullptr;
     }
 
-    auto dataPipe = _pipe_factory->create_server(pipe_name);
+    auto dataPipe = _pipe_factory.create_server(pipe_name);
     if (dataPipe) {
       dataPipe->wait_for_client_connection(0);
     }
@@ -431,7 +435,7 @@ namespace platf::dxgi {
     const auto retry_timeout = std::chrono::seconds(5);
 
     while (std::chrono::steady_clock::now() - retry_start < retry_timeout) {
-      data_pipe = _pipe_factory->create_client(pipeNameStr);
+      data_pipe = _pipe_factory.create_client(pipeNameStr);
       if (data_pipe) {
         break;
       }
@@ -446,10 +450,10 @@ namespace platf::dxgi {
     return data_pipe;
   }
 
-  WinPipe::WinPipe(HANDLE pipe, bool isServer):
-      _pipe(pipe),
+  WinPipe::WinPipe(winrt::file_handle pipe, bool isServer):
+      _pipe(std::move(pipe)),
       _is_server(isServer) {
-    if (!_is_server && _pipe != INVALID_HANDLE_VALUE) {
+    if (!_is_server && _pipe) {
       _connected.store(true, std::memory_order_release);
     }
   }
@@ -465,18 +469,18 @@ namespace platf::dxgi {
   }
 
   bool WinPipe::send(std::span<const uint8_t> bytes, int timeout_ms) {
-    if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
+    if (!_connected.load(std::memory_order_acquire) || !_pipe) {
       return false;
     }
 
-    auto ctx = std::make_unique<io_context>();
-    if (!ctx->is_valid()) {
+    io_context ctx;
+    if (!ctx.is_valid()) {
       BOOST_LOG(error) << "Failed to create I/O context for send operation, error=" << GetLastError();
       return false;
     }
 
     DWORD bytesWritten = 0;
-    if (BOOL result = WriteFile(_pipe, bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, ctx->get()); !result) {
+    if (BOOL result = WriteFile(_pipe.get(), bytes.data(), static_cast<DWORD>(bytes.size()), &bytesWritten, ctx.get()); !result) {
       return handle_send_error(ctx, timeout_ms, bytesWritten);
     }
 
@@ -487,7 +491,7 @@ namespace platf::dxgi {
     return true;
   }
 
-  bool WinPipe::handle_send_error(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
+  bool WinPipe::handle_send_error(io_context &ctx, int timeout_ms, DWORD &bytesWritten) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
       return handle_pending_send_operation(ctx, timeout_ms, bytesWritten);
@@ -497,11 +501,11 @@ namespace platf::dxgi {
     }
   }
 
-  bool WinPipe::handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten) {
-    DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
+  bool WinPipe::handle_pending_send_operation(io_context &ctx, int timeout_ms, DWORD &bytesWritten) {
+    DWORD waitResult = WaitForSingleObject(ctx.event(), timeout_ms);
 
     if (waitResult == WAIT_OBJECT_0) {
-      if (!GetOverlappedResult(_pipe, ctx->get(), &bytesWritten, FALSE)) {
+      if (!GetOverlappedResult(_pipe.get(), ctx.get(), &bytesWritten, FALSE)) {
         DWORD err = GetLastError();
         if (err != ERROR_OPERATION_ABORTED) {
           BOOST_LOG(error) << "GetOverlappedResult failed in send, error=" << err;
@@ -511,9 +515,9 @@ namespace platf::dxgi {
       return true;
     } else if (waitResult == WAIT_TIMEOUT) {
       BOOST_LOG(warning) << "Send operation timed out after " << timeout_ms << "ms";
-      CancelIoEx(_pipe, ctx->get());
+      CancelIoEx(_pipe.get(), ctx.get());
       DWORD transferred = 0;
-      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+      GetOverlappedResult(_pipe.get(), ctx.get(), &transferred, TRUE);
       return false;
     } else {
       BOOST_LOG(error) << "WaitForSingleObject failed in send, result=" << waitResult << ", error=" << GetLastError();
@@ -523,18 +527,18 @@ namespace platf::dxgi {
 
   PipeResult WinPipe::receive(std::span<uint8_t> dst, size_t &bytesRead, int timeout_ms) {
     bytesRead = 0;
-    if (!_connected.load(std::memory_order_acquire) || _pipe == INVALID_HANDLE_VALUE) {
+    if (!_connected.load(std::memory_order_acquire)) {
       return PipeResult::Disconnected;
     }
 
-    auto ctx = std::make_unique<io_context>();
-    if (!ctx->is_valid()) {
+    io_context ctx;
+    if (!ctx.is_valid()) {
       BOOST_LOG(error) << "Failed to create I/O context for receive operation, error=" << GetLastError();
       return PipeResult::Error;
     }
 
     DWORD bytesReadWin = 0;
-    BOOL result = ReadFile(_pipe, dst.data(), static_cast<DWORD>(dst.size()), &bytesReadWin, ctx->get());
+    BOOL result = ReadFile(_pipe.get(), dst.data(), static_cast<DWORD>(dst.size()), &bytesReadWin, ctx.get());
 
     if (result) {
       bytesRead = static_cast<size_t>(bytesReadWin);
@@ -569,7 +573,7 @@ namespace platf::dxgi {
     return lastResult;
   }
 
-  PipeResult WinPipe::handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
+  PipeResult WinPipe::handle_receive_error(io_context &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
     DWORD err = GetLastError();
     if (err == ERROR_IO_PENDING) {
       return handle_pending_receive_operation(ctx, timeout_ms, dst, bytesRead);
@@ -582,13 +586,13 @@ namespace platf::dxgi {
     }
   }
 
-  PipeResult WinPipe::handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
+  PipeResult WinPipe::handle_pending_receive_operation(io_context &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead) {
     using enum platf::dxgi::PipeResult;
-    DWORD waitResult = WaitForSingleObject(ctx->event(), timeout_ms);
+    DWORD waitResult = WaitForSingleObject(ctx.event(), timeout_ms);
     DWORD bytesReadWin = 0;
 
     if (waitResult == WAIT_OBJECT_0) {
-      if (GetOverlappedResult(_pipe, ctx->get(), &bytesReadWin, FALSE)) {
+      if (GetOverlappedResult(_pipe.get(), ctx.get(), &bytesReadWin, FALSE)) {
         bytesRead = static_cast<size_t>(bytesReadWin);
         return Success;
       } else {
@@ -604,9 +608,9 @@ namespace platf::dxgi {
         return Error;
       }
     } else if (waitResult == WAIT_TIMEOUT) {
-      CancelIoEx(_pipe, ctx->get());
+      CancelIoEx(_pipe.get(), ctx.get());
       DWORD transferred = 0;
-      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+      GetOverlappedResult(_pipe.get(), ctx.get(), &transferred, TRUE);
       return Timeout;
     } else {
       BOOST_LOG(error) << "WinPipe::receive() wait failed, result=" << waitResult << ", error=" << GetLastError();
@@ -615,25 +619,20 @@ namespace platf::dxgi {
   }
 
   void WinPipe::disconnect() {
-    // Cancel any pending I/O operations (from any thread)
-    if (_pipe != INVALID_HANDLE_VALUE) {
-      CancelIoEx(_pipe, nullptr);
-    }
-
-    if (_pipe != INVALID_HANDLE_VALUE) {
+    if (_pipe) {
+      CancelIoEx(_pipe.get(), nullptr);
       if (_is_server) {
         // Ensure any final writes are delivered before closing (rare edge-case)
-        FlushFileBuffers(_pipe);
-        DisconnectNamedPipe(_pipe);
+        FlushFileBuffers(_pipe.get());
+        DisconnectNamedPipe(_pipe.get());
       }
-      CloseHandle(_pipe);
-      _pipe = INVALID_HANDLE_VALUE;
+      _pipe.close();
     }
     _connected.store(false, std::memory_order_release);
   }
 
   void WinPipe::wait_for_client_connection(int milliseconds) {
-    if (_pipe == INVALID_HANDLE_VALUE) {
+    if (!_pipe) {
       return;
     }
 
@@ -647,13 +646,13 @@ namespace platf::dxgi {
   }
 
   void WinPipe::connect_server_pipe(int milliseconds) {
-    auto ctx = std::make_unique<io_context>();
-    if (!ctx->is_valid()) {
+    io_context ctx;
+    if (!ctx.is_valid()) {
       BOOST_LOG(error) << "Failed to create I/O context for connection, error=" << GetLastError();
       return;
     }
 
-    if (BOOL result = ConnectNamedPipe(_pipe, ctx->get()); result) {
+    if (BOOL result = ConnectNamedPipe(_pipe.get(), ctx.get()); result) {
       _connected = true;
       return;
     }
@@ -673,12 +672,12 @@ namespace platf::dxgi {
     BOOST_LOG(error) << "ConnectNamedPipe failed, error=" << err;
   }
 
-  void WinPipe::handle_pending_connection(std::unique_ptr<io_context> &ctx, int milliseconds) {
+  void WinPipe::handle_pending_connection(io_context &ctx, int milliseconds) {
     // Wait for the connection to complete
-    DWORD waitResult = WaitForSingleObject(ctx->event(), milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
+    DWORD waitResult = WaitForSingleObject(ctx.event(), milliseconds > 0 ? milliseconds : 5000);  // Use param or default 5s
     if (waitResult == WAIT_OBJECT_0) {
       DWORD transferred = 0;
-      if (GetOverlappedResult(_pipe, ctx->get(), &transferred, FALSE)) {
+      if (GetOverlappedResult(_pipe.get(), ctx.get(), &transferred, FALSE)) {
         _connected = true;
       } else {
         DWORD err = GetLastError();
@@ -688,10 +687,10 @@ namespace platf::dxgi {
       }
     } else if (waitResult == WAIT_TIMEOUT) {
       BOOST_LOG(error) << "ConnectNamedPipe timeout after " << (milliseconds > 0 ? milliseconds : 5000) << "ms";
-      CancelIoEx(_pipe, ctx->get());
+      CancelIoEx(_pipe.get(), ctx.get());
       // Wait for cancellation to complete to ensure OVERLAPPED structure safety
       DWORD transferred = 0;
-      GetOverlappedResult(_pipe, ctx->get(), &transferred, TRUE);
+      GetOverlappedResult(_pipe.get(), ctx.get(), &transferred, TRUE);
     } else {
       BOOST_LOG(error) << "ConnectNamedPipe wait failed, waitResult=" << waitResult << ", error=" << GetLastError();
     }
@@ -702,8 +701,8 @@ namespace platf::dxgi {
   }
 
   void WinPipe::flush_buffers() {
-    if (_pipe != INVALID_HANDLE_VALUE) {
-      FlushFileBuffers(_pipe);
+    if (_pipe) {
+      FlushFileBuffers(_pipe.get());
     }
   }
 

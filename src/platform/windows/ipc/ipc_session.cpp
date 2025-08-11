@@ -41,7 +41,7 @@ namespace platf::dxgi {
     _process_helper = std::make_unique<ProcessHandler>();
     _config = config;
     _display_name = display_name;
-    _device = device;
+    _device.copy_from(device);
     return 0;
   }
 
@@ -193,26 +193,22 @@ namespace platf::dxgi {
   }
 
   bool ipc_session_t::try_get_adapter_luid(LUID &luid_out) {
-    // Guarantee a clean value on failure
-    memset(&luid_out, 0, sizeof(LUID));
+    luid_out = {};
 
     if (!_device) {
-      BOOST_LOG(warning) << "No D3D11 device available; default adapter will be used";
+      BOOST_LOG(warning) << "_device was null; default adapter will be used";
       return false;
     }
 
-    winrt::com_ptr<IDXGIDevice> dxgi_device;
+    winrt::com_ptr<IDXGIDevice> dxgi_device = _device.try_as<IDXGIDevice>();
+    if (!dxgi_device) {
+      BOOST_LOG(warning) << "try_as<IDXGIDevice>() failed; default adapter will be used";
+      return false;
+    }
+
     winrt::com_ptr<IDXGIAdapter> adapter;
-
-    HRESULT hr =
-      _device->QueryInterface(__uuidof(IDXGIDevice), dxgi_device.put_void());
-    if (FAILED(hr)) {
-      BOOST_LOG(warning) << "QueryInterface(IDXGIDevice) failed; default adapter will be used";
-      return false;
-    }
-
-    hr = dxgi_device->GetAdapter(adapter.put());
-    if (FAILED(hr)) {
+    HRESULT hr = dxgi_device->GetAdapter(adapter.put());
+    if (FAILED(hr) || !adapter) {
       BOOST_LOG(warning) << "GetAdapter() failed; default adapter will be used";
       return false;
     }
@@ -228,7 +224,7 @@ namespace platf::dxgi {
     return true;
   }
 
-  capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, ID3D11Texture2D *&gpu_tex_out, uint64_t &frame_qpc_out) {
+  capture_e ipc_session_t::acquire(std::chrono::milliseconds timeout, winrt::com_ptr<ID3D11Texture2D> &gpu_tex_out, uint64_t &frame_qpc_out) {
     if (!wait_for_frame(timeout)) {
       return capture_e::timeout;
     }
@@ -250,7 +246,7 @@ namespace platf::dxgi {
     }
 
     // Set output parameters
-    gpu_tex_out = _shared_texture.get();
+    gpu_tex_out = _shared_texture;
     frame_qpc_out = _frame_qpc;
 
     return capture_e::ok;
@@ -304,40 +300,35 @@ namespace platf::dxgi {
       }
     });
 
-    // Use ID3D11Device1 for opening shared resources by handle
-    ID3D11Device1 *device1 = nullptr;
-    HRESULT hr = _device->QueryInterface(__uuidof(ID3D11Device1), (void **) &device1);
-    if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to get ID3D11Device1 interface for duplicated handle: " << hr;
+    auto device1 = _device.as<ID3D11Device1>();
+    if (!device1) {
+      BOOST_LOG(error) << "Failed to get ID3D11Device1 interface for duplicated handle";
       return false;
     }
 
-    ID3D11Texture2D *raw_texture = nullptr;
-    hr = device1->OpenSharedResource1(duplicated_handle, __uuidof(ID3D11Texture2D), (void **) &raw_texture);
-    device1->Release();
-
-    if (FAILED(hr)) {
+    winrt::com_ptr<IUnknown> unknown;
+    HRESULT hr = device1->OpenSharedResource1(duplicated_handle, __uuidof(IUnknown), winrt::put_abi(unknown));
+    auto texture = unknown.as<ID3D11Texture2D>();
+    if (FAILED(hr) || !texture) {
       BOOST_LOG(error) << "Failed to open shared texture from duplicated handle: 0x" << std::hex << hr << " (decimal: " << std::dec << (int32_t) hr << ")";
       return false;
     }
 
     // Verify texture properties
     D3D11_TEXTURE2D_DESC desc;
-    raw_texture->GetDesc(&desc);
+    texture->GetDesc(&desc);
 
-    _shared_texture.reset(raw_texture);
+    _shared_texture = texture;
     _width = width;
     _height = height;
 
     // Get keyed mutex interface for synchronization
-    IDXGIKeyedMutex *raw_mutex = nullptr;
-    hr = _shared_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &raw_mutex);
-    if (FAILED(hr)) {
-      BOOST_LOG(error) << "Failed to get keyed mutex interface from shared texture: " << hr;
-      _shared_texture.reset();
+    _keyed_mutex = _shared_texture.as<IDXGIKeyedMutex>();
+    if (!_keyed_mutex) {
+      BOOST_LOG(error) << "Failed to get keyed mutex interface from shared texture";
+      _shared_texture = nullptr;
       return false;
     }
-    _keyed_mutex.reset(raw_mutex);
     return true;
   }
 

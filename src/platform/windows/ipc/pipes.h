@@ -10,10 +10,12 @@
 #pragma once
 
 // standard includes
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <string>
 #include <thread>
 #include <vector>
@@ -156,7 +158,7 @@ namespace platf::dxgi {
      * @param on_broken_pipe Optional callback for broken pipe events.
      * @return `true` if started successfully, `false` otherwise.
      */
-    bool start(const MessageCallback &on_message, const ErrorCallback &on_error, const BrokenPipeCallback &on_broken_pipe = nullptr);
+  bool start(const MessageCallback &on_message, const ErrorCallback &on_error, const BrokenPipeCallback &on_broken_pipe = {});
 
     /**
      * @brief Stops the asynchronous message loop and worker thread.
@@ -224,10 +226,10 @@ namespace platf::dxgi {
   public:
     /**
      * @brief Constructs a WinPipe instance.
-     * @param pipe Windows HANDLE for the pipe (default INVALID_HANDLE_VALUE).
+     * @param pipe Windows file handle wrapper for the pipe (defaults to null).
      * @param isServer True if this is a server pipe, false if client.
      */
-    WinPipe(HANDLE pipe = INVALID_HANDLE_VALUE, bool isServer = false);
+    WinPipe(winrt::file_handle pipe = winrt::file_handle {}, bool isServer = false);
 
     /**
      * @brief Destructor for WinPipe. Cleans up resources.
@@ -287,14 +289,14 @@ namespace platf::dxgi {
      * @brief Connects the server pipe, waiting up to the specified time.
      * @param milliseconds Timeout in milliseconds to wait for connection.
      */
-    void connect_server_pipe(int milliseconds);
+  void connect_server_pipe(int milliseconds);
 
     /**
      * @brief Handles a pending connection operation.
      * @param ctx IO context for the operation.
      * @param milliseconds Timeout in milliseconds.
      */
-    void handle_pending_connection(std::unique_ptr<io_context> &ctx, int milliseconds);
+  void handle_pending_connection(io_context &ctx, int milliseconds);
 
     /**
      * @brief Handles errors during send operations.
@@ -303,7 +305,7 @@ namespace platf::dxgi {
      * @param bytesWritten Reference to the number of bytes written.
      * @return True if the error was handled, false otherwise.
      */
-    bool handle_send_error(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten);
+  bool handle_send_error(io_context &ctx, int timeout_ms, DWORD &bytesWritten);
 
     /**
      * @brief Handles a pending send operation.
@@ -312,7 +314,7 @@ namespace platf::dxgi {
      * @param bytesWritten Reference to the number of bytes written.
      * @return True if the operation completed, false otherwise.
      */
-    bool handle_pending_send_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, DWORD &bytesWritten);
+  bool handle_pending_send_operation(io_context &ctx, int timeout_ms, DWORD &bytesWritten);
 
     /**
      * @brief Handles errors during receive operations.
@@ -322,7 +324,7 @@ namespace platf::dxgi {
      * @param bytesRead Reference to store the number of bytes read.
      * @return PipeResult indicating the result of the receive operation.
      */
-    PipeResult handle_receive_error(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
+  PipeResult handle_receive_error(io_context &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
 
     /**
      * @brief Handles a pending receive operation.
@@ -332,11 +334,11 @@ namespace platf::dxgi {
      * @param bytesRead Reference to store the number of bytes read.
      * @return PipeResult indicating the result of the receive operation.
      */
-    PipeResult handle_pending_receive_operation(std::unique_ptr<io_context> &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
+  PipeResult handle_pending_receive_operation(io_context &ctx, int timeout_ms, std::span<uint8_t> dst, size_t &bytesRead);
 
-    HANDLE _pipe;
+    winrt::file_handle _pipe;
     std::atomic<bool> _connected {false};
-    bool _is_server;
+    const bool _is_server;
   };
 
   class IAsyncPipeFactory {
@@ -400,7 +402,7 @@ namespace platf::dxgi {
      * @param token Output safe_token to receive the token.
      * @return `true` if successful, `false` otherwise.
      */
-    bool obtain_access_token(BOOL isSystem, safe_token &token) const;
+  bool obtain_access_token(bool isSystem, safe_token &token) const;
 
     /**
      * @brief Extracts the user SID from a token.
@@ -427,14 +429,14 @@ namespace platf::dxgi {
      * @param out_pacl Output pointer to the created PACL.
      * @return `true` if successful, `false` otherwise.
      */
-    bool build_access_control_list(BOOL isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const;
+  bool build_access_control_list(bool isSystem, SECURITY_DESCRIPTOR &desc, PSID raw_user_sid, PSID system_sid, PACL *out_pacl) const;
 
     /**
      * @brief Creates a client pipe handle.
      * @param fullPipeName The full name of the pipe.
-     * @return `safe_handle` to the created client pipe.
+     * @return safe handle to the created client pipe.
      */
-    safe_handle create_client_pipe(const std::wstring &fullPipeName) const;
+  winrt::file_handle create_client_pipe(const std::wstring &fullPipeName) const;
   };
 
   class AnonymousPipeFactory: public IAsyncPipeFactory {
@@ -459,7 +461,7 @@ namespace platf::dxgi {
     std::unique_ptr<INamedPipe> create_client(const std::string &pipe_name) override;
 
   private:
-    std::unique_ptr<NamedPipeFactory> _pipe_factory = std::make_unique<NamedPipeFactory>();
+    NamedPipeFactory _pipe_factory;  // value member; simpler lifetime
 
     /**
      * @brief Performs the handshake as a server, establishing the connection.
