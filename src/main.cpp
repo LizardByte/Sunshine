@@ -87,7 +87,7 @@ LRESULT CALLBACK SessionMonitorWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, L
     case WM_DEVICECHANGE:
       {
         // Check if streaming
-        if (platf::is_streaming) {
+        if (platf::is_streaming()) {
           // Check if devices change
           if (wParam == DBT_DEVNODES_CHANGED) {
             platf::check_and_force_cursor_visibility();
