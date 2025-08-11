@@ -43,7 +43,7 @@ jobs:
 
       - name: Release Setup
         id: release-setup
-        uses: LizardByte/actions/actions/release_setup@v2025.703.21447
+        uses: LizardByte/actions/actions/release_setup@v2025.715.25226
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -56,6 +56,7 @@ jobs:
     uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
     with:
       maximize_build_space: true
+      maximize_build_space_root_reserve_size: 32768
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
@@ -136,8 +137,6 @@ jobs:
         include:
           - name: Linux-AppImage
             coverage: true
-          - name: Homebrew-macos-13
-            coverage: false
           - name: Homebrew-macos-14
             coverage: false
           - name: Homebrew-macos-15
@@ -151,7 +150,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download coverage artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: coverage-${{ matrix.name }}
           path: _coverage
@@ -192,7 +191,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: artifacts
           pattern: build-*
@@ -202,7 +201,7 @@ jobs:
         run: ls -l artifacts
 
       - name: Create/Update GitHub Release
-        uses: LizardByte/actions/actions/release_create@v2025.703.21447
+        uses: LizardByte/actions/actions/release_create@v2025.715.25226
         with:
           allowUpdates: false
           body: ${{ needs.release-setup.outputs.release_body }}
@@ -212,3 +211,30 @@ jobs:
           tag: ${{ needs.release-setup.outputs.release_tag }}
           token: ${{ secrets.GH_BOT_TOKEN }}
           virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+
+  release-homebrew-beta:
+    name: Release Homebrew Beta
+    if:
+      needs.release-setup.outputs.publish_release == 'true' &&
+      startsWith(github.repository, 'LizardByte/')
+    needs:
+      - release-setup
+      - build-homebrew
+      - release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download homebrew artifacts
+        uses: actions/download-artifact@v5
+        with:
+          name: beta-Homebrew
+          path: homebrew
+
+      - name: Upload Homebrew Beta Formula
+        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
+        with:
+          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
+          git_email: ${{ secrets.GH_BOT_EMAIL }}
+          git_username: ${{ secrets.GH_BOT_NAME }}
+          publish: true
+          token: ${{ secrets.GH_BOT_TOKEN }}
+          validate: false

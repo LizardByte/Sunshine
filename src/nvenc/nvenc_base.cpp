@@ -5,6 +5,9 @@
 // this include
 #include "nvenc_base.h"
 
+// standard includes
+#include <format>
+
 // local includes
 #include "src/config.h"
 #include "src/logging.h"
@@ -427,7 +430,7 @@ namespace nvenc {
         extra += " two-pass";
       }
       if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) {
-        extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
+        extra += std::format(" vbv+{}", config.vbv_percentage_increase);
       }
       if (encoder_params.rfi) {
         extra += " rfi";
@@ -439,7 +442,7 @@ namespace nvenc {
         extra += " spatial-aq";
       }
       if (enc_config.rcParams.enableMinQP) {
-        extra += " qpmin=" + std::to_string(enc_config.rcParams.minQP.qpInterP);
+        extra += std::format(" qpmin={}", enc_config.rcParams.minQP.qpInterP);
       }
       if (config.insert_filler_data) {
         extra += " filler-data";

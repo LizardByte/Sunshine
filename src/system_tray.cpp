@@ -84,7 +84,7 @@ namespace system_tray {
   #ifdef _WIN32
     // If we're running in a service, return a special status to
     // tell it to terminate too, otherwise it will just respawn us.
-    if (GetConsoleWindow() == NULL) {
+    if (GetConsoleWindow() == nullptr) {
       lifetime::exit_sunshine(ERROR_SHUTDOWN_IN_PROGRESS, true);
       return;
     }
@@ -230,10 +230,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON_PLAYING;
     tray_update(&tray);
     tray.icon = TRAY_ICON_PLAYING;
@@ -251,10 +251,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON_PAUSING;
     tray_update(&tray);
     char msg[256];
@@ -272,10 +272,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON;
     tray_update(&tray);
     char msg[256];
@@ -293,10 +293,10 @@ namespace system_tray {
       return;
     }
 
-    tray.notification_title = NULL;
-    tray.notification_text = NULL;
-    tray.notification_cb = NULL;
-    tray.notification_icon = NULL;
+    tray.notification_title = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_cb = nullptr;
+    tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON;
     tray_update(&tray);
     tray.icon = TRAY_ICON;
@@ -305,7 +305,7 @@ namespace system_tray {
     tray.notification_icon = TRAY_ICON_LOCKED;
     tray.tooltip = PROJECT_NAME;
     tray.notification_cb = []() {
-      launch_ui_with_path("/pin");
+      launch_ui("/pin");
     };
     tray_update(&tray);
   }

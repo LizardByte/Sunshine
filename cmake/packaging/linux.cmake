@@ -45,6 +45,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libcap2, \
             libcurl4, \
             libdrm2, \
+            libgbm1, \
             libevdev2, \
             libnuma1, \
             libopus0, \
@@ -65,6 +66,7 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             libva >= 2.14.0, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
+            mesa-libgbm >= 25.0.7, \
             miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \

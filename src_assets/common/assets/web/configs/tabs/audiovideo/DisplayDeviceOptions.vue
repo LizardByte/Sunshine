@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import PlatformLayout from '../../../PlatformLayout.vue'
+import Checkbox from "../../../Checkbox.vue";
 
 const props = defineProps({
   platform: String,

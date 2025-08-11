@@ -4,8 +4,11 @@
  */
 #define INITGUID
 
+// standard includes
+#include <format>
+
 // platform includes
-#include <audioclient.h>
+#include <Audioclient.h>
 #include <avrt.h>
 #include <mmdeviceapi.h>
 #include <newdev.h>
@@ -168,28 +171,27 @@ namespace {
                          waveformat.SubFormat == KSDATAFORMAT_SUBTYPE_PCM        ? "S" :
                                                                                    "UNKNOWN";
 
-    result += std::to_string(waveformat.Samples.wValidBitsPerSample) + " " +
-              std::to_string(waveformat.Format.nSamplesPerSec) + " ";
+    result += std::format("{} {} ", static_cast<int>(waveformat.Samples.wValidBitsPerSample), static_cast<int>(waveformat.Format.nSamplesPerSec));
 
     switch (waveformat.dwChannelMask) {
-      case (waveformat_mask_stereo):
+      case waveformat_mask_stereo:
         result += "2.0";
         break;
 
-      case (waveformat_mask_surround51_with_backspeakers):
+      case waveformat_mask_surround51_with_backspeakers:
         result += "5.1";
         break;
 
-      case (waveformat_mask_surround51_with_sidespeakers):
+      case waveformat_mask_surround51_with_sidespeakers:
         result += "5.1 (sidespeakers)";
         break;
 
-      case (waveformat_mask_surround71):
+      case waveformat_mask_surround71:
         result += "7.1";
         break;
 
       default:
-        result += std::to_string(waveformat.Format.nChannels) + " channels (unrecognized)";
+        result += std::format("{} channels (unrecognized)", static_cast<int>(waveformat.Format.nChannels));
         break;
     }
 
@@ -375,7 +377,7 @@ namespace platf::audio {
         *ppvInterface = (IMMNotificationClient *) this;
         return S_OK;
       } else {
-        *ppvInterface = NULL;
+        *ppvInterface = nullptr;
         return E_NOINTERFACE;
       }
     }
@@ -677,7 +679,7 @@ namespace platf::audio {
     float *sample_buf_pos;
     int channels;
 
-    HANDLE mmcss_task_handle = NULL;
+    HANDLE mmcss_task_handle = nullptr;
   };
 
   class audio_control_t: public ::platf::audio_control_t {

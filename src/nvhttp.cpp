@@ -7,6 +7,7 @@
 
 // standard includes
 #include <filesystem>
+#include <format>
 #include <string>
 #include <utility>
 
@@ -154,7 +155,7 @@ namespace nvhttp {
   std::string get_arg(const args_t &args, const char *name, const char *default_value = nullptr) {
     auto it = args.find(name);
     if (it == std::end(args)) {
-      if (default_value != NULL) {
+      if (default_value != nullptr) {
         return std::string(default_value);
       }
 
@@ -636,7 +637,7 @@ namespace nvhttp {
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put(
         "root.<xmlattr>.status_message",
-        "Pin must be 4 digits, " + std::to_string(pin.size()) + " provided"
+        std::format("Pin must be 4 digits, {} provided", pin.size())
       );
       return false;
     }
@@ -896,7 +897,15 @@ namespace nvhttp {
     }
 
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put(
+      "root.sessionUrl0",
+      std::format(
+        "{}{}:{}",
+        launch_session->rtsp_url_scheme,
+        net::addr_to_url_escaped_string(request->local_endpoint().address()),
+        static_cast<int>(net::map_port(rtsp_stream::RTSP_SETUP_PORT))
+      )
+    );
     tree.put("root.gamesession", 1);
 
     rtsp_stream::launch_session_raise(launch_session);
@@ -978,7 +987,15 @@ namespace nvhttp {
     }
 
     tree.put("root.<xmlattr>.status_code", 200);
-    tree.put("root.sessionUrl0", launch_session->rtsp_url_scheme + net::addr_to_url_escaped_string(request->local_endpoint().address()) + ':' + std::to_string(net::map_port(rtsp_stream::RTSP_SETUP_PORT)));
+    tree.put(
+      "root.sessionUrl0",
+      std::format(
+        "{}{}:{}",
+        launch_session->rtsp_url_scheme,
+        net::addr_to_url_escaped_string(request->local_endpoint().address()),
+        static_cast<int>(net::map_port(rtsp_stream::RTSP_SETUP_PORT))
+      )
+    );
     tree.put("root.resume", 1);
 
     rtsp_stream::launch_session_raise(launch_session);

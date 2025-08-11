@@ -32,7 +32,7 @@
   #include <shellapi.h>
 #endif
 
-#ifndef __APPLE__
+#if !defined(__ANDROID__) && !defined(__APPLE__)
   // For NVENC legacy constants
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
@@ -504,7 +504,8 @@ namespace config {
       {}  // wa
     },  // display_device
 
-    0  // max_bitrate
+    0,  // max_bitrate
+    0  // minimum_fps_target (0 = framerate)
   };
 
   audio_t audio {
@@ -1038,9 +1039,12 @@ namespace config {
   }
 
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
+#ifndef __ANDROID__
+    // TODO: Android can possibly support this
     if (!fs::exists(stream.file_apps.c_str())) {
       fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
     }
+#endif
 
     for (auto &[name, val] : vars) {
       BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
@@ -1066,7 +1070,7 @@ namespace config {
     bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
-#ifndef __APPLE__
+#if !defined(__ANDROID__) && !defined(__APPLE__)
     video.nv_legacy.preset = video.nv.quality_preset + 11;
     video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
@@ -1143,6 +1147,7 @@ namespace config {
     }
 
     int_f(vars, "max_bitrate", video.max_bitrate);
+    double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1416,7 +1421,7 @@ namespace config {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
         WCHAR executable[MAX_PATH];
-        GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable));
+        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
 
         SHELLEXECUTEINFOW shell_exec_info {};
         shell_exec_info.cbSize = sizeof(shell_exec_info);

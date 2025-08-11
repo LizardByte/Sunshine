@@ -36,8 +36,6 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "13"
-            os_name: "macos"
           - os_version: "14"
             os_name: "macos"
           - os_version: "15"
@@ -73,9 +71,13 @@ jobs:
           brew install python3
 
       - name: Configure formula
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
         run: |
           # variables for formula
-          branch="${{ github.head_ref }}"
+          branch="${{ env.HEAD_REF }}"
           build_version=${{ inputs.release_version }}
           commit=${{ inputs.release_commit }}
 
@@ -96,9 +98,9 @@ jobs:
           else
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-            branch="${{ github.event.pull_request.head.ref }}"
-            default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
-            tag="${{ github.event.pull_request.head.ref }}"
+            branch="${{ env.PR_HEAD_REF }}"
+            default_branch="${{ env.PR_DEFAULT_BRANCH }}"
+            tag="${{ env.PR_HEAD_REF }}"
           fi
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
@@ -143,12 +145,13 @@ jobs:
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 
-          echo "DISPLAY=${DISPLAY}" >> $GITHUB_ENV
+          echo "DISPLAY=${DISPLAY}" >> "${GITHUB_ENV}"
 
+      - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@v2025.703.21447
+        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
@@ -156,9 +159,11 @@ jobs:
           publish: false
           token: ${{ secrets.GH_TOKEN }}
           validate: true
+      - run: echo "::remove-matcher owner=gcc-strip3::"
 
       - name: Setup python
         id: python
+        if: false
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -220,16 +225,10 @@ jobs:
           echo "New formula:"
           cat $formula_file
 
-      - name: Upload Homebrew Beta Formula
-        if: >-
-          github.repository_owner == 'LizardByte' &&
-          matrix.release &&
-          inputs.publish_release == 'true'
-        uses: LizardByte/actions/actions/release_homebrew@v2025.703.21447
+      - name: Upload Artifacts (Beta)
+        if: matrix.release
+        uses: actions/upload-artifact@v4
         with:
-          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
-          git_email: ${{ secrets.GIT_EMAIL }}
-          git_username: ${{ secrets.GIT_USERNAME }}
-          publish: true
-          token: ${{ secrets.GH_TOKEN }}
-          validate: false
+          name: beta-Homebrew
+          path: homebrew/
+          if-no-files-found: error

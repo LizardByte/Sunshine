@@ -5,22 +5,24 @@
     "-Ddocumentation=disabled",
     "-Dtests=disabled"
   ],
-  "cleanup": [
-    "/bin"
-  ],
   "sources": [
     {
       "type": "git",
-      "url": "https://salsa.debian.org/debian/libevdev.git",
-      "commit": "1aa7baa233d6df4cee6a66fbc61bb5ffc8b6e88d",
-      "tag": "debian/1.13.0+dfsg-1",
+      "url": "https://github.com/LizardByte-infrastructure/libevdev.git",
+      "commit": "ac0056961c3332a260db063ab4fccc7747638a1d",
+      "tag": "libevdev-1.13.4",
       "x-checker-data": {
-        "type": "git",
-        "tag-pattern": "^debian\\/(\\d.\\d+\\.\\d+)",
-        "versions": {
-          "<": "1.13.1"
-        }
+        "type": "anitya",
+        "project-id": 20540,
+        "stable-only": true,
+        "tag-template": "libevdev-$version"
       }
     }
+  ],
+  "cleanup": [
+    "/bin",
+    "/include",
+    "/lib/pkgconfig",
+    "/share"
   ]
 }

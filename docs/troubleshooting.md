@@ -84,9 +84,35 @@ client only 1 Gbit/s or Wi-Fi. Similarly, a 1 Gbps host may be too fast for a
 client having only a 100 Mbps interface.
 
 As a workaround the transmission speed of the host NIC can be reduced: 1 Gbps
-instead of 2.5 or 100 Mbps instead of 1 Gbps. (A technically more advanced
+instead of 2.5 or 100 Mbps instead of 1 Gbps. A technically more advanced
 solution would be to configure traffic shaping rules at the OS-level, so that
-only Sunshine's traffic is slowed down.)
+only Sunshine's traffic is slowed down.
+
+Such a solution on Linux could look like that:
+
+```bash
+# 1) Remove existing qdisc (pfifo_fast)
+sudo tc qdisc del dev <NIC> root
+
+# 2) Add HTB root qdisc with default class 1:1
+sudo tc qdisc add dev <NIC> root handle 1: htb default 1
+
+# 3) Create class 1:1 for full 10 Gbit/s (all other traffic)
+sudo tc class add dev <NIC> parent 1: classid 1:1 htb \
+    rate 10000mbit ceil 10000mbit burst 32k
+
+# 4) Create class 1:10 for Sunshine game stream at 1 Gbit/s
+sudo tc class add dev <NIC> parent 1: classid 1:10 htb \
+    rate 1000mbit ceil 1000mbit burst 32k
+
+# 5) Filter UDP source port 47998 into class 1:10
+sudo tc filter add dev <NIC> protocol ip parent 1: prio 1 \
+    u32 match ip protocol 17 0xff \
+    match ip sport 47998 0xffff flowid 1:10
+```
+
+In that way only the Sunshine traffic is limited by 1 Gbit. This is not persistent on reboots.
+If you use a different port for the game stream you need to adjust the last command.
 
 Sunshine versions > 0.23.1 include improved networking code that should
 alleviate or even solve this issue (without reducing the NIC speed).

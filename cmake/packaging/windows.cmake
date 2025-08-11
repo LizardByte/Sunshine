@@ -4,6 +4,20 @@ install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
+# ViGEmBus installer
+set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/vigembus_installer.exe")
+file(DOWNLOAD
+        "https://github.com/nefarius/ViGEmBus/releases/download/v1.21.442.0/ViGEmBus_1.21.442_x64_x86_arm64.exe"
+        ${VIGEMBUS_INSTALLER}
+        SHOW_PROGRESS
+        EXPECTED_HASH SHA256=155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc
+        TIMEOUT 60
+)
+install(FILES ${VIGEMBUS_INSTALLER}
+        DESTINATION "scripts"
+        RENAME "vigembus_installer.exe"
+        COMPONENT gamepad)
+
 # Adding tools
 install(TARGETS dxgi-info RUNTIME DESTINATION "tools" COMPONENT dxgi)
 install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)

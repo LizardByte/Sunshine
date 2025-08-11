@@ -5,6 +5,7 @@
 #include "../tests_common.h"
 #include "../tests_log_checker.h"
 
+#include <format>
 #include <random>
 #include <src/logging.h>
 
@@ -39,7 +40,7 @@ TEST_P(LogLevelsTest, PutMessage) {
 
   std::random_device rand_dev;
   std::mt19937_64 rand_gen(rand_dev());
-  auto test_message = std::to_string(rand_gen()) + std::to_string(rand_gen());
+  auto test_message = std::format("{}{}", rand_gen(), rand_gen());
   BOOST_LOG(logger) << test_message;
 
   ASSERT_TRUE(log_checker::line_contains(log_file, test_message));
