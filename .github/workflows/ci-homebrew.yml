@@ -47,7 +47,7 @@ jobs:
             release: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Fix homebrew python
         if: matrix.os_name == 'macos' && matrix.os_version == '13'
