@@ -54,11 +54,11 @@ namespace platf::gamepad {
     }
 
     return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad",
-		                         .vendor_id = 0x054C,
-					 .product_id = 0x0CE6,
-					 .version = 0x8111,
-					 .device_phys=device_mac,
-					 .device_uniq=device_mac});
+                                         .vendor_id = 0x054C,
+                                         .product_id = 0x0CE6,
+                                         .version = 0x8111,
+                                         .device_phys=device_mac,
+                                         .device_uniq=device_mac});
   }
 
   int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
@@ -282,7 +282,7 @@ namespace platf::gamepad {
       return gps;
     }
 
-    auto ds5 = create_ds5();
+    auto ds5 = create_ds5(-1); // Index -1 will result in a random MAC virtual device, which is fine for probing
     auto switchPro = create_switch();
     auto xOne = create_xbox_one();
 
