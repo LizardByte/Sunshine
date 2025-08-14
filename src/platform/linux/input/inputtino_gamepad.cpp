@@ -43,13 +43,22 @@ namespace platf::gamepad {
   }
 
   auto create_ds5(int globalIndex) {
+    std::string device_mac;
+
     if (!config::input.ds5_inputtino_randomize_mac && globalIndex >= 0 && globalIndex <= 255) {
       // Generate private virtual device MAC based on gamepad globalIndex between 0 (00) and 255 (ff)
-      std::string device_mac = std::format("02:00:00:00:00:{:#02x}", globalIndex);
-      return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111, .device_phys=device_mac, .device_uniq=device_mac});
+      device_mac = std::format("02:00:00:00:00:{:#02x}", globalIndex);
     } else {
-      return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111});
+      // Inputtino checks empty() to generate a random MAC
+      device_mac = "";
     }
+
+    return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad",
+		                         .vendor_id = 0x054C,
+					 .product_id = 0x0CE6,
+					 .version = 0x8111,
+					 .device_phys=device_mac,
+					 .device_uniq=device_mac});
   }
 
   int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
