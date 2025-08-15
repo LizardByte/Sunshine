@@ -45,7 +45,7 @@ need to install CUDA.}
     <tr>
         <td rowspan="8">12.9.1</td>
         <td rowspan="8">575.57.08</td>
-        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
+        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
