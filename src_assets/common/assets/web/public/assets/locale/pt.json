@@ -256,6 +256,8 @@
     "log_path_desc": "O arquivo onde os logs atuais de Sunshine são armazenados.",
     "max_bitrate": "Bitrate Máximo",
     "max_bitrate_desc": "A taxa de bits máxima (em Kbps) que Sunshine irá codificar o stream. Se definido como 0, ele sempre usará a bitrate solicitada pela luar.",
+    "minimum_fps_target": "Alvo Mínimo de FPS",
+    "minimum_fps_target_desc": "O FPS mais baixo efetivo que o fluxo pode alcançar. Um valor de 0 é tratado como cerca de metade do FPS do fluxo. Uma configuração de 20 é recomendada se você transmitir conteúdo de 24 ou 30fps.",
     "min_threads": "Contagem mínima de tópicos da CPU",
     "min_threads_desc": "Aumentar o valor reduz ligeiramente a eficiência da codificação, mas a troca geralmente vale a pena para ganhar o uso de mais núcleos da CPU para codificação. O valor ideal é o mais baixo que pode codificar, de forma confiável, as configurações de streaming desejadas no seu hardware.",
     "misc": "Opções diversas",

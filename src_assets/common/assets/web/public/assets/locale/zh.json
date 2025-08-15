@@ -256,6 +256,8 @@
     "log_path_desc": "Sunshine 当前日志存储的文件。",
     "max_bitrate": "最大比特率",
     "max_bitrate_desc": "Sunshine 的最大比特率(Kbps) 将编码流。如果设置为 0，它将始终使用月亮请求的比特率。",
+    "minimum_fps_target": "最低FPS 目标",
+    "minimum_fps_target_desc": "一个流可以达到的最低有效的FPS值。0的值被处理为流的 FPS 的大约一半。 如果您流 24 或 30 fps 内容，建议设置为 20。",
     "min_threads": "最低 CPU 线程数",
     "min_threads_desc": "提高该值会略微降低编码效率，但为了获得更多的 CPU 内核用于编码，通常是值得的。理想值是在您的硬件配置上以所需的串流设置进行可靠编码的最低值。",
     "misc": "杂项选项",

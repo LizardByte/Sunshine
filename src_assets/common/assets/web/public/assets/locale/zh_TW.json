@@ -256,6 +256,8 @@
     "log_path_desc": "儲存目前 Sunshine 記錄的檔案。",
     "max_bitrate": "最大位元率",
     "max_bitrate_desc": "Sunshine 會以最大位元率（單位為 Kbps）來編碼串流。如果設為0，則會使用Moonlight所要求的位元率。",
+    "minimum_fps_target": "最低 FPS 目標",
+    "minimum_fps_target_desc": "串流可達到的最低有效 FPS。0 的值會被視為串流 FPS 的一半左右。如果您串流 24 或 30fps 的內容，建議設定為 20。",
     "min_threads": "最低 CPU 線程數",
     "min_threads_desc": "增加該值會稍微降低編碼效率，但為了能使用更多 CPU 核心進行編碼，這樣的折衷通常是值得的。理想的值是在您的硬體上，能以您所需的串流設定進行可靠編碼的最低值。",
     "misc": "其他選項",
