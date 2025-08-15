@@ -49,11 +49,8 @@ window_system_e window_system;
 
 namespace dyn {
   void *handle(const std::vector<const char *> &libs) {
-    void *handle;
-
-    for (auto lib : libs) {
-      handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL);
-      if (handle) {
+    for (const auto lib : libs) {
+      if (void *handle = dlopen(lib, RTLD_LAZY | RTLD_LOCAL)) {
         return handle;
       }
     }
@@ -115,7 +112,6 @@ namespace platf {
       bool migrate_config = true;
       const char *dir;
       const char *homedir;
-      const char *migrate_envvar;
 
       // Get the home directory
       if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
@@ -141,11 +137,9 @@ namespace platf {
       }
 
       // migrate from the old config location if necessary
-      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
-      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
-        std::error_code ec;
-        fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
-        if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
+      if (const char *migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG"); migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+        const fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
+        if (std::error_code ec; old_config_path != config_path && fs::exists(old_config_path, ec)) {
           if (!fs::exists(config_path, ec)) {
             std::cout << "Migrating config from "sv << old_config_path << " to "sv << config_path << std::endl;
             if (!ec) {
@@ -186,8 +180,7 @@ namespace platf {
   std::string from_sockaddr(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
-    auto family = ip_addr->sa_family;
-    if (family == AF_INET6) {
+    if (const auto family = ip_addr->sa_family; family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
     } else if (family == AF_INET) {
       inet_ntop(AF_INET, &((sockaddr_in *) ip_addr)->sin_addr, data, INET_ADDRSTRLEN);
@@ -199,7 +192,7 @@ namespace platf {
   std::pair<std::uint16_t, std::string> from_sockaddr_ex(const sockaddr *const ip_addr) {
     char data[INET6_ADDRSTRLEN] = {};
 
-    auto family = ip_addr->sa_family;
+    const auto family = ip_addr->sa_family;
     std::uint16_t port = 0;
     if (family == AF_INET6) {
       inet_ntop(AF_INET6, &((sockaddr_in6 *) ip_addr)->sin6_addr, data, INET6_ADDRSTRLEN);
@@ -216,8 +209,7 @@ namespace platf {
     auto ifaddrs = get_ifaddrs();
     for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
       if (pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
-        std::ifstream mac_file("/sys/class/net/"s + pos->ifa_name + "/address");
-        if (mac_file.good()) {
+        if (std::ifstream mac_file("/sys/class/net/"s + pos->ifa_name + "/address"); mac_file.good()) {
           std::string mac_address;
           std::getline(mac_file, mac_address);
           return mac_address;
@@ -229,7 +221,7 @@ namespace platf {
     return "00:00:00:00:00:00"s;
   }
 
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     // clang-format off
     if (!group) {
       if (!file) {
@@ -256,10 +248,10 @@ namespace platf {
    */
   void open_url(const std::string &url) {
     // set working dir to user home directory
-    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
-    std::string cmd = R"(xdg-open ")" + url + R"(")";
+    const auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    const std::string cmd = R"(xdg-open ")" + url + R"(")";
 
-    boost::process::v1::environment _env = boost::this_process::environment();
+    const boost::process::v1::environment _env = boost::this_process::environment();
     std::error_code ec;
     auto child = run_command(false, false, cmd, working_dir, _env, nullptr, ec, nullptr);
     if (ec) {
@@ -284,7 +276,7 @@ namespace platf {
 
   void restart_on_exit() {
     char executable[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
+    const ssize_t len = readlink("/proc/self/exe", executable, PATH_MAX - 1);
     if (len == -1) {
       BOOST_LOG(fatal) << "readlink() failed: "sv << errno;
       return;
@@ -292,7 +284,7 @@ namespace platf {
     executable[len] = '\0';
 
     // ASIO doesn't use O_CLOEXEC, so we have to close all fds ourselves
-    int openmax = (int) sysconf(_SC_OPEN_MAX);
+    const int openmax = (int) sysconf(_SC_OPEN_MAX);
     for (int fd = STDERR_FILENO + 1; fd < openmax; fd++) {
       close(fd);
     }
@@ -318,7 +310,7 @@ namespace platf {
     return unsetenv(name.c_str());
   }
 
-  bool request_process_group_exit(std::uintptr_t native_handle) {
+  bool request_process_group_exit(const std::uintptr_t native_handle) {
     if (kill(-((pid_t) native_handle), SIGTERM) == 0 || errno == ESRCH) {
       BOOST_LOG(debug) << "Successfully sent SIGTERM to process group: "sv << native_handle;
       return true;
@@ -328,30 +320,30 @@ namespace platf {
     }
   }
 
-  bool process_group_running(std::uintptr_t native_handle) {
+  bool process_group_running(const std::uintptr_t native_handle) {
     return waitpid(-((pid_t) native_handle), nullptr, WNOHANG) >= 0;
   }
 
-  struct sockaddr_in to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+  struct sockaddr_in to_sockaddr(const boost::asio::ip::address_v4 &address, const uint16_t port) {
     struct sockaddr_in saddr_v4 = {};
 
     saddr_v4.sin_family = AF_INET;
     saddr_v4.sin_port = htons(port);
 
-    auto addr_bytes = address.to_bytes();
+    const auto addr_bytes = address.to_bytes();
     memcpy(&saddr_v4.sin_addr, addr_bytes.data(), sizeof(saddr_v4.sin_addr));
 
     return saddr_v4;
   }
 
-  struct sockaddr_in6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+  struct sockaddr_in6 to_sockaddr(const boost::asio::ip::address_v6 &address, const uint16_t port) {
     struct sockaddr_in6 saddr_v6 = {};
 
     saddr_v6.sin6_family = AF_INET6;
     saddr_v6.sin6_port = htons(port);
     saddr_v6.sin6_scope_id = address.scope_id();
 
-    auto addr_bytes = address.to_bytes();
+    const auto addr_bytes = address.to_bytes();
     memcpy(&saddr_v6.sin6_addr, addr_bytes.data(), sizeof(saddr_v6.sin6_addr));
 
     return saddr_v6;
@@ -423,7 +415,7 @@ namespace platf {
     {
       // UDP GSO on Linux currently only supports sending 64K or 64 segments at a time
       size_t seg_index = 0;
-      const size_t seg_max = 65536 / 1500;
+      constexpr size_t seg_max = 65536 / 1500;
       struct iovec iovs[(send_info.headers ? std::min(seg_max, send_info.block_count) : 1) * max_iovs_per_msg];
       auto msg_size = send_info.header_size + send_info.payload_size;
       while (seg_index < send_info.block_count) {
@@ -564,8 +556,8 @@ namespace platf {
     }
   }
 
-  bool send(send_info_t &send_info) {
-    auto sockfd = (int) send_info.native_socket;
+  bool send(const send_info_t &send_info) {
+    const auto sockfd = (int) send_info.native_socket;
     struct msghdr msg = {};
 
     // Convert the target address into a sockaddr
@@ -593,11 +585,11 @@ namespace platf {
     msg.msg_control = cmbuf.buf;
     msg.msg_controllen = sizeof(cmbuf.buf);
 
-    auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
+    const auto pktinfo_cm = CMSG_FIRSTHDR(&msg);
     if (send_info.source_address.is_v6()) {
       struct in6_pktinfo pktInfo;
 
-      struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
+      const struct sockaddr_in6 saddr_v6 = to_sockaddr(send_info.source_address.to_v6(), 0);
       pktInfo.ipi6_addr = saddr_v6.sin6_addr;
       pktInfo.ipi6_ifindex = 0;
 
@@ -610,7 +602,7 @@ namespace platf {
     } else {
       struct in_pktinfo pktInfo;
 
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      const struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
       pktInfo.ipi_spec_dst = saddr_v4.sin_addr;
       pktInfo.ipi_ifindex = 0;
 
@@ -671,7 +663,7 @@ namespace platf {
 
   class qos_t: public deinit_t {
   public:
-    qos_t(int sockfd, std::vector<std::tuple<int, int, int>> options):
+    qos_t(const int sockfd, const std::vector<std::tuple<int, int, int>> &options):
         sockfd(sockfd),
         options(options) {
       qos_ref_count++;
@@ -701,7 +693,7 @@ namespace platf {
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> enable_socket_qos(const uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, const bool dscp_tagging) {
     int sockfd = (int) native_socket;
     std::vector<std::tuple<int, int, int>> reset_options;
 
@@ -753,7 +745,7 @@ namespace platf {
     // reset SO_PRIORITY back to 0.
     //
     // 6 is the highest priority that can be used without SYS_CAP_ADMIN.
-    int priority = data_type == qos_data_type_e::audio ? 6 : 5;
+    const int priority = data_type == qos_data_type_e::audio ? 6 : 5;
     if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
       // Reset SO_PRIORITY to 0 when QoS is disabled
       reset_options.emplace_back(std::make_tuple(SOL_SOCKET, SO_PRIORITY, 0));

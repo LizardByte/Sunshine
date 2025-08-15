@@ -66,7 +66,7 @@ namespace nvhttp {
     void after_bind() override {
       if (verify) {
         context.set_verify_mode(boost::asio::ssl::verify_peer | boost::asio::ssl::verify_fail_if_no_peer_cert | boost::asio::ssl::verify_client_once);
-        context.set_verify_callback([](int verified, boost::asio::ssl::verify_context &ctx) {
+        context.set_verify_callback([](int verified, const boost::asio::ssl::verify_context &ctx) {
           // To respond with an error message, a connection must be established
           return 1;
         });
@@ -338,7 +338,7 @@ namespace nvhttp {
     map_id_sess.erase(sess.client.uniqueID);
   }
 
-  void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string status_msg) {
+  void fail_pair(const pair_session_t &sess, pt::ptree &tree, const std::string status_msg) {
     tree.put("root.paired", 0);
     tree.put("root.<xmlattr>.status_code", 400);
     tree.put("root.<xmlattr>.status_message", status_msg);
@@ -359,7 +359,7 @@ namespace nvhttp {
 
     std::string_view salt_view {sess.async_insert_pin.salt.data(), 32};
 
-    auto salt = util::from_hex<std::array<uint8_t, 16>>(salt_view, true);
+    const auto salt = util::from_hex<std::array<uint8_t, 16>>(salt_view, true);
 
     auto key = crypto::gen_aes_key(salt, pin);
     sess.cipher_key = std::make_unique<crypto::aes_t>(key);
@@ -385,8 +385,8 @@ namespace nvhttp {
     std::vector<uint8_t> decrypted;
     cipher.decrypt(challenge, decrypted);
 
-    auto x509 = crypto::x509(conf_intern.servercert);
-    auto sign = crypto::signature(x509);
+    const auto x509 = crypto::x509(conf_intern.servercert);
+    const auto sign = crypto::signature(x509);
     auto serversecret = crypto::rand(16);
 
     decrypted.insert(std::end(decrypted), std::begin(sign), std::end(sign));
@@ -441,7 +441,7 @@ namespace nvhttp {
     tree.put("root.<xmlattr>.status_code", 200);
   }
 
-  void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, pt::ptree &tree, const std::string &client_pairing_secret) {
+  void clientpairingsecret(pair_session_t &sess, const std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, pt::ptree &tree, const std::string &client_pairing_secret) {
     if (sess.last_phase != PAIR_PHASE::SERVERCHALLENGERESP) {
       fail_pair(sess, tree, "Out of order call to clientpairingsecret");
       return;
@@ -455,15 +455,15 @@ namespace nvhttp {
       return;
     }
 
-    std::string_view secret {client_pairing_secret.data(), 16};
-    std::string_view sign {client_pairing_secret.data() + secret.size(), client_pairing_secret.size() - secret.size()};
+    const std::string_view secret {client_pairing_secret.data(), 16};
+    const std::string_view sign {client_pairing_secret.data() + secret.size(), client_pairing_secret.size() - secret.size()};
 
-    auto x509 = crypto::x509(client.cert);
+    const auto x509 = crypto::x509(client.cert);
     if (!x509) {
       fail_pair(sess, tree, "Invalid client certificate");
       return;
     }
-    auto x509_sign = crypto::signature(x509);
+    const auto x509_sign = crypto::signature(x509);
 
     std::string data;
     data.reserve(sess.serverchallenge.size() + x509_sign.size() + secret.size());
@@ -475,9 +475,8 @@ namespace nvhttp {
     auto hash = crypto::hash(data);
 
     // if hash not correct, probably MITM
-    bool same_hash = hash.size() == sess.clienthash.size() && std::equal(hash.begin(), hash.end(), sess.clienthash.begin());
-    auto verify = crypto::verify256(crypto::x509(client.cert), secret, sign);
-    if (same_hash && verify) {
+    const bool same_hash = hash.size() == sess.clienthash.size() && std::equal(hash.begin(), hash.end(), sess.clienthash.begin());
+    if (const auto verify = crypto::verify256(crypto::x509(client.cert), secret, sign); same_hash && verify) {
       tree.put("root.paired", 1);
       add_cert->raise(crypto::x509(client.cert));
 
@@ -576,7 +575,7 @@ namespace nvhttp {
         sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
 
         BOOST_LOG(debug) << sess.client.cert;
-        auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
+        const auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
         if (config::sunshine.flags[config::flag::PIN_STDIN]) {
@@ -611,13 +610,13 @@ namespace nvhttp {
     }
 
     if (it = args.find("clientchallenge"); it != std::end(args)) {
-      auto challenge = util::from_hex_vec(it->second, true);
+      const auto challenge = util::from_hex_vec(it->second, true);
       clientchallenge(sess_it->second, tree, challenge);
     } else if (it = args.find("serverchallengeresp"); it != std::end(args)) {
-      auto encrypted_response = util::from_hex_vec(it->second, true);
+      const auto encrypted_response = util::from_hex_vec(it->second, true);
       serverchallengeresp(sess_it->second, tree, encrypted_response);
     } else if (it = args.find("clientpairingsecret"); it != std::end(args)) {
-      auto pairingsecret = util::from_hex_vec(it->second, true);
+      const auto pairingsecret = util::from_hex_vec(it->second, true);
       clientpairingsecret(sess_it->second, add_cert, tree, pairingsecret);
     } else {
       tree.put("root.<xmlattr>.status_code", 404);
@@ -625,7 +624,7 @@ namespace nvhttp {
     }
   }
 
-  bool pin(std::string pin, std::string name) {
+  bool pin(std::string pin, const std::string &name) {
     pt::ptree tree;
     if (map_id_sess.empty()) {
       return false;
@@ -779,7 +778,7 @@ namespace nvhttp {
     return named_cert_nodes;
   }
 
-  void applist(resp_https_t response, req_https_t request) {
+  void applist(const resp_https_t &response, const req_https_t &request) {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
@@ -807,7 +806,7 @@ namespace nvhttp {
     }
   }
 
-  void launch(bool &host_audio, resp_https_t response, req_https_t request) {
+  void launch(bool &host_audio, const resp_https_t &response, const req_https_t &request) {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
@@ -838,10 +837,9 @@ namespace nvhttp {
       return;
     }
 
-    auto appid = util::from_view(get_arg(args, "appid"));
+    const auto appid = util::from_view(get_arg(args, "appid"));
 
-    auto current_appid = proc::proc.running();
-    if (current_appid > 0) {
+    if (const auto current_appid = proc::proc.running(); current_appid > 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 400);
       tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
@@ -850,7 +848,7 @@ namespace nvhttp {
     }
 
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
-    auto launch_session = make_launch_session(host_audio, args);
+    const auto launch_session = make_launch_session(host_audio, args);
 
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
@@ -874,8 +872,7 @@ namespace nvhttp {
       }
     }
 
-    auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address());
-    if (!launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
+    if (const auto encryption_mode = net::encryption_mode_for_address(request->remote_endpoint().address()); !launch_session->rtsp_cipher && encryption_mode == config::ENCRYPTION_MODE_MANDATORY) {
       BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
 
       tree.put("root.<xmlattr>.status_code", 403);
@@ -886,8 +883,7 @@ namespace nvhttp {
     }
 
     if (appid > 0) {
-      auto err = proc::proc.execute(appid, launch_session);
-      if (err) {
+      if (const auto err = proc::proc.execute(appid, launch_session)) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
         tree.put("root.gamesession", 0);
@@ -914,7 +910,7 @@ namespace nvhttp {
     revert_display_configuration = false;
   }
 
-  void resume(bool &host_audio, resp_https_t response, req_https_t request) {
+  void resume(bool &host_audio, const resp_https_t &response, const req_https_t &request) {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
@@ -926,8 +922,7 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    auto current_appid = proc::proc.running();
-    if (current_appid == 0) {
+    if (const auto current_appid = proc::proc.running(); current_appid == 0) {
       tree.put("root.resume", 0);
       tree.put("root.<xmlattr>.status_code", 503);
       tree.put("root.<xmlattr>.status_message", "No running app to resume");
@@ -1001,7 +996,7 @@ namespace nvhttp {
     rtsp_stream::launch_session_raise(launch_session);
   }
 
-  void cancel(resp_https_t response, req_https_t request) {
+  void cancel(const resp_https_t &response, const req_https_t &request) {
     print_req<SunshineHTTPS>(request);
 
     pt::ptree tree;
@@ -1026,7 +1021,7 @@ namespace nvhttp {
     display_device::revert_configuration();
   }
 
-  void appasset(resp_https_t response, req_https_t request) {
+  void appasset(const resp_https_t &response, const req_https_t &request) {
     print_req<SunshineHTTPS>(request);
 
     auto args = request->parse_query_string();
@@ -1045,15 +1040,13 @@ namespace nvhttp {
   }
 
   void start() {
-    auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+    const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-    auto port_http = net::map_port(PORT_HTTP);
-    auto port_https = net::map_port(PORT_HTTPS);
-    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    const auto port_http = net::map_port(PORT_HTTP);
+    const auto port_https = net::map_port(PORT_HTTPS);
+    const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
-    bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE];
-
-    if (!clean_slate) {
+    if (const bool clean_slate = config::sunshine.flags[config::flag::FRESH_STATE]; !clean_slate) {
       load_state();
     }
 
@@ -1071,7 +1064,7 @@ namespace nvhttp {
     http_server_t http_server;
 
     // Verify certificates after establishing connection
-    https_server.verify = [add_cert](SSL *ssl) {
+    https_server.verify = [add_cert](const SSL *ssl) {
       crypto::x509_t x509 {
 #if OPENSSL_VERSION_MAJOR >= 3
         SSL_get1_peer_certificate(ssl)

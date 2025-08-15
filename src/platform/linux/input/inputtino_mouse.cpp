@@ -31,7 +31,7 @@ namespace platf::mouse {
     }
   }
 
-  void button(input_raw_t *raw, int button, bool release) {
+  void button(input_raw_t *raw, const int button, const bool release) {
     if (raw->mouse) {
       inputtino::Mouse::MOUSE_BUTTON btn_type;
       switch (button) {
@@ -62,19 +62,19 @@ namespace platf::mouse {
     }
   }
 
-  void scroll(input_raw_t *raw, int high_res_distance) {
+  void scroll(input_raw_t *raw, const int high_res_distance) {
     if (raw->mouse) {
       (*raw->mouse).vertical_scroll(high_res_distance);
     }
   }
 
-  void hscroll(input_raw_t *raw, int high_res_distance) {
+  void hscroll(input_raw_t *raw, const int high_res_distance) {
     if (raw->mouse) {
       (*raw->mouse).horizontal_scroll(high_res_distance);
     }
   }
 
-  util::point_t get_location(input_raw_t *raw) {
+  util::point_t get_location(const input_raw_t *raw) {
     if (raw->mouse) {
       // TODO: decide what to do after https://github.com/games-on-whales/inputtino/issues/6 is resolved.
       // TODO: auto x = (*raw->mouse).get_absolute_x();

@@ -20,7 +20,7 @@ HANDLE session_change_event;
 
 #define SERVICE_NAME "SunshineService"
 
-DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) {
+DWORD WINAPI HandlerEx(DWORD dwControl, DWORD dwEventType, const LPVOID lpEventData, const LPVOID lpContext) {
   switch (dwControl) {
     case SERVICE_CONTROL_INTERROGATE:
       return NO_ERROR;

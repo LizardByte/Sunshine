@@ -114,13 +114,13 @@ namespace wl {
 
     void xdg_done(zxdg_output_v1 *) {}
 
-    void wl_geometry(wl_output *wl_output, std::int32_t x, std::int32_t y, std::int32_t physical_width, std::int32_t physical_height, std::int32_t subpixel, const char *make, const char *model, std::int32_t transform) {}
+    void wl_geometry(const wl_output *wl_output, std::int32_t x, std::int32_t y, std::int32_t physical_width, std::int32_t physical_height, std::int32_t subpixel, const char *make, const char *model, std::int32_t transform) {}
 
-    void wl_mode(wl_output *wl_output, std::uint32_t flags, std::int32_t width, std::int32_t height, std::int32_t refresh);
+    void wl_mode(const ::wl_output *wl_output, std::uint32_t flags, std::int32_t width, std::int32_t height, std::int32_t refresh);
 
-    void wl_done(wl_output *wl_output) {}
+    void wl_done(const wl_output *wl_output) {}
 
-    void wl_scale(wl_output *wl_output, std::int32_t factor) {}
+    void wl_scale(const wl_output *wl_output, std::int32_t factor) {}
 
     wl_output *output;
     std::string name;
@@ -164,7 +164,7 @@ namespace wl {
 
   private:
     void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
-    void del_interface(wl_registry *registry, uint32_t id);
+    void del_interface(const wl_registry *registry, uint32_t id);
 
     std::bitset<MAX_INTERFACES> interface;
     wl_registry_listener listener;

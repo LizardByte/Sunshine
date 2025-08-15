@@ -120,22 +120,21 @@ namespace video {
 
   util::Either<avcodec_buffer_t, int> dxgi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int> vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
-  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
-  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
+  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(const platf::avcodec_encode_device_t *);
+  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(const platf::avcodec_encode_device_t *);
 
   class avcodec_software_encode_device_t: public platf::avcodec_encode_device_t {
   public:
     int convert(platf::img_t &img) override {
       // If we need to add aspect ratio padding, we need to scale into an intermediate output buffer
-      bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
+      const bool requires_padding = (sw_frame->width != sws_output_frame->width || sw_frame->height != sws_output_frame->height);
 
       // Setup the input frame using the caller's img_t
       sws_input_frame->data[0] = img.data;
       sws_input_frame->linesize[0] = img.row_pitch;
 
       // Perform color conversion and scaling to the final size
-      auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get());
-      if (status < 0) {
+      if (const auto status = sws_scale_frame(sws.get(), requires_padding ? sws_output_frame.get() : sw_frame.get(), sws_input_frame.get()); status < 0) {
         char string[AV_ERROR_MAX_STRING_SIZE];
         BOOST_LOG(error) << "Couldn't scale frame: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
         return -1;
@@ -464,8 +463,8 @@ namespace video {
     encode_session_ctx_queue_t encode_session_ctx_queue {30};
   };
 
-  int start_capture_sync(capture_thread_sync_ctx_t &ctx);
-  void end_capture_sync(capture_thread_sync_ctx_t &ctx);
+  int start_capture_sync(const capture_thread_sync_ctx_t &ctx);
+  void end_capture_sync(const capture_thread_sync_ctx_t &ctx);
   int start_capture_async(capture_thread_async_ctx_t &ctx);
   void end_capture_async(capture_thread_async_ctx_t &ctx);
 
@@ -1371,8 +1370,8 @@ namespace video {
     }
   }
 
-  int encode_avcodec(int64_t frame_nr, avcodec_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
-    auto &frame = session.device->frame;
+  int encode_avcodec(const int64_t frame_nr, avcodec_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, const std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+    const auto &frame = session.device->frame;
     frame->pts = frame_nr;
 
     auto &ctx = session.avcodec_ctx;
@@ -1391,7 +1390,7 @@ namespace video {
 
     while (ret >= 0) {
       auto packet = std::make_unique<packet_raw_avcodec>();
-      auto av_packet = packet.get()->av_packet;
+      const auto av_packet = packet.get()->av_packet;
 
       ret = avcodec_receive_packet(ctx.get(), av_packet);
       if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
@@ -1445,7 +1444,7 @@ namespace video {
     return 0;
   }
 
-  int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+  int encode_nvenc(const int64_t frame_nr, nvenc_encode_session_t &session, const safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, const std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
       BOOST_LOG(error) << "NvENC returned empty packet";
@@ -1668,7 +1667,7 @@ namespace video {
             [&](int v) {
               av_dict_set_int(&options, option.name.c_str(), v, 0);
             },
-            [&](int *v) {
+            [&](const int *v) {
               av_dict_set_int(&options, option.name.c_str(), *v, 0);
             },
             [&](std::optional<int> *v) {
@@ -1682,7 +1681,7 @@ namespace video {
             [&](const std::string &v) {
               av_dict_set(&options, option.name.c_str(), v.c_str(), 0);
             },
-            [&](std::string *v) {
+            [&](const std::string *v) {
               if (!v->empty()) {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
@@ -1975,20 +1974,20 @@ namespace video {
     }
   }
 
-  input::touch_port_t make_port(platf::display_t *display, const config_t &config) {
-    float wd = display->width;
-    float hd = display->height;
+  input::touch_port_t make_port(const platf::display_t *display, const config_t &config) {
+    const float wd = display->width;
+    const float hd = display->height;
 
-    float wt = config.width;
-    float ht = config.height;
+    const float wt = config.width;
+    const float ht = config.height;
 
-    auto scalar = std::fminf(wt / wd, ht / hd);
+    const auto scalar = std::fminf(wt / wd, ht / hd);
 
-    auto w2 = scalar * wd;
-    auto h2 = scalar * hd;
+    const auto w2 = scalar * wd;
+    const auto h2 = scalar * hd;
 
-    auto offsetX = (config.width - w2) * 0.5f;
-    auto offsetY = (config.height - h2) * 0.5f;
+    const auto offsetX = (config.width - w2) * 0.5f;
+    const auto offsetY = (config.height - h2) * 0.5f;
 
     return input::touch_port_t {
       {
@@ -2008,7 +2007,7 @@ namespace video {
   std::unique_ptr<platf::encode_device_t> make_encode_device(platf::display_t &disp, const encoder_t &encoder, const config_t &config) {
     std::unique_ptr<platf::encode_device_t> result;
 
-    auto colorspace = colorspace_from_client_config(config, disp.is_hdr());
+    const auto colorspace = colorspace_from_client_config(config, disp.is_hdr());
 
     platf::pix_fmt_e pix_fmt;
     if (config.chromaSamplingType == 1) {
@@ -2028,7 +2027,7 @@ namespace video {
     }
 
     {
-      auto encoder_name = encoder.codec_from_config(config).name;
+      const auto encoder_name = encoder.codec_from_config(config).name;
 
       BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
 
@@ -2276,13 +2275,13 @@ namespace video {
   }
 
   void capture_async(
-    safe::mail_t mail,
-    config_t &config,
+    const safe::mail_t &mail,
+    const config_t &config,
     void *channel_data
   ) {
-    auto shutdown_event = mail->event<bool>(mail::shutdown);
+    const auto shutdown_event = mail->event<bool>(mail::shutdown);
 
-    auto images = std::make_shared<img_event_t::element_type>();
+    const auto images = std::make_shared<img_event_t::element_type>();
     auto lg = util::fail_guard([&]() {
       images->stop();
       shutdown_event->raise(true);
@@ -2301,8 +2300,8 @@ namespace video {
 
     int frame_nr = 1;
 
-    auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
-    auto hdr_event = mail->event<hdr_info_t>(mail::hdr);
+    const auto touch_port_event = mail->event<input::touch_port_t>(mail::touch_port);
+    const auto hdr_event = mail->event<hdr_info_t>(mail::hdr);
 
     // Encoding takes place on this thread
     platf::adjust_thread_priority(platf::thread_priority_e::high);
@@ -2361,7 +2360,7 @@ namespace video {
 
   void capture(
     safe::mail_t mail,
-    config_t config,
+    const config_t &config,
     void *channel_data
   ) {
     auto idr_events = mail->event<bool>(mail::idr);
@@ -2843,11 +2842,10 @@ namespace video {
     return hw_device_buf;
   }
 
-  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+  util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(const platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */);
-    if (status < 0) {
+    if (const auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_CUDA, nullptr, nullptr, 1 /* AV_CUDA_USE_PRIMARY_CONTEXT */); status < 0) {
       char string[AV_ERROR_MAX_STRING_SIZE];
       BOOST_LOG(error) << "Failed to create a CUDA device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
       return -1;
@@ -2856,11 +2854,10 @@ namespace video {
     return hw_device_buf;
   }
 
-  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
+  util::Either<avcodec_buffer_t, int> vt_init_avcodec_hardware_input_buffer(const platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0);
-    if (status < 0) {
+    if (const auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VIDEOTOOLBOX, nullptr, nullptr, 0); status < 0) {
       char string[AV_ERROR_MAX_STRING_SIZE];
       BOOST_LOG(error) << "Failed to create a VideoToolbox device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
       return -1;
@@ -2926,12 +2923,12 @@ namespace video {
     capture_thread_ctx.capture_thread.join();
   }
 
-  int start_capture_sync(capture_thread_sync_ctx_t &ctx) {
+  int start_capture_sync(const capture_thread_sync_ctx_t &ctx) {
     std::thread {&captureThreadSync}.detach();
     return 0;
   }
 
-  void end_capture_sync(capture_thread_sync_ctx_t &ctx) {
+  void end_capture_sync(const capture_thread_sync_ctx_t &ctx) {
   }
 
   platf::mem_type_e map_base_dev_type(AVHWDeviceType type) {

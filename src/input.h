@@ -15,14 +15,14 @@ namespace input {
   struct input_t;
 
   void print(void *input);
-  void reset(std::shared_ptr<input_t> &input);
+  void reset(const std::shared_ptr<input_t> &input);
   void passthrough(std::shared_ptr<input_t> &input, std::vector<std::uint8_t> &&input_data);
 
   [[nodiscard]] std::unique_ptr<platf::deinit_t> init();
 
   bool probe_gamepads();
 
-  std::shared_ptr<input_t> alloc(safe::mail_t mail);
+  std::shared_ptr<input_t> alloc(const safe::mail_t &mail);
 
   struct touch_port_t: public platf::touch_port_t {
     int env_width, env_height;

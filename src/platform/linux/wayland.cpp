@@ -78,7 +78,7 @@ namespace wl {
    * @param timeout The timeout in milliseconds.
    * @return `true` if new events were dispatched or `false` if the timeout expired.
    */
-  bool display_t::dispatch(std::chrono::milliseconds timeout) {
+  bool display_t::dispatch(const std::chrono::milliseconds timeout) {
     // Check if any events are queued already. If not, flush
     // outgoing events, and prepare to wait for readability.
     if (wl_display_prepare_read(display_internal.get()) == 0) {
@@ -136,22 +136,22 @@ namespace wl {
     BOOST_LOG(info) << "Found monitor: "sv << this->description;
   }
 
-  void monitor_t::xdg_position(zxdg_output_v1 *, std::int32_t x, std::int32_t y) {
+  void monitor_t::xdg_position(zxdg_output_v1 *, const std::int32_t x, const std::int32_t y) {
     viewport.offset_x = x;
     viewport.offset_y = y;
 
     BOOST_LOG(info) << "Offset: "sv << x << 'x' << y;
   }
 
-  void monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
+  void monitor_t::xdg_size(zxdg_output_v1 *, const std::int32_t width, const std::int32_t height) {
     BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
   }
 
   void monitor_t::wl_mode(
-    wl_output *wl_output,
+    const wl_output *wl_output,
     std::uint32_t flags,
-    std::int32_t width,
-    std::int32_t height,
+    const std::int32_t width,
+    const std::int32_t height,
     std::int32_t refresh
   ) {
     viewport.width = width;
@@ -161,7 +161,7 @@ namespace wl {
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
-    auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
+    const auto xdg_output = zxdg_output_manager_v1_get_xdg_output(output_manager, output);
     zxdg_output_v1_add_listener(xdg_output, &xdg_listener, this);
     wl_output_add_listener(output, &wl_listener, this);
   }
@@ -183,9 +183,9 @@ namespace wl {
 
   void interface_t::add_interface(
     wl_registry *registry,
-    std::uint32_t id,
+    const std::uint32_t id,
     const char *interface,
-    std::uint32_t version
+    const std::uint32_t version
   ) {
     BOOST_LOG(debug) << "Available interface: "sv << interface << '(' << id << ") version "sv << version;
 
@@ -214,7 +214,7 @@ namespace wl {
     }
   }
 
-  void interface_t::del_interface(wl_registry *registry, uint32_t id) {
+  void interface_t::del_interface(const wl_registry *registry, const uint32_t id) {
     BOOST_LOG(info) << "Delete: "sv << id;
   }
 
@@ -291,7 +291,7 @@ namespace wl {
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
     wl_output *output,
-    bool blend_cursor
+    const bool blend_cursor
   ) {
     this->dmabuf_interface = dmabuf_interface;
     // Reset state
@@ -299,7 +299,7 @@ namespace wl {
     dmabuf_info.supported = false;
 
     // Create new frame
-    auto frame = zwlr_screencopy_manager_v1_capture_output(
+    const auto frame = zwlr_screencopy_manager_v1_capture_output(
       screencopy_manager,
       blend_cursor ? 1 : 0,
       output
@@ -331,10 +331,10 @@ namespace wl {
   // Buffer format callback
   void dmabuf_t::buffer(
     zwlr_screencopy_frame_v1 *frame,
-    uint32_t format,
-    uint32_t width,
-    uint32_t height,
-    uint32_t stride
+    const uint32_t format,
+    const uint32_t width,
+    const uint32_t height,
+    const uint32_t stride
   ) {
     shm_info.supported = true;
     shm_info.format = format;
@@ -348,9 +348,9 @@ namespace wl {
   // DMA-BUF format callback
   void dmabuf_t::linux_dmabuf(
     zwlr_screencopy_frame_v1 *frame,
-    std::uint32_t format,
-    std::uint32_t width,
-    std::uint32_t height
+    const std::uint32_t format,
+    const std::uint32_t width,
+    const std::uint32_t height
   ) {
     dmabuf_info.supported = true;
     dmabuf_info.format = format;
@@ -385,7 +385,7 @@ namespace wl {
     }
 
     // Get buffer info
-    int fd = gbm_bo_get_fd(current_bo);
+    const int fd = gbm_bo_get_fd(current_bo);
     if (fd < 0) {
       BOOST_LOG(error) << "Failed to get buffer FD"sv;
       gbm_bo_destroy(current_bo);
@@ -395,18 +395,18 @@ namespace wl {
       return;
     }
 
-    uint32_t stride = gbm_bo_get_stride(current_bo);
-    uint64_t modifier = gbm_bo_get_modifier(current_bo);
+    const uint32_t stride = gbm_bo_get_stride(current_bo);
+    const uint64_t modifier = gbm_bo_get_modifier(current_bo);
 
     // Store in surface descriptor for later use
-    auto next_frame = get_next_frame();
+    const auto next_frame = get_next_frame();
     next_frame->sd.fds[0] = fd;
     next_frame->sd.pitches[0] = stride;
     next_frame->sd.offsets[0] = 0;
     next_frame->sd.modifier = modifier;
 
     // Create linux-dmabuf buffer
-    auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
+    const auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
     zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
 
     // Add listener for buffer creation
@@ -418,7 +418,7 @@ namespace wl {
 
   // Buffer done callback - time to create buffer
   void dmabuf_t::buffer_done(zwlr_screencopy_frame_v1 *frame) {
-    auto next_frame = get_next_frame();
+    const auto next_frame = get_next_frame();
 
     // Prefer DMA-BUF if supported
     if (dmabuf_info.supported && dmabuf_interface) {
@@ -447,8 +447,8 @@ namespace wl {
     struct zwp_linux_buffer_params_v1 *params,
     struct wl_buffer *buffer
   ) {
-    auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
-    auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
+    const auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
+    const auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
     // Store for cleanup
     self->current_wl_buffer = buffer;
@@ -462,8 +462,8 @@ namespace wl {
     void *data,
     struct zwp_linux_buffer_params_v1 *params
   ) {
-    auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
-    auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
+    const auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
+    const auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
     BOOST_LOG(error) << "Failed to create buffer from params"sv;
     self->cleanup_gbm();
@@ -503,7 +503,7 @@ namespace wl {
 
     // Clean up resources
     cleanup_gbm();
-    auto next_frame = get_next_frame();
+    const auto next_frame = get_next_frame();
     next_frame->destroy();
 
     zwlr_screencopy_frame_v1_destroy(frame);
@@ -550,7 +550,7 @@ namespace wl {
       return {};
     }
 
-    for (auto &monitor : interface.monitors) {
+    for (const auto &monitor : interface.monitors) {
       monitor->listen(interface.output_manager);
     }
 

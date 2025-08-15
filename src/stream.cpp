@@ -257,7 +257,7 @@ namespace stream {
     return cbc.encrypt(std::string_view {(char *) std::begin(plaintext), plaintext.size()}, destination, &iv);
   }
 
-  static inline void while_starting_do_nothing(std::atomic<session::state_e> &state) {
+  static inline void while_starting_do_nothing(const std::atomic<session::state_e> &state) {
     while (state.load(std::memory_order_acquire) == session::state_e::STARTING) {
       std::this_thread::sleep_for(1ms);
     }
@@ -915,24 +915,24 @@ namespace stream {
   }
 
   void controlBroadcastThread(control_server_t *server) {
-    server->map(packetTypes[IDX_PERIODIC_PING], [](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_PERIODIC_PING], [](const session_t *session, const std::string_view &payload) {
       BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
     });
 
-    server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_A], [&](const session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_START_A]"sv;
     });
 
-    server->map(packetTypes[IDX_START_B], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_START_B], [&](const session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_START_B]"sv;
     });
 
-    server->map(packetTypes[IDX_LOSS_STATS], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_LOSS_STATS], [&](const session_t *session, const std::string_view &payload) {
       int32_t *stats = (int32_t *) payload.data();
-      auto count = stats[0];
+      const auto count = stats[0];
       std::chrono::milliseconds t {stats[1]};
 
-      auto lastGoodFrame = stats[3];
+      const auto lastGoodFrame = stats[3];
 
       BOOST_LOG(verbose)
         << "type [IDX_LOSS_STATS]"sv << std::endl
@@ -943,14 +943,14 @@ namespace stream {
         << "---end stats---";
     });
 
-    server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
+    server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](const session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
 
       session->video.idr_events->raise(true);
     });
 
-    server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
-      auto frames = (std::int64_t *) payload.data();
+    server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](const session_t *session, const std::string_view &payload) {
+      const auto frames = (std::int64_t *) payload.data();
       auto firstFrame = frames[0];
       auto lastFrame = frames[1];
 
@@ -965,8 +965,8 @@ namespace stream {
     server->map(packetTypes[IDX_INPUT_DATA], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_INPUT_DATA]"sv;
 
-      auto tagged_cipher_length = util::endian::big(*(int32_t *) payload.data());
-      std::string_view tagged_cipher {payload.data() + sizeof(tagged_cipher_length), (size_t) tagged_cipher_length};
+      const auto tagged_cipher_length = util::endian::big(*(int32_t *) payload.data());
+      const std::string_view tagged_cipher {payload.data() + sizeof(tagged_cipher_length), (size_t) tagged_cipher_length};
 
       std::vector<uint8_t> plaintext;
 
@@ -993,7 +993,7 @@ namespace stream {
 
       auto header = (control_encrypted_p) (payload.data() - 2);
 
-      auto length = util::endian::little(header->length);
+      const auto length = util::endian::little(header->length);
       auto seq = util::endian::little(header->seq);
 
       if (length < (16 + 4 + 4)) {
@@ -1001,7 +1001,7 @@ namespace stream {
         return;
       }
 
-      auto tagged_cipher_length = length - 4;
+      const auto tagged_cipher_length = length - 4;
       std::string_view tagged_cipher {(char *) header->payload(), (size_t) tagged_cipher_length};
 
       auto &cipher = session->control.cipher;
@@ -1036,8 +1036,8 @@ namespace stream {
         return;
       }
 
-      auto type = *(std::uint16_t *) plaintext.data();
-      std::string_view next_payload {(char *) plaintext.data() + 4, plaintext.size() - 4};
+      const auto type = *(std::uint16_t *) plaintext.data();
+      const std::string_view next_payload {(char *) plaintext.data() + 4, plaintext.size() - 4};
 
       if (type == packetTypes[IDX_ENCRYPTED]) {
         BOOST_LOG(error) << "Bad packet type [IDX_ENCRYPTED] found"sv;
@@ -1174,8 +1174,8 @@ namespace stream {
     auto &video_sock = ctx.video_sock;
     auto &audio_sock = ctx.audio_sock;
 
-    auto &message_queue_queue = ctx.message_queue_queue;
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    const auto &message_queue_queue = ctx.message_queue_queue;
+    const auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
     auto &io = ctx.io_context;
 
@@ -1237,11 +1237,10 @@ namespace stream {
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
         } else if (bytes >= sizeof(SS_PING)) {
-          auto ping = (PSS_PING) buf[buf_elem].data();
+          const auto ping = (PSS_PING) buf[buf_elem].data();
 
           // For new PING packets that include a client identifier, search by payload.
-          auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)});
-          if (it != std::end(peer_to_session)) {
+          if (const auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)}); it != std::end(peer_to_session)) {
             BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
           }
@@ -1402,10 +1401,10 @@ namespace stream {
         // Send less than 64K in a single batch.
         // On Windows, batches above 64K seem to bypass SO_SNDBUF regardless of its size,
         // appear in "Other I/O" and begin waiting for interrupts.
-        // This gives inconsistent performance so we'd rather avoid it.
+        // This gives inconsistent performance, so we'd rather avoid it.
         size_t send_batch_size = 64 * 1024 / blocksize;
         // Also don't exceed 64 packets, which can happen when Moonlight requests
-        // unusually small packet size.
+        // an unusually small packet size.
         // Generic Segmentation Offload on Linux can't do more than 64.
         send_batch_size = std::min<size_t>(64, send_batch_size);
 
@@ -1416,7 +1415,7 @@ namespace stream {
         size_t ratecontrol_group_packets_sent = 0;
 
         auto blockIndex = 0;
-        std::for_each(fec_blocks_begin, fec_blocks_end, [&](std::string_view &current_payload) {
+        std::for_each(fec_blocks_begin, fec_blocks_end, [&](const std::string_view &current_payload) {
           auto packets = (current_payload.size() + (blocksize - 1)) / blocksize;
 
           for (int x = 0; x < packets; ++x) {
@@ -1509,7 +1508,7 @@ namespace stream {
             if (x - next_shard_to_send + 1 >= send_batch_size ||
                 x + 1 == shards.size()) {
               // Do pacing within the frame.
-              // Also trigger pacing before the first send_batch() of the frame
+              // Also, trigger pacing before the first send_batch() of the frame
               // to account for the last send_batch() of the previous frame.
               if (ratecontrol_group_packets_sent >= ratecontrol_packets_in_1ms ||
                   ratecontrol_frame_packets_sent == 0) {
@@ -1525,7 +1524,7 @@ namespace stream {
                 ratecontrol_group_packets_sent = 0;
               }
 
-              size_t current_batch_size = x - next_shard_to_send + 1;
+              const size_t current_batch_size = x - next_shard_to_send + 1;
               batch_info.block_offset = next_shard_to_send;
               batch_info.block_count = current_batch_size;
 
@@ -1585,8 +1584,8 @@ namespace stream {
   }
 
   void audioBroadcastThread(udp::socket &sock) {
-    auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
-    auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
+    const auto shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+    const auto packets = mail::man->queue<audio::packet_t>(mail::audio_packets);
 
     audio_packet_t audio_packet;
     fec::rs_t rs {reed_solomon_new(RTPA_DATA_SHARDS, RTPA_FEC_SHARDS)};
@@ -1613,16 +1612,16 @@ namespace stream {
       }
 
       TUPLE_2D_REF(channel_data, packet_data, *packet);
-      auto session = (session_t *) channel_data;
+      const auto session = (session_t *) channel_data;
 
-      auto sequenceNumber = session->audio.sequenceNumber;
-      auto timestamp = session->audio.timestamp;
+      const auto sequenceNumber = session->audio.sequenceNumber;
+      const auto timestamp = session->audio.timestamp;
 
       *(std::uint32_t *) iv.data() = util::endian::big<std::uint32_t>(session->audio.avRiKeyId + sequenceNumber);
 
       auto &shards_p = session->audio.shards_p;
 
-      auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
+      const auto bytes = encode_audio(session->config.encryptionFlagsEnabled & SS_ENC_AUDIO, packet_data, shards_p[sequenceNumber % RTPA_DATA_SHARDS], iv, session->audio.cipher);
       if (bytes < 0) {
         BOOST_LOG(error) << "Couldn't encode audio packet"sv;
         break;
@@ -1689,11 +1688,11 @@ namespace stream {
   }
 
   int start_broadcast(broadcast_ctx_t &ctx) {
-    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
-    auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
-    auto control_port = net::map_port(CONTROL_PORT);
-    auto video_port = net::map_port(VIDEO_STREAM_PORT);
-    auto audio_port = net::map_port(AUDIO_STREAM_PORT);
+    const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    const auto protocol = address_family == net::IPV4 ? udp::v4() : udp::v6();
+    const auto control_port = net::map_port(CONTROL_PORT);
+    const auto video_port = net::map_port(VIDEO_STREAM_PORT);
+    const auto audio_port = net::map_port(AUDIO_STREAM_PORT);
 
     if (ctx.control_server.bind(address_family, control_port)) {
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
@@ -1782,7 +1781,7 @@ namespace stream {
     broadcast_shutdown_event->reset();
   }
 
-  int recv_ping(session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
+  int recv_ping(const session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
     auto messages = std::make_shared<message_queue_t::element_type>(30);
     av_session_id_t session_id = std::string {expected_payload};
 
@@ -1864,8 +1863,7 @@ namespace stream {
     while_starting_do_nothing(session->state);
 
     auto ref = broadcast.ref();
-    auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, config::stream.ping_timeout);
-    if (error < 0) {
+    if (const auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, config::stream.ping_timeout); error < 0) {
       return;
     }
 
@@ -1880,15 +1878,13 @@ namespace stream {
   namespace session {
     std::atomic_uint running_sessions;
 
-    state_e state(session_t &session) {
+    state_e state(const session_t &session) {
       return session.state.load(std::memory_order_relaxed);
     }
 
     void stop(session_t &session) {
       while_starting_do_nothing(session.state);
-      auto expected = state_e::RUNNING;
-      auto already_stopping = !session.state.compare_exchange_strong(expected, state_e::STOPPING);
-      if (already_stopping) {
+      if (auto expected = state_e::RUNNING; !session.state.compare_exchange_strong(expected, state_e::STOPPING)) {
         return;
       }
 
@@ -1959,7 +1955,7 @@ namespace stream {
         session.broadcast_ref->control_server._sessions->push_back(&session);
       }
 
-      auto addr = boost::asio::ip::make_address(addr_string);
+      const auto addr = boost::asio::ip::make_address(addr_string);
       session.video.peer.address(addr);
       session.video.peer.port(0);
 
@@ -1984,7 +1980,7 @@ namespace stream {
       return 0;
     }
 
-    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session) {
+    std::shared_ptr<session_t> alloc(const config_t &config, rtsp_stream::launch_session_t &launch_session) {
       auto session = std::make_shared<session_t>();
 
       auto mail = std::make_shared<safe::mail_raw_t>();
@@ -2026,7 +2022,7 @@ namespace stream {
       }
 
       // Audio FEC spans multiple audio packets,
-      // therefore its session specific
+      // therefore it's session specific
       session->audio.shards = std::move(shards);
       session->audio.shards_p = std::move(shards_p);
 

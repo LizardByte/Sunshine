@@ -28,10 +28,8 @@ namespace crypto {
     _certs.clear();
   }
 
-  static int openssl_verify_cb(int ok, X509_STORE_CTX *ctx) {
-    int err_code = X509_STORE_CTX_get_error(ctx);
-
-    switch (err_code) {
+  static int openssl_verify_cb(const int ok, X509_STORE_CTX *ctx) {
+    switch (X509_STORE_CTX_get_error(ctx)) {
       // Expired or not-yet-valid certificates are fine. Sometimes Moonlight is running on embedded devices
       // that don't have accurate clocks (or haven't yet synchronized by the time Moonlight first runs).
       // This behavior also matches what GeForce Experience does.

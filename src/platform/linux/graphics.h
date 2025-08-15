@@ -130,7 +130,7 @@ namespace gl {
     const char *block() const;
 
     void update(const std::string_view &view, std::size_t offset = 0);
-    void update(std::string_view *members, std::size_t count, std::size_t offset = 0);
+    void update(const std::string_view *members, std::size_t count, std::size_t offset = 0);
 
   private:
     const char *_block;
@@ -246,7 +246,7 @@ namespace egl {
       const surface_descriptor_t &xrgb
     );
 
-  rgb_t create_blank(platf::img_t &img);
+  rgb_t create_blank(const platf::img_t &img);
 
   std::optional<nv12_t> import_target(
     display_t::pointer egl_display,
@@ -308,8 +308,8 @@ namespace egl {
     // Make an area of the image black
     int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
 
-    void load_ram(platf::img_t &img);
-    void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
+    void load_ram(const platf::img_t &img);
+    void load_vram(const img_descriptor_t &img, int offset_x, int offset_y, int texture);
 
     void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 

@@ -218,7 +218,7 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    const std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
       {(dyn::apiproc *) &alternative_service_name, "avahi_alternative_service_name"},
       {(dyn::apiproc *) &free, "avahi_free"},
       {(dyn::apiproc *) &strdup, "avahi_strdup"},
@@ -257,7 +257,7 @@ namespace avahi {
       }
     }
 
-    std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
+    const std::vector<std::tuple<dyn::apiproc *, const char *>> funcs {
       {(dyn::apiproc *) &client_new, "avahi_client_new"},
       {(dyn::apiproc *) &client_free, "avahi_client_free"},
       {(dyn::apiproc *) &entry_group_get_client, "avahi_entry_group_get_client"},
@@ -299,7 +299,7 @@ namespace platf::publish {
 
   void create_services(avahi::Client *c);
 
-  void entry_group_callback(avahi::EntryGroup *g, avahi::EntryGroupState state, void *) {
+  void entry_group_callback(avahi::EntryGroup *g, const avahi::EntryGroupState state, const void *) {
     group = g;
 
     switch (state) {
@@ -323,14 +323,12 @@ namespace platf::publish {
   }
 
   void create_services(avahi::Client *c) {
-    int ret;
-
     auto fg = util::fail_guard([]() {
       avahi::simple_poll_quit(poll.get());
     });
 
     if (!group) {
-      if (!(group = avahi::entry_group_new(c, entry_group_callback, nullptr))) {
+      if (!(group = avahi::entry_group_new(c, reinterpret_cast<avahi::EntryGroupCallback>(entry_group_callback), nullptr))) {
         BOOST_LOG(error) << "avahi::entry_group_new() failed: "sv << avahi::strerror(avahi::client_errno(c));
         return;
       }
@@ -339,7 +337,7 @@ namespace platf::publish {
     if (avahi::entry_group_is_empty(group)) {
       BOOST_LOG(info) << "Adding avahi service "sv << name.get();
 
-      ret = avahi::entry_group_add_service(
+      int ret = avahi::entry_group_add_service(
         group,
         avahi::IF_UNSPEC,
         avahi::PROTO_UNSPEC,
@@ -380,7 +378,7 @@ namespace platf::publish {
     fg.disable();
   }
 
-  void client_callback(avahi::Client *c, avahi::ClientState state, void *) {
+  void client_callback(avahi::Client *c, const avahi::ClientState state, const void *) {
     switch (state) {
       case avahi::CLIENT_S_RUNNING:
         create_services(c);
@@ -431,11 +429,11 @@ namespace platf::publish {
       return nullptr;
     }
 
-    auto instance_name = net::mdns_instance_name(platf::get_host_name());
+    const auto instance_name = net::mdns_instance_name(platf::get_host_name());
     name.reset(avahi::strdup(instance_name.c_str()));
 
     client.reset(
-      avahi::client_new(avahi::simple_poll_get(poll.get()), avahi::ClientFlags(0), client_callback, nullptr, &avhi_error)
+      avahi::client_new(avahi::simple_poll_get(poll.get()), static_cast<avahi::ClientFlags>(0), reinterpret_cast<avahi::ClientCallback>(client_callback), nullptr, &avhi_error)
     );
 
     if (!client) {

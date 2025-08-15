@@ -600,7 +600,7 @@ namespace platf {
    */
   bool needs_encoder_reenumeration();
 
-  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
+  boost::process::v1::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const boost::process::v1::environment &env, FILE *file, std::error_code &ec, boost::process::v1::group *group);
 
   enum class thread_priority_e : int {
     low,  ///< Low priority
@@ -704,7 +704,7 @@ namespace platf {
     boost::asio::ip::address &source_address;
   };
 
-  bool send(send_info_t &send_info);
+  bool send(const send_info_t &send_info);
 
   enum class qos_data_type_e : int {
     audio,  ///< Audio
@@ -719,7 +719,7 @@ namespace platf {
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
+  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging);
 
   /**
    * @brief Open a url in the default web browser.
