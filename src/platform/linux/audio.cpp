@@ -156,22 +156,22 @@ namespace platf {
       f(ctx, i, eol);
     }
 
-    void cb_i(ctx_t::pointer ctx, std::uint32_t i, void *userdata) {
-      auto alarm = (safe::alarm_raw_t<int> *) userdata;
+    void cb_i(const pa_context *ctx, std::uint32_t i, void *userdata) {
+      const auto alarm = (safe::alarm_raw_t<int> *) userdata;
 
       alarm->ring(i);
     }
 
-    void ctx_state_cb(ctx_t::pointer ctx, void *userdata) {
-      auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
+    void ctx_state_cb(const ctx_t::pointer ctx, void *userdata) {
+      const auto &f = *(std::function<void(ctx_t::pointer)> *) userdata;
 
       f(ctx);
     }
 
-    void success_cb(ctx_t::pointer ctx, int status, void *userdata) {
+    void success_cb(const pa_context *ctx, const int status, void *userdata) {
       assert(userdata != nullptr);
 
-      auto alarm = (safe::alarm_raw_t<int> *) userdata;
+      const auto alarm = (safe::alarm_raw_t<int> *) userdata;
       alarm->ring(status ? 0 : 1);
     }
 
@@ -203,7 +203,7 @@ namespace platf {
         loop.reset(pa_mainloop_new());
         ctx.reset(pa_context_new(pa_mainloop_get_api(loop.get()), "sunshine"));
 
-        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](ctx_t::pointer ctx) {
+        events_cb = std::make_unique<std::function<void(ctx_t::pointer)>>([this](const pa_context *ctx) {
           switch (pa_context_get_state(ctx)) {
             case PA_CONTEXT_READY:
               events->raise(ready);
@@ -227,18 +227,16 @@ namespace platf {
 
         pa_context_set_state_callback(ctx.get(), ctx_state_cb, events_cb.get());
 
-        auto status = pa_context_connect(ctx.get(), nullptr, PA_CONTEXT_NOFLAGS, nullptr);
-        if (status) {
+        if (const auto status = pa_context_connect(ctx.get(), nullptr, PA_CONTEXT_NOFLAGS, nullptr)) {
           BOOST_LOG(error) << "Couldn't connect to pulseaudio: "sv << pa_strerror(status);
           return -1;
         }
 
         worker = std::thread {
-          [](loop_t::pointer loop) {
+          [](const loop_t::pointer loop) {
             int retval;
-            auto status = pa_mainloop_run(loop, &retval);
 
-            if (status < 0) {
+            if (const auto status = pa_mainloop_run(loop, &retval); status < 0) {
               BOOST_LOG(error) << "Couldn't run pulseaudio main loop"sv;
               return;
             }
@@ -246,23 +244,22 @@ namespace platf {
           loop.get()
         };
 
-        auto event = events->pop();
-        if (event == failed) {
+        if (const auto event = events->pop(); event == failed) {
           return -1;
         }
 
         return 0;
       }
 
-      int load_null(const char *name, const std::uint8_t *channel_mapping, int channels) {
-        auto alarm = safe::make_alarm<int>();
+      int load_null(const char *name, const std::uint8_t *channel_mapping, const int channels) {
+        const auto alarm = safe::make_alarm<int>();
 
         op_t op {
           pa_context_load_module(
             ctx.get(),
             "module-null-sink",
             to_string(name, channel_mapping, channels).c_str(),
-            cb_i,
+            reinterpret_cast<pa_context_index_cb_t>(cb_i),
             alarm.get()
           ),
         };
@@ -279,7 +276,7 @@ namespace platf {
         auto alarm = safe::make_alarm<int>();
 
         op_t op {
-          pa_context_unload_module(ctx.get(), i, success_cb, alarm.get())
+          pa_context_unload_module(ctx.get(), i, reinterpret_cast<pa_context_success_cb_t>(success_cb), alarm.get())
         };
 
         alarm->wait();
@@ -297,14 +294,14 @@ namespace platf {
         constexpr auto surround51 = "sink-sunshine-surround51";
         constexpr auto surround71 = "sink-sunshine-surround71";
 
-        auto alarm = safe::make_alarm<int>();
+        const auto alarm = safe::make_alarm<int>();
 
         sink_t sink;
 
         // Count of all virtual sinks that are created by us
         int nullcount = 0;
 
-        cb_t<pa_sink_info *> f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> f = [&](const pa_context *ctx, const pa_sink_info *sink_info, const int eol) {
           if (!sink_info) {
             if (!eol) {
               BOOST_LOG(error) << "Couldn't get pulseaudio sink info: "sv << pa_strerror(pa_context_errno(ctx));
@@ -332,9 +329,7 @@ namespace platf {
           }
         };
 
-        op_t op {pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f)};
-
-        if (!op) {
+        if (const op_t op {pa_context_get_sink_info_list(ctx.get(), cb<pa_sink_info *>, &f)}; !op) {
           BOOST_LOG(error) << "Couldn't create card info operation: "sv << pa_strerror(pa_context_errno(ctx.get()));
 
           return std::nullopt;
@@ -346,7 +341,7 @@ namespace platf {
           return std::nullopt;
         }
 
-        auto sink_name = get_default_sink_name();
+        const auto sink_name = get_default_sink_name();
         sink.host = sink_name;
 
         if (index.stereo == PA_INVALID_INDEX) {
@@ -389,9 +384,9 @@ namespace platf {
 
       std::string get_default_sink_name() {
         std::string sink_name;
-        auto alarm = safe::make_alarm<int>();
+        const auto alarm = safe::make_alarm<int>();
 
-        cb_simple_t<pa_server_info *> server_f = [&](ctx_t::pointer ctx, const pa_server_info *server_info) {
+        cb_simple_t<pa_server_info *> server_f = [&](const pa_context *ctx, const pa_server_info *server_info) {
           if (!server_info) {
             BOOST_LOG(error) << "Couldn't get pulseaudio server info: "sv << pa_strerror(pa_context_errno(ctx));
             alarm->ring(-1);
@@ -405,19 +400,19 @@ namespace platf {
 
         op_t server_op {pa_context_get_server_info(ctx.get(), cb<pa_server_info *>, &server_f)};
         alarm->wait();
-        // No need to check status. If it failed just return default name.
+        // No need to check status. If it fails, just return the default name.
         return sink_name;
       }
 
       std::string get_monitor_name(const std::string &sink_name) {
         std::string monitor_name;
-        auto alarm = safe::make_alarm<int>();
+        const auto alarm = safe::make_alarm<int>();
 
         if (sink_name.empty()) {
           return monitor_name;
         }
 
-        cb_t<pa_sink_info *> sink_f = [&](ctx_t::pointer ctx, const pa_sink_info *sink_info, int eol) {
+        cb_t<pa_sink_info *> sink_f = [&](const pa_context *ctx, const pa_sink_info *sink_info, const int eol) {
           if (!sink_info) {
             if (!eol) {
               BOOST_LOG(error) << "Couldn't get pulseaudio sink info for ["sv << sink_name
@@ -468,11 +463,11 @@ namespace platf {
         auto alarm = safe::make_alarm<int>();
 
         BOOST_LOG(info) << "Setting default sink to: ["sv << sink << "]"sv;
-        op_t op {
+        const op_t op {
           pa_context_set_default_sink(
             ctx.get(),
             sink.c_str(),
-            success_cb,
+            reinterpret_cast<pa_context_success_cb_t>(success_cb),
             alarm.get()
           ),
         };

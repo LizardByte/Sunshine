@@ -162,7 +162,7 @@ namespace nvhttp {
    * Then using the client certificate public key we should be able to verify that
    * the client secret has been signed by Moonlight
    */
-  void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
+  void clientpairingsecret(pair_session_t &sess, const std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, boost::property_tree::ptree &tree, const std::string &client_pairing_secret);
 
   /**
    * @brief Compare the user supplied pin to the Moonlight pin.
@@ -173,7 +173,7 @@ namespace nvhttp {
    * bool pin_status = nvhttp::pin("1234", "laptop");
    * @examples_end
    */
-  bool pin(std::string pin, std::string name);
+  bool pin(std::string pin, const std::string &name);
 
   /**
    * @brief Remove single client.
