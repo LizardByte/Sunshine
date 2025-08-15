@@ -47,7 +47,7 @@ namespace platf::gamepad {
 
     if (!config::input.ds5_inputtino_randomize_mac && globalIndex >= 0 && globalIndex <= 255) {
       // Generate private virtual device MAC based on gamepad globalIndex between 0 (00) and 255 (ff)
-      device_mac = std::format("02:00:00:00:00:{:#02x}", globalIndex);
+      device_mac = std::format("02:00:00:00:00:{:02x}", globalIndex);
     } else {
       // Inputtino checks empty() to generate a random MAC
       device_mac = "";
