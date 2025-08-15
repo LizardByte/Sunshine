@@ -16,8 +16,8 @@
   #include "src/video_colorspace.h"
 
 namespace platf {
-  class avcodec_encode_device_t;
-  class img_t;
+  struct avcodec_encode_device_t;
+  struct img_t;
 }  // namespace platf
 
 namespace cuda {
