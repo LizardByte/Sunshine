@@ -193,6 +193,7 @@ namespace config {
     bool ds4_back_as_touchpad_click;
     bool motion_as_ds4;
     bool touchpad_as_ds4;
+    bool ds5_inputtino_randomize_mac;
 
     bool keyboard;
     bool mouse;

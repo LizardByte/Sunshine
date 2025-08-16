@@ -416,6 +416,30 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### ds5_inputtino_randomize_mac
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Randomize the MAC-Address for the generated virtual controller.
+            @hint{Only applies on linux for gamepads created as PS5-style controllers}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            ds5_inputtino_randomize_mac = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### back_button_timeout
 
 <table>
