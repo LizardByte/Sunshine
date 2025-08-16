@@ -46,10 +46,10 @@ namespace stream {
       RUNNING,  ///< The session is running
     };
 
-    std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
+    std::shared_ptr<session_t> alloc(const config_t &config, rtsp_stream::launch_session_t &launch_session);
     int start(session_t &session, const std::string &addr_string);
     void stop(session_t &session);
     void join(session_t &session);
-    state_e state(session_t &session);
+    state_e state(const session_t &session);
   }  // namespace session
 }  // namespace stream

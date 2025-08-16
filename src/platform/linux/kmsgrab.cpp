@@ -123,7 +123,7 @@ namespace platf {
     static int env_width;
     static int env_height;
 
-    std::string_view plane_type(std::uint64_t val) {
+    std::string_view plane_type(const std::uint64_t val) {
       switch (val) {
         case DRM_PLANE_TYPE_OVERLAY:
           return "DRM_PLANE_TYPE_OVERLAY"sv;
@@ -137,13 +137,13 @@ namespace platf {
     }
 
     struct connector_t {
-      // For example: HDMI-A or HDMI
+      // For example, HDMI-A or HDMI
       std::uint32_t type;
 
       // Equals zero if not applicable
       std::uint32_t crtc_id;
 
-      // For example HDMI-A-{index} or HDMI-{index}
+      // For example, HDMI-A-{index} or HDMI-{index}
       std::uint32_t index;
 
       // ID of the connector
@@ -230,14 +230,14 @@ namespace platf {
 
     class plane_it_t: public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
     public:
-      plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
+      plane_it_t(const int fd, std::uint32_t *plane_p, std::uint32_t *end):
           fd {fd},
           plane_p {plane_p},
           end {end} {
         load_next_valid_plane();
       }
 
-      plane_it_t(int fd, std::uint32_t *end):
+      plane_it_t(const int fd, std::uint32_t *end):
           fd {fd},
           plane_p {end},
           end {end} {
@@ -310,8 +310,7 @@ namespace platf {
 
         // Open the render node for this card to share with libva.
         // If it fails, we'll just share the primary node instead.
-        char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el);
-        if (rendernode_path) {
+        if (char *rendernode_path = drmGetRenderDeviceNameFromFd(fd.el)) {
           BOOST_LOG(debug) << "Opening render node: "sv << rendernode_path;
           render_fd.el = open(rendernode_path, O_RDWR);
           if (render_fd.el < 0) {
@@ -351,27 +350,25 @@ namespace platf {
         return 0;
       }
 
-      fb_t fb(plane_t::pointer plane) {
+      fb_t fb(const plane_t::pointer plane) {
         cap_sys_admin admin;
 
-        auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
-        if (fb2) {
+        if (auto fb2 = drmModeGetFB2(fd.el, plane->fb_id)) {
           return std::make_unique<wrapper_fb>(fb2);
         }
 
-        auto fb = drmModeGetFB(fd.el, plane->fb_id);
-        if (fb) {
+        if (auto fb = drmModeGetFB(fd.el, plane->fb_id)) {
           return std::make_unique<wrapper_fb>(fb);
         }
 
         return nullptr;
       }
 
-      crtc_t crtc(std::uint32_t id) {
+      crtc_t crtc(const std::uint32_t id) {
         return drmModeGetCrtc(fd.el, id);
       }
 
-      encoder_t encoder(std::uint32_t id) {
+      encoder_t encoder(const std::uint32_t id) {
         return drmModeGetEncoder(fd.el, id);
       }
 
@@ -384,9 +381,8 @@ namespace platf {
         return ver && ver->name && strncmp(ver->name, "nvidia-drm", 10) == 0;
       }
 
-      bool is_cursor(std::uint32_t plane_id) {
-        auto props = plane_props(plane_id);
-        for (auto &[prop, val] : props) {
+      bool is_cursor(const std::uint32_t plane_id) {
+        for (auto props = plane_props(plane_id); auto &[prop, val] : props) {
           if (prop->name == "type"sv) {
             if (val == DRM_PLANE_TYPE_CURSOR) {
               return true;
@@ -399,7 +395,7 @@ namespace platf {
         return false;
       }
 
-      std::optional<std::uint64_t> prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view name) {
+      std::optional<std::uint64_t> prop_value_by_name(const std::vector<std::pair<prop_t, std::uint64_t>> &props, const std::string_view name) {
         for (auto &[prop, val] : props) {
           if (prop->name == name) {
             return val;
@@ -409,9 +405,8 @@ namespace platf {
       }
 
       std::uint32_t get_panel_orientation(std::uint32_t plane_id) {
-        auto props = plane_props(plane_id);
-        auto value = prop_value_by_name(props, "rotation"sv);
-        if (value) {
+        const auto props = plane_props(plane_id);
+        if (const auto value = prop_value_by_name(props, "rotation"sv)) {
           return *value;
         }
 
@@ -419,7 +414,7 @@ namespace platf {
         return DRM_MODE_ROTATE_0;
       }
 
-      int get_crtc_index_by_id(std::uint32_t crtc_id) {
+      int get_crtc_index_by_id(const std::uint32_t crtc_id) {
         auto resources = res();
         for (int i = 0; i < resources->count_crtcs; i++) {
           if (resources->crtcs[i] == crtc_id) {
@@ -429,7 +424,7 @@ namespace platf {
         return -1;
       }
 
-      connector_interal_t connector(std::uint32_t id) {
+      connector_interal_t connector(const std::uint32_t id) {
         return drmModeGetConnector(fd.el, id);
       }
 
@@ -441,19 +436,18 @@ namespace platf {
         }
 
         std::vector<connector_t> monitors;
-        std::for_each_n(resources->connectors, resources->count_connectors, [this, &conn_type_count, &monitors](std::uint32_t id) {
+        std::for_each_n(resources->connectors, resources->count_connectors, [this, &conn_type_count, &monitors](const std::uint32_t id) {
           auto conn = connector(id);
 
           std::uint32_t crtc_id = 0;
 
           if (conn->encoder_id) {
-            auto enc = encoder(conn->encoder_id);
-            if (enc) {
+            if (auto enc = encoder(conn->encoder_id)) {
               crtc_id = enc->crtc_id;
             }
           }
 
-          auto index = ++conn_type_count[conn->connector_type];
+          const auto index = ++conn_type_count[conn->connector_type];
 
           monitors.emplace_back(connector_t {
             conn->connector_type,
@@ -467,18 +461,17 @@ namespace platf {
         return monitors;
       }
 
-      file_t handleFD(std::uint32_t handle) {
+      file_t handleFD(const std::uint32_t handle) {
         file_t fb_fd;
 
-        auto status = drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el);
-        if (status) {
+        if (drmPrimeHandleToFD(fd.el, handle, 0 /* flags */, &fb_fd.el)) {
           return {};
         }
 
         return fb_fd;
       }
 
-      std::vector<std::pair<prop_t, std::uint64_t>> props(std::uint32_t id, std::uint32_t type) {
+      std::vector<std::pair<prop_t, std::uint64_t>> props(const std::uint32_t id, const std::uint32_t type) {
         obj_prop_t obj_prop = drmModeObjectGetProperties(fd.el, id, type);
         if (!obj_prop) {
           return {};
@@ -547,7 +540,7 @@ namespace platf {
       }
     };
 
-    void print(plane_t::pointer plane, fb_t::pointer fb, crtc_t::pointer crtc) {
+    void print(const plane_t::pointer plane, const fb_t::pointer fb, const crtc_t::pointer crtc) {
       if (crtc) {
         BOOST_LOG(debug) << "crtc("sv << crtc->x << ", "sv << crtc->y << ')';
         BOOST_LOG(debug) << "crtc("sv << crtc->width << ", "sv << crtc->height << ')';
@@ -592,8 +585,7 @@ namespace platf {
         int monitor_index = util::from_view(display_name);
         int monitor = 0;
 
-        fs::path card_dir {"/dev/dri"sv};
-        for (auto &entry : fs::directory_iterator {card_dir}) {
+        for (fs::path card_dir {"/dev/dri"sv}; auto &entry : fs::directory_iterator {card_dir}) {
           auto file = entry.path().filename();
 
           auto filestring = file.generic_string();
@@ -647,8 +639,7 @@ namespace platf {
                 break;
               }
 
-              auto fb_fd = card.handleFD(fb->handles[i]);
-              if (fb_fd.el < 0) {
+              if (auto fb_fd = card.handleFD(fb->handles[i]); fb_fd.el < 0) {
                 BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
                 continue;
               }
@@ -663,7 +654,7 @@ namespace platf {
             BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
 
             // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
-            auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
+            auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](const card_descriptor_t &cd) {
               return cd.path == filestring;
             });
 
@@ -724,8 +715,7 @@ namespace platf {
             crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
 
             // Find the connector for this CRTC
-            kms::conn_type_count_t conn_type_count;
-            for (auto &connector : card.monitors(conn_type_count)) {
+            for (kms::conn_type_count_t conn_type_count; auto &connector : card.monitors(conn_type_count)) {
               if (connector.crtc_id == crtc_id) {
                 BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
 
@@ -1049,7 +1039,7 @@ namespace platf {
         plane_t plane = drmModeGetPlane(card.fd.el, plane_id);
         frame_timestamp = std::chrono::steady_clock::now();
 
-        auto fb = card.fb(plane.get());
+        const auto fb = card.fb(plane.get());
         if (!fb) {
           // This can happen if the display is being reconfigured while streaming
           BOOST_LOG(warning) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
@@ -1177,8 +1167,7 @@ namespace platf {
           }
 
           std::shared_ptr<platf::img_t> img_out;
-          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-          switch (status) {
+          switch (auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
             case platf::capture_e::reinit:
             case platf::capture_e::error:
             case platf::capture_e::interrupted:
@@ -1221,42 +1210,41 @@ namespace platf {
       void blend_cursor(img_t &img) {
         // TODO: Cursor scaling is not supported in this codepath.
         // We always draw the cursor at the source size.
-        auto pixels = (int *) img.data;
+        const auto pixels = (int *) img.data;
 
-        int32_t screen_height = img.height;
-        int32_t screen_width = img.width;
+        const int32_t screen_height = img.height;
+        const int32_t screen_width = img.width;
 
         // This is the position in the target that we will start drawing the cursor
-        auto cursor_x = std::max<int32_t>(0, captured_cursor.x - img_offset_x);
-        auto cursor_y = std::max<int32_t>(0, captured_cursor.y - img_offset_y);
+        const auto cursor_x = std::max<int32_t>(0, captured_cursor.x - img_offset_x);
+        const auto cursor_y = std::max<int32_t>(0, captured_cursor.y - img_offset_y);
 
-        // If the cursor is partially off screen, the coordinates may be negative
+        // If the cursor is partially off-screen, the coordinates may be negative
         // which means we will draw the top-right visible portion of the cursor only.
-        auto cursor_delta_x = cursor_x - std::max<int32_t>(-captured_cursor.src_w, captured_cursor.x - img_offset_x);
-        auto cursor_delta_y = cursor_y - std::max<int32_t>(-captured_cursor.src_h, captured_cursor.y - img_offset_y);
+        const auto cursor_delta_x = cursor_x - std::max<int32_t>(-captured_cursor.src_w, captured_cursor.x - img_offset_x);
+        const auto cursor_delta_y = cursor_y - std::max<int32_t>(-captured_cursor.src_h, captured_cursor.y - img_offset_y);
 
-        auto delta_height = std::min<uint32_t>(captured_cursor.src_h, std::max<int32_t>(0, screen_height - cursor_y)) - cursor_delta_y;
-        auto delta_width = std::min<uint32_t>(captured_cursor.src_w, std::max<int32_t>(0, screen_width - cursor_x)) - cursor_delta_x;
+        const auto delta_height = std::min<uint32_t>(captured_cursor.src_h, std::max<int32_t>(0, screen_height - cursor_y)) - cursor_delta_y;
+        const auto delta_width = std::min<uint32_t>(captured_cursor.src_w, std::max<int32_t>(0, screen_width - cursor_x)) - cursor_delta_x;
         for (auto y = 0; y < delta_height; ++y) {
           // Offset into the cursor image to skip drawing the parts of the cursor image that are off screen
           //
           // NB: We must access the elements via the data() function because cursor_end may point to the
-          // the first element beyond the valid range of the vector. Using vector's [] operator in that
+          // first element beyond the valid range of the vector. Using vector's [] operator in that
           // manner is undefined behavior (and triggers errors when using debug libc++), while doing the
           // same with an array is fine.
-          auto cursor_begin = (uint32_t *) &captured_cursor.pixels.data()[((y + cursor_delta_y) * captured_cursor.src_w + cursor_delta_x) * 4];
-          auto cursor_end = (uint32_t *) &captured_cursor.pixels.data()[((y + cursor_delta_y) * captured_cursor.src_w + delta_width + cursor_delta_x) * 4];
+          const auto cursor_begin = (uint32_t *) &captured_cursor.pixels.data()[((y + cursor_delta_y) * captured_cursor.src_w + cursor_delta_x) * 4];
+          const auto cursor_end = (uint32_t *) &captured_cursor.pixels.data()[((y + cursor_delta_y) * captured_cursor.src_w + delta_width + cursor_delta_x) * 4];
 
           auto pixels_begin = &pixels[(y + cursor_y) * (img.row_pitch / img.pixel_pitch) + cursor_x];
 
           std::for_each(cursor_begin, cursor_end, [&](uint32_t cursor_pixel) {
-            auto colors_in = (uint8_t *) pixels_begin;
+            const auto colors_in = (uint8_t *) pixels_begin;
 
-            auto alpha = (*(uint *) &cursor_pixel) >> 24u;
-            if (alpha == 255) {
+            if (const auto alpha = (*(uint *) &cursor_pixel) >> 24u; alpha == 255) {
               *pixels_begin = cursor_pixel;
             } else {
-              auto colors_out = (uint8_t *) &cursor_pixel;
+              const auto colors_out = (uint8_t *) &cursor_pixel;
               colors_in[0] = colors_out[0] + (colors_in[0] * (255 - alpha) + 255 / 2) / 255;
               colors_in[1] = colors_out[1] + (colors_in[1] * (255 - alpha) + 255 / 2) / 255;
               colors_in[2] = colors_out[2] + (colors_in[2] * (255 - alpha) + 255 / 2) / 255;
@@ -1391,8 +1379,7 @@ namespace platf {
           }
 
           std::shared_ptr<platf::img_t> img_out;
-          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-          switch (status) {
+          switch (auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
             case platf::capture_e::reinit:
             case platf::capture_e::error:
             case platf::capture_e::interrupted:
@@ -1422,11 +1409,10 @@ namespace platf {
         if (!pull_free_image_cb(img_out)) {
           return platf::capture_e::interrupted;
         }
-        auto img = (egl::img_descriptor_t *) img_out.get();
+        const auto img = (egl::img_descriptor_t *) img_out.get();
         img->reset();
 
-        auto status = refresh(fb_fd, &img->sd, img->frame_timestamp);
-        if (status != capture_e::ok) {
+        if (const auto status = refresh(fb_fd, &img->sd, img->frame_timestamp); status != capture_e::ok) {
           return status;
         }
 
@@ -1487,9 +1473,7 @@ namespace platf {
 
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
     if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda) {
-      auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
-
-      if (!disp->init(display_name, config)) {
+      if (auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type); !disp->init(display_name, config)) {
         return disp;
       }
 
@@ -1516,7 +1500,7 @@ namespace platf {
    * This is an ugly hack :(
    */
   void correlate_to_wayland(std::vector<kms::card_descriptor_t> &cds) {
-    auto monitors = wl::monitors();
+    const auto monitors = wl::monitors();
 
     BOOST_LOG(info) << "-------- Start of KMS monitor list --------"sv;
 
@@ -1526,7 +1510,7 @@ namespace platf {
       // Try to convert names in the format:
       // {type}-{index}
       // {index} is n'th occurrence of {type}
-      auto index_begin = name.find_last_of('-');
+      const auto index_begin = name.find_last_of('-');
 
       std::uint32_t index;
       if (index_begin == std::string_view::npos) {
@@ -1647,8 +1631,7 @@ namespace platf {
           continue;
         }
 
-        auto it = crtc_to_monitor.find(plane->crtc_id);
-        if (it != std::end(crtc_to_monitor)) {
+        if (auto it = crtc_to_monitor.find(plane->crtc_id); it != std::end(crtc_to_monitor)) {
           it->second.viewport = platf::touch_port_t {
             (int) crtc->x,
             (int) crtc->y,

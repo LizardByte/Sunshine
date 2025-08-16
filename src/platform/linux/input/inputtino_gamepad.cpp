@@ -112,8 +112,7 @@ namespace platf::gamepad {
     switch (selectedGamepadType) {
       case XboxOneWired:
         {
-          auto xOne = create_xbox_one();
-          if (xOne) {
+          if (auto xOne = create_xbox_one()) {
             (*xOne).set_on_rumble(on_rumble_fn);
             gamepad->joypad = std::make_unique<joypads_t>(std::move(*xOne));
             raw->gamepads[id.globalIndex] = std::move(gamepad);
@@ -125,8 +124,7 @@ namespace platf::gamepad {
         }
       case SwitchProWired:
         {
-          auto switchPro = create_switch();
-          if (switchPro) {
+          if (auto switchPro = create_switch()) {
             (*switchPro).set_on_rumble(on_rumble_fn);
             gamepad->joypad = std::make_unique<joypads_t>(std::move(*switchPro));
             raw->gamepads[id.globalIndex] = std::move(gamepad);
@@ -138,8 +136,7 @@ namespace platf::gamepad {
         }
       case DualSenseWired:
         {
-          auto ds5 = create_ds5();
-          if (ds5) {
+          if (auto ds5 = create_ds5()) {
             (*ds5).set_on_rumble(on_rumble_fn);
             (*ds5).set_on_led([feedback_queue, idx = id.clientRelativeIndex, gamepad](int r, int g, int b) {
               // Don't resend duplicate LED data
@@ -172,14 +169,14 @@ namespace platf::gamepad {
     return -1;
   }
 
-  void free(input_raw_t *raw, int nr) {
+  void free(input_raw_t *raw, const int nr) {
     // This will call the destructor which in turn will stop the background threads for rumble and LED (and ultimately remove the joypad device)
     raw->gamepads[nr]->joypad.reset();
     raw->gamepads[nr].reset();
   }
 
-  void update(input_raw_t *raw, int nr, const gamepad_state_t &gamepad_state) {
-    auto gamepad = raw->gamepads[nr];
+  void update(const input_raw_t *raw, const int nr, const gamepad_state_t &gamepad_state) {
+    const auto gamepad = raw->gamepads[nr];
     if (!gamepad) {
       return;
     }
@@ -193,8 +190,8 @@ namespace platf::gamepad {
                *gamepad->joypad);
   }
 
-  void touch(input_raw_t *raw, const gamepad_touch_t &touch) {
-    auto gamepad = raw->gamepads[touch.id.globalIndex];
+  void touch(const input_raw_t *raw, const gamepad_touch_t &touch) {
+    const auto gamepad = raw->gamepads[touch.id.globalIndex];
     if (!gamepad) {
       return;
     }
@@ -208,8 +205,8 @@ namespace platf::gamepad {
     }
   }
 
-  void motion(input_raw_t *raw, const gamepad_motion_t &motion) {
-    auto gamepad = raw->gamepads[motion.id.globalIndex];
+  void motion(const input_raw_t *raw, const gamepad_motion_t &motion) {
+    const auto gamepad = raw->gamepads[motion.id.globalIndex];
     if (!gamepad) {
       return;
     }
@@ -226,8 +223,8 @@ namespace platf::gamepad {
     }
   }
 
-  void battery(input_raw_t *raw, const gamepad_battery_t &battery) {
-    auto gamepad = raw->gamepads[battery.id.globalIndex];
+  void battery(const input_raw_t *raw, const gamepad_battery_t &battery) {
+    const auto gamepad = raw->gamepads[battery.id.globalIndex];
     if (!gamepad) {
       return;
     }
@@ -255,7 +252,7 @@ namespace platf::gamepad {
     }
   }
 
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
+  std::vector<supported_gamepad_t> &supported_gamepads(const input_t *input) {
     if (!input) {
       static std::vector gps {
         supported_gamepad_t {"auto", true, ""},

@@ -130,7 +130,7 @@ namespace rtsp_stream {
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
      */
-    static void handle_read_encrypted_header(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+    static void handle_read_encrypted_header(const std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, const std::size_t bytes) {
       BOOST_LOG(debug) << "handle_read_encrypted_header(): Handle read of size: "sv << bytes << " bytes"sv;
 
       auto sock_close = util::fail_guard([&socket]() {
@@ -149,7 +149,7 @@ namespace rtsp_stream {
         return;
       }
 
-      auto header = (encrypted_rtsp_header_t *) socket->begin;
+      const auto header = (encrypted_rtsp_header_t *) socket->begin;
       if (!header->is_encrypted()) {
         BOOST_LOG(error) << "RTSP: handle_read_encrypted_header(): Rejecting unencrypted RTSP message"sv;
 
@@ -179,7 +179,7 @@ namespace rtsp_stream {
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
      */
-    static void handle_read_encrypted_message(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+    static void handle_read_encrypted_message(const std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, const std::size_t bytes) {
       BOOST_LOG(debug) << "handle_read_encrypted(): Handle read of size: "sv << bytes << " bytes"sv;
 
       auto sock_close = util::fail_guard([&socket]() {
@@ -191,8 +191,8 @@ namespace rtsp_stream {
         }
       });
 
-      auto header = (encrypted_rtsp_header_t *) socket->begin;
-      auto payload_length = header->payload_length();
+      const auto header = (encrypted_rtsp_header_t *) socket->begin;
+      const auto payload_length = header->payload_length();
       auto seq = util::endian::big<std::uint32_t>(header->sequenceNumber);
 
       if (ec || bytes < payload_length) {
@@ -270,7 +270,7 @@ namespace rtsp_stream {
      * @param ec The error code of the read operation.
      * @param bytes The number of bytes read.
      */
-    static void handle_plaintext_payload(std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, std::size_t bytes) {
+    static void handle_plaintext_payload(const std::shared_ptr<socket_t> &socket, const boost::system::error_code &ec, const std::size_t bytes) {
       BOOST_LOG(debug) << "handle_plaintext_payload(): Handle read of size: "sv << bytes << " bytes"sv;
 
       auto sock_close = util::fail_guard([&socket]() {
@@ -288,9 +288,9 @@ namespace rtsp_stream {
         return;
       }
 
-      auto end = socket->begin + bytes;
+      const auto end = socket->begin + bytes;
       msg_t req {new msg_t::element_type {}};
-      if (auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t) (end - socket->msg_buf.data()))) {
+      if (const auto status = parseRtspMessage(req.get(), socket->msg_buf.data(), (std::size_t) (end - socket->msg_buf.data()))) {
         BOOST_LOG(error) << "Malformed RTSP message: ["sv << status << ']';
 
         respond(socket->sock, *socket->session, nullptr, 400, "BAD REQUEST", 0, {});
@@ -310,8 +310,8 @@ namespace rtsp_stream {
 
           // If content_length > bytes read, then we need to store current data read,
           // to be appended by the next read.
-          std::string_view content {option->content};
-          auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
+          const std::string_view content {option->content};
+          const auto begin = std::find_if(std::begin(content), std::end(content), [](auto ch) {
             return (bool) std::isdigit(ch);
           });
 
@@ -360,13 +360,13 @@ namespace rtsp_stream {
         socket->read();
       });
 
-      auto begin = std::max(socket->begin - 4, socket->begin);
+      const auto begin = std::max(socket->begin - 4, socket->begin);
       auto buf_size = bytes + (begin - socket->begin);
-      auto end = begin + buf_size;
+      const auto end = begin + buf_size;
 
       constexpr auto needle = "\r\n\r\n"sv;
 
-      auto it = std::search(begin, begin + buf_size, std::begin(needle), std::end(needle));
+      const auto it = std::search(begin, begin + buf_size, std::begin(needle), std::end(needle));
       if (it == end) {
         socket->begin = end;
 
@@ -404,7 +404,7 @@ namespace rtsp_stream {
       clear();
     }
 
-    int bind(net::af_e af, std::uint16_t port, boost::system::error_code &ec) {
+    int bind(const net::af_e af, const std::uint16_t port, boost::system::error_code &ec) {
       acceptor.open(af == net::IPV4 ? tcp::v4() : tcp::v6(), ec);
       if (ec) {
         return -1;
@@ -454,10 +454,9 @@ namespace rtsp_stream {
         return;
       }
 
-      auto socket = std::move(next_socket);
+      const auto socket = std::move(next_socket);
 
-      auto launch_session {launch_event.view(0s)};
-      if (launch_session) {
+      if (const auto launch_session {launch_event.view(0s)}) {
         // Associate the current RTSP session with this socket and start reading
         socket->session = launch_session;
         socket->read();
@@ -502,8 +501,7 @@ namespace rtsp_stream {
       raised_timer.expires_after(config::stream.ping_timeout);
       raised_timer.async_wait([this](const boost::system::error_code &ec) {
         if (!ec) {
-          auto discarded = launch_event.pop(0s);
-          if (discarded) {
+          if (const auto discarded = launch_event.pop(0s)) {
             BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
           }
         }
@@ -514,11 +512,10 @@ namespace rtsp_stream {
      * @brief Clear state for the oldest launch session.
      * @param launch_session_id The ID of the session to clear.
      */
-    void session_clear(uint32_t launch_session_id) {
+    void session_clear(const uint32_t launch_session_id) {
       // We currently only support a single pending RTSP session,
       // so the ID should always match the one for that session.
-      auto launch_session = launch_event.view(0s);
-      if (launch_session) {
+      if (const auto launch_session = launch_event.view(0s)) {
         if (launch_session->id != launch_session_id) {
           BOOST_LOG(error) << "Attempted to clear unexpected session: "sv << launch_session_id << " vs "sv << launch_session->id;
         } else {
@@ -546,12 +543,11 @@ namespace rtsp_stream {
      * clear(false);
      * @examples_end
      */
-    void clear(bool all = true) {
+    void clear(const bool all = true) {
       auto lg = _session_slots.lock();
 
       for (auto i = _session_slots->begin(); i != _session_slots->end();) {
-        auto &slot = *(*i);
-        if (all || stream::session::state(slot) == stream::session::state_e::STOPPING) {
+        if (auto &slot = *(*i); all || stream::session::state(slot) == stream::session::state_e::STOPPING) {
           stream::session::stop(slot);
           stream::session::join(slot);
 
@@ -626,7 +622,7 @@ namespace rtsp_stream {
   }
 
   int session_count() {
-    // Ensure session_count is up-to-date
+    // Ensure session_count is up to date
     server.clear(false);
 
     return server.session_count();
@@ -653,7 +649,7 @@ namespace rtsp_stream {
   }
 
   void respond(tcp::socket &sock, launch_session_t &session, msg_t &resp) {
-    auto payload = std::make_pair(resp->payload, resp->payloadLength);
+    const auto payload = std::make_pair(resp->payload, resp->payloadLength);
 
     // Restore response message for proper destruction
     auto lg = util::fail_guard([&]() {
@@ -689,7 +685,7 @@ namespace rtsp_stream {
       iv[11] = 'R';  // RTSP
 
       // Allocate the message with an empty header and reserved space for the payload
-      auto payload_length = serialized_len + payload.second;
+      const auto payload_length = serialized_len + payload.second;
       std::vector<uint8_t> message(sizeof(encrypted_rtsp_header_t));
       message.reserve(message.size() + payload_length);
 
@@ -698,7 +694,7 @@ namespace rtsp_stream {
       std::copy_n(payload.first, payload.second, std::back_inserter(message));
 
       // Initialize the message header
-      auto header = (encrypted_rtsp_header_t *) message.data();
+      const auto header = (encrypted_rtsp_header_t *) message.data();
       header->typeAndLength = util::endian::big<std::uint32_t>(encrypted_rtsp_header_t::ENCRYPTED_MESSAGE_TYPE_BIT + payload_length);
       header->sequenceNumber = util::endian::big<std::uint32_t>(session.rtsp_iv_counter);
 
@@ -708,10 +704,8 @@ namespace rtsp_stream {
       // Send the full encrypted message
       send(sock, std::string_view {(char *) message.data(), message.size()});
     } else {
-      std::string_view tmp_resp {raw_resp.get(), (size_t) serialized_len};
-
       // Send the plaintext RTSP message header
-      if (send(sock, tmp_resp)) {
+      if (const std::string_view tmp_resp {raw_resp.get(), (size_t) serialized_len}; send(sock, tmp_resp)) {
         return;
       }
 
@@ -731,25 +725,25 @@ namespace rtsp_stream {
     respond(sock, session, nullptr, 404, "NOT FOUND", req->sequenceNumber, {});
   }
 
-  void cmd_option(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_option([[maybe_unused]] const rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
     option.option = const_cast<char *>("CSeq");
 
-    auto seqn_str = std::to_string(req->sequenceNumber);
+    const auto seqn_str = std::to_string(req->sequenceNumber);
     option.content = const_cast<char *>(seqn_str.c_str());
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  void cmd_describe(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_describe([[maybe_unused]] const rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
     option.option = const_cast<char *>("CSeq");
 
-    auto seqn_str = std::to_string(req->sequenceNumber);
+    const auto seqn_str = std::to_string(req->sequenceNumber);
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::stringstream ss;
@@ -762,8 +756,7 @@ namespace rtsp_stream {
     uint32_t encryption_flags_requested = SS_ENC_CONTROL_V2;
 
     // Determine the encryption desired for this remote endpoint
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
-    if (encryption_mode != config::ENCRYPTION_MODE_NEVER) {
+    if (const auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address()); encryption_mode != config::ENCRYPTION_MODE_NEVER) {
       // Advertise support for video encryption if it's not disabled
       encryption_flags_supported |= SS_ENC_VIDEO;
 
@@ -797,7 +790,7 @@ namespace rtsp_stream {
     }
 
     for (int x = 0; x < audio::MAX_STREAM_CONFIG; ++x) {
-      auto &stream_config = audio::stream_configs[x];
+      const auto &stream_config = audio::stream_configs[x];
       std::uint8_t mapping[platf::speaker::MAX_SPEAKERS];
 
       auto mapping_p = stream_config.mapping;
@@ -826,7 +819,7 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, ss.str());
   }
 
-  void cmd_setup(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_setup([[maybe_unused]] const rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM options[4] {};
 
     auto &seqn = options[0];
@@ -836,12 +829,12 @@ namespace rtsp_stream {
 
     seqn.option = const_cast<char *>("CSeq");
 
-    auto seqn_str = std::to_string(req->sequenceNumber);
+    const auto seqn_str = std::to_string(req->sequenceNumber);
     seqn.content = const_cast<char *>(seqn_str.c_str());
 
     std::string_view target {req->message.request.target};
-    auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
-    auto end = std::find(begin, std::end(target), '/');
+    const auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
+    const auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
 
     std::uint16_t port;
@@ -898,7 +891,7 @@ namespace rtsp_stream {
 
     std::vector<std::string_view> lines;
 
-    auto whitespace = [](char ch) {
+    auto whitespace = [](const char ch) {
       return ch == '\n' || ch == '\r';
     };
 
@@ -917,14 +910,10 @@ namespace rtsp_stream {
       }
     }
 
-    std::string_view client;
     std::unordered_map<std::string_view, std::string_view> args;
 
     for (auto line : lines) {
-      auto type = line.substr(0, 2);
-      if (type == "s="sv) {
-        client = line.substr(2);
-      } else if (type == "a=") {
+      if (auto type = line.substr(0, 2); type == "a=") {
         auto pos = line.find(':');
 
         auto name = line.substr(2, pos - 2);
@@ -1072,9 +1061,7 @@ namespace rtsp_stream {
     }
 
     // Check that any required encryption is enabled
-    auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address());
-    if (encryption_mode == config::ENCRYPTION_MODE_MANDATORY &&
-        (config.encryptionFlagsEnabled & (SS_ENC_VIDEO | SS_ENC_AUDIO)) != (SS_ENC_VIDEO | SS_ENC_AUDIO)) {
+    if (auto encryption_mode = net::encryption_mode_for_address(sock.remote_endpoint().address()); encryption_mode == config::ENCRYPTION_MODE_MANDATORY && (config.encryptionFlagsEnabled & (SS_ENC_VIDEO | SS_ENC_AUDIO)) != (SS_ENC_VIDEO | SS_ENC_AUDIO)) {
       BOOST_LOG(error) << "Rejecting client that cannot comply with mandatory encryption requirement"sv;
 
       respond(sock, session, &option, 403, "Forbidden", req->sequenceNumber, {});
@@ -1095,13 +1082,13 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  void cmd_play(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+  void cmd_play([[maybe_unused]] const rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
     option.option = const_cast<char *>("CSeq");
 
-    auto seqn_str = std::to_string(req->sequenceNumber);
+    const auto seqn_str = std::to_string(req->sequenceNumber);
     option.content = const_cast<char *>(seqn_str.c_str());
 
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
@@ -1125,7 +1112,7 @@ namespace rtsp_stream {
     }
 
     std::thread rtsp_thread {[&shutdown_event] {
-      auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
+      const auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
       while (!shutdown_event->peek()) {
         server.iterate();
@@ -1133,7 +1120,7 @@ namespace rtsp_stream {
         if (broadcast_shutdown_event->peek()) {
           server.clear();
         } else {
-          // cleanup all stopped sessions
+          // clean up all stopped sessions
           server.clear(false);
         }
       }
@@ -1154,7 +1141,7 @@ namespace rtsp_stream {
 
     std::string_view payload {msg->payload, (size_t) msg->payloadLength};
     std::string_view protocol {msg->protocol};
-    auto seqnm = msg->sequenceNumber;
+    const auto seqnm = msg->sequenceNumber;
     std::string_view messageBuffer {msg->messageBuffer};
 
     BOOST_LOG(debug) << "type ["sv << type << ']';
@@ -1163,15 +1150,15 @@ namespace rtsp_stream {
     BOOST_LOG(debug) << "payload :: "sv << payload;
 
     if (msg->type == TYPE_RESPONSE) {
-      auto &resp = msg->message.response;
+      const auto &resp = msg->message.response;
 
-      auto statuscode = resp.statusCode;
+      const auto statuscode = resp.statusCode;
       std::string_view status {resp.statusString};
 
       BOOST_LOG(debug) << "statuscode :: "sv << statuscode;
       BOOST_LOG(debug) << "status :: "sv << status;
     } else {
-      auto &req = msg->message.request;
+      const auto &req = msg->message.request;
 
       std::string_view command {req.command};
       std::string_view target {req.target};

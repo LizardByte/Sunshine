@@ -337,7 +337,7 @@ namespace video {
 
   void capture(
     safe::mail_t mail,
-    config_t config,
+    const config_t &config,
     void *channel_data
   );
 
