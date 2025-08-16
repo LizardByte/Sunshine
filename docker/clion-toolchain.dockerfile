@@ -38,6 +38,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libgbm-dev \
   libminiupnpc-dev \
   libnotify-dev \
   libnuma-dev \
@@ -53,6 +54,7 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
+  npm \
   udev \
   wget \
   x11-xserver-utils \
@@ -82,18 +84,6 @@ chmod a+x "${tmpfile}"
 "${tmpfile}" --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
 rm -f "${tmpfile}"
 _INSTALL_CUDA
-
-WORKDIR /
-# install node
-RUN <<_INSTALL_NODE
-#!/bin/bash
-set -e
-wget --max-redirect=0 -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-source "$HOME/.nvm/nvm.sh"
-nvm install node
-nvm use node
-nvm alias default node
-_INSTALL_NODE
 
 WORKDIR /toolchain
 # Create a shell script that starts Xvfb and then runs a shell
