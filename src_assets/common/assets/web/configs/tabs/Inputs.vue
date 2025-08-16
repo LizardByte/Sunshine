@@ -89,6 +89,32 @@ const config = ref(props.config)
           </div>
         </div>
       </template>
+      <template v-if="config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform === 'linux')">
+        <div class="mb-3 accordion">
+          <div class="accordion-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse"
+                      data-bs-target="#panelsStayOpen-collapseOne">
+                {{ $t(config.gamepad === 'ds5' ? 'config.gamepad_ds5_manual' : 'config.gamepad_auto') }}
+              </button>
+            </h2>
+            <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
+                 aria-labelledby="panelsStayOpen-headingOne">
+              <div class="accordion-body">
+                <!-- Controller MAC randomization (Linux only) -->
+                <template v-if="config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform === 'linux')">
+                  <Checkbox class="mb-3"
+                            id="ds5_inputtino_randomize_mac"
+                            locale-prefix="config"
+                            v-model="config.ds5_inputtino_randomize_mac"
+                            default="true"
+                  ></Checkbox>
+                </template>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </template>
 
     <!-- Home/Guide Button Emulation Timeout -->

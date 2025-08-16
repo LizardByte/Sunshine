@@ -1216,6 +1216,7 @@ namespace config {
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
+    bool_f(vars, "ds5_inputtino_randomize_mac", input.ds5_inputtino_randomize_mac);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
