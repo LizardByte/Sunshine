@@ -107,7 +107,7 @@
     "amd_quality_group": "AMF minőségi beállítások",
     "amd_quality_quality": "minőség -- a minőség előnyben részesítése",
     "amd_quality_speed": "sebesség -- a sebesség előnyben részesítése",
-    "amd_rc": "AMF Rate Control",
+    "amd_rc": "AMF sebesség vezérlés",
     "amd_rc_cbr": "cbr -- állandó bitráta (ajánlott, ha a HRD engedélyezve van)",
     "amd_rc_cqp": "cqp -- állandó qp üzemmód",
     "amd_rc_desc": "Ez vezérli a sebességszabályozási módszert, hogy biztosítsa, hogy nem lépjük túl az ügyfél bitrátájának célértékét. A 'cqp' nem alkalmas bitráta-célzásra, és a 'vbr_latency'-n kívül más opciók is a HRD Enforcementtől függenek, hogy segítsenek a bitráta-túllépések korlátozásában.",
