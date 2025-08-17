@@ -89,7 +89,7 @@
     "adapter_name_desc_windows": "Kézzel adja meg a rögzítéshez használt GPU-t. Ha nincs megadva, a GPU automatikusan kiválasztásra kerül. A GPU automatikus kiválasztásához javasoljuk, hogy hagyja üresen ezt a mezőt! Megjegyzés: Ehhez a GPU-hoz csatlakoztatott és bekapcsolt kijelzőnek kell lennie. A megfelelő értékeket a következő paranccsal találhatja meg:",
     "adapter_name_placeholder_windows": "Radeon RX 580 sorozat",
     "add": "Hozzáadás",
-    "address_family": "Cím Család",
+    "address_family": "Címcsalád",
     "address_family_both": "IPv4+IPv6",
     "address_family_desc": "A Sunshine által használt címcsalád beállítása",
     "address_family_ipv4": "Csak IPv4",
