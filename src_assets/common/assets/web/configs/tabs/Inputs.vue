@@ -45,7 +45,7 @@ const config = ref(props.config)
 
     <!-- Additional options based on gamepad type -->
     <template v-if="config.controller === 'enabled'">
-      <template v-if="config.gamepad === 'ds4' || config.gamepad === 'ds5' || (config.gamepad === 'auto' && (platform === 'windows' || platform === 'linux'))">
+      <template v-if="config.gamepad === 'ds4' || config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform !== 'macos')">
         <div class="mb-3 accordion">
           <div class="accordion-item">
             <h2 class="accordion-header">
