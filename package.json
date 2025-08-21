@@ -9,7 +9,7 @@
   },
   "dependencies": {
     "@lizardbyte/shared-web": "2025.626.181239",
-    "vue": "3.5.18",
+    "vue": "3.5.19",
     "vue-i18n": "11.1.11"
   },
   "devDependencies": {
