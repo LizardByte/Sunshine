@@ -412,7 +412,9 @@ namespace platf {
         auto props = plane_props(plane_id);
         auto value = prop_value_by_name(props, "rotation"sv);
         if (value) {
-          return *value;
+          BOOST_LOG(info) << "Found panel orientation ["sv << *value << "]";
+          return DRM_MODE_ROTATE_0;
+          //return *value;
         }
 
         BOOST_LOG(error) << "Failed to determine panel orientation, defaulting to landscape.";
@@ -695,13 +697,13 @@ namespace platf {
 
               switch (card.get_panel_orientation(plane->plane_id)) {
                 case DRM_MODE_ROTATE_270:
-                  BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+                  BOOST_LOG(warning) << "Detected panel orientation at 90 (DRM_MODE_ROTATE_270), swapping width and height.";
                   width = viewport.height;
                   height = viewport.width;
                   break;
                 case DRM_MODE_ROTATE_90:
                 case DRM_MODE_ROTATE_180:
-                  BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+                  BOOST_LOG(warning) << "Panel orientation is unsupported (DRM_MODE_ROTATE_{90|180}), screen capture may not work correctly.";
                   break;
               }
 
