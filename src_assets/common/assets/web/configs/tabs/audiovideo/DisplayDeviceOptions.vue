@@ -241,6 +241,8 @@ function addRemappingEntry() {
         </div>
       </div>
     </template>
+    <template #freebsd>
+    </template>
     <template #linux>
     </template>
     <template #macos>
