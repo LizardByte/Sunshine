@@ -225,6 +225,11 @@ namespace nvenc {
     init_params.darHeight = encoder_params.height;
     init_params.frameRateNum = client_config.framerate;
     init_params.frameRateDen = 1;
+    if (client_config.framerateX100 > 0) {
+      AVRational fps = video::framerateX100_to_rational(client_config.framerateX100);
+      init_params.frameRateNum = fps.num;
+      init_params.frameRateDen = fps.den;
+    }
 
     NV_ENC_PRESET_CONFIG preset_config = {min_struct_version(NV_ENC_PRESET_CONFIG_VER), {min_struct_version(NV_ENC_CONFIG_VER, 7, 8)}};
     if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
