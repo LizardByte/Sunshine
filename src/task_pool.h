@@ -155,14 +155,12 @@ namespace task_pool_util {
      * @param duration The delay before executing the task.
      */
     template<class X, class Y>
-    void delay(task_id_t task_id, std::chrono::duration<X, Y> duration) {
+    void delay(const _ImplBase *task_id, std::chrono::duration<X, Y> duration) {
       std::lock_guard<std::mutex> lg(_task_mutex);
 
       auto it = _timer_tasks.begin();
       for (; it < _timer_tasks.cend(); ++it) {
-        const __task &task = std::get<1>(*it);
-
-        if (&*task == task_id) {
+        if (const __task &task = std::get<1>(*it); &*task == task_id) {
           std::get<0>(*it) = std::chrono::steady_clock::now() + duration;
 
           break;
@@ -185,14 +183,11 @@ namespace task_pool_util {
       }
     }
 
-    bool cancel(task_id_t task_id) {
+    bool cancel(const _ImplBase *task_id) {
       std::lock_guard lg(_task_mutex);
 
-      auto it = _timer_tasks.begin();
-      for (; it < _timer_tasks.cend(); ++it) {
-        const __task &task = std::get<1>(*it);
-
-        if (&*task == task_id) {
+      for (auto it = _timer_tasks.begin(); it < _timer_tasks.cend(); ++it) {
+        if (const __task &task = std::get<1>(*it); &*task == task_id) {
           _timer_tasks.erase(it);
 
           return true;
@@ -202,10 +197,10 @@ namespace task_pool_util {
       return false;
     }
 
-    std::optional<std::pair<__time_point, __task>> pop(task_id_t task_id) {
+    std::optional<std::pair<__time_point, __task>> pop(const _ImplBase *task_id) {
       std::lock_guard lg(_task_mutex);
 
-      auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) {
+      const auto pos = std::find_if(std::begin(_timer_tasks), std::end(_timer_tasks), [&task_id](const auto &t) {
         return t.second.get() == task_id;
       });
 

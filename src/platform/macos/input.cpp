@@ -294,11 +294,11 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventPost(kCGHIDEventTap, event);
   }
 
-  void unicode(input_t &input, char *utf8, int size) {
+  void unicode(const input_t &input, const char *utf8, int size) {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
-  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  int alloc_gamepad(const input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
     return -1;
   }
@@ -307,7 +307,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
   }
 
-  void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
+  void gamepad_update(const input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     BOOST_LOG(info) << "gamepad: Gamepad not yet implemented for MacOS."sv;
   }
 
@@ -460,7 +460,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     CFRelease(upEvent);
   }
 
-  void hscroll(input_t &input, int high_res_distance) {
+  void hscroll(const input_t &input, int high_res_distance) {
     // Unimplemented
   }
 
@@ -469,7 +469,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @return A unique pointer to a per-client input data context.
    */
-  std::unique_ptr<client_input_t> allocate_client_input_context(input_t &input) {
+  std::unique_ptr<client_input_t> allocate_client_input_context(const input_t &input) {
     // Unused
     return nullptr;
   }
@@ -480,7 +480,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param touch_port The current viewport for translating to screen coordinates.
    * @param touch The touch event.
    */
-  void touch_update(client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
+  void touch_update(const client_input_t *input, const touch_port_t &touch_port, const touch_input_t &touch) {
     // Unimplemented feature - platform_caps::pen_touch
   }
 
@@ -499,7 +499,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param touch The touch event.
    */
-  void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
+  void gamepad_touch(const input_t &input, const gamepad_touch_t &touch) {
     // Unimplemented feature - platform_caps::controller_touch
   }
 
@@ -508,7 +508,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param motion The motion event.
    */
-  void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
+  void gamepad_motion(const input_t &input, const gamepad_motion_t &motion) {
     // Unimplemented
   }
 
@@ -517,7 +517,7 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @param input The global input context.
    * @param battery The battery event.
    */
-  void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
+  void gamepad_battery(const input_t &input, const gamepad_battery_t &battery) {
     // Unimplemented
   }
 
@@ -577,7 +577,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     delete input;
   }
 
-  std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
+  std::vector<supported_gamepad_t> &supported_gamepads(const input_t *input) {
     static std::vector gamepads {
       supported_gamepad_t {"", false, "gamepads.macos_not_implemented"}
     };

@@ -93,7 +93,7 @@ namespace input {
    * @param f Netfloat value.
    * @return The native endianness float value.
    */
-  float from_netfloat(netfloat f) {
+  float from_netfloat(const netfloat f) {
     return boost::endian::endian_load<float, sizeof(float), boost::endian::order::little>(f);
   }
 
@@ -104,7 +104,7 @@ namespace input {
    * @param max The maximum value for clamping.
    * @return Clamped native endianess float value.
    */
-  float from_clamped_netfloat(netfloat f, float min, float max) {
+  float from_clamped_netfloat(const netfloat f, const float min, const float max) {
     return std::clamp(from_netfloat(f), min, max);
   }
 
@@ -220,7 +220,7 @@ namespace input {
     return 0;
   }
 
-  void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
+  void print(const _NV_REL_MOUSE_MOVE_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin relative mouse move packet--"sv << std::endl
       << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
@@ -228,7 +228,7 @@ namespace input {
       << "--end relative mouse move packet--"sv;
   }
 
-  void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  void print(const _NV_ABS_MOUSE_MOVE_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin absolute mouse move packet--"sv << std::endl
       << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
@@ -238,7 +238,7 @@ namespace input {
       << "--end absolute mouse move packet--"sv;
   }
 
-  void print(PNV_MOUSE_BUTTON_PACKET packet) {
+  void print(const _NV_MOUSE_BUTTON_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin mouse button packet--"sv << std::endl
       << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
@@ -246,21 +246,21 @@ namespace input {
       << "--end mouse button packet--"sv;
   }
 
-  void print(PNV_SCROLL_PACKET packet) {
+  void print(const _NV_SCROLL_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin mouse scroll packet--"sv << std::endl
       << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
       << "--end mouse scroll packet--"sv;
   }
 
-  void print(PSS_HSCROLL_PACKET packet) {
+  void print(const _SS_HSCROLL_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin mouse hscroll packet--"sv << std::endl
       << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
       << "--end mouse hscroll packet--"sv;
   }
 
-  void print(PNV_KEYBOARD_PACKET packet) {
+  void print(const _NV_KEYBOARD_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin keyboard packet--"sv << std::endl
       << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
@@ -270,7 +270,7 @@ namespace input {
       << "--end keyboard packet--"sv;
   }
 
-  void print(PNV_UNICODE_PACKET packet) {
+  void print(const _NV_UNICODE_PACKET *packet) {
     std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
     BOOST_LOG(debug)
       << "--begin unicode packet--"sv << std::endl
@@ -278,7 +278,7 @@ namespace input {
       << "--end unicode packet--"sv;
   }
 
-  void print(PNV_MULTI_CONTROLLER_PACKET packet) {
+  void print(const _NV_MULTI_CONTROLLER_PACKET *packet) {
     // Moonlight spams controller packet even when not necessary
     BOOST_LOG(verbose)
       << "--begin controller packet--"sv << std::endl
@@ -298,7 +298,7 @@ namespace input {
    * @brief Prints a touch packet.
    * @param packet The touch packet.
    */
-  void print(PSS_TOUCH_PACKET packet) {
+  void print(const _SS_TOUCH_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin touch packet--"sv << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
@@ -316,7 +316,7 @@ namespace input {
    * @brief Prints a pen packet.
    * @param packet The pen packet.
    */
-  void print(PSS_PEN_PACKET packet) {
+  void print(const _SS_PEN_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin pen packet--"sv << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
@@ -336,7 +336,7 @@ namespace input {
    * @brief Prints a controller arrival packet.
    * @param packet The controller arrival packet.
    */
-  void print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+  void print(const _SS_CONTROLLER_ARRIVAL_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin controller arrival packet--"sv << std::endl
       << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
@@ -350,7 +350,7 @@ namespace input {
    * @brief Prints a controller touch packet.
    * @param packet The controller touch packet.
    */
-  void print(PSS_CONTROLLER_TOUCH_PACKET packet) {
+  void print(const _SS_CONTROLLER_TOUCH_PACKET *packet) {
     BOOST_LOG(debug)
       << "--begin controller touch packet--"sv << std::endl
       << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
@@ -366,7 +366,7 @@ namespace input {
    * @brief Prints a controller motion packet.
    * @param packet The controller motion packet.
    */
-  void print(PSS_CONTROLLER_MOTION_PACKET packet) {
+  void print(const _SS_CONTROLLER_MOTION_PACKET *packet) {
     BOOST_LOG(verbose)
       << "--begin controller motion packet--"sv << std::endl
       << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
@@ -381,7 +381,7 @@ namespace input {
    * @brief Prints a controller battery packet.
    * @param packet The controller battery packet.
    */
-  void print(PSS_CONTROLLER_BATTERY_PACKET packet) {
+  void print(const _SS_CONTROLLER_BATTERY_PACKET *packet) {
     BOOST_LOG(verbose)
       << "--begin controller battery packet--"sv << std::endl
       << "controllerNumber ["sv << util::hex(packet->controllerNumber).to_string_view() << ']' << std::endl
@@ -441,7 +441,7 @@ namespace input {
     }
   }
 
-  void passthrough(std::shared_ptr<input_t> &input, PNV_REL_MOUSE_MOVE_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_REL_MOUSE_MOVE_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -457,7 +457,7 @@ namespace input {
    * @param size The size of the client's surface containing the value.
    * @return The host-relative coordinate pair if a touchport is available.
    */
-  std::optional<std::pair<float, float>> client_to_touchport(std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
+  std::optional<std::pair<float, float>> client_to_touchport(const std::shared_ptr<input_t> &input, const std::pair<float, float> &val, const std::pair<float, float> &size) {
     auto &touch_port_event = input->touch_port_event;
     auto &touch_port = input->touch_port;
     if (touch_port_event->peek()) {
@@ -490,7 +490,7 @@ namespace input {
    * @param scalar The scalar cartesian coordinate pair.
    * @return The scaled radial coordinate.
    */
-  float multiply_polar_by_cartesian_scalar(float r, float angle, const std::pair<float, float> &scalar) {
+  float multiply_polar_by_cartesian_scalar(const float r, const float angle, const std::pair<float, float> &scalar) {
     // Convert polar to cartesian coordinates
     float x = r * std::cos(angle);
     float y = r * std::sin(angle);
@@ -503,7 +503,7 @@ namespace input {
     return std::sqrt(std::pow(x, 2) + std::pow(y, 2));
   }
 
-  std::pair<float, float> scale_client_contact_area(const std::pair<float, float> &val, uint16_t rotation, const std::pair<float, float> &scalar) {
+  std::pair<float, float> scale_client_contact_area(const std::pair<float, float> &val, const uint16_t rotation, const std::pair<float, float> &scalar) {
     // If the rotation is unknown, we'll just scale both axes equally by using
     // a 45-degree angle for our scaling calculations
     float angle = rotation == LI_ROT_UNKNOWN ? (M_PI / 4) : (rotation * (M_PI / 180));
@@ -516,7 +516,7 @@ namespace input {
     return {multiply_polar_by_cartesian_scalar(major, angle, scalar), multiply_polar_by_cartesian_scalar(minor, angle + (M_PI / 2), scalar)};
   }
 
-  void passthrough(std::shared_ptr<input_t> &input, PNV_ABS_MOUSE_MOVE_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_ABS_MOUSE_MOVE_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -555,13 +555,13 @@ namespace input {
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
   }
 
-  void passthrough(std::shared_ptr<input_t> &input, PNV_MOUSE_BUTTON_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_MOUSE_BUTTON_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
 
-    auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
-    auto button = util::endian::big(packet->button);
+    const auto release = util::endian::little(packet->header.magic) == MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5;
+    const auto button = util::endian::big(packet->button);
     if (button > 0 && button < mouse_press.size()) {
       if (mouse_press[button] != release) {
         // button state is already what we want
@@ -616,9 +616,8 @@ namespace input {
     platf::button_mouse(platf_input, button, release);
   }
 
-  short map_keycode(short keycode) {
-    auto it = config::input.keybindings.find(keycode);
-    if (it != std::end(config::input.keybindings)) {
+  short map_keycode(const short keycode) {
+    if (const auto it = config::input.keybindings.find(keycode); it != std::end(config::input.keybindings)) {
       return it->second;
     }
 
@@ -626,9 +625,9 @@ namespace input {
   }
 
   /**
-   * @brief Update flags for keyboard shortcut combo's
+   * @brief Update flags for keyboard-shortcut combo's
    */
-  inline void update_shortcutFlags(int *flags, short keyCode, bool release) {
+  inline void update_shortcutFlags(int *flags, const short keyCode, const bool release) {
     switch (keyCode) {
       case VKEY_SHIFT:
       case VKEY_LSHIFT:
@@ -677,7 +676,7 @@ namespace input {
     }
   }
 
-  void send_key_and_modifiers(uint16_t key_code, bool release, uint8_t flags, uint8_t synthetic_modifiers) {
+  void send_key_and_modifiers(const uint16_t key_code, const bool release, const uint8_t flags, const uint8_t synthetic_modifiers) {
     if (!release) {
       // Press any synthetic modifiers required for this key
       if (synthetic_modifiers & MODIFIER_SHIFT) {
@@ -719,16 +718,16 @@ namespace input {
     key_press_repeat_id = task_pool.pushDelayed(repeat_key, config::input.key_repeat_period, key_code, flags, synthetic_modifiers).task_id;
   }
 
-  void passthrough(std::shared_ptr<input_t> &input, PNV_KEYBOARD_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_KEYBOARD_PACKET *packet) {
     if (!config::input.keyboard) {
       return;
     }
 
-    auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
+    const auto release = util::endian::little(packet->header.magic) == KEY_UP_EVENT_MAGIC;
     auto keyCode = packet->keyCode & 0x00FF;
 
     // Set synthetic modifier flags if the keyboard packet is requesting modifier
-    // keys that are not current pressed.
+    // keys that are not currently pressed.
     uint8_t synthetic_modifiers = 0;
     if (!release && !is_modifier(keyCode)) {
       if (!(input->shortcutFlags & input_t::SHIFT) && (packet->modifiers & MODIFIER_SHIFT)) {
@@ -763,7 +762,7 @@ namespace input {
         return;
       }
     } else if (!release) {
-      // Already pressed down key
+      // Already pressed down the key
       return;
     }
 
@@ -779,7 +778,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The scroll packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PNV_SCROLL_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_SCROLL_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -788,8 +787,7 @@ namespace input {
       platf::scroll(platf_input, util::endian::big(packet->scrollAmt1));
     } else {
       input->accumulated_vscroll_delta += util::endian::big(packet->scrollAmt1);
-      auto full_ticks = input->accumulated_vscroll_delta / WHEEL_DELTA;
-      if (full_ticks) {
+      if (const auto full_ticks = input->accumulated_vscroll_delta / WHEEL_DELTA) {
         // Send any full ticks that have accumulated and store the rest
         platf::scroll(platf_input, full_ticks * WHEEL_DELTA);
         input->accumulated_vscroll_delta -= full_ticks * WHEEL_DELTA;
@@ -802,7 +800,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The scroll packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_HSCROLL_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_HSCROLL_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -811,8 +809,7 @@ namespace input {
       platf::hscroll(platf_input, util::endian::big(packet->scrollAmount));
     } else {
       input->accumulated_hscroll_delta += util::endian::big(packet->scrollAmount);
-      auto full_ticks = input->accumulated_hscroll_delta / WHEEL_DELTA;
-      if (full_ticks) {
+      if (const auto full_ticks = input->accumulated_hscroll_delta / WHEEL_DELTA) {
         // Send any full ticks that have accumulated and store the rest
         platf::hscroll(platf_input, full_ticks * WHEEL_DELTA);
         input->accumulated_hscroll_delta -= full_ticks * WHEEL_DELTA;
@@ -825,7 +822,7 @@ namespace input {
       return;
     }
 
-    auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
+    const auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
     platf::unicode(platf_input, packet->text, size);
   }
 
@@ -834,7 +831,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The controller arrival packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_ARRIVAL_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_CONTROLLER_ARRIVAL_PACKET *packet) {
     if (!config::input.controller) {
       return;
     }
@@ -855,7 +852,7 @@ namespace input {
       util::endian::little(packet->supportedButtonFlags),
     };
 
-    auto id = alloc_id(gamepadMask);
+    const auto id = alloc_id(gamepadMask);
     if (id < 0) {
       return;
     }
@@ -874,7 +871,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The touch packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_TOUCH_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -885,8 +882,8 @@ namespace input {
       return;
     }
 
-    auto &touch_port = input->touch_port;
-    platf::touch_port_t abs_port {
+    const auto &touch_port = input->touch_port;
+    const platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
       touch_port.env_width,
@@ -904,14 +901,14 @@ namespace input {
     }
 
     // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
+    const auto contact_area = scale_client_contact_area(
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
       {abs_port.width / 65535.f, abs_port.height / 65535.f}
     );
 
-    platf::touch_input_t touch {
+    const platf::touch_input_t touch {
       packet->eventType,
       rotation,
       util::endian::little(packet->pointerId),
@@ -930,7 +927,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The pen packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_PEN_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_PEN_PACKET *packet) {
     if (!config::input.mouse) {
       return;
     }
@@ -941,8 +938,8 @@ namespace input {
       return;
     }
 
-    auto &touch_port = input->touch_port;
-    platf::touch_port_t abs_port {
+    const auto &touch_port = input->touch_port;
+    const platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
       touch_port.env_width,
@@ -960,14 +957,14 @@ namespace input {
     }
 
     // Normalize the contact area based on the touchport
-    auto contact_area = scale_client_contact_area(
+    const auto contact_area = scale_client_contact_area(
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
       {abs_port.width / 65535.f, abs_port.height / 65535.f}
     );
 
-    platf::pen_input_t pen {
+    const platf::pen_input_t pen {
       packet->eventType,
       packet->toolType,
       packet->penButtons,
@@ -988,7 +985,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The controller touch packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_TOUCH_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_CONTROLLER_TOUCH_PACKET *packet) {
     if (!config::input.controller) {
       return;
     }
@@ -998,13 +995,13 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
-    platf::gamepad_touch_t touch {
+    const platf::gamepad_touch_t touch {
       {gamepad.id, packet->controllerNumber},
       packet->eventType,
       util::endian::little(packet->pointerId),
@@ -1021,7 +1018,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The controller motion packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_MOTION_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_CONTROLLER_MOTION_PACKET *packet) {
     if (!config::input.controller) {
       return;
     }
@@ -1031,13 +1028,13 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
-    platf::gamepad_motion_t motion {
+    const platf::gamepad_motion_t motion {
       {gamepad.id, packet->controllerNumber},
       packet->motionType,
       from_netfloat(packet->x),
@@ -1053,7 +1050,7 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The controller battery packet.
    */
-  void passthrough(std::shared_ptr<input_t> &input, PSS_CONTROLLER_BATTERY_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _SS_CONTROLLER_BATTERY_PACKET *packet) {
     if (!config::input.controller) {
       return;
     }
@@ -1063,13 +1060,13 @@ namespace input {
       return;
     }
 
-    auto &gamepad = input->gamepads[packet->controllerNumber];
+    const auto &gamepad = input->gamepads[packet->controllerNumber];
     if (gamepad.id < 0) {
       BOOST_LOG(warning) << "ControllerNumber ["sv << packet->controllerNumber << "] not allocated"sv;
       return;
     }
 
-    platf::gamepad_battery_t battery {
+    const platf::gamepad_battery_t battery {
       {gamepad.id, packet->controllerNumber},
       packet->batteryState,
       packet->batteryPercentage
@@ -1078,7 +1075,7 @@ namespace input {
     platf::gamepad_battery(platf_input, battery);
   }
 
-  void passthrough(std::shared_ptr<input_t> &input, PNV_MULTI_CONTROLLER_PACKET packet) {
+  void passthrough(const std::shared_ptr<input_t> &input, const _NV_MULTI_CONTROLLER_PACKET *packet) {
     if (!config::input.controller) {
       return;
     }
@@ -1094,7 +1091,7 @@ namespace input {
     // If this is an event for a new gamepad, create the gamepad now. Ideally, the client would
     // send a controller arrival instead of this but it's still supported for legacy clients.
     if ((packet->activeGamepadMask & (1 << packet->controllerNumber)) && gamepad.id < 0) {
-      auto id = alloc_id(gamepadMask);
+      const auto id = alloc_id(gamepadMask);
       if (id < 0) {
         return;
       }
@@ -1120,7 +1117,7 @@ namespace input {
     }
 
     std::uint16_t bf = packet->buttonFlags;
-    std::uint32_t bf2 = packet->buttonFlags2;
+    const std::uint32_t bf2 = packet->buttonFlags2;
     platf::gamepad_state_t gamepad_state {
       bf | (bf2 << 16),
       packet->leftTrigger,
@@ -1154,7 +1151,7 @@ namespace input {
 
     if (platf::BACK & bf) {
       if (platf::BACK & bf_new) {
-        // Don't emulate home button if timeout < 0
+        // Don't emulate the home button if timeout < 0
         if (config::input.back_button_timeout >= 0ms) {
           auto f = [input, controller = packet->controllerNumber]() {
             auto &gamepad = input->gamepads[controller];
@@ -1166,7 +1163,7 @@ namespace input {
             state.buttonFlags &= ~platf::BACK;
             platf::gamepad_update(platf_input, gamepad.id, state);
 
-            // Press Home button
+            // Press the Home button
             state.buttonFlags |= platf::HOME;
             platf::gamepad_update(platf_input, gamepad.id, state);
 
@@ -1205,7 +1202,7 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
+  batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, const _NV_REL_MOUSE_MOVE_PACKET *src) {
     short deltaX, deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
@@ -1228,7 +1225,7 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PNV_ABS_MOUSE_MOVE_PACKET dest, PNV_ABS_MOUSE_MOVE_PACKET src) {
+  batch_result_e batch(PNV_ABS_MOUSE_MOVE_PACKET dest, const _NV_ABS_MOUSE_MOVE_PACKET *src) {
     // Batching must only happen if the reference width and height don't change
     if (dest->width != src->width || dest->height != src->height) {
       return batch_result_e::terminate_batch;
@@ -1245,7 +1242,7 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PNV_SCROLL_PACKET dest, PNV_SCROLL_PACKET src) {
+  batch_result_e batch(PNV_SCROLL_PACKET dest, const _NV_SCROLL_PACKET *src) {
     short scrollAmt;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
@@ -1265,7 +1262,7 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PSS_HSCROLL_PACKET dest, PSS_HSCROLL_PACKET src) {
+  batch_result_e batch(PSS_HSCROLL_PACKET dest, const _SS_HSCROLL_PACKET *src) {
     short scrollAmt;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
@@ -1284,13 +1281,13 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PNV_MULTI_CONTROLLER_PACKET dest, PNV_MULTI_CONTROLLER_PACKET src) {
+  batch_result_e batch(PNV_MULTI_CONTROLLER_PACKET dest, const _NV_MULTI_CONTROLLER_PACKET *src) {
     // Do not allow batching if the active controllers change
     if (dest->activeGamepadMask != src->activeGamepadMask) {
       return batch_result_e::terminate_batch;
     }
 
-    // We can only batch entries for the same controller, but allow batching attempts to continue
+    // We can only batch entries for the same controller but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
       return batch_result_e::not_batchable;
@@ -1312,14 +1309,14 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PSS_TOUCH_PACKET dest, PSS_TOUCH_PACKET src) {
+  batch_result_e batch(PSS_TOUCH_PACKET dest, const _SS_TOUCH_PACKET *src) {
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
         dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
-    // Don't batch beyond state changing events
+    // Don't batch beyond state-changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE &&
         src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
@@ -1346,7 +1343,7 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PSS_PEN_PACKET dest, PSS_PEN_PACKET src) {
+  batch_result_e batch(PSS_PEN_PACKET dest, const _SS_PEN_PACKET *src) {
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
         dest->eventType != LI_TOUCH_EVENT_HOVER) {
@@ -1379,20 +1376,20 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, PSS_CONTROLLER_TOUCH_PACKET src) {
+  batch_result_e batch(PSS_CONTROLLER_TOUCH_PACKET dest, const _SS_CONTROLLER_TOUCH_PACKET *src) {
     // Only batch hover or move events
     if (dest->eventType != LI_TOUCH_EVENT_MOVE &&
         dest->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
     }
 
-    // We can only batch entries for the same controller, but allow batching attempts to continue
+    // We can only batch entries for the same controller but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
       return batch_result_e::not_batchable;
     }
 
-    // Don't batch beyond state changing events
+    // Don't batch beyond state-changing events
     if (src->eventType != LI_TOUCH_EVENT_MOVE &&
         src->eventType != LI_TOUCH_EVENT_HOVER) {
       return batch_result_e::terminate_batch;
@@ -1419,8 +1416,8 @@ namespace input {
    * @param src A later packet to attempt to batch.
    * @return The status of the batching operation.
    */
-  batch_result_e batch(PSS_CONTROLLER_MOTION_PACKET dest, PSS_CONTROLLER_MOTION_PACKET src) {
-    // We can only batch entries for the same controller, but allow batching attempts to continue
+  batch_result_e batch(PSS_CONTROLLER_MOTION_PACKET dest, const _SS_CONTROLLER_MOTION_PACKET *src) {
+    // We can only batch entries for the same controller but allow batching attempts to continue
     // in case we have more packets for this controller later in the queue.
     if (dest->controllerNumber != src->controllerNumber) {
       return batch_result_e::not_batchable;
@@ -1478,7 +1475,7 @@ namespace input {
    * @brief Called on a thread pool thread to process an input message.
    * @param input The input context pointer.
    */
-  void passthrough_next_message(std::shared_ptr<input_t> input) {
+  void passthrough_next_message(const std::shared_ptr<input_t> &input) {
     // 'entry' backs the 'payload' pointer, so they must remain in scope together
     std::vector<uint8_t> entry;
     PNV_INPUT_HEADER payload;
@@ -1584,11 +1581,11 @@ namespace input {
     task_pool.push(passthrough_next_message, input);
   }
 
-  void reset(std::shared_ptr<input_t> &input) {
+  void reset(const std::shared_ptr<input_t> &input) {
     task_pool.cancel(key_press_repeat_id);
     task_pool.cancel(input->mouse_left_button_timeout);
 
-    // Ensure input is synchronous, by using the task_pool
+    // Ensure input is synchronous by using the task_pool
     task_pool.push([]() {
       for (int x = 0; x < mouse_press.size(); ++x) {
         if (mouse_press[x]) {
@@ -1622,9 +1619,8 @@ namespace input {
   }
 
   bool probe_gamepads() {
-    auto input = static_cast<platf::input_t *>(platf_input.get());
-    const auto gamepads = platf::supported_gamepads(input);
-    for (auto &gamepad : gamepads) {
+    const auto input = static_cast<platf::input_t *>(platf_input.get());
+    for (const auto gamepads = platf::supported_gamepads(input); auto &gamepad : gamepads) {
       if (gamepad.is_enabled && gamepad.name != "auto") {
         return false;
       }
@@ -1632,7 +1628,7 @@ namespace input {
     return true;
   }
 
-  std::shared_ptr<input_t> alloc(safe::mail_t mail) {
+  std::shared_ptr<input_t> alloc(const safe::mail_t &mail) {
     auto input = std::make_shared<input_t>(
       mail->event<input::touch_port_t>(mail::touch_port),
       mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)

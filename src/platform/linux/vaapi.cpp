@@ -97,7 +97,7 @@ namespace va {
 
   class va_t: public platf::avcodec_encode_device_t {
   public:
-    int init(int in_width, int in_height, file_t &&render_device) {
+    int init(const int in_width, const int in_height, file_t &&render_device) {
       file = std::move(render_device);
 
       if (!gbm::create_device) {
@@ -137,11 +137,10 @@ namespace va {
      * @param profile The profile to match.
      * @return A valid encoding entrypoint or 0 on failure.
      */
-    VAEntrypoint select_va_entrypoint(VAProfile profile) {
+    VAEntrypoint select_va_entrypoint(const VAProfile profile) {
       std::vector<VAEntrypoint> entrypoints(vaMaxNumEntrypoints(va_display));
       int num_eps;
-      auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps);
-      if (status != VA_STATUS_SUCCESS) {
+      if (const auto status = vaQueryConfigEntrypoints(va_display, profile, entrypoints.data(), &num_eps); status != VA_STATUS_SUCCESS) {
         BOOST_LOG(error) << "Failed to query VA entrypoints: "sv << vaErrorStr(status);
         return (VAEntrypoint) 0;
       }
@@ -167,7 +166,7 @@ namespace va {
      * @param profile The profile to match.
      * @return Boolean value indicating if the profile is supported.
      */
-    bool is_va_profile_supported(VAProfile profile) {
+    bool is_va_profile_supported(const VAProfile profile) {
       std::vector<VAProfile> profiles(vaMaxNumProfiles(va_display));
       int num_profs;
       auto status = vaQueryConfigProfiles(va_display, profiles.data(), &num_profs);
@@ -185,7 +184,7 @@ namespace va {
      * @param ctx The FFmpeg codec context.
      * @return The matching VA profile or `VAProfileNone` on failure.
      */
-    VAProfile get_va_profile(AVCodecContext *ctx) {
+    VAProfile get_va_profile(const AVCodecContext *ctx) {
       if (ctx->codec_id == AV_CODEC_ID_H264) {
         // There's no VAAPI profile for H.264 4:4:4
         return VAProfileH264High;
@@ -218,19 +217,19 @@ namespace va {
     }
 
     void init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
-      auto va_profile = get_va_profile(ctx);
+      const auto va_profile = get_va_profile(ctx);
       if (va_profile == VAProfileNone || !is_va_profile_supported(va_profile)) {
         // Don't bother doing anything if the profile isn't supported
         return;
       }
 
-      auto va_entrypoint = select_va_entrypoint(va_profile);
+      const auto va_entrypoint = select_va_entrypoint(va_profile);
       if (va_entrypoint == 0) {
         // It's possible that only decoding is supported for this profile
         return;
       }
 
-      auto vendor = vaQueryVendorString(va_display);
+      const auto vendor = vaQueryVendorString(va_display);
 
       if (va_entrypoint == VAEntrypointEncSliceLP) {
         BOOST_LOG(info) << "Using LP encoding mode"sv;
@@ -303,10 +302,10 @@ namespace va {
       }
 
       va::DRMPRIMESurfaceDescriptor prime;
-      va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
-      auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
+      const va::VASurfaceID surface = (std::uintptr_t) frame->data[3];
+      const auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
-      auto status = vaExportSurfaceHandle(
+      const auto status = vaExportSurfaceHandle(
         this->va_display,
         surface,
         va::SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2,
@@ -402,7 +401,7 @@ namespace va {
   class va_vram_t: public va_t {
   public:
     int convert(platf::img_t &img) override {
-      auto &descriptor = (egl::img_descriptor_t &) img;
+      const auto &descriptor = (egl::img_descriptor_t &) img;
 
       if (descriptor.sequence == 0) {
         // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
@@ -427,7 +426,7 @@ namespace va {
       return 0;
     }
 
-    int init(int in_width, int in_height, file_t &&render_device, int offset_x, int offset_y) {
+    int init(const int in_width, const int in_height, file_t &&render_device, const int offset_x, const int offset_y) {
       if (va_t::init(in_width, in_height, std::move(render_device))) {
         return -1;
       }
@@ -495,7 +494,7 @@ namespace va {
   }
 
   int vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *base, AVBufferRef **hw_device_buf) {
-    auto va = (va::va_t *) base;
+    const auto va = (va::va_t *) base;
     auto fd = dup(va->file.el);
 
     auto *priv = (VAAPIDevicePriv *) av_mallocz(sizeof(VAAPIDevicePriv));
@@ -508,7 +507,7 @@ namespace va {
 
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
+      const auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
       BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
       return -1;
@@ -520,8 +519,7 @@ namespace va {
     vaSetErrorCallback(display.get(), __log, &info);
 
     int major, minor;
-    auto status = vaInitialize(display.get(), &major, &minor);
-    if (status) {
+    if (const auto status = vaInitialize(display.get(), &major, &minor)) {
       BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
       return -1;
     }
@@ -529,8 +527,8 @@ namespace va {
     BOOST_LOG(info) << "vaapi vendor: "sv << vaQueryVendorString(display.get());
 
     *hw_device_buf = av_hwdevice_ctx_alloc(AV_HWDEVICE_TYPE_VAAPI);
-    auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
-    auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
+    const auto ctx = (AVHWDeviceContext *) (*hw_device_buf)->data;
+    const auto hwctx = (AVVAAPIDeviceContext *) ctx->hwctx;
 
     // Ownership of the VADisplay and DRM fd is now ours to manage via the free() function
     hwctx->display = display.release();
@@ -538,8 +536,7 @@ namespace va {
     ctx->free = vaapi_hwdevice_ctx_free;
     fg.disable();
 
-    auto err = av_hwdevice_ctx_init(*hw_device_buf);
-    if (err) {
+    if (const auto err = av_hwdevice_ctx_init(*hw_device_buf)) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Failed to create FFMpeg hardware device context: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, err);
 
@@ -554,14 +551,13 @@ namespace va {
     entrypoints.resize(vaMaxNumEntrypoints(display));
 
     int count;
-    auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count);
-    if (status) {
+    if (const auto status = vaQueryConfigEntrypoints(display, profile, entrypoints.data(), &count)) {
       BOOST_LOG(error) << "Couldn't query entrypoints: "sv << vaErrorStr(status);
       return false;
     }
     entrypoints.resize(count);
 
-    for (auto entrypoint : entrypoints) {
+    for (const auto entrypoint : entrypoints) {
       if (entrypoint == VAEntrypointEncSlice || entrypoint == VAEntrypointEncSliceLP) {
         return true;
       }
@@ -575,7 +571,7 @@ namespace va {
     if (!display) {
       char string[1024];
 
-      auto bytes = readlink(std::format("/proc/self/fd/{}", fd).c_str(), string, sizeof(string));
+      const auto bytes = readlink(std::format("/proc/self/fd/{}", fd).c_str(), string, sizeof(string));
 
       std::string_view render_device {string, (std::size_t) bytes};
 
@@ -584,8 +580,7 @@ namespace va {
     }
 
     int major, minor;
-    auto status = vaInitialize(display.get(), &major, &minor);
-    if (status) {
+    if (const auto status = vaInitialize(display.get(), &major, &minor)) {
       BOOST_LOG(error) << "Couldn't initialize va display: "sv << vaErrorStr(status);
       return false;
     }
@@ -626,7 +621,7 @@ namespace va {
   }
 
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
-    auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
+    const auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
 
     file_t file = open(render_device, O_RDWR);
     if (file.el < 0) {

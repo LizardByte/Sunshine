@@ -895,7 +895,7 @@ namespace platf {
    * @param group A pointer to a `bp::group` object to which the new process should belong (may be `nullptr`).
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
-  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
+  bp::child run_command(bool elevated, bool interactive, const std::string &cmd, const boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
     std::wstring start_dir = from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
@@ -1321,7 +1321,7 @@ namespace platf {
     return accounting_info.ActiveProcesses != 0;
   }
 
-  SOCKADDR_IN to_sockaddr(boost::asio::ip::address_v4 address, uint16_t port) {
+  SOCKADDR_IN to_sockaddr(const boost::asio::ip::address_v4 &address, uint16_t port) {
     SOCKADDR_IN saddr_v4 = {};
 
     saddr_v4.sin_family = AF_INET;
@@ -1333,7 +1333,7 @@ namespace platf {
     return saddr_v4;
   }
 
-  SOCKADDR_IN6 to_sockaddr(boost::asio::ip::address_v6 address, uint16_t port) {
+  SOCKADDR_IN6 to_sockaddr(const boost::asio::ip::address_v6 &address, uint16_t port) {
     SOCKADDR_IN6 saddr_v6 = {};
 
     saddr_v6.sin6_family = AF_INET6;
@@ -1451,7 +1451,7 @@ namespace platf {
     return WSASendMsg((SOCKET) send_info.native_socket, &msg, 0, &bytes_sent, nullptr, nullptr) != SOCKET_ERROR;
   }
 
-  bool send(send_info_t &send_info) {
+  bool send(const send_info_t &send_info) {
     WSAMSG msg;
 
     // Convert the target address into a SOCKADDR
@@ -1556,7 +1556,7 @@ namespace platf {
    * @param data_type The type of traffic sent on this socket.
    * @param dscp_tagging Specifies whether to enable DSCP tagging on outgoing traffic.
    */
-  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
+  std::unique_ptr<deinit_t> enable_socket_qos(uintptr_t native_socket, const boost::asio::ip::address &address, uint16_t port, qos_data_type_e data_type, bool dscp_tagging) {
     SOCKADDR_IN saddr_v4;
     SOCKADDR_IN6 saddr_v6;
     PSOCKADDR dest_addr;

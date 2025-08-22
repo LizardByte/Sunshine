@@ -326,18 +326,14 @@ namespace platf {
      * @param largeMotor The large motor.
      * @param smallMotor The small motor.
      */
-    void rumble(target_t::pointer target, std::uint8_t largeMotor, std::uint8_t smallMotor) {
+    void rumble(const _VIGEM_TARGET_T *target, const std::uint8_t largeMotor, const std::uint8_t smallMotor) {
       for (int x = 0; x < gamepads.size(); ++x) {
-        auto &gamepad = gamepads[x];
-
-        if (gamepad.gp.get() == target) {
+        if (auto &gamepad = gamepads[x]; gamepad.gp.get() == target) {
           // Convert from 8-bit to 16-bit values
-          uint16_t normalizedLargeMotor = largeMotor << 8;
-          uint16_t normalizedSmallMotor = smallMotor << 8;
+          const uint16_t normalizedLargeMotor = largeMotor << 8;
 
           // Don't resend duplicate rumble data
-          if (normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq ||
-              normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
+          if (const uint16_t normalizedSmallMotor = smallMotor << 8; normalizedSmallMotor != gamepad.last_rumble.data.rumble.highfreq || normalizedLargeMotor != gamepad.last_rumble.data.rumble.lowfreq) {
             // We have to use the client-relative index when communicating back to the client
             gamepad_feedback_msg_t msg = gamepad_feedback_msg_t::make_rumble(
               gamepad.client_relative_index,
@@ -359,11 +355,9 @@ namespace platf {
      * @param g The red channel.
      * @param b The red channel.
      */
-    void set_rgb_led(target_t::pointer target, std::uint8_t r, std::uint8_t g, std::uint8_t b) {
+    void set_rgb_led(const _VIGEM_TARGET_T *target, const std::uint8_t r, const std::uint8_t g, const std::uint8_t b) {
       for (int x = 0; x < gamepads.size(); ++x) {
-        auto &gamepad = gamepads[x];
-
-        if (gamepad.gp.get() == target) {
+        if (auto &gamepad = gamepads[x]; gamepad.gp.get() == target) {
           // Don't resend duplicate RGB data
           if (r != gamepad.last_rgb_led.data.rgb_led.r ||
               g != gamepad.last_rgb_led.data.rgb_led.g ||
@@ -385,8 +379,7 @@ namespace platf {
       if (client) {
         for (auto &gamepad : gamepads) {
           if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
-            auto status = vigem_target_remove(client.get(), gamepad.gp.get());
-            if (!VIGEM_SUCCESS(status)) {
+            if (auto status = vigem_target_remove(client.get(), gamepad.gp.get()); !VIGEM_SUCCESS(status)) {
               BOOST_LOG(warning) << "Couldn't detach gamepad from ViGEm ["sv << util::hex(status).to_string_view() << ']';
             }
           }
@@ -471,10 +464,9 @@ namespace platf {
    */
   void send_input(INPUT &i) {
   retry:
-    auto send = SendInput(1, &i, sizeof(INPUT));
+    const auto send = SendInput(1, &i, sizeof(INPUT));
     if (send != 1) {
-      auto hDesk = syncThreadDesktop();
-      if (_lastKnownInputDesktop != hDesk) {
+      if (const auto hDesk = syncThreadDesktop(); _lastKnownInputDesktop != hDesk) {
         _lastKnownInputDesktop = hDesk;
         goto retry;
       }
@@ -491,11 +483,10 @@ namespace platf {
    * @param count The number of elements in `pointerInfo`.
    * @return true if input was successfully injected.
    */
-  bool inject_synthetic_pointer_input(input_raw_t *input, HSYNTHETICPOINTERDEVICE device, const POINTER_TYPE_INFO *pointerInfo, UINT32 count) {
+  bool inject_synthetic_pointer_input(const input_raw_t *input, HSYNTHETICPOINTERDEVICE device, const POINTER_TYPE_INFO *pointerInfo, UINT32 count) {
   retry:
     if (!input->fnInjectSyntheticPointerInput(device, pointerInfo, count)) {
-      auto hDesk = syncThreadDesktop();
-      if (_lastKnownInputDesktop != hDesk) {
+      if (const auto hDesk = syncThreadDesktop(); _lastKnownInputDesktop != hDesk) {
         _lastKnownInputDesktop = hDesk;
         goto retry;
       }
@@ -504,7 +495,7 @@ namespace platf {
     return true;
   }
 
-  void abs_mouse(input_t &input, const touch_port_t &touch_port, float x, float y) {
+  void abs_mouse(input_t &input, const touch_port_t &touch_port, const float x, const float y) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -517,8 +508,8 @@ namespace platf {
       // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
       MOUSEEVENTF_VIRTUALDESK;
 
-    auto scaled_x = std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
-    auto scaled_y = std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
+    const auto scaled_x = std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
+    const auto scaled_y = std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
 
     mi.dx = scaled_x;
     mi.dy = scaled_y;
@@ -526,7 +517,7 @@ namespace platf {
     send_input(i);
   }
 
-  void move_mouse(input_t &input, int deltaX, int deltaY) {
+  void move_mouse(input_t &input, const int deltaX, const int deltaY) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -553,7 +544,7 @@ namespace platf {
     };
   }
 
-  void button_mouse(input_t &input, int button, bool release) {
+  void button_mouse(input_t &input, const int button, const bool release) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -576,7 +567,7 @@ namespace platf {
     send_input(i);
   }
 
-  void scroll(input_t &input, int distance) {
+  void scroll(input_t &input, const int distance) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -588,7 +579,7 @@ namespace platf {
     send_input(i);
   }
 
-  void hscroll(input_t &input, int distance) {
+  void hscroll(input_t &input, const int distance) {
     INPUT i {};
 
     i.type = INPUT_MOUSE;
@@ -600,7 +591,7 @@ namespace platf {
     send_input(i);
   }
 
-  void keyboard_update(input_t &input, uint16_t modcode, bool release, uint8_t flags) {
+  void keyboard_update(input_t &input, const uint16_t modcode, const bool release, const uint8_t flags) {
     INPUT i {};
     i.type = INPUT_KEYBOARD;
     auto &ki = i.ki;
@@ -620,7 +611,7 @@ namespace platf {
     if (ki.wScan) {
       ki.dwFlags = KEYEVENTF_SCANCODE;
     } else {
-      // If there is no scancode mapping or it's non-normalized, send it as a regular VK event.
+      // If there is no scancode mapping, or it's non-normalized, send it as a regular VK event.
       ki.wVk = modcode;
     }
 
@@ -840,7 +831,7 @@ namespace platf {
    */
   void repeat_touch(client_input_raw_t *raw) {
     if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
-      auto err = GetLastError();
+      const auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to refresh virtual touch input: "sv << err;
     }
 
@@ -853,7 +844,7 @@ namespace platf {
    */
   void repeat_pen(client_input_raw_t *raw) {
     if (!inject_synthetic_pointer_input(raw->global, raw->pen, &raw->penInfo, 1)) {
-      auto err = GetLastError();
+      const auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to refresh virtual pen input: "sv << err;
     }
 
@@ -917,7 +908,7 @@ namespace platf {
         BOOST_LOG(info) << "Creating virtual touch input device"sv;
         raw->touch = raw->global->fnCreateSyntheticPointerDevice(PT_TOUCH, ARRAYSIZE(raw->touchInfo), POINTER_FEEDBACK_DEFAULT);
         if (!raw->touch) {
-          auto err = GetLastError();
+          const auto err = GetLastError();
           BOOST_LOG(warning) << "Failed to create virtual touch device: "sv << err;
           return;
         }
@@ -1006,7 +997,7 @@ namespace platf {
     }
 
     if (!inject_synthetic_pointer_input(raw->global, raw->touch, raw->touchInfo, raw->activeTouchSlots)) {
-      auto err = GetLastError();
+      const auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to inject virtual touch input: "sv << err;
       return;
     }
@@ -1043,7 +1034,7 @@ namespace platf {
         BOOST_LOG(info) << "Creating virtual pen input device"sv;
         raw->pen = raw->global->fnCreateSyntheticPointerDevice(PT_PEN, 1, POINTER_FEEDBACK_DEFAULT);
         if (!raw->pen) {
-          auto err = GetLastError();
+          const auto err = GetLastError();
           BOOST_LOG(warning) << "Failed to create virtual pen device: "sv << err;
           return;
         }
@@ -1110,10 +1101,10 @@ namespace platf {
 
     // We require rotation and tilt to perform the conversion to X and Y tilt angles
     if (pen.tilt != LI_TILT_UNKNOWN && pen.rotation != LI_ROT_UNKNOWN) {
-      auto rotationRads = pen.rotation * (M_PI / 180.f);
-      auto tiltRads = pen.tilt * (M_PI / 180.f);
-      auto r = std::sin(tiltRads);
-      auto z = std::cos(tiltRads);
+      const auto rotationRads = pen.rotation * (M_PI / 180.f);
+      const auto tiltRads = pen.tilt * (M_PI / 180.f);
+      const auto r = std::sin(tiltRads);
+      const auto z = std::cos(tiltRads);
 
       // Convert polar coordinates into X and Y tilt angles
       penInfo.penMask |= PEN_MASK_TILT_X | PEN_MASK_TILT_Y;
@@ -1125,7 +1116,7 @@ namespace platf {
     }
 
     if (!inject_synthetic_pointer_input(raw->global, raw->pen, &raw->penInfo, 1)) {
-      auto err = GetLastError();
+      const auto err = GetLastError();
       BOOST_LOG(warning) << "Failed to inject virtual pen input: "sv << err;
       return;
     }
@@ -1143,7 +1134,7 @@ namespace platf {
     // We can do no worse than one UTF-16 character per byte of UTF-8
     WCHAR wide[size];
 
-    int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, size, wide, size);
+    const int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, size, wide, size);
     if (chars <= 0) {
       return;
     }
@@ -1222,7 +1213,7 @@ namespace platf {
   }
 
   void free_gamepad(input_t &input, int nr) {
-    auto raw = (input_raw_t *) input.get();
+    const auto raw = (input_raw_t *) input.get();
 
     if (!raw->vigem) {
       return;
@@ -1239,7 +1230,7 @@ namespace platf {
   static XUSB_BUTTON x360_buttons(const gamepad_state_t &gamepad_state) {
     int buttons {};
 
-    auto flags = gamepad_state.buttonFlags;
+    const auto flags = gamepad_state.buttonFlags;
     if (flags & DPAD_UP) {
       buttons |= XUSB_GAMEPAD_DPAD_UP;
     }
@@ -1307,8 +1298,7 @@ namespace platf {
   }
 
   static DS4_DPAD_DIRECTIONS ds4_dpad(const gamepad_state_t &gamepad_state) {
-    auto flags = gamepad_state.buttonFlags;
-    if (flags & DPAD_UP) {
+    if (const auto flags = gamepad_state.buttonFlags; flags & DPAD_UP) {
       if (flags & DPAD_RIGHT) {
         return DS4_BUTTON_DPAD_NORTHEAST;
       } else if (flags & DPAD_LEFT) {
@@ -1347,7 +1337,7 @@ namespace platf {
   static DS4_BUTTONS ds4_buttons(const gamepad_state_t &gamepad_state) {
     int buttons {};
 
-    auto flags = gamepad_state.buttonFlags;
+    const auto flags = gamepad_state.buttonFlags;
     if (flags & LEFT_STICK) {
       buttons |= DS4_BUTTON_THUMB_LEFT;
     }
@@ -1409,12 +1399,12 @@ namespace platf {
     return (DS4_SPECIAL_BUTTONS) buttons;
   }
 
-  static std::uint8_t to_ds4_triggerX(std::int16_t v) {
+  static std::uint8_t to_ds4_triggerX(const std::int16_t v) {
     return (v + std::numeric_limits<std::uint16_t>::max() / 2 + 1) / 257;
   }
 
-  static std::uint8_t to_ds4_triggerY(std::int16_t v) {
-    auto new_v = -((std::numeric_limits<std::uint16_t>::max() / 2 + v - 1)) / 257;
+  static std::uint8_t to_ds4_triggerY(const std::int16_t v) {
+    const auto new_v = -((std::numeric_limits<std::uint16_t>::max() / 2 + v - 1)) / 257;
 
     return new_v == 0 ? 0xFF : (std::uint8_t) new_v;
   }
@@ -1456,15 +1446,14 @@ namespace platf {
     }
 
     if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
-      auto now = std::chrono::steady_clock::now();
-      auto delta_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - gamepad.last_report_ts);
+      const auto now = std::chrono::steady_clock::now();
+      const auto delta_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(now - gamepad.last_report_ts);
 
       // Timestamp is reported in 5.333us units
       gamepad.report.ds4.Report.wTimestamp += (uint16_t) (delta_ns.count() / 5333);
 
       // Send the report to the virtual device
-      auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4);
-      if (!VIGEM_SUCCESS(status)) {
+      if (const auto status = vigem_target_ds4_update_ex(vigem->client.get(), gamepad.gp.get(), gamepad.report.ds4); !VIGEM_SUCCESS(status)) {
         BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
         return;
       }
@@ -1482,7 +1471,7 @@ namespace platf {
    * @param gamepad_state The gamepad button/axis state sent from the client.
    */
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    const auto vigem = ((input_raw_t *) input.get())->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1494,12 +1483,9 @@ namespace platf {
       return;
     }
 
-    VIGEM_ERROR status;
-
     if (vigem_target_get_type(gamepad.gp.get()) == Xbox360Wired) {
       x360_update_state(gamepad, gamepad_state);
-      status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360);
-      if (!VIGEM_SUCCESS(status)) {
+      if (const VIGEM_ERROR status = vigem_target_x360_update(vigem->client.get(), gamepad.gp.get(), gamepad.report.x360); !VIGEM_SUCCESS(status)) {
         BOOST_LOG(warning) << "Couldn't send gamepad input to ViGEm ["sv << util::hex(status).to_string_view() << ']';
       }
     } else {
@@ -1514,7 +1500,7 @@ namespace platf {
    * @param touch The touch event.
    */
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    const auto vigem = ((input_raw_t *) input.get())->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1566,7 +1552,7 @@ namespace platf {
       // All pointers are now available
       gamepad.available_pointers = 0x3;
     } else {
-      auto i = gamepad.pointer_id_map.find(touch.pointerId);
+      const auto i = gamepad.pointer_id_map.find(touch.pointerId);
       if (i == gamepad.pointer_id_map.end()) {
         BOOST_LOG(warning) << "Pointer ID not found! Did the client miss a touch down event?"sv;
         return;
@@ -1594,9 +1580,9 @@ namespace platf {
     }
 
     // Touchpad is 1920x943 according to ViGEm
-    uint16_t x = touch.x * 1920;
-    uint16_t y = touch.y * 943;
-    uint8_t touchData[] = {
+    const uint16_t x = touch.x * 1920;
+    const uint16_t y = touch.y * 943;
+    const uint8_t touchData[] = {
       (uint8_t) (x & 0xFF),  // Low 8 bits of X
       (uint8_t) ((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
       (uint8_t) (y >> 4 & 0xFF)  // High 8 bits of Y
@@ -1620,7 +1606,7 @@ namespace platf {
    * @param motion The motion event.
    */
   void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    const auto vigem = ((input_raw_t *) input.get())->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1647,7 +1633,7 @@ namespace platf {
    * @param battery The battery event.
    */
   void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    const auto vigem = ((input_raw_t *) input.get())->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1715,7 +1701,7 @@ namespace platf {
   }
 
   void freeInput(void *p) {
-    auto input = (input_raw_t *) p;
+    const auto input = (input_raw_t *) p;
 
     delete input;
   }
@@ -1731,9 +1717,9 @@ namespace platf {
       return gps;
     }
 
-    auto vigem = ((input_raw_t *) input)->vigem;
-    auto enabled = vigem != nullptr;
-    auto reason = enabled ? "" : "gamepads.vigem-not-available";
+    const auto vigem = ((input_raw_t *) input)->vigem;
+    const auto enabled = vigem != nullptr;
+    const auto reason = enabled ? "" : "gamepads.vigem-not-available";
 
     // ds4 == ps4
     static std::vector gps {
