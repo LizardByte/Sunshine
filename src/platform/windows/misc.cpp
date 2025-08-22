@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <iomanip>
 #include <iterator>
+#include <vector>
 #include <set>
 #include <sstream>
 
@@ -71,6 +72,16 @@ namespace {
 
   std::atomic<bool> used_nt_set_timer_resolution = false;
 
+  struct StreamingState {
+    std::atomic_bool streaming;
+    StreamingState(): streaming(false) {}
+  };
+
+  StreamingState &streaming_state() {
+    static StreamingState state;
+    return state;
+  }
+
   bool nt_set_timer_resolution_max() {
     ULONG minimum, maximum, current;
     if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
@@ -96,6 +107,14 @@ namespace bp = boost::process;
 using namespace std::literals;
 
 namespace platf {
+  void check_and_force_cursor_visibility();
+
+  bool is_streaming() {
+    return streaming_state().streaming.load(std::memory_order_acquire);
+  }
+
+  // streaming_will_start/stop are implemented later with full platform logic
+
   using adapteraddrs_t = util::c_ptr<IP_ADAPTER_ADDRESSES>;
 
   bool enabled_mouse_keys = false;
@@ -202,15 +221,15 @@ namespace platf {
   }
 
   void print_status(const std::string_view &prefix, HRESULT status) {
-    char err_string[1024];
+    WCHAR err_string[1024];
 
-    DWORD bytes = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string, sizeof(err_string), nullptr);
+    DWORD chars = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, status, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), err_string, sizeof(err_string) / sizeof(WCHAR), nullptr);
 
-    BOOST_LOG(error) << prefix << ": "sv << std::string_view {err_string, bytes};
+    BOOST_LOG(error) << prefix << ": "sv << to_utf8(std::wstring {err_string, chars});
   }
 
   bool IsUserAdmin(HANDLE user_token) {
-    WINBOOL ret;
+    BOOL ret;
     SID_IDENTIFIER_AUTHORITY NtAuthority = SECURITY_NT_AUTHORITY;
     PSID AdministratorsGroup;
     ret = AllocateAndInitializeSid(
@@ -380,32 +399,23 @@ namespace platf {
   }
 
   std::wstring create_environment_block(bp::environment &env) {
-    int size = 0;
+    // Build an environment block of null-terminated NAME=VALUE entries terminated by an extra null
+    std::wstring block;
+    // Estimate capacity to avoid reallocations
+    size_t estimated = 1; // final terminator
     for (const auto &entry : env) {
-      auto name = entry.get_name();
-      auto value = entry.to_string();
-      size += from_utf8(name).length() + 1 /* L'=' */ + from_utf8(value).length() + 1 /* L'\0' */;
+      estimated += from_utf8(entry.get_name()).length() + 1 /* '=' */ + from_utf8(entry.to_string()).length() + 1 /* '\0' */;
     }
+    block.reserve(estimated);
 
-    size += 1 /* L'\0' */;
-
-    wchar_t env_block[size];
-    int offset = 0;
     for (const auto &entry : env) {
-      auto name = entry.get_name();
-      auto value = entry.to_string();
-
-      // Construct the NAME=VAL\0 string
-      append_string_to_environment_block(env_block, offset, from_utf8(name));
-      env_block[offset++] = L'=';
-      append_string_to_environment_block(env_block, offset, from_utf8(value));
-      env_block[offset++] = L'\0';
+      block.append(from_utf8(entry.get_name()));
+      block.push_back(L'=');
+      block.append(from_utf8(entry.to_string()));
+      block.push_back(L'\0');
     }
-
-    // Append a final null terminator
-    env_block[offset++] = L'\0';
-
-    return std::wstring(env_block, offset);
+    block.push_back(L'\0');
+    return block;
   }
 
   LPPROC_THREAD_ATTRIBUTE_LIST allocate_proc_thread_attr_list(DWORD attribute_count) {
@@ -1133,33 +1143,11 @@ namespace platf {
         }
       }
     }
-
-    // If there is no mouse connected, enable Mouse Keys to force the cursor to appear
-    if (!GetSystemMetrics(SM_MOUSEPRESENT)) {
-      BOOST_LOG(info) << "A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.";
-
-      // Get the current state of Mouse Keys so we can restore it when streaming is over
-      previous_mouse_keys_state.cbSize = sizeof(previous_mouse_keys_state);
-      if (SystemParametersInfoW(SPI_GETMOUSEKEYS, 0, &previous_mouse_keys_state, 0)) {
-        MOUSEKEYS new_mouse_keys_state = {};
-
-        // Enable Mouse Keys
-        new_mouse_keys_state.cbSize = sizeof(new_mouse_keys_state);
-        new_mouse_keys_state.dwFlags = MKF_MOUSEKEYSON | MKF_AVAILABLE;
-        new_mouse_keys_state.iMaxSpeed = 10;
-        new_mouse_keys_state.iTimeToMaxSpeed = 1000;
-        if (SystemParametersInfoW(SPI_SETMOUSEKEYS, 0, &new_mouse_keys_state, 0)) {
-          // Remember to restore the previous settings when we stop streaming
-          enabled_mouse_keys = true;
-        } else {
-          auto winerr = GetLastError();
-          BOOST_LOG(warning) << "Unable to enable Mouse Keys: "sv << winerr;
-        }
-      } else {
-        auto winerr = GetLastError();
-        BOOST_LOG(warning) << "Unable to get current state of Mouse Keys: "sv << winerr;
-      }
-    }
+    
+    // Started streaming
+    streaming_state().streaming.store(true, std::memory_order_release);
+    // Ensure the cursor is visible at stream startup
+    check_and_force_cursor_visibility();
   }
 
   void streaming_will_stop() {
@@ -1175,6 +1163,8 @@ namespace platf {
     } else {
       timeEndPeriod(1);
     }
+    // Update is_streaming to not run cursor visibility while not streaming
+    streaming_state().streaming.store(false, std::memory_order_release);
 
     // Disable MMCSS scheduling for DWM
     DwmEnableMMCSS(false);
@@ -1366,20 +1356,22 @@ namespace platf {
       msg.namelen = sizeof(taddr_v4);
     }
 
-    auto const max_bufs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
+    auto const max_bufs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1U : 0U);
 
-    WSABUF bufs[(send_info.headers ? send_info.block_count : 1) * max_bufs_per_msg];
-    DWORD bufcount = 0;
+    std::vector<WSABUF> bufs;
+    bufs.reserve((send_info.headers ? send_info.block_count : 1U) * max_bufs_per_msg);
     if (send_info.headers) {
       // Interleave buffers for headers and payloads
       for (auto i = 0; i < send_info.block_count; i++) {
-        bufs[bufcount].buf = (char *) &send_info.headers[(send_info.block_offset + i) * send_info.header_size];
-        bufs[bufcount].len = send_info.header_size;
-        bufcount++;
+        WSABUF h{};
+        h.buf = (char *) &send_info.headers[(send_info.block_offset + i) * send_info.header_size];
+        h.len = send_info.header_size;
+        bufs.push_back(h);
         auto payload_desc = send_info.buffer_for_payload_offset((send_info.block_offset + i) * send_info.payload_size);
-        bufs[bufcount].buf = (char *) payload_desc.buffer;
-        bufs[bufcount].len = send_info.payload_size;
-        bufcount++;
+        WSABUF p{};
+        p.buf = (char *) payload_desc.buffer;
+        p.len = send_info.payload_size;
+        bufs.push_back(p);
       }
     } else {
       // Translate buffer descriptors into WSABUFs
@@ -1387,15 +1379,16 @@ namespace platf {
       auto payload_length = payload_offset + (send_info.block_count * send_info.payload_size);
       while (payload_offset < payload_length) {
         auto payload_desc = send_info.buffer_for_payload_offset(payload_offset);
-        bufs[bufcount].buf = (char *) payload_desc.buffer;
-        bufs[bufcount].len = std::min(payload_desc.size, payload_length - payload_offset);
-        payload_offset += bufs[bufcount].len;
-        bufcount++;
+        WSABUF p{};
+        p.buf = (char *) payload_desc.buffer;
+        p.len = std::min(payload_desc.size, payload_length - payload_offset);
+        payload_offset += p.len;
+        bufs.push_back(p);
       }
     }
 
-    msg.lpBuffers = bufs;
-    msg.dwBufferCount = bufcount;
+    msg.lpBuffers = bufs.data();
+    msg.dwBufferCount = static_cast<DWORD>(bufs.size());
     msg.dwFlags = 0;
 
     // At most, one DWORD option and one PKTINFO option
@@ -1798,4 +1791,33 @@ namespace platf {
   std::unique_ptr<high_precision_timer> create_high_precision_timer() {
     return std::make_unique<win32_high_precision_timer>();
   }
+
+  void check_and_force_cursor_visibility() {
+    if (!GetSystemMetrics(SM_MOUSEPRESENT)) {
+      BOOST_LOG(info) << "A mouse was not detected. Sunshine will enable Mouse Keys while streaming to force the mouse cursor to appear.";
+
+      // Get the current state of Mouse Keys so we can restore it when streaming is over
+      previous_mouse_keys_state.cbSize = sizeof(previous_mouse_keys_state);
+      if (SystemParametersInfoW(SPI_GETMOUSEKEYS, 0, &previous_mouse_keys_state, 0)) {
+        MOUSEKEYS new_mouse_keys_state = {};
+
+        // Enable Mouse Keys
+        new_mouse_keys_state.cbSize = sizeof(new_mouse_keys_state);
+        new_mouse_keys_state.dwFlags = MKF_MOUSEKEYSON | MKF_AVAILABLE;
+        new_mouse_keys_state.iMaxSpeed = 10;
+        new_mouse_keys_state.iTimeToMaxSpeed = 1000;
+        if (SystemParametersInfoW(SPI_SETMOUSEKEYS, 0, &new_mouse_keys_state, 0)) {
+          // Remember to restore the previous settings when we stop streaming
+          enabled_mouse_keys = true;
+        } else {
+          auto winerr = GetLastError();
+          BOOST_LOG(warning) << "Unable to enable Mouse Keys: "sv << winerr;
+        }
+      } else {
+        auto winerr = GetLastError();
+        BOOST_LOG(warning) << "Unable to get current state of Mouse Keys: "sv << winerr;
+      }
+    }
+  }
+
 }  // namespace platf
