@@ -1,0 +1,17 @@
+---
+description: Unauthorized - The request requires user authentication.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: string
+        status:
+          type: string
+        error:
+          type: string
+    example:
+      status_code: 401
+      status: false
+      error: "Unauthorized"
