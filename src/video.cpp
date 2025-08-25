@@ -25,7 +25,9 @@ extern "C" {
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
+#ifdef _WIN32
 #include "nvenc/nvenc_base.h"
+#endif
 #include "platform/common.h"
 #include "sync.h"
 #include "video.h"
@@ -379,6 +381,7 @@ namespace video {
     int inject;
   };
 
+#ifdef _WIN32
   class nvenc_encode_session_t: public encode_session_t {
   public:
     nvenc_encode_session_t(std::unique_ptr<platf::nvenc_encode_device_t> encode_device):
@@ -424,6 +427,7 @@ namespace video {
     std::unique_ptr<platf::nvenc_encode_device_t> device;
     bool force_idr = false;
   };
+#endif
 
   struct sync_session_ctx_t {
     safe::signal_t *join_event;
@@ -512,7 +516,7 @@ namespace video {
     },
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN  // flags
   };
-#elif !defined(__APPLE__)
+#elif defined(_WIN32)
   encoder_t nvenc {
     "nvenc"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -719,18 +723,30 @@ namespace video {
     },
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
   };
+#endif
 
+#if defined(_WIN32) || defined(__linux__)
   encoder_t amdvce {
     "amdvce"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
+#ifdef _WIN32
       AV_HWDEVICE_TYPE_D3D11VA,
       AV_HWDEVICE_TYPE_NONE,
       AV_PIX_FMT_D3D11,
+#else
+      AV_HWDEVICE_TYPE_VULKAN,
+      AV_HWDEVICE_TYPE_NONE,
+      AV_PIX_FMT_VULKAN,
+#endif
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
       AV_PIX_FMT_NONE,
       AV_PIX_FMT_NONE,
+#ifdef _WIN32
       dxgi_init_avcodec_hardware_input_buffer
+#else
+      vaapi_init_avcodec_hardware_input_buffer
+#endif
     ),
     {
       // Common options
@@ -1025,11 +1041,13 @@ namespace video {
 #endif
 
   static const std::vector<encoder_t *> encoders {
-#ifndef __APPLE__
+#ifdef _WIN32
     &nvenc,
 #endif
 #ifdef _WIN32
     &quicksync,
+#endif
+#if defined(_WIN32) || defined(__linux__)
     &amdvce,
 #endif
 #ifdef __linux__
@@ -1408,6 +1426,8 @@ namespace video {
         BOOST_LOG(error) << "Encoder did not produce IDR frame when requested!"sv;
       }
 
+      // CBS functionality temporarily disabled for AMF Linux build
+      #if 0
       if (session.inject) {
         if (session.inject == 1) {
           auto h264 = cbs::make_sps_h264(ctx.get(), av_packet);
@@ -1432,6 +1452,7 @@ namespace video {
           std::string_view((char *) std::begin(sps._new), sps._new.size())
         );
       }
+      #endif
 
       if (av_packet && av_packet->pts == frame_nr) {
         packet->frame_timestamp = frame_timestamp;
@@ -1445,6 +1466,7 @@ namespace video {
     return 0;
   }
 
+#ifdef _WIN32
   int encode_nvenc(int64_t frame_nr, nvenc_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     auto encoded_frame = session.encode_frame(frame_nr);
     if (encoded_frame.data.empty()) {
@@ -1464,12 +1486,15 @@ namespace video {
 
     return 0;
   }
+#endif
 
   int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
+#ifdef _WIN32
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
       return encode_nvenc(frame_nr, *nvenc_session, packets, channel_data, frame_timestamp);
+#endif
     }
 
     return -1;
@@ -1739,7 +1764,7 @@ namespace video {
         } else {
           ctx->rc_buffer_size = bitrate / config.framerate;
 
-#ifndef __APPLE__
+#ifdef _WIN32
           if (encoder.name == "nvenc" && config::video.nv_legacy.vbv_percentage_increase > 0) {
             ctx->rc_buffer_size += ctx->rc_buffer_size * config::video.nv_legacy.vbv_percentage_increase / 100;
           }
@@ -1848,6 +1873,7 @@ namespace video {
     return session;
   }
 
+#ifdef _WIN32
   std::unique_ptr<nvenc_encode_session_t> make_nvenc_encode_session(const config_t &client_config, std::unique_ptr<platf::nvenc_encode_device_t> encode_device) {
     if (!encode_device->init_encoder(client_config, encode_device->colorspace)) {
       return nullptr;
@@ -1855,14 +1881,17 @@ namespace video {
 
     return std::make_unique<nvenc_encode_session_t>(std::move(encode_device));
   }
+#endif
 
   std::unique_ptr<encode_session_t> make_encode_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::encode_device_t> encode_device) {
     if (dynamic_cast<platf::avcodec_encode_device_t *>(encode_device.get())) {
       auto avcodec_encode_device = boost::dynamic_pointer_cast<platf::avcodec_encode_device_t>(std::move(encode_device));
       return make_avcodec_encode_session(disp, encoder, config, width, height, std::move(avcodec_encode_device));
+#ifdef _WIN32
     } else if (dynamic_cast<platf::nvenc_encode_device_t *>(encode_device.get())) {
       auto nvenc_encode_device = boost::dynamic_pointer_cast<platf::nvenc_encode_device_t>(std::move(encode_device));
       return make_nvenc_encode_session(config, std::move(nvenc_encode_device));
+#endif
     }
 
     return nullptr;
@@ -2045,8 +2074,10 @@ namespace video {
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
       result = disp.make_avcodec_encode_device(pix_fmt);
+#ifdef _WIN32
     } else if (dynamic_cast<const encoder_platform_formats_nvenc *>(encoder.platform_formats.get())) {
       result = disp.make_nvenc_encode_device(pix_fmt);
+#endif
     }
 
     if (result) {
@@ -2433,9 +2464,12 @@ namespace video {
     // This check only applies for H.264 and HEVC
     if (config.videoFormat <= 1) {
       if (auto packet_avcodec = dynamic_cast<packet_raw_avcodec *>(packet.get())) {
+        // CBS functionality temporarily disabled for AMF Linux build
+        #if 0
         if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
           flag |= VUI_PARAMS;
         }
+        #endif
       } else {
         // Don't check it for non-avcodec encoders.
         flag |= VUI_PARAMS;

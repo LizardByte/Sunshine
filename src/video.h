@@ -212,12 +212,15 @@ namespace video {
   // encoders
   extern encoder_t software;
 
-#if !defined(__APPLE__)
-  extern encoder_t nvenc;  // available for windows and linux
+#ifdef _WIN32
+  extern encoder_t nvenc;
+#endif
+
+#if defined(_WIN32) || defined(__linux__)
+  extern encoder_t amdvce;
 #endif
 
 #ifdef _WIN32
-  extern encoder_t amdvce;
   extern encoder_t quicksync;
 #endif
 

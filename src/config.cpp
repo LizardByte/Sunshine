@@ -32,7 +32,7 @@
   #include <shellapi.h>
 #endif
 
-#if !defined(__ANDROID__) && !defined(__APPLE__)
+#if !defined(__ANDROID__) && !defined(__APPLE__) && defined(_WIN32)
   // For NVENC legacy constants
   #include <ffnvcodec/nvEncodeAPI.h>
 #endif
@@ -1070,7 +1070,7 @@ namespace config {
     bool_f(vars, "nvenc_opengl_vulkan_on_dxgi", video.nv_opengl_vulkan_on_dxgi);
     bool_f(vars, "nvenc_latency_over_power", video.nv_sunshine_high_power_mode);
 
-#if !defined(__ANDROID__) && !defined(__APPLE__)
+#ifdef _WIN32
     video.nv_legacy.preset = video.nv.quality_preset + 11;
     video.nv_legacy.multipass = video.nv.two_pass == nvenc::nvenc_two_pass::quarter_resolution ? NV_ENC_TWO_PASS_QUARTER_RESOLUTION :
                                 video.nv.two_pass == nvenc::nvenc_two_pass::full_resolution    ? NV_ENC_TWO_PASS_FULL_RESOLUTION :
