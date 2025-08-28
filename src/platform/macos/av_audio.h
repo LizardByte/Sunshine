@@ -46,6 +46,11 @@
 
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 - (int)setupSystemTap:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
+
+// Buffer management methods for testing and internal use
+- (void)initializeAudioBuffer:(UInt8)channels;
+- (void)cleanupAudioBuffer;
+
 - (OSStatus)processSystemAudioIOProc:(AudioObjectID)inDevice
                                inNow:(const AudioTimeStamp *)inNow
                         inInputData:(const AudioBufferList *)inInputData

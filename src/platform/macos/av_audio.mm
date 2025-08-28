@@ -147,8 +147,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   [audioInput release];
   [audioOutput release];
 
-  self.samplesArrivedSignal = [[NSCondition alloc] init];
-  TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
+  // Initialize buffer and signal
+  [self initializeAudioBuffer:channels];
 
   return 0;
 }
@@ -350,8 +350,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   // Initialize buffer and signal
-  self.samplesArrivedSignal = [[NSCondition alloc] init];
-  TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
+  [self initializeAudioBuffer:channels];
 
   [uniqueUUID release];
   [tapDescription release];
@@ -486,6 +485,30 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 }
 
+#pragma mark - Buffer Management Methods
+
+- (void)initializeAudioBuffer:(UInt8)channels {
+  // Initialize the circular buffer with proper size for the channel count
+  TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
+  
+  // Initialize the condition signal for synchronization
+  if (!self.samplesArrivedSignal) {
+    self.samplesArrivedSignal = [[NSCondition alloc] init];
+  }
+}
+
+- (void)cleanupAudioBuffer {
+  // Signal any waiting threads before cleanup
+  if (self.samplesArrivedSignal) {
+    [self.samplesArrivedSignal signal];
+    [self.samplesArrivedSignal release];
+    self.samplesArrivedSignal = nil;
+  }
+  
+  // Cleanup the circular buffer
+  TPCircularBufferCleanup(&self->audioSampleBuffer);
+}
+
 - (void)dealloc {
   // Cleanup system tap resources using the generalized method
   [self cleanupSystemTapResources:nil];
@@ -497,15 +520,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
   self.audioConnection = nil;
 
-  // Signal any waiting threads before destroying the condition
-  if (self.samplesArrivedSignal) {
-    [self.samplesArrivedSignal signal];
-    [self.samplesArrivedSignal release];
-    self.samplesArrivedSignal = nil;
-  }
-
-  // Cleanup circular buffer last (shared by both paths)
-  TPCircularBufferCleanup(&audioSampleBuffer);
+  // Use our centralized buffer cleanup method (handles signal and buffer cleanup)
+  [self cleanupAudioBuffer];
 
   [super dealloc];
 }

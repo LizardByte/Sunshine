@@ -40,7 +40,8 @@ list(APPEND TEST_DEFINITIONS SUNSHINE_TESTS)
 
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/tests/*.h
-        ${CMAKE_SOURCE_DIR}/tests/*.cpp)
+        ${CMAKE_SOURCE_DIR}/tests/*.cpp
+        ${CMAKE_SOURCE_DIR}/tests/*.mm)
 
 set(SUNSHINE_SOURCES
         ${SUNSHINE_TARGET_FILES})
