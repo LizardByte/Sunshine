@@ -18,13 +18,24 @@
 // Forward declaration
 @class AVAudio;
 
+// AudioConverter input callback data
+struct AudioConverterInputData {
+  float *inputData;
+  UInt32 inputFrames;
+  UInt32 framesProvided;
+  UInt32 deviceChannels;
+  AVAudio *avAudio;  // Reference to the AVAudio instance
+};
+
 // IOProc client data structure
   typedef struct {
     AVAudio *avAudio;
     UInt32 clientRequestedChannels;
     UInt32 clientRequestedSampleRate;
     UInt32 clientRequestedFrameSize;
-    AudioConverterRef sampleRateConverter;
+    UInt32 aggregateDeviceSampleRate;
+    UInt32 aggregateDeviceChannels;
+    AudioConverterRef audioConverter;
   } AVAudioIOProcData;
 
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
@@ -44,12 +55,22 @@
 + (NSArray *)microphoneNames;
 + (AVCaptureDevice *)findMicrophone:(NSString *)name;
 
++ (NSArray *)microphoneNames;
++ (AVCaptureDevice *)findMicrophone:(NSString *)name;
+
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 - (int)setupSystemTap:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 
 // Buffer management methods for testing and internal use
 - (void)initializeAudioBuffer:(UInt8)channels;
 - (void)cleanupAudioBuffer;
+
+// AudioConverter callback method
+- (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
+                        ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
+                                     ioData:(AudioBufferList *)ioData
+                     outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
+                                   inputInfo:(struct AudioConverterInputData *)inputInfo;
 
 - (OSStatus)processSystemAudioIOProc:(AudioObjectID)inDevice
                                inNow:(const AudioTimeStamp *)inNow

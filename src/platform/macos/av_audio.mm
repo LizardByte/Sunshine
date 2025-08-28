@@ -8,33 +8,16 @@
 #import <AudioToolbox/AudioConverter.h>
 #import <CoreAudio/CATapDescription.h>
 
-
-// AudioConverter input callback
-typedef struct {
-  float *inputData;
-  UInt32 inputFrames;
-  UInt32 framesProvided;
-} AudioConverterInputData;
-
-OSStatus audioConverterInputProc(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
-  AudioConverterInputData *inputInfo = (AudioConverterInputData *) inUserData;
-
-  if (inputInfo->framesProvided >= inputInfo->inputFrames) {
-    *ioNumberDataPackets = 0;
-    return noErr;
-  }
-
-  UInt32 framesToProvide = MIN(*ioNumberDataPackets, inputInfo->inputFrames - inputInfo->framesProvided);
-
-  ioData->mNumberBuffers = 1;
-  ioData->mBuffers[0].mNumberChannels = 2;  // Source is always stereo
-  ioData->mBuffers[0].mDataByteSize = framesToProvide * 2 * sizeof(float);
-  ioData->mBuffers[0].mData = inputInfo->inputData + (inputInfo->framesProvided * 2);
-
-  inputInfo->framesProvided += framesToProvide;
-  *ioNumberDataPackets = framesToProvide;
-
-  return noErr;
+// C wrapper for AudioConverter input callback
+static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
+  struct AudioConverterInputData *inputInfo = (struct AudioConverterInputData *) inUserData;
+  AVAudio *avAudio = inputInfo->avAudio;
+  
+  return [avAudio audioConverterComplexInputProc:inAudioConverter
+                             ioNumberDataPackets:ioNumberDataPackets
+                                          ioData:ioData
+                          outDataPacketDescription:outDataPacketDescription
+                                       inputInfo:inputInfo];
 }
 
 // C wrapper for IOProc callback
@@ -200,41 +183,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   self->ioProcData->clientRequestedChannels = channels;
   self->ioProcData->clientRequestedFrameSize = frameSize;
   self->ioProcData->clientRequestedSampleRate = sampleRate;
-  self->ioProcData->sampleRateConverter = NULL;
-
-  // Create AudioConverter for sample rate and/or channel conversion if needed
-  BOOL needsConversion = (sampleRate != 48000) || (channels != 2);  // System tap is always 48kHz stereo
-  BOOST_LOG(info) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") << " (sampleRate="sv << sampleRate << ", channels="sv << (int) channels << ")"sv;
-  if (needsConversion) {
-    AudioStreamBasicDescription sourceFormat = {0};
-    sourceFormat.mSampleRate = 48000.0;  // System tap is always 48kHz
-    sourceFormat.mFormatID = kAudioFormatLinearPCM;
-    sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
-    sourceFormat.mBytesPerPacket = sizeof(float) * 2;  // Stereo
-    sourceFormat.mFramesPerPacket = 1;
-    sourceFormat.mBytesPerFrame = sizeof(float) * 2;
-    sourceFormat.mChannelsPerFrame = 2;
-    sourceFormat.mBitsPerChannel = 32;
-
-    AudioStreamBasicDescription targetFormat = {0};
-    targetFormat.mSampleRate = sampleRate;
-    targetFormat.mFormatID = kAudioFormatLinearPCM;
-    targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
-    targetFormat.mBytesPerPacket = sizeof(float) * channels;
-    targetFormat.mFramesPerPacket = 1;
-    targetFormat.mBytesPerFrame = sizeof(float) * channels;
-    targetFormat.mChannelsPerFrame = channels;
-    targetFormat.mBitsPerChannel = 32;
-
-    OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->sampleRateConverter);
-    if (converterStatus != noErr) {
-      BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
-      free(self->ioProcData);
-      self->ioProcData = NULL;
-      return -1;
-    }
-    BOOST_LOG(info) << "AudioConverter created successfully"sv;
-  }
+  self->ioProcData->audioConverter = NULL;
 
   // 1. Create tap description
   BOOST_LOG(info) << "Creating tap description for "sv << (int) channels << " channels"sv;
@@ -328,6 +277,92 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     AudioObjectSetPropertyData(self->aggregateDeviceID, &bufferSizeAddr, 0, NULL, frameSizeSize, &deviceFrameSize);
   }
 
+  // Query actual device properties to determine if conversion is needed
+  Float64 aggregateDeviceSampleRate = 48000.0; // Default fallback
+  UInt32 aggregateDeviceChannels = 2; // Default fallback
+  
+  // Get actual sample rate from the aggregate device
+  UInt32 sampleRateQuerySize = sizeof(Float64);
+  OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
+                                             selector:kAudioDevicePropertyNominalSampleRate
+                                                scope:kAudioObjectPropertyScopeGlobal
+                                              element:kAudioObjectPropertyElementMain
+                                                 size:&sampleRateQuerySize
+                                                 data:&aggregateDeviceSampleRate];
+  
+  if (sampleRateStatus != noErr) {
+    BOOST_LOG(warning) << "Failed to get device sample rate, using default 48kHz: "sv << sampleRateStatus;
+    aggregateDeviceSampleRate = 48000.0;
+  }
+  
+  // Get actual channel count from the device's input stream configuration
+  AudioObjectPropertyAddress streamConfigAddr = {
+    .mSelector = kAudioDevicePropertyStreamConfiguration,
+    .mScope = kAudioDevicePropertyScopeInput,
+    .mElement = kAudioObjectPropertyElementMain
+  };
+  
+  UInt32 streamConfigSize = 0;
+  OSStatus streamConfigSizeStatus = AudioObjectGetPropertyDataSize(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize);
+  
+  if (streamConfigSizeStatus == noErr && streamConfigSize > 0) {
+    AudioBufferList *streamConfig = (AudioBufferList *)malloc(streamConfigSize);
+    if (streamConfig) {
+      OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
+      if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
+        aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
+        BOOST_LOG(info) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
+      } else {
+        BOOST_LOG(warning) << "Failed to get stream configuration, using default 2 channels: "sv << streamConfigStatus;
+      }
+      free(streamConfig);
+    }
+  } else {
+    BOOST_LOG(warning) << "Failed to get stream configuration size, using default 2 channels: "sv << streamConfigSizeStatus;
+  }
+
+  BOOST_LOG(info) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
+
+  // Create AudioConverter based on actual device properties vs client requirements
+  BOOL needsConversion = ((UInt32)aggregateDeviceSampleRate != sampleRate) || (aggregateDeviceChannels != channels);
+  BOOST_LOG(info) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
+                  << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
+                  << " -> client: "sv << sampleRate << "Hz/" << (int)channels << "ch)"sv;
+  
+  if (needsConversion) {
+    AudioStreamBasicDescription sourceFormat = {0};
+    sourceFormat.mSampleRate = aggregateDeviceSampleRate;
+    sourceFormat.mFormatID = kAudioFormatLinearPCM;
+    sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    sourceFormat.mBytesPerPacket = sizeof(float) * aggregateDeviceChannels;
+    sourceFormat.mFramesPerPacket = 1;
+    sourceFormat.mBytesPerFrame = sizeof(float) * aggregateDeviceChannels;
+    sourceFormat.mChannelsPerFrame = aggregateDeviceChannels;
+    sourceFormat.mBitsPerChannel = 32;
+
+    AudioStreamBasicDescription targetFormat = {0};
+    targetFormat.mSampleRate = sampleRate;
+    targetFormat.mFormatID = kAudioFormatLinearPCM;
+    targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    targetFormat.mBytesPerPacket = sizeof(float) * channels;
+    targetFormat.mFramesPerPacket = 1;
+    targetFormat.mBytesPerFrame = sizeof(float) * channels;
+    targetFormat.mChannelsPerFrame = channels;
+    targetFormat.mBitsPerChannel = 32;
+
+    OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->audioConverter);
+    if (converterStatus != noErr) {
+      BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
+      [self cleanupSystemTapResources:tapDescription];
+      return -1;
+    }
+    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << sampleRate << "Hz/" << (int)channels << "ch"sv;
+  }
+  
+  // Store the actual device format for use in the IOProc
+  self->ioProcData->aggregateDeviceSampleRate = (UInt32)aggregateDeviceSampleRate;
+  self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
+
   // 3. Configure IOProc
   BOOST_LOG(info) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
   status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
@@ -376,10 +411,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
     if (inputBuffer.mData && inputBuffer.mDataByteSize > 0) {
       float *inputSamples = (float *) inputBuffer.mData;
-      UInt32 inputFrames = inputBuffer.mDataByteSize / (2 * sizeof(float));  // System tap is always stereo
+      UInt32 deviceChannels = self->ioProcData ? self->ioProcData->aggregateDeviceChannels : 2;
+      UInt32 inputFrames = inputBuffer.mDataByteSize / (deviceChannels * sizeof(float));
 
       // Use AudioConverter if we need any conversion, otherwise pass through
-      if (self->ioProcData && self->ioProcData->sampleRateConverter) {
+      if (self->ioProcData && self->ioProcData->audioConverter) {
         // Let AudioConverter determine optimal output size - it knows best!
         // We'll provide a generous buffer and let it tell us what it actually used
         UInt32 maxOutputFrames = inputFrames * 4;  // Very generous for any upsampling scenario
@@ -387,10 +423,12 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
         float *outputBuffer = (float *) malloc(outputBytes);
 
         if (outputBuffer) {
-          AudioConverterInputData inputData = {
+          struct AudioConverterInputData inputData = {
             .inputData = inputSamples,
             .inputFrames = inputFrames,
-            .framesProvided = 0
+            .framesProvided = 0,
+            .deviceChannels = deviceChannels,
+            .avAudio = self
           };
 
           AudioBufferList outputBufferList = {0};
@@ -401,8 +439,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
           UInt32 outputFrameCount = maxOutputFrames;
           OSStatus converterStatus = AudioConverterFillComplexBuffer(
-            self->ioProcData->sampleRateConverter,
-            audioConverterInputProc,
+            self->ioProcData->audioConverter,
+            audioConverterComplexInputProcWrapper,
             &inputData,
             &outputFrameCount,
             &outputBufferList,
@@ -427,7 +465,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
           didWriteData = YES;
         }
       } else {
-        // No conversion needed - direct passthrough (48kHz stereo to 48kHz stereo)
+        // No conversion needed - direct passthrough
         TPCircularBufferProduceBytes(&self->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
         didWriteData = YES;
       }
@@ -452,6 +490,45 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return noErr;
 }
 
+// AudioConverter input callback as Objective-C method
+- (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
+                        ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
+                                     ioData:(AudioBufferList *)ioData
+                     outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
+                                   inputInfo:(struct AudioConverterInputData *)inputInfo {
+  if (inputInfo->framesProvided >= inputInfo->inputFrames) {
+    *ioNumberDataPackets = 0;
+    return noErr;
+  }
+
+  UInt32 framesToProvide = MIN(*ioNumberDataPackets, inputInfo->inputFrames - inputInfo->framesProvided);
+
+  ioData->mNumberBuffers = 1;
+  ioData->mBuffers[0].mNumberChannels = inputInfo->deviceChannels;
+  ioData->mBuffers[0].mDataByteSize = framesToProvide * inputInfo->deviceChannels * sizeof(float);
+  ioData->mBuffers[0].mData = inputInfo->inputData + (inputInfo->framesProvided * inputInfo->deviceChannels);
+
+  inputInfo->framesProvided += framesToProvide;
+  *ioNumberDataPackets = framesToProvide;
+
+  return noErr;
+}
+
+// Helper method to get device properties
+- (OSStatus)getDeviceProperty:(AudioObjectID)deviceID 
+                     selector:(AudioObjectPropertySelector)selector 
+                        scope:(AudioObjectPropertyScope)scope 
+                      element:(AudioObjectPropertyElement)element 
+                         size:(UInt32 *)ioDataSize 
+                         data:(void *)outData {
+  AudioObjectPropertyAddress addr = {
+    .mSelector = selector,
+    .mScope = scope,
+    .mElement = element
+  };
+  return AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, ioDataSize, outData);
+}
+
 // Generalized method for cleaning up system tap resources
 - (void)cleanupSystemTapResources:(id)tapDescription {
   // Clean up in reverse order of creation
@@ -472,9 +549,9 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   if (self->ioProcData) {
-    if (self->ioProcData->sampleRateConverter) {
-      AudioConverterDispose(self->ioProcData->sampleRateConverter);
-      self->ioProcData->sampleRateConverter = NULL;
+    if (self->ioProcData->audioConverter) {
+      AudioConverterDispose(self->ioProcData->audioConverter);
+      self->ioProcData->audioConverter = NULL;
     }
     free(self->ioProcData);
     self->ioProcData = NULL;
