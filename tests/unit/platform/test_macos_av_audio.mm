@@ -180,7 +180,7 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
   TPCircularBufferTail(&avAudio->audioSampleBuffer, &initialAvailableBytes);
   
   // Test the processSystemAudioIOProc method
-  OSStatus result = [avAudio processSystemAudioIOProc:0 // device ID (not used in our logic)
+  OSStatus result = [avAudio systemAudioIOProc:0 // device ID (not used in our logic)
                                                 inNow:&timeStamp
                                           inInputData:inputBufferList
                                           inInputTime:&timeStamp

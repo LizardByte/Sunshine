@@ -15,8 +15,9 @@
 
 #define kBufferLength 4096
 
-// Forward declaration
+// Forward declarations
 @class AVAudio;
+@class CATapDescription;
 
 // AudioConverter input callback data
 struct AudioConverterInputData {
@@ -65,14 +66,15 @@ struct AudioConverterInputData {
 - (void)initializeAudioBuffer:(UInt8)channels;
 - (void)cleanupAudioBuffer;
 
-// AudioConverter callback method
+- (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
+- (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels;
+- (int)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize;
 - (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
                         ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
                                      ioData:(AudioBufferList *)ioData
                      outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
                                    inputInfo:(struct AudioConverterInputData *)inputInfo;
-
-- (OSStatus)processSystemAudioIOProc:(AudioObjectID)inDevice
+- (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
                                inNow:(const AudioTimeStamp *)inNow
                         inInputData:(const AudioBufferList *)inInputData
                         inInputTime:(const AudioTimeStamp *)inInputTime

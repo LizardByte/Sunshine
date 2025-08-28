@@ -24,7 +24,7 @@ static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioC
 static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime, void *inClientData) {
   AVAudioIOProcData *procData = (AVAudioIOProcData *) inClientData;
   AVAudio *avAudio = procData->avAudio;
-  return [avAudio processSystemAudioIOProc:inDevice
+  return [avAudio systemAudioIOProc:inDevice
                                      inNow:inNow
                                inInputData:inInputData
                                inInputTime:inInputTime
@@ -160,241 +160,48 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   using namespace std::literals;
   BOOST_LOG(info) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
 
-  // Check macOS version requirement
-  if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 2, 0})]) {
-    BOOST_LOG(error) << "macOS version requirement not met (need 14.2+)"sv;
+  // Initialize system tap components
+  if ([self initSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
     return -1;
   }
 
-  NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
-  BOOST_LOG(info) << "macOS version check passed (running "sv << version.majorVersion << "."sv << version.minorVersion << "."sv << version.patchVersion << ")"sv;
-
-  // Initialize
-  self->tapObjectID = kAudioObjectUnknown;
-  self->aggregateDeviceID = kAudioObjectUnknown;
-  self->ioProcID = NULL;
-
-  // Create IOProc data structure with client requirements
-  self->ioProcData = (AVAudioIOProcData *) malloc(sizeof(AVAudioIOProcData));
-  if (!self->ioProcData) {
-    return -1;
-  }
-  self->ioProcData->avAudio = self;
-  self->ioProcData->clientRequestedChannels = channels;
-  self->ioProcData->clientRequestedFrameSize = frameSize;
-  self->ioProcData->clientRequestedSampleRate = sampleRate;
-  self->ioProcData->audioConverter = NULL;
-
-  // 1. Create tap description
-  BOOST_LOG(info) << "Creating tap description for "sv << (int) channels << " channels"sv;
-  CATapDescription *tapDescription;
-  NSArray *excludeProcesses = @[];
-
-  if (channels == 1) {
-    tapDescription = [[CATapDescription alloc] initMonoGlobalTapButExcludeProcesses:excludeProcesses];
-  } else {
-    tapDescription = [[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:excludeProcesses];
-  }
-
-  // Set unique name and UUID for this instance
-  NSString *uniqueName = [NSString stringWithFormat:@"SunshineAVAudio-Tap-%p", (void *) self];
-  NSUUID *uniqueUUID = [[NSUUID alloc] init];
-
-  tapDescription.name = uniqueName;
-  tapDescription.UUID = uniqueUUID;
-  [tapDescription setPrivate:YES];
-
-  // Create the tap
-  BOOST_LOG(info) << "Creating process tap with name: "sv << [uniqueName UTF8String];
-
-  // Use direct API call like the reference implementation
-  OSStatus status = AudioHardwareCreateProcessTap((CATapDescription *) tapDescription, &self->tapObjectID);
-  BOOST_LOG(info) << "AudioHardwareCreateProcessTap returned status: "sv << status;
-
-  if (status != noErr) {
-    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed with status: "sv << status << " (tapDescription: "sv << [tapDescription description] << ")"sv;
-    [self cleanupSystemTapResources:tapDescription];
+  // 1. Create tap description and process tap
+  CATapDescription *tapDescription = [self createSystemTapDescriptionForChannels:channels];
+  if (!tapDescription) {
+    [self cleanupSystemTapContext:nil];
     return -1;
   }
 
-  // 2. Create aggregate device
-  // Get Tap UUID string properly
-  NSString *tapUIDString = nil;
-  if ([tapDescription respondsToSelector:@selector(UUID)]) {
-    tapUIDString = [[tapDescription UUID] UUIDString];
-  }
-  if (!tapUIDString) {
-    BOOST_LOG(error) << "Failed to get tap UUID from description"sv;
-    [self cleanupSystemTapResources:tapDescription];
+  // 2. Create and configure aggregate device
+  if ([self createAggregateDeviceWithTapDescription:tapDescription sampleRate:sampleRate frameSize:frameSize] != 0) {
+    [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // Create aggregate device with better drift compensation and proper keys
-  NSDictionary *subTapDictionary = @{
-    @kAudioSubTapUIDKey: tapUIDString,
-    @kAudioSubTapDriftCompensationKey: @YES,
-  };
-
-  NSDictionary *aggregateProperties = @{
-    @kAudioAggregateDeviceNameKey: [NSString stringWithFormat:@"SunshineAggregate-%p", (void *) self],
-    @kAudioAggregateDeviceUIDKey: [NSString stringWithFormat:@"com.lizardbyte.sunshine.aggregate-%p", (void *) self],
-    @kAudioAggregateDeviceTapListKey: @[subTapDictionary],
-    @kAudioAggregateDeviceTapAutoStartKey: @NO,
-    @kAudioAggregateDeviceIsPrivateKey: @YES,
-    // Add clock domain configuration for better timing
-    @kAudioAggregateDeviceIsStackedKey: @NO,
-  };
-
-  BOOST_LOG(info) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
-  status = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
-  BOOST_LOG(info) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
-  if (status != noErr && status != 'ExtA') {
-    BOOST_LOG(error) << "Failed to create aggregate device with status: "sv << status;
-    [self cleanupSystemTapResources:tapDescription];
+  // 3. Configure device properties and AudioConverter
+  OSStatus configureStatus = [self configureDevicePropertiesAndConverter:sampleRate clientChannels:channels];
+  if (configureStatus != noErr) {
+    [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // Configure the aggregate device
-  if (self->aggregateDeviceID != kAudioObjectUnknown) {
-    // Set sample rate on the aggregate device
-    AudioObjectPropertyAddress sampleRateAddr = {
-      .mSelector = kAudioDevicePropertyNominalSampleRate,
-      .mScope = kAudioObjectPropertyScopeGlobal,
-      .mElement = kAudioObjectPropertyElementMain
-    };
-    Float64 deviceSampleRate = (Float64) sampleRate;
-    UInt32 sampleRateSize = sizeof(Float64);
-    AudioObjectSetPropertyData(self->aggregateDeviceID, &sampleRateAddr, 0, NULL, sampleRateSize, &deviceSampleRate);
-
-    // Set buffer size on the aggregate device
-    AudioObjectPropertyAddress bufferSizeAddr = {
-      .mSelector = kAudioDevicePropertyBufferFrameSize,
-      .mScope = kAudioObjectPropertyScopeGlobal,
-      .mElement = kAudioObjectPropertyElementMain
-    };
-    UInt32 deviceFrameSize = frameSize;
-    UInt32 frameSizeSize = sizeof(UInt32);
-    AudioObjectSetPropertyData(self->aggregateDeviceID, &bufferSizeAddr, 0, NULL, frameSizeSize, &deviceFrameSize);
-  }
-
-  // Query actual device properties to determine if conversion is needed
-  Float64 aggregateDeviceSampleRate = 48000.0; // Default fallback
-  UInt32 aggregateDeviceChannels = 2; // Default fallback
-  
-  // Get actual sample rate from the aggregate device
-  UInt32 sampleRateQuerySize = sizeof(Float64);
-  OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
-                                             selector:kAudioDevicePropertyNominalSampleRate
-                                                scope:kAudioObjectPropertyScopeGlobal
-                                              element:kAudioObjectPropertyElementMain
-                                                 size:&sampleRateQuerySize
-                                                 data:&aggregateDeviceSampleRate];
-  
-  if (sampleRateStatus != noErr) {
-    BOOST_LOG(warning) << "Failed to get device sample rate, using default 48kHz: "sv << sampleRateStatus;
-    aggregateDeviceSampleRate = 48000.0;
-  }
-  
-  // Get actual channel count from the device's input stream configuration
-  AudioObjectPropertyAddress streamConfigAddr = {
-    .mSelector = kAudioDevicePropertyStreamConfiguration,
-    .mScope = kAudioDevicePropertyScopeInput,
-    .mElement = kAudioObjectPropertyElementMain
-  };
-  
-  UInt32 streamConfigSize = 0;
-  OSStatus streamConfigSizeStatus = AudioObjectGetPropertyDataSize(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize);
-  
-  if (streamConfigSizeStatus == noErr && streamConfigSize > 0) {
-    AudioBufferList *streamConfig = (AudioBufferList *)malloc(streamConfigSize);
-    if (streamConfig) {
-      OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
-      if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
-        aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
-        BOOST_LOG(info) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
-      } else {
-        BOOST_LOG(warning) << "Failed to get stream configuration, using default 2 channels: "sv << streamConfigStatus;
-      }
-      free(streamConfig);
-    }
-  } else {
-    BOOST_LOG(warning) << "Failed to get stream configuration size, using default 2 channels: "sv << streamConfigSizeStatus;
-  }
-
-  BOOST_LOG(info) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
-
-  // Create AudioConverter based on actual device properties vs client requirements
-  BOOL needsConversion = ((UInt32)aggregateDeviceSampleRate != sampleRate) || (aggregateDeviceChannels != channels);
-  BOOST_LOG(info) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
-                  << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
-                  << " -> client: "sv << sampleRate << "Hz/" << (int)channels << "ch)"sv;
-  
-  if (needsConversion) {
-    AudioStreamBasicDescription sourceFormat = {0};
-    sourceFormat.mSampleRate = aggregateDeviceSampleRate;
-    sourceFormat.mFormatID = kAudioFormatLinearPCM;
-    sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
-    sourceFormat.mBytesPerPacket = sizeof(float) * aggregateDeviceChannels;
-    sourceFormat.mFramesPerPacket = 1;
-    sourceFormat.mBytesPerFrame = sizeof(float) * aggregateDeviceChannels;
-    sourceFormat.mChannelsPerFrame = aggregateDeviceChannels;
-    sourceFormat.mBitsPerChannel = 32;
-
-    AudioStreamBasicDescription targetFormat = {0};
-    targetFormat.mSampleRate = sampleRate;
-    targetFormat.mFormatID = kAudioFormatLinearPCM;
-    targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
-    targetFormat.mBytesPerPacket = sizeof(float) * channels;
-    targetFormat.mFramesPerPacket = 1;
-    targetFormat.mBytesPerFrame = sizeof(float) * channels;
-    targetFormat.mChannelsPerFrame = channels;
-    targetFormat.mBitsPerChannel = 32;
-
-    OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->audioConverter);
-    if (converterStatus != noErr) {
-      BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
-      [self cleanupSystemTapResources:tapDescription];
-      return -1;
-    }
-    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << sampleRate << "Hz/" << (int)channels << "ch"sv;
-  }
-  
-  // Store the actual device format for use in the IOProc
-  self->ioProcData->aggregateDeviceSampleRate = (UInt32)aggregateDeviceSampleRate;
-  self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
-
-  // 3. Configure IOProc
-  BOOST_LOG(info) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
-  status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
-  BOOST_LOG(info) << "AudioDeviceCreateIOProcID returned status: "sv << status;
-  if (status != noErr) {
-    BOOST_LOG(error) << "Failed to create IOProc with status: "sv << status;
-    [self cleanupSystemTapResources:tapDescription];
-    return -1;
-  }
-
-  // Start the IOProc
-  BOOST_LOG(info) << "Starting IOProc for aggregate device";
-  status = AudioDeviceStart(self->aggregateDeviceID, self->ioProcID);
-  BOOST_LOG(info) << "AudioDeviceStart returned status: "sv << status;
-  if (status != noErr) {
-    BOOST_LOG(error) << "Failed to start IOProc with status: "sv << status;
-    AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
-    [self cleanupSystemTapResources:tapDescription];
+  // 4. Create and start IOProc
+  OSStatus ioProcStatus = [self createAndStartIOProc:tapDescription];
+  if (ioProcStatus != noErr) {
+    [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
   // Initialize buffer and signal
   [self initializeAudioBuffer:channels];
 
-  [uniqueUUID release];
   [tapDescription release];
 
   BOOST_LOG(info) << "System tap setup completed successfully!";
   return 0;
 }
 
-- (OSStatus)processSystemAudioIOProc:(AudioObjectID)inDevice
+- (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
                                inNow:(const AudioTimeStamp *)inNow
                          inInputData:(const AudioBufferList *)inInputData
                          inInputTime:(const AudioTimeStamp *)inInputTime
@@ -530,7 +337,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 }
 
 // Generalized method for cleaning up system tap resources
-- (void)cleanupSystemTapResources:(id)tapDescription {
+- (void)cleanupSystemTapContext:(id)tapDescription {
   // Clean up in reverse order of creation
   if (self->ioProcID && self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioDeviceStop(self->aggregateDeviceID, self->ioProcID);
@@ -588,7 +395,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (void)dealloc {
   // Cleanup system tap resources using the generalized method
-  [self cleanupSystemTapResources:nil];
+  [self cleanupSystemTapContext:nil];
 
   // Cleanup microphone session (AVFoundation path)
   if (self.audioCaptureSession) {
@@ -603,4 +410,265 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   [super dealloc];
 }
 
+#pragma mark - System Tap Initialization
+
+- (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
+  using namespace std::literals;
+  
+  // Check macOS version requirement
+  if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 2, 0})]) {
+    BOOST_LOG(error) << "macOS version requirement not met (need 14.2+)"sv;
+    return -1;
+  }
+
+  NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
+  BOOST_LOG(info) << "macOS version check passed (running "sv << version.majorVersion << "."sv << version.minorVersion << "."sv << version.patchVersion << ")"sv;
+
+  // Initialize Core Audio objects
+  self->tapObjectID = kAudioObjectUnknown;
+  self->aggregateDeviceID = kAudioObjectUnknown;
+  self->ioProcID = NULL;
+
+  // Create IOProc data structure with client requirements
+  self->ioProcData = (AVAudioIOProcData *) malloc(sizeof(AVAudioIOProcData));
+  if (!self->ioProcData) {
+    BOOST_LOG(error) << "Failed to allocate IOProc data structure"sv;
+    return -1;
+  }
+  
+  self->ioProcData->avAudio = self;
+  self->ioProcData->clientRequestedChannels = channels;
+  self->ioProcData->clientRequestedFrameSize = frameSize;
+  self->ioProcData->clientRequestedSampleRate = sampleRate;
+  self->ioProcData->audioConverter = NULL;
+  
+  BOOST_LOG(info) << "System tap initialization completed"sv;
+  return 0;
+}
+
+- (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels {
+  using namespace std::literals;
+  
+  BOOST_LOG(info) << "Creating tap description for "sv << (int) channels << " channels"sv;
+  CATapDescription *tapDescription;
+  NSArray *excludeProcesses = @[];
+
+  if (channels == 1) {
+    tapDescription = [[CATapDescription alloc] initMonoGlobalTapButExcludeProcesses:excludeProcesses];
+  } else {
+    tapDescription = [[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:excludeProcesses];
+  }
+
+  // Set unique name and UUID for this instance
+  NSString *uniqueName = [NSString stringWithFormat:@"SunshineAVAudio-Tap-%p", (void *) self];
+  NSUUID *uniqueUUID = [[NSUUID alloc] init];
+
+  tapDescription.name = uniqueName;
+  tapDescription.UUID = uniqueUUID;
+  [tapDescription setPrivate:YES];
+
+  // Create the tap
+  BOOST_LOG(info) << "Creating process tap with name: "sv << [uniqueName UTF8String];
+
+  // Use direct API call like the reference implementation
+  OSStatus status = AudioHardwareCreateProcessTap((CATapDescription *) tapDescription, &self->tapObjectID);
+  BOOST_LOG(info) << "AudioHardwareCreateProcessTap returned status: "sv << status;
+
+  [uniqueUUID release];
+
+  if (status != noErr) {
+    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed with status: "sv << status << " (tapDescription: "sv << [tapDescription description] << ")"sv;
+    [tapDescription release];
+    return nil;
+  }
+
+  return tapDescription;
+}
+
+- (int)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize {
+  using namespace std::literals;
+  
+  // Get Tap UUID string properly
+  NSString *tapUIDString = nil;
+  if ([tapDescription respondsToSelector:@selector(UUID)]) {
+    tapUIDString = [[tapDescription UUID] UUIDString];
+  }
+  if (!tapUIDString) {
+    BOOST_LOG(error) << "Failed to get tap UUID from description"sv;
+    return -1;
+  }
+
+  // Create aggregate device with better drift compensation and proper keys
+  NSDictionary *subTapDictionary = @{
+    @kAudioSubTapUIDKey: tapUIDString,
+    @kAudioSubTapDriftCompensationKey: @YES,
+  };
+
+  NSDictionary *aggregateProperties = @{
+    @kAudioAggregateDeviceNameKey: [NSString stringWithFormat:@"SunshineAggregate-%p", (void *) self],
+    @kAudioAggregateDeviceUIDKey: [NSString stringWithFormat:@"com.lizardbyte.sunshine.aggregate-%p", (void *) self],
+    @kAudioAggregateDeviceTapListKey: @[subTapDictionary],
+    @kAudioAggregateDeviceTapAutoStartKey: @NO,
+    @kAudioAggregateDeviceIsPrivateKey: @YES,
+    // Add clock domain configuration for better timing
+    @kAudioAggregateDeviceIsStackedKey: @NO,
+  };
+
+  BOOST_LOG(info) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
+  OSStatus status = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
+  BOOST_LOG(info) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
+  if (status != noErr && status != 'ExtA') {
+    BOOST_LOG(error) << "Failed to create aggregate device with status: "sv << status;
+    return -1;
+  }
+
+  // Configure the aggregate device
+  if (self->aggregateDeviceID != kAudioObjectUnknown) {
+    // Set sample rate on the aggregate device
+    AudioObjectPropertyAddress sampleRateAddr = {
+      .mSelector = kAudioDevicePropertyNominalSampleRate,
+      .mScope = kAudioObjectPropertyScopeGlobal,
+      .mElement = kAudioObjectPropertyElementMain
+    };
+    Float64 deviceSampleRate = (Float64) sampleRate;
+    UInt32 sampleRateSize = sizeof(Float64);
+    OSStatus sampleRateResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &sampleRateAddr, 0, NULL, sampleRateSize, &deviceSampleRate);
+    if (sampleRateResult != noErr) {
+      BOOST_LOG(warning) << "Failed to set aggregate device sample rate: "sv << sampleRateResult;
+    }
+
+    // Set buffer size on the aggregate device
+    AudioObjectPropertyAddress bufferSizeAddr = {
+      .mSelector = kAudioDevicePropertyBufferFrameSize,
+      .mScope = kAudioObjectPropertyScopeGlobal,
+      .mElement = kAudioObjectPropertyElementMain
+    };
+    UInt32 deviceFrameSize = frameSize;
+    UInt32 frameSizeSize = sizeof(UInt32);
+    OSStatus bufferSizeResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &bufferSizeAddr, 0, NULL, frameSizeSize, &deviceFrameSize);
+    if (bufferSizeResult != noErr) {
+      BOOST_LOG(warning) << "Failed to set aggregate device buffer size: "sv << bufferSizeResult;
+    }
+  }
+  
+  BOOST_LOG(info) << "Aggregate device created and configured successfully"sv;
+  return 0;
+}
+
+- (OSStatus)configureDevicePropertiesAndConverter:(UInt32)clientSampleRate 
+                                      clientChannels:(UInt8)clientChannels {
+  using namespace std::literals;
+  
+  // Query actual device properties to determine if conversion is needed
+  Float64 aggregateDeviceSampleRate = 48000.0; // Default fallback
+  UInt32 aggregateDeviceChannels = 2; // Default fallback
+  
+  // Get actual sample rate from the aggregate device
+  UInt32 sampleRateQuerySize = sizeof(Float64);
+  OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
+                                             selector:kAudioDevicePropertyNominalSampleRate
+                                                scope:kAudioObjectPropertyScopeGlobal
+                                              element:kAudioObjectPropertyElementMain
+                                                 size:&sampleRateQuerySize
+                                                 data:&aggregateDeviceSampleRate];
+  
+  if (sampleRateStatus != noErr) {
+    BOOST_LOG(warning) << "Failed to get device sample rate, using default 48kHz: "sv << sampleRateStatus;
+    aggregateDeviceSampleRate = 48000.0;
+  }
+  
+  // Get actual channel count from the device's input stream configuration
+  AudioObjectPropertyAddress streamConfigAddr = {
+    .mSelector = kAudioDevicePropertyStreamConfiguration,
+    .mScope = kAudioDevicePropertyScopeInput,
+    .mElement = kAudioObjectPropertyElementMain
+  };
+  
+  UInt32 streamConfigSize = 0;
+  OSStatus streamConfigSizeStatus = AudioObjectGetPropertyDataSize(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize);
+  
+  if (streamConfigSizeStatus == noErr && streamConfigSize > 0) {
+    AudioBufferList *streamConfig = (AudioBufferList *)malloc(streamConfigSize);
+    if (streamConfig) {
+      OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
+      if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
+        aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
+        BOOST_LOG(info) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
+      } else {
+        BOOST_LOG(warning) << "Failed to get stream configuration, using default 2 channels: "sv << streamConfigStatus;
+      }
+      free(streamConfig);
+    }
+  } else {
+    BOOST_LOG(warning) << "Failed to get stream configuration size, using default 2 channels: "sv << streamConfigSizeStatus;
+  }
+
+  BOOST_LOG(info) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
+
+  // Create AudioConverter based on actual device properties vs client requirements
+  BOOL needsConversion = ((UInt32)aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
+  BOOST_LOG(info) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
+                  << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
+                  << " -> client: "sv << clientSampleRate << "Hz/" << (int)clientChannels << "ch)"sv;
+  
+  if (needsConversion) {
+    AudioStreamBasicDescription sourceFormat = {0};
+    sourceFormat.mSampleRate = aggregateDeviceSampleRate;
+    sourceFormat.mFormatID = kAudioFormatLinearPCM;
+    sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    sourceFormat.mBytesPerPacket = sizeof(float) * aggregateDeviceChannels;
+    sourceFormat.mFramesPerPacket = 1;
+    sourceFormat.mBytesPerFrame = sizeof(float) * aggregateDeviceChannels;
+    sourceFormat.mChannelsPerFrame = aggregateDeviceChannels;
+    sourceFormat.mBitsPerChannel = 32;
+
+    AudioStreamBasicDescription targetFormat = {0};
+    targetFormat.mSampleRate = clientSampleRate;
+    targetFormat.mFormatID = kAudioFormatLinearPCM;
+    targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+    targetFormat.mBytesPerPacket = sizeof(float) * clientChannels;
+    targetFormat.mFramesPerPacket = 1;
+    targetFormat.mBytesPerFrame = sizeof(float) * clientChannels;
+    targetFormat.mChannelsPerFrame = clientChannels;
+    targetFormat.mBitsPerChannel = 32;
+
+    OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->audioConverter);
+    if (converterStatus != noErr) {
+      BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
+      return converterStatus;
+    }
+    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int)clientChannels << "ch"sv;
+  }
+  
+  // Store the actual device format for use in the IOProc
+  self->ioProcData->aggregateDeviceSampleRate = (UInt32)aggregateDeviceSampleRate;
+  self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
+  
+  return noErr;
+}
+
+- (OSStatus)createAndStartIOProc:(CATapDescription *)tapDescription {
+  using namespace std::literals;
+  
+  // Create IOProc
+  BOOST_LOG(info) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
+  OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
+  BOOST_LOG(info) << "AudioDeviceCreateIOProcID returned status: "sv << status;
+  if (status != noErr) {
+    BOOST_LOG(error) << "Failed to create IOProc with status: "sv << status;
+    return status;
+  }
+
+  // Start the IOProc
+  BOOST_LOG(info) << "Starting IOProc for aggregate device";
+  status = AudioDeviceStart(self->aggregateDeviceID, self->ioProcID);
+  BOOST_LOG(info) << "AudioDeviceStart returned status: "sv << status;
+  if (status != noErr) {
+    BOOST_LOG(error) << "Failed to start IOProc with status: "sv << status;
+    AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
+    return status;
+  }
+  
+  return noErr;
+}
 @end
