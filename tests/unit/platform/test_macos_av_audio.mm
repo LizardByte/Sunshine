@@ -15,8 +15,6 @@
 // Include the header for the class we're testing
 #import <src/platform/macos/av_audio.h>
 
-// C++ Test Cases using GoogleTest
-
 // Test parameters for processSystemAudioIOProc tests
 struct ProcessSystemAudioIOProcTestParams {
   UInt32 frameCount;
@@ -84,6 +82,219 @@ TEST_F(AVAudioTest, AVAudioMultipleObjectsCanBeCreated) {
   [avAudio2 release];
 }
 
+// Test for initializeAudioBuffer method
+TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  // Test with various channel counts
+  [avAudio initializeAudioBuffer:1]; // Mono
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  
+  [avAudio initializeAudioBuffer:2]; // Stereo
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  
+  [avAudio initializeAudioBuffer:8]; // 7.1 Surround
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  
+  [avAudio release];
+}
+
+// Test for cleanupAudioBuffer method
+TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  // Should not crash even if buffer was never initialized
+  [avAudio cleanupAudioBuffer];
+  
+  // Initialize then cleanup
+  [avAudio initializeAudioBuffer:2];
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  EXPECT_EQ(avAudio.samplesArrivedSignal, nil);
+  
+  [avAudio release];
+}
+
+// Test for initSystemTapContext method
+TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  int result = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+  
+  // On systems with macOS 14.2+, this should succeed
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    EXPECT_EQ(result, 0);
+  } else {
+    // On older systems, should fail gracefully
+    EXPECT_EQ(result, -1);
+  }
+  
+  [avAudio release];
+}
+
+// Test for initSystemTapContext with edge case parameters
+TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Test with minimum values
+    int result1 = [avAudio initSystemTapContext:8000 frameSize:64 channels:1];
+    EXPECT_EQ(result1, 0);
+    
+    // Test with maximum reasonable values
+    int result2 = [avAudio initSystemTapContext:192000 frameSize:4096 channels:8];
+    EXPECT_EQ(result2, 0);
+  }
+  
+  [avAudio release];
+}
+
+// Test for createSystemTapDescriptionForChannels method
+TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Initialize context first
+    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    EXPECT_EQ(initResult, 0);
+    
+    // Test mono tap description
+    CATapDescription* monoTap = [avAudio createSystemTapDescriptionForChannels:1];
+    if (monoTap) {
+      EXPECT_NE(monoTap, nil);
+      // Note: Can't test properties due to forward declaration limitations
+      [monoTap release];
+    }
+    
+    // Test stereo tap description
+    CATapDescription* stereoTap = [avAudio createSystemTapDescriptionForChannels:2];
+    if (stereoTap) {
+      EXPECT_NE(stereoTap, nil);
+      // Note: Can't test properties due to forward declaration limitations
+      [stereoTap release];
+    }
+  }
+  
+  [avAudio release];
+}
+
+// Test for audioConverterComplexInputProc method
+TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  // Create test input data
+  UInt32 frameCount = 256;
+  UInt32 channels = 2;
+  UInt32 sampleRate = 48000;
+  float* testData = (float*)calloc(frameCount * channels, sizeof(float));
+  
+  // Fill with test sine wave data (different frequency per channel) - same as parameterized test
+  for (UInt32 frame = 0; frame < frameCount; frame++) {
+    for (UInt32 channel = 0; channel < channels; channel++) {
+      // Generate different frequencies for each channel for testing
+      // Channel 0: 440Hz, Channel 1: 880Hz, Channel 2: 1320Hz, etc.
+      double frequency = 440.0 * (channel + 1);
+      testData[frame * channels + channel] = 
+        (float)(sin(2.0 * M_PI * frequency * frame / (double)sampleRate) * 0.5);
+    }
+  }
+  
+  struct AudioConverterInputData inputInfo = {
+    .inputData = testData,
+    .inputFrames = frameCount,
+    .framesProvided = 0,
+    .deviceChannels = channels,
+    .avAudio = avAudio
+  };
+  
+  // Test the method
+  UInt32 requestedPackets = 128;
+  AudioBufferList bufferList = {0};
+  OSStatus result = [avAudio audioConverterComplexInputProc:nil
+                                        ioNumberDataPackets:&requestedPackets
+                                                     ioData:&bufferList
+                                     outDataPacketDescription:nil
+                                                   inputInfo:&inputInfo];
+  
+  EXPECT_EQ(result, noErr);
+  EXPECT_EQ(requestedPackets, 128); // Should provide requested frames
+  EXPECT_EQ(inputInfo.framesProvided, 128); // Should update frames provided
+  
+  free(testData);
+  [avAudio release];
+}
+
+// Test for audioConverterComplexInputProc with no more data
+TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  UInt32 frameCount = 256;
+  UInt32 channels = 2;
+  float* testData = (float*)calloc(frameCount * channels, sizeof(float));
+  
+  struct AudioConverterInputData inputInfo = {
+    .inputData = testData,
+    .inputFrames = frameCount,
+    .framesProvided = frameCount, // Already provided all frames
+    .deviceChannels = channels,
+    .avAudio = avAudio
+  };
+  
+  UInt32 requestedPackets = 128;
+  AudioBufferList bufferList = {0};
+  OSStatus result = [avAudio audioConverterComplexInputProc:nil
+                                        ioNumberDataPackets:&requestedPackets
+                                                     ioData:&bufferList
+                                     outDataPacketDescription:nil
+                                                   inputInfo:&inputInfo];
+  
+  EXPECT_EQ(result, noErr);
+  EXPECT_EQ(requestedPackets, 0); // Should return 0 packets when no more data
+  
+  free(testData);
+  [avAudio release];
+}
+
+// Test for cleanupAudioBuffer handling multiple calls
+TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  [avAudio initializeAudioBuffer:2];
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  
+  // Multiple cleanup calls should not crash
+  [avAudio cleanupAudioBuffer];
+  EXPECT_EQ(avAudio.samplesArrivedSignal, nil);
+  
+  [avAudio cleanupAudioBuffer]; // Second call should be safe
+  [avAudio cleanupAudioBuffer]; // Third call should be safe
+  
+  [avAudio release];
+}
+
+// Test for buffer management edge cases
+TEST_F(AVAudioTest, BufferManagementEdgeCases) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  // Test with minimum reasonable channel count (1 channel)
+  [avAudio initializeAudioBuffer:1];
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  
+  // Test with very high channel count
+  [avAudio initializeAudioBuffer:32];
+  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  [avAudio cleanupAudioBuffer];
+  
+  [avAudio release];
+}
+
 
 // Type alias for parameterized audio processing tests
 using ProcessSystemAudioIOProcTest = AVAudioTest;
@@ -93,17 +304,16 @@ INSTANTIATE_TEST_SUITE_P(
   AVAudioTest,
   ProcessSystemAudioIOProcTest,
   ::testing::Values(
-    // Original test cases
-    ProcessSystemAudioIOProcTestParams{240, 2, 48000, false, "ValidStereo48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams{240, 2, 48000, true, "NilInputHandlesGracefully"},
-    ProcessSystemAudioIOProcTestParams{480, 2, 48000, false, "ValidStereo48kHz480Frames"},
-    ProcessSystemAudioIOProcTestParams{512, 2, 44100, false, "ValidStereo44kHz512Frames"},
-    
     // Mono channel variants
     ProcessSystemAudioIOProcTestParams{240, 1, 48000, false, "ValidMono48kHz240Frames"},
     ProcessSystemAudioIOProcTestParams{512, 1, 44100, false, "ValidMono44kHz512Frames"},
     ProcessSystemAudioIOProcTestParams{1024, 1, 96000, false, "ValidMono96kHz1024Frames"},
     ProcessSystemAudioIOProcTestParams{128, 1, 22050, false, "ValidMono22kHz128Frames"},
+    
+    // Stereo channel variants
+    ProcessSystemAudioIOProcTestParams{240, 2, 48000, false, "ValidStereo48kHz240Frames"},
+    ProcessSystemAudioIOProcTestParams{480, 2, 48000, false, "ValidStereo48kHz480Frames"},
+    ProcessSystemAudioIOProcTestParams{512, 2, 44100, false, "ValidStereo44kHz512Frames"},
     
     // Quad (4 channel) variants
     ProcessSystemAudioIOProcTestParams{256, 4, 48000, false, "ValidQuad48kHz256Frames"},
@@ -124,6 +334,7 @@ INSTANTIATE_TEST_SUITE_P(
     ProcessSystemAudioIOProcTestParams{128, 8, 192000, false, "Valid71Surround192kHz128Frames"},
     
     // Edge cases with various configurations
+    ProcessSystemAudioIOProcTestParams{240, 2, 48000, true, "NilInputHandlesGracefully"},
     ProcessSystemAudioIOProcTestParams{64, 2, 8000, false, "ValidStereo8kHz64Frames"},
     ProcessSystemAudioIOProcTestParams{2048, 1, 48000, false, "ValidMono48kHz2048Frames"},
     ProcessSystemAudioIOProcTestParams{32, 4, 176400, false, "ValidQuad176kHz32Frames"},
@@ -204,9 +415,11 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
     EXPECT_EQ(finalAvailableBytes, inputDataSize);
     
     // Verify the actual audio data matches what we put in (first few samples)
-    if (bufferData && finalAvailableBytes >= sizeof(float) * std::min(4U, params.channels * 2)) {
+    // Test up to 16 samples or 4 complete frames, whichever is smaller
+    UInt32 samplesToTest = std::min(16U, params.channels * 4); // Up to 4 frames worth
+    if (bufferData && finalAvailableBytes >= sizeof(float) * samplesToTest) {
       float* outputSamples = (float*)bufferData;
-      for (UInt32 i = 0; i < std::min(4U, params.channels * 2); i++) {
+      for (UInt32 i = 0; i < samplesToTest; i++) {
         EXPECT_FLOAT_EQ(outputSamples[i], testInputData[i]) << "Sample " << i << " mismatch";
       }
     }
