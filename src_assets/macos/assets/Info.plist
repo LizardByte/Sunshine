@@ -8,5 +8,8 @@
   <string>Sunshine</string>
   <key>NSMicrophoneUsageDescription</key>
   <string>This app requires access to your microphone to stream audio.</string>
-</dict>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>This app requires access to system audio to capture and stream audio output.</string>
+  <key>NSScreenCaptureUsageDescription</key>
+  <string>This app requires access to screen recording to capture and stream your screen content.</string></dict>
 </plist>
