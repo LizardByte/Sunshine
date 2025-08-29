@@ -36,6 +36,7 @@
   #include <tray/src/tray.h>
 
   // local includes
+  #include "config.h"
   #include "confighttp.h"
   #include "display_device.h"
   #include "logging.h"
@@ -213,9 +214,13 @@ namespace system_tray {
 
     BOOST_LOG(info) << "system_tray() is not yet implemented for this platform."sv;
   #else  // Windows, Linux
-    // create tray in separate thread
-    std::thread tray_thread(system_tray);
-    tray_thread.detach();
+    if (config::sunshine.system_tray_enabled) {
+      // create tray in separate thread
+      std::thread tray_thread(system_tray);
+      tray_thread.detach();
+    } else {
+      BOOST_LOG(info) << "system_tray() is disabled in config."sv;
+    }
   #endif
   }
 
