@@ -188,40 +188,40 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   using namespace std::literals;
   BOOST_LOG(debug) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
 
-  // Initialize system tap components
+  // 1. Initialize system tap components
   if ([self initSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
     return -1;
   }
 
-  // 1. Create tap description and process tap
+  // 2. Create tap description and process tap
   CATapDescription *tapDescription = [self createSystemTapDescriptionForChannels:channels];
   if (!tapDescription) {
     [self cleanupSystemTapContext:nil];
     return -1;
   }
 
-  // 2. Create and configure aggregate device
+  // 3. Create and configure aggregate device
   OSStatus aggregateStatus = [self createAggregateDeviceWithTapDescription:tapDescription sampleRate:sampleRate frameSize:frameSize];
   if (aggregateStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // 3. Configure device properties and AudioConverter
+  // 4. Configure device properties and AudioConverter
   OSStatus configureStatus = [self configureDevicePropertiesAndConverter:sampleRate clientChannels:channels];
   if (configureStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // 4. Create and start IOProc
+  // 5. Create and start IOProc
   OSStatus ioProcStatus = [self createAndStartIOProc:tapDescription];
   if (ioProcStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // Initialize buffer and signal
+  // 6. Initialize buffer and signal
   [self initializeAudioBuffer:channels];
 
   [tapDescription release];

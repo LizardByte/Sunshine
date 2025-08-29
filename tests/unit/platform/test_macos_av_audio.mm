@@ -15,18 +15,28 @@
 // Include the header for the class we're testing
 #import <src/platform/macos/av_audio.h>
 
-// Test parameters for processSystemAudioIOProc tests
+/**
+ * @brief Test parameters for processSystemAudioIOProc tests.
+ * Contains various audio configuration parameters to test different scenarios.
+ */
 struct ProcessSystemAudioIOProcTestParams {
-  UInt32 frameCount;
-  UInt32 channels;
-  UInt32 sampleRate;
-  bool useNilInput;
-  const char* testName;
+  UInt32 frameCount;      ///< Number of audio frames to process
+  UInt32 channels;        ///< Number of audio channels (1=mono, 2=stereo)
+  UInt32 sampleRate;      ///< Sample rate in Hz
+  bool useNilInput;       ///< Whether to test with nil input data
+  const char* testName;   ///< Descriptive name for the test case
 };
 
-// Make AVAudioTest itself parameterized for the processSystemAudioIOProc tests
+/**
+ * @brief Test suite for AVAudio class functionality.
+ * Parameterized test class for testing Core Audio system tap functionality.
+ */
 class AVAudioTest : public PlatformTestSuite, public ::testing::WithParamInterface<ProcessSystemAudioIOProcTestParams> {};
 
+/**
+ * @brief Test that microphoneNames returns a valid NSArray.
+ * Verifies the static method returns a non-nil array object.
+ */
 TEST_F(AVAudioTest, MicrophoneNamesReturnsArray) {
   NSArray<NSString*>* names = [AVAudio microphoneNames];
 
@@ -34,6 +44,10 @@ TEST_F(AVAudioTest, MicrophoneNamesReturnsArray) {
   EXPECT_TRUE([names isKindOfClass:[NSArray class]]); // Should be an NSArray
 }
 
+/**
+ * @brief Test that findMicrophone handles nil input gracefully.
+ * Verifies the method returns nil when passed a nil microphone name.
+ */
 TEST_F(AVAudioTest, FindMicrophoneWithNilNameReturnsNil) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wnonnull"
@@ -42,17 +56,29 @@ TEST_F(AVAudioTest, FindMicrophoneWithNilNameReturnsNil) {
   EXPECT_EQ(device, nil);
 }
 
+/**
+ * @brief Test that findMicrophone handles empty string input gracefully.
+ * Verifies the method returns nil when passed an empty microphone name.
+ */
 TEST_F(AVAudioTest, FindMicrophoneWithEmptyNameReturnsNil) {
   AVCaptureDevice* device = [AVAudio findMicrophone:@""];
   EXPECT_EQ(device, nil); // Should return nil for empty string
 }
 
+/**
+ * @brief Test that findMicrophone handles non-existent microphone names.
+ * Verifies the method returns nil when passed an invalid microphone name.
+ */
 TEST_F(AVAudioTest, FindMicrophoneWithInvalidNameReturnsNil) {
   NSString* invalidName = @"NonExistentMicrophone123456789ABCDEF";
   AVCaptureDevice* device = [AVAudio findMicrophone:invalidName];
   EXPECT_EQ(device, nil); // Should return nil for non-existent device
 }
 
+/**
+ * @brief Test that setupMicrophone handles nil device input properly.
+ * Verifies the method returns an error code when passed a nil device.
+ */
 TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
   AVAudio* avAudio = [[AVAudio alloc] init];
 #pragma clang diagnostic push
@@ -63,6 +89,10 @@ TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
   EXPECT_EQ(result, -1); // Should fail with nil device
 }
 
+/**
+ * @brief Test that setupSystemTap validates channel count parameter.
+ * Verifies the method returns an error when passed zero channels.
+ */
 TEST_F(AVAudioTest, SetupSystemTapWithZeroChannelsReturnsError) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   int result = [avAudio setupSystemTap:48000 frameSize:512 channels:0];
@@ -70,12 +100,20 @@ TEST_F(AVAudioTest, SetupSystemTapWithZeroChannelsReturnsError) {
   EXPECT_EQ(result, -1); // Should fail with zero channels
 }
 
+/**
+ * @brief Test basic AVAudio object lifecycle.
+ * Verifies that AVAudio objects can be created and destroyed without issues.
+ */
 TEST_F(AVAudioTest, AVAudioObjectCreationAndDestruction) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   EXPECT_NE(avAudio, nil); // Should create successfully
   [avAudio release]; // Should not crash
 }
 
+/**
+ * @brief Test that multiple AVAudio objects can coexist.
+ * Verifies that multiple instances can be created simultaneously.
+ */
 TEST_F(AVAudioTest, AVAudioMultipleObjectsCanBeCreated) {
   AVAudio* avAudio1 = [[AVAudio alloc] init];
   AVAudio* avAudio2 = [[AVAudio alloc] init];
@@ -88,7 +126,10 @@ TEST_F(AVAudioTest, AVAudioMultipleObjectsCanBeCreated) {
   [avAudio2 release];
 }
 
-// Test for initializeAudioBuffer method
+/**
+ * @brief Test audio buffer initialization with various channel configurations.
+ * Verifies that the audio buffer can be initialized with different channel counts.
+ */
 TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -108,7 +149,10 @@ TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
   [avAudio release];
 }
 
-// Test for cleanupAudioBuffer method
+/**
+ * @brief Test audio buffer cleanup functionality.
+ * Verifies that cleanup works correctly even with uninitialized buffers.
+ */
 TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -124,7 +168,10 @@ TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
   [avAudio release];
 }
 
-// Test for initSystemTapContext method
+/**
+ * @brief Test system tap context initialization with valid parameters.
+ * Verifies that system tap context can be initialized on supported macOS versions.
+ */
 TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -142,7 +189,10 @@ TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
   [avAudio release];
 }
 
-// Test for initSystemTapContext with edge case parameters
+/**
+ * @brief Test system tap context initialization with edge case parameters.
+ * Verifies that system tap handles minimum and maximum reasonable audio parameters.
+ */
 TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -160,7 +210,10 @@ TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
   [avAudio release];
 }
 
-// Test for createSystemTapDescriptionForChannels method
+/**
+ * @brief Test Core Audio tap description creation for different channel configurations.
+ * Verifies that system tap descriptions can be created for various channel counts.
+ */
 TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -190,7 +243,10 @@ TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
   [avAudio release];
 }
 
-// Test for audioConverterComplexInputProc method
+/**
+ * @brief Test audio converter complex input callback with valid data.
+ * Verifies that the audio converter callback properly processes valid audio data.
+ */
 TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -239,7 +295,10 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
   [avAudio release];
 }
 
-// Test for audioConverterComplexInputProc with no more data
+/**
+ * @brief Test audio converter callback when no more data is available.
+ * Verifies that the callback handles end-of-data scenarios correctly.
+ */
 TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -273,7 +332,10 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
   [avAudio release];
 }
 
-// Test for cleanupAudioBuffer handling multiple calls
+/**
+ * @brief Test that audio buffer cleanup can be called multiple times safely.
+ * Verifies that repeated cleanup calls don't cause crashes or issues.
+ */
 TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
@@ -290,7 +352,10 @@ TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
   [avAudio release];
 }
 
-// Test for buffer management edge cases
+/**
+ * @brief Test buffer management with edge case channel configurations.
+ * Verifies that buffer management works with minimum and maximum channel counts.
+ */
 TEST_F(AVAudioTest, BufferManagementEdgeCases) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
