@@ -554,6 +554,7 @@ namespace config {
     true,  // back as touchpad click enabled (manual DS4 only)
     true,  // client gamepads with motion events are emulated as DS4
     true,  // client gamepads with touchpads are emulated as DS4
+    true,  // ds5_inputtino_randomize_mac
 
     true,  // keyboard enabled
     true,  // mouse enabled
