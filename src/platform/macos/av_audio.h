@@ -1,21 +1,21 @@
 /**
  * @file src/platform/macos/av_audio.h
  * @brief Declarations for macOS audio capture with dual input paths.
- * 
+ *
  * This header defines the AVAudio class which provides two distinct audio capture methods:
  * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
  * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
- * 
+ *
  * The system-wide audio tap allows capturing audio from all applications and system sounds,
  * while microphone capture focuses on input from physical or virtual microphone devices.
  */
 #pragma once
 
 // platform includes
-#import <AVFoundation/AVFoundation.h>
-#import <CoreAudio/CoreAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import <AVFoundation/AVFoundation.h>
 #import <CoreAudio/AudioHardwareTapping.h>
+#import <CoreAudio/CoreAudio.h>
 
 // lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
@@ -34,11 +34,11 @@ NS_ASSUME_NONNULL_BEGIN
  * Contains audio data and metadata needed for format conversion during audio processing.
  */
 struct AudioConverterInputData {
-  float *inputData;       ///< Pointer to input audio data
-  UInt32 inputFrames;     ///< Total number of input frames available
+  float *inputData;  ///< Pointer to input audio data
+  UInt32 inputFrames;  ///< Total number of input frames available
   UInt32 framesProvided;  ///< Number of frames already provided to converter
   UInt32 deviceChannels;  ///< Number of channels in the device audio
-  AVAudio *avAudio;       ///< Reference to the AVAudio instance
+  AVAudio *avAudio;  ///< Reference to the AVAudio instance
 };
 
 /**
@@ -46,13 +46,13 @@ struct AudioConverterInputData {
  * Contains configuration and conversion data for real-time audio processing.
  */
 typedef struct {
-  AVAudio *avAudio;                          ///< Reference to AVAudio instance
-  UInt32 clientRequestedChannels;            ///< Number of channels requested by client
-  UInt32 clientRequestedSampleRate;          ///< Sample rate requested by client
-  UInt32 clientRequestedFrameSize;           ///< Frame size requested by client
-  UInt32 aggregateDeviceSampleRate;          ///< Sample rate of the aggregate device
-  UInt32 aggregateDeviceChannels;            ///< Number of channels in aggregate device
-  AudioConverterRef _Nullable audioConverter; ///< Audio converter for format conversion
+  AVAudio *avAudio;  ///< Reference to AVAudio instance
+  UInt32 clientRequestedChannels;  ///< Number of channels requested by client
+  UInt32 clientRequestedSampleRate;  ///< Sample rate requested by client
+  UInt32 clientRequestedFrameSize;  ///< Frame size requested by client
+  UInt32 aggregateDeviceSampleRate;  ///< Sample rate of the aggregate device
+  UInt32 aggregateDeviceChannels;  ///< Number of channels in aggregate device
+  AudioConverterRef _Nullable audioConverter;  ///< Audio converter for format conversion
 } AVAudioIOProcData;
 
 /**
@@ -65,18 +65,18 @@ typedef struct {
   TPCircularBuffer audioSampleBuffer;  ///< Shared circular buffer for both audio capture paths
 @private
   // System-wide audio tap components (Core Audio)
-  AudioObjectID tapObjectID;           ///< Core Audio tap object identifier for system audio capture
-  AudioObjectID aggregateDeviceID;     ///< Aggregate device ID for system tap audio routing
-  AudioDeviceIOProcID ioProcID;        ///< IOProc identifier for real-time audio processing
-  AVAudioIOProcData * _Nullable ioProcData;  ///< Context data for IOProc callbacks and format conversion
+  AudioObjectID tapObjectID;  ///< Core Audio tap object identifier for system audio capture
+  AudioObjectID aggregateDeviceID;  ///< Aggregate device ID for system tap audio routing
+  AudioDeviceIOProcID ioProcID;  ///< IOProc identifier for real-time audio processing
+  AVAudioIOProcData *_Nullable ioProcData;  ///< Context data for IOProc callbacks and format conversion
 }
 
 // AVFoundation microphone capture properties
-@property (nonatomic, assign, nullable) AVCaptureSession *audioCaptureSession;   ///< AVFoundation capture session for microphone input
-@property (nonatomic, assign, nullable) AVCaptureConnection *audioConnection;    ///< Audio connection within the capture session
+@property (nonatomic, assign, nullable) AVCaptureSession *audioCaptureSession;  ///< AVFoundation capture session for microphone input
+@property (nonatomic, assign, nullable) AVCaptureConnection *audioConnection;  ///< Audio connection within the capture session
 
 // Shared synchronization property (used by both audio paths)
-@property (nonatomic, assign, nullable) NSCondition *samplesArrivedSignal;       ///< Condition variable to signal when audio samples are available
+@property (nonatomic, assign, nullable) NSCondition *samplesArrivedSignal;  ///< Condition variable to signal when audio samples are available
 
 /**
  * @brief Get all available microphone devices on the system.
@@ -171,10 +171,10 @@ typedef struct {
  * @return OSStatus indicating success (noErr) or error code
  */
 - (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
-                        ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
-                                     ioData:(AudioBufferList *)ioData
-                     outDataPacketDescription:(AudioStreamPacketDescription * _Nullable * _Nullable)outDataPacketDescription
-                                   inputInfo:(struct AudioConverterInputData *)inputInfo;
+                       ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
+                                    ioData:(AudioBufferList *)ioData
+                  outDataPacketDescription:(AudioStreamPacketDescription *_Nullable *_Nullable)outDataPacketDescription
+                                 inputInfo:(struct AudioConverterInputData *)inputInfo;
 
 /**
  * @brief Core Audio IOProc callback for processing system audio data.
@@ -191,14 +191,14 @@ typedef struct {
  * @return OSStatus indicating success (noErr) or error code
  */
 - (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
-                               inNow:(const AudioTimeStamp *)inNow
-                        inInputData:(const AudioBufferList *)inInputData
-                        inInputTime:(const AudioTimeStamp *)inInputTime
-                       outOutputData:(nullable AudioBufferList *)outOutputData
-                        inOutputTime:(const AudioTimeStamp *)inOutputTime
-                      clientChannels:(UInt32)clientChannels
-                     clientFrameSize:(UInt32)clientFrameSize
-                    clientSampleRate:(UInt32)clientSampleRate;
+                        inNow:(const AudioTimeStamp *)inNow
+                  inInputData:(const AudioBufferList *)inInputData
+                  inInputTime:(const AudioTimeStamp *)inInputTime
+                outOutputData:(nullable AudioBufferList *)outOutputData
+                 inOutputTime:(const AudioTimeStamp *)inOutputTime
+               clientChannels:(UInt32)clientChannels
+              clientFrameSize:(UInt32)clientFrameSize
+             clientSampleRate:(UInt32)clientSampleRate;
 
 @end
 

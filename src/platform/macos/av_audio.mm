@@ -1,15 +1,16 @@
 /**
  * @file src/platform/macos/av_audio.mm
  * @brief Implementation of macOS audio capture with dual input paths.
- * 
+ *
  * This file implements the AVAudio class which provides two distinct audio capture methods:
  * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
  * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
- * 
+ *
  * The implementation handles format conversion, real-time audio processing, and provides
  * a unified interface for both capture methods through a shared circular buffer.
  */
 #import "av_audio.h"
+
 #include "src/logging.h"
 
 #import <AudioToolbox/AudioConverter.h>
@@ -28,11 +29,11 @@
 static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
   struct AudioConverterInputData *inputInfo = (struct AudioConverterInputData *) inUserData;
   AVAudio *avAudio = inputInfo->avAudio;
-  
+
   return [avAudio audioConverterComplexInputProc:inAudioConverter
                              ioNumberDataPackets:ioNumberDataPackets
                                           ioData:ioData
-                          outDataPacketDescription:outDataPacketDescription
+                        outDataPacketDescription:outDataPacketDescription
                                        inputInfo:inputInfo];
 }
 
@@ -52,14 +53,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   AVAudioIOProcData *procData = (AVAudioIOProcData *) inClientData;
   AVAudio *avAudio = procData->avAudio;
   return [avAudio systemAudioIOProc:inDevice
-                                     inNow:inNow
-                               inInputData:inInputData
-                               inInputTime:inInputTime
-                             outOutputData:outOutputData
-                              inOutputTime:inOutputTime
-                            clientChannels:procData->clientRequestedChannels
-                           clientFrameSize:procData->clientRequestedFrameSize
-                          clientSampleRate:procData->clientRequestedSampleRate];
+                              inNow:inNow
+                        inInputData:inInputData
+                        inInputTime:inInputTime
+                      outOutputData:outOutputData
+                       inOutputTime:inOutputTime
+                     clientChannels:procData->clientRequestedChannels
+                    clientFrameSize:procData->clientRequestedFrameSize
+                   clientSampleRate:procData->clientRequestedSampleRate];
 }
 
 @implementation AVAudio
@@ -67,7 +68,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 + (NSArray<AVCaptureDevice *> *)microphones {
   using namespace std::literals;
   BOOST_LOG(debug) << "Discovering microphones"sv;
-  
+
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})]) {
     BOOST_LOG(debug) << "Using modern AVCaptureDeviceDiscoverySession API"sv;
     // This will generate a warning about AVCaptureDeviceDiscoverySession being
@@ -115,7 +116,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 + (AVCaptureDevice *)findMicrophone:(NSString *)name {
   using namespace std::literals;
   BOOST_LOG(debug) << "Searching for microphone: "sv << [name UTF8String];
-  
+
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     if ([[device localizedName] isEqualToString:name]) {
       BOOST_LOG(info) << "Found microphone: "sv << [name UTF8String];
@@ -129,8 +130,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
-  BOOST_LOG(info) << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int)channels << " channels"sv;
-  
+  BOOST_LOG(info) << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int) channels << " channels"sv;
+
   self.audioCaptureSession = [[AVCaptureSession alloc] init];
 
   NSError *nsError;
@@ -159,7 +160,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     (NSString *) AVLinearPCMIsFloatKey: @YES,
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
-  BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int)channels << " channels, 32-bit float"sv;
+  BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int) channels << " channels, 32-bit float"sv;
 
   dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
@@ -266,14 +267,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 }
 
 - (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
-                               inNow:(const AudioTimeStamp *)inNow
-                         inInputData:(const AudioBufferList *)inInputData
-                         inInputTime:(const AudioTimeStamp *)inInputTime
-                       outOutputData:(AudioBufferList *)outOutputData
-                        inOutputTime:(const AudioTimeStamp *)inOutputTime
-                      clientChannels:(UInt32)clientChannels
-                     clientFrameSize:(UInt32)clientFrameSize
-                    clientSampleRate:(UInt32)clientSampleRate {
+                        inNow:(const AudioTimeStamp *)inNow
+                  inInputData:(const AudioBufferList *)inInputData
+                  inInputTime:(const AudioTimeStamp *)inInputTime
+                outOutputData:(AudioBufferList *)outOutputData
+                 inOutputTime:(const AudioTimeStamp *)inOutputTime
+               clientChannels:(UInt32)clientChannels
+              clientFrameSize:(UInt32)clientFrameSize
+             clientSampleRate:(UInt32)clientSampleRate {
   // Always ensure we write to buffer and signal, even if input is empty/invalid
   BOOL didWriteData = NO;
 
@@ -363,10 +364,10 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 // AudioConverter input callback as Objective-C method
 - (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
-                        ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
-                                     ioData:(AudioBufferList *)ioData
-                     outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
-                                   inputInfo:(struct AudioConverterInputData *)inputInfo {
+                       ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
+                                    ioData:(AudioBufferList *)ioData
+                  outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
+                                 inputInfo:(struct AudioConverterInputData *)inputInfo {
   if (inputInfo->framesProvided >= inputInfo->inputFrames) {
     *ioNumberDataPackets = 0;
     return noErr;
@@ -396,26 +397,26 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
  * @param outData Buffer to store the property data
  * @return OSStatus indicating success (noErr) or error code
  */
-- (OSStatus)getDeviceProperty:(AudioObjectID)deviceID 
-                     selector:(AudioObjectPropertySelector)selector 
-                        scope:(AudioObjectPropertyScope)scope 
-                      element:(AudioObjectPropertyElement)element 
-                         size:(UInt32 *)ioDataSize 
+- (OSStatus)getDeviceProperty:(AudioObjectID)deviceID
+                     selector:(AudioObjectPropertySelector)selector
+                        scope:(AudioObjectPropertyScope)scope
+                      element:(AudioObjectPropertyElement)element
+                         size:(UInt32 *)ioDataSize
                          data:(void *)outData {
   using namespace std::literals;
-  
+
   AudioObjectPropertyAddress addr = {
     .mSelector = selector,
     .mScope = scope,
     .mElement = element
   };
-  
+
   OSStatus result = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, ioDataSize, outData);
-  
+
   if (result != noErr) {
     BOOST_LOG(warning) << "Failed to get device property (selector: "sv << selector << ", scope: "sv << scope << ", element: "sv << element << ") with status: "sv << result;
   }
-  
+
   return result;
 }
 
@@ -427,7 +428,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 - (void)cleanupSystemTapContext:(id)tapDescription {
   using namespace std::literals;
   BOOST_LOG(debug) << "Starting system tap context cleanup"sv;
-  
+
   // Clean up in reverse order of creation
   if (self->ioProcID && self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioDeviceStop(self->aggregateDeviceID, self->ioProcID);
@@ -463,7 +464,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     [tapDescription release];
     BOOST_LOG(debug) << "Tap description released"sv;
   }
-  
+
   BOOST_LOG(debug) << "System tap context cleanup completed"sv;
 }
 
@@ -472,37 +473,37 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (void)initializeAudioBuffer:(UInt8)channels {
   using namespace std::literals;
-  BOOST_LOG(debug) << "Initializing audio buffer for "sv << (int)channels << " channels"sv;
-  
+  BOOST_LOG(debug) << "Initializing audio buffer for "sv << (int) channels << " channels"sv;
+
   // Cleanup any existing circular buffer first
   TPCircularBufferCleanup(&self->audioSampleBuffer);
-  
+
   // Initialize the circular buffer with proper size for the channel count
   TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
-  
+
   // Initialize the condition signal for synchronization (cleanup any existing one first)
   if (self.samplesArrivedSignal) {
     [self.samplesArrivedSignal release];
   }
   self.samplesArrivedSignal = [[NSCondition alloc] init];
-  
+
   BOOST_LOG(info) << "Audio buffer initialized successfully with size: "sv << (kBufferLength * channels) << " bytes"sv;
 }
 
 - (void)cleanupAudioBuffer {
   using namespace std::literals;
   BOOST_LOG(debug) << "Cleaning up audio buffer"sv;
-  
+
   // Signal any waiting threads before cleanup
   if (self.samplesArrivedSignal) {
     [self.samplesArrivedSignal signal];
     [self.samplesArrivedSignal release];
     self.samplesArrivedSignal = nil;
   }
-  
+
   // Cleanup the circular buffer
   TPCircularBufferCleanup(&self->audioSampleBuffer);
-  
+
   BOOST_LOG(info) << "Audio buffer cleanup completed"sv;
 }
 
@@ -513,7 +514,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 - (void)dealloc {
   using namespace std::literals;
   BOOST_LOG(debug) << "AVAudio dealloc started"sv;
-  
+
   // Cleanup system tap resources using the generalized method
   [self cleanupSystemTapContext:nil];
 
@@ -537,7 +538,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (int)initializeSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
-  
+
   // Check macOS version requirement
   if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 2, 0})]) {
     BOOST_LOG(error) << "macOS version requirement not met (need 14.2+)"sv;
@@ -558,20 +559,20 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     BOOST_LOG(error) << "Failed to allocate IOProc data structure"sv;
     return -1;
   }
-  
+
   self->ioProcData->avAudio = self;
   self->ioProcData->clientRequestedChannels = channels;
   self->ioProcData->clientRequestedFrameSize = frameSize;
   self->ioProcData->clientRequestedSampleRate = sampleRate;
   self->ioProcData->audioConverter = NULL;
-  
+
   BOOST_LOG(debug) << "System tap initialization completed"sv;
   return 0;
 }
 
 - (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels {
   using namespace std::literals;
-  
+
   BOOST_LOG(debug) << "Creating tap description for "sv << (int) channels << " channels"sv;
   CATapDescription *tapDescription;
   NSArray *excludeProcesses = @[];
@@ -611,7 +612,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (OSStatus)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize {
   using namespace std::literals;
-  
+
   // Get Tap UUID string properly
   NSString *tapUIDString = nil;
   if ([tapDescription respondsToSelector:@selector(UUID)]) {
@@ -680,19 +681,19 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
       BOOST_LOG(debug) << "Set aggregate device buffer size to "sv << frameSize << " frames"sv;
     }
   }
-  
+
   BOOST_LOG(info) << "Aggregate device created and configured successfully"sv;
   return noErr;
 }
 
-- (OSStatus)configureDevicePropertiesAndConverter:(UInt32)clientSampleRate 
-                                      clientChannels:(UInt8)clientChannels {
+- (OSStatus)configureDevicePropertiesAndConverter:(UInt32)clientSampleRate
+                                   clientChannels:(UInt8)clientChannels {
   using namespace std::literals;
-  
+
   // Query actual device properties to determine if conversion is needed
-  Float64 aggregateDeviceSampleRate = 48000.0; // Default fallback
-  UInt32 aggregateDeviceChannels = 2; // Default fallback
-  
+  Float64 aggregateDeviceSampleRate = 48000.0;  // Default fallback
+  UInt32 aggregateDeviceChannels = 2;  // Default fallback
+
   // Get actual sample rate from the aggregate device
   UInt32 sampleRateQuerySize = sizeof(Float64);
   OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
@@ -701,24 +702,24 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
                                               element:kAudioObjectPropertyElementMain
                                                  size:&sampleRateQuerySize
                                                  data:&aggregateDeviceSampleRate];
-  
+
   if (sampleRateStatus != noErr) {
     BOOST_LOG(warning) << "Failed to get device sample rate, using default 48kHz: "sv << sampleRateStatus;
     aggregateDeviceSampleRate = 48000.0;
   }
-  
+
   // Get actual channel count from the device's input stream configuration
   AudioObjectPropertyAddress streamConfigAddr = {
     .mSelector = kAudioDevicePropertyStreamConfiguration,
     .mScope = kAudioDevicePropertyScopeInput,
     .mElement = kAudioObjectPropertyElementMain
   };
-  
+
   UInt32 streamConfigSize = 0;
   OSStatus streamConfigSizeStatus = AudioObjectGetPropertyDataSize(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize);
-  
+
   if (streamConfigSizeStatus == noErr && streamConfigSize > 0) {
-    AudioBufferList *streamConfig = (AudioBufferList *)malloc(streamConfigSize);
+    AudioBufferList *streamConfig = (AudioBufferList *) malloc(streamConfigSize);
     if (streamConfig) {
       OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
       if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
@@ -736,11 +737,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   BOOST_LOG(debug) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
 
   // Create AudioConverter based on actual device properties vs client requirements
-  BOOL needsConversion = ((UInt32)aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
-  BOOST_LOG(debug) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
-                  << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
-                  << " -> client: "sv << clientSampleRate << "Hz/" << (int)clientChannels << "ch)"sv;
-  
+  BOOL needsConversion = ((UInt32) aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
+  BOOST_LOG(debug) << "needsConversion: "sv << (needsConversion ? "YES" : "NO")
+                   << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
+                   << " -> client: "sv << clientSampleRate << "Hz/" << (int) clientChannels << "ch)"sv;
+
   if (needsConversion) {
     AudioStreamBasicDescription sourceFormat = {0};
     sourceFormat.mSampleRate = aggregateDeviceSampleRate;
@@ -767,22 +768,22 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
       BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
       return converterStatus;
     }
-    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int)clientChannels << "ch"sv;
+    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int) clientChannels << "ch"sv;
   } else {
     BOOST_LOG(info) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
   }
-  
+
   // Store the actual device format for use in the IOProc
-  self->ioProcData->aggregateDeviceSampleRate = (UInt32)aggregateDeviceSampleRate;
+  self->ioProcData->aggregateDeviceSampleRate = (UInt32) aggregateDeviceSampleRate;
   self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
-  
+
   BOOST_LOG(info) << "Device properties and converter configuration completed"sv;
   return noErr;
 }
 
 - (OSStatus)createAndStartAggregateDeviceIOProc:(CATapDescription *)tapDescription {
   using namespace std::literals;
-  
+
   // Create IOProc
   BOOST_LOG(debug) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
   OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
@@ -801,8 +802,9 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     return status;
   }
-  
+
   BOOST_LOG(info) << "System tap IO proc created and started successfully"sv;
   return noErr;
 }
+
 @end

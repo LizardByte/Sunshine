@@ -52,7 +52,7 @@ namespace platf {
     std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
       auto mic = std::make_unique<av_mic_t>();
       mic->av_audio_capture = [[AVAudio alloc] init];
-      
+
       // Check if macOS system-wide audio tap is enabled
       if (config::audio.macos_system_wide_audio_tap) {
         BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
@@ -82,7 +82,6 @@ namespace platf {
 
         return nullptr;
       }
-
 
       if ([mic->av_audio_capture setupMicrophone:audio_capture_device sampleRate:sample_rate frameSize:frame_size channels:channels]) {
         BOOST_LOG(error) << "Failed to setup microphone."sv;
