@@ -29,15 +29,15 @@ struct AudioConverterInputData {
 };
 
 // IOProc client data structure
-  typedef struct {
-    AVAudio *avAudio;
-    UInt32 clientRequestedChannels;
-    UInt32 clientRequestedSampleRate;
-    UInt32 clientRequestedFrameSize;
-    UInt32 aggregateDeviceSampleRate;
-    UInt32 aggregateDeviceChannels;
-    AudioConverterRef audioConverter;
-  } AVAudioIOProcData;
+typedef struct {
+  AVAudio *avAudio;
+  UInt32 clientRequestedChannels;
+  UInt32 clientRequestedSampleRate;
+  UInt32 clientRequestedFrameSize;
+  UInt32 aggregateDeviceSampleRate;
+  UInt32 aggregateDeviceChannels;
+  AudioConverterRef _Nullable audioConverter;
+} AVAudioIOProcData;
 
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
@@ -46,18 +46,16 @@ struct AudioConverterInputData {
   AudioObjectID tapObjectID;
   AudioObjectID aggregateDeviceID;
   AudioDeviceIOProcID ioProcID;
-  AVAudioIOProcData *ioProcData;
+  AVAudioIOProcData * _Nullable ioProcData;
 }
 
-@property (nonatomic, assign) AVCaptureSession *audioCaptureSession;
-@property (nonatomic, assign) AVCaptureConnection *audioConnection;
-@property (nonatomic, assign) NSCondition *samplesArrivedSignal;
+@property (nonatomic, assign, nullable) AVCaptureSession *audioCaptureSession;
+@property (nonatomic, assign, nullable) AVCaptureConnection *audioConnection;
+@property (nonatomic, assign, nullable) NSCondition *samplesArrivedSignal;
 
-+ (NSArray *)microphoneNames;
-+ (AVCaptureDevice *)findMicrophone:(NSString *)name;
-
-+ (NSArray *)microphoneNames;
-+ (AVCaptureDevice *)findMicrophone:(NSString *)name;
++ (NSArray<AVCaptureDevice *> *)microphones;
++ (NSArray<NSString *> *)microphoneNames;
++ (nullable AVCaptureDevice *)findMicrophone:(NSString *)name;
 
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 - (int)setupSystemTap:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
@@ -67,18 +65,18 @@ struct AudioConverterInputData {
 - (void)cleanupAudioBuffer;
 
 - (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
-- (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels;
-- (int)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize;
+- (nullable CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels;
+- (OSStatus)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize;
 - (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
                         ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
                                      ioData:(AudioBufferList *)ioData
-                     outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
+                     outDataPacketDescription:(AudioStreamPacketDescription * _Nullable * _Nullable)outDataPacketDescription
                                    inputInfo:(struct AudioConverterInputData *)inputInfo;
 - (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
                                inNow:(const AudioTimeStamp *)inNow
                         inInputData:(const AudioBufferList *)inInputData
                         inInputTime:(const AudioTimeStamp *)inInputTime
-                       outOutputData:(AudioBufferList *)outOutputData
+                       outOutputData:(nullable AudioBufferList *)outOutputData
                         inOutputTime:(const AudioTimeStamp *)inOutputTime
                       clientChannels:(UInt32)clientChannels
                      clientFrameSize:(UInt32)clientFrameSize

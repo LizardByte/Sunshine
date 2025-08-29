@@ -173,7 +173,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   // 2. Create and configure aggregate device
-  if ([self createAggregateDeviceWithTapDescription:tapDescription sampleRate:sampleRate frameSize:frameSize] != 0) {
+  OSStatus aggregateStatus = [self createAggregateDeviceWithTapDescription:tapDescription sampleRate:sampleRate frameSize:frameSize];
+  if (aggregateStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
@@ -372,13 +373,17 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 #pragma mark - Buffer Management Methods
 
 - (void)initializeAudioBuffer:(UInt8)channels {
+  // Cleanup any existing circular buffer first
+  TPCircularBufferCleanup(&self->audioSampleBuffer);
+  
   // Initialize the circular buffer with proper size for the channel count
   TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
   
-  // Initialize the condition signal for synchronization
-  if (!self.samplesArrivedSignal) {
-    self.samplesArrivedSignal = [[NSCondition alloc] init];
+  // Initialize the condition signal for synchronization (cleanup any existing one first)
+  if (self.samplesArrivedSignal) {
+    [self.samplesArrivedSignal release];
   }
+  self.samplesArrivedSignal = [[NSCondition alloc] init];
 }
 
 - (void)cleanupAudioBuffer {
@@ -485,7 +490,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return tapDescription;
 }
 
-- (int)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize {
+- (OSStatus)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize {
   using namespace std::literals;
   
   // Get Tap UUID string properly
@@ -495,7 +500,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
   if (!tapUIDString) {
     BOOST_LOG(error) << "Failed to get tap UUID from description"sv;
-    return -1;
+    return kAudioHardwareUnspecifiedError;
   }
 
   // Create aggregate device with better drift compensation and proper keys
@@ -519,7 +524,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   BOOST_LOG(info) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
   if (status != noErr && status != 'ExtA') {
     BOOST_LOG(error) << "Failed to create aggregate device with status: "sv << status;
-    return -1;
+    return status;
   }
 
   // Configure the aggregate device
@@ -552,7 +557,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
   
   BOOST_LOG(info) << "Aggregate device created and configured successfully"sv;
-  return 0;
+  return noErr;
 }
 
 - (OSStatus)configureDevicePropertiesAndConverter:(UInt32)clientSampleRate 

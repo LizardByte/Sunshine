@@ -35,7 +35,10 @@ TEST_F(AVAudioTest, MicrophoneNamesReturnsArray) {
 }
 
 TEST_F(AVAudioTest, FindMicrophoneWithNilNameReturnsNil) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
   AVCaptureDevice* device = [AVAudio findMicrophone:nil];
+#pragma clang diagnostic pop
   EXPECT_EQ(device, nil);
 }
 
@@ -52,7 +55,10 @@ TEST_F(AVAudioTest, FindMicrophoneWithInvalidNameReturnsNil) {
 
 TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
   AVAudio* avAudio = [[AVAudio alloc] init];
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
   int result = [avAudio setupMicrophone:nil sampleRate:48000 frameSize:512 channels:2];
+#pragma clang diagnostic pop
   [avAudio release];
   EXPECT_EQ(result, -1); // Should fail with nil device
 }
@@ -216,11 +222,14 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
   // Test the method
   UInt32 requestedPackets = 128;
   AudioBufferList bufferList = {0};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
   OSStatus result = [avAudio audioConverterComplexInputProc:nil
                                         ioNumberDataPackets:&requestedPackets
                                                      ioData:&bufferList
                                      outDataPacketDescription:nil
                                                    inputInfo:&inputInfo];
+#pragma clang diagnostic pop
   
   EXPECT_EQ(result, noErr);
   EXPECT_EQ(requestedPackets, 128); // Should provide requested frames
@@ -248,11 +257,14 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
   
   UInt32 requestedPackets = 128;
   AudioBufferList bufferList = {0};
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
   OSStatus result = [avAudio audioConverterComplexInputProc:nil
                                         ioNumberDataPackets:&requestedPackets
                                                      ioData:&bufferList
                                      outDataPacketDescription:nil
                                                    inputInfo:&inputInfo];
+#pragma clang diagnostic pop
   
   EXPECT_EQ(result, noErr);
   EXPECT_EQ(requestedPackets, 0); // Should return 0 packets when no more data
