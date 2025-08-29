@@ -142,7 +142,7 @@ typedef struct {
  * @param channels Number of audio channels
  * @return 0 on success, -1 on failure
  */
-- (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
+- (int)initializeSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 
 /**
  * @brief Creates a Core Audio tap description for system audio capture.

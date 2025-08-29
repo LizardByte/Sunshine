@@ -224,7 +224,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   BOOST_LOG(debug) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
 
   // 1. Initialize system tap components
-  if ([self initSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
+  if ([self initializeSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
     return -1;
   }
 
@@ -250,7 +250,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   // 5. Create and start IOProc
-  OSStatus ioProcStatus = [self createAndStartIOProc:tapDescription];
+  OSStatus ioProcStatus = [self createAndStartAggregateDeviceIOProc:tapDescription];
   if (ioProcStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
@@ -535,7 +535,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 // MARK: - System Tap Initialization
 // Private methods for initializing Core Audio system tap components
 
-- (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
+- (int)initializeSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
   
   // Check macOS version requirement
@@ -780,7 +780,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return noErr;
 }
 
-- (OSStatus)createAndStartIOProc:(CATapDescription *)tapDescription {
+- (OSStatus)createAndStartAggregateDeviceIOProc:(CATapDescription *)tapDescription {
   using namespace std::literals;
   
   // Create IOProc

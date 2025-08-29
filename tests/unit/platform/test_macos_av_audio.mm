@@ -175,7 +175,7 @@ TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
 TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
   AVAudio* avAudio = [[AVAudio alloc] init];
   
-  int result = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+  int result = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
   
   // On systems with macOS 14.2+, this should succeed
   NSOperatingSystemVersion minVersion = {14, 2, 0};
@@ -199,11 +199,11 @@ TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
   NSOperatingSystemVersion minVersion = {14, 2, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Test with minimum values
-    int result1 = [avAudio initSystemTapContext:8000 frameSize:64 channels:1];
+    int result1 = [avAudio initializeSystemTapContext:8000 frameSize:64 channels:1];
     EXPECT_EQ(result1, 0);
     
     // Test with maximum reasonable values
-    int result2 = [avAudio initSystemTapContext:192000 frameSize:4096 channels:8];
+    int result2 = [avAudio initializeSystemTapContext:192000 frameSize:4096 channels:8];
     EXPECT_EQ(result2, 0);
   }
   
@@ -220,7 +220,7 @@ TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
   NSOperatingSystemVersion minVersion = {14, 2, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Initialize context first
-    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
     EXPECT_EQ(initResult, 0);
     
     // Test mono tap description
@@ -256,7 +256,7 @@ TEST_F(AVAudioTest, CleanupSystemTapContext) {
     [avAudio cleanupSystemTapContext:nil]; // Should be safe to call
     
     // Initialize system tap context
-    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
     EXPECT_EQ(initResult, 0);
     
     // Cleanup should work without issues
@@ -267,7 +267,7 @@ TEST_F(AVAudioTest, CleanupSystemTapContext) {
     [avAudio cleanupSystemTapContext:nil]; // Third call should not crash
     
     // Re-initialize after cleanup should work
-    int reinitResult = [avAudio initSystemTapContext:44100 frameSize:256 channels:1];
+    int reinitResult = [avAudio initializeSystemTapContext:44100 frameSize:256 channels:1];
     EXPECT_EQ(reinitResult, 0);
     
     // Final cleanup
@@ -316,7 +316,7 @@ TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
   NSOperatingSystemVersion minVersion = {14, 2, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Test initialization with the parameterized configuration
-    int initResult = [avAudio initSystemTapContext:params.sampleRate 
+    int initResult = [avAudio initializeSystemTapContext:params.sampleRate 
                                          frameSize:params.frameCount 
                                           channels:params.channels];
     EXPECT_EQ(initResult, 0) << "Failed to initialize system tap context for " << params.testName;
@@ -325,7 +325,7 @@ TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
     [avAudio cleanupSystemTapContext:nil];
     
     // Test re-initialization after cleanup (should work)
-    int reinitResult = [avAudio initSystemTapContext:params.sampleRate 
+    int reinitResult = [avAudio initializeSystemTapContext:params.sampleRate 
                                             frameSize:params.frameCount 
                                              channels:params.channels];
     EXPECT_EQ(reinitResult, 0) << "Failed to re-initialize system tap context after cleanup for " << params.testName;
@@ -354,7 +354,7 @@ TEST_F(AVAudioTest, CleanupSystemTapContextWithTapDescription) {
   NSOperatingSystemVersion minVersion = {14, 2, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Initialize system tap context
-    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
     EXPECT_EQ(initResult, 0);
     
     // Create a tap description
