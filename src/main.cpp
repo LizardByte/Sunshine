@@ -384,7 +384,7 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  if (tray_is_enabled) {
+  if (tray_is_enabled && config::sunshine.system_tray) {
     BOOST_LOG(info) << "Starting system tray"sv;
 #ifdef _WIN32
     // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,

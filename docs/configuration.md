@@ -261,6 +261,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### system_tray
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Show icon in system tray and display desktop notifications
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            system_tray = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller
