@@ -10,8 +10,11 @@
 // platform includes
 #include <CoreGraphics/CoreGraphics.h>
 
+// local includes
+#include "src/platform/macos/permissions_manager.h"
+
 namespace platf {
-  bool is_screen_capture_allowed();
+  static auto permissions_manager = PermissionsManager();
 }
 
 namespace dyn {
