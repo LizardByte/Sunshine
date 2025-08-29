@@ -38,7 +38,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 @implementation AVAudio
 
 + (NSArray<AVCaptureDevice *> *)microphones {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Discovering microphones"sv;
+  
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {10, 15, 0})]) {
+    BOOST_LOG(debug) << "Using modern AVCaptureDeviceDiscoverySession API"sv;
     // This will generate a warning about AVCaptureDeviceDiscoverySession being
     // unavailable before macOS 10.15, but we have a guard to prevent it from
     // being called on those earlier systems.
@@ -50,51 +54,70 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone, AVCaptureDeviceTypeExternalUnknown]
                                                                                                                mediaType:AVMediaTypeAudio
                                                                                                                 position:AVCaptureDevicePositionUnspecified];
-    return discoverySession.devices;
+    NSArray *devices = discoverySession.devices;
+    BOOST_LOG(debug) << "Found "sv << [devices count] << " devices using discovery session"sv;
+    return devices;
 #pragma clang diagnostic pop
   } else {
+    BOOST_LOG(debug) << "Using legacy AVCaptureDevice API"sv;
     // We're intentionally using a deprecated API here specifically for versions
     // of macOS where it's not deprecated, so we can ignore any deprecation
     // warnings:
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    return [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
+    NSArray *devices = [AVCaptureDevice devicesWithMediaType:AVMediaTypeAudio];
+    BOOST_LOG(debug) << "Found "sv << [devices count] << " devices using legacy API"sv;
+    return devices;
 #pragma clang diagnostic pop
   }
 }
 
 + (NSArray<NSString *> *)microphoneNames {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Retrieving microphone names"sv;
   NSMutableArray *result = [[NSMutableArray alloc] init];
 
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     [result addObject:[device localizedName]];
   }
 
+  BOOST_LOG(info) << "Found "sv << [result count] << " microphones"sv;
   return result;
 }
 
 + (AVCaptureDevice *)findMicrophone:(NSString *)name {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Searching for microphone: "sv << [name UTF8String];
+  
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     if ([[device localizedName] isEqualToString:name]) {
+      BOOST_LOG(info) << "Found microphone: "sv << [name UTF8String];
       return device;
     }
   }
 
+  BOOST_LOG(warning) << "Microphone not found: "sv << [name UTF8String];
   return nil;
 }
 
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
+  using namespace std::literals;
+  BOOST_LOG(info) << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int)channels << " channels"sv;
+  
   self.audioCaptureSession = [[AVCaptureSession alloc] init];
 
-  NSError *error;
-  AVCaptureDeviceInput *audioInput = [AVCaptureDeviceInput deviceInputWithDevice:device error:&error];
+  NSError *nsError;
+  AVCaptureDeviceInput *audioInput = [AVCaptureDeviceInput deviceInputWithDevice:device error:&nsError];
   if (audioInput == nil) {
+    BOOST_LOG(error) << "Failed to create audio input from device: "sv << (nsError ? [[nsError localizedDescription] UTF8String] : "unknown error"sv);
     return -1;
   }
 
   if ([self.audioCaptureSession canAddInput:audioInput]) {
     [self.audioCaptureSession addInput:audioInput];
+    BOOST_LOG(debug) << "Successfully added audio input to capture session"sv;
   } else {
+    BOOST_LOG(error) << "Cannot add audio input to capture session"sv;
     [audioInput dealloc];
     return -1;
   }
@@ -109,6 +132,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     (NSString *) AVLinearPCMIsFloatKey: @YES,
     (NSString *) AVLinearPCMIsNonInterleaved: @NO
   }];
+  BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int)channels << " channels, 32-bit float"sv;
 
   dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
@@ -117,7 +141,9 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
   if ([self.audioCaptureSession canAddOutput:audioOutput]) {
     [self.audioCaptureSession addOutput:audioOutput];
+    BOOST_LOG(debug) << "Successfully added audio output to capture session"sv;
   } else {
+    BOOST_LOG(error) << "Cannot add audio output to capture session"sv;
     [audioInput release];
     [audioOutput release];
     return -1;
@@ -126,12 +152,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   self.audioConnection = [audioOutput connectionWithMediaType:AVMediaTypeAudio];
 
   [self.audioCaptureSession startRunning];
+  BOOST_LOG(info) << "Audio capture session started successfully"sv;
 
   [audioInput release];
   [audioOutput release];
 
   // Initialize buffer and signal
   [self initializeAudioBuffer:channels];
+  BOOST_LOG(debug) << "Audio buffer initialized for microphone capture"sv;
 
   return 0;
 }
@@ -158,7 +186,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (int)setupSystemTap:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
-  BOOST_LOG(info) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
+  BOOST_LOG(debug) << "setupSystemTap called with sampleRate:"sv << sampleRate << " frameSize:"sv << frameSize << " channels:"sv << (int) channels;
 
   // Initialize system tap components
   if ([self initSystemTapContext:sampleRate frameSize:frameSize channels:channels] != 0) {
@@ -198,7 +226,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
   [tapDescription release];
 
-  BOOST_LOG(info) << "System tap setup completed successfully!";
+  BOOST_LOG(info) << "System tap setup completed successfully!"sv;
   return 0;
 }
 
@@ -329,50 +357,73 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
                       element:(AudioObjectPropertyElement)element 
                          size:(UInt32 *)ioDataSize 
                          data:(void *)outData {
+  using namespace std::literals;
+  
   AudioObjectPropertyAddress addr = {
     .mSelector = selector,
     .mScope = scope,
     .mElement = element
   };
-  return AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, ioDataSize, outData);
+  
+  OSStatus result = AudioObjectGetPropertyData(deviceID, &addr, 0, NULL, ioDataSize, outData);
+  
+  if (result != noErr) {
+    BOOST_LOG(warning) << "Failed to get device property (selector: "sv << selector << ", scope: "sv << scope << ", element: "sv << element << ") with status: "sv << result;
+  }
+  
+  return result;
 }
 
 // Generalized method for cleaning up system tap resources
 - (void)cleanupSystemTapContext:(id)tapDescription {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Starting system tap context cleanup"sv;
+  
   // Clean up in reverse order of creation
   if (self->ioProcID && self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioDeviceStop(self->aggregateDeviceID, self->ioProcID);
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     self->ioProcID = NULL;
+    BOOST_LOG(debug) << "IOProc stopped and destroyed"sv;
   }
 
   if (self->aggregateDeviceID != kAudioObjectUnknown) {
     AudioHardwareDestroyAggregateDevice(self->aggregateDeviceID);
     self->aggregateDeviceID = kAudioObjectUnknown;
+    BOOST_LOG(debug) << "Aggregate device destroyed"sv;
   }
 
   if (self->tapObjectID != kAudioObjectUnknown) {
     AudioHardwareDestroyProcessTap(self->tapObjectID);
     self->tapObjectID = kAudioObjectUnknown;
+    BOOST_LOG(debug) << "Process tap destroyed"sv;
   }
 
   if (self->ioProcData) {
     if (self->ioProcData->audioConverter) {
       AudioConverterDispose(self->ioProcData->audioConverter);
       self->ioProcData->audioConverter = NULL;
+      BOOST_LOG(debug) << "AudioConverter disposed"sv;
     }
     free(self->ioProcData);
     self->ioProcData = NULL;
+    BOOST_LOG(debug) << "IOProc data freed"sv;
   }
 
   if (tapDescription) {
     [tapDescription release];
+    BOOST_LOG(debug) << "Tap description released"sv;
   }
+  
+  BOOST_LOG(debug) << "System tap context cleanup completed"sv;
 }
 
 #pragma mark - Buffer Management Methods
 
 - (void)initializeAudioBuffer:(UInt8)channels {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Initializing audio buffer for "sv << (int)channels << " channels"sv;
+  
   // Cleanup any existing circular buffer first
   TPCircularBufferCleanup(&self->audioSampleBuffer);
   
@@ -384,9 +435,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     [self.samplesArrivedSignal release];
   }
   self.samplesArrivedSignal = [[NSCondition alloc] init];
+  
+  BOOST_LOG(info) << "Audio buffer initialized successfully with size: "sv << (kBufferLength * channels) << " bytes"sv;
 }
 
 - (void)cleanupAudioBuffer {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "Cleaning up audio buffer"sv;
+  
   // Signal any waiting threads before cleanup
   if (self.samplesArrivedSignal) {
     [self.samplesArrivedSignal signal];
@@ -396,9 +452,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   
   // Cleanup the circular buffer
   TPCircularBufferCleanup(&self->audioSampleBuffer);
+  
+  BOOST_LOG(info) << "Audio buffer cleanup completed"sv;
 }
 
 - (void)dealloc {
+  using namespace std::literals;
+  BOOST_LOG(debug) << "AVAudio dealloc started"sv;
+  
   // Cleanup system tap resources using the generalized method
   [self cleanupSystemTapContext:nil];
 
@@ -406,12 +467,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   if (self.audioCaptureSession) {
     [self.audioCaptureSession stopRunning];
     self.audioCaptureSession = nil;
+    BOOST_LOG(debug) << "Audio capture session stopped and released"sv;
   }
   self.audioConnection = nil;
 
   // Use our centralized buffer cleanup method (handles signal and buffer cleanup)
   [self cleanupAudioBuffer];
 
+  BOOST_LOG(debug) << "AVAudio dealloc completed"sv;
   [super dealloc];
 }
 
@@ -427,7 +490,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   NSOperatingSystemVersion version = [[NSProcessInfo processInfo] operatingSystemVersion];
-  BOOST_LOG(info) << "macOS version check passed (running "sv << version.majorVersion << "."sv << version.minorVersion << "."sv << version.patchVersion << ")"sv;
+  BOOST_LOG(debug) << "macOS version check passed (running "sv << version.majorVersion << "."sv << version.minorVersion << "."sv << version.patchVersion << ")"sv;
 
   // Initialize Core Audio objects
   self->tapObjectID = kAudioObjectUnknown;
@@ -447,14 +510,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   self->ioProcData->clientRequestedSampleRate = sampleRate;
   self->ioProcData->audioConverter = NULL;
   
-  BOOST_LOG(info) << "System tap initialization completed"sv;
+  BOOST_LOG(debug) << "System tap initialization completed"sv;
   return 0;
 }
 
 - (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels {
   using namespace std::literals;
   
-  BOOST_LOG(info) << "Creating tap description for "sv << (int) channels << " channels"sv;
+  BOOST_LOG(debug) << "Creating tap description for "sv << (int) channels << " channels"sv;
   CATapDescription *tapDescription;
   NSArray *excludeProcesses = @[];
 
@@ -473,20 +536,21 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   [tapDescription setPrivate:YES];
 
   // Create the tap
-  BOOST_LOG(info) << "Creating process tap with name: "sv << [uniqueName UTF8String];
+  BOOST_LOG(debug) << "Creating process tap with name: "sv << [uniqueName UTF8String];
 
   // Use direct API call like the reference implementation
   OSStatus status = AudioHardwareCreateProcessTap((CATapDescription *) tapDescription, &self->tapObjectID);
-  BOOST_LOG(info) << "AudioHardwareCreateProcessTap returned status: "sv << status;
+  BOOST_LOG(debug) << "AudioHardwareCreateProcessTap returned status: "sv << status;
 
   [uniqueUUID release];
 
   if (status != noErr) {
-    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed with status: "sv << status << " (tapDescription: "sv << [tapDescription description] << ")"sv;
+    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed with status: "sv << status << " (tapDescription: "sv << [[tapDescription description] UTF8String] << ")"sv;
     [tapDescription release];
     return nil;
   }
 
+  BOOST_LOG(debug) << "Process tap created successfully with ID: "sv << self->tapObjectID;
   return tapDescription;
 }
 
@@ -519,13 +583,15 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     @kAudioAggregateDeviceIsStackedKey: @NO,
   };
 
-  BOOST_LOG(info) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
+  BOOST_LOG(debug) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
   OSStatus status = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
-  BOOST_LOG(info) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
+  BOOST_LOG(debug) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
   if (status != noErr && status != 'ExtA') {
     BOOST_LOG(error) << "Failed to create aggregate device with status: "sv << status;
     return status;
   }
+
+  BOOST_LOG(info) << "Aggregate device created with ID: "sv << self->aggregateDeviceID;
 
   // Configure the aggregate device
   if (self->aggregateDeviceID != kAudioObjectUnknown) {
@@ -540,6 +606,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     OSStatus sampleRateResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &sampleRateAddr, 0, NULL, sampleRateSize, &deviceSampleRate);
     if (sampleRateResult != noErr) {
       BOOST_LOG(warning) << "Failed to set aggregate device sample rate: "sv << sampleRateResult;
+    } else {
+      BOOST_LOG(debug) << "Set aggregate device sample rate to "sv << sampleRate << "Hz"sv;
     }
 
     // Set buffer size on the aggregate device
@@ -553,6 +621,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     OSStatus bufferSizeResult = AudioObjectSetPropertyData(self->aggregateDeviceID, &bufferSizeAddr, 0, NULL, frameSizeSize, &deviceFrameSize);
     if (bufferSizeResult != noErr) {
       BOOST_LOG(warning) << "Failed to set aggregate device buffer size: "sv << bufferSizeResult;
+    } else {
+      BOOST_LOG(debug) << "Set aggregate device buffer size to "sv << frameSize << " frames"sv;
     }
   }
   
@@ -598,7 +668,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
       OSStatus streamConfigStatus = AudioObjectGetPropertyData(self->aggregateDeviceID, &streamConfigAddr, 0, NULL, &streamConfigSize, streamConfig);
       if (streamConfigStatus == noErr && streamConfig->mNumberBuffers > 0) {
         aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
-        BOOST_LOG(info) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
+        BOOST_LOG(debug) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
       } else {
         BOOST_LOG(warning) << "Failed to get stream configuration, using default 2 channels: "sv << streamConfigStatus;
       }
@@ -608,11 +678,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     BOOST_LOG(warning) << "Failed to get stream configuration size, using default 2 channels: "sv << streamConfigSizeStatus;
   }
 
-  BOOST_LOG(info) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
+  BOOST_LOG(debug) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
 
   // Create AudioConverter based on actual device properties vs client requirements
   BOOL needsConversion = ((UInt32)aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
-  BOOST_LOG(info) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
+  BOOST_LOG(debug) << "needsConversion: "sv << (needsConversion ? "YES" : "NO") 
                   << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
                   << " -> client: "sv << clientSampleRate << "Hz/" << (int)clientChannels << "ch)"sv;
   
@@ -643,12 +713,15 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
       return converterStatus;
     }
     BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int)clientChannels << "ch"sv;
+  } else {
+    BOOST_LOG(info) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
   }
   
   // Store the actual device format for use in the IOProc
   self->ioProcData->aggregateDeviceSampleRate = (UInt32)aggregateDeviceSampleRate;
   self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
   
+  BOOST_LOG(info) << "Device properties and converter configuration completed"sv;
   return noErr;
 }
 
@@ -656,24 +729,25 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   using namespace std::literals;
   
   // Create IOProc
-  BOOST_LOG(info) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
+  BOOST_LOG(debug) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
   OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
-  BOOST_LOG(info) << "AudioDeviceCreateIOProcID returned status: "sv << status;
+  BOOST_LOG(debug) << "AudioDeviceCreateIOProcID returned status: "sv << status;
   if (status != noErr) {
     BOOST_LOG(error) << "Failed to create IOProc with status: "sv << status;
     return status;
   }
 
   // Start the IOProc
-  BOOST_LOG(info) << "Starting IOProc for aggregate device";
+  BOOST_LOG(debug) << "Starting IOProc for aggregate device";
   status = AudioDeviceStart(self->aggregateDeviceID, self->ioProcID);
-  BOOST_LOG(info) << "AudioDeviceStart returned status: "sv << status;
+  BOOST_LOG(debug) << "AudioDeviceStart returned status: "sv << status;
   if (status != noErr) {
     BOOST_LOG(error) << "Failed to start IOProc with status: "sv << status;
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     return status;
   }
   
+  BOOST_LOG(info) << "System tap IO proc created and started successfully"sv;
   return noErr;
 }
 @end
