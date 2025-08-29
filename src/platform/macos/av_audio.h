@@ -130,6 +130,12 @@ typedef struct {
 - (void)cleanupAudioBuffer;
 
 /**
+ * @brief Cleans up system tap resources in a safe, ordered manner.
+ * @param tapDescription Optional tap description object to release (can be nil)
+ */
+- (void)cleanupSystemTapContext:(nullable id)tapDescription;
+
+/**
  * @brief Initializes the system tap context with specified audio parameters.
  * @param sampleRate Target sample rate in Hz
  * @param frameSize Number of frames per buffer

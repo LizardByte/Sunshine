@@ -244,6 +244,140 @@ TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
 }
 
 /**
+ * @brief Test system tap context cleanup functionality.
+ * Verifies that system tap context can be cleaned up safely and multiple times.
+ */
+TEST_F(AVAudioTest, CleanupSystemTapContext) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Test cleanup without initialization (should not crash)
+    [avAudio cleanupSystemTapContext:nil]; // Should be safe to call
+    
+    // Initialize system tap context
+    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    EXPECT_EQ(initResult, 0);
+    
+    // Cleanup should work without issues
+    [avAudio cleanupSystemTapContext:nil];
+    
+    // Multiple cleanup calls should be safe
+    [avAudio cleanupSystemTapContext:nil]; // Second call should not crash
+    [avAudio cleanupSystemTapContext:nil]; // Third call should not crash
+    
+    // Re-initialize after cleanup should work
+    int reinitResult = [avAudio initSystemTapContext:44100 frameSize:256 channels:1];
+    EXPECT_EQ(reinitResult, 0);
+    
+    // Final cleanup
+    [avAudio cleanupSystemTapContext:nil];
+  } else {
+    // On older systems, cleanup should still be safe even though init fails
+    [avAudio cleanupSystemTapContext:nil];
+  }
+  
+  [avAudio release];
+}
+
+
+// Type alias for parameterized cleanup system tap context tests
+using CleanupSystemTapContextTest = AVAudioTest;
+
+// Test parameters for cleanup system tap context tests (reusing same configurations)
+INSTANTIATE_TEST_SUITE_P(
+  AVAudioTest,
+  CleanupSystemTapContextTest,
+  ::testing::Values(
+    // Representative subset focusing on different channel configurations
+    ProcessSystemAudioIOProcTestParams{512, 1, 48000, false, "CleanupMono48kHz512Frames"},
+    ProcessSystemAudioIOProcTestParams{512, 2, 48000, false, "CleanupStereo48kHz512Frames"},
+    ProcessSystemAudioIOProcTestParams{256, 4, 48000, false, "CleanupQuad48kHz256Frames"},
+    ProcessSystemAudioIOProcTestParams{512, 6, 44100, false, "Cleanup51Surround44kHz512Frames"},
+    ProcessSystemAudioIOProcTestParams{240, 8, 48000, false, "Cleanup71Surround48kHz240Frames"},
+    ProcessSystemAudioIOProcTestParams{128, 1, 22050, false, "CleanupMono22kHz128Frames"},
+    ProcessSystemAudioIOProcTestParams{1024, 2, 96000, false, "CleanupStereo96kHz1024Frames"},
+    ProcessSystemAudioIOProcTestParams{128, 8, 192000, false, "Cleanup71Surround192kHz128Frames"}
+  ),
+  [](const ::testing::TestParamInfo<ProcessSystemAudioIOProcTestParams>& info) {
+    return std::string(info.param.testName);
+  }
+);
+
+/**
+ * @brief Parameterized test for system tap context cleanup with various audio configurations.
+ * Tests init/cleanup cycles across different channel counts, sample rates, and frame sizes.
+ */
+TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
+  ProcessSystemAudioIOProcTestParams params = GetParam();
+  
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Test initialization with the parameterized configuration
+    int initResult = [avAudio initSystemTapContext:params.sampleRate 
+                                         frameSize:params.frameCount 
+                                          channels:params.channels];
+    EXPECT_EQ(initResult, 0) << "Failed to initialize system tap context for " << params.testName;
+    
+    // Test cleanup after successful initialization
+    [avAudio cleanupSystemTapContext:nil];
+    
+    // Test re-initialization after cleanup (should work)
+    int reinitResult = [avAudio initSystemTapContext:params.sampleRate 
+                                            frameSize:params.frameCount 
+                                             channels:params.channels];
+    EXPECT_EQ(reinitResult, 0) << "Failed to re-initialize system tap context after cleanup for " << params.testName;
+    
+    // Test multiple cleanup calls (should be safe)
+    [avAudio cleanupSystemTapContext:nil];
+    [avAudio cleanupSystemTapContext:nil]; // Second call should not crash
+    
+    // Test cleanup without prior initialization (should be safe)
+    [avAudio cleanupSystemTapContext:nil];
+  } else {
+    // On older systems, cleanup should still be safe even though init fails
+    [avAudio cleanupSystemTapContext:nil];
+  }
+  
+  [avAudio release];
+}
+
+/**
+ * @brief Test system tap context cleanup with tap description object.
+ * Verifies cleanup works properly when a tap description is provided.
+ */
+TEST_F(AVAudioTest, CleanupSystemTapContextWithTapDescription) {
+  AVAudio* avAudio = [[AVAudio alloc] init];
+  
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Initialize system tap context
+    int initResult = [avAudio initSystemTapContext:48000 frameSize:512 channels:2];
+    EXPECT_EQ(initResult, 0);
+    
+    // Create a tap description
+    CATapDescription* tapDescription = [avAudio createSystemTapDescriptionForChannels:2];
+    if (tapDescription) {
+      EXPECT_NE(tapDescription, nil);
+      
+      // Test cleanup with the tap description object
+      [avAudio cleanupSystemTapContext:tapDescription];
+      // Note: tapDescription should be released by the cleanup method
+    } else {
+      // If tap description creation failed, just cleanup normally
+      [avAudio cleanupSystemTapContext:nil];
+    }
+    
+    // Additional cleanup should be safe
+    [avAudio cleanupSystemTapContext:nil];
+  }
+  
+  [avAudio release];
+}
+
+/**
  * @brief Test audio converter complex input callback with valid data.
  * Verifies that the audio converter callback properly processes valid audio data.
  */

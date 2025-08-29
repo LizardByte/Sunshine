@@ -1,6 +1,13 @@
 /**
  * @file src/platform/macos/av_audio.mm
- * @brief Simplified audio capture on macOS with system tap.
+ * @brief Implementation of macOS audio capture with dual input paths.
+ * 
+ * This file implements the AVAudio class which provides two distinct audio capture methods:
+ * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
+ * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
+ * 
+ * The implementation handles format conversion, real-time audio processing, and provides
+ * a unified interface for both capture methods through a shared circular buffer.
  */
 #import "av_audio.h"
 #include "src/logging.h"
@@ -8,7 +15,16 @@
 #import <AudioToolbox/AudioConverter.h>
 #import <CoreAudio/CATapDescription.h>
 
-// C wrapper for AudioConverter input callback
+/**
+ * @brief C wrapper for AudioConverter input callback.
+ * Bridges C-style Core Audio callbacks to Objective-C++ method calls.
+ * @param inAudioConverter The audio converter requesting input data
+ * @param ioNumberDataPackets Number of data packets to provide
+ * @param ioData Buffer list to fill with audio data
+ * @param outDataPacketDescription Packet description for output data
+ * @param inUserData User data containing AudioConverterInputData structure
+ * @return OSStatus indicating success (noErr) or error code
+ */
 static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
   struct AudioConverterInputData *inputInfo = (struct AudioConverterInputData *) inUserData;
   AVAudio *avAudio = inputInfo->avAudio;
@@ -20,7 +36,18 @@ static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioC
                                        inputInfo:inputInfo];
 }
 
-// C wrapper for IOProc callback
+/**
+ * @brief C wrapper for Core Audio IOProc callback.
+ * Bridges C-style Core Audio IOProc callbacks to Objective-C++ method calls for system-wide audio capture.
+ * @param inDevice The audio device identifier
+ * @param inNow Current audio time stamp
+ * @param inInputData Input audio buffer list from the device
+ * @param inInputTime Time stamp for input data
+ * @param outOutputData Output audio buffer list (not used in our implementation)
+ * @param inOutputTime Time stamp for output data
+ * @param inClientData Client data containing AVAudioIOProcData structure
+ * @return OSStatus indicating success (noErr) or error code
+ */
 static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime, void *inClientData) {
   AVAudioIOProcData *procData = (AVAudioIOProcData *) inClientData;
   AVAudio *avAudio = procData->avAudio;
@@ -164,6 +191,14 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return 0;
 }
 
+/**
+ * @brief AVFoundation delegate method for processing microphone audio samples.
+ * Called automatically when new audio samples are available from the microphone capture session.
+ * Writes audio data directly to the shared circular buffer.
+ * @param output The capture output that produced the sample buffer
+ * @param sampleBuffer CMSampleBuffer containing the audio data
+ * @param connection The capture connection that provided the sample buffer
+ */
 - (void)captureOutput:(AVCaptureOutput *)output
   didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
          fromConnection:(AVCaptureConnection *)connection {
@@ -350,7 +385,17 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return noErr;
 }
 
-// Helper method to get device properties
+/**
+ * @brief Helper method to query Core Audio device properties.
+ * Provides a centralized way to get device properties with error logging.
+ * @param deviceID The audio device to query
+ * @param selector The property selector to retrieve
+ * @param scope The property scope (global, input, output)
+ * @param element The property element identifier
+ * @param ioDataSize Pointer to size variable (input: max size, output: actual size)
+ * @param outData Buffer to store the property data
+ * @return OSStatus indicating success (noErr) or error code
+ */
 - (OSStatus)getDeviceProperty:(AudioObjectID)deviceID 
                      selector:(AudioObjectPropertySelector)selector 
                         scope:(AudioObjectPropertyScope)scope 
@@ -374,7 +419,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   return result;
 }
 
-// Generalized method for cleaning up system tap resources
+/**
+ * @brief Generalized method for cleaning up system tap resources.
+ * Safely cleans up Core Audio system tap components in reverse order of creation.
+ * @param tapDescription Optional tap description object to release (can be nil)
+ */
 - (void)cleanupSystemTapContext:(id)tapDescription {
   using namespace std::literals;
   BOOST_LOG(debug) << "Starting system tap context cleanup"sv;
@@ -418,7 +467,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   BOOST_LOG(debug) << "System tap context cleanup completed"sv;
 }
 
-#pragma mark - Buffer Management Methods
+// MARK: - Buffer Management Methods
+// Shared buffer management methods used by both audio capture paths
 
 - (void)initializeAudioBuffer:(UInt8)channels {
   using namespace std::literals;
@@ -456,6 +506,10 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   BOOST_LOG(info) << "Audio buffer cleanup completed"sv;
 }
 
+/**
+ * @brief Destructor for AVAudio instances.
+ * Performs comprehensive cleanup of both audio capture paths and shared resources.
+ */
 - (void)dealloc {
   using namespace std::literals;
   BOOST_LOG(debug) << "AVAudio dealloc started"sv;
@@ -478,7 +532,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   [super dealloc];
 }
 
-#pragma mark - System Tap Initialization
+// MARK: - System Tap Initialization
+// Private methods for initializing Core Audio system tap components
 
 - (int)initSystemTapContext:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
