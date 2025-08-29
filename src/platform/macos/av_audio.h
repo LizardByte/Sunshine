@@ -15,6 +15,8 @@
 
 #define kBufferLength 4096
 
+NS_ASSUME_NONNULL_BEGIN
+
 // Forward declarations
 @class AVAudio;
 @class CATapDescription;
@@ -83,3 +85,5 @@ typedef struct {
                     clientSampleRate:(UInt32)clientSampleRate;
 
 @end
+
+NS_ASSUME_NONNULL_END
