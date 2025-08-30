@@ -65,17 +65,17 @@ function removeCmd(index) {
 
     <!-- Log Level -->
     <div class="mb-3">
-      <label for="min_log_level" class="form-label">{{ $t('config.log_level') }}</label>
+      <label for="min_log_level" class="form-label">{{ $t('config.min_log_level') }}</label>
       <select id="min_log_level" class="form-select" v-model="config.min_log_level">
-        <option value="0">{{ $t('config.log_level_0') }}</option>
-        <option value="1">{{ $t('config.log_level_1') }}</option>
-        <option value="2">{{ $t('config.log_level_2') }}</option>
-        <option value="3">{{ $t('config.log_level_3') }}</option>
-        <option value="4">{{ $t('config.log_level_4') }}</option>
-        <option value="5">{{ $t('config.log_level_5') }}</option>
-        <option value="6">{{ $t('config.log_level_6') }}</option>
+        <option value="0">{{ $t('config.min_log_level_0') }}</option>
+        <option value="1">{{ $t('config.min_log_level_1') }}</option>
+        <option value="2">{{ $t('config.min_log_level_2') }}</option>
+        <option value="3">{{ $t('config.min_log_level_3') }}</option>
+        <option value="4">{{ $t('config.min_log_level_4') }}</option>
+        <option value="5">{{ $t('config.min_log_level_5') }}</option>
+        <option value="6">{{ $t('config.min_log_level_6') }}</option>
       </select>
-      <div class="form-text">{{ $t('config.log_level_desc') }}</div>
+      <div class="form-text">{{ $t('config.min_log_level_desc') }}</div>
     </div>
 
     <!-- Global Prep Commands -->

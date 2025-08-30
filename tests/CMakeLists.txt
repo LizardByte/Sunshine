@@ -52,6 +52,24 @@ add_executable(${PROJECT_NAME}
         ${TEST_SOURCES}
         ${SUNSHINE_SOURCES})
 
+# Copy files needed for config consistency tests to build directory
+# This ensures both CLI and CLion can access the same files relative to the test executable
+# Using configure_file ensures files are copied when they change between builds
+set(CONFIG_TEST_FILES
+    "src/config.cpp"
+    "src_assets/common/assets/web/config.html"
+    "docs/configuration.md"
+    "src_assets/common/assets/web/public/assets/locale/en.json"
+)
+
+foreach(file ${CONFIG_TEST_FILES})
+    configure_file(
+        "${CMAKE_SOURCE_DIR}/${file}"
+        "${CMAKE_CURRENT_BINARY_DIR}/${file}"
+        COPYONLY
+    )
+endforeach()
+
 foreach(dep ${SUNSHINE_TARGET_DEPENDENCIES})
     add_dependencies(${PROJECT_NAME} ${dep})  # compile these before sunshine
 endforeach()
