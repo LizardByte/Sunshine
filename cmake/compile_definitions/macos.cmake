@@ -24,6 +24,9 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CORE_MEDIA_LIBRARY}
         ${CORE_VIDEO_LIBRARY}
         ${FOUNDATION_LIBRARY}
+        ${AUDIO_TOOLBOX_LIBRARY}
+        ${AUDIO_UNIT_LIBRARY}
+        ${CORE_AUDIO_LIBRARY}
         ${VIDEO_TOOLBOX_LIBRARY})
 
 set(APPLE_PLIST_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/Info.plist")
@@ -33,7 +36,7 @@ set(SUNSHINE_TRAY 0)
 
 set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.m"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_img_t.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.m"

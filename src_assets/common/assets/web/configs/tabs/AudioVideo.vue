@@ -23,7 +23,8 @@ const config = ref(props.config)
       <label for="audio_sink" class="form-label">{{ $t('config.audio_sink') }}</label>
       <input type="text" class="form-control" id="audio_sink"
              :placeholder="$tp('config.audio_sink_placeholder', 'alsa_output.pci-0000_09_00.3.analog-stereo')"
-             v-model="config.audio_sink" />
+             v-model="config.audio_sink"
+             :disabled="platform === 'macos' && (config.macos_system_wide_audio_tap === true || config.macos_system_wide_audio_tap === 'true')" />
       <div class="form-text">
         {{ $tp('config.audio_sink_desc') }}<br>
         <PlatformLayout :platform="platform">
@@ -59,6 +60,18 @@ const config = ref(props.config)
                   locale-prefix="config"
                   v-model="config.install_steam_audio_drivers"
                   default="true"
+        ></Checkbox>
+      </template>
+    </PlatformLayout>
+
+    <PlatformLayout :platform="platform">
+      <template #macos>
+        <!-- Enable macOS System-Wide Audio Tap -->
+        <Checkbox class="mb-3"
+                  id="macos_system_wide_audio_tap"
+                  locale-prefix="config"
+                  v-model="config.macos_system_wide_audio_tap"
+                  default="false"
         ></Checkbox>
       </template>
     </PlatformLayout>
