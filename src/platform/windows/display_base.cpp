@@ -19,7 +19,7 @@
 typedef long NTSTATUS;
 
 // Definition from the WDK's d3dkmthk.h
-typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE : DWORD {
+typedef enum _D3DKMT_GPU_PREFERENCE_QUERY_STATE: DWORD {
   D3DKMT_GPU_PREFERENCE_STATE_UNINITIALIZED,  ///< The GPU preference isn't initialized.
   D3DKMT_GPU_PREFERENCE_STATE_HIGH_PERFORMANCE,  ///< The highest performing GPU is preferred.
   D3DKMT_GPU_PREFERENCE_STATE_MINIMUM_POWER,  ///< The minimum-powered GPU is preferred.
