@@ -92,20 +92,20 @@ typedef struct {
 
 /**
  * @brief Find a specific microphone device by name.
- * @param name The name of the microphone to find
+ * @param name The name of the microphone to find (nullable - will return nil if name is nil)
  * @return AVCaptureDevice object if found, nil otherwise
  */
-+ (nullable AVCaptureDevice *)findMicrophone:(NSString *)name;
++ (nullable AVCaptureDevice *)findMicrophone:(nullable NSString *)name;
 
 /**
  * @brief Sets up microphone capture using AVFoundation framework.
- * @param device The AVCaptureDevice to use for audio input
+ * @param device The AVCaptureDevice to use for audio input (nullable - will return error if nil)
  * @param sampleRate Target sample rate in Hz
  * @param frameSize Number of frames per buffer
  * @param channels Number of audio channels (1=mono, 2=stereo)
  * @return 0 on success, -1 on failure
  */
-- (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
+- (int)setupMicrophone:(nullable AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels;
 
 /**
  * @brief Sets up system-wide audio tap for capturing all system audio.

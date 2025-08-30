@@ -115,6 +115,12 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 + (AVCaptureDevice *)findMicrophone:(NSString *)name {
   using namespace std::literals;
+
+  if (name == nil) {
+    BOOST_LOG(warning) << "Microphone not found: (nil)"sv;
+    return nil;
+  }
+
   BOOST_LOG(debug) << "Searching for microphone: "sv << [name UTF8String];
 
   for (AVCaptureDevice *device in [AVAudio microphones]) {
@@ -130,6 +136,12 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
 - (int)setupMicrophone:(AVCaptureDevice *)device sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize channels:(UInt8)channels {
   using namespace std::literals;
+
+  if (device == nil) {
+    BOOST_LOG(error) << "Cannot setup microphone: device is nil"sv;
+    return -1;
+  }
+
   BOOST_LOG(info) << "Setting up microphone: "sv << [[device localizedName] UTF8String] << " with "sv << sampleRate << "Hz, "sv << frameSize << " frames, "sv << (int) channels << " channels"sv;
 
   self.audioCaptureSession = [[AVCaptureSession alloc] init];
