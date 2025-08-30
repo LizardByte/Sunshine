@@ -256,9 +256,8 @@ namespace config {
 
     std::string log_file;
     bool notify_pre_releases;
-    std::vector<prep_cmd_t> prep_cmds;
-
     bool system_tray_enabled;
+    std::vector<prep_cmd_t> prep_cmds;
   };
 
   extern video_t video;

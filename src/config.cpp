@@ -577,8 +577,8 @@ namespace config {
     "ipv4",  // Address family
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
-    {},  // prep commands
     true, // system_tray_enabled
+    {},  // prep commands
   };
 
   bool endline(char ch) {
