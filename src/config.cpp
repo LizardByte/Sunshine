@@ -1252,6 +1252,7 @@ namespace config {
                                                                    "en_US"sv,  // English (US)
                                                                    "es"sv,  // Spanish
                                                                    "fr"sv,  // French
+                                                                   "hu"sv,  // Hungarian
                                                                    "it"sv,  // Italian
                                                                    "ja"sv,  // Japanese
                                                                    "ko"sv,  // Korean
@@ -1262,6 +1263,7 @@ namespace config {
                                                                    "sv"sv,  // Swedish
                                                                    "tr"sv,  // Turkish
                                                                    "uk"sv,  // Ukrainian
+                                                                   "vi"sv,  // Vietnamese
                                                                    "zh"sv,  // Chinese
                                                                    "zh_TW"sv,  // Chinese (Traditional)
                                                                  });
