@@ -112,7 +112,7 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   while (true) {
     if (shutdown_event->peek()) {
       BOOST_LOG(info) << "Shutdown event detected, breaking main loop"sv;
-      if (tray_is_enabled) {
+      if (tray_is_enabled && config::sunshine.system_tray) {
         system_tray::end_tray();
       }
       break;
@@ -418,7 +418,7 @@ int main(int argc, char *argv[]) {
   }
 
   // Stop the threaded tray if it was started
-  if (tray_is_enabled) {
+  if (tray_is_enabled && config::sunshine.system_tray) {
     system_tray::end_tray_threaded();
   }
 #endif
