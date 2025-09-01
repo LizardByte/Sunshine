@@ -36,6 +36,7 @@ cleanup:
 
 modules:
   # Test dependencies
+  - "modules/imagemagick.json"
   - "modules/xvfb/xvfb.json"
 
   # Build dependencies

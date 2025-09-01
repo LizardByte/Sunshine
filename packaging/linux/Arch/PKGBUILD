@@ -74,6 +74,7 @@ makedepends=(
 
 checkdepends=(
   'gcovr'
+  'imagemagick'
 )
 
 optdepends=(

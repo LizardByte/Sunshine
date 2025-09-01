@@ -176,6 +176,25 @@ namespace system_tray {
     .allIconPaths = {TRAY_ICON, TRAY_ICON_LOCKED, TRAY_ICON_PLAYING, TRAY_ICON_PAUSING},
   };
 
+  #ifdef SUNSHINE_TESTS
+  const struct tray &tray_data_for_testing() {
+    return tray;
+  }
+
+  bool tray_initialized_for_testing() {
+    return tray_initialized;
+  }
+
+  void reset_tray_data_for_testing() {
+    tray.icon = tray.allIconPaths[0];
+    tray.tooltip = PROJECT_NAME;
+    tray.notification_icon = nullptr;
+    tray.notification_text = nullptr;
+    tray.notification_title = nullptr;
+    tray.notification_cb = nullptr;
+  }
+  #endif
+
   /**
    * @brief Get resource path.
    *

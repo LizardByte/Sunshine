@@ -94,6 +94,9 @@ jobs:
             qtbase \
             qtsvg
 
+      - name: Configure macOS screen recording
+        uses: LizardByte/tray/.github/actions/configure-macos-screen-recording@master
+
       - name: Setup Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
@@ -181,6 +184,16 @@ jobs:
         id: test
         working-directory: build/tests
         run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      - name: Upload system tray screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sunshine-screenshots-${{ matrix.name }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report

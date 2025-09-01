@@ -336,6 +336,7 @@ function add_debian_based_deps() {
     "git"
     "glslang-tools"  # Vulkan shader compiler
     "graphviz"
+    "imagemagick"  # necessary for system tray screenshots in unit tests
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
@@ -441,6 +442,7 @@ function add_fedora_deps() {
     "git"
     "glslc"
     "graphviz"
+    "ImageMagick"  # necessary for system tray screenshots in unit tests
     "libappstream-glib"
     "libcap-devel"
     "libcurl-devel"

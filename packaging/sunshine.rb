@@ -70,6 +70,7 @@ class Sunshine < Formula
     depends_on "gcovr" => [:build, :test]
     depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build
     depends_on "python3" => :build
+    depends_on "imagemagick" => :test
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "cairo"

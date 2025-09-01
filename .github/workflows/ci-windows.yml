@@ -348,11 +348,33 @@ jobs:
         shell: msys2 {0}
         run: cat ./build/cpack_artifacts/_CPack_Packages/win64/WIX/wix.log || true
 
+      - name: Initialize tray icon
+        working-directory: build/tests
+        env:
+          SUNSHINE_CONFIGURE_TRAY_ICONS: '1'
+        run: >-
+          ./test_sunshine.exe
+          --gtest_color=yes
+          --gtest_filter=SystemTrayTest.InitializesTrayForWorkflowConfiguration
+
+      - name: Configure Windows tray screenshots
+        uses: LizardByte/tray/.github/actions/configure-windows-tray-screenshots@master
+
       - name: Run tests
         id: test
         shell: msys2 {0}
         working-directory: build/tests
         run: ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      - name: Upload system tray screenshots
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sunshine-screenshots-${{ matrix.name }}
+          path: build/tests/screenshots
+          if-no-files-found: error
 
       - name: Generate gcov report
         id: test_report
