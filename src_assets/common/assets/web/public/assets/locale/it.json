@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain -- conserva la struttura della grana nel vecchio materiale di film",
     "sw_tune_stillimage": "stillimage -- buono per contenuti simili alle presentazioni",
     "sw_tune_zerolatency": "zerolatency -- buono per la codifica veloce e lo streaming a bassa latenza (predefinito)",
+    "system_tray": "Abilita vassoio di sistema",
+    "system_tray_desc": "Mostra icona nel vassoio di sistema e visualizza le notifiche desktop",
     "touchpad_as_ds4": "Emula un gamepad DS4 se il gamepad client segnala che un touchpad è presente",
     "touchpad_as_ds4_desc": "Se disabilitata, la presenza del touchpad non sarà presa in considerazione durante la selezione del tipo del gamepad.",
     "upnp": "UPnP",
