@@ -355,6 +355,8 @@
     "sw_tune_grain": "korn - bevarar kornstrukturen i gammalt, kornigt filmmaterial",
     "sw_tune_stillimage": "stillimage – bra för bildspel liknande innehåll",
     "sw_tune_zerolatency": "zerolatency – bra för snabb kodning och strömning med låg fördröjning (standard)",
+    "system_tray": "Aktivera systemfältet",
+    "system_tray_desc": "Visa ikonen i systemfältet och visa skrivbordsaviseringar",
     "touchpad_as_ds4": "Emulera en DS4 gamepad om klienten gamepad rapporterar en pekplatta är närvarande",
     "touchpad_as_ds4_desc": "Om inaktiverad, kommer närvaro av pekplatta inte att beaktas under val av speltyp.",
     "upnp": "UPPNP",
