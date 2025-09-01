@@ -152,28 +152,20 @@ jobs:
       matrix:
         include:
           - name: FreeBSD-14.3-amd64
-            coverage: true
             pr: true
           - name: FreeBSD-14.3-aarch64
-            coverage: true
             pr: false
           - name: Linux-AppImage
-            coverage: true
             pr: true
           - name: Homebrew-macos-14
-            coverage: false
             pr: true
           - name: Homebrew-macos-15
-            coverage: false
             pr: true
           - name: Homebrew-macos-26
-            coverage: false
             pr: true
           - name: Homebrew-ubuntu-latest
-            coverage: false
             pr: true
           - name: Windows-AMD64
-            coverage: true
             pr: true
     steps:
       - name: Should run
@@ -208,7 +200,7 @@ jobs:
           verbose: true
 
       - name: Upload coverage
-        if: steps.should_run.outputs.SHOULD_RUN == 'true' && matrix.coverage != false
+        if: steps.should_run.outputs.SHOULD_RUN == 'true'
         uses: codecov/codecov-action@v5
         with:
           disable_search: true
