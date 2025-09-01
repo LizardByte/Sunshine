@@ -12,56 +12,55 @@ namespace system_tray {
    * @brief Callback for opening the UI from the system tray.
    * @param item The tray menu item.
    */
-  void tray_open_ui_cb(struct tray_menu *item);
+  void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for opening GitHub Sponsors from the system tray.
    * @param item The tray menu item.
    */
-  void tray_donate_github_cb(struct tray_menu *item);
+  void tray_donate_github_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for opening Patreon from the system tray.
    * @param item The tray menu item.
    */
-  void tray_donate_patreon_cb(struct tray_menu *item);
+  void tray_donate_patreon_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for opening PayPal donation from the system tray.
    * @param item The tray menu item.
    */
-  void tray_donate_paypal_cb(struct tray_menu *item);
+  void tray_donate_paypal_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for resetting display device configuration.
    * @param item The tray menu item.
    */
-  void tray_reset_display_device_config_cb(struct tray_menu *item);
+  void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for restarting Sunshine from the system tray.
    * @param item The tray menu item.
    */
-  void tray_restart_cb(struct tray_menu *item);
+  void tray_restart_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
    * @brief Callback for exiting Sunshine from the system tray.
    * @param item The tray menu item.
    */
-  void tray_quit_cb(struct tray_menu *item);
+  void tray_quit_cb([[maybe_unused]] struct tray_menu *item);
 
   /**
-   * @brief Create the system tray.
-   * @details This function has an endless loop, so it should be run in a separate thread.
-   * @return 1 if the system tray failed to create, otherwise 0 once the tray has been terminated.
+   * @brief Initializes the system tray without starting a loop.
+   * @return 0 if initialization was successful, non-zero otherwise.
    */
-  int system_tray();
+  int init_tray();
 
   /**
-   * @brief Run the system tray with platform specific options.
-   * @todo macOS requires that UI elements be created on the main thread, so the system tray is not currently implemented for macOS.
+   * @brief Processes a single tray event iteration.
+   * @return 0 if processing was successful, non-zero otherwise.
    */
-  int run_tray();
+  int process_tray_events();
 
   /**
    * @brief Exit the system tray.
@@ -91,4 +90,16 @@ namespace system_tray {
    * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
    */
   void update_tray_require_pin();
+
+  /**
+   * @brief Initializes and runs the system tray in a separate thread.
+   * @return 0 if initialization was successful, non-zero otherwise.
+   */
+  int init_tray_threaded();
+
+  /**
+   * @brief Stops the threaded system tray and waits for the thread to finish.
+   * @return 0 after stopping the threaded tray.
+   */
+  int end_tray_threaded();
 }  // namespace system_tray
