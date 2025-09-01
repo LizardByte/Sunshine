@@ -355,6 +355,8 @@
     "sw_tune_grain": "grano -- conserva la estructura del grano en el viejo material de película de grano",
     "sw_tune_stillimage": "imagen fija -- bueno para contenido de diapositivas",
     "sw_tune_zerolatency": "latencia cero -- bueno para codificación rápida y transmisión de baja latencia (por defecto)",
+    "system_tray": "Habilitar bandeja del sistema",
+    "system_tray_desc": "Mostrar icono en la bandeja del sistema y mostrar notificaciones de escritorio",
     "touchpad_as_ds4": "Emular un gamepad DS4 si el gamepad del cliente reporta que un touchpad está presente",
     "touchpad_as_ds4_desc": "Si está desactivado, la presencia del touchpad no se tendrá en cuenta durante la selección del tipo gamepad.",
     "upnp": "UPnP",
