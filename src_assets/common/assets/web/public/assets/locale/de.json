@@ -355,6 +355,8 @@
     "sw_tune_grain": "korn -- bewahrt die Kornstruktur im alten, körnigen Filmmaterial",
     "sw_tune_stillimage": "stillimage -- gut für slideshow-ähnliche Inhalte",
     "sw_tune_zerolatency": "Zerolatency -- gut für schnelle Kodierung und Low-Latency Streaming (Standard)",
+    "system_tray": "Systemabschnitt aktivieren",
+    "system_tray_desc": "Symbol in der Systemleiste anzeigen und Desktop-Benachrichtigungen anzeigen",
     "touchpad_as_ds4": "Ein DS4 Gamepad emulieren, wenn der Client Gamepad meldet, dass ein Touchpad vorhanden ist",
     "touchpad_as_ds4_desc": "Wenn deaktiviert, wird das Touchpad-Vorhandensein bei der Auswahl des Gamepad-Typs nicht berücksichtigt.",
     "upnp": "UPnP",
