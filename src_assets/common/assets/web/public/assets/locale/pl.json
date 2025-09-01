@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain - zachowuje strukturę ziarna w starym, ziarnistym materiale filmowym",
     "sw_tune_stillimage": "stillimage - dobre dla zawartości podobnej do pokazu slajdów",
     "sw_tune_zerolatency": "zerolatency -- dobre dla szybkiego kodowania i strumieniowania z niskim opóźnieniem (domyślnie)",
+    "system_tray": "Włącz zasobnik systemowy",
+    "system_tray_desc": "Pokaż ikonę w zasobniku systemowym i wyświetl powiadomienia na pulpicie",
     "touchpad_as_ds4": "Emulacja kontrolera DS4, jeśli kliencki kontroler zgłasza obecność touchpada",
     "touchpad_as_ds4_desc": "Jeśli opcja ta jest wyłączona, obecność touchpada nie będzie brana pod uwagę podczas wyboru typu kontrolera.",
     "upnp": "UPnP",
