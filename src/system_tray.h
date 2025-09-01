@@ -90,4 +90,16 @@ namespace system_tray {
    * @brief Spawns a notification for PIN Pairing. Clicking it opens the PIN Web UI Page
    */
   void update_tray_require_pin();
+
+  /**
+   * @brief Initializes and runs the system tray in a separate thread.
+   * @return 0 if initialization was successful, non-zero otherwise.
+   */
+  int init_tray_threaded();
+
+  /**
+   * @brief Stops the threaded system tray and waits for the thread to finish.
+   * @return 0 after stopping the threaded tray.
+   */
+  int end_tray_threaded();
 }  // namespace system_tray

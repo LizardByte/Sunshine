@@ -27,8 +27,11 @@
   #endif
 
   // standard includes
+  #include <atomic>
+  #include <chrono>
   #include <csignal>
   #include <string>
+  #include <thread>
 
   // lib includes
   #include <boost/filesystem.hpp>
@@ -48,6 +51,11 @@ using namespace std::literals;
 // system_tray namespace
 namespace system_tray {
   static std::atomic<bool> tray_initialized = false;
+
+  // Threading variables for all platforms
+  static std::thread tray_thread;
+  static std::atomic<bool> tray_thread_running = false;
+  static std::atomic<bool> tray_thread_should_exit = false;
 
   void tray_open_ui_cb(struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -299,6 +307,96 @@ namespace system_tray {
       launch_ui("/pin");
     };
     tray_update(&tray);
+  }
+
+  // Threading functions available on all platforms
+  static void tray_thread_worker() {
+    BOOST_LOG(info) << "System tray thread started"sv;
+
+    // Initialize the tray in this thread
+    if (init_tray() != 0) {
+      BOOST_LOG(error) << "Failed to initialize tray in thread"sv;
+      tray_thread_running = false;
+      return;
+    }
+
+    tray_thread_running = true;
+
+    // Main tray event loop
+    while (!tray_thread_should_exit) {
+      if (process_tray_events() != 0) {
+        BOOST_LOG(warning) << "Tray event processing failed in thread"sv;
+        break;
+      }
+
+      // Sleep to avoid busy waiting
+      std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+
+    // Clean up the tray
+    end_tray();
+    tray_thread_running = false;
+    BOOST_LOG(info) << "System tray thread ended"sv;
+  }
+
+  int init_tray_threaded() {
+    if (tray_thread_running) {
+      BOOST_LOG(warning) << "Tray thread is already running"sv;
+      return 1;
+    }
+
+    tray_thread_should_exit = false;
+
+    try {
+      tray_thread = std::thread(tray_thread_worker);
+
+      // Wait for the thread to start and initialize
+      const auto start_time = std::chrono::steady_clock::now();
+      while (!tray_thread_running && !tray_thread_should_exit) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        // Timeout after 10 seconds
+        if (std::chrono::steady_clock::now() - start_time > std::chrono::seconds(10)) {
+          BOOST_LOG(error) << "Tray thread initialization timeout"sv;
+          tray_thread_should_exit = true;
+          if (tray_thread.joinable()) {
+            tray_thread.join();
+          }
+          return 1;
+        }
+      }
+
+      if (!tray_thread_running) {
+        BOOST_LOG(error) << "Tray thread failed to start"sv;
+        if (tray_thread.joinable()) {
+          tray_thread.join();
+        }
+        return 1;
+      }
+
+      BOOST_LOG(info) << "System tray thread initialized successfully"sv;
+      return 0;
+    }
+    catch (const std::exception& e) {
+      BOOST_LOG(error) << "Failed to create tray thread: " << e.what();
+      return 1;
+    }
+  }
+
+  int end_tray_threaded() {
+    if (!tray_thread_running) {
+      return 0;
+    }
+
+    BOOST_LOG(info) << "Stopping system tray thread"sv;
+    tray_thread_should_exit = true;
+
+    if (tray_thread.joinable()) {
+      tray_thread.join();
+    }
+
+    BOOST_LOG(info) << "System tray thread stopped"sv;
+    return 0;
   }
 
 }  // namespace system_tray

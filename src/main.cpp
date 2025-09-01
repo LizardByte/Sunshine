@@ -98,7 +98,9 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   bool run_loop = false;
 
   // Conditions that would require the main thread event loop
-  run_loop = tray_is_enabled;
+#ifndef _WIN32
+  run_loop = tray_is_enabled;  // On Windows, tray runs in separate thread, so no main loop needed for tray
+#endif
 
   if (!run_loop) {
     BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
@@ -194,7 +196,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Display device session failed to initialize"sv;
   }
 
-#ifdef WIN32
+#ifdef _WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
     // Restore global settings to the undo file left by improper termination of sunshine.exe
@@ -384,7 +386,16 @@ int main(int argc, char *argv[]) {
 
   if (tray_is_enabled) {
     BOOST_LOG(info) << "Starting system tray"sv;
+#ifdef _WIN32
+    // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
+    // he tray icon would not appear even though Sunshine is running correctly otherwise.
+    // Restarting the service would allow the icon to appear normally.
+    // For now we will keep the Windows tray icon on a separate thread.
+    // Ideally, we would run the system tray on the main thread for all platforms.
+    system_tray::init_tray_threaded();
+#else
     system_tray::init_tray();
+#endif
   }
 
   mainThreadLoop(shutdown_event);
@@ -399,11 +410,16 @@ int main(int argc, char *argv[]) {
   task_pool.stop();
   task_pool.join();
 
-#ifdef WIN32
+#ifdef _WIN32
   // Restore global NVIDIA control panel settings
   if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
     nvprefs_instance.restore_global_profile();
     nvprefs_instance.unload();
+  }
+
+  // Stop the threaded tray if it was started
+  if (tray_is_enabled) {
+    system_tray::end_tray_threaded();
   }
 #endif
 
