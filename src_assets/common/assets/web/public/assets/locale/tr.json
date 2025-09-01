@@ -355,6 +355,8 @@
     "sw_tune_grain": "gren -- eski, grenli film malzemesinde gren yapısını korur",
     "sw_tune_stillimage": "stillimage -- slayt gösterisi benzeri içerik için iyi",
     "sw_tune_zerolatency": "zerolatency -- hızlı kodlama ve düşük gecikmeli akış için iyidir (varsayılan)",
+    "system_tray": "Sistem tepsisini etkinleştir",
+    "system_tray_desc": "Sistem tepsisinde simge gösterme ve masaüstü bildirimlerini görüntüleme",
     "touchpad_as_ds4": "İstemci oyun kumandası bir dokunmatik yüzey olduğunu bildirirse bir DS4 oyun kumandasını taklit edin",
     "touchpad_as_ds4_desc": "Devre dışı bırakılırsa, oyun kumandası türü seçimi sırasında dokunmatik yüzey varlığı dikkate alınmaz.",
     "upnp": "UPnP",
