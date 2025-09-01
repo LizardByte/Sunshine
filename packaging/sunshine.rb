@@ -31,13 +31,19 @@ class Sunshine < Formula
   depends_on "graphviz" => :build
   depends_on "node" => :build
   depends_on "pkgconf" => :build
+  depends_on "gcovr" => :test
   depends_on "curl"
   depends_on "miniupnpc"
   depends_on "openssl"
   depends_on "opus"
   depends_on "icu4c" => :recommended
 
+  on_macos do
+    depends_on "llvm" => [:build, :test]
+  end
+
   on_linux do
+    depends_on "gcc@14" => [:build, :test]
     depends_on "avahi"
     depends_on "gnu-which"
     depends_on "libayatana-appindicator"
@@ -74,6 +80,13 @@ class Sunshine < Formula
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
+
+    # Ensure we use GCC 14 consistently on Linux
+    if OS.linux?
+      gcc14 = Formula["gcc@14"]
+      ENV["CC"] = "#{gcc14.opt_bin}/gcc-14"
+      ENV["CXX"] = "#{gcc14.opt_bin}/g++-14"
+    end
 
     args = %W[
       -DBUILD_WERROR=ON
@@ -168,7 +181,35 @@ class Sunshine < Formula
     system bin/"sunshine", "--version"
 
     # run the test suite
-    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:test_results.xml"
-    assert_path_exists testpath/"test_results.xml"
+    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
+    assert_path_exists File.join(testpath, "tests", "test_results.xml")
+
+    # create gcovr report
+    if ENV["HOMEBREW_BUILDPATH"]
+      buildpath = ENV["HOMEBREW_BUILDPATH"]
+
+      # Change to the source directory for gcovr to work properly
+      cd "#{buildpath}/build" do
+        # Use the same GCC version that was used for compilation
+        gcov_executable = "#{Formula["llvm"].opt_bin}/llvm-cov gcov"
+
+        if OS.linux?
+          # Use GCC 14 to match what was used during compilation
+          gcc14 = Formula["gcc@14"]
+          gcov_executable = "#{gcc14.opt_bin}/gcov-14"
+        end
+
+        system "gcovr", ".",
+          "-r", "../src",
+          "--gcov-executable", gcov_executable,
+          "--exclude-noncode-lines",
+          "--exclude-throw-branches",
+          "--exclude-unreachable-branches",
+          "--verbose",  # TODO: remove verbose once working
+          "--xml-pretty",
+          "-o=#{testpath}/coverage.xml"
+      end
+      assert_path_exists File.join(testpath, "coverage.xml")
+    end
   end
 end
