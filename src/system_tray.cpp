@@ -30,6 +30,7 @@
   #include <atomic>
   #include <chrono>
   #include <csignal>
+  #include <format>
   #include <string>
   #include <thread>
 
@@ -50,43 +51,43 @@ using namespace std::literals;
 
 // system_tray namespace
 namespace system_tray {
-  static std::atomic<bool> tray_initialized = false;
+  static std::atomic tray_initialized = false;
 
   // Threading variables for all platforms
   static std::thread tray_thread;
-  static std::atomic<bool> tray_thread_running = false;
-  static std::atomic<bool> tray_thread_should_exit = false;
+  static std::atomic tray_thread_running = false;
+  static std::atomic tray_thread_should_exit = false;
 
-  void tray_open_ui_cb(struct tray_menu *item) {
+  void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
     launch_ui();
   }
 
-  void tray_donate_github_cb(struct tray_menu *item) {
+  void tray_donate_github_cb([[maybe_unused]] struct tray_menu *item) {
     platf::open_url("https://github.com/sponsors/LizardByte");
   }
 
-  void tray_donate_patreon_cb(struct tray_menu *item) {
+  void tray_donate_patreon_cb([[maybe_unused]] struct tray_menu *item) {
     platf::open_url("https://www.patreon.com/LizardByte");
   }
 
-  void tray_donate_paypal_cb(struct tray_menu *item) {
+  void tray_donate_paypal_cb([[maybe_unused]] struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
 
-  void tray_reset_display_device_config_cb(struct tray_menu *item) {
+  void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Resetting display device config from system tray"sv;
 
     std::ignore = display_device::reset_persistence();
   }
 
-  void tray_restart_cb(struct tray_menu *item) {
+  void tray_restart_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Restarting from system tray"sv;
 
     platf::restart();
   }
 
-  void tray_quit_cb(struct tray_menu *item) {
+  void tray_quit_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Quitting from system tray"sv;
 
   #ifdef _WIN32
@@ -219,8 +220,10 @@ namespace system_tray {
   }
 
   int end_tray() {
-    tray_initialized = false;
-    tray_exit();
+    if (tray_initialized) {
+      tray_initialized = false;
+      tray_exit();
+    }
     return 0;
   }
 
@@ -237,10 +240,10 @@ namespace system_tray {
     tray_update(&tray);
     tray.icon = TRAY_ICON_PLAYING;
     tray.notification_title = "Stream Started";
-    char msg[256];
-    snprintf(msg, std::size(msg), "Streaming started for %s", app_name.c_str());
-    tray.notification_text = msg;
-    tray.tooltip = msg;
+
+    static std::string msg = std::format("Streaming started for {}", app_name);
+    tray.notification_text = msg.c_str();
+    tray.tooltip = msg.c_str();
     tray.notification_icon = TRAY_ICON_PLAYING;
     tray_update(&tray);
   }
@@ -256,12 +259,12 @@ namespace system_tray {
     tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON_PAUSING;
     tray_update(&tray);
-    char msg[256];
-    snprintf(msg, std::size(msg), "Streaming paused for %s", app_name.c_str());
+
+    static std::string msg = std::format("Streaming paused for {}", app_name);
     tray.icon = TRAY_ICON_PAUSING;
     tray.notification_title = "Stream Paused";
-    tray.notification_text = msg;
-    tray.tooltip = msg;
+    tray.notification_text = msg.c_str();
+    tray.tooltip = msg.c_str();
     tray.notification_icon = TRAY_ICON_PAUSING;
     tray_update(&tray);
   }
@@ -277,12 +280,12 @@ namespace system_tray {
     tray.notification_icon = nullptr;
     tray.icon = TRAY_ICON;
     tray_update(&tray);
-    char msg[256];
-    snprintf(msg, std::size(msg), "Application %s successfully stopped", app_name.c_str());
+
+    static std::string msg = std::format("Application {} successfully stopped", app_name);
     tray.icon = TRAY_ICON;
     tray.notification_icon = TRAY_ICON;
     tray.notification_title = "Application Stopped";
-    tray.notification_text = msg;
+    tray.notification_text = msg.c_str();
     tray.tooltip = PROJECT_NAME;
     tray_update(&tray);
   }
@@ -376,8 +379,7 @@ namespace system_tray {
 
       BOOST_LOG(info) << "System tray thread initialized successfully"sv;
       return 0;
-    }
-    catch (const std::exception& e) {
+    } catch (const std::exception &e) {
       BOOST_LOG(error) << "Failed to create tray thread: " << e.what();
       return 1;
     }
