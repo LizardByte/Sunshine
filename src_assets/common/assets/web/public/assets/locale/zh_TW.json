@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain—保留老電影畫面的顆粒結構",
     "sw_tune_stillimage": "stillimage—適用於類似投影片的內容。",
     "sw_tune_zerolatency": "zerolatency—適合快速編碼和低延遲串流（預設值）",
+    "system_tray": "啟用系統匣",
+    "system_tray_desc": "在系統匣中顯示圖示，並顯示桌面通知",
     "touchpad_as_ds4": "當用戶端的遊戲手把報告存在觸控板時，模擬 DS4 遊戲手把",
     "touchpad_as_ds4_desc": "若停用，選擇遊戲手把類型時將不會考慮觸控板的存在。",
     "upnp": "UPnP",
