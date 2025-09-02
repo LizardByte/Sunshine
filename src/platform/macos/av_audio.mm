@@ -577,15 +577,11 @@ namespace platf {
 - (CATapDescription *)createSystemTapDescriptionForChannels:(UInt8)channels {
   using namespace std::literals;
 
-  BOOST_LOG(debug) << "Creating tap description for "sv << (int) channels << " channels"sv;
-  CATapDescription *tapDescription;
+  BOOST_LOG(debug) << "Creating tap description for "sv << (int) channels << " channels (using stereo tap)"sv;
   NSArray *excludeProcesses = @[];
 
-  if (channels == 1) {
-    tapDescription = [[CATapDescription alloc] initMonoGlobalTapButExcludeProcesses:excludeProcesses];
-  } else {
-    tapDescription = [[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:excludeProcesses];
-  }
+  // Always use stereo tap - it handles mono by duplicating to left/right channels
+  CATapDescription *tapDescription = [[CATapDescription alloc] initStereoGlobalTapButExcludeProcesses:excludeProcesses];
 
   // Set unique name and UUID for this instance
   NSString *uniqueName = [NSString stringWithFormat:@"SunshineAVAudio-Tap-%p", (void *) self];
