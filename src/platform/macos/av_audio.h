@@ -2,7 +2,7 @@
  * @file src/platform/macos/av_audio.h
  * @brief Declarations for macOS audio capture with dual input paths.
  *
- * This header defines the AVAudio class which provides two distinct audio capture methods:
+ * This header defines the AVAudio class which provides distinct audio capture methods:
  * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
  * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
  *
@@ -29,6 +29,11 @@ NS_ASSUME_NONNULL_BEGIN
 @class AVAudio;
 @class CATapDescription;
 
+namespace platf {
+  OSStatus audioConverterComplexInputProc(AudioConverterRef _Nullable inAudioConverter, UInt32 * _Nonnull ioNumberDataPackets, AudioBufferList * _Nonnull ioData, AudioStreamPacketDescription * _Nullable * _Nullable outDataPacketDescription, void * _Nonnull inUserData);
+  OSStatus systemAudioIOProc(AudioObjectID inDevice, const AudioTimeStamp * _Nullable inNow, const AudioBufferList * _Nullable inInputData, const AudioTimeStamp * _Nullable inInputTime, AudioBufferList * _Nullable outOutputData, const AudioTimeStamp * _Nullable inOutputTime, void * _Nullable inClientData);
+}
+
 /**
  * @brief Data structure for AudioConverter input callback.
  * Contains audio data and metadata needed for format conversion during audio processing.
@@ -53,6 +58,8 @@ typedef struct {
   UInt32 aggregateDeviceSampleRate;  ///< Sample rate of the aggregate device
   UInt32 aggregateDeviceChannels;  ///< Number of channels in aggregate device
   AudioConverterRef _Nullable audioConverter;  ///< Audio converter for format conversion
+  float * _Nullable conversionBuffer;  ///< Pre-allocated buffer for audio conversion
+  UInt32 conversionBufferSize;  ///< Size of the conversion buffer in bytes
 } AVAudioIOProcData;
 
 /**
@@ -63,6 +70,7 @@ typedef struct {
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
   TPCircularBuffer audioSampleBuffer;  ///< Shared circular buffer for both audio capture paths
+  dispatch_semaphore_t audioSemaphore;  ///< Real-time safe semaphore for signaling audio sample availability
 @private
   // System-wide audio tap components (Core Audio)
   AudioObjectID tapObjectID;  ///< Core Audio tap object identifier for system audio capture
@@ -74,9 +82,6 @@ typedef struct {
 // AVFoundation microphone capture properties
 @property (nonatomic, assign, nullable) AVCaptureSession *audioCaptureSession;  ///< AVFoundation capture session for microphone input
 @property (nonatomic, assign, nullable) AVCaptureConnection *audioConnection;  ///< Audio connection within the capture session
-
-// Shared synchronization property (used by both audio paths)
-@property (nonatomic, assign, nullable) NSCondition *samplesArrivedSignal;  ///< Condition variable to signal when audio samples are available
 
 /**
  * @brief Get all available microphone devices on the system.
@@ -159,46 +164,6 @@ typedef struct {
  * @return OSStatus indicating success (noErr) or error code
  */
 - (OSStatus)createAggregateDeviceWithTapDescription:(CATapDescription *)tapDescription sampleRate:(UInt32)sampleRate frameSize:(UInt32)frameSize;
-
-/**
- * @brief Audio converter complex input callback for format conversion.
- * Handles audio data conversion between different formats during system audio capture.
- * @param inAudioConverter The audio converter reference
- * @param ioNumberDataPackets Number of data packets to convert
- * @param ioData Audio buffer list for converted data
- * @param outDataPacketDescription Packet description for output data
- * @param inputInfo Input data structure containing source audio
- * @return OSStatus indicating success (noErr) or error code
- */
-- (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
-                       ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
-                                    ioData:(AudioBufferList *)ioData
-                  outDataPacketDescription:(AudioStreamPacketDescription *_Nullable *_Nullable)outDataPacketDescription
-                                 inputInfo:(struct AudioConverterInputData *)inputInfo;
-
-/**
- * @brief Core Audio IOProc callback for processing system audio data.
- * Handles real-time audio processing, format conversion, and writes to circular buffer.
- * @param inDevice The audio device identifier
- * @param inNow Current audio time stamp
- * @param inInputData Input audio buffer list from the device
- * @param inInputTime Time stamp for input data
- * @param outOutputData Output audio buffer list (nullable for input-only devices)
- * @param inOutputTime Time stamp for output data
- * @param clientChannels Number of channels requested by client
- * @param clientFrameSize Frame size requested by client
- * @param clientSampleRate Sample rate requested by client
- * @return OSStatus indicating success (noErr) or error code
- */
-- (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
-                        inNow:(const AudioTimeStamp *)inNow
-                  inInputData:(const AudioBufferList *)inInputData
-                  inInputTime:(const AudioTimeStamp *)inInputTime
-                outOutputData:(nullable AudioBufferList *)outOutputData
-                 inOutputTime:(const AudioTimeStamp *)inOutputTime
-               clientChannels:(UInt32)clientChannels
-              clientFrameSize:(UInt32)clientFrameSize
-             clientSampleRate:(UInt32)clientSampleRate;
 
 @end
 

@@ -12,56 +12,161 @@
 #import "av_audio.h"
 
 #include "src/logging.h"
+#include "src/utility.h"
 
 #import <AudioToolbox/AudioConverter.h>
 #import <CoreAudio/CATapDescription.h>
 
-/**
- * @brief C wrapper for AudioConverter input callback.
- * Bridges C-style Core Audio callbacks to Objective-C++ method calls.
- * @param inAudioConverter The audio converter requesting input data
- * @param ioNumberDataPackets Number of data packets to provide
- * @param ioData Buffer list to fill with audio data
- * @param outDataPacketDescription Packet description for output data
- * @param inUserData User data containing AudioConverterInputData structure
- * @return OSStatus indicating success (noErr) or error code
- */
-static OSStatus audioConverterComplexInputProcWrapper(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
-  struct AudioConverterInputData *inputInfo = (struct AudioConverterInputData *) inUserData;
-  AVAudio *avAudio = inputInfo->avAudio;
+namespace platf {
+  using namespace std::literals;
 
-  return [avAudio audioConverterComplexInputProc:inAudioConverter
-                             ioNumberDataPackets:ioNumberDataPackets
-                                          ioData:ioData
-                        outDataPacketDescription:outDataPacketDescription
-                                       inputInfo:inputInfo];
-}
+  /**
+   * @brief Real-time AudioConverter input callback for format conversion.
+   * Provides audio data to AudioConverter during format conversion process using pure C++ for optimal performance.
+   * This function must avoid all Objective-C runtime calls to meet real-time audio constraints.
+   * @param inAudioConverter The audio converter requesting input data
+   * @param ioNumberDataPackets Number of data packets to provide  
+   * @param ioData Buffer list to fill with audio data
+   * @param outDataPacketDescription Packet description for output data
+   * @param inUserData User data containing AudioConverterInputData structure
+   * @return OSStatus indicating success (noErr) or error code
+   */
+  OSStatus audioConverterComplexInputProc(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
+    auto *inputInfo = static_cast<AudioConverterInputData *>(inUserData);
+    
+    // Check if we've already provided all available frames
+    if (inputInfo->framesProvided >= inputInfo->inputFrames) {
+      *ioNumberDataPackets = 0;
+      return noErr;
+    }
 
-/**
- * @brief C wrapper for Core Audio IOProc callback.
- * Bridges C-style Core Audio IOProc callbacks to Objective-C++ method calls for system-wide audio capture.
- * @param inDevice The audio device identifier
- * @param inNow Current audio time stamp
- * @param inInputData Input audio buffer list from the device
- * @param inInputTime Time stamp for input data
- * @param outOutputData Output audio buffer list (not used in our implementation)
- * @param inOutputTime Time stamp for output data
- * @param inClientData Client data containing AVAudioIOProcData structure
- * @return OSStatus indicating success (noErr) or error code
- */
-static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime, void *inClientData) {
-  AVAudioIOProcData *procData = (AVAudioIOProcData *) inClientData;
-  AVAudio *avAudio = procData->avAudio;
-  return [avAudio systemAudioIOProc:inDevice
-                              inNow:inNow
-                        inInputData:inInputData
-                        inInputTime:inInputTime
-                      outOutputData:outOutputData
-                       inOutputTime:inOutputTime
-                     clientChannels:procData->clientRequestedChannels
-                    clientFrameSize:procData->clientRequestedFrameSize
-                   clientSampleRate:procData->clientRequestedSampleRate];
-}
+    // Calculate how many frames we can provide (don't exceed remaining frames)
+    UInt32 framesToProvide = std::min(*ioNumberDataPackets, inputInfo->inputFrames - inputInfo->framesProvided);
+
+    // Set up the output buffer with the audio data
+    ioData->mNumberBuffers = 1;
+    ioData->mBuffers[0].mNumberChannels = inputInfo->deviceChannels;
+    ioData->mBuffers[0].mDataByteSize = framesToProvide * inputInfo->deviceChannels * sizeof(float);
+    ioData->mBuffers[0].mData = inputInfo->inputData + (inputInfo->framesProvided * inputInfo->deviceChannels);
+
+    // Update the tracking of how many frames we've provided
+    inputInfo->framesProvided += framesToProvide;
+    *ioNumberDataPackets = framesToProvide;
+
+    return noErr;
+  }
+
+  /**
+   * @brief Real-time audio processing function for Core Audio IOProc callbacks.
+   * Handles system-wide audio capture with format conversion and buffering using pure C++ for optimal performance.
+   * This function must avoid all Objective-C runtime calls to meet real-time audio constraints.
+   * @param inDevice The audio device identifier
+   * @param inNow Current audio time stamp  
+   * @param inInputData Input audio buffer list from the device
+   * @param inInputTime Time stamp for input data
+   * @param outOutputData Output audio buffer list (not used in our implementation)
+   * @param inOutputTime Time stamp for output data
+   * @param inClientData Client data containing AVAudioIOProcData structure
+   * @return OSStatus indicating success (noErr) or error code
+   */
+  OSStatus systemAudioIOProc(AudioObjectID inDevice, const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime, void *inClientData) {
+    auto *procData = static_cast<AVAudioIOProcData *>(inClientData);
+    
+    // Get required parameters from procData
+    UInt32 clientChannels = procData->clientRequestedChannels;
+    UInt32 clientFrameSize = procData->clientRequestedFrameSize;
+    AVAudio *avAudio = procData->avAudio;
+    
+    // Always ensure we write to buffer and signal, even if input is empty/invalid
+    bool didWriteData = false;
+
+    if (inInputData && inInputData->mNumberBuffers > 0) {
+      AudioBuffer inputBuffer = inInputData->mBuffers[0];
+
+      if (inputBuffer.mData && inputBuffer.mDataByteSize > 0) {
+        auto *inputSamples = static_cast<float *>(inputBuffer.mData);
+        UInt32 deviceChannels = procData->aggregateDeviceChannels;
+        UInt32 inputFrames = inputBuffer.mDataByteSize / (deviceChannels * sizeof(float));
+
+        // Use AudioConverter if we need any conversion, otherwise pass through
+        if (procData->audioConverter) {
+          // Use pre-allocated buffer instead of malloc for real-time safety!
+          UInt32 maxOutputFrames = procData->conversionBufferSize / (clientChannels * sizeof(float));
+          UInt32 requestedOutputFrames = maxOutputFrames;
+          
+          AudioConverterInputData inputData = {0};
+          inputData.inputData = inputSamples;
+          inputData.inputFrames = inputFrames;
+          inputData.framesProvided = 0;  // Critical: must start at 0!
+          inputData.deviceChannels = deviceChannels;
+          inputData.avAudio = avAudio;
+
+          AudioBufferList outputBufferList = {0};
+          outputBufferList.mNumberBuffers = 1;
+          outputBufferList.mBuffers[0].mNumberChannels = clientChannels;
+          outputBufferList.mBuffers[0].mDataByteSize = procData->conversionBufferSize;
+          outputBufferList.mBuffers[0].mData = procData->conversionBuffer;
+          
+          UInt32 outputFrameCount = requestedOutputFrames;
+          OSStatus converterStatus = AudioConverterFillComplexBuffer(
+            procData->audioConverter,
+            audioConverterComplexInputProc,
+            &inputData,
+            &outputFrameCount,
+            &outputBufferList,
+            nullptr
+          );
+
+          if (converterStatus == noErr && outputFrameCount > 0) {
+            // AudioConverter did all the work: sample rate + channels + optimal frame count
+            UInt32 actualOutputBytes = outputFrameCount * clientChannels * sizeof(float);
+            TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, procData->conversionBuffer, actualOutputBytes);
+            didWriteData = true;
+          } else {
+            // Fallback: write original data
+            TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
+            didWriteData = true;
+          }
+        } else {
+          // No conversion needed - direct passthrough
+          TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
+          didWriteData = true;
+        }
+      }
+    }
+
+    // Always signal, even if we didn't write data (ensures consumer doesn't block)
+    if (!didWriteData) {
+      // Write silence if no valid input data - use pre-allocated buffer or small stack buffer
+      UInt32 silenceFrames = clientFrameSize > 0 ? std::min(clientFrameSize, 2048U) : 512U;
+      
+      if (procData->conversionBuffer && procData->conversionBufferSize > 0) {
+        // Use pre-allocated conversion buffer for silence
+        UInt32 maxSilenceFrames = procData->conversionBufferSize / (clientChannels * sizeof(float));
+        silenceFrames = std::min(silenceFrames, maxSilenceFrames);
+        UInt32 silenceBytes = silenceFrames * clientChannels * sizeof(float);
+        
+        // Creating actual silence 
+        memset(procData->conversionBuffer, 0, silenceBytes);
+        TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, procData->conversionBuffer, silenceBytes);
+      } else {
+        // Fallback to small stack-allocated buffer for cases without conversion buffer
+        float silenceBuffer[512 * 8] = {0}; // Max 512 frames, 8 channels on stack
+        UInt32 maxStackFrames = sizeof(silenceBuffer) / (clientChannels * sizeof(float));
+        silenceFrames = std::min(silenceFrames, maxStackFrames);
+        UInt32 silenceBytes = silenceFrames * clientChannels * sizeof(float);
+        
+        TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, silenceBuffer, silenceBytes);
+      }
+    }
+
+    // Signal new data arrival - using real-time safe C-based semaphore
+    // instead of Objective-C NSCondition to meet real-time audio constraints
+    dispatch_semaphore_signal(avAudio->audioSemaphore);
+
+    return noErr;
+  }
+} // namespace platf
 
 @implementation AVAudio
 
@@ -228,7 +333,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     AudioBuffer audioBuffer = audioBufferList.mBuffers[0];
 
     TPCircularBufferProduceBytes(&self->audioSampleBuffer, audioBuffer.mData, audioBuffer.mDataByteSize);
-    [self.samplesArrivedSignal signal];
+    dispatch_semaphore_signal(self->audioSemaphore);
   }
 }
 
@@ -276,126 +381,6 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
   BOOST_LOG(info) << "System tap setup completed successfully!"sv;
   return 0;
-}
-
-- (OSStatus)systemAudioIOProc:(AudioObjectID)inDevice
-                        inNow:(const AudioTimeStamp *)inNow
-                  inInputData:(const AudioBufferList *)inInputData
-                  inInputTime:(const AudioTimeStamp *)inInputTime
-                outOutputData:(AudioBufferList *)outOutputData
-                 inOutputTime:(const AudioTimeStamp *)inOutputTime
-               clientChannels:(UInt32)clientChannels
-              clientFrameSize:(UInt32)clientFrameSize
-             clientSampleRate:(UInt32)clientSampleRate {
-  // Always ensure we write to buffer and signal, even if input is empty/invalid
-  BOOL didWriteData = NO;
-
-  if (inInputData && inInputData->mNumberBuffers > 0) {
-    AudioBuffer inputBuffer = inInputData->mBuffers[0];
-
-    if (inputBuffer.mData && inputBuffer.mDataByteSize > 0) {
-      float *inputSamples = (float *) inputBuffer.mData;
-      UInt32 deviceChannels = self->ioProcData ? self->ioProcData->aggregateDeviceChannels : 2;
-      UInt32 inputFrames = inputBuffer.mDataByteSize / (deviceChannels * sizeof(float));
-
-      // Use AudioConverter if we need any conversion, otherwise pass through
-      if (self->ioProcData && self->ioProcData->audioConverter) {
-        // Let AudioConverter determine optimal output size - it knows best!
-        // We'll provide a generous buffer and let it tell us what it actually used
-        UInt32 maxOutputFrames = inputFrames * 4;  // Very generous for any upsampling scenario
-        UInt32 outputBytes = maxOutputFrames * clientChannels * sizeof(float);
-        float *outputBuffer = (float *) malloc(outputBytes);
-
-        if (outputBuffer) {
-          struct AudioConverterInputData inputData = {
-            .inputData = inputSamples,
-            .inputFrames = inputFrames,
-            .framesProvided = 0,
-            .deviceChannels = deviceChannels,
-            .avAudio = self
-          };
-
-          AudioBufferList outputBufferList = {0};
-          outputBufferList.mNumberBuffers = 1;
-          outputBufferList.mBuffers[0].mNumberChannels = clientChannels;
-          outputBufferList.mBuffers[0].mDataByteSize = outputBytes;
-          outputBufferList.mBuffers[0].mData = outputBuffer;
-
-          UInt32 outputFrameCount = maxOutputFrames;
-          OSStatus converterStatus = AudioConverterFillComplexBuffer(
-            self->ioProcData->audioConverter,
-            audioConverterComplexInputProcWrapper,
-            &inputData,
-            &outputFrameCount,
-            &outputBufferList,
-            NULL
-          );
-
-          if (converterStatus == noErr && outputFrameCount > 0) {
-            // AudioConverter did all the work: sample rate + channels + optimal frame count
-            UInt32 actualOutputBytes = outputFrameCount * clientChannels * sizeof(float);
-            TPCircularBufferProduceBytes(&self->audioSampleBuffer, outputBuffer, actualOutputBytes);
-            didWriteData = YES;
-          } else {
-            // Fallback: write original data
-            TPCircularBufferProduceBytes(&self->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
-            didWriteData = YES;
-          }
-
-          free(outputBuffer);
-        } else {
-          // Memory allocation failed, fallback to original data
-          TPCircularBufferProduceBytes(&self->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
-          didWriteData = YES;
-        }
-      } else {
-        // No conversion needed - direct passthrough
-        TPCircularBufferProduceBytes(&self->audioSampleBuffer, inputBuffer.mData, inputBuffer.mDataByteSize);
-        didWriteData = YES;
-      }
-    }
-  }
-
-  // Always signal, even if we didn't write data (ensures consumer doesn't block)
-  if (!didWriteData) {
-    // Write silence if no valid input data
-    UInt32 silenceFrames = clientFrameSize > 0 ? clientFrameSize : 2048;
-    UInt32 silenceBytes = silenceFrames * clientChannels * sizeof(float);
-
-    float *silenceBuffer = (float *) calloc(silenceFrames * clientChannels, sizeof(float));
-    if (silenceBuffer) {
-      TPCircularBufferProduceBytes(&self->audioSampleBuffer, silenceBuffer, silenceBytes);
-      free(silenceBuffer);
-    }
-  }
-
-  [self.samplesArrivedSignal signal];
-
-  return noErr;
-}
-
-// AudioConverter input callback as Objective-C method
-- (OSStatus)audioConverterComplexInputProc:(AudioConverterRef)inAudioConverter
-                       ioNumberDataPackets:(UInt32 *)ioNumberDataPackets
-                                    ioData:(AudioBufferList *)ioData
-                  outDataPacketDescription:(AudioStreamPacketDescription **)outDataPacketDescription
-                                 inputInfo:(struct AudioConverterInputData *)inputInfo {
-  if (inputInfo->framesProvided >= inputInfo->inputFrames) {
-    *ioNumberDataPackets = 0;
-    return noErr;
-  }
-
-  UInt32 framesToProvide = MIN(*ioNumberDataPackets, inputInfo->inputFrames - inputInfo->framesProvided);
-
-  ioData->mNumberBuffers = 1;
-  ioData->mBuffers[0].mNumberChannels = inputInfo->deviceChannels;
-  ioData->mBuffers[0].mDataByteSize = framesToProvide * inputInfo->deviceChannels * sizeof(float);
-  ioData->mBuffers[0].mData = inputInfo->inputData + (inputInfo->framesProvided * inputInfo->deviceChannels);
-
-  inputInfo->framesProvided += framesToProvide;
-  *ioNumberDataPackets = framesToProvide;
-
-  return noErr;
 }
 
 /**
@@ -462,6 +447,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   }
 
   if (self->ioProcData) {
+    if (self->ioProcData->conversionBuffer) {
+      free(self->ioProcData->conversionBuffer);
+      self->ioProcData->conversionBuffer = NULL;
+      BOOST_LOG(debug) << "Conversion buffer freed"sv;
+    }
     if (self->ioProcData->audioConverter) {
       AudioConverterDispose(self->ioProcData->audioConverter);
       self->ioProcData->audioConverter = NULL;
@@ -493,11 +483,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   // Initialize the circular buffer with proper size for the channel count
   TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
 
-  // Initialize the condition signal for synchronization (cleanup any existing one first)
-  if (self.samplesArrivedSignal) {
-    [self.samplesArrivedSignal release];
+  // Initialize real-time safe semaphore for synchronization (cleanup any existing one first)
+  if (self->audioSemaphore) {
+    dispatch_release(self->audioSemaphore);
   }
-  self.samplesArrivedSignal = [[NSCondition alloc] init];
+  self->audioSemaphore = dispatch_semaphore_create(0);
 
   BOOST_LOG(info) << "Audio buffer initialized successfully with size: "sv << (kBufferLength * channels) << " bytes"sv;
 }
@@ -506,11 +496,11 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   using namespace std::literals;
   BOOST_LOG(debug) << "Cleaning up audio buffer"sv;
 
-  // Signal any waiting threads before cleanup
-  if (self.samplesArrivedSignal) {
-    [self.samplesArrivedSignal signal];
-    [self.samplesArrivedSignal release];
-    self.samplesArrivedSignal = nil;
+  // Signal any waiting threads before cleanup and release semaphore
+  if (self->audioSemaphore) {
+    dispatch_semaphore_signal(self->audioSemaphore);  // Wake up any waiting threads
+    dispatch_release(self->audioSemaphore);
+    self->audioSemaphore = NULL;
   }
 
   // Cleanup the circular buffer
@@ -577,6 +567,8 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
   self->ioProcData->clientRequestedFrameSize = frameSize;
   self->ioProcData->clientRequestedSampleRate = sampleRate;
   self->ioProcData->audioConverter = NULL;
+  self->ioProcData->conversionBuffer = NULL;
+  self->ioProcData->conversionBufferSize = 0;
 
   BOOST_LOG(debug) << "System tap initialization completed"sv;
   return 0;
@@ -785,6 +777,22 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
     BOOST_LOG(info) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
   }
 
+  // Pre-allocate conversion buffer for real-time use (eliminates malloc in audio callback)
+  UInt32 maxFrames = self->ioProcData->clientRequestedFrameSize * 8; // Generous buffer for upsampling scenarios
+  self->ioProcData->conversionBufferSize = maxFrames * clientChannels * sizeof(float);
+  self->ioProcData->conversionBuffer = (float *)malloc(self->ioProcData->conversionBufferSize);
+  
+  if (!self->ioProcData->conversionBuffer) {
+    BOOST_LOG(error) << "Failed to allocate conversion buffer"sv;
+    if (self->ioProcData->audioConverter) {
+      AudioConverterDispose(self->ioProcData->audioConverter);
+      self->ioProcData->audioConverter = NULL;
+    }
+    return kAudioHardwareUnspecifiedError;
+  }
+  
+  BOOST_LOG(debug) << "Pre-allocated conversion buffer: "sv << self->ioProcData->conversionBufferSize << " bytes ("sv << maxFrames << " frames)"sv;
+
   // Store the actual device format for use in the IOProc
   self->ioProcData->aggregateDeviceSampleRate = (UInt32) aggregateDeviceSampleRate;
   self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
@@ -798,7 +806,7 @@ static OSStatus systemAudioIOProcWrapper(AudioObjectID inDevice, const AudioTime
 
   // Create IOProc
   BOOST_LOG(debug) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
-  OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, systemAudioIOProcWrapper, self->ioProcData, &self->ioProcID);
+  OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, platf::systemAudioIOProc, self->ioProcData, &self->ioProcID);
   BOOST_LOG(debug) << "AudioDeviceCreateIOProcID returned status: "sv << status;
   if (status != noErr) {
     BOOST_LOG(error) << "Failed to create IOProc with status: "sv << status;

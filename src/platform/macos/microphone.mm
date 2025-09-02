@@ -25,7 +25,16 @@ namespace platf {
       void *byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
 
       while (length < sample_size * sizeof(float)) {
-        [av_audio_capture.samplesArrivedSignal wait];
+        // Using 5 second timeout to prevent indefinite hanging
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC);
+        if (dispatch_semaphore_wait(av_audio_capture->audioSemaphore, timeout) != 0) {
+          BOOST_LOG(warning) << "Audio sample timeout - no audio data received within 5 seconds"sv;
+        
+          // Fill with silence and return to prevent hanging
+          std::fill(sample_in.begin(), sample_in.end(), 0.0f);
+          return capture_e::timeout;
+        }
+        
         byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
       }
 

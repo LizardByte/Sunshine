@@ -135,15 +135,15 @@ TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
 
   // Test with various channel counts
   [avAudio initializeAudioBuffer:1];  // Mono
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
 
   [avAudio initializeAudioBuffer:2];  // Stereo
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
 
   [avAudio initializeAudioBuffer:8];  // 7.1 Surround
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
 
   [avAudio release];
@@ -161,9 +161,9 @@ TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
 
   // Initialize then cleanup
   [avAudio initializeAudioBuffer:2];
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
-  EXPECT_EQ(avAudio.samplesArrivedSignal, nil);
+  EXPECT_EQ(avAudio->audioSemaphore, nullptr);
 
   [avAudio release];
 }
@@ -400,25 +400,19 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
     }
   }
 
-  struct AudioConverterInputData inputInfo = {
-    .inputData = testData,
-    .inputFrames = frameCount,
-    .framesProvided = 0,
-    .deviceChannels = channels,
-    .avAudio = avAudio
-  };
+  AudioConverterInputData inputInfo = {0};
+  inputInfo.inputData = testData;
+  inputInfo.inputFrames = frameCount;
+  inputInfo.framesProvided = 0;
+  inputInfo.deviceChannels = channels;
+  inputInfo.avAudio = avAudio;
 
   // Test the method
   UInt32 requestedPackets = 128;
   AudioBufferList bufferList = {0};
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wnonnull"
-  OSStatus result = [avAudio audioConverterComplexInputProc:nil
-                                        ioNumberDataPackets:&requestedPackets
-                                                     ioData:&bufferList
-                                   outDataPacketDescription:nil
-                                                  inputInfo:&inputInfo];
-  #pragma clang diagnostic pop
+  // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
+  AudioConverterRef dummyConverter = nullptr;
+  OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
 
   EXPECT_EQ(result, noErr);
   EXPECT_EQ(requestedPackets, 128);  // Should provide requested frames
@@ -439,24 +433,18 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
   UInt32 channels = 2;
   float *testData = (float *) calloc(frameCount * channels, sizeof(float));
 
-  struct AudioConverterInputData inputInfo = {
-    .inputData = testData,
-    .inputFrames = frameCount,
-    .framesProvided = frameCount,  // Already provided all frames
-    .deviceChannels = channels,
-    .avAudio = avAudio
-  };
+  AudioConverterInputData inputInfo = {0};
+  inputInfo.inputData = testData;
+  inputInfo.inputFrames = frameCount;
+  inputInfo.framesProvided = frameCount;  // Already provided all frames
+  inputInfo.deviceChannels = channels;
+  inputInfo.avAudio = avAudio;
 
   UInt32 requestedPackets = 128;
   AudioBufferList bufferList = {0};
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wnonnull"
-  OSStatus result = [avAudio audioConverterComplexInputProc:nil
-                                        ioNumberDataPackets:&requestedPackets
-                                                     ioData:&bufferList
-                                   outDataPacketDescription:nil
-                                                  inputInfo:&inputInfo];
-  #pragma clang diagnostic pop
+  // Use a dummy AudioConverterRef (can be null for our test since our implementation doesn't use it)
+  AudioConverterRef dummyConverter = nullptr;
+  OSStatus result = platf::audioConverterComplexInputProc(dummyConverter, &requestedPackets, &bufferList, nullptr, &inputInfo);
 
   EXPECT_EQ(result, noErr);
   EXPECT_EQ(requestedPackets, 0);  // Should return 0 packets when no more data
@@ -473,11 +461,11 @@ TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   [avAudio initializeAudioBuffer:2];
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
 
   // Multiple cleanup calls should not crash
   [avAudio cleanupAudioBuffer];
-  EXPECT_EQ(avAudio.samplesArrivedSignal, nil);
+  EXPECT_EQ(avAudio->audioSemaphore, nullptr);
 
   [avAudio cleanupAudioBuffer];  // Second call should be safe
   [avAudio cleanupAudioBuffer];  // Third call should be safe
@@ -494,12 +482,12 @@ TEST_F(AVAudioTest, BufferManagementEdgeCases) {
 
   // Test with minimum reasonable channel count (1 channel)
   [avAudio initializeAudioBuffer:1];
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
 
   // Test with very high channel count
   [avAudio initializeAudioBuffer:32];
-  EXPECT_NE(avAudio.samplesArrivedSignal, nil);
+  EXPECT_NE(avAudio->audioSemaphore, nullptr);
   [avAudio cleanupAudioBuffer];
 
   [avAudio release];
@@ -599,16 +587,27 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
   uint32_t initialAvailableBytes = 0;
   TPCircularBufferTail(&avAudio->audioSampleBuffer, &initialAvailableBytes);
 
-  // Test the processSystemAudioIOProc method
-  OSStatus result = [avAudio systemAudioIOProc:0  // device ID (not used in our logic)
-                                         inNow:&timeStamp
-                                   inInputData:inputBufferList
-                                   inInputTime:&timeStamp
-                                 outOutputData:nil  // not used in our implementation
-                                  inOutputTime:&timeStamp
-                                clientChannels:params.channels
-                               clientFrameSize:params.frameCount
-                              clientSampleRate:params.sampleRate];
+  // Create IOProc data structure for the C++ function
+  AVAudioIOProcData procData = {0};
+  procData.avAudio = avAudio;
+  procData.clientRequestedChannels = params.channels;
+  procData.clientRequestedFrameSize = params.frameCount;
+  procData.clientRequestedSampleRate = params.sampleRate;
+  procData.aggregateDeviceChannels = params.channels;  // For simplicity in tests
+  procData.aggregateDeviceSampleRate = params.sampleRate;
+  procData.audioConverter = nullptr;  // No conversion needed for most tests
+
+  // Create a dummy output buffer (not used in our implementation but required by signature)
+  AudioBufferList dummyOutputBufferList = {0};
+
+  // Test the systemAudioIOProcWrapper function
+  OSStatus result = platf::systemAudioIOProc(0,  // device ID (not used in our logic)
+                                                    &timeStamp,
+                                                    inputBufferList,
+                                                    &timeStamp,
+                                                    &dummyOutputBufferList,
+                                                    &timeStamp,
+                                                    &procData);
 
   // Verify the method returns success
   EXPECT_EQ(result, noErr);
