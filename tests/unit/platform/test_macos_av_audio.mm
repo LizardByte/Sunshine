@@ -602,12 +602,12 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
 
   // Test the systemAudioIOProcWrapper function
   OSStatus result = platf::systemAudioIOProc(0,  // device ID (not used in our logic)
-                                                    &timeStamp,
-                                                    inputBufferList,
-                                                    &timeStamp,
-                                                    &dummyOutputBufferList,
-                                                    &timeStamp,
-                                                    &procData);
+                                             &timeStamp,
+                                             inputBufferList,
+                                             &timeStamp,
+                                             &dummyOutputBufferList,
+                                             &timeStamp,
+                                             &procData);
 
   // Verify the method returns success
   EXPECT_EQ(result, noErr);

@@ -25,7 +25,7 @@ namespace platf {
    * Provides audio data to AudioConverter during format conversion process using pure C++ for optimal performance.
    * This function must avoid all Objective-C runtime calls to meet real-time audio constraints.
    * @param inAudioConverter The audio converter requesting input data
-   * @param ioNumberDataPackets Number of data packets to provide  
+   * @param ioNumberDataPackets Number of data packets to provide
    * @param ioData Buffer list to fill with audio data
    * @param outDataPacketDescription Packet description for output data
    * @param inUserData User data containing AudioConverterInputData structure
@@ -33,7 +33,7 @@ namespace platf {
    */
   OSStatus audioConverterComplexInputProc(AudioConverterRef inAudioConverter, UInt32 *ioNumberDataPackets, AudioBufferList *ioData, AudioStreamPacketDescription **outDataPacketDescription, void *inUserData) {
     auto *inputInfo = static_cast<AudioConverterInputData *>(inUserData);
-    
+
     // Check if we've already provided all available frames
     if (inputInfo->framesProvided >= inputInfo->inputFrames) {
       *ioNumberDataPackets = 0;
@@ -61,7 +61,7 @@ namespace platf {
    * Handles system-wide audio capture with format conversion and buffering using pure C++ for optimal performance.
    * This function must avoid all Objective-C runtime calls to meet real-time audio constraints.
    * @param inDevice The audio device identifier
-   * @param inNow Current audio time stamp  
+   * @param inNow Current audio time stamp
    * @param inInputData Input audio buffer list from the device
    * @param inInputTime Time stamp for input data
    * @param outOutputData Output audio buffer list (not used in our implementation)
@@ -71,12 +71,12 @@ namespace platf {
    */
   OSStatus systemAudioIOProc(AudioObjectID inDevice, const AudioTimeStamp *inNow, const AudioBufferList *inInputData, const AudioTimeStamp *inInputTime, AudioBufferList *outOutputData, const AudioTimeStamp *inOutputTime, void *inClientData) {
     auto *procData = static_cast<AVAudioIOProcData *>(inClientData);
-    
+
     // Get required parameters from procData
     UInt32 clientChannels = procData->clientRequestedChannels;
     UInt32 clientFrameSize = procData->clientRequestedFrameSize;
     AVAudio *avAudio = procData->avAudio;
-    
+
     // Always ensure we write to buffer and signal, even if input is empty/invalid
     bool didWriteData = false;
 
@@ -93,7 +93,7 @@ namespace platf {
           // Use pre-allocated buffer instead of malloc for real-time safety!
           UInt32 maxOutputFrames = procData->conversionBufferSize / (clientChannels * sizeof(float));
           UInt32 requestedOutputFrames = maxOutputFrames;
-          
+
           AudioConverterInputData inputData = {0};
           inputData.inputData = inputSamples;
           inputData.inputFrames = inputFrames;
@@ -106,7 +106,7 @@ namespace platf {
           outputBufferList.mBuffers[0].mNumberChannels = clientChannels;
           outputBufferList.mBuffers[0].mDataByteSize = procData->conversionBufferSize;
           outputBufferList.mBuffers[0].mData = procData->conversionBuffer;
-          
+
           UInt32 outputFrameCount = requestedOutputFrames;
           OSStatus converterStatus = AudioConverterFillComplexBuffer(
             procData->audioConverter,
@@ -139,23 +139,23 @@ namespace platf {
     if (!didWriteData) {
       // Write silence if no valid input data - use pre-allocated buffer or small stack buffer
       UInt32 silenceFrames = clientFrameSize > 0 ? std::min(clientFrameSize, 2048U) : 512U;
-      
+
       if (procData->conversionBuffer && procData->conversionBufferSize > 0) {
         // Use pre-allocated conversion buffer for silence
         UInt32 maxSilenceFrames = procData->conversionBufferSize / (clientChannels * sizeof(float));
         silenceFrames = std::min(silenceFrames, maxSilenceFrames);
         UInt32 silenceBytes = silenceFrames * clientChannels * sizeof(float);
-        
-        // Creating actual silence 
+
+        // Creating actual silence
         memset(procData->conversionBuffer, 0, silenceBytes);
         TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, procData->conversionBuffer, silenceBytes);
       } else {
         // Fallback to small stack-allocated buffer for cases without conversion buffer
-        float silenceBuffer[512 * 8] = {0}; // Max 512 frames, 8 channels on stack
+        float silenceBuffer[512 * 8] = {0};  // Max 512 frames, 8 channels on stack
         UInt32 maxStackFrames = sizeof(silenceBuffer) / (clientChannels * sizeof(float));
         silenceFrames = std::min(silenceFrames, maxStackFrames);
         UInt32 silenceBytes = silenceFrames * clientChannels * sizeof(float);
-        
+
         TPCircularBufferProduceBytes(&avAudio->audioSampleBuffer, silenceBuffer, silenceBytes);
       }
     }
@@ -166,7 +166,7 @@ namespace platf {
 
     return noErr;
   }
-} // namespace platf
+}  // namespace platf
 
 @implementation AVAudio
 
@@ -778,10 +778,10 @@ namespace platf {
   }
 
   // Pre-allocate conversion buffer for real-time use (eliminates malloc in audio callback)
-  UInt32 maxFrames = self->ioProcData->clientRequestedFrameSize * 8; // Generous buffer for upsampling scenarios
+  UInt32 maxFrames = self->ioProcData->clientRequestedFrameSize * 8;  // Generous buffer for upsampling scenarios
   self->ioProcData->conversionBufferSize = maxFrames * clientChannels * sizeof(float);
-  self->ioProcData->conversionBuffer = (float *)malloc(self->ioProcData->conversionBufferSize);
-  
+  self->ioProcData->conversionBuffer = (float *) malloc(self->ioProcData->conversionBufferSize);
+
   if (!self->ioProcData->conversionBuffer) {
     BOOST_LOG(error) << "Failed to allocate conversion buffer"sv;
     if (self->ioProcData->audioConverter) {
@@ -790,7 +790,7 @@ namespace platf {
     }
     return kAudioHardwareUnspecifiedError;
   }
-  
+
   BOOST_LOG(debug) << "Pre-allocated conversion buffer: "sv << self->ioProcData->conversionBufferSize << " bytes ("sv << maxFrames << " frames)"sv;
 
   // Store the actual device format for use in the IOProc

@@ -30,9 +30,9 @@ NS_ASSUME_NONNULL_BEGIN
 @class CATapDescription;
 
 namespace platf {
-  OSStatus audioConverterComplexInputProc(AudioConverterRef _Nullable inAudioConverter, UInt32 * _Nonnull ioNumberDataPackets, AudioBufferList * _Nonnull ioData, AudioStreamPacketDescription * _Nullable * _Nullable outDataPacketDescription, void * _Nonnull inUserData);
-  OSStatus systemAudioIOProc(AudioObjectID inDevice, const AudioTimeStamp * _Nullable inNow, const AudioBufferList * _Nullable inInputData, const AudioTimeStamp * _Nullable inInputTime, AudioBufferList * _Nullable outOutputData, const AudioTimeStamp * _Nullable inOutputTime, void * _Nullable inClientData);
-}
+  OSStatus audioConverterComplexInputProc(AudioConverterRef _Nullable inAudioConverter, UInt32 *_Nonnull ioNumberDataPackets, AudioBufferList *_Nonnull ioData, AudioStreamPacketDescription *_Nullable *_Nullable outDataPacketDescription, void *_Nonnull inUserData);
+  OSStatus systemAudioIOProc(AudioObjectID inDevice, const AudioTimeStamp *_Nullable inNow, const AudioBufferList *_Nullable inInputData, const AudioTimeStamp *_Nullable inInputTime, AudioBufferList *_Nullable outOutputData, const AudioTimeStamp *_Nullable inOutputTime, void *_Nullable inClientData);
+}  // namespace platf
 
 /**
  * @brief Data structure for AudioConverter input callback.
@@ -58,7 +58,7 @@ typedef struct {
   UInt32 aggregateDeviceSampleRate;  ///< Sample rate of the aggregate device
   UInt32 aggregateDeviceChannels;  ///< Number of channels in aggregate device
   AudioConverterRef _Nullable audioConverter;  ///< Audio converter for format conversion
-  float * _Nullable conversionBuffer;  ///< Pre-allocated buffer for audio conversion
+  float *_Nullable conversionBuffer;  ///< Pre-allocated buffer for audio conversion
   UInt32 conversionBufferSize;  ///< Size of the conversion buffer in bytes
 } AVAudioIOProcData;
 
