@@ -9,6 +9,7 @@
   #include "../../tests_common.h"
 
   #import <AVFoundation/AVFoundation.h>
+  #import <CoreAudio/CATapDescription.h>
   #import <CoreAudio/CoreAudio.h>
   #import <Foundation/Foundation.h>
 
@@ -274,6 +275,49 @@ TEST_F(AVAudioTest, CleanupSystemTapContext) {
     [avAudio cleanupSystemTapContext:nil];
   } else {
     // On older systems, cleanup should still be safe even though init fails
+    [avAudio cleanupSystemTapContext:nil];
+  }
+  [avAudio release];
+}
+
+/**
+ * @brief Test Core Audio tap mute behavior with hostAudioEnabled property.
+ * Verifies that tap descriptions have correct mute behavior based on hostAudioEnabled setting.
+ */
+TEST_F(AVAudioTest, CoreAudioTapMuteBehavior) {
+  AVAudio *avAudio = [[AVAudio alloc] init];
+
+  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
+    // Initialize context first
+    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
+    EXPECT_EQ(initResult, 0);
+
+    // Test with host audio disabled (muted)
+    avAudio.hostAudioEnabled = NO;
+    CATapDescription *mutedTap = [avAudio createSystemTapDescriptionForChannels:2];
+    if (mutedTap) {
+      EXPECT_NE(mutedTap, nil);
+      // On macOS 14.2+, we should be able to check the mute behavior
+      if (@available(macOS 14.2, *)) {
+        EXPECT_EQ(mutedTap.muteBehavior, CATapMuted);
+      }
+      [mutedTap release];
+    }
+
+    // Test with host audio enabled (unmuted)
+    avAudio.hostAudioEnabled = YES;
+    CATapDescription *unmutedTap = [avAudio createSystemTapDescriptionForChannels:2];
+    if (unmutedTap) {
+      EXPECT_NE(unmutedTap, nil);
+      // On macOS 14.2+, we should be able to check the mute behavior
+      if (@available(macOS 14.2, *)) {
+        EXPECT_EQ(unmutedTap.muteBehavior, CATapUnmuted);
+      }
+      [unmutedTap release];
+    }
+
+    // Cleanup
     [avAudio cleanupSystemTapContext:nil];
   }
 

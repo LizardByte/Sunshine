@@ -58,9 +58,13 @@ namespace platf {
       return 0;
     }
 
-    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool host_audio_enabled = true) override {
       auto mic = std::make_unique<av_mic_t>();
       mic->av_audio_capture = [[AVAudio alloc] init];
+
+      // Set the host audio enabled flag from the stream configuration
+      mic->av_audio_capture.hostAudioEnabled = host_audio_enabled ? YES : NO;
+      BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
 
       // Check if macOS system-wide audio tap is enabled
       if (config::audio.macos_system_wide_audio_tap) {

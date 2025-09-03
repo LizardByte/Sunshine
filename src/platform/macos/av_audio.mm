@@ -591,6 +591,15 @@ namespace platf {
   tapDescription.UUID = uniqueUUID;
   [tapDescription setPrivate:YES];
 
+  // Set mute behavior based on the hostAudioEnabled property
+  if (self.hostAudioEnabled) {
+    tapDescription.muteBehavior = CATapUnmuted;  // Audio to both tap and speakers
+    BOOST_LOG(debug) << "Core Audio tap: Host audio enabled (unmuted)"sv;
+  } else {
+    tapDescription.muteBehavior = CATapMuted;  // Audio to tap only, speakers muted
+    BOOST_LOG(debug) << "Core Audio tap: Host audio disabled (muted)"sv;
+  }
+
   // Create the tap
   BOOST_LOG(debug) << "Creating process tap with name: "sv << [uniqueName UTF8String];
 
