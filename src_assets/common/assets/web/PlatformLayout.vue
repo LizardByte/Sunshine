@@ -12,6 +12,10 @@ const props = defineProps({
     <slot name="windows"></slot>
   </template>
 
+  <template v-if="$slots.freebsd && platform === 'freebsd'">
+    <slot name="freebsd"></slot>
+  </template>
+
   <template v-if="$slots.linux && platform === 'linux'">
     <slot name="linux"></slot>
   </template>
