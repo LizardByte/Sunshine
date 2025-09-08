@@ -43,6 +43,7 @@ class @PROJECT_NAME@ < Formula
 
   on_linux do
     depends_on "avahi"
+    depends_on "gnu-which"
     depends_on "libayatana-appindicator"
     depends_on "libcap"
     depends_on "libdrm"

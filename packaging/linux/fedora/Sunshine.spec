@@ -72,6 +72,7 @@ BuildRequires: gcc14-c++
 
 %global cuda_dir %{_builddir}/cuda
 
+Requires: libayatana-appindicator3 >= 0.5.3
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
 Requires: libdrm > 2.4.97
@@ -84,7 +85,7 @@ Requires: miniupnpc >= 2.2.4
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
-Requires: libayatana-appindicator3 >= 0.5.3
+Requires: which >= 2.21
 
 %description
 Self-hosted game stream host for Moonlight.

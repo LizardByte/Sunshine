@@ -42,6 +42,7 @@ set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin+p) ${SUNSHINE_EXECUTABLE_PATH}"
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
+            debianutils, \
             libcap2, \
             libcurl4, \
             libdrm2, \
@@ -70,7 +71,8 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \
-            pulseaudio-libs >= 10.0")
+            pulseaudio-libs >= 10.0, \
+            which >= 2.21")
 
 if(NOT BOOST_USE_STATIC)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\

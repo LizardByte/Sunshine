@@ -33,6 +33,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'which'
 )
 
 makedepends=(
