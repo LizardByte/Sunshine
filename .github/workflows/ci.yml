@@ -135,15 +135,10 @@ jobs:
       matrix:
         include:
           - name: Linux-AppImage
-            coverage: true
           - name: Homebrew-macos-14
-            coverage: false
           - name: Homebrew-macos-15
-            coverage: false
           - name: Homebrew-ubuntu-latest
-            coverage: false
           - name: Windows-AMD64
-            coverage: true
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -166,7 +161,6 @@ jobs:
 
       - name: Upload coverage
         uses: codecov/codecov-action@v5
-        if: matrix.coverage != false
         with:
           disable_search: true
           fail_ci_if_error: true
