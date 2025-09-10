@@ -355,6 +355,8 @@
     "sw_tune_grain": "hạt -- giữ nguyên cấu trúc hạt trong vật liệu phim cũ, có hạt.",
     "sw_tune_stillimage": "Hình ảnh tĩnh -- Phù hợp cho nội dung dạng trình chiếu.",
     "sw_tune_zerolatency": "zerolatency -- phù hợp cho mã hóa nhanh và phát trực tuyến có độ trễ thấp (mặc định)",
+    "system_tray": "Bật khay hệ thống",
+    "system_tray_desc": "Hiển thị biểu tượng trong khay hệ thống và hiển thị thông báo trên màn hình desktop.",
     "touchpad_as_ds4": "Mô phỏng tay cầm DS4 nếu tay cầm của client báo có bàn di chuột.",
     "touchpad_as_ds4_desc": "Nếu tính năng này bị tắt, sự hiện diện của bàn di chuột sẽ không được xem xét trong quá trình chọn loại gamepad.",
     "upnp": "UPnP (Tự động phát hiện và chia sẻ thiết bị)",

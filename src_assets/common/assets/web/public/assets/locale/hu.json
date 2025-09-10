@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain -- megőrzi a szemcseszerkezetet a régi, szemcsés filmanyagban",
     "sw_tune_stillimage": "stillimage -- jó diavetítésszerű tartalomhoz",
     "sw_tune_zerolatency": "zerolatency -- gyors kódoláshoz és alacsony késleltetésű streaminghez jó (alapértelmezett)",
+    "system_tray": "Rendszertálca engedélyezése",
+    "system_tray_desc": "ikon megjelenítése a tálcán és asztali értesítések megjelenítése",
     "touchpad_as_ds4": "DS4 gamepad emulálása, ha a kliensgép gamepad érintőtábla jelenlétét jelzi",
     "touchpad_as_ds4_desc": "Ha letiltja, az érintőpad jelenlétét nem veszi figyelembe a rendszer a gamepad típusának kiválasztásakor.",
     "upnp": "UPnP",

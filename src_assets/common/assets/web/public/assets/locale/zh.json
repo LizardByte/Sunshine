@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain -- 在处理旧的、有颗粒感的电影胶片材料时，保持其原有的颗粒结构。",
     "sw_tune_stillimage": "stillimage -- 适用于类似幻灯片的内容",
     "sw_tune_zerolatency": "zerolatency -- 适用于快速编码和低延迟串流（默认值）",
+    "system_tray": "启用系统托盘",
+    "system_tray_desc": "在系统托盘显示图标并显示桌面通知",
     "touchpad_as_ds4": "如果客户端报告游戏手柄存在触摸板，则模拟一个 DS4 游戏手柄",
     "touchpad_as_ds4_desc": "如果禁用，则在选择游戏手柄类型时不会考虑触摸板的存在。",
     "upnp": "UPnP",

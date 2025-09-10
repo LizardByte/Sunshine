@@ -355,6 +355,8 @@
     "sw_tune_grain": "grain -- conserve la structure du grain dans le vieux matériel de film graineux",
     "sw_tune_stillimage": "stillimage -- bon pour le contenu du diaporama",
     "sw_tune_zerolatency": "zerolatency -- bon pour un encodage rapide et un streaming à faible latence (par défaut)",
+    "system_tray": "Activer la barre d'état système",
+    "system_tray_desc": "Afficher l'icône dans la barre d'état système et afficher les notifications du bureau",
     "touchpad_as_ds4": "Émuler une manette DS4 si la manette client signale qu'elle dispose d'un pavé tactile",
     "touchpad_as_ds4_desc": "Si désactivé, la présence du pavé tactile ne sera pas prise en compte lors de la sélection du type du pavé tactile.",
     "upnp": "UPnP",
