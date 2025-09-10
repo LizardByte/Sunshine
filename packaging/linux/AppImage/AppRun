@@ -47,6 +47,8 @@ function install() {
   # user input rules
   # shellcheck disable=SC2002
   cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sunshine.rules" | sudo tee /etc/udev/rules.d/60-sunshine.rules
+  cat "$SUNSHINE_SHARE_HERE/modules-load.d/60-sunshine.conf" | sudo tee /etc/modules-load.d/60-sunshine.conf
+  sudo modprobe uhid
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
   sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
@@ -64,6 +66,9 @@ function install() {
 function remove() {
   # remove input rules
   sudo rm -f /etc/udev/rules.d/60-sunshine.rules
+
+  # remove uhid module loading config
+  sudo rm -f /etc/modules-load.d/60-sunshine.conf
 
   # remove service
   sudo rm -f ~/.config/systemd/user/sunshine.service
