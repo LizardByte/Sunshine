@@ -26,6 +26,7 @@ class @PROJECT_NAME@ < Formula
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
 
+  # boost could be added here, but with boost 1.89 cmake cannot find the system component
   depends_on "cmake" => :build
   depends_on "doxygen" => :build
   depends_on "graphviz" => :build
