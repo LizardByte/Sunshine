@@ -15,7 +15,7 @@
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
-  #include <boost/process.hpp>
+  #include <boost/process/v1.hpp>
 #endif
 
 // local includes
