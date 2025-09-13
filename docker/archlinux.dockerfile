@@ -30,6 +30,11 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 ENV CLONE_URL=${CLONE_URL}
 
+# PKGBUILD options
+ENV _use_cuda=true
+ENV _run_unit_tests=true
+ENV _support_headless_testing=true
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 RUN <<_SETUP
