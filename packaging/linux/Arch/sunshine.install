@@ -1,5 +1,5 @@
 do_setcap() {
-  setcap cap_sys_admin+p $(readlink -f $(which sunshine))
+  setcap cap_sys_admin+p $(readlink -f usr/bin/sunshine)
 }
 
 do_udev_reload() {
@@ -19,4 +19,3 @@ post_upgrade() {
   do_setcap
   do_udev_reload
 }
-
