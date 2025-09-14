@@ -140,6 +140,8 @@ jobs:
             coverage: false
           - name: Homebrew-macos-15
             coverage: false
+          - name: Homebrew-macos-26
+            coverage: false
           - name: Homebrew-ubuntu-latest
             coverage: false
           - name: Windows-AMD64
