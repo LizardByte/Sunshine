@@ -1115,3 +1115,26 @@ pre {
     display: inline-block;
   }
 }
+
+/* Author styles */
+.post-author-container {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+.post-author-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  margin-right: 8px;
+  vertical-align: middle;
+  flex-shrink: 0;
+  min-width: 40px;
+  min-height: 40px;
+}
+
+.post-author-link {
+  text-decoration: none;
+  color: inherit;
+}

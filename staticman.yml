@@ -1,8 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Beautiful Jekyll 6.0.1 | Copyright Dean Attali 2023 -->
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  
+
+  
+
+  
+
+  <title>LizardByte</title>
+
+  
+  
+  <meta name="author" content="LizardByte">
+  
+
+  <meta name="description" content="--- # Name of the property. You can have multiple properties with completely # different config blocks for different sections of your site. # For example, you can have one property to handle comment submission and # another one to handle posts. # To encrypt strings, use the following endpoint:...">
+
+  
+  <meta name="theme-color" content="#05FF3B">
+  
+
+  
+  <meta name="keywords" content="LizardByte,Sunshine,Moonlight,self-hosted,gamestreaming,gamestream,game,streaming,media server">
+  
+
+  
+  <link rel="alternate" type="application/rss+xml" title="LizardByte" href="http://app.lizardbyte.dev/feed.xml">
+  
+
+  
+<!-- Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-SSW90X5YZX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-SSW90X5YZX');
+</script>
+
+
+  
+
+  
+
+  
+
+  
+
+
+  
+    
+      
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+
+    
+      
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+
+
+    
+      
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lora:400,700,400italic,700italic">
+
+
+    
+      
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Open+Sans:300italic,400italic,600italic,700italic,800italic,400,300,600,700,800">
+
+
+    
+  
+
+  
+    
+      <link rel="stylesheet" href="/assets/css/bootstrap-social.css">
+    
+      <link rel="stylesheet" href="/assets/css/beautifuljekyll.css">
+    
+  
+
+  
+    
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin-bootstrap-css.css">
+    
+      <link rel="stylesheet" href="/assets/css/styles.css">
+    
+  
+
+  
+
+  
+
+  
+
+  
+  <meta property="og:site_name" content="LizardByte">
+  <meta property="og:title" content="LizardByte">
+  <meta property="og:description" content="--- # Name of the property. You can have multiple properties with completely # different config blocks for different sections of your site. # For example, you can have one property to handle comment submission and # another one to handle posts. # To encrypt strings, use the following endpoint:...">
+
+  
+  <meta property="og:image" content="http://app.lizardbyte.dev/Sunshine/assets/img/navbar-avatar.png">
+  
+
+  
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="http://app.lizardbyte.dev/staticman.yml">
+  <link rel="canonical" href="http://app.lizardbyte.dev/staticman.yml">
+  
+
+  
+  <meta name="twitter:card" content="summary">
+  
+  <meta name="twitter:site" content="@LizardByteDev">
+  <meta name="twitter:creator" content="@LizardByteDev">
+
+  <meta property="twitter:title" content="LizardByte">
+  <meta property="twitter:description" content="--- # Name of the property. You can have multiple properties with completely # different config blocks for different sections of your site. # For example, you can have one property to handle comment submission and # another one to handle posts. # To encrypt strings, use the following endpoint:...">
+
+  
+  <meta name="twitter:image" content="http://app.lizardbyte.dev/Sunshine/assets/img/navbar-avatar.png">
+  
+
+  
+
+
+  
+
+  
+  
+  <link rel="icon" href="/favicon.ico" />
+  
+
+  
+
+</head>
+
+
+<body>
+  
+
+
+  <nav class="navbar navbar-expand-xl navbar-light fixed-top navbar-custom top-nav-regular">
+  <div class="container-fluid"><a class="navbar-brand" href="http://app.lizardbyte.dev/">LizardByte</a><button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navbar" aria-controls="main-navbar" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="main-navbar">
+      <ul class="navbar-nav ms-auto">
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">❤ Donate</a>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                    <a class="dropdown-item" href="https://github.com/sponsors/LizardByte">GitHub</a>
+                    <a class="dropdown-item" href="https://patreon.com/LizardByte">Patreon</a>
+                    <a class="dropdown-item" href="https://www.paypal.com/paypalme/ReenigneArcher">PayPal</a>
+              </div>
+            </li>
+          
+            <li class="nav-item">
+              <a class="nav-link" href="https://github.com/LizardByte">GitHub</a>
+            </li>
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Resources</a>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                    <a class="dropdown-item" href="/blog">Blog</a>
+                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/about/overview.html">Docs</a>
+                    <a class="dropdown-item" href="https://github.com/orgs/LizardByte/discussions">Community</a>
+                    <a class="dropdown-item" href="/discord">Discord</a>
+                    <a class="dropdown-item" href="/support">Support</a>
+                    <a class="dropdown-item" href="https://status.LizardByte.dev">Status</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Tools</a>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                    <a class="dropdown-item" href="/gamepad-tester">Gamepad Tester</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Development</a>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/developers/contributing.html">Contributing</a>
+                    <a class="dropdown-item" href="/roadmap">Roadmap</a>
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/dashboard">Dashboard</a>
+                    <a class="dropdown-item" href="https://status-dev.LizardByte.dev">Dev Status</a>
+              </div>
+            </li>
+          
+          <li class="nav-item">
+            <a class="nav-link" id="nav-search-link" href="#" title="Search">
+              <span id="nav-search-icon" class="fa fa-search"></span>
+              <span id="nav-search-text">Search</span>
+            </a>
+          </li></ul>
+    </div>
+
+    
+
+    
+      <div class="avatar-container">
+        <div class="avatar-img-border">
+          <a href="http://app.lizardbyte.dev/">
+            <img alt="Navigation bar avatar" class="avatar-img" src="/Sunshine/assets/img/navbar-avatar.png" />
+          </a>
+        </div>
+      </div>
+    
+
+  </div>
+</nav>
+
+
+
+<div id="beautifuljekyll-search-overlay">
+
+  <div id="nav-search-exit" title="Exit search">✕</div>
+  <input type="text" id="nav-search-input" placeholder="Search">
+  <ul id="search-results-container"></ul>
+  
+  <script src="https://unpkg.com/simple-jekyll-search@latest/dest/simple-jekyll-search.min.js"></script>
+  <script>
+    SimpleJekyllSearch({
+      searchInput: document.getElementById('nav-search-input'),
+      resultsContainer: document.getElementById('search-results-container'),
+      json: '/assets/data/searchcorpus.json' 
+    });
+  </script>
+</div>
+
+
+
+
+
+  
+
+
+
+<header class="header-section ">
+<div class="intro-header ">
+  
+  
+</div>
+
+
+
+</header>
+
+
+<main class=" container-md ">
+  <div class="row">
+    <div class=" col-xl-8 offset-xl-2 col-lg-10 offset-lg-1 ">
+      
+
+      ---
 # Name of the property. You can have multiple properties with completely
 # different config blocks for different sections of your site.
 # For example, you can have one property to handle comment submission and
 # another one to handle posts.
-# To encrypt strings use the following endpoint:
+# To encrypt strings, use the following endpoint:
 # https://{STATICMAN API INSTANCE}/v3/encrypt/{TEXT TO BE ENCRYPTED}
 # {STATICMAN API INSTANCE} should match the `endpoint` in the theme config
 # file.
@@ -25,7 +286,7 @@ comments:
   #
   # Name of the branch being used. Must match the `branch` in the theme config
   # file.
-  branch: "master"   #  use "master" for user page or "gh-pages" for project pages
+  branch: "master"  #  use "master" for the user page or "gh-pages" for project pages
 
   commitMessage: "New comment by {fields.name}"
 
@@ -41,12 +302,12 @@ comments:
   # List of fields to be populated automatically by Staticman and included in
   # the data file. Keys are the name of the field. The value can be an object
   # with a `type` property, which configures the generated field, or any value
-  # to be used directly (e.g. a string, number or array)
+  # to be used directly (e.g., a string, number or array)
   generatedFields:
     date:
       type: "date"
       options:
-        format: "iso8601" # "iso8601" (default), "timestamp-seconds", "timestamp-milliseconds"
+        format: "iso8601"  # "iso8601" (default), "timestamp-seconds", "timestamp-milliseconds"
 
   # Whether entries need to be approved before they are published to the main
   # branch. If set to `true`, a pull request will be created for your approval.
@@ -69,26 +330,25 @@ comments:
   # via email when someone adds a reply or a new comment. This requires an account
   # with Mailgun, which you can get for free at https://mailgun.com.
   # notifications:
-    # Enable notifications
-    # enabled: true
+  #  Enable notifications
+  #   enabled: true
 
-    # (!) ENCRYPTED
-    #
-    # Mailgun API key
-    # apiKey: ""
+  #   (!) ENCRYPTED
+  #
+  #   Mailgun API key
+  #   apiKey: ""
 
-    # (!) ENCRYPTED
-    #
-    # Mailgun domain (encrypted)
-    # domain: ""
+  #   (!) ENCRYPTED
+  #
+  #   Mailgun domain (encrypted)
+  #   domain: ""
 
   # (*) REQUIRED
   #
   # Destination path (directory) for the data files. Accepts placeholders.
-  path: "_data/comments/{options.slug}" # (default)
+  path: "_data/comments/{options.slug}"  # (default)
 
-  # Names of required files. If any of these isn't in the request or is empty,
-  # an error will be thrown.
+  # Names of required files. If any of these isn't in the request or is empty, an error will be thrown.
   requiredFields: ["name", "email", "message"]
 
   # List of transformations to apply to any of the fields supplied. Keys are
@@ -103,8 +363,248 @@ comments:
   # 3. Uncomment `siteKey` and `secret` and fill them in with your values
   reCaptcha:
     enabled: false
-    #siteKey: ""
+    # siteKey: ""
     # ENCRYPT reCaptcha secret key using Staticman /encrypt endpoint
-    # i.e. https://{STATICMAN API INSTANCE}/v3/encrypt/{your-site-secret}
+    # i.e., https://{STATICMAN API INSTANCE}/v3/encrypt/{your-site-secret}
     # For more information, visit https://staticman.net/docs/encryption
-    #secret: ""
+    # secret: ""
+
+
+      
+        <div class="after-content">
+          
+            <!-- Donate section-->
+<section class="p-5" id="Donate">
+    <div class="container mb-5 shadow border-0 card-custom rounded-0">
+        <div class="d-table-row g-0">
+            <div class="d-table-cell px-3 align-middle text-center">
+                <h1>
+                    <i class="fa-fw fas fa-coins"></i>
+                </h1>
+            </div>
+            <div class="col-sm-auto border-white my-3 px-3 py-2 border-start">
+                <div class="container">
+                    <h4 class="card-title mb-3 fw-bolder">Donate</h4>
+                </div>
+                <a
+                    class="text-decoration-none"
+                    href="https://github.com/sponsors/LizardByte"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="GitHub Sponsors"
+                         src="https://img.shields.io/github/sponsors/lizardbyte?label=Github%20Sponsors&style=for-the-badge&color=green&logo=githubsponsors"
+                    >
+                </a>
+                <a
+                    class="text-decoration-none"
+                    href="https://www.patreon.com/LizardByte"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="Patreon"
+                         src="https://img.shields.io/badge/dynamic/json?color=green&label=Patreon&style=for-the-badge&query=patron_count&url=https%3A%2F%2Fapp.lizardbyte.dev%2Fdashboard%2Fpatreon%2FLizardByte.json&logo=patreon"
+                    >
+                </a>
+                <a
+                    class="text-decoration-none"
+                    href="https://www.paypal.com/paypalme/ReenigneArcher"
+                    target="_blank">
+                    <img class="m-3 crowdin-ignore"
+                         alt="PayPal"
+                         src="https://img.shields.io/static/v1?style=for-the-badge&label=PayPal&message=Donate&color=green&logo=paypal"
+                    >
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+          
+        </div>
+      
+
+      
+
+    </div>
+  </div>
+</main>
+
+
+  <footer>
+  <div class="container-md beautiful-jekyll-footer">
+    <div class="row">
+      <div class="col-xl-8 offset-xl-2 col-lg-10 offset-lg-1">
+      
+<ul class="list-inline text-center footer-links"><li class="list-inline-item">
+    <a href="/feed.xml" title="RSS">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fas fa-rss fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">RSS</span>
+    </a>
+  </li><li class="list-inline-item">
+    <a href="https://discord.com/invite/d6MpcrbYQs" title="Discord">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-discord fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">Discord</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://www.facebook.com/LizardByteDev" title="Facebook">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-facebook fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">Facebook</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://github.com/LizardByte" title="GitHub">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-github fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">GitHub</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://patreon.com/LizardByte" title="Patreon">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-patreon fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">Patreon</span>
+    </a>
+  </li><li class="list-inline-item">
+    <a href="https://reddit.com/r/LizardByte" title="Reddit">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-reddit fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">Reddit</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://twitter.com/LizardByteDev" title="X (Twitter)">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-x-twitter fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">X (Twitter)</span>
+   </a>
+  </li><li class="list-inline-item">
+    <a href="https://www.youtube.com/c/LizardByteDev" title="YouTube">
+      <span class="fa-stack fa-lg" aria-hidden="true">
+        <i class="fas fa-circle fa-stack-2x"></i>
+        <i class="fab fa-youtube fa-stack-1x fa-inverse"></i>
+      </span>
+      <span class="sr-only">YouTube</span>
+   </a>
+  </li></ul>
+
+
+      
+        <div class="footer-custom-content">
+          
+            <script>
+    //open external links in a new window
+    function external_new_window() {
+        for(let c = document.getElementsByTagName("a"), a = 0;a < c.length;a++) {
+            let b = c[a];
+            if(b.getAttribute("href") && b.hostname !== location.hostname) {
+                b.target = "_blank";
+                b.rel = "noopener";
+            }
+        }
+    }
+
+    //open PDF links in a new window
+    function pdf_new_window ()
+    {
+        if (!document.getElementsByTagName) return false;
+        let links = document.getElementsByTagName("a");
+        for (let eleLink=0; eleLink < links.length; eleLink ++) {
+            if ((links[eleLink].href.indexOf('.pdf') !== -1)||(links[eleLink].href.indexOf('.doc') !== -1)||(links[eleLink].href.indexOf('.docx') !== -1)) {
+                links[eleLink].onclick =
+                function() {
+                    window.open(this.href);
+                    return false;
+                }
+            }
+        }
+    }
+    pdf_new_window();
+    external_new_window();
+</script>
+
+
+<a title="Privacy Policy" href="/privacy" class="text_muted">Privacy</a>
+&nbsp;&bull;&nbsp;
+<a title="Terms and Conditions" href="/terms" class="text_muted">Terms</a>
+&nbsp;&bull;&nbsp;
+<a title="Licenses and Attribution" href="/licenses" class="text_muted">Licenses</a>
+
+          
+        </div>
+      
+      <p class="copyright text-muted">
+      
+        LizardByte
+        &nbsp;&bull;&nbsp;
+      
+      2025
+
+      
+        &nbsp;&bull;&nbsp;
+        <span class="author-site">
+          <a href="http://app.lizardbyte.dev/">app.LizardByte.dev</a>
+        </span>
+      
+
+      
+
+      
+        &nbsp;&bull;&nbsp;
+        <a title="Edit this page on GitHub" href="https://github.com/LizardByte/Sunshine/edit/gh-pages/staticman.yml" class="text_muted">Edit page</a>
+       
+
+      </p>
+      
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  
+  
+    
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+
+  
+
+
+
+  
+    <script src="/assets/js/beautifuljekyll.js"></script>
+  
+
+
+
+  
+    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin.js"></script>
+  
+    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/discord.js"></script>
+  
+    <script src="/assets/js/crowdin-init.js"></script>
+  
+    <script src="/assets/js/discord-init.js"></script>
+  
+
+
+
+
+
+
+
+</body>
+</html>
