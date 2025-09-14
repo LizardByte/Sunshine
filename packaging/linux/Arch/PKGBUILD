@@ -130,6 +130,16 @@ build() {
 
     if [[ "${_use_cuda::1}" != "t" ]]; then
       _cmake_options+=(-DSUNSHINE_ENABLE_CUDA=OFF -DCUDA_FAIL_ON_MISSING=OFF)
+    else
+      # If cuda has just been installed, its variables will not be available in the environment
+      # therefore, set them manually to the expected values on Arch Linux
+      if [ -z "${CUDA_PATH:-}" ] && pacman -Qi cuda &> /dev/null; then
+        local _cuda_gcc_version
+        _cuda_gcc_version="$(LC_ALL=C pacman -Si cuda | grep -Pom1 '^Depends On\s*:.*\bgcc\K[0-9]+\b')"
+
+        export CUDA_PATH=/opt/cuda
+        export NVCC_CCBIN="/usr/bin/g++-${_cuda_gcc_version}"
+      fi
     fi
 
     if [[ "${_run_unit_tests::1}" != "t" ]]; then
