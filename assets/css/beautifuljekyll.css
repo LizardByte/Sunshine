@@ -774,6 +774,15 @@ nav.top-nav-short-permanent ~ header > .intro-header.big-img {
     margin-bottom: 0.3125rem;
   }
 }
+#header-gh-btns object {
+    outline: none;
+    border: none;
+}
+#header-gh-btns object:focus {
+    outline: none;
+    border: none;
+    box-shadow: none;
+}
 
 /* --- Pagination --- */
 
