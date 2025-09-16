@@ -446,15 +446,15 @@ being self-signed.}
 To get a list of available arguments, run the following command.
 
 @tabs{
-   @tab{ General | @code{.bash}
+   @tab{ General | ```bash
       sunshine --help
-      @endcode }
-   @tab{ AppImage | @code{.bash}
+      ```}
+   @tab{ AppImage | ```bash
       ./sunshine.AppImage --help
-      @endcode }
-   @tab{ Flatpak | @code{.bash}
+      ```}
+   @tab{ Flatpak | ```bash
       flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help
-      @endcode }
+      ```}
 }
 
 ### Shortcuts
@@ -506,24 +506,24 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
   * Some GPUs video encoders can produce lower image quality or encoding performance when streaming in HDR compared
     to SDR.
 
-* Additional information:
+Additional information:
 
-  @tabs{
-    @tab{ Windows |
-    - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
-    - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
-    - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
-    }
-
-    @tab{ Linux |
-    - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
-    - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
-    - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
-
-    @seealso{[Arch wiki on HDR Support for Linux](https://wiki.archlinux.org/title/HDR_monitor_support) and
-    [Reddit Guide for HDR Support for AMD GPUs](https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux)}
-    }
+@tabs{
+  @tab{ Windows |
+  - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
+  - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
+  - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
   }
+
+@tab{ Linux |
+  - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
+  - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
+  - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
+
+  @seealso{[Arch wiki on HDR Support for Linux](https://wiki.archlinux.org/title/HDR_monitor_support) and
+  [Reddit Guide for HDR Support for AMD GPUs](https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux)}
+  }
+}
 
 ### Tutorials and Guides
 Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0).
