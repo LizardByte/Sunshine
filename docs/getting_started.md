@@ -277,7 +277,7 @@ brew uninstall sunshine
 #### Installer (recommended)
 
 1. Download and install
-   [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe)
+   [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine-windows-installer.exe)
 
 @attention{You should carefully select or unselect the options you want to install. Do not blindly install or
 enable features.}
@@ -291,7 +291,7 @@ overflow menu. Different versions of Windows may provide slightly different step
 recommended for most users. No support will be provided!}
 
 1. Download and extract
-   [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip)
+   [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine-windows-portable.zip)
 2. Open command prompt as administrator
 3. Firewall rules
 
