@@ -28,8 +28,9 @@ Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
    At the time of writing, the recommended version to use is CUDA ~12.9.
    See [CUDA compatibility](https://docs.nvidia.com/deploy/cuda-compatibility/index.html) for more info.
 
-@tip{To install older versions, select the appropriate run file based on your desired CUDA version and architecture
-according to [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)}
+> [!NOTE]
+> To install older versions, select the appropriate run file based on your desired CUDA version and architecture
+> according to [CUDA Toolkit Archive](https://developer.nvidia.com/cuda-toolkit-archive)
 
 #### macOS
 You can either use [Homebrew](https://brew.sh) or [MacPorts](https://www.macports.org) to install dependencies.
@@ -127,8 +128,9 @@ cmake -B build -G Ninja -S .
 ninja -C build
 ```
 
-@tip{Available build options can be found in
-[options.cmake](https://github.com/LizardByte/Sunshine/blob/master/cmake/prep/options.cmake).}
+> [!TIP]
+> Available build options can be found in
+> [options.cmake](https://github.com/LizardByte/Sunshine/blob/master/cmake/prep/options.cmake).
 
 ### Package
 
