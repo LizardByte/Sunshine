@@ -20,8 +20,9 @@ If you forgot your credentials to the web UI, try this.
   }
 }
 
-@tip{Don't forget to replace `{new-username}` and `{new-password}` with your new credentials.
-Do not include the curly braces.}
+> [!TIP]
+> Remember to replace `{new-username}` and `{new-password}` with your new credentials.
+> Do not include the curly braces.
 
 ### Unusual Mouse Behavior
 If you experience unusual mouse behavior, try attaching a physical mouse to the Sunshine host.
@@ -137,15 +138,16 @@ Error: Could not open codec [h264_vaapi]: Function not implemented
 If you see the above error in the Sunshine logs, compiling *Mesa* manually may be required. See the official Mesa3D
 [Compiling and Installing](https://docs.mesa3d.org/install.html) documentation for instructions.
 
-@important{You must re-enable the disabled encoders. You can do so by passing the following argument to the build
-system. You may also want to enable decoders, however, that is not required for Sunshine and is not covered here.
-```bash
--Dvideo-codecs=h264enc,h265enc
-```
-}
+> [!IMPORTANT]
+> You must re-enable the disabled encoders. You can do so by passing the following argument to the build
+> system. You may also want to enable decoders, however, that is not required for Sunshine and is not covered here.
+> ```bash
+> -Dvideo-codecs=h264enc,h265enc
+> ```
 
-@note{Other build options are listed in the
-[meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.}
+> [!NOTE]
+> Other build options are listed in the
+> [meson options](https://gitlab.freedesktop.org/mesa/mesa/-/blob/main/meson_options.txt) file.
 
 ### Input not working
 After installation, the `udev` rules need to be reloaded. Our post-install script tries to do this for you
@@ -164,9 +166,10 @@ If screencasting fails with KMS, you may need to run the following to force unpr
 sudo setcap -r $(readlink -f $(which sunshine))
 ```
 
-@note{The above command will not work with the AppImage or Flatpak packages. Please refer to the
-[AppImage setup](md_docs_2getting__started.html#appimage) or
-[Flatpak setup](md_docs_2getting__started.html#flatpak) for more specific instructions.}
+> [!NOTE]
+> The above command will not work with the AppImage or Flatpak packages. Please refer to the
+> [AppImage setup](md_docs_2getting__started.html#appimage) or
+> [Flatpak setup](md_docs_2getting__started.html#flatpak) for more specific instructions.
 
 ### KMS streaming fails on Nvidia GPUs
 If KMS screen capture results in a black screen being streamed, you may need to
