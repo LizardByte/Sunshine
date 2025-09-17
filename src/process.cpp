@@ -596,6 +596,11 @@ namespace proc {
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
+        
+        // Backbone/Fuji platform metadata
+        auto platform = app_node.get_optional<std::string>("platform"s);
+        auto platform_id = app_node.get_optional<std::string>("platform_id"s);
+        auto fuji_game_id = app_node.get_optional<std::string>("fuji_game_id"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -665,6 +670,17 @@ namespace proc {
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
+        
+        // Set platform metadata if provided
+        if (platform) {
+          ctx.platform = *platform;
+        }
+        if (platform_id) {
+          ctx.platform_id = *platform_id;
+        }
+        if (fuji_game_id) {
+          ctx.fuji_game_id = *fuji_game_id;
+        }
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);
         if (ids.count(std::get<0>(possible_ids)) == 0) {

@@ -61,6 +61,12 @@ namespace proc {
     std::string output;
     std::string image_path;
     std::string id;
+    
+    // Platform metadata fields for Backbone/Fuji integration
+    std::string platform;      // "steam", "epic", "gog", etc
+    std::string platform_id;   // "570", "Fortnite", etc  
+    std::string fuji_game_id;  // "steam_570", "epic_Fortnite"
+    
     bool elevated;
     bool auto_detach;
     bool wait_all;

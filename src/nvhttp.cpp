@@ -802,6 +802,17 @@ namespace nvhttp {
       app.put("IsHdrSupported"s, video::active_hevc_mode == 3 ? 1 : 0);
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
+      
+      // Include Backbone/Fuji platform metadata
+      if (!proc.platform.empty()) {
+        app.put("Platform", proc.platform);
+      }
+      if (!proc.platform_id.empty()) {
+        app.put("PlatformID", proc.platform_id);
+      }
+      if (!proc.fuji_game_id.empty()) {
+        app.put("FujiGameID", proc.fuji_game_id);
+      }
 
       apps.push_back(std::make_pair("App", std::move(app)));
     }
