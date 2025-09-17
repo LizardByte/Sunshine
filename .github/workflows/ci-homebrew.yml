@@ -79,31 +79,27 @@ jobs:
           PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
         run: |
           # variables for formula
-          branch="${{ env.HEAD_REF }}"
-          build_version=${{ inputs.release_version }}
-          commit=${{ inputs.release_commit }}
+          branch="${HEAD_REF}"
+          build_version="${{ inputs.release_version }}"
+          clone_url="${{ github.event.repository.clone_url }}"
+          commit="${{ inputs.release_commit }}"
+          default_branch="${{ github.event.repository.default_branch }}"
+          tag="${{ github.ref_name }}"
 
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo "This is a PUSH event"
-            clone_url=${{ github.event.repository.clone_url }}
-            branch="${{ github.ref_name }}"
-            default_branch="${{ github.event.repository.default_branch }}"
-
             if [ "${{ matrix.release }}" == "true" ]; then
               # we will publish the formula with the release tag
               tag="${{ inputs.release_tag }}"
-            else
-              tag="${{ github.ref_name }}"
             fi
-          else
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-            branch="${{ env.PR_HEAD_REF }}"
-            default_branch="${{ env.PR_DEFAULT_BRANCH }}"
-            tag="${{ env.PR_HEAD_REF }}"
+            branch="${PR_HEAD_REF}"
+            default_branch="${PR_DEFAULT_BRANCH}"
+            tag="${PR_HEAD_REF}"
           fi
+
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
           echo "Tag: ${tag}"
@@ -153,7 +149,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@v2025.914.154454
+        uses: LizardByte/actions/actions/release_homebrew@v2025.917.25039
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
