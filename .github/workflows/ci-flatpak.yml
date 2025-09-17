@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@v2025.914.154454
+        uses: LizardByte/actions/actions/more_space@v2025.917.25039
         with:
           analyze-space-savings: true
           clean-all: true
@@ -99,23 +99,19 @@ jobs:
 
       - name: Configure Flatpak Manifest
         env:
-          BRANCH: ${{ github.head_ref }}
+          BRANCH: ${{ github.ref }}
         run: |
           # variables for manifest
-          branch="${{ env.BRANCH }}"
-          build_version=${{ inputs.release_version }}
-          commit=${{ inputs.release_commit }}
+          branch="${BRANCH}"
+          build_version="${{ inputs.release_version }}"
+          commit="${{ inputs.release_commit }}"
+          clone_url="${{ github.event.repository.clone_url }}"
 
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo "This is a PUSH event"
-            branch=${{ github.ref_name }}
-            clone_url=${{ github.event.repository.clone_url }}
-          else
-            echo "This is a PR event"
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            branch="${{ github.ref_name }}"
           fi
+
           echo "Branch: ${branch}"
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
