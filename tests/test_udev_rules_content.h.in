@@ -1,0 +1,15 @@
+/**
+ * @file test_udev_rules_content.h.in
+ * @brief Template header file for embedding udev rules content in tests
+ * This file is configured by CMake to generate test_udev_rules_content.h
+ */
+#pragma once
+
+#include <string>
+
+namespace test_data {
+  /**
+   * @brief The content of the udev rules file embedded at compile time
+   */
+  inline const std::string udev_rules_content = "@UDEV_RULES_CONTENT@";
+}
