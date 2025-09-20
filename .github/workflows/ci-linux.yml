@@ -160,6 +160,8 @@ jobs:
         run: |
           sudo apt-get update -y
           sudo apt-get install -y \
+            at-spi2-core \
+            dbus-x11 \
             x11-xserver-utils \
             xvfb
 
@@ -171,11 +173,30 @@ jobs:
         id: test
         working-directory: build/tests
         run: |
+          # Start D-Bus session bus
+          eval "$(dbus-launch --sh-syntax)"
+          echo "D-Bus session started with SESSION_MANAGER=${DBUS_SESSION_BUS_ADDRESS}"
+
+          # Start accessibility services
+          /usr/libexec/at-spi-bus-launcher &
+          AT_SPI_PID=$!
+
+          # Start X11 display
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+          XVFB_PID=$!
           sleep 5  # give Xvfb time to start
 
+          # Run the tests with proper cleanup
           ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+          TEST_EXIT_CODE=$?
+
+          # Clean up background processes
+          kill "${XVFB_PID}" 2>/dev/null || true
+          kill "${AT_SPI_PID}" 2>/dev/null || true
+          kill "${DBUS_SESSION_BUS_PID}" 2>/dev/null || true
+
+          exit ${TEST_EXIT_CODE}
 
       - name: Generate gcov report
         id: test_report
