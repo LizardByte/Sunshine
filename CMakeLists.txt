@@ -47,6 +47,10 @@ if(${END_BUILD})
     return()
 endif()
 
+# CPM
+include(${CMAKE_MODULE_PATH}/cpm/CPM.cmake)
+CPMUsePackageLock(package-lock.cmake)
+
 # project constants
 include(${CMAKE_MODULE_PATH}/prep/constants.cmake)
 
