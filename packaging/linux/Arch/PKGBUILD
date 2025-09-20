@@ -71,7 +71,6 @@ if [[ "${_use_cuda::1}" == "d" ]] && pacman -Qi cuda &> /dev/null; then
 fi
 
 if [[ "${_use_cuda::1}" == "t" ]]; then
-  makedepends+=('cuda')
   optdepends+=(
     'cuda: Nvidia GPU encoding support'
   )
