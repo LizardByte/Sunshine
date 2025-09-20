@@ -13,7 +13,7 @@ struct MouseHIDTest: PlatformTestSuite, testing::WithParamInterface<util::point_
     //       the alternative `platf::abs_mouse` method seem to work better during tests,
     //       but I'm not sure about real work
     GTEST_SKIP() << "TODO Windows";
-#elif __linux__
+#elif __linux__ || __FreeBSD__
     // TODO: Inputtino waiting https://github.com/games-on-whales/inputtino/issues/6 is resolved.
     GTEST_SKIP() << "TODO Inputtino";
 #endif

@@ -14,6 +14,39 @@ It is recommended to use one of the following compilers:
 
 ### Dependencies
 
+#### FreeBSD
+> [!CAUTION]
+> Sunshine support for FreeBSD is experimental and may be incomplete or not work as expected
+
+##### Install dependencies
+```sh
+pkg install -y \
+  audio/opus \
+  audio/pulseaudio \
+  devel/cmake \
+  devel/evdev-proto \
+  devel/git \
+  devel/libayatana-appindicator \
+  devel/libevdev \
+  devel/libnotify \
+  devel/ninja \
+  devel/pkgconf \
+  ftp/curl \
+  graphics/libdrm \
+  graphics/wayland \
+  multimedia/libva \
+  net/miniupnpc \
+  ports-mgmt/pkg \
+  security/openssl \
+  shells/bash \
+  www/npm \
+  x11/libX11 \
+  x11/libxcb \
+  x11/libXfixes \
+  x11/libXrandr \
+  x11/libXtst
+```
+
 #### Linux
 Dependencies vary depending on the distribution. You can reference our
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh) script for a list of
@@ -135,6 +168,11 @@ ninja -C build
 ### Package
 
 @tabs{
+  @tab{FreeBSD | @tabs{
+    @tab{pkg | ```bash
+      cpack -G FREEBSD --config ./build/CPackConfig.cmake
+      ```}
+  }}
   @tab{Linux | @tabs{
     @tab{deb | ```bash
       cpack -G DEB --config ./build/CPackConfig.cmake

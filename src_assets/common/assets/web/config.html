@@ -305,7 +305,7 @@
               return el.id !== "vt" && el.id !== "vaapi";
             });
           }
-          if (this.platform === "linux") {
+          if (this.platform === "freebsd" || this.platform === "linux") {
             this.tabs = this.tabs.filter((el) => {
               return el.id !== "amd" && el.id !== "qsv" && el.id !== "vt";
             });
