@@ -3,14 +3,14 @@
   "buildsystem": "simple",
   "build-commands": [
     "cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y",
-    "./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=filesystem,locale,log,program_options,system",
+    "./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=filesystem,locale,log,program_options",
     "./b2 install variant=release link=shared runtime-link=shared cxxflags=\"$CXXFLAGS\""
   ],
   "sources": [
     {
       "type": "archive",
-      "url": "https://github.com/boostorg/boost/releases/download/boost-1.87.0/boost-1.87.0-cmake.tar.xz",
-      "sha256": "7da75f171837577a52bbf217e17f8ea576c7c246e4594d617bfde7fafd408be5"
+      "url": "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz",
+      "sha256": "67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74"
     }
   ]
 }
