@@ -613,7 +613,7 @@ elif grep -q "Ubuntu 24.04" /etc/os-release; then
   cuda_version="12.9.1"
   cuda_build="575.57.08"
   gcc_version="14"
-  nvm_node=0
+  nvm_node=1
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
   distro="ubuntu"
   version="25.04"
