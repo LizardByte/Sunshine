@@ -45,6 +45,7 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "utf_utils.h"
 
 // UDP_SEND_MSG_SIZE was added in the Windows 10 20H1 SDK
 #ifndef UDP_SEND_MSG_SIZE
@@ -314,7 +315,7 @@ namespace platf {
     // Parse the environment block and populate env
     for (auto c = (PWCHAR) env_block; *c != UNICODE_NULL; c += wcslen(c) + 1) {
       // Environment variable entries end with a null-terminator, so std::wstring() will get an entire entry.
-      std::string env_tuple = to_utf8(std::wstring {c});
+      std::string env_tuple = utf_utils::to_utf8(std::wstring {c});
       std::string env_name = env_tuple.substr(0, env_tuple.find('='));
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
@@ -384,7 +385,7 @@ namespace platf {
     for (const auto &entry : env) {
       auto name = entry.get_name();
       auto value = entry.to_string();
-      size += from_utf8(name).length() + 1 /* L'=' */ + from_utf8(value).length() + 1 /* L'\0' */;
+      size += utf_utils::from_utf8(name).length() + 1 /* L'=' */ + utf_utils::from_utf8(value).length() + 1 /* L'\0' */;
     }
 
     size += 1 /* L'\0' */;
@@ -396,9 +397,9 @@ namespace platf {
       auto value = entry.to_string();
 
       // Construct the NAME=VAL\0 string
-      append_string_to_environment_block(env_block, offset, from_utf8(name));
+      append_string_to_environment_block(env_block, offset, utf_utils::from_utf8(name));
       env_block[offset++] = L'=';
-      append_string_to_environment_block(env_block, offset, from_utf8(value));
+      append_string_to_environment_block(env_block, offset, utf_utils::from_utf8(value));
       env_block[offset++] = L'\0';
     }
 
@@ -676,14 +677,14 @@ namespace platf {
    * @return A command string suitable for use by CreateProcess().
    */
   std::wstring resolve_command_string(const std::string &raw_cmd, const std::wstring &working_dir, HANDLE token, DWORD &creation_flags) {
-    std::wstring raw_cmd_w = from_utf8(raw_cmd);
+    std::wstring raw_cmd_w = utf_utils::from_utf8(raw_cmd);
 
     // First, convert the given command into parts so we can get the executable/file/URL without parameters
     auto raw_cmd_parts = boost::program_options::split_winmain(raw_cmd_w);
     if (raw_cmd_parts.empty()) {
       // This is highly unexpected, but we'll just return the raw string and hope for the best.
       BOOST_LOG(warning) << "Failed to split command string: "sv << raw_cmd;
-      return from_utf8(raw_cmd);
+      return utf_utils::from_utf8(raw_cmd);
     }
 
     auto raw_target = raw_cmd_parts.at(0);
@@ -697,7 +698,7 @@ namespace platf {
       res = UrlGetPartW(raw_target.c_str(), scheme.data(), &out_len, URL_PART_SCHEME, 0);
       if (res != S_OK) {
         BOOST_LOG(warning) << "Failed to extract URL scheme from URL: "sv << raw_target << " ["sv << util::hex(res).to_string_view() << ']';
-        return from_utf8(raw_cmd);
+        return utf_utils::from_utf8(raw_cmd);
       }
 
       // If the target is a URL, the class is found using the URL scheme (prior to and not including the ':')
@@ -708,13 +709,13 @@ namespace platf {
       if (extension == nullptr || *extension == 0) {
         // If the file has no extension, assume it's a command and allow CreateProcess()
         // to try to find it via PATH
-        return from_utf8(raw_cmd);
+        return utf_utils::from_utf8(raw_cmd);
       } else if (boost::iequals(extension, L".exe")) {
         // If the file has an .exe extension, we will bypass the resolution here and
         // directly pass the unmodified command string to CreateProcess(). The argument
         // escaping rules are subtly different between CreateProcess() and ShellExecute(),
         // and we want to preserve backwards compatibility with older configs.
-        return from_utf8(raw_cmd);
+        return utf_utils::from_utf8(raw_cmd);
       }
 
       // For regular files, the class is found using the file extension (including the dot)
@@ -731,7 +732,7 @@ namespace platf {
 
       // Override HKEY_CLASSES_ROOT and HKEY_CURRENT_USER to ensure we query the correct class info
       if (!override_per_user_predefined_keys(token)) {
-        return from_utf8(raw_cmd);
+        return utf_utils::from_utf8(raw_cmd);
       }
 
       // Find the command string for the specified class
@@ -762,7 +763,7 @@ namespace platf {
 
     if (res != S_OK) {
       BOOST_LOG(warning) << "Failed to query command string for raw command: "sv << raw_cmd << " ["sv << util::hex(res).to_string_view() << ']';
-      return from_utf8(raw_cmd);
+      return utf_utils::from_utf8(raw_cmd);
     }
 
     // Finally, construct the real command string that will be passed into CreateProcess().
@@ -896,7 +897,7 @@ namespace platf {
    * @return A `bp::child` object representing the new process, or an empty `bp::child` object if the launch fails.
    */
   bp::child run_command(bool elevated, bool interactive, const std::string &cmd, boost::filesystem::path &working_dir, const bp::environment &env, FILE *file, std::error_code &ec, bp::group *group) {
-    std::wstring start_dir = from_utf8(working_dir.string());
+    std::wstring start_dir = utf_utils::from_utf8(working_dir.string());
     HANDLE job = group ? group->native_handle() : nullptr;
     STARTUPINFOEXW startup_info = create_startup_info(file, job ? &job : nullptr, ec);
     PROCESS_INFORMATION process_info;
@@ -1687,65 +1688,13 @@ namespace platf {
     return {};
   }
 
-  std::wstring from_utf8(const std::string &string) {
-    // No conversion needed if the string is empty
-    if (string.empty()) {
-      return {};
-    }
-
-    // Get the output size required to store the string
-    auto output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0);
-    if (output_size == 0) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get UTF-16 buffer size: "sv << winerr;
-      return {};
-    }
-
-    // Perform the conversion
-    std::wstring output(output_size, L'\0');
-    output_size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size());
-    if (output_size == 0) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to convert string to UTF-16: "sv << winerr;
-      return {};
-    }
-
-    return output;
-  }
-
-  std::string to_utf8(const std::wstring &string) {
-    // No conversion needed if the string is empty
-    if (string.empty()) {
-      return {};
-    }
-
-    // Get the output size required to store the string
-    auto output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), nullptr, 0, nullptr, nullptr);
-    if (output_size == 0) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to get UTF-8 buffer size: "sv << winerr;
-      return {};
-    }
-
-    // Perform the conversion
-    std::string output(output_size, '\0');
-    output_size = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, string.data(), string.size(), output.data(), output.size(), nullptr, nullptr);
-    if (output_size == 0) {
-      auto winerr = GetLastError();
-      BOOST_LOG(error) << "Failed to convert string to UTF-8: "sv << winerr;
-      return {};
-    }
-
-    return output;
-  }
-
   std::string get_host_name() {
     WCHAR hostname[256];
     if (GetHostNameW(hostname, ARRAYSIZE(hostname)) == SOCKET_ERROR) {
       BOOST_LOG(error) << "GetHostNameW() failed: "sv << WSAGetLastError();
       return "Sunshine"s;
     }
-    return to_utf8(hostname);
+    return utf_utils::to_utf8(hostname);
   }
 
   class win32_high_precision_timer: public high_precision_timer {
