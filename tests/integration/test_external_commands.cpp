@@ -28,7 +28,6 @@ struct ExternalCommandTestData {
 class ExternalCommandTest: public ::testing::TestWithParam<ExternalCommandTestData> {
 protected:
   void SetUp() override {
-    // Get the current platform using the macros from tests_common.h
     if constexpr (IS_WINDOWS) {
       current_platform = "windows";
     } else if constexpr (IS_MACOS) {
@@ -53,12 +52,7 @@ protected:
       effective_working_dir = working_dir;
     } else {
       // Use SUNSHINE_SOURCE_DIR CMake definition as the default working directory
-#ifdef SUNSHINE_SOURCE_DIR
       effective_working_dir = SUNSHINE_SOURCE_DIR;
-#else
-      // Fallback if SUNSHINE_SOURCE_DIR is not defined (shouldn't happen in normal builds)
-      effective_working_dir = boost::filesystem::current_path();
-#endif
     }
 
     std::error_code ec;
@@ -152,7 +146,7 @@ constexpr auto SIMPLE_COMMAND = IS_WINDOWS ? "where cmd" : "which sh";
   #define UDEV_TESTS
 #endif
 
-// Test data - Add new commands here as needed
+// Test data
 INSTANTIATE_TEST_SUITE_P(
   ExternalCommands,
   ExternalCommandTest,
