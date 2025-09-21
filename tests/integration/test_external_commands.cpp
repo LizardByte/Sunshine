@@ -136,9 +136,9 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
   }
 
   if (should_succeed) {
-    HANDLE_XFAIL(EXPECT_EQ(exit_code, 0) << "Command should have succeeded but failed with exit code " << exit_code << "\nOutput: " << output);
+    HANDLE_XFAIL_ASSERT_EQ(exit_code, 0, "Command should have succeeded but failed with exit code " + std::to_string(exit_code) + "\nOutput: " + output);
   } else {
-    HANDLE_XFAIL(EXPECT_NE(exit_code, 0) << "Command should have failed but succeeded\nOutput: " << output);
+    HANDLE_XFAIL_ASSERT_NE(exit_code, 0, "Command should have failed but succeeded\nOutput: " + output);
   }
 }
 
