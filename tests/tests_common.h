@@ -71,7 +71,7 @@ namespace test_utils {
    */
   template<typename T1, typename T2>
   inline bool checkNotEqual(const T1 &actual, const T2 &expected, const std::string &message = "") {
-    bool result = (actual != expected);
+    const bool result = (actual != expected);
     if (!message.empty()) {
       BOOST_LOG(debug) << "Assertion check: " << message << " - " << (result ? "PASSED" : "FAILED");
     }

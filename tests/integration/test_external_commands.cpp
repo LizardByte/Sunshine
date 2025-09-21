@@ -27,7 +27,7 @@ struct ExternalCommandTestData {
   std::string xfail_reason = "";  // Optional: reason for expected failure
 
   // Constructor with xfail parameters
-  ExternalCommandTestData(std::string cmd, std::string plat, bool succeed, std::string desc, std::string work_dir = "", bool xfail_cond = false, std::string xfail_rsn = ""):
+  ExternalCommandTestData(std::string cmd, std::string plat, const bool succeed, std::string desc, std::string work_dir = "", const bool xfail_cond = false, std::string xfail_rsn = ""):
       command(std::move(cmd)),
       platform(std::move(plat)),
       should_succeed(succeed),
@@ -89,7 +89,7 @@ protected:
 
     if (ec) {
       std::fclose(temp_file);
-      return {-1, "Failed to start command: " + ec.message()};
+      return {-1, std::format("Failed to start command: {}", ec.message())};
     }
 
     // Wait for the command to complete
@@ -136,9 +136,9 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
   }
 
   if (should_succeed) {
-    HANDLE_XFAIL_ASSERT_EQ(exit_code, 0, "Command should have succeeded but failed with exit code " + std::to_string(exit_code) + "\nOutput: " + output);
+    HANDLE_XFAIL_ASSERT_EQ(exit_code, 0, std::format("Command should have succeeded but failed with exit code {}\nOutput: {}", std::to_string(exit_code), output));
   } else {
-    HANDLE_XFAIL_ASSERT_NE(exit_code, 0, "Command should have failed but succeeded\nOutput: " + output);
+    HANDLE_XFAIL_ASSERT_NE(exit_code, 0, std::format("Command should have failed but succeeded\nOutput: {}", output));
   }
 }
 
