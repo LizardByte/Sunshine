@@ -28,14 +28,14 @@ struct ExternalCommandTestData {
 class ExternalCommandTest: public ::testing::TestWithParam<ExternalCommandTestData> {
 protected:
   void SetUp() override {
-    // Get the current platform
-#ifdef _WIN32
-    current_platform = "windows";
-#elif __APPLE__
-    current_platform = "macos";
-#else
-    current_platform = "linux";
-#endif
+    // Get the current platform using the macros from tests_common.h
+    if constexpr (IS_WINDOWS) {
+      current_platform = "windows";
+    } else if constexpr (IS_MACOS) {
+      current_platform = "macos";
+    } else if constexpr (IS_LINUX) {
+      current_platform = "linux";
+    }
   }
 
   [[nodiscard]] bool shouldRunOnCurrentPlatform(const std::string_view &test_platform) const {
@@ -138,11 +138,7 @@ TEST_P(ExternalCommandTest, RunExternalCommand) {
 }
 
 // Platform-specific command strings
-#ifdef _WIN32
-constexpr auto SIMPLE_COMMAND = "where cmd";  // Windows built-in command
-#else
-constexpr auto SIMPLE_COMMAND = "which sh";  // Unix/Linux built-in command
-#endif
+constexpr auto SIMPLE_COMMAND = IS_WINDOWS ? "where cmd" : "which sh";
 
 #ifdef UDEVADM_EXECUTABLE
   #define UDEV_TESTS \
