@@ -37,6 +37,16 @@ set(TEST_DEFINITIONS)  # list will be appended as needed
 
 # this indicates we're building tests in case sunshine needs to adjust some code or add private tests
 list(APPEND TEST_DEFINITIONS SUNSHINE_TESTS)
+list(APPEND TEST_DEFINITIONS SUNSHINE_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+list(APPEND TEST_DEFINITIONS SUNSHINE_TEST_BIN_DIR="${CMAKE_CURRENT_BINARY_DIR}")
+
+if(NOT WIN32)
+    find_package(Udev 255)  # we need 255+ for udevadm verify
+    message(STATUS "UDEV_FOUND: ${UDEV_FOUND}")
+    if(UDEV_FOUND)
+        list(APPEND TEST_DEFINITIONS UDEVADM_EXECUTABLE="${UDEVADM_EXECUTABLE}")
+    endif()
+endif()
 
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/tests/*.h
@@ -55,15 +65,16 @@ add_executable(${PROJECT_NAME}
 # Copy files needed for config consistency tests to build directory
 # This ensures both CLI and CLion can access the same files relative to the test executable
 # Using configure_file ensures files are copied when they change between builds
-set(CONFIG_TEST_FILES
+set(INTEGRATION_TEST_FILES
     "src/config.cpp"
     "src_assets/common/assets/web/config.html"
     "docs/configuration.md"
     "src_assets/common/assets/web/public/assets/locale/en.json"
     "src_assets/common/assets/web/configs/tabs/General.vue"
+    "src_assets/linux/misc/60-sunshine.rules"
 )
 
-foreach(file ${CONFIG_TEST_FILES})
+foreach(file ${INTEGRATION_TEST_FILES})
     configure_file(
         "${CMAKE_SOURCE_DIR}/${file}"
         "${CMAKE_CURRENT_BINARY_DIR}/${file}"

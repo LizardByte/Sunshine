@@ -294,8 +294,7 @@ jobs:
         id: test
         shell: msys2 {0}
         working-directory: build/tests
-        run: |
-          ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+        run: ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Generate gcov report
         id: test_report
