@@ -23,6 +23,18 @@ struct ExternalCommandTestData {
   bool should_succeed;
   std::string description;
   std::string working_directory;  // Optional: if empty, uses SUNSHINE_SOURCE_DIR
+  bool xfail_condition = false;  // Optional: condition for expected failure
+  std::string xfail_reason = "";  // Optional: reason for expected failure
+
+  // Constructor with xfail parameters
+  ExternalCommandTestData(std::string cmd, std::string plat, bool succeed, std::string desc, std::string work_dir = "", bool xfail_cond = false, std::string xfail_rsn = ""):
+      command(std::move(cmd)),
+      platform(std::move(plat)),
+      should_succeed(succeed),
+      description(std::move(desc)),
+      working_directory(std::move(work_dir)),
+      xfail_condition(xfail_cond),
+      xfail_reason(std::move(xfail_rsn)) {}
 };
 
 class ExternalCommandTest: public ::testing::TestWithParam<ExternalCommandTestData> {
@@ -103,16 +115,15 @@ public:
 
 // Test case implementation
 TEST_P(ExternalCommandTest, RunExternalCommand) {
-  const auto &[command, platform, should_succeed, description, working_directory] = GetParam();
+  const auto &[command, platform, should_succeed, description, working_directory, xfail_condition, xfail_reason] = GetParam();
 
   // Skip test if not for the current platform
   if (!shouldRunOnCurrentPlatform(platform)) {
     GTEST_SKIP() << "Test not applicable for platform: " << current_platform;
   }
 
-  // Mark "Simple command test" as expected to fail on Windows in CI
-  // This works locally but fails in CI due to environment differences
-  XFAIL_IF(IS_WINDOWS && description == "Simple command test", "Simple command test fails on Windows CI environment");
+  // Use the xfail condition and reason from test data
+  XFAIL_IF(xfail_condition, xfail_reason);
 
   BOOST_LOG(info) << "Running external command test: " << description;
   BOOST_LOG(debug) << "Command: " << command;
@@ -152,12 +163,15 @@ INSTANTIATE_TEST_SUITE_P(
   ExternalCommandTest,
   ::testing::Values(
     UDEV_TESTS
-      // Cross-platform tests
+      // Cross-platform tests with xfail on Windows CI
       ExternalCommandTestData {
         SIMPLE_COMMAND,
         "all",
         true,
-        "Simple command test"
+        "Simple command test",
+        "",  // working_directory
+        IS_WINDOWS,  // xfail_condition
+        "Simple command test fails on Windows CI environment"  // xfail_reason
       },
     // Cross-platform failing test
     ExternalCommandTestData {
