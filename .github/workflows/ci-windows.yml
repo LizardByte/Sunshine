@@ -34,7 +34,7 @@ jobs:
             toolchain: ucrt-x86_64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
 
@@ -199,12 +199,12 @@ jobs:
           ignore_list=$(IFS=,; echo "${ignore_packages[*]}")
 
           # install pinned dependencies
-          if [ -n "$tarballs" ]; then
-            pacman -U --noconfirm ${tarballs}
+          if [ -n "${tarballs}" ]; then
+            pacman -U --noconfirm "${tarballs}"
           fi
 
           # Only add --ignore if we have packages to ignore
-          if [ -n "$ignore_list" ]; then
+          if [ -n "${ignore_list}" ]; then
             pacman -Syu --noconfirm --ignore="${ignore_list}" "${dependencies[@]}"
           else
             pacman -Syu --noconfirm "${dependencies[@]}"
@@ -238,7 +238,7 @@ jobs:
 
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -251,7 +251,7 @@ jobs:
 
           # step output
           echo "python-path=${python_path}"
-          echo "python-path=${python_path}" >> $GITHUB_OUTPUT
+          echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
 
       - name: Build Windows
         shell: msys2 {0}
@@ -272,7 +272,9 @@ jobs:
             -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
             -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
             -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+          echo "::add-matcher::.github/matchers/gcc.json"
           ninja -C build
+          echo "::remove-matcher owner=gcc::"
 
       - name: Package Windows
         shell: msys2 {0}
@@ -292,8 +294,7 @@ jobs:
         id: test
         shell: msys2 {0}
         working-directory: build/tests
-        run: |
-          ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+        run: ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Generate gcov report
         id: test_report

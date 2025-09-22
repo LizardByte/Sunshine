@@ -56,22 +56,23 @@ BuildRequires: which
 BuildRequires: xorg-x11-server-Xvfb
 
 # Conditional BuildRequires for cuda-gcc based on Fedora version
-%if 0%{?fedora} >= 40 && 0%{?fedora} <= 41
+%if 0%{?fedora} <= 41
 BuildRequires: gcc13
 BuildRequires: gcc13-c++
 %global gcc_version 13
-%global cuda_version 12.6.3
-%global cuda_build 560.35.05
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
 %elif %{?fedora} >= 42
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
 %global gcc_version 14
-%global cuda_version 12.8.1
-%global cuda_build 570.124.06
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
 %endif
 
 %global cuda_dir %{_builddir}/cuda
 
+Requires: libayatana-appindicator3 >= 0.5.3
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
 Requires: libdrm > 2.4.97
@@ -84,7 +85,7 @@ Requires: miniupnpc >= 2.2.4
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
-Requires: libayatana-appindicator3 >= 0.5.3
+Requires: which >= 2.21
 
 %description
 Self-hosted game stream host for Moonlight.
@@ -96,9 +97,6 @@ tar -xzf %{SOURCE0} -C %{_builddir}/Sunshine
 
 # list directory
 ls -a %{_builddir}/Sunshine
-
-# patches
-%autopatch -p1
 
 %build
 # exit on error
@@ -174,7 +172,7 @@ function install_cuda() {
       --backup \
       --directory="%{cuda_dir}" \
       --verbose \
-      < "%{_builddir}/Sunshine/packaging/linux/fedora/patches/f42/${architecture}/01-math_functions.patch"
+      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/01-math_functions.patch"
   fi
 }
 

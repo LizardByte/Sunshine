@@ -16,7 +16,7 @@ option(BUILD_WERROR "Enable -Werror flag." OFF)
 # if this option is set, the build will exit after configuring special package configuration files
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
-option(SUNSHINE_ENABLE_TRAY "Enable system tray icon. This option will be ignored on macOS." ON)
+option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 

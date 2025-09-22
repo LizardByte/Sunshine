@@ -36,11 +36,11 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "13"
-            os_name: "macos"
           - os_version: "14"
             os_name: "macos"
           - os_version: "15"
+            os_name: "macos"
+          - os_version: "26"
             os_name: "macos"
           - os_version: "latest"
             os_name: "ubuntu"
@@ -49,7 +49,7 @@ jobs:
             release: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Fix homebrew python
         if: matrix.os_name == 'macos' && matrix.os_version == '13'
@@ -73,33 +73,33 @@ jobs:
           brew install python3
 
       - name: Configure formula
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
         run: |
           # variables for formula
-          branch="${{ github.head_ref }}"
-          build_version=${{ inputs.release_version }}
-          commit=${{ inputs.release_commit }}
+          branch="${HEAD_REF}"
+          build_version="${{ inputs.release_version }}"
+          clone_url="${{ github.event.repository.clone_url }}"
+          commit="${{ inputs.release_commit }}"
+          default_branch="${{ github.event.repository.default_branch }}"
+          tag="${{ github.ref_name }}"
 
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo "This is a PUSH event"
-            clone_url=${{ github.event.repository.clone_url }}
-            branch="${{ github.ref_name }}"
-            default_branch="${{ github.event.repository.default_branch }}"
-
             if [ "${{ matrix.release }}" == "true" ]; then
               # we will publish the formula with the release tag
               tag="${{ inputs.release_tag }}"
-            else
-              tag="${{ github.ref_name }}"
             fi
-          else
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
             echo "This is a PR event"
             clone_url=${{ github.event.pull_request.head.repo.clone_url }}
-            branch="${{ github.event.pull_request.head.ref }}"
-            default_branch="${{ github.event.pull_request.head.repo.default_branch }}"
-            tag="${{ github.event.pull_request.head.ref }}"
+            branch="${PR_HEAD_REF}"
+            default_branch="${PR_DEFAULT_BRANCH}"
+            tag="${PR_HEAD_REF}"
           fi
+
           echo "Branch: ${branch}"
           echo "Clone URL: ${clone_url}"
           echo "Tag: ${tag}"
@@ -143,12 +143,13 @@ jobs:
           export DISPLAY=:1
           Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 
-          echo "DISPLAY=${DISPLAY}" >> $GITHUB_ENV
+          echo "DISPLAY=${DISPLAY}" >> "${GITHUB_ENV}"
 
+      - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@v2025.715.25226
+        uses: LizardByte/actions/actions/release_homebrew@v2025.917.25039
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
@@ -156,11 +157,12 @@ jobs:
           publish: false
           token: ${{ secrets.GH_TOKEN }}
           validate: true
+      - run: echo "::remove-matcher owner=gcc-strip3::"
 
       - name: Setup python
         id: python
         if: false
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 

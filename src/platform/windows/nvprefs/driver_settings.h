@@ -36,7 +36,7 @@ namespace nvprefs {
     bool check_and_modify_application_profile(bool &modified);
 
   private:
-    NvDRSSessionHandle session_handle = 0;
+    NvDRSSessionHandle session_handle = nullptr;
   };
 
 }  // namespace nvprefs

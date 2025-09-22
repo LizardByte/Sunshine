@@ -5,7 +5,7 @@
 #define WINVER 0x0A00
 
 // platform includes
-#include <windows.h>
+#include <Windows.h>
 
 // standard includes
 #include <cmath>
@@ -293,7 +293,7 @@ namespace platf {
 
       if (gamepad.repeat_task) {
         task_pool.cancel(gamepad.repeat_task);
-        gamepad.repeat_task = 0;
+        gamepad.repeat_task = nullptr;
       }
 
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
@@ -1452,7 +1452,7 @@ namespace platf {
     // Cancel any pending updates. We will requeue one here when we're finished.
     if (gamepad.repeat_task) {
       task_pool.cancel(gamepad.repeat_task);
-      gamepad.repeat_task = 0;
+      gamepad.repeat_task = nullptr;
     }
 
     if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
@@ -1598,8 +1598,8 @@ namespace platf {
     uint16_t y = touch.y * 943;
     uint8_t touchData[] = {
       (uint8_t) (x & 0xFF),  // Low 8 bits of X
-      (uint8_t) (((x >> 8) & 0x0F) | ((y & 0x0F) << 4)),  // High 4 bits of X and low 4 bits of Y
-      (uint8_t) (((y >> 4) & 0xFF))  // High 8 bits of Y
+      (uint8_t) ((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
+      (uint8_t) (y >> 4 & 0xFF)  // High 8 bits of Y
     };
 
     report.sCurrentTouch.bPacketCounter++;

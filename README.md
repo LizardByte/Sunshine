@@ -34,7 +34,8 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 
 ## 🖥️ System Requirements
 
-@warning{These tables are a work in progress. Do not purchase hardware based on this information.}
+> [!WARNING]
+> These tables are a work in progress. Do not purchase hardware based on this information.
 
 <table>
     <caption id="minimum_requirements">Minimum Requirements</caption>
@@ -72,13 +73,13 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>Windows: 10+ (Windows Server does not support virtual gamepads)</td>
     </tr>
     <tr>
-        <td>macOS: 13+</td>
+        <td>macOS: 14+</td>
     </tr>
     <tr>
-        <td>Linux/Debian: 12+ (bookworm)</td>
+        <td>Linux/Debian: 13+ (trixie)</td>
     </tr>
     <tr>
-        <td>Linux/Fedora: 40+</td>
+        <td>Linux/Fedora: 41+</td>
     </tr>
     <tr>
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>
@@ -110,7 +111,11 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         </td>
     </tr>
     <tr>
-        <td>Nvidia: GeForce GTX 1080 or higher</td>
+        <td>
+            Nvidia:<br>
+            &nbsp;&nbsp;Linux: GeForce RTX 2000 series or higher<br>
+            &nbsp;&nbsp;Windows: Geforce GTX 1080 or higher
+        </td>
     </tr>
     <tr>
         <td rowspan="2">CPU</td>

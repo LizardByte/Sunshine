@@ -27,7 +27,8 @@ for dir in ${DIRECTORIES}; do
 
     # remove the directory if it is empty
     if [[ $empty_dir != "" ]]; then  # prevent the loop from running and failing if no directories found
-        for i in "${empty_dir}"; do  # don't split words as we already know this will be a single directory
+        # shellcheck disable=SC2066  # don't split words as we already know this will be a single directory
+        for i in "${empty_dir}"; do
             echo "Removing empty directory: ${i}"
             rmdir "${i}"
         done

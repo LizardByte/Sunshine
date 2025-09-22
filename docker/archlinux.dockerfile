@@ -30,9 +30,13 @@ ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 ENV CLONE_URL=${CLONE_URL}
 
+# PKGBUILD options
+ENV _use_cuda=true
+ENV _run_unit_tests=true
+ENV _support_headless_testing=true
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# hadolint ignore=SC2016
 RUN <<_SETUP
 #!/bin/bash
 set -e
@@ -42,6 +46,7 @@ useradd -m builder
 echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
 # patch the build flags
+# shellcheck disable=SC2016
 sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
 
 # install dependencies

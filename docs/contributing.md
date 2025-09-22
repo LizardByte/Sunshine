@@ -73,13 +73,15 @@ The following is a simple example of how to use it.
   }
   ```
 
-  @note{The json keys should be sorted alphabetically. You can use [jsonabc](https://novicelab.org/jsonabc)
-  to sort the keys.}
+  > [!NOTE]
+  > The JSON keys should be sorted alphabetically. You can use [jsonabc](https://novicelab.org/jsonabc)
+  > to sort the keys.
 
-  @attention{Due to the integration with Crowdin, it is important to only add strings to the *en.json* file,
-  and to not modify any other language files. After the PR is merged, the translations can take place
-  on [CrowdIn][crowdin-url]. Once the translations are complete, a PR will be made
-  to merge the translations into Sunshine.}
+  > [!IMPORTANT]
+  > Due to the integration with Crowdin, it is important to only add strings to the *en.json* file,
+  > and to not modify any other language files. After the PR is merged, the translations can take place
+  > on [CrowdIn][crowdin-url]. Once the translations are complete, a PR will be made
+  > to merge the translations into Sunshine.
 
 * Use the string in the Vue component.
   ```html
@@ -90,8 +92,9 @@ The following is a simple example of how to use it.
   </template>
   ```
 
-  @tip{More formatting examples can be found in the
-  [Vue I18n guide](https://kazupon.github.io/vue-i18n/guide/formatting.html).}
+  > [!TIP]
+  > More formatting examples can be found in the
+  > [Vue I18n guide](https://kazupon.github.io/vue-i18n/guide/formatting.html).
 
 ##### C++
 
@@ -106,11 +109,13 @@ some situations. For example the system tray icon could be localized as it is us
   std::string msg = boost::locale::translate("Hello world!");
   ```
 
-@tip{More examples can be found in the documentation for
-[boost locale](https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html).}
+> [!TIP]
+> More examples can be found in the documentation for
+> [boost locale](https://www.boost.org/doc/libs/1_70_0/libs/locale/doc/html/messages_formatting.html).
 
-@warning{The below is for information only. Contributors should never include manually updated template files, or
-manually compiled language files in Pull Requests.}
+> [!WARNING]
+> The below is for information only. Contributors should never include manually updated template files, or
+> manually compiled language files in Pull Requests.
 
 Strings are automatically extracted from the code to the `locale/sunshine.po` template file. The generated file is
 used by CrowdIn to generate language specific template files. The file is generated using the
@@ -135,10 +140,11 @@ required for this, along with the python dependencies in the `./scripts/requirem
   python ./scripts/_locale.py --compile
   ```
 
-@attention{Due to the integration with CrowdIn, it is important to not include any extracted or compiled files in
-Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
-translations can take place on [CrowdIn][crowdin-url]. Once the translations are
-complete, a PR will be made to merge the translations into Sunshine.}
+> [!IMPORTANT]
+> Due to the integration with CrowdIn, it is important to not include any extracted or compiled files in
+> Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
+> translations can take place on [CrowdIn][crowdin-url]. Once the translations are
+> complete, a PR will be made to merge the translations into Sunshine.
 
 ### Testing
 
@@ -175,8 +181,8 @@ To see all available options, run the tests with the `--help` flag.
 ./build/tests/test_sunshine --help
 ```
 
-@tip{See the googletest [FAQ](https://google.github.io/googletest/faq.html) for more information on how to use
-Google Test.}
+> [!TIP]
+> See the googletest [FAQ](https://google.github.io/googletest/faq.html) for more information on how to use Google Test.
 
 We use [gcovr](https://www.gcovr.com) to generate code coverage reports,
 and [Codecov](https://about.codecov.io) to analyze the reports for all PRs and commits.

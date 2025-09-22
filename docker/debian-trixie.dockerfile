@@ -4,7 +4,7 @@
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=debian
-ARG TAG=bookworm
+ARG TAG=trixie
 FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -32,6 +32,7 @@ RUN <<_BUILD
 set -e
 chmod +x ./scripts/linux_build.sh
 ./scripts/linux_build.sh \
+  --cuda-patches \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
@@ -42,7 +43,6 @@ _BUILD
 
 # run tests
 WORKDIR /build/sunshine/build/tests
-# hadolint ignore=SC1091
 RUN <<_TEST
 #!/bin/bash
 set -e

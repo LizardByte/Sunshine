@@ -1,18 +1,18 @@
 # Set build variables if env variables are defined
 # These are used in configured files such as manifests for different packages
-if(DEFINED ENV{BRANCH})  # cmake-lint: disable=W0106
+if(DEFINED ENV{BRANCH})
     set(GITHUB_BRANCH $ENV{BRANCH})
 endif()
 if(DEFINED ENV{BUILD_VERSION})  # cmake-lint: disable=W0106
     set(BUILD_VERSION $ENV{BUILD_VERSION})
 endif()
-if(DEFINED ENV{CLONE_URL})  # cmake-lint: disable=W0106
+if(DEFINED ENV{CLONE_URL})
     set(GITHUB_CLONE_URL $ENV{CLONE_URL})
 endif()
-if(DEFINED ENV{COMMIT})  # cmake-lint: disable=W0106
+if(DEFINED ENV{COMMIT})
     set(GITHUB_COMMIT $ENV{COMMIT})
 endif()
-if(DEFINED ENV{TAG})  # cmake-lint: disable=W0106
+if(DEFINED ENV{TAG})
     set(GITHUB_TAG $ENV{TAG})
 endif()
 

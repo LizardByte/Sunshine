@@ -14,7 +14,7 @@ jobs:
     steps:
       - name: Check if latest GitHub release
         id: check-release
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const latestRelease = await github.rest.repos.getLatestRelease({

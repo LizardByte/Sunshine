@@ -8,6 +8,7 @@
 
 // standard includes
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <set>
 
@@ -713,7 +714,7 @@ namespace confighttp {
         if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
           error = "No applications to delete";
         } else {
-          error = "'index' out of range, max index is "s + std::to_string(max_index);
+          error = std::format("'index' {} out of range, max index is {}", index, max_index);
         }
         bad_request(response, request, error);
         return;
@@ -730,7 +731,7 @@ namespace confighttp {
       proc::refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
-      output_tree["result"] = "application " + std::to_string(index) + " deleted";
+      output_tree["result"] = std::format("application {} deleted", index);
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "DeleteApp: "sv << e.what();

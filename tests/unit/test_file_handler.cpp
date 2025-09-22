@@ -4,6 +4,7 @@
  */
 #include "../tests_common.h"
 
+#include <format>
 #include <src/file_handler.h>
 
 struct FileHandlerParentDirectoryTest: testing::TestWithParam<std::tuple<std::string, std::string>> {};
@@ -79,13 +80,13 @@ Hey, hey, hey!
 
 TEST_P(FileHandlerTests, WriteFileTest) {
   auto [fileNum, content] = GetParam();
-  std::string fileName = "write_file_test_" + std::to_string(fileNum) + ".txt";
+  const std::string fileName = std::format("write_file_test_{}.txt", fileNum);
   EXPECT_EQ(file_handler::write_file(fileName.c_str(), content), 0);
 }
 
 TEST_P(FileHandlerTests, ReadFileTest) {
   auto [fileNum, content] = GetParam();
-  std::string fileName = "write_file_test_" + std::to_string(fileNum) + ".txt";
+  const std::string fileName = std::format("write_file_test_{}.txt", fileNum);
   EXPECT_EQ(file_handler::read_file(fileName.c_str()), content);
 }
 

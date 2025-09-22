@@ -23,10 +23,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python 3.9
-        uses: actions/setup-python@v5  # https://github.com/actions/setup-python
+        uses: actions/setup-python@v6  # https://github.com/actions/setup-python
         with:
           python-version: '3.9'
 
@@ -48,9 +48,9 @@ jobs:
           if [ -f "${{ env.file }}" ];
           then
               rm ${{ env.file }}
-              echo "new_file=false" >> $GITHUB_ENV
+              echo "new_file=false" >> "${GITHUB_ENV}"
           else
-              echo "new_file=true" >> $GITHUB_ENV
+              echo "new_file=true" >> "${GITHUB_ENV}"
           fi
 
           # extract the new strings
@@ -67,7 +67,7 @@ jobs:
 
           # set the variable with minimal output, replacing `\t` with ` `
           OUTPUT=$(git diff --numstat locale/sunshine.po | sed -e "s#\t# #g")
-          echo "git_diff=${OUTPUT}" >> $GITHUB_ENV
+          echo "git_diff=${OUTPUT}" >> "${GITHUB_ENV}"
 
       - name: git reset
         # only run if a single line changed (date/time) and file already existed
@@ -79,7 +79,7 @@ jobs:
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y-%m-%d')" >> "${GITHUB_OUTPUT}"
 
       - name: Create/Update Pull Request
         uses: peter-evans/create-pull-request@v7

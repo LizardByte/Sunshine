@@ -141,6 +141,7 @@ namespace config {
     } dd;
 
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
+    double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
   };
 
   struct audio_t {
@@ -192,6 +193,7 @@ namespace config {
     bool ds4_back_as_touchpad_click;
     bool motion_as_ds4;
     bool touchpad_as_ds4;
+    bool ds5_inputtino_randomize_mac;
 
     bool keyboard;
     bool mouse;
@@ -254,6 +256,7 @@ namespace config {
 
     std::string log_file;
     bool notify_pre_releases;
+    bool system_tray;
     std::vector<prep_cmd_t> prep_cmds;
   };
 

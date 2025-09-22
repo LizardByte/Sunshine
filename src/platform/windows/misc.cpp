@@ -22,13 +22,13 @@
 #include <iphlpapi.h>
 #include <iterator>
 #include <timeapi.h>
-#include <userenv.h>
-#include <winsock2.h>
-#include <windows.h>
-#include <winuser.h>
+#include <UserEnv.h>
+#include <WinSock2.h>
+#include <Windows.h>
+#include <WinUser.h>
 #include <wlanapi.h>
-#include <ws2tcpip.h>
-#include <wtsapi32.h>
+#include <WS2tcpip.h>
+#include <WtsApi32.h>
 #include <sddl.h>
 // clang-format on
 
@@ -117,7 +117,7 @@ namespace platf {
 
   std::filesystem::path appdata() {
     WCHAR sunshine_path[MAX_PATH];
-    GetModuleFileNameW(NULL, sunshine_path, _countof(sunshine_path));
+    GetModuleFileNameW(nullptr, sunshine_path, _countof(sunshine_path));
     return std::filesystem::path {sunshine_path}.remove_filename() / L"config"sv;
   }
 
@@ -410,16 +410,16 @@ namespace platf {
 
   LPPROC_THREAD_ATTRIBUTE_LIST allocate_proc_thread_attr_list(DWORD attribute_count) {
     SIZE_T size;
-    InitializeProcThreadAttributeList(NULL, attribute_count, 0, &size);
+    InitializeProcThreadAttributeList(nullptr, attribute_count, 0, &size);
 
     auto list = (LPPROC_THREAD_ATTRIBUTE_LIST) HeapAlloc(GetProcessHeap(), 0, size);
-    if (list == NULL) {
-      return NULL;
+    if (list == nullptr) {
+      return nullptr;
     }
 
     if (!InitializeProcThreadAttributeList(list, attribute_count, 0, &size)) {
       HeapFree(GetProcessHeap(), 0, list);
-      return NULL;
+      return nullptr;
     }
 
     return list;
@@ -518,7 +518,7 @@ namespace platf {
 
     // Allocate a process attribute list with space for 2 elements
     startup_info.lpAttributeList = allocate_proc_thread_attr_list(2);
-    if (startup_info.lpAttributeList == NULL) {
+    if (startup_info.lpAttributeList == nullptr) {
       // If the allocation failed, set ec to an appropriate error code and return the structure
       ec = std::make_error_code(std::errc::not_enough_memory);
       return startup_info;
@@ -530,7 +530,7 @@ namespace platf {
 
       // Populate std handles if the caller gave us a log file to use
       startup_info.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
-      startup_info.StartupInfo.hStdInput = NULL;
+      startup_info.StartupInfo.hStdInput = nullptr;
       startup_info.StartupInfo.hStdOutput = log_file_handle;
       startup_info.StartupInfo.hStdError = log_file_handle;
 
@@ -539,7 +539,7 @@ namespace platf {
       //
       // Note: The value we point to here must be valid for the lifetime of the attribute list,
       // so we need to point into the STARTUPINFO instead of our log_file_variable on the stack.
-      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &startup_info.StartupInfo.hStdOutput, sizeof(startup_info.StartupInfo.hStdOutput), NULL, NULL);
+      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &startup_info.StartupInfo.hStdOutput, sizeof(startup_info.StartupInfo.hStdOutput), nullptr, nullptr);
     }
 
     if (job) {
@@ -547,7 +547,7 @@ namespace platf {
       //
       // Note: The value we point to here must be valid for the lifetime of the attribute list,
       // so we take a HANDLE* instead of just a HANDLE to use the caller's stack storage.
-      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, job, sizeof(*job), NULL, NULL);
+      UpdateProcThreadAttribute(startup_info.lpAttributeList, 0, PROC_THREAD_ATTRIBUTE_JOB_LIST, job, sizeof(*job), nullptr, nullptr);
     }
 
     return startup_info;
@@ -555,11 +555,11 @@ namespace platf {
 
   /**
    * @brief This function overrides HKEY_CURRENT_USER and HKEY_CLASSES_ROOT using the provided token.
-   * @param token The primary token identifying the user to use, or `NULL` to restore original keys.
+   * @param token The primary token identifying the user to use, or `nullptr` to restore original keys.
    * @return `true` if the override or restore operation was successful.
    */
   bool override_per_user_predefined_keys(HANDLE token) {
-    HKEY user_classes_root = NULL;
+    HKEY user_classes_root = nullptr;
     if (token) {
       auto err = RegOpenUserClassesRoot(token, 0, GENERIC_ALL, &user_classes_root);
       if (err != ERROR_SUCCESS) {
@@ -573,14 +573,14 @@ namespace platf {
       }
     });
 
-    HKEY user_key = NULL;
+    HKEY user_key = nullptr;
     if (token) {
       impersonate_current_user(token, [&]() {
         // RegOpenCurrentUser() doesn't take a token. It assumes we're impersonating the desired user.
         auto err = RegOpenCurrentUser(GENERIC_ALL, &user_key);
         if (err != ERROR_SUCCESS) {
           BOOST_LOG(error) << "Failed to open user key for target user: "sv << err;
-          user_key = NULL;
+          user_key = nullptr;
         }
       });
       if (!user_key) {
@@ -602,7 +602,7 @@ namespace platf {
     err = RegOverridePredefKey(HKEY_CURRENT_USER, user_key);
     if (err != ERROR_SUCCESS) {
       BOOST_LOG(error) << "Failed to override HKEY_CURRENT_USER: "sv << err;
-      RegOverridePredefKey(HKEY_CLASSES_ROOT, NULL);
+      RegOverridePredefKey(HKEY_CLASSES_ROOT, nullptr);
       return false;
     }
 
@@ -671,7 +671,7 @@ namespace platf {
    * @details This converts URLs and non-executable file paths into a runnable command like ShellExecute().
    * @param raw_cmd The raw command provided by the user.
    * @param working_dir The working directory for the new process.
-   * @param token The user token currently being impersonated or `NULL` if running as ourselves.
+   * @param token The user token currently being impersonated or `nullptr` if running as ourselves.
    * @param creation_flags The creation flags for CreateProcess(), which may be modified by this function.
    * @return A command string suitable for use by CreateProcess().
    */
@@ -757,7 +757,7 @@ namespace platf {
       }
 
       // Reset per-user keys back to the original value
-      override_per_user_predefined_keys(NULL);
+      override_per_user_predefined_keys(nullptr);
     }
 
     if (res != S_OK) {
@@ -972,7 +972,7 @@ namespace platf {
       ec = impersonate_current_user(user_token, [&]() {
         std::wstring env_block = create_environment_block(cloned_env);
         std::wstring wcmd = resolve_command_string(cmd, start_dir, user_token, creation_flags);
-        ret = CreateProcessAsUserW(user_token, NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
+        ret = CreateProcessAsUserW(user_token, nullptr, (LPWSTR) wcmd.c_str(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? nullptr : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
       });
     }
     // Otherwise, launch the process using CreateProcessW()
@@ -995,8 +995,8 @@ namespace platf {
       }
 
       std::wstring env_block = create_environment_block(cloned_env);
-      std::wstring wcmd = resolve_command_string(cmd, start_dir, NULL, creation_flags);
-      ret = CreateProcessW(NULL, (LPWSTR) wcmd.c_str(), NULL, NULL, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? NULL : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
+      std::wstring wcmd = resolve_command_string(cmd, start_dir, nullptr, creation_flags);
+      ret = CreateProcessW(nullptr, (LPWSTR) wcmd.c_str(), nullptr, nullptr, !!(startup_info.StartupInfo.dwFlags & STARTF_USESTDHANDLES), creation_flags, env_block.data(), start_dir.empty() ? nullptr : start_dir.c_str(), (LPSTARTUPINFOW) &startup_info, &process_info);
     }
 
     // Use the results of the launch to create a bp::child object
@@ -1052,7 +1052,7 @@ namespace platf {
     static std::once_flag load_wlanapi_once_flag;
     std::call_once(load_wlanapi_once_flag, []() {
       // wlanapi.dll is not installed by default on Windows Server, so we load it dynamically
-      HMODULE wlanapi = LoadLibraryExA("wlanapi.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+      HMODULE wlanapi = LoadLibraryExA("wlanapi.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
       if (!wlanapi) {
         BOOST_LOG(debug) << "wlanapi.dll is not available on this OS"sv;
         return;
@@ -1129,7 +1129,7 @@ namespace platf {
           fn_WlanFreeMemory(wlan_interface_list);
         } else {
           fn_WlanCloseHandle(wlan_handle, nullptr);
-          wlan_handle = NULL;
+          wlan_handle = nullptr;
         }
       }
     }
@@ -1200,7 +1200,7 @@ namespace platf {
     startup_info.StartupInfo.cb = sizeof(startup_info);
 
     WCHAR executable[MAX_PATH];
-    if (GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable)) == 0) {
+    if (GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable)) == 0) {
       auto winerr = GetLastError();
       BOOST_LOG(fatal) << "Failed to get Sunshine path: "sv << winerr;
       return;
@@ -1220,7 +1220,7 @@ namespace platf {
   void restart() {
     // If we're running standalone, we have to respawn ourselves via CreateProcess().
     // If we're running from the service, we should just exit and let it respawn us.
-    if (GetConsoleWindow() != NULL) {
+    if (GetConsoleWindow() != nullptr) {
       // Avoid racing with the new process by waiting until we're exiting to start it.
       atexit(restart_on_exit);
     }
@@ -1538,7 +1538,7 @@ namespace platf {
     }
 
     virtual ~qos_t() {
-      if (!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET) NULL, flow_id, 0)) {
+      if (!fn_QOSRemoveSocketFromFlow(qos_handle, (SOCKET) nullptr, flow_id, 0)) {
         auto winerr = GetLastError();
         BOOST_LOG(warning) << "QOSRemoveSocketFromFlow() failed: "sv << winerr;
       }
@@ -1570,7 +1570,7 @@ namespace platf {
     static std::once_flag load_qwave_once_flag;
     std::call_once(load_qwave_once_flag, []() {
       // qWAVE is not installed by default on Windows Server, so we load it dynamically
-      HMODULE qwave = LoadLibraryExA("qwave.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+      HMODULE qwave = LoadLibraryExA("qwave.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
       if (!qwave) {
         BOOST_LOG(debug) << "qwave.dll is not available on this OS"sv;
         return;
@@ -1788,11 +1788,11 @@ namespace platf {
     }
 
     operator bool() override {
-      return timer != NULL;
+      return timer != nullptr;
     }
 
   private:
-    HANDLE timer = NULL;
+    HANDLE timer = nullptr;
   };
 
   std::unique_ptr<high_precision_timer> create_high_precision_timer() {
