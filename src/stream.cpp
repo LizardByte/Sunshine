@@ -519,8 +519,21 @@ namespace stream {
       // Use the local address from the control connection as the source address
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
+
+      // TODO: delete this debug log
+      BOOST_LOG(debug) << "Raw localAddress.address: family=" << peer->localAddress.address.ss_family
+                       << " size=" << peer->localAddress.addressLength
+                       << " data=" << util::hex_vec(std::string_view {(char *) &peer->localAddress.address, static_cast<long long unsigned int>(peer->localAddress.addressLength)});
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
-      session_p->localAddress = boost::asio::ip::make_address(local_address);
+      if (local_address.empty()) {
+        BOOST_LOG(warning) << "Couldn't get local address for control connection"sv;
+      }
+      try {
+        session_p->localAddress = boost::asio::ip::make_address(local_address);
+      } catch (const boost::system::system_error &e) {
+        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        throw;
+      }
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
