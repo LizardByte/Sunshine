@@ -82,6 +82,10 @@ For a comprehensive list of user-facing changes, see below.
 - [Sunshine-2025.923.33222-1.fc41.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/ODE3NTk1OGNkZGEwMzE5YzA1NDM5NzE0ZTUwYmIyNzU6MTc1ODYxMDQ5NQ==)
 - [Sunshine-2025.923.33222-1.fc42.aarch64.rpm](https://www.virustotal.com/gui/file-analysis/ZjJhZjlhYjE1ZjQ1ODc4MGZiZWNiMzkwYjk4ZDBkMWY6MTc1ODYxMDQ5Ng==)
 - [Sunshine-2025.923.33222-1.fc42.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/ZDY5OTI0NmM4YjM5MTMzYjIxM2RkMzM5YmRkZjM4NTM6MTc1ODYxMDQ5OA==)
+- [Sunshine-2025.923.33222-1.fc41.aarch64.rpm](https://www.virustotal.com/gui/file-analysis/MmU5OWIwMzY4ZmE4YTJhZDFlMzFkODUxMWJiMTE4NmU6MTc1ODY0NDY1NA==)
+- [Sunshine-2025.923.33222-1.fc41.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/MWVjYTI0NWU2MzEyNDBiM2E3NDZjOWZjMGQ4MGZhOGY6MTc1ODY0NDY1NQ==)
+- [Sunshine-2025.923.33222-1.fc42.aarch64.rpm](https://www.virustotal.com/gui/file-analysis/ODQ3M2E3NDU1NzNlYTA4YjZkYjI5NDJiYTI5NGM2Y2M6MTc1ODY0NDY1Ng==)
+- [Sunshine-2025.923.33222-1.fc42.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/NWJjODRiYzYzMmE1ZTUxNDNhOTI3MmMxNjE2ZjMzNzQ6MTc1ODY0NDY1Nw==)
 
 ## [v2025.628.4510] - 2025-06-28
 
