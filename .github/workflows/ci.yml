@@ -95,6 +95,8 @@ jobs:
     name: Linux Copr
     if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
     needs: release-setup
+    permissions:
+      contents: write  # needed to update releases
     uses: ./.github/workflows/ci-copr.yml
     secrets:
       COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
