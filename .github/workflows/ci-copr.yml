@@ -46,6 +46,8 @@ jobs:
       startsWith(github.repository, 'LizardByte/')
     needs:
       - call-copr-ci
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
@@ -68,5 +70,5 @@ jobs:
           name: ${{ github.event.release.name }}
           prerelease: true
           tag: ${{ github.event.release.tag_name }}
-          token: ${{ secrets.GH_BOT_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}  # use built-in token to avoid repeating workflow triggers
           virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
