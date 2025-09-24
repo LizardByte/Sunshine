@@ -53,6 +53,24 @@ function detect_nvcc_path() {
   return 1
 }
 
+# Reusable function to setup NVM environment
+function setup_nvm_environment() {
+  # Only setup NVM if it should be used for this distro
+  if [ "$nvm_node" == 1 ]; then
+    # Check if NVM is installed and source it
+    if [ -f "$HOME/.nvm/nvm.sh" ]; then
+      # shellcheck source=/dev/null
+      source "$HOME/.nvm/nvm.sh"
+      # Use the default node version installed by NVM
+      nvm use default 2>/dev/null || nvm use node 2>/dev/null || true
+      echo "Using NVM Node.js version: $(node --version 2>/dev/null || echo 'not available')"
+      echo "Using NVM npm version: $(npm --version 2>/dev/null || echo 'not available')"
+    else
+      echo "NVM not found, using system Node.js if available"
+    fi
+  fi
+}
+
 function _usage() {
   local exit_code=$1
 
@@ -505,6 +523,9 @@ function run_step_deps() {
 function run_step_cmake() {
   echo "Running step: CMake configure"
 
+  # Setup NVM environment if needed (for web UI builds)
+  setup_nvm_environment
+
   # Detect CUDA path using the reusable function
   nvcc_path=""
   if [ "$skip_cuda" == 0 ]; then
@@ -579,6 +600,9 @@ function run_step_validation() {
 
 function run_step_build() {
   echo "Running step: Build"
+
+  # Setup NVM environment if needed (for web UI builds)
+  setup_nvm_environment
 
   # Build the project
   ninja -C "build"
