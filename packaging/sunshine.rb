@@ -37,10 +37,6 @@ class @PROJECT_NAME@ < Formula
   depends_on "opus"
   depends_on "icu4c" => :recommended
 
-  on_macos do
-    depends_on xcode: ["15.3", :build]
-  end
-
   on_linux do
     depends_on "avahi"
     depends_on "gnu-which"
