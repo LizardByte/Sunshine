@@ -43,7 +43,8 @@ jobs:
     name: Release
     if:
       github.event_name == 'release' &&
-      startsWith(github.repository, 'LizardByte/')
+      startsWith(github.repository, 'LizardByte/') &&
+      github.event.release.prerelease == false
     needs:
       - call-copr-ci
     permissions:
