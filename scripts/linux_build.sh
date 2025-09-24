@@ -32,6 +32,27 @@ gcc_alternative_files=(
   "gcc-ranlib"
 )
 
+# Reusable function to detect nvcc path
+function detect_nvcc_path() {
+  local nvcc_path=""
+
+  # First check for system-installed CUDA
+  nvcc_path=$(command -v nvcc 2>/dev/null) || true
+  if [ -n "$nvcc_path" ]; then
+    echo "$nvcc_path"
+    return 0
+  fi
+
+  # Then check for locally installed CUDA in build directory
+  if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
+    echo "${build_dir}/cuda/bin/nvcc"
+    return 0
+  fi
+
+  # No CUDA found
+  return 1
+}
+
 function _usage() {
   local exit_code=$1
 
@@ -291,15 +312,8 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
-  nvcc_path=$(command -v nvcc 2>/dev/null) || true
-  if [ -n "$nvcc_path" ]; then
-    echo "found system cuda"
-    return
-  fi
-  # check if we need to install cuda
-  if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
-    nvcc_path="${build_dir}/cuda/bin/nvcc"
-    echo "found local cuda"
+  # Check if CUDA is already available
+  if detect_nvcc_path > /dev/null 2>&1; then
     return
   fi
 
@@ -336,7 +350,6 @@ function install_cuda() {
   chmod a+x "${build_dir}/cuda.run"
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
   rm "${build_dir}/cuda.run"
-  nvcc_path="${build_dir}/cuda/bin/nvcc"
 
   # run cuda patches
   if [ "$cuda_patches" == 1 ]; then
@@ -491,6 +504,12 @@ function run_step_deps() {
 
 function run_step_cmake() {
   echo "Running step: CMake configure"
+
+  # Detect CUDA path using the reusable function
+  nvcc_path=""
+  if [ "$skip_cuda" == 0 ]; then
+    nvcc_path=$(detect_nvcc_path)
+  fi
 
   # prepare CMAKE args
   cmake_args=(
