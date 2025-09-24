@@ -44,6 +44,10 @@ LizardByte [release_changelog](https://github.com/LizardByte/actions) action.
 - [sunshine_debug_aarch64.flatpak](https://www.virustotal.com/gui/file-analysis/YmNiYjYzZDY4NWI5M2YwZWY3MWViNjRjMjE2YWQzNDY6MTc1ODczODQ0NA==)
 - [sunshine_debug_x86_64.flatpak](https://www.virustotal.com/gui/file-analysis/MjMyZTQ4ODg5ZWVlNGZiYjQ4N2IzNzUxMzY2YWRiYjA6MTc1ODczODQ1Mw==)
 - [sunshine_x86_64.flatpak](https://www.virustotal.com/gui/file-analysis/NTdlOWExYTg1YTU0ZGM0MjdkNmQ5M2Q5OGNkMjgzOGY6MTc1ODczODQ2OA==)
+- [Sunshine-2025.924.154138-1.fc41.aarch64.rpm](https://www.virustotal.com/gui/file-analysis/YjRlMDIyZjlmZjkyNTI2NmNmYTAyMTMxOTE0ZGNmOTA6MTc1ODc0MDg0Ng==)
+- [Sunshine-2025.924.154138-1.fc41.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/YTk5M2VhOThmOGNlNDgwYzNkMDQyMDQ3Y2M0OGQ2MTA6MTc1ODc0MDg0OA==)
+- [Sunshine-2025.924.154138-1.fc42.aarch64.rpm](https://www.virustotal.com/gui/file-analysis/ZmI1OWVkNmQ2ZDhlZWU4MDI0MzYyMjdhYTE2OTg2OWE6MTc1ODc0MDg0OQ==)
+- [Sunshine-2025.924.154138-1.fc42.x86_64.rpm](https://www.virustotal.com/gui/file-analysis/ZWQ4ZTQ5YTViZmM3ZTYwMDNjZWI1OGI2ZDAwZmI2NjA6MTc1ODc0MDg1MQ==)
 
 ## [v2025.923.33222] - 2025-09-23
 
