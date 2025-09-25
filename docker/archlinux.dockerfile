@@ -63,6 +63,8 @@ ENV _use_cuda=true
 ENV _run_unit_tests=true
 ENV _support_headless_testing=true
 
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Setup builder user
 USER builder
 
