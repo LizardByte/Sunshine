@@ -13,9 +13,10 @@ FROM sunshine-base AS sunshine-deps
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Copy only the build script first for better layer caching
+# Copy only the build script and necessary files first for better layer caching
 WORKDIR /build/sunshine/
 COPY --link scripts/linux_build.sh ./scripts/linux_build.sh
+COPY --link packaging/linux/patches/ ./packaging/linux/patches/
 
 # Install dependencies first - this layer will be cached
 RUN <<_DEPS
@@ -50,7 +51,6 @@ RUN <<_BUILD
 set -e
 ./scripts/linux_build.sh \
   --step=cmake \
-  --cuda-patches \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
