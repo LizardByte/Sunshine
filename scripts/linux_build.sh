@@ -22,6 +22,7 @@ skip_package=0
 sudo_cmd="sudo"
 ubuntu_test_repo=0
 step="all"
+ci=0
 
 # common variables
 gcc_alternative_files=(
@@ -144,6 +145,7 @@ while getopts ":hs-:" opt; do
         skip-package) skip_package=1 ;;
         sudo-off) sudo_cmd="" ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
+        ci) ci=1 ;;
         step=*)
           step="${OPTARG#*=}"
           ;;
@@ -546,6 +548,10 @@ function run_step_cmake() {
     "-DSUNSHINE_ENABLE_X11=ON"
     "-DSUNSHINE_ENABLE_DRM=ON"
   )
+
+  if [ "$ci" == 1 ]; then
+    cmake_args+=("-DSUNSHINE_CI=ON")
+  fi
 
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")

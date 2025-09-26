@@ -89,6 +89,7 @@ jobs:
           chmod +x ./scripts/linux_build.sh
           echo "::add-matcher::.github/matchers/gcc.json"
           ./scripts/linux_build.sh \
+            --ci \
             --publisher-name='${{ github.repository_owner }}' \
             --publisher-website='https://app.lizardbyte.dev' \
             --publisher-issue-url='https://app.lizardbyte.dev/support' \

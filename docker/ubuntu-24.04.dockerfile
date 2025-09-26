@@ -23,6 +23,7 @@ RUN <<_DEPS
 set -e
 chmod +x ./scripts/linux_build.sh
 ./scripts/linux_build.sh \
+  --ci \
   --step=deps \
   --sudo-off
 apt-get clean
@@ -48,6 +49,7 @@ RUN <<_BUILD
 #!/bin/bash
 set -e
 ./scripts/linux_build.sh \
+  --ci \
   --step=cmake \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
@@ -55,14 +57,17 @@ set -e
   --sudo-off
 
 ./scripts/linux_build.sh \
+  --ci \
   --step=validation \
   --sudo-off
 
 ./scripts/linux_build.sh \
+  --ci \
   --step=build \
   --sudo-off
 
 ./scripts/linux_build.sh \
+  --ci \
   --step=package \
   --sudo-off
 _BUILD
