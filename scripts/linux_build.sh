@@ -249,7 +249,10 @@ function add_debian_based_deps() {
     "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
+    "systemd"
+    "systemd-dev"
     "udev"
+    "libudev-dev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
   )
