@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
+# platforms_pr: linux/amd64,linux/arm64/v8
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=24.04
@@ -10,6 +10,9 @@ FROM ${BASE}:${TAG} AS sunshine-base
 ENV DEBIAN_FRONTEND=noninteractive
 
 FROM sunshine-base AS sunshine-deps
+
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -22,15 +25,52 @@ RUN <<_DEPS
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
+
+# Set up cross-compilation variables if building for different platform
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  cross_compile="--cross-compile"
+  case "${TARGETPLATFORM}" in
+    linux/amd64)
+      target_arch="amd64"
+      target_tuple="x86_64-linux-gnu"
+      ;;
+    linux/arm64)
+      target_arch="arm64" 
+      target_tuple="aarch64-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported target platform: ${TARGETPLATFORM}"
+      exit 1
+      ;;
+  esac
+  
+  # Enable multiarch support for cross-compilation
+  dpkg --add-architecture ${target_arch}
+  apt-get update
+  
+  echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
+  echo "Target arch: ${target_arch}, Target triple: ${target_tuple}"
+else
+  cross_compile=""
+  target_arch=$(dpkg --print-architecture)
+  target_tuple=""
+  echo "Native compilation for ${TARGETPLATFORM}"
+fi
+
 ./scripts/linux_build.sh \
   --step=deps \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
 FROM sunshine-deps AS sunshine-build
 
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -47,24 +87,62 @@ COPY --link .. .
 RUN <<_BUILD
 #!/bin/bash
 set -e
+
+# Set up cross-compilation variables if building for different platform  
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  cross_compile="--cross-compile"
+  case "${TARGETPLATFORM}" in
+    linux/amd64)
+      target_arch="amd64"
+      target_tuple="x86_64-linux-gnu"
+      ;;
+    linux/arm64)
+      target_arch="arm64"
+      target_tuple="aarch64-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported target platform: ${TARGETPLATFORM}"
+      exit 1
+      ;;
+  esac
+  echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
+else
+  cross_compile=""
+  target_arch=""
+  target_tuple=""
+  echo "Native compilation for ${TARGETPLATFORM}"
+fi
+
 ./scripts/linux_build.sh \
   --step=cmake \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=validation \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=build \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=package \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 _BUILD
 
 # run tests
@@ -72,6 +150,23 @@ WORKDIR /build/sunshine/build/tests
 RUN <<_TEST
 #!/bin/bash
 set -e
+
+# For cross-compilation, we need qemu to run the tests
+if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+  case "${TARGETPLATFORM}" in
+    linux/arm64)
+      apt-get update
+      apt-get install -y qemu-user-static
+      export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
+      ;;
+    linux/amd64)
+      apt-get update  
+      apt-get install -y qemu-user-static
+      export QEMU_LD_PREFIX=/usr/x86_64-linux-gnu
+      ;;
+  esac
+fi
+
 export DISPLAY=:1
 Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes

@@ -10,6 +10,7 @@ doxygen_max="1.12.0"
 
 # Default value for arguments
 appimage_build=0
+cross_compile=0
 cuda_patches=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
@@ -20,6 +21,8 @@ skip_cuda=0
 skip_libva=0
 skip_package=0
 sudo_cmd="sudo"
+target_arch=""
+target_tuple=""
 ubuntu_test_repo=0
 step="all"
 
@@ -85,6 +88,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --cross-compile          Enable cross compilation.
   --cuda-patches           Apply cuda patches.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
@@ -95,6 +99,8 @@ Options:
   --skip-cuda              Skip CUDA installation.
   --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
   --skip-package           Skip creating DEB, or RPM package.
+  --target-arch            Target architecture for cross compilation (e.g., arm64, amd64).
+  --target-tuple           Target tuple for cross compilation (e.g., aarch64-linux-gnu, x86_64-linux-gnu).
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
 
@@ -123,6 +129,7 @@ while getopts ":hs-:" opt; do
           appimage_build=1
           skip_libva=1
           ;;
+        cross-compile) cross_compile=1 ;;
         cuda-patches)
           cuda_patches=1
           ;;
@@ -143,6 +150,12 @@ while getopts ":hs-:" opt; do
         skip-libva) skip_libva=1 ;;
         skip-package) skip_package=1 ;;
         sudo-off) sudo_cmd="" ;;
+        target-arch=*)
+          target_arch="${OPTARG#*=}"
+          ;;
+        target-tuple=*)
+          target_tuple="${OPTARG#*=}"
+          ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
         step=*)
           step="${OPTARG#*=}"
@@ -213,6 +226,13 @@ function add_arch_deps() {
 }
 
 function add_debian_based_deps() {
+  # If cross-compiling, we need the cross toolchain
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=(
+      "crossbuild-essential-${target_arch}"
+    )
+  fi
+
   dependencies+=(
     "appstream"
     "appstream-util"
@@ -222,29 +242,8 @@ function add_debian_based_deps() {
     "desktop-file-utils"
     "doxygen"
     "flex"  # required if we need to compile doxygen
-    "gcc-${gcc_version}"
-    "g++-${gcc_version}"
     "git"
     "graphviz"
-    "libcap-dev"  # KMS
-    "libcurl4-openssl-dev"
-    "libdrm-dev"  # KMS
-    "libevdev-dev"
-    "libgbm-dev"
-    "libminiupnpc-dev"
-    "libnotify-dev"
-    "libnuma-dev"
-    "libopus-dev"
-    "libpulse-dev"
-    "libssl-dev"
-    "libwayland-dev"  # Wayland
-    "libx11-dev"  # X11
-    "libxcb-shm0-dev"  # X11
-    "libxcb-xfixes0-dev"  # X11
-    "libxcb1-dev"  # X11
-    "libxfixes-dev"  # X11
-    "libxrandr-dev"  # X11
-    "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
     "udev"
@@ -252,10 +251,69 @@ function add_debian_based_deps() {
     "xvfb"  # necessary for headless unit testing
   )
 
-  if [ "$skip_libva" == 0 ]; then
+  # Add GCC for the target architecture
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=("gcc-${gcc_version}")
+    dependencies+=("g++-${gcc_version}")
+    # Cross-compile specific library packages with architecture suffix
     dependencies+=(
-      "libva-dev"  # VA-API
+      "libcap-dev:${target_arch}"  # KMS
+      "libcurl4-openssl-dev:${target_arch}"
+      "libdrm-dev:${target_arch}"  # KMS
+      "libevdev-dev:${target_arch}"
+      "libgbm-dev:${target_arch}"
+      "libminiupnpc-dev:${target_arch}"
+      "libnotify-dev:${target_arch}"
+      "libnuma-dev:${target_arch}"
+      "libopus-dev:${target_arch}"
+      "libpulse-dev:${target_arch}"
+      "libssl-dev:${target_arch}"
+      "libwayland-dev:${target_arch}"  # Wayland
+      "libx11-dev:${target_arch}"  # X11
+      "libxcb-shm0-dev:${target_arch}"  # X11
+      "libxcb-xfixes0-dev:${target_arch}"  # X11
+      "libxcb1-dev:${target_arch}"  # X11
+      "libxfixes-dev:${target_arch}"  # X11
+      "libxrandr-dev:${target_arch}"  # X11
+      "libxtst-dev:${target_arch}"  # X11
     )
+  else
+    # Native build
+    dependencies+=(
+      "gcc-${gcc_version}"
+      "g++-${gcc_version}"
+      "libcap-dev"  # KMS
+      "libcurl4-openssl-dev"
+      "libdrm-dev"  # KMS
+      "libevdev-dev"
+      "libgbm-dev"
+      "libminiupnpc-dev"
+      "libnotify-dev"
+      "libnuma-dev"
+      "libopus-dev"
+      "libpulse-dev"
+      "libssl-dev"
+      "libwayland-dev"  # Wayland
+      "libx11-dev"  # X11
+      "libxcb-shm0-dev"  # X11
+      "libxcb-xfixes0-dev"  # X11
+      "libxcb1-dev"  # X11
+      "libxfixes-dev"  # X11
+      "libxrandr-dev"  # X11
+      "libxtst-dev"  # X11
+    )
+  fi
+
+  if [ "$skip_libva" == 0 ]; then
+    if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+      dependencies+=(
+        "libva-dev:${target_arch}"  # VA-API
+      )
+    else
+      dependencies+=(
+        "libva-dev"  # VA-API
+      )
+    fi
   fi
 }
 
@@ -269,17 +327,29 @@ function add_test_ppa() {
 function add_debian_deps() {
   add_test_ppa
   add_debian_based_deps
-  dependencies+=(
-    "libayatana-appindicator3-dev"
-  )
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=(
+      "libayatana-appindicator3-dev:${target_arch}"
+    )
+  else
+    dependencies+=(
+      "libayatana-appindicator3-dev"
+    )
+  fi
 }
 
 function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
-  dependencies+=(
-    "libappindicator3-dev"
-  )
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=(
+      "libappindicator3-dev:${target_arch}"
+    )
+  else
+    dependencies+=(
+      "libappindicator3-dev"
+    )
+  fi
 }
 
 function add_fedora_deps() {
@@ -547,6 +617,31 @@ function run_step_cmake() {
     "-DSUNSHINE_ENABLE_DRM=ON"
   )
 
+  # Add cross-compilation settings if enabled
+  if [ "$cross_compile" == 1 ] && [ -n "$target_tuple" ]; then
+    cmake_args+=("-DCMAKE_C_COMPILER=${target_tuple}-gcc")
+    cmake_args+=("-DCMAKE_CXX_COMPILER=${target_tuple}-g++")
+    
+    # Set PKG_CONFIG_PATH for cross-compilation
+    if [ -n "$target_arch" ]; then
+      case "$target_arch" in
+        arm64)
+          cmake_args+=("-DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu")
+          cmake_args+=("-DPKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig")
+          ;;
+        amd64)
+          cmake_args+=("-DCMAKE_FIND_ROOT_PATH=/usr/x86_64-linux-gnu")
+          cmake_args+=("-DPKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig")
+          ;;
+      esac
+      
+      # Set cross-compilation mode
+      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
+      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY")  
+      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY")
+    fi
+  fi
+
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
   fi
@@ -760,6 +855,23 @@ else
 fi
 
 architecture=$(uname -m)
+
+# Override architecture for cross-compilation
+if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+  case "$target_arch" in
+    arm64)
+      architecture="aarch64"
+      ;;
+    amd64)
+      architecture="x86_64"
+      ;;
+    *)
+      echo "Unknown target architecture: $target_arch"
+      exit 1
+      ;;
+  esac
+  echo "Cross-compiling for architecture: $architecture (from target_arch: $target_arch)"
+fi
 
 echo "Detected Distro: $distro"
 echo "Detected Version: $version"
