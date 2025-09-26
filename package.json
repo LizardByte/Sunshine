@@ -10,7 +10,7 @@
   "type": "module",
   "dependencies": {
     "@lizardbyte/shared-web": "2025.922.181114",
-    "vue": "3.5.21",
+    "vue": "3.5.22",
     "vue-i18n": "11.1.12"
   },
   "devDependencies": {
