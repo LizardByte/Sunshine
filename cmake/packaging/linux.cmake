@@ -22,6 +22,10 @@ else()
     find_package(Systemd)
     find_package(Udev)
 
+    if(SUNSHINE_CI_BUILD AND NOT SYSTEMD_FOUND OR NOT UDEV_FOUND)
+        message(FATAL_ERROR "Systemd or Udev not installed. CMake will exit.")
+    endif()
+
     if(UDEV_FOUND)
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
                 DESTINATION "${UDEV_RULES_INSTALL_DIR}")
