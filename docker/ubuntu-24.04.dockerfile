@@ -147,6 +147,10 @@ _BUILD
 
 # run tests
 WORKDIR /build/sunshine/build/tests
+
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
+
 RUN <<_TEST
 #!/bin/bash
 set -e
