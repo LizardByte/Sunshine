@@ -35,7 +35,18 @@ $(document).ready(function(){
             let sorted = result.sort(window.rankingSorter("stargazers_count", "name"))
 
             for(let repo in sorted) {
-                if (sorted[repo]['archived'] === false && sorted[repo]['description'] !== null && sorted[repo]['fork'] === false) {
+                let process_repo = true;
+                if (sorted[repo]['archived'] === true) {
+                    process_repo = false;
+                }
+                if (sorted[repo]['description'] === null) {
+                    process_repo = false;
+                }
+                if (sorted[repo]['fork'] === true && !sorted[repo]['topics'].includes("featured-fork")) {
+                    process_repo = false;
+                }
+
+                if (process_repo) {
                     let column = document.createElement("div")
                     column.className = "col-lg-4 mb-5"
                     container.appendChild(column)
@@ -73,6 +84,15 @@ $(document).ready(function(){
                     let card_title_text = document.createElement("h5")
                     card_title_text.className = "card-title mb-3 fw-bolder crowdin-ignore"
                     card_title_text.textContent = result[repo]['name']
+
+                    // Add fork badge for featured forks
+                    if (sorted[repo]['fork'] === true && sorted[repo]['topics'].includes("featured-fork")) {
+                        let fork_badge = document.createElement("span")
+                        fork_badge.className = "badge bg-info ms-2"
+                        fork_badge.textContent = "Fork"
+                        card_title_text.appendChild(fork_badge)
+                    }
+
                     card_title_link.appendChild(card_title_text)
 
                     let card_paragraph = document.createElement("p")
