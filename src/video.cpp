@@ -1532,6 +1532,11 @@ namespace video {
       ctx->height = config.height;
       ctx->time_base = AVRational {1, config.framerate};
       ctx->framerate = AVRational {config.framerate, 1};
+      if (config.framerateX100 > 0) {
+        AVRational fps = video::framerateX100_to_rational(config.framerateX100);
+        ctx->framerate = fps;
+        ctx->time_base = AVRational {fps.den, fps.num};
+      }
 
       switch (config.videoFormat) {
         case 0:
