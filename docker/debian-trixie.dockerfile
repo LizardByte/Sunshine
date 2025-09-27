@@ -9,13 +9,8 @@ FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base AS sunshine-deps
-
-ARG BUILDPLATFORM
-ARG TARGETPLATFORM
-
 # Force this stage to run on the build platform for cross-compilation setup
-FROM --platform=$BUILDPLATFORM debian:trixie AS sunshine-deps-native
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-deps
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -41,7 +36,7 @@ if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
       target_tuple="x86_64-linux-gnu"
       ;;
     linux/arm64)
-      target_arch="arm64" 
+      target_arch="arm64"
       target_tuple="aarch64-linux-gnu"
       ;;
     *)
@@ -49,11 +44,11 @@ if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
       exit 1
       ;;
   esac
-  
+
   # Enable multiarch support for cross-compilation
   dpkg --add-architecture ${target_arch}
   apt-get update
-  
+
   echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
   echo "Target arch: ${target_arch}, Target triple: ${target_tuple}"
 else
@@ -74,7 +69,7 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
-FROM --platform=$BUILDPLATFORM sunshine-deps-native AS sunshine-build
+FROM --platform=$BUILDPLATFORM sunshine-deps AS sunshine-build
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -95,7 +90,7 @@ RUN <<_BUILD
 #!/bin/bash
 set -e
 
-# Set up cross-compilation variables if building for different platform  
+# Set up cross-compilation variables if building for different platform
 if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
   cross_compile="--cross-compile"
   case "${TARGETPLATFORM}" in
@@ -152,7 +147,7 @@ fi
   ${target_tuple:+--target-tuple=${target_tuple}}
 _BUILD
 
-FROM --platform=$TARGETPLATFORM sunshine-build AS sunshine-test
+FROM sunshine-build AS sunshine-test
 
 # This stage runs on the target architecture to avoid qemu overhead for tests
 ARG TARGETPLATFORM
@@ -167,7 +162,7 @@ Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes
 _TEST
 
-FROM --platform=$TARGETPLATFORM sunshine-base AS sunshine
+FROM sunshine-base AS sunshine
 
 ARG BASE
 ARG TAG

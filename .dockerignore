@@ -4,9 +4,6 @@
 # do not ignore .git, needed for versioning
 !/.git
 
-# do not ignore .rstcheck.cfg, needed to test building docs
-!/.rstcheck.cfg
-
 # ignore repo directories and files
 docker/
 gh-pages-template/
@@ -20,7 +17,17 @@ crowdin.yml
 # ignore dev directories
 build/
 cmake-*/
+node_modules/
 venv/
+
+# ignore pre-built deps for other platforms
+third-party/build-deps/dist/Darwin*
+third-party/build-deps/dist/FreeBSD*
+third-party/build-deps/dist/Windows*
+
+# ignore non Linux third-party submodules
+third-party/libdisplaydevice
+third-party/TPCircularBuffer
 
 # ignore artifacts
 artifacts/
