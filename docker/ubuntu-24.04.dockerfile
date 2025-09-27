@@ -27,7 +27,7 @@ set -e
 chmod +x ./scripts/linux_build.sh
 
 # Set up cross-compilation variables if building for different platform
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
   cross_compile="--cross-compile"
   case "${TARGETPLATFORM}" in
     linux/amd64)
@@ -89,7 +89,7 @@ RUN <<_BUILD
 set -e
 
 # Set up cross-compilation variables if building for different platform  
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
+if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
   cross_compile="--cross-compile"
   case "${TARGETPLATFORM}" in
     linux/amd64)
@@ -145,32 +145,16 @@ fi
   ${target_tuple:+--target-tuple=${target_tuple}}
 _BUILD
 
-# run tests
-WORKDIR /build/sunshine/build/tests
+FROM sunshine-build AS sunshine-test
 
-ARG BUILDPLATFORM
+# This stage runs on the target architecture to avoid qemu overhead for tests
 ARG TARGETPLATFORM
+
+WORKDIR /build/sunshine/build/tests
 
 RUN <<_TEST
 #!/bin/bash
 set -e
-
-# For cross-compilation, we need qemu to run the tests
-if [[ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]]; then
-  case "${TARGETPLATFORM}" in
-    linux/arm64)
-      apt-get update
-      apt-get install -y qemu-user-static
-      export QEMU_LD_PREFIX=/usr/aarch64-linux-gnu
-      ;;
-    linux/amd64)
-      apt-get update  
-      apt-get install -y qemu-user-static
-      export QEMU_LD_PREFIX=/usr/x86_64-linux-gnu
-      ;;
-  esac
-fi
-
 export DISPLAY=:1
 Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes
