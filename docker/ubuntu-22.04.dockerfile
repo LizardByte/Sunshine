@@ -2,7 +2,7 @@
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
 # platforms_pr: linux/amd64,linux/arm64/v8
-# no-cache-filters: sunshine-base,artifacts,sunshine
+# no-cache-filters: sunshine-base,sunshine-deps,artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=22.04
 FROM ${BASE}:${TAG} AS sunshine-base
@@ -57,6 +57,7 @@ else
   echo "Native compilation for ${TARGETPLATFORM}"
 fi
 
+echo "Running dependency installation step..."
 ./scripts/linux_build.sh \
   --step=deps \
   --ubuntu-test-repo \
@@ -66,6 +67,7 @@ fi
   ${target_tuple:+--target-tuple=${target_tuple}}
 apt-get clean
 rm -rf /var/lib/apt/lists/*
+echo "Dependency installation completed."
 _DEPS
 
 FROM --platform=$BUILDPLATFORM sunshine-deps AS sunshine-build

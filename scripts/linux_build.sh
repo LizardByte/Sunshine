@@ -521,19 +521,26 @@ function run_step_deps() {
     export CC=gcc-14
     export CXX=g++-14
   elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-    for file in "${gcc_alternative_files[@]}"; do
-      file_path="/etc/alternatives/$file"
-      if [ -e "$file_path" ]; then
-        ${sudo_cmd} mv "$file_path" "$file_path.bak"
-      fi
-    done
+    # Export GCC version for toolchain files
+    export LINUX_GCC_VERSION="$gcc_version"
 
-    ${sudo_cmd} update-alternatives --install \
-      /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
-      --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
-      --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
-      --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
-      --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
+    # Only set up alternatives for native compilation
+    # For cross-compilation, the toolchain files will handle compiler selection
+    if [ "$cross_compile" == 0 ]; then
+      for file in "${gcc_alternative_files[@]}"; do
+        file_path="/etc/alternatives/$file"
+        if [ -e "$file_path" ]; then
+          ${sudo_cmd} mv "$file_path" "$file_path.bak"
+        fi
+      done
+
+      ${sudo_cmd} update-alternatives --install \
+        /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
+        --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
+        --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
+        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
+        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
+    fi
   fi
 
   # compile cmake if the version is too low
@@ -595,6 +602,11 @@ function run_step_cmake() {
 
   # Setup NVM environment if needed (for web UI builds)
   setup_nvm_environment
+
+  # Export GCC version for toolchain files (in case it wasn't set in deps step)
+  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+    export LINUX_GCC_VERSION="$gcc_version"
+  fi
 
   # Detect CUDA path using the reusable function
   nvcc_path=""
