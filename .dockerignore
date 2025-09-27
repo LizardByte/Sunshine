@@ -21,6 +21,8 @@ crowdin.yml
 build/
 cmake-*/
 venv/
+.vscode/
+.github/
 
 # ignore artifacts
 artifacts/

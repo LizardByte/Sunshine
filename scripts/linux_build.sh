@@ -250,9 +250,7 @@ function add_debian_based_deps() {
     "ninja-build"
     "npm"  # web-ui
     "systemd"
-    "systemd-dev"
     "udev"
-    "libudev-dev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
   )
@@ -276,6 +274,8 @@ function add_debian_deps() {
   add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
+    "libudev-dev"
+    "systemd-dev"
   )
 }
 
