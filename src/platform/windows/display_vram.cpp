@@ -15,11 +15,8 @@ extern "C" {
 }
 
 // lib includes
-#include <AMF/core/Factory.h>
-#include <boost/algorithm/string/predicate.hpp>
-
-// local includes
 #include "display.h"
+#include "display_vram.h"
 #include "misc.h"
 #include "src/config.h"
 #include "src/logging.h"
@@ -28,6 +25,9 @@ extern "C" {
 #include "src/nvenc/nvenc_d3d11_on_cuda.h"
 #include "src/nvenc/nvenc_utils.h"
 #include "src/video.h"
+
+#include <AMF/core/Factory.h>
+#include <boost/algorithm/string/predicate.hpp>
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"
@@ -127,35 +127,6 @@ namespace platf::dxgi {
   blob_t cursor_ps_hlsl;
   blob_t cursor_ps_normalize_white_hlsl;
   blob_t cursor_vs_hlsl;
-
-  struct img_d3d_t: public platf::img_t {
-    // These objects are owned by the display_t's ID3D11Device
-    texture2d_t capture_texture;
-    render_target_t capture_rt;
-    keyed_mutex_t capture_mutex;
-
-    // This is the shared handle used by hwdevice_t to open capture_texture
-    HANDLE encoder_texture_handle = {};
-
-    // Set to true if the image corresponds to a dummy texture used prior to
-    // the first successful capture of a desktop frame
-    bool dummy = false;
-
-    // Set to true if the image is blank (contains no content at all, including a cursor)
-    bool blank = true;
-
-    // Unique identifier for this image
-    uint32_t id = 0;
-
-    // DXGI format of this image texture
-    DXGI_FORMAT format;
-
-    virtual ~img_d3d_t() override {
-      if (encoder_texture_handle) {
-        CloseHandle(encoder_texture_handle);
-      }
-    };
-  };
 
   struct texture_lock_helper {
     keyed_mutex_t _mutex;
@@ -1634,75 +1605,13 @@ namespace platf::dxgi {
   }
 
   /**
-   * Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
-   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
-   * @param img_out the captured frame is returned here
-   * @param timeout how long to wait for the next frame
-   * @param cursor_visible
+   * @brief Creates a new display_wgc_vram_t instance.
+   * @param config The video configuration to use for the display.
+   * @param display_name The name of the display to create.
+   * @return A shared pointer to the created display object.
    */
-  capture_e display_wgc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
-    texture2d_t src;
-    uint64_t frame_qpc;
-    dup.set_cursor_visible(cursor_visible);
-    auto capture_status = dup.next_frame(timeout, &src, frame_qpc);
-    if (capture_status != capture_e::ok) {
-      return capture_status;
-    }
-
-    auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
-    D3D11_TEXTURE2D_DESC desc;
-    src->GetDesc(&desc);
-
-    // It's possible for our display enumeration to race with mode changes and result in
-    // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
-    if (desc.Width != width_before_rotation || desc.Height != height_before_rotation) {
-      BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
-      return capture_e::reinit;
-    }
-
-    // It's also possible for the capture format to change on the fly. If that happens,
-    // reinitialize capture to try format detection again and create new images.
-    if (capture_format != desc.Format) {
-      BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
-      return capture_e::reinit;
-    }
-
-    std::shared_ptr<platf::img_t> img;
-    if (!pull_free_image_cb(img)) {
-      return capture_e::interrupted;
-    }
-
-    auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
-    d3d_img->blank = false;  // image is always ready for capture
-    if (complete_img(d3d_img.get(), false) == 0) {
-      texture_lock_helper lock_helper(d3d_img->capture_mutex.get());
-      if (lock_helper.lock()) {
-        device_ctx->CopyResource(d3d_img->capture_texture.get(), src.get());
-      } else {
-        BOOST_LOG(error) << "Failed to lock capture texture";
-        return capture_e::error;
-      }
-    } else {
-      return capture_e::error;
-    }
-    img_out = img;
-    if (img_out) {
-      img_out->frame_timestamp = frame_timestamp;
-    }
-
-    return capture_e::ok;
-  }
-
-  capture_e display_wgc_vram_t::release_snapshot() {
-    return dup.release_frame();
-  }
-
-  int display_wgc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
-    if (display_base_t::init(config, display_name) || dup.init(this, config)) {
-      return -1;
-    }
-
-    return 0;
+  std::shared_ptr<display_t> display_wgc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
+    return display_wgc_ipc_vram_t::create(config, display_name);
   }
 
   std::shared_ptr<platf::img_t> display_vram_t::alloc_img() {

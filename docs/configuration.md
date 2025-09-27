@@ -2004,8 +2004,8 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>Default</td>
-        <td colspan="2">Automatic.
-            Sunshine will use the first capture method available in the order of the table above.</td>
+        <td colspan="2">Automatic<br>
+            Sunshine will use the first capture method available in the order of the table below</td>
     </tr>
     <tr>
         <td>Example</td>
@@ -2043,9 +2043,17 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>wgc</td>
-        <td>(beta feature) Use Windows.Graphics.Capture to capture the display.
-            @note{Applies to Windows only.}
-            @attention{This capture method is not compatible with the Sunshine service.}</td>
+        <td>Use Windows.Graphics.Capture to capture the display. Captures at a variable rate.
+            @note{Windows only.}
+            @note{NVIDIA Ultra Low Latency Mode (ULLM) can hurt performance; avoid this by either using a monitor whose refresh rate exceeds the stream and capping FPS to stop ULLM from engaging, or simply disable Low Latency Mode in the driver.}
+            @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
+    </tr>
+    <tr>
+        <td>wgcc</td>
+        <td>Use Windows.Graphics.Capture to capture the display. Captures at a constant rate.
+            @note{Windows only.}
+            @note{NVIDIA Ultra Low Latency Mode (ULLM) can hurt performance; avoid this by either using a monitor whose refresh rate exceeds the stream and capping FPS to stop ULLM from engaging, or simply disable Low Latency Mode in the driver.}
+            @tip{On NVIDIA cards, selecting this option will resolve stream freezes caused by high VRAM utilization.}</td>
     </tr>
 </table>
 
@@ -2261,6 +2269,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             the freeze at the cost of reduced capture performance when the GPU is heavily loaded.
             @note{This option only applies when using NVENC [encoder](#encoder).}
             @note{Applies to Windows only.}
+            @tip{Changing the capture method to Windows.Graphics.Capture also resolves this problem without any additional changes.}
         </td>
     </tr>
     <tr>
