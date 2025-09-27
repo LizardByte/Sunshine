@@ -9,10 +9,14 @@ FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Force this stage to run on the build platform for cross-compilation setup
+# Dependencies stage - runs on build platform but installs deps for target platform
 FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-deps
 
 ENV DEBIAN_FRONTEND=noninteractive
+
+# Pass through build arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -20,11 +24,14 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /build/sunshine/
 COPY --link scripts/linux_build.sh ./scripts/linux_build.sh
 
-# Install dependencies first - this layer will be cached
+# Install dependencies first - this layer will be cached per target platform
 RUN <<_DEPS
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
+
+echo "BUILDPLATFORM: ${BUILDPLATFORM}"
+echo "TARGETPLATFORM: ${TARGETPLATFORM}"
 
 # Set up cross-compilation variables if building for different platform
 if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
@@ -57,16 +64,18 @@ else
   echo "Native compilation for ${TARGETPLATFORM}"
 fi
 
-echo "Running dependency installation step..."
+echo "Running dependency installation step for ${TARGETPLATFORM}..."
 ./scripts/linux_build.sh \
   --step=deps \
   --sudo-off \
   ${cross_compile} \
   ${target_arch:+--target-arch=${target_arch}} \
   ${target_tuple:+--target-tuple=${target_tuple}}
+
+echo "Cleaning up package cache..."
 apt-get clean
 rm -rf /var/lib/apt/lists/*
-echo "Dependency installation completed."
+echo "Dependency installation completed for ${TARGETPLATFORM}."
 _DEPS
 
 FROM --platform=$BUILDPLATFORM sunshine-deps AS sunshine-build
