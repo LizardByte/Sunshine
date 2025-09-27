@@ -13,7 +13,7 @@
     #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.ico"
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
     #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
-  #elif defined(__linux__) || defined(linux) || defined(__linux)
+  #elif defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
     #define TRAY_ICON SUNSHINE_TRAY_PREFIX "-tray"
     #define TRAY_ICON_PLAYING SUNSHINE_TRAY_PREFIX "-playing"
     #define TRAY_ICON_PAUSING SUNSHINE_TRAY_PREFIX "-pausing"
