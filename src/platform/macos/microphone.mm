@@ -25,7 +25,16 @@ namespace platf {
       void *byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
 
       while (length < sample_size * sizeof(float)) {
-        [av_audio_capture.samplesArrivedSignal wait];
+        // Using 5 second timeout to prevent indefinite hanging
+        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC);
+        if (dispatch_semaphore_wait(av_audio_capture->audioSemaphore, timeout) != 0) {
+          BOOST_LOG(warning) << "Audio sample timeout - no audio data received within 5 seconds"sv;
+
+          // Fill with silence and return to prevent hanging
+          std::fill(sample_in.begin(), sample_in.end(), 0.0f);
+          return capture_e::timeout;
+        }
+
         byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
       }
 
@@ -49,8 +58,27 @@ namespace platf {
       return 0;
     }
 
-    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool host_audio_enabled = true) override {
       auto mic = std::make_unique<av_mic_t>();
+      mic->av_audio_capture = [[AVAudio alloc] init];
+
+      // Set the host audio enabled flag from the stream configuration
+      mic->av_audio_capture.hostAudioEnabled = host_audio_enabled ? YES : NO;
+      BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
+
+      // Check if macOS system-wide audio tap is enabled
+      if (config::audio.macos_system_wide_audio_tap) {
+        BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
+        BOOST_LOG(info) << "Sample rate: "sv << sample_rate << ", Frame size: "sv << frame_size << ", Channels: "sv << channels;
+        if ([mic->av_audio_capture setupSystemTap:sample_rate frameSize:frame_size channels:channels]) {
+          BOOST_LOG(error) << "Failed to setup system audio tap."sv;
+          return nullptr;
+        }
+        BOOST_LOG(info) << "macOS system audio tap capturing."sv;
+        return mic;
+      }
+
+      // Setup microphone approach
       const char *audio_sink = "";
 
       if (!config::audio.sink.empty()) {
@@ -67,8 +95,6 @@ namespace platf {
 
         return nullptr;
       }
-
-      mic->av_audio_capture = [[AVAudio alloc] init];
 
       if ([mic->av_audio_capture setupMicrophone:audio_capture_device sampleRate:sample_rate frameSize:frame_size channels:channels]) {
         BOOST_LOG(error) << "Failed to setup microphone."sv;
