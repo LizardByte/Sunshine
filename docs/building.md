@@ -149,8 +149,11 @@ ninja -C build
       ```}
   }}
   @tab{Windows | @tabs{
-    @tab{Installer | ```bash
+    @tab{NSIS Installer | ```bash
       cpack -G NSIS --config ./build/CPackConfig.cmake
+      ```}
+    @tab{WiX Installer | ```bash
+      cpack -G WIX --config ./build/CPackConfig.cmake
       ```}
     @tab{Portable | ```bash
       cpack -G ZIP --config ./build/CPackConfig.cmake
