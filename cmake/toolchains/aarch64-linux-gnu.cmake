@@ -1,15 +1,22 @@
 # CMake toolchain file for cross-compiling to ARM64 (aarch64) on Debian/Ubuntu
 # Usage: cmake -DCMAKE_TOOLCHAIN_FILE=cmake/toolchains/aarch64-linux-gnu.cmake
 
+# The name of the target operating system
 set(CMAKE_SYSTEM_NAME Linux)
+
+# Set processor type
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 
-# Specify the cross-compiler
-set(CMAKE_C_COMPILER aarch64-linux-gnu-gcc)
-set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
+# Set compiler prefix
+set(COMPILER_PREFIX ${CMAKE_SYSTEM_PROCESSOR}-linux-gnu)
 
-# Set sysroot path
-set(CMAKE_SYSROOT /usr/aarch64-linux-gnu)
+# Which compilers to use for C and C++
+set(CMAKE_C_COMPILER ${COMPILER_PREFIX}-gcc)
+set(CMAKE_CXX_COMPILER ${COMPILER_PREFIX}-g++)
+set(CMAKE_ASM_COMPILER ${COMPILER_PREFIX}-gcc)
+
+# Here is the target environment located
+set(CMAKE_FIND_ROOT_PATH /usr/${COMPILER_PREFIX})
 
 # Adjust the default behavior of the FIND_XXX() commands:
 # search headers and libraries in the target environment, search
@@ -19,24 +26,24 @@ set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE ONLY)
 
-# Set the target environment paths
-set(CMAKE_FIND_ROOT_PATH /usr/aarch64-linux-gnu)
-
 # Set pkg-config environment for cross-compilation
-set(ENV{PKG_CONFIG_PATH} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
-set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig")
-set(ENV{PKG_CONFIG_SYSROOT_DIR} "/usr/aarch64-linux-gnu")
+set(ENV{PKG_CONFIG_PATH} "/usr/lib/${COMPILER_PREFIX}/pkgconfig:/usr/share/pkgconfig")
+set(ENV{PKG_CONFIG_LIBDIR} "/usr/lib/${COMPILER_PREFIX}/pkgconfig:/usr/share/pkgconfig")
+set(ENV{PKG_CONFIG_SYSROOT_DIR} "/usr/${COMPILER_PREFIX}")
 
 # Set compiler flags for cross-compilation
 set(CMAKE_C_FLAGS_INIT "-march=armv8-a")
 set(CMAKE_CXX_FLAGS_INIT "-march=armv8-a")
 
 # Explicitly set OpenSSL paths for cross-compilation
-set(OPENSSL_ROOT_DIR "/usr/aarch64-linux-gnu")
-set(OPENSSL_INCLUDE_DIR "/usr/aarch64-linux-gnu/include")
-set(OPENSSL_CRYPTO_LIBRARY "/usr/aarch64-linux-gnu/lib/libcrypto.so")
-set(OPENSSL_SSL_LIBRARY "/usr/aarch64-linux-gnu/lib/libssl.so")
+set(OPENSSL_ROOT_DIR "/usr/${COMPILER_PREFIX}")
+set(OPENSSL_INCLUDE_DIR "/usr/${COMPILER_PREFIX}/include")
+set(OPENSSL_CRYPTO_LIBRARY "/usr/${COMPILER_PREFIX}/lib/libcrypto.so")
+set(OPENSSL_SSL_LIBRARY "/usr/${COMPILER_PREFIX}/lib/libssl.so")
 
 # Additional library paths
-set(CMAKE_LIBRARY_PATH "/usr/aarch64-linux-gnu/lib" ${CMAKE_LIBRARY_PATH})
-set(CMAKE_INCLUDE_PATH "/usr/aarch64-linux-gnu/include" ${CMAKE_INCLUDE_PATH})
+set(CMAKE_LIBRARY_PATH "/usr/${COMPILER_PREFIX}/lib" ${CMAKE_LIBRARY_PATH})
+set(CMAKE_INCLUDE_PATH "/usr/${COMPILER_PREFIX}/include" ${CMAKE_INCLUDE_PATH})
+
+# Packaging
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "${CMAKE_SYSTEM_PROCESSOR}")
