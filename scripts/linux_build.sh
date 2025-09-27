@@ -619,26 +619,16 @@ function run_step_cmake() {
 
   # Add cross-compilation settings if enabled
   if [ "$cross_compile" == 1 ] && [ -n "$target_tuple" ]; then
-    cmake_args+=("-DCMAKE_C_COMPILER=${target_tuple}-gcc")
-    cmake_args+=("-DCMAKE_CXX_COMPILER=${target_tuple}-g++")
-    
-    # Set PKG_CONFIG_PATH for cross-compilation
-    if [ -n "$target_arch" ]; then
-      case "$target_arch" in
-        arm64)
-          cmake_args+=("-DCMAKE_FIND_ROOT_PATH=/usr/aarch64-linux-gnu")
-          cmake_args+=("-DPKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig")
-          ;;
-        amd64)
-          cmake_args+=("-DCMAKE_FIND_ROOT_PATH=/usr/x86_64-linux-gnu")
-          cmake_args+=("-DPKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig")
-          ;;
-      esac
-      
-      # Set cross-compilation mode
-      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER")
-      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY")  
-      cmake_args+=("-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY")
+    # Use CMake toolchain file for cross-compilation
+    toolchain_file="${script_dir}/../cmake/toolchains/${target_tuple}.cmake"
+    if [ -f "$toolchain_file" ]; then
+      cmake_args+=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
+      echo "Using toolchain file: $toolchain_file"
+    else
+      echo "Warning: Toolchain file not found: $toolchain_file"
+      # Fallback to manual configuration
+      cmake_args+=("-DCMAKE_C_COMPILER=${target_tuple}-gcc")
+      cmake_args+=("-DCMAKE_CXX_COMPILER=${target_tuple}-g++")
     fi
   fi
 
