@@ -20,6 +20,8 @@ option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
+option(SUNSHINE_CI "Use ci config" OFF)
+
 if(APPLE)
     option(BOOST_USE_STATIC "Use static boost libraries." OFF)
 else()

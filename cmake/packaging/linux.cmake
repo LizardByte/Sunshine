@@ -22,6 +22,10 @@ else()
     find_package(Systemd)
     find_package(Udev)
 
+    if(SUNSHINE_CI_BUILD AND NOT SYSTEMD_FOUND OR NOT UDEV_FOUND)
+        message(FATAL_ERROR "Systemd or Udev not installed. CMake will exit.")
+    endif()
+
     if(UDEV_FOUND)
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
                 DESTINATION "${UDEV_RULES_INSTALL_DIR}")
@@ -43,6 +47,7 @@ set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc
 set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin+p) ${SUNSHINE_EXECUTABLE_PATH}")
 
 # Dependencies
+# Debian based distro's all have different versions of libicu in their name...
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
@@ -51,6 +56,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             libcurl4, \
             libdrm2, \
             libgbm1, \
+            libicu76 | libicu74 | libicu70, \
             libevdev2, \
             libnuma1, \
             libopus0, \

@@ -33,7 +33,12 @@ if(NOT WIN32)
         find_program(UDEVADM_EXECUTABLE udevadm
             PATHS /usr/bin /bin /usr/sbin /sbin
             DOC "Path to udevadm executable")
-        mark_as_advanced(UDEVADM_EXECUTABLE)
+
+        if(UDEVADM_EXECUTABLE)
+            mark_as_advanced(UDEVADM_EXECUTABLE)
+        else()
+            message(FATAL_ERROR "udevadm not found")
+        endif()
 
         # Handle version requirements
         if(Udev_FIND_VERSION)
