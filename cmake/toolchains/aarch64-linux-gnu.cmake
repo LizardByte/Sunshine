@@ -30,3 +30,13 @@ set(ENV{PKG_CONFIG_SYSROOT_DIR} "/usr/aarch64-linux-gnu")
 # Set compiler flags for cross-compilation
 set(CMAKE_C_FLAGS_INIT "-march=armv8-a")
 set(CMAKE_CXX_FLAGS_INIT "-march=armv8-a")
+
+# Explicitly set OpenSSL paths for cross-compilation
+set(OPENSSL_ROOT_DIR "/usr/aarch64-linux-gnu")
+set(OPENSSL_INCLUDE_DIR "/usr/aarch64-linux-gnu/include")
+set(OPENSSL_CRYPTO_LIBRARY "/usr/aarch64-linux-gnu/lib/libcrypto.so")
+set(OPENSSL_SSL_LIBRARY "/usr/aarch64-linux-gnu/lib/libssl.so")
+
+# Additional library paths
+set(CMAKE_LIBRARY_PATH "/usr/aarch64-linux-gnu/lib" ${CMAKE_LIBRARY_PATH})
+set(CMAKE_INCLUDE_PATH "/usr/aarch64-linux-gnu/include" ${CMAKE_INCLUDE_PATH})

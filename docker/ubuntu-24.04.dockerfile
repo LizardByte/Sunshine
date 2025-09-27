@@ -14,6 +14,11 @@ FROM sunshine-base AS sunshine-deps
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
 
+# Force this stage to run on the build platform for cross-compilation setup
+FROM --platform=$BUILDPLATFORM ubuntu:24.04 AS sunshine-deps-native
+
+ENV DEBIAN_FRONTEND=noninteractive
+
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Copy only the build script first for better layer caching
@@ -67,7 +72,7 @@ apt-get clean
 rm -rf /var/lib/apt/lists/*
 _DEPS
 
-FROM sunshine-deps AS sunshine-build
+FROM --platform=$BUILDPLATFORM sunshine-deps-native AS sunshine-build
 
 ARG BUILDPLATFORM
 ARG TARGETPLATFORM
@@ -145,7 +150,7 @@ fi
   ${target_tuple:+--target-tuple=${target_tuple}}
 _BUILD
 
-FROM sunshine-build AS sunshine-test
+FROM --platform=$TARGETPLATFORM sunshine-build AS sunshine-test
 
 # This stage runs on the target architecture to avoid qemu overhead for tests
 ARG TARGETPLATFORM
@@ -160,7 +165,7 @@ Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes
 _TEST
 
-FROM sunshine-base AS sunshine
+FROM --platform=$TARGETPLATFORM sunshine-base AS sunshine
 
 ARG BASE
 ARG TAG
