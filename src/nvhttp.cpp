@@ -852,6 +852,17 @@ namespace nvhttp {
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
     auto launch_session = make_launch_session(host_audio, args);
 
+    if (appid > 0) {
+      auto err = proc::proc.prepare(appid, launch_session);
+      if (err) {
+        tree.put("root.<xmlattr>.status_code", err);
+        tree.put("root.<xmlattr>.status_message", "Failed to prepare for the specified application");
+        tree.put("root.gamesession", 0);
+
+        return;
+      }
+    }
+
     if (rtsp_stream::session_count() == 0) {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;
@@ -886,7 +897,7 @@ namespace nvhttp {
     }
 
     if (appid > 0) {
-      auto err = proc::proc.execute(appid, launch_session);
+      auto err = proc::proc.execute();
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
