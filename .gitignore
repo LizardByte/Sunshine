@@ -41,6 +41,7 @@
 build/
 cmake-*/
 docs/doxyconfig*
+.flatpak-builder/
 
 # npm
 node_modules/
