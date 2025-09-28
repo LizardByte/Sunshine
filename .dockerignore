@@ -26,7 +26,6 @@ third-party/build-deps/dist/FreeBSD*
 third-party/build-deps/dist/Windows*
 
 # ignore non Linux third-party submodules
-third-party/libdisplaydevice
 third-party/TPCircularBuffer
 
 # ignore artifacts

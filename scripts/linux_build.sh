@@ -232,13 +232,6 @@ function add_arch_deps() {
 }
 
 function add_debian_based_deps() {
-  # If cross-compiling, we need the cross toolchain
-  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
-    dependencies+=(
-      "crossbuild-essential-${target_arch}"
-    )
-  fi
-
   dependencies+=(
     "appstream"
     "appstream-util"
@@ -257,12 +250,13 @@ function add_debian_based_deps() {
     "xvfb"  # necessary for headless unit testing
   )
 
-  # Add GCC for the target architecture
+
   if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
-    dependencies+=("gcc-${gcc_version}")
-    dependencies+=("g++-${gcc_version}")
     # Cross-compile specific library packages with architecture suffix
     dependencies+=(
+      "crossbuild-essential-${target_arch}"
+      "gcc-${gcc_version}-aarch64-linux-gnu"
+      "g++-${gcc_version}-aarch64-linux-gnu"
       "libcap-dev:${target_arch}"  # KMS
       "libcurl4-openssl-dev:${target_arch}"
       "libdrm-dev:${target_arch}"  # KMS
@@ -511,6 +505,11 @@ function update_ubuntu_sources() {
     return
   fi
 
+  # Install ca-certificates first to avoid SSL issues
+  echo "Installing ca-certificates for HTTPS repositories..."
+  ${sudo_cmd} apt-get update || true  # Allow this to fail initially
+  ${sudo_cmd} apt-get install -y ca-certificates || true
+
   # Use existing distribution detection variables
   local dist_name
   local ubuntu_version
@@ -527,8 +526,10 @@ function update_ubuntu_sources() {
   echo "Detected Ubuntu version: $ubuntu_version"
   echo "Detected Ubuntu major version: $ubuntu_major_version"
 
-  # Determine mirror URL
-  local mirror="https://ports.ubuntu.com/ubuntu-ports"
+  # Determine mirror URLs
+  local main_mirror="http://archive.ubuntu.com/ubuntu"
+  local ports_mirror="http://ports.ubuntu.com/ubuntu-ports"
+  local security_mirror="http://security.ubuntu.com/ubuntu"
 
   # Add target architecture
   echo "Adding architecture: $target_arch"
@@ -556,24 +557,34 @@ function update_ubuntu_sources() {
   # Update sources based on Ubuntu version
   if [[ $ubuntu_major_version -ge 24 ]]; then
     # Ubuntu 24.04+ uses the new .sources format
-    local extra_sources
-    extra_sources=$(cat <<VAREOF
+    local new_sources
+    new_sources=$(cat <<VAREOF
+# Main Ubuntu repository for native architecture
 Types: deb
-URIs: mirror+file:/etc/apt/apt-mirrors.txt
-Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports ${dist_name}-security
+URIs: ${main_mirror}
+Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 Architectures: $(dpkg --print-architecture)
 
+# Ubuntu security updates for native architecture
 Types: deb
-URIs: ${mirror}
+URIs: ${security_mirror}
+Suites: ${dist_name}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: $(dpkg --print-architecture)
+
+# Ubuntu ports repository for cross-compilation architecture
+Types: deb
+URIs: ${ports_mirror}
 Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports ${dist_name}-security
 Components: main universe restricted multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 Architectures: ${target_arch}
 VAREOF
 )
-    echo "$extra_sources" | ${sudo_cmd} tee "$source_file" > /dev/null
+    echo "$new_sources" | ${sudo_cmd} tee "$source_file" > /dev/null
   else
     # Ubuntu 22.04 and earlier use the traditional sources.list format
     # Fix original sources to specify amd64 architecture
@@ -582,16 +593,16 @@ VAREOF
     # Add cross-compilation sources
     local extra_sources
     extra_sources=$(cat <<VAREOF
-deb [arch=${target_arch}] ${mirror} ${dist_name} main restricted
-deb [arch=${target_arch}] ${mirror} ${dist_name}-updates main restricted
-deb [arch=${target_arch}] ${mirror} ${dist_name} universe
-deb [arch=${target_arch}] ${mirror} ${dist_name}-updates universe
-deb [arch=${target_arch}] ${mirror} ${dist_name} multiverse
-deb [arch=${target_arch}] ${mirror} ${dist_name}-updates multiverse
-deb [arch=${target_arch}] ${mirror} ${dist_name}-backports main restricted universe multiverse
-deb [arch=${target_arch}] ${mirror} ${dist_name}-security main restricted
-deb [arch=${target_arch}] ${mirror} ${dist_name}-security universe
-deb [arch=${target_arch}] ${mirror} ${dist_name}-security multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-backports main restricted universe multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security multiverse
 VAREOF
 )
     echo "$extra_sources" | ${sudo_cmd} tee -a "$source_file" > /dev/null
