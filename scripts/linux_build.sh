@@ -24,6 +24,7 @@ sudo_cmd="sudo"
 target_arch=""
 target_tuple=""
 ubuntu_test_repo=0
+use_aptitude=0
 step="all"
 
 # common variables
@@ -102,6 +103,7 @@ Options:
   --target-arch            Target architecture for cross compilation (e.g., arm64, amd64).
   --target-tuple           Target tuple for cross compilation (e.g., aarch64-linux-gnu, x86_64-linux-gnu).
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
+  --use-aptitude           Use aptitude instead of apt for package management on Debian/Ubuntu systems.
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
 
 Steps:
@@ -157,6 +159,7 @@ while getopts ":hs-:" opt; do
           target_tuple="${OPTARG#*=}"
           ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
+        use-aptitude) use_aptitude=1 ;;
         step=*)
           step="${OPTARG#*=}"
           ;;
@@ -495,8 +498,24 @@ if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)
 function run_step_deps() {
   echo "Running step: Install dependencies"
 
-  # Update the package list
-  $package_update_command
+  # Update the package list using apt-get first (even if aptitude is requested)
+  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+    ${sudo_cmd} apt-get update
+  else
+    # For non-Debian systems, use their standard update command
+    $package_update_command
+  fi
+
+  # Install aptitude first if requested for Debian/Ubuntu systems
+  if [ "$use_aptitude" == 1 ] && ([ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]); then
+    echo "Installing aptitude package manager..."
+    ${sudo_cmd} apt-get install -y aptitude
+    echo "Aptitude installed successfully"
+
+    # Now update with aptitude
+    echo "Updating package lists with aptitude..."
+    ${sudo_cmd} aptitude update
+  fi
 
   if [ "$distro" == "arch" ]; then
     add_arch_deps
@@ -854,6 +873,13 @@ elif grep -q "Ubuntu 25.04" /etc/os-release; then
 else
   echo "Unsupported Distro or Version"
   exit 1
+fi
+
+# Override package commands if aptitude is requested for Debian/Ubuntu systems
+if [ "$use_aptitude" == 1 ] && ([ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]); then
+  echo "Using aptitude for package management"
+  package_update_command="${sudo_cmd} aptitude update"
+  package_install_command="${sudo_cmd} aptitude install -y"
 fi
 
 architecture=$(uname -m)

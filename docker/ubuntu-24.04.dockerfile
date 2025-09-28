@@ -68,6 +68,7 @@ echo "Running dependency installation step for ${TARGETPLATFORM}..."
 ./scripts/linux_build.sh \
   --step=deps \
   --sudo-off \
+  --use-aptitude \
   ${cross_compile} \
   ${target_arch:+--target-arch=${target_arch}} \
   ${target_tuple:+--target-tuple=${target_tuple}}

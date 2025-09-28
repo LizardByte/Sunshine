@@ -70,6 +70,7 @@ echo "Running dependency installation step for ${TARGETPLATFORM}..."
   --step=deps \
   --cuda-patches \
   --sudo-off \
+  --use-aptitude \
   ${cross_compile} \
   ${target_arch:+--target-arch=${target_arch}} \
   ${target_tuple:+--target-tuple=${target_tuple}}
