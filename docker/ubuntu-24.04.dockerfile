@@ -51,28 +51,35 @@ if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
       ;;
   esac
 
-  # Enable multiarch support for cross-compilation
-  dpkg --add-architecture ${target_arch}
-  apt-get update
-
   echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
   echo "Target arch: ${target_arch}, Target triple: ${target_tuple}"
+
+  # First update sources for cross-compilation BEFORE adding architecture
+  echo "Updating sources for cross-compilation..."
+  ./scripts/linux_build.sh \
+    --step=deps \
+    --sudo-off \
+    --update-sources \
+    --use-aptitude \
+    --skip-package \
+    ${cross_compile} \
+    ${target_arch:+--target-arch=${target_arch}} \
+    ${target_tuple:+--target-tuple=${target_tuple}}
 else
   cross_compile=""
   target_arch=$(dpkg --print-architecture)
   target_tuple=""
   echo "Native compilation for ${TARGETPLATFORM}"
-fi
 
-echo "Running dependency installation step for ${TARGETPLATFORM}..."
-./scripts/linux_build.sh \
-  --step=deps \
-  --sudo-off \
-  --update-sources \
-  --use-aptitude \
-  ${cross_compile} \
-  ${target_arch:+--target-arch=${target_arch}} \
-  ${target_tuple:+--target-tuple=${target_tuple}}
+  echo "Running dependency installation step for ${TARGETPLATFORM}..."
+  ./scripts/linux_build.sh \
+    --step=deps \
+    --sudo-off \
+    --use-aptitude \
+    ${cross_compile} \
+    ${target_arch:+--target-arch=${target_arch}} \
+    ${target_tuple:+--target-tuple=${target_tuple}}
+fi
 
 echo "Cleaning up package cache..."
 apt-get clean
