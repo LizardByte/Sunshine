@@ -90,7 +90,7 @@ RUN <<_PACKAGE_INFO
 #!/bin/bash
 set -e
 apt-get update -y
-apt-get install dpkg -y
+apt-get install --no-install-recommends -y dpkg
 echo -e "\nPackage info:\n"
 dpkg-deb --ctrl-tarfile Sunshine.deb
 _PACKAGE_INFO
