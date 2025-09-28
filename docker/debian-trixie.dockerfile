@@ -84,6 +84,17 @@ Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 ./test_sunshine --gtest_color=yes
 _TEST
 
+# print package info
+WORKDIR /build/sunshine/build/cpack_artifacts
+RUN <<_PACKAGE_INFO
+#!/bin/bash
+set -e
+apt-get update -y
+apt-get install dpkg -y
+echo -e "\nPackage info:\n"
+dpkg-deb --ctrl-tarfile Sunshine.deb
+_PACKAGE_INFO
+
 FROM sunshine-base AS sunshine
 
 ARG BASE

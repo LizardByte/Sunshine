@@ -122,6 +122,17 @@ rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
+# print package info
+RUN <<_PACKAGE_INFO
+#!/bin/bash
+set -e
+echo -e "\nPackage info:\n"
+pacman -Qp --info --list sunshine*.pkg.tar.zst
+echo -e"\nSpec:\n"
+cat PKGBUILD
+cat sunshine.install
+_PACKAGE_INFO
+
 FROM sunshine-base AS sunshine
 
 COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
