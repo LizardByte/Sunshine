@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64,linux/arm64/v8
+# platforms_pr: linux/arm64/v8
 # no-cache-filters: sunshine-base,sunshine-deps,artifacts,sunshine
 ARG BASE=debian
 ARG TAG=trixie

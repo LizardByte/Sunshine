@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64,linux/arm64/v8
+# platforms_pr: linux/arm64/v8
 # no-cache-filters: sunshine-base,sunshine-deps,artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=22.04
@@ -69,6 +69,7 @@ echo "Running dependency installation step for ${TARGETPLATFORM}..."
   --step=deps \
   --ubuntu-test-repo \
   --sudo-off \
+  --update-sources \
   --use-aptitude \
   ${cross_compile} \
   ${target_arch:+--target-arch=${target_arch}} \

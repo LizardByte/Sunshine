@@ -25,6 +25,7 @@ target_arch=""
 target_tuple=""
 ubuntu_test_repo=0
 use_aptitude=0
+update_sources=0
 step="all"
 
 # common variables
@@ -104,6 +105,7 @@ Options:
   --target-tuple           Target tuple for cross compilation (e.g., aarch64-linux-gnu, x86_64-linux-gnu).
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
   --use-aptitude           Use aptitude instead of apt for package management on Debian/Ubuntu systems.
+  --update-sources         Update Ubuntu sources.list for cross-compilation (Ubuntu only, off by default).
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
 
 Steps:
@@ -160,6 +162,7 @@ while getopts ":hs-:" opt; do
           ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
         use-aptitude) use_aptitude=1 ;;
+        update-sources) update_sources=1 ;;
         step=*)
           step="${OPTARG#*=}"
           ;;
@@ -495,8 +498,120 @@ if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)
   fi
 }
 
+function update_ubuntu_sources() {
+  echo "Updating Ubuntu sources for cross-compilation..."
+
+  if [ "$distro" != "ubuntu" ]; then
+    echo "Sources update only supported on Ubuntu, skipping..."
+    return
+  fi
+
+  if [ "$cross_compile" != 1 ] || [ -z "$target_arch" ]; then
+    echo "Not cross-compiling, skipping sources update..."
+    return
+  fi
+
+  # Use existing distribution detection variables
+  local dist_name
+  local ubuntu_version
+  local ubuntu_major_version
+
+  # Extract codename from /etc/os-release
+  dist_name=$(grep '^VERSION_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
+
+  # Use the version variable already set by main detection logic
+  ubuntu_version="$version"
+  ubuntu_major_version=${ubuntu_version%%.*}
+
+  echo "Detected Ubuntu distribution: $dist_name"
+  echo "Detected Ubuntu version: $ubuntu_version"
+  echo "Detected Ubuntu major version: $ubuntu_major_version"
+
+  # Determine mirror URL
+  local mirror="https://ports.ubuntu.com/ubuntu-ports"
+
+  # Add target architecture
+  echo "Adding architecture: $target_arch"
+  ${sudo_cmd} dpkg --add-architecture "$target_arch"
+
+  # Determine source file location based on Ubuntu version
+  local source_file
+  if [[ $ubuntu_major_version -ge 24 ]]; then
+    source_file="/etc/apt/sources.list.d/ubuntu.sources"
+  else
+    source_file="/etc/apt/sources.list"
+  fi
+
+  echo "Using sources file: $source_file"
+
+  # Backup original sources
+  echo "Backing up original sources file..."
+  ${sudo_cmd} cp "$source_file" "${source_file}.bak"
+
+  # Print original sources for debugging
+  echo "Original sources:"
+  ${sudo_cmd} cat "$source_file"
+  echo "----"
+
+  # Update sources based on Ubuntu version
+  if [[ $ubuntu_major_version -ge 24 ]]; then
+    # Ubuntu 24.04+ uses the new .sources format
+    local extra_sources
+    extra_sources=$(cat <<VAREOF
+Types: deb
+URIs: mirror+file:/etc/apt/apt-mirrors.txt
+Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports ${dist_name}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: $(dpkg --print-architecture)
+
+Types: deb
+URIs: ${mirror}
+Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports ${dist_name}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${target_arch}
+VAREOF
+)
+    echo "$extra_sources" | ${sudo_cmd} tee "$source_file" > /dev/null
+  else
+    # Ubuntu 22.04 and earlier use the traditional sources.list format
+    # Fix original sources to specify amd64 architecture
+    ${sudo_cmd} sed -i -e "s#deb mirror#deb [arch=$(dpkg --print-architecture)] mirror#g" "$source_file"
+
+    # Add cross-compilation sources
+    local extra_sources
+    extra_sources=$(cat <<VAREOF
+deb [arch=${target_arch}] ${mirror} ${dist_name} main restricted
+deb [arch=${target_arch}] ${mirror} ${dist_name}-updates main restricted
+deb [arch=${target_arch}] ${mirror} ${dist_name} universe
+deb [arch=${target_arch}] ${mirror} ${dist_name}-updates universe
+deb [arch=${target_arch}] ${mirror} ${dist_name} multiverse
+deb [arch=${target_arch}] ${mirror} ${dist_name}-updates multiverse
+deb [arch=${target_arch}] ${mirror} ${dist_name}-backports main restricted universe multiverse
+deb [arch=${target_arch}] ${mirror} ${dist_name}-security main restricted
+deb [arch=${target_arch}] ${mirror} ${dist_name}-security universe
+deb [arch=${target_arch}] ${mirror} ${dist_name}-security multiverse
+VAREOF
+)
+    echo "$extra_sources" | ${sudo_cmd} tee -a "$source_file" > /dev/null
+  fi
+
+  echo "----"
+  echo "Updated sources:"
+  ${sudo_cmd} cat "$source_file"
+  echo "----"
+
+  echo "Ubuntu sources updated successfully for cross-compilation"
+}
+
 function run_step_deps() {
   echo "Running step: Install dependencies"
+
+  # Update Ubuntu sources for cross-compilation if requested
+  if [ "$update_sources" == 1 ]; then
+    update_ubuntu_sources
+  fi
 
   # Update the package list using apt-get first (even if aptitude is requested)
   if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
