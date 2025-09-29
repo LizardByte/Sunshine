@@ -149,7 +149,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@v2025.917.25039
+        uses: LizardByte/actions/actions/release_homebrew@v2025.927.193939
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
