@@ -81,18 +81,37 @@ jobs:
 
           # Create artifacts directory
           mkdir -p ../artifacts
+          mkdir -p ../artifacts/portable
 
-          # Package with CPack (creates installer and portable zip)
+          # First, collect raw exe and required DLLs for portable version
+          echo "📦 Collecting portable files..."
+          if [ -f sunshine.exe ]; then
+            cp sunshine.exe ../artifacts/portable/
+            echo "✅ Copied sunshine.exe"
+          fi
+
+          # Copy required DLLs from MinGW
+          for dll in libcrypto*.dll libssl*.dll libopus*.dll libminiupnpc*.dll libboost*.dll; do
+            find /mingw64/bin -name "$dll" -exec cp {} ../artifacts/portable/ \; 2>/dev/null || true
+          done
+
+          # Copy assets directory if it exists
+          if [ -d assets ]; then
+            cp -r assets ../artifacts/portable/
+            echo "✅ Copied assets directory"
+          fi
+
+          # Create portable zip from raw files
+          cd ../artifacts/portable
+          zip -r ../Sunshine-Windows-portable-raw.zip *
+          cd ../../build
+          echo "✅ Created raw portable zip"
+
+          # Now create installer and standard portable via CPack
           cpack -G NSIS || echo "NSIS packaging failed, continuing..."
           cpack -G ZIP || echo "ZIP packaging failed, continuing..."
 
-          # Move executables
-          if [ -f sunshine.exe ]; then
-            cp sunshine.exe ../artifacts/
-            echo "✅ Copied sunshine.exe to artifacts"
-          fi
-
-          # Move packaged files if they exist
+          # Move CPack outputs
           if [ -f cpack_artifacts/Sunshine.exe ]; then
             mv cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-Windows-installer.exe
             echo "✅ Created installer"
@@ -100,12 +119,20 @@ jobs:
 
           if [ -f cpack_artifacts/Sunshine.zip ]; then
             mv cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-Windows-portable.zip
-            echo "✅ Created portable zip"
+            echo "✅ Created CPack portable zip"
+          fi
+
+          # Also provide just the raw exe separately for easy access
+          if [ -f ../artifacts/portable/sunshine.exe ]; then
+            cp ../artifacts/portable/sunshine.exe ../artifacts/sunshine.exe
+            echo "✅ Copied raw sunshine.exe to artifacts root"
           fi
 
           # List all artifacts
-          echo "📦 Artifacts created:"
+          echo "📦 All artifacts created:"
           ls -la ../artifacts/
+          echo "📦 Portable directory contents:"
+          ls -la ../artifacts/portable/ || true
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -115,7 +142,22 @@ jobs:
             artifacts/sunshine.exe
             artifacts/Sunshine-*.exe
             artifacts/Sunshine-*.zip
+            artifacts/portable/
           if-no-files-found: error
+
+      - name: Upload Raw Exe Separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-raw-exe
+          path: artifacts/sunshine.exe
+          if-no-files-found: error
+
+      - name: Upload Portable Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-portable-bundle
+          path: artifacts/Sunshine-Windows-portable-raw.zip
+          if-no-files-found: warn
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -132,26 +174,34 @@ jobs:
             ## Sunshine Fork Windows Build
 
             This release includes:
-            - `sunshine.exe` - Raw executable
-            - `Sunshine-Windows-installer.exe` - Windows installer (recommended)
-            - `Sunshine-Windows-portable.zip` - Portable version (no installation required)
+            - `sunshine.exe` - Raw executable only (for bundling with other apps)
+            - `Sunshine-Windows-installer.exe` - Windows installer (recommended for standalone use)
+            - `Sunshine-Windows-portable.zip` - CPack portable version
+            - `Sunshine-Windows-portable-raw.zip` - Raw portable bundle with exe + DLLs (for Fuji integration)
 
-            ### Installation
+            ### For Fuji Integration
+            Use `Sunshine-Windows-portable-raw.zip` which contains:
+            - sunshine.exe
+            - Required DLL dependencies
+            - Assets directory
+            - No installation needed, just extract and run
+
+            ### For Standalone Use
 
             **Option 1: Installer (Recommended)**
             1. Download `Sunshine-Windows-installer.exe`
             2. Run the installer and follow the prompts
 
             **Option 2: Portable**
-            1. Download `Sunshine-Windows-portable.zip`
+            1. Download `Sunshine-Windows-portable.zip` or `Sunshine-Windows-portable-raw.zip`
             2. Extract to your desired location
             3. Run `sunshine.exe`
 
             **Option 3: Raw Executable**
-            1. Download `sunshine.exe`
-            2. Place in your desired directory (note: you'll need to manually manage dependencies)
+            1. Download `sunshine.exe` (requires manual dependency management)
+            2. Place in directory with required DLLs
 
             ### Changes
             See commit history for detailed changes.
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}# Build trigger: Tue Sep 30 09:42:44 PDT 2025
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
