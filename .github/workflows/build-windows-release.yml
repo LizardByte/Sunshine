@@ -1,0 +1,157 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  build-windows:
+    name: Build Windows AMD64
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: ucrt64
+          update: true
+          install: >-
+            wget
+            git
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-MinHook
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-nodejs
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-x265
+
+      - name: Build Sunshine
+        run: |
+          # Create build directory
+          mkdir -p build
+          cd build
+
+          # Configure with CMake
+          cmake \
+            -G "MinGW Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://github.com/${{ github.repository }}' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/${{ github.repository }}/issues' \
+            ..
+
+          # Build
+          mingw32-make -j$(nproc)
+
+          # Check if sunshine.exe was created
+          if [ -f sunshine.exe ]; then
+            echo "✅ sunshine.exe built successfully"
+            ls -la sunshine.exe
+          else
+            echo "❌ sunshine.exe not found"
+            exit 1
+          fi
+
+      - name: Package Sunshine
+        run: |
+          cd build
+
+          # Create artifacts directory
+          mkdir -p ../artifacts
+
+          # Package with CPack (creates installer and portable zip)
+          cpack -G NSIS || echo "NSIS packaging failed, continuing..."
+          cpack -G ZIP || echo "ZIP packaging failed, continuing..."
+
+          # Move executables
+          if [ -f sunshine.exe ]; then
+            cp sunshine.exe ../artifacts/
+            echo "✅ Copied sunshine.exe to artifacts"
+          fi
+
+          # Move packaged files if they exist
+          if [ -f cpack_artifacts/Sunshine.exe ]; then
+            mv cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-Windows-installer.exe
+            echo "✅ Created installer"
+          fi
+
+          if [ -f cpack_artifacts/Sunshine.zip ]; then
+            mv cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-Windows-portable.zip
+            echo "✅ Created portable zip"
+          fi
+
+          # List all artifacts
+          echo "📦 Artifacts created:"
+          ls -la ../artifacts/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-windows-build
+          path: |
+            artifacts/sunshine.exe
+            artifacts/Sunshine-*.exe
+            artifacts/Sunshine-*.zip
+          if-no-files-found: error
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/sunshine.exe
+            artifacts/Sunshine-*.exe
+            artifacts/Sunshine-*.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Sunshine Fork Windows Build
+
+            This release includes:
+            - `sunshine.exe` - Raw executable
+            - `Sunshine-Windows-installer.exe` - Windows installer (recommended)
+            - `Sunshine-Windows-portable.zip` - Portable version (no installation required)
+
+            ### Installation
+
+            **Option 1: Installer (Recommended)**
+            1. Download `Sunshine-Windows-installer.exe`
+            2. Run the installer and follow the prompts
+
+            **Option 2: Portable**
+            1. Download `Sunshine-Windows-portable.zip`
+            2. Extract to your desired location
+            3. Run `sunshine.exe`
+
+            **Option 3: Raw Executable**
+            1. Download `sunshine.exe`
+            2. Place in your desired directory (note: you'll need to manually manage dependencies)
+
+            ### Changes
+            See commit history for detailed changes.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
