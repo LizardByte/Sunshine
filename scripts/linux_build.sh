@@ -10,6 +10,7 @@ doxygen_max="1.12.0"
 
 # Default value for arguments
 appimage_build=0
+cross_compile=0
 cuda_patches=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
@@ -20,7 +21,11 @@ skip_cuda=0
 skip_libva=0
 skip_package=0
 sudo_cmd="sudo"
+target_arch=""
+target_tuple=""
 ubuntu_test_repo=0
+use_aptitude=0
+update_sources=0
 step="all"
 
 # common variables
@@ -85,6 +90,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --cross-compile          Enable cross compilation.
   --cuda-patches           Apply cuda patches.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
@@ -95,7 +101,11 @@ Options:
   --skip-cuda              Skip CUDA installation.
   --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
   --skip-package           Skip creating DEB, or RPM package.
+  --target-arch            Target architecture for cross compilation (e.g., arm64, amd64).
+  --target-tuple           Target tuple for cross compilation (e.g., aarch64-linux-gnu, x86_64-linux-gnu).
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
+  --use-aptitude           Use aptitude instead of apt for package management on Debian/Ubuntu systems.
+  --update-sources         Update Ubuntu sources.list for cross-compilation (Ubuntu only, off by default).
   --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
 
 Steps:
@@ -123,6 +133,7 @@ while getopts ":hs-:" opt; do
           appimage_build=1
           skip_libva=1
           ;;
+        cross-compile) cross_compile=1 ;;
         cuda-patches)
           cuda_patches=1
           ;;
@@ -143,7 +154,15 @@ while getopts ":hs-:" opt; do
         skip-libva) skip_libva=1 ;;
         skip-package) skip_package=1 ;;
         sudo-off) sudo_cmd="" ;;
+        target-arch=*)
+          target_arch="${OPTARG#*=}"
+          ;;
+        target-tuple=*)
+          target_tuple="${OPTARG#*=}"
+          ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
+        use-aptitude) use_aptitude=1 ;;
+        update-sources) update_sources=1 ;;
         step=*)
           step="${OPTARG#*=}"
           ;;
@@ -222,29 +241,8 @@ function add_debian_based_deps() {
     "desktop-file-utils"
     "doxygen"
     "flex"  # required if we need to compile doxygen
-    "gcc-${gcc_version}"
-    "g++-${gcc_version}"
     "git"
     "graphviz"
-    "libcap-dev"  # KMS
-    "libcurl4-openssl-dev"
-    "libdrm-dev"  # KMS
-    "libevdev-dev"
-    "libgbm-dev"
-    "libminiupnpc-dev"
-    "libnotify-dev"
-    "libnuma-dev"
-    "libopus-dev"
-    "libpulse-dev"
-    "libssl-dev"
-    "libwayland-dev"  # Wayland
-    "libx11-dev"  # X11
-    "libxcb-shm0-dev"  # X11
-    "libxcb-xfixes0-dev"  # X11
-    "libxcb1-dev"  # X11
-    "libxfixes-dev"  # X11
-    "libxrandr-dev"  # X11
-    "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
     "udev"
@@ -252,10 +250,70 @@ function add_debian_based_deps() {
     "xvfb"  # necessary for headless unit testing
   )
 
-  if [ "$skip_libva" == 0 ]; then
+
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    # Cross-compile specific library packages with architecture suffix
     dependencies+=(
-      "libva-dev"  # VA-API
+      "crossbuild-essential-${target_arch}"
+      "gcc-${gcc_version}-aarch64-linux-gnu"
+      "g++-${gcc_version}-aarch64-linux-gnu"
+      "libcap-dev:${target_arch}"  # KMS
+      "libcurl4-openssl-dev:${target_arch}"
+      "libdrm-dev:${target_arch}"  # KMS
+      "libevdev-dev:${target_arch}"
+      "libgbm-dev:${target_arch}"
+      "libminiupnpc-dev:${target_arch}"
+      "libnotify-dev:${target_arch}"
+      "libnuma-dev:${target_arch}"
+      "libopus-dev:${target_arch}"
+      "libpulse-dev:${target_arch}"
+      "libssl-dev:${target_arch}"
+      "libwayland-dev:${target_arch}"  # Wayland
+      "libx11-dev:${target_arch}"  # X11
+      "libxcb-shm0-dev:${target_arch}"  # X11
+      "libxcb-xfixes0-dev:${target_arch}"  # X11
+      "libxcb1-dev:${target_arch}"  # X11
+      "libxfixes-dev:${target_arch}"  # X11
+      "libxrandr-dev:${target_arch}"  # X11
+      "libxtst-dev:${target_arch}"  # X11
     )
+  else
+    # Native build
+    dependencies+=(
+      "gcc-${gcc_version}"
+      "g++-${gcc_version}"
+      "libcap-dev"  # KMS
+      "libcurl4-openssl-dev"
+      "libdrm-dev"  # KMS
+      "libevdev-dev"
+      "libgbm-dev"
+      "libminiupnpc-dev"
+      "libnotify-dev"
+      "libnuma-dev"
+      "libopus-dev"
+      "libpulse-dev"
+      "libssl-dev"
+      "libwayland-dev"  # Wayland
+      "libx11-dev"  # X11
+      "libxcb-shm0-dev"  # X11
+      "libxcb-xfixes0-dev"  # X11
+      "libxcb1-dev"  # X11
+      "libxfixes-dev"  # X11
+      "libxrandr-dev"  # X11
+      "libxtst-dev"  # X11
+    )
+  fi
+
+  if [ "$skip_libva" == 0 ]; then
+    if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+      dependencies+=(
+        "libva-dev:${target_arch}"  # VA-API
+      )
+    else
+      dependencies+=(
+        "libva-dev"  # VA-API
+      )
+    fi
   fi
 }
 
@@ -269,17 +327,29 @@ function add_test_ppa() {
 function add_debian_deps() {
   add_test_ppa
   add_debian_based_deps
-  dependencies+=(
-    "libayatana-appindicator3-dev"
-  )
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=(
+      "libayatana-appindicator3-dev:${target_arch}"
+    )
+  else
+    dependencies+=(
+      "libayatana-appindicator3-dev"
+    )
+  fi
 }
 
 function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
-  dependencies+=(
-    "libappindicator3-dev"
-  )
+  if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+    dependencies+=(
+      "libappindicator3-dev:${target_arch}"
+    )
+  else
+    dependencies+=(
+      "libappindicator3-dev"
+    )
+  fi
 }
 
 function add_fedora_deps() {
@@ -341,6 +411,22 @@ function install_cuda() {
     local cuda_suffix="_sbsa"
   fi
 
+  # if cross compiling for aarch64
+  if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ] && [ -n "$cuda_cross_deb" ]; then
+    echo "Installing CUDA cross SBSA packages for ARM64 target..."
+    wget "${cuda_prefix}/repos/${cuda_cross_deb}" --progress=bar:force:noscroll -q --show-progress -O "cuda_cross.deb"
+    ${sudo_cmd} dpkg -i "cuda_cross.deb"
+    $package_update_command
+    $package_install_command "${cuda_cross_package}"
+
+    # Now install the host x86_64 CUDA toolkit using the existing logic
+    # Temporarily override architecture to get x86_64 .run file
+    echo "Installing host x86_64 CUDA toolkit for cross-compilation build tools..."
+    local saved_architecture="$architecture"
+    architecture="x86_64"
+    cuda_suffix=""  # x86_64 doesn't use _sbsa suffix
+  fi
+
   if [ "$architecture" == "aarch64" ]; then
     # we need to patch the math-vector.h file for aarch64 fedora
     # back up /usr/include/bits/math-vector.h
@@ -372,7 +458,12 @@ function install_cuda() {
   # run cuda patches
   if [ "$cuda_patches" == 1 ]; then
     echo "Applying CUDA patches"
-    local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
+    # For cross-compilation, use x86_64 patches since we're installing the host toolkit
+    local patch_arch="$architecture"
+    if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ]; then
+      patch_arch="x86_64"
+    fi
+    local patch_dir="${script_dir}/../packaging/linux/patches/${patch_arch}"
     if [ -d "$patch_dir" ]; then
       for patch in "$patch_dir"/*.patch; do
         echo "Applying patch: $patch"
@@ -383,8 +474,13 @@ function install_cuda() {
           < "$patch"
       done
     else
-      echo "No patches found for architecture: $architecture"
+      echo "No patches found for architecture: $patch_arch"
     fi
+  fi
+
+  # Restore original architecture if we temporarily changed it for cross-compilation
+  if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ] && [ -n "$saved_architecture" ]; then
+    architecture="$saved_architecture"
   fi
 }
 
@@ -422,11 +518,156 @@ if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)
   fi
 }
 
+function update_ubuntu_sources() {
+  echo "Updating Ubuntu sources for cross-compilation..."
+
+  if [ "$distro" != "ubuntu" ]; then
+    echo "Sources update only supported on Ubuntu, skipping..."
+    return
+  fi
+
+  if [ "$cross_compile" != 1 ] || [ -z "$target_arch" ]; then
+    echo "Not cross-compiling, skipping sources update..."
+    return
+  fi
+
+  # Install ca-certificates first to avoid SSL issues
+  echo "Installing ca-certificates for HTTPS repositories..."
+  ${sudo_cmd} apt-get update || true  # Allow this to fail initially
+  ${sudo_cmd} apt-get install -y --no-install-recommends ca-certificates || true
+
+  # Use existing distribution detection variables
+  local dist_name
+  local ubuntu_version
+  local ubuntu_major_version
+
+  # Extract codename from /etc/os-release
+  dist_name=$(grep '^VERSION_CODENAME=' /etc/os-release | cut -d'=' -f2 | tr -d '"')
+
+  # Use the version variable already set by main detection logic
+  ubuntu_version="$version"
+  ubuntu_major_version=${ubuntu_version%%.*}
+
+  echo "Detected Ubuntu distribution: $dist_name"
+  echo "Detected Ubuntu version: $ubuntu_version"
+  echo "Detected Ubuntu major version: $ubuntu_major_version"
+
+  # Determine mirror URLs
+  local main_mirror="http://archive.ubuntu.com/ubuntu"
+  local ports_mirror="http://ports.ubuntu.com/ubuntu-ports"
+  local security_mirror="http://security.ubuntu.com/ubuntu"
+
+  # Add target architecture
+  echo "Adding architecture: $target_arch"
+  ${sudo_cmd} dpkg --add-architecture "$target_arch"
+
+  # Determine source file location based on Ubuntu version
+  local source_file
+  if [[ $ubuntu_major_version -ge 24 ]]; then
+    source_file="/etc/apt/sources.list.d/ubuntu.sources"
+  else
+    source_file="/etc/apt/sources.list"
+  fi
+
+  echo "Using sources file: $source_file"
+
+  # Backup original sources
+  echo "Backing up original sources file..."
+  ${sudo_cmd} cp "$source_file" "${source_file}.bak"
+
+  # Print original sources for debugging
+  echo "Original sources:"
+  ${sudo_cmd} cat "$source_file"
+  echo "----"
+
+  # Update sources based on Ubuntu version
+  if [[ $ubuntu_major_version -ge 24 ]]; then
+    # Ubuntu 24.04+ uses the new .sources format
+    local new_sources
+    new_sources=$(cat <<VAREOF
+# Main Ubuntu repository for native architecture
+Types: deb
+URIs: ${main_mirror}
+Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: $(dpkg --print-architecture)
+
+# Ubuntu security updates for native architecture
+Types: deb
+URIs: ${security_mirror}
+Suites: ${dist_name}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: $(dpkg --print-architecture)
+
+# Ubuntu ports repository for cross-compilation architecture
+Types: deb
+URIs: ${ports_mirror}
+Suites: ${dist_name} ${dist_name}-updates ${dist_name}-backports ${dist_name}-security
+Components: main universe restricted multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+Architectures: ${target_arch}
+VAREOF
+)
+    echo "$new_sources" | ${sudo_cmd} tee "$source_file" > /dev/null
+  else
+    # Ubuntu 22.04 and earlier use the traditional sources.list format
+    # Fix original sources to specify amd64 architecture
+    ${sudo_cmd} sed -i -e "s#deb mirror#deb [arch=$(dpkg --print-architecture)] mirror#g" "$source_file"
+
+    # Add cross-compilation sources
+    local extra_sources
+    extra_sources=$(cat <<VAREOF
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name} multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-updates multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-backports main restricted universe multiverse
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security main restricted
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security universe
+deb [arch=${target_arch}] ${ports_mirror} ${dist_name}-security multiverse
+VAREOF
+)
+    echo "$extra_sources" | ${sudo_cmd} tee -a "$source_file" > /dev/null
+  fi
+
+  echo "----"
+  echo "Updated sources:"
+  ${sudo_cmd} cat "$source_file"
+  echo "----"
+
+  echo "Ubuntu sources updated successfully for cross-compilation"
+}
+
 function run_step_deps() {
   echo "Running step: Install dependencies"
 
-  # Update the package list
-  $package_update_command
+  # Update Ubuntu sources for cross-compilation if requested
+  if [ "$update_sources" == 1 ]; then
+    update_ubuntu_sources
+  fi
+
+  # Update the package list using apt-get first (even if aptitude is requested)
+  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+    ${sudo_cmd} apt-get update
+  else
+    # For non-Debian systems, use their standard update command
+    $package_update_command
+  fi
+
+  # Install aptitude first if requested for Debian/Ubuntu systems
+  if [ "$use_aptitude" == 1 ] && ([ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]); then
+    echo "Installing aptitude package manager..."
+    ${sudo_cmd} apt-get install -y --no-install-recommends aptitude
+    echo "Aptitude installed successfully"
+
+    # Now update with aptitude
+    echo "Updating package lists with aptitude..."
+    ${sudo_cmd} aptitude update
+  fi
 
   if [ "$distro" == "arch" ]; then
     add_arch_deps
@@ -451,19 +692,26 @@ function run_step_deps() {
     export CC=gcc-14
     export CXX=g++-14
   elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-    for file in "${gcc_alternative_files[@]}"; do
-      file_path="/etc/alternatives/$file"
-      if [ -e "$file_path" ]; then
-        ${sudo_cmd} mv "$file_path" "$file_path.bak"
-      fi
-    done
+    # Export GCC version for toolchain files
+    export LINUX_GCC_VERSION="$gcc_version"
 
-    ${sudo_cmd} update-alternatives --install \
-      /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
-      --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
-      --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
-      --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
-      --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
+    # Only set up alternatives for native compilation
+    # For cross-compilation, the toolchain files will handle compiler selection
+    if [ "$cross_compile" == 0 ]; then
+      for file in "${gcc_alternative_files[@]}"; do
+        file_path="/etc/alternatives/$file"
+        if [ -e "$file_path" ]; then
+          ${sudo_cmd} mv "$file_path" "$file_path.bak"
+        fi
+      done
+
+      ${sudo_cmd} update-alternatives --install \
+        /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
+        --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
+        --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
+        --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
+        --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
+    fi
   fi
 
   # compile cmake if the version is too low
@@ -526,6 +774,11 @@ function run_step_cmake() {
   # Setup NVM environment if needed (for web UI builds)
   setup_nvm_environment
 
+  # Export GCC version for toolchain files (in case it wasn't set in deps step)
+  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+    export LINUX_GCC_VERSION="$gcc_version"
+  fi
+
   # Detect CUDA path using the reusable function
   nvcc_path=""
   if [ "$skip_cuda" == 0 ]; then
@@ -546,6 +799,21 @@ function run_step_cmake() {
     "-DSUNSHINE_ENABLE_X11=ON"
     "-DSUNSHINE_ENABLE_DRM=ON"
   )
+
+  # Add cross-compilation settings if enabled
+  if [ "$cross_compile" == 1 ] && [ -n "$target_tuple" ]; then
+    # Use CMake toolchain file for cross-compilation
+    toolchain_file="${script_dir}/../cmake/toolchains/${target_tuple}.cmake"
+    if [ -f "$toolchain_file" ]; then
+      cmake_args+=("-DCMAKE_TOOLCHAIN_FILE=${toolchain_file}")
+      echo "Using toolchain file: $toolchain_file"
+    else
+      echo "Warning: Toolchain file not found: $toolchain_file"
+      # Fallback to manual configuration
+      cmake_args+=("-DCMAKE_C_COMPILER=${target_tuple}-gcc")
+      cmake_args+=("-DCMAKE_CXX_COMPILER=${target_tuple}-g++")
+    fi
+  fi
 
   if [ "$appimage_build" == 1 ]; then
     cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
@@ -693,18 +961,22 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="debian12/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="13"
   nvm_node=0
 elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   distro="debian"
   version="13"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="debian12/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="14"
   nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
@@ -731,25 +1003,29 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="ubuntu2204/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="13"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"
   version="24.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="ubuntu2404/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="14"
   nvm_node=1
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
   distro="ubuntu"
   version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
   gcc_version="14"
@@ -759,7 +1035,31 @@ else
   exit 1
 fi
 
+# Override package commands if aptitude is requested for Debian/Ubuntu systems
+if [ "$use_aptitude" == 1 ] && ([ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]); then
+  echo "Using aptitude for package management"
+  package_update_command="${sudo_cmd} aptitude update"
+  package_install_command="${sudo_cmd} aptitude install -y"
+fi
+
 architecture=$(uname -m)
+
+# Override architecture for cross-compilation
+if [ "$cross_compile" == 1 ] && [ -n "$target_arch" ]; then
+  case "$target_arch" in
+    arm64)
+      architecture="aarch64"
+      ;;
+    amd64)
+      architecture="x86_64"
+      ;;
+    *)
+      echo "Unknown target architecture: $target_arch"
+      exit 1
+      ;;
+  esac
+  echo "Cross-compiling for architecture: $architecture (from target_arch: $target_arch)"
+fi
 
 echo "Detected Distro: $distro"
 echo "Detected Version: $version"

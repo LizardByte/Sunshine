@@ -1,15 +1,22 @@
 # syntax=docker/dockerfile:1
 # artifacts: true
 # platforms: linux/amd64,linux/arm64/v8
-# platforms_pr: linux/amd64
-# no-cache-filters: sunshine-base,artifacts,sunshine
+# platforms_pr: linux/arm64/v8
+# no-cache-filters: sunshine-base,sunshine-deps,artifacts,sunshine
 ARG BASE=ubuntu
 ARG TAG=22.04
 FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base AS sunshine-deps
+# Dependencies stage - runs on build platform but installs deps for target platform
+FROM --platform=$BUILDPLATFORM ${BASE}:${TAG} AS sunshine-deps
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Pass through build arguments
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -17,21 +24,75 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /build/sunshine/
 COPY --link scripts/linux_build.sh ./scripts/linux_build.sh
 
-# Install dependencies first - this layer will be cached
+# Install dependencies first - this layer will be cached per target platform
 RUN <<_DEPS
 #!/bin/bash
 set -e
 chmod +x ./scripts/linux_build.sh
-./scripts/linux_build.sh \
-  --step=deps \
-  --ubuntu-test-repo \
-  --sudo-off
+
+echo "BUILDPLATFORM: ${BUILDPLATFORM}"
+echo "TARGETPLATFORM: ${TARGETPLATFORM}"
+
+# Set up cross-compilation variables if building for different platform
+if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
+  cross_compile="--cross-compile"
+  case "${TARGETPLATFORM}" in
+    linux/amd64)
+      target_arch="amd64"
+      target_tuple="x86_64-linux-gnu"
+      ;;
+    linux/arm64)
+      target_arch="arm64"
+      target_tuple="aarch64-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported target platform: ${TARGETPLATFORM}"
+      exit 1
+      ;;
+  esac
+
+  echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
+  echo "Target arch: ${target_arch}, Target triple: ${target_tuple}"
+
+  # First update sources for cross-compilation BEFORE adding architecture
+  echo "Updating sources for cross-compilation..."
+  ./scripts/linux_build.sh \
+    --step=deps \
+    --ubuntu-test-repo \
+    --sudo-off \
+    --update-sources \
+    --use-aptitude \
+    --skip-package \
+    ${cross_compile} \
+    ${target_arch:+--target-arch=${target_arch}} \
+    ${target_tuple:+--target-tuple=${target_tuple}}
+else
+  cross_compile=""
+  target_arch=$(dpkg --print-architecture)
+  target_tuple=""
+  echo "Native compilation for ${TARGETPLATFORM}"
+
+  echo "Running dependency installation step for ${TARGETPLATFORM}..."
+  ./scripts/linux_build.sh \
+    --step=deps \
+    --ubuntu-test-repo \
+    --sudo-off \
+    --use-aptitude \
+    ${cross_compile} \
+    ${target_arch:+--target-arch=${target_arch}} \
+    ${target_tuple:+--target-tuple=${target_tuple}}
+fi
+
+echo "Cleaning up package cache..."
 apt-get clean
 rm -rf /var/lib/apt/lists/*
+echo "Dependency installation completed for ${TARGETPLATFORM}."
 _DEPS
 
-FROM sunshine-deps AS sunshine-build
+FROM --platform=$BUILDPLATFORM sunshine-deps AS sunshine-build
 
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 ARG BRANCH
 ARG BUILD_VERSION
 ARG COMMIT
@@ -48,28 +109,71 @@ COPY --link .. .
 RUN <<_BUILD
 #!/bin/bash
 set -e
+
+# Set up cross-compilation variables if building for different platform
+if [ "${BUILDPLATFORM}" != "${TARGETPLATFORM}" ]; then
+  cross_compile="--cross-compile"
+  case "${TARGETPLATFORM}" in
+    linux/amd64)
+      target_arch="amd64"
+      target_tuple="x86_64-linux-gnu"
+      ;;
+    linux/arm64)
+      target_arch="arm64"
+      target_tuple="aarch64-linux-gnu"
+      ;;
+    *)
+      echo "Unsupported target platform: ${TARGETPLATFORM}"
+      exit 1
+      ;;
+  esac
+  echo "Cross-compiling from ${BUILDPLATFORM} to ${TARGETPLATFORM}"
+else
+  cross_compile=""
+  target_arch=""
+  target_tuple=""
+  echo "Native compilation for ${TARGETPLATFORM}"
+fi
+
 ./scripts/linux_build.sh \
   --step=cmake \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=validation \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=build \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 
 ./scripts/linux_build.sh \
   --step=package \
-  --sudo-off
+  --sudo-off \
+  ${cross_compile} \
+  ${target_arch:+--target-arch=${target_arch}} \
+  ${target_tuple:+--target-tuple=${target_tuple}}
 _BUILD
 
-# run tests
+FROM sunshine-build AS sunshine-test
+
+# This stage runs on the target architecture to avoid qemu overhead for tests
+ARG TARGETPLATFORM
+
 WORKDIR /build/sunshine/build/tests
+
 RUN <<_TEST
 #!/bin/bash
 set -e
