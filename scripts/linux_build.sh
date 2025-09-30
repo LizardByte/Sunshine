@@ -411,6 +411,22 @@ function install_cuda() {
     local cuda_suffix="_sbsa"
   fi
 
+  # if cross compiling for aarch64
+  if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ] && [ -n "$cuda_cross_deb" ]; then
+    echo "Installing CUDA cross SBSA packages for ARM64 target..."
+    wget "${cuda_prefix}/repos/${cuda_cross_deb}" --progress=bar:force:noscroll -q --show-progress -O "cuda_cross.deb"
+    ${sudo_cmd} dpkg -i "cuda_cross.deb"
+    $package_update_command
+    $package_install_command "${cuda_cross_package}"
+
+    # Now install the host x86_64 CUDA toolkit using the existing logic
+    # Temporarily override architecture to get x86_64 .run file
+    echo "Installing host x86_64 CUDA toolkit for cross-compilation build tools..."
+    local saved_architecture="$architecture"
+    architecture="x86_64"
+    cuda_suffix=""  # x86_64 doesn't use _sbsa suffix
+  fi
+
   if [ "$architecture" == "aarch64" ]; then
     # we need to patch the math-vector.h file for aarch64 fedora
     # back up /usr/include/bits/math-vector.h
@@ -442,7 +458,12 @@ function install_cuda() {
   # run cuda patches
   if [ "$cuda_patches" == 1 ]; then
     echo "Applying CUDA patches"
-    local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
+    # For cross-compilation, use x86_64 patches since we're installing the host toolkit
+    local patch_arch="$architecture"
+    if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ]; then
+      patch_arch="x86_64"
+    fi
+    local patch_dir="${script_dir}/../packaging/linux/patches/${patch_arch}"
     if [ -d "$patch_dir" ]; then
       for patch in "$patch_dir"/*.patch; do
         echo "Applying patch: $patch"
@@ -453,8 +474,13 @@ function install_cuda() {
           < "$patch"
       done
     else
-      echo "No patches found for architecture: $architecture"
+      echo "No patches found for architecture: $patch_arch"
     fi
+  fi
+
+  # Restore original architecture if we temporarily changed it for cross-compilation
+  if [ "$cross_compile" == 1 ] && [ "$target_arch" == "arm64" ] && [ -n "$saved_architecture" ]; then
+    architecture="$saved_architecture"
   fi
 }
 
@@ -508,7 +534,7 @@ function update_ubuntu_sources() {
   # Install ca-certificates first to avoid SSL issues
   echo "Installing ca-certificates for HTTPS repositories..."
   ${sudo_cmd} apt-get update || true  # Allow this to fail initially
-  ${sudo_cmd} apt-get install -y ca-certificates || true
+  ${sudo_cmd} apt-get install -y --no-install-recommends ca-certificates || true
 
   # Use existing distribution detection variables
   local dist_name
@@ -635,7 +661,7 @@ function run_step_deps() {
   # Install aptitude first if requested for Debian/Ubuntu systems
   if [ "$use_aptitude" == 1 ] && ([ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]); then
     echo "Installing aptitude package manager..."
-    ${sudo_cmd} apt-get install -y aptitude
+    ${sudo_cmd} apt-get install -y --no-install-recommends aptitude
     echo "Aptitude installed successfully"
 
     # Now update with aptitude
@@ -935,18 +961,22 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   distro="debian"
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="debian12/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="13"
   nvm_node=0
 elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   distro="debian"
   version="13"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="debian12/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="14"
   nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
@@ -973,25 +1003,29 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="ubuntu2204/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="13"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"
   version="24.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
+  cuda_cross_deb="ubuntu2404/cross-linux-sbsa/cuda-keyring_1.1-1_all.deb"
+  cuda_cross_package="cuda-cross-sbsa-12-9"
   gcc_version="14"
   nvm_node=1
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
   distro="ubuntu"
   version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
-  package_install_command="${sudo_cmd} apt-get install -y"
+  package_install_command="${sudo_cmd} apt-get install -y --no-install-recommends"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
   gcc_version="14"
