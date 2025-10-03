@@ -1,0 +1,130 @@
+name: Build Linux Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux AMD64
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            libboost-all-dev \
+            libminiupnpc-dev \
+            libopus-dev \
+            libssl-dev \
+            libavcodec-dev \
+            libavdevice-dev \
+            libavfilter-dev \
+            libavformat-dev \
+            libavutil-dev \
+            libswscale-dev \
+            libdrm-dev \
+            libevdev-dev \
+            libpulse-dev \
+            libudev-dev \
+            libva-dev \
+            libvdpau-dev \
+            libx11-dev \
+            libxcb1-dev \
+            libxcb-shm0-dev \
+            libxcb-xfixes0-dev \
+            libxfixes-dev \
+            libxrandr-dev \
+            libxtst-dev \
+            libwayland-dev \
+            libcurl4-openssl-dev \
+            libnuma-dev
+
+      - name: Build Sunshine
+        run: |
+          mkdir -p build
+          cd build
+
+          cmake \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://github.com/${{ github.repository }}' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/${{ github.repository }}/issues' \
+            ..
+
+          make -j$(nproc)
+
+          if [ -f sunshine ]; then
+            echo "✅ sunshine built successfully"
+            ls -la sunshine
+          else
+            echo "❌ sunshine binary not found"
+            exit 1
+          fi
+
+      - name: Package Sunshine
+        run: |
+          cd build
+          mkdir -p ../artifacts
+
+          # Copy binary
+          cp sunshine ../artifacts/sunshine-linux
+
+          # Make executable
+          chmod +x ../artifacts/sunshine-linux
+
+          # Copy assets if they exist
+          if [ -d assets ]; then
+            mkdir -p ../artifacts/assets
+            cp -r assets/* ../artifacts/assets/
+          fi
+
+          # Create tarball
+          cd ../artifacts
+          tar -czf sunshine-linux.tar.gz sunshine-linux assets
+
+          echo "📦 Linux artifacts:"
+          ls -la
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sunshine-linux-build
+          path: |
+            artifacts/sunshine-linux
+            artifacts/sunshine-linux.tar.gz
+
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/sunshine-linux
+            artifacts/sunshine-linux.tar.gz
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Sunshine Fork Linux Build
+
+            This release includes:
+            - `sunshine-linux` - Standalone binary
+            - `sunshine-linux.tar.gz` - Binary with assets
+
+            **Note:** You may need to install runtime dependencies on your system.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
