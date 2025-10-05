@@ -237,6 +237,8 @@ function add_debian_based_deps() {
     "libopus-dev"
     "libpulse-dev"
     "libssl-dev"
+    "libsystemd-dev"
+    "libudev-dev"
     "libwayland-dev"  # Wayland
     "libx11-dev"  # X11
     "libxcb-shm0-dev"  # X11
@@ -247,6 +249,7 @@ function add_debian_based_deps() {
     "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
+    "systemd"
     "udev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
@@ -271,6 +274,7 @@ function add_debian_deps() {
   add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
+    "systemd-dev"
   )
 }
 
