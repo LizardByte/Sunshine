@@ -104,6 +104,55 @@ $(document).ready(function(){
                     card_footer.className = "card-footer p-2 pt-0 border-0 rounded-0"
                     card.appendChild(card_footer)
 
+                    // Add commit activity graph
+                    $.ajax({
+                        url: `${base_url}/${cache_repo}/github/commitActivity/${sorted[repo]['name']}.json`,
+                        type: "GET",
+                        dataType: "json",
+                        success: function (commitActivity) {
+                            // Create a container for the activity graph
+                            let activity_container = document.createElement("div")
+                            activity_container.className = "commit-activity-graph mt-2 mb-2 mx-3"
+                            activity_container.style.cssText = "display: flex; gap: 2px; height: 32px; align-items: flex-end;"
+
+                            // Find max value for scaling
+                            let maxCommits = Math.max(...commitActivity.map(week => week.total))
+
+                            // Create bars for each week
+                            for (let week of commitActivity) {
+                                let bar = document.createElement("div")
+                                let height = maxCommits > 0 ? (week.total / maxCommits) * 100 : 0
+
+                                bar.style.cssText = `
+                                    flex: 1;
+                                    min-width: 2px;
+                                    background-color: ${week.total === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(64, 196, 99, ' + (0.3 + (height / 100) * 0.7) + ')'};
+                                    height: ${Math.max(height, 10)}%;
+                                    border-radius: 1px;
+                                    transition: all 0.2s ease;
+                                `
+                                bar.title = `${week.total} commits this week`
+
+                                // Add hover effect
+                                bar.addEventListener('mouseenter', function() {
+                                    this.style.backgroundColor = week.total === 0 ? 'rgba(255,255,255,0.2)' : 'rgba(64, 196, 99, 1)'
+                                })
+                                bar.addEventListener('mouseleave', function() {
+                                    this.style.backgroundColor = week.total === 0 ? 'rgba(255,255,255,0.1)' : 'rgba(64, 196, 99, ' + (0.3 + (height / 100) * 0.7) + ')'
+                                })
+
+                                activity_container.appendChild(bar)
+                            }
+
+                            // Insert as first child of card_footer
+                            card_footer.insertBefore(activity_container, card_footer.firstChild)
+                        },
+                        error: function() {
+                            // Silently fail if commit activity data is not available
+                            console.log(`No commit activity data available for ${sorted[repo]['name']}`)
+                        }
+                    })
+
                     let repo_data_row = document.createElement("div")
                     repo_data_row.className = "d-flex align-items-center"
                     card_footer.appendChild(repo_data_row)

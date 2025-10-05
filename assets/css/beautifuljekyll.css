@@ -774,6 +774,13 @@ nav.top-nav-short-permanent ~ header > .intro-header.big-img {
     margin-bottom: 0.3125rem;
   }
 }
+#header-gh-btns a:focus,
+#header-gh-btns a:hover {
+    text-decoration: none;
+}
+#header-gh-btns img {
+    vertical-align: inherit;
+}
 #header-gh-btns object {
     outline: none;
     border: none;
