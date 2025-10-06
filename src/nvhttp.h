@@ -45,6 +45,11 @@ namespace nvhttp {
   constexpr auto PORT_HTTPS = -5;
 
   /**
+   * @brief OTP expiration duration (3 minutes)
+   */
+  constexpr auto OTP_EXPIRE_DURATION = std::chrono::seconds(180);
+
+  /**
    * @brief Start the nvhttp server.
    * @examples
    * nvhttp::start();
@@ -174,6 +179,17 @@ namespace nvhttp {
    * @examples_end
    */
   bool pin(std::string pin, std::string name);
+
+  /**
+   * @brief Request a one-time password for automatic pairing
+   * @param passphrase The passphrase used to validate the OTP
+   * @param deviceName The name of the device being paired
+   * @return The generated 4-digit OTP PIN
+   * @examples
+   * std::string otp = nvhttp::request_otp("my_secret_passphrase", "Mobile Device");
+   * @examples_end
+   */
+  std::string request_otp(const std::string& passphrase, const std::string& deviceName);
 
   /**
    * @brief Remove single client.

@@ -45,6 +45,12 @@ namespace nvhttp {
 
   crypto::cert_chain_t cert_chain;
 
+  // OTP (One-Time Password) pairing support
+  static std::string one_time_pin;
+  static std::string otp_passphrase;
+  static std::string otp_device_name;
+  static std::chrono::time_point<std::chrono::steady_clock> otp_creation_time;
+
   class SunshineHTTPSServer: public SimpleWeb::ServerBase<SunshineHTTPS> {
   public:
     SunshineHTTPSServer(const std::string &certification_file, const std::string &private_key_file):
@@ -579,6 +585,38 @@ namespace nvhttp {
         auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
+
+        // Check for OTP (One-Time Password) authentication
+        auto otp_it = args.find("otpauth");
+        if (otp_it != std::end(args)) {
+          if (one_time_pin.empty() || (std::chrono::steady_clock::now() - otp_creation_time > OTP_EXPIRE_DURATION)) {
+            // OTP expired or not available
+            one_time_pin.clear();
+            otp_passphrase.clear();
+            otp_device_name.clear();
+            tree.put("root.<xmlattr>.status_code", 503);
+            tree.put("root.<xmlattr>.status_message", "OTP auth not available.");
+          } else {
+            // Validate OTP hash: hash(pin + salt + passphrase)
+            auto hash = util::hex(crypto::hash(one_time_pin + ptr->second.async_insert_pin.salt + otp_passphrase), true);
+
+            if (hash.to_string_view() == otp_it->second) {
+              // OTP valid - auto-pair
+              if (!otp_device_name.empty()) {
+                ptr->second.client.name = std::move(otp_device_name);
+              }
+
+              getservercert(ptr->second, tree, one_time_pin);
+
+              // Clear OTP after use
+              one_time_pin.clear();
+              otp_passphrase.clear();
+              otp_device_name.clear();
+              return;
+            }
+          }
+        }
+
         if (config::sunshine.flags[config::flag::PIN_STDIN]) {
           std::string pin;
 
@@ -671,6 +709,19 @@ namespace nvhttp {
     async_response = std::decay_t<decltype(async_response.left())>();
     // response to the current request
     return true;
+  }
+
+  std::string request_otp(const std::string& passphrase, const std::string& deviceName) {
+    if (passphrase.size() < 4) {
+      return "";
+    }
+
+    one_time_pin = crypto::rand_alphabet(4, "0123456789"sv);
+    otp_passphrase = passphrase;
+    otp_device_name = deviceName;
+    otp_creation_time = std::chrono::steady_clock::now();
+
+    return one_time_pin;
   }
 
   template<class T>
