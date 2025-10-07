@@ -1207,6 +1207,41 @@ namespace nvhttp {
       resume(host_audio, resp, req);
     };
     https_server.resource["^/cancel$"]["GET"] = cancel;
+    https_server.resource["^/otp/request$"]["GET"] = [](auto resp, auto req) {
+      print_req<SunshineHTTPS>(req);
+
+      auto args = req->parse_query_string();
+      auto passphrase_it = args.find("passphrase");
+      auto device_name_it = args.find("deviceName");
+
+      if (passphrase_it == args.end() || device_name_it == args.end()) {
+        resp->write(SimpleWeb::StatusCode::client_error_bad_request,
+                   R"({"error": "Missing required parameters: passphrase and deviceName"})",
+                   {{"Content-Type", "application/json"}});
+        return;
+      }
+
+      std::string pin = request_otp(passphrase_it->second, device_name_it->second);
+
+      if (pin.empty()) {
+        resp->write(SimpleWeb::StatusCode::client_error_bad_request,
+                   R"({"error": "Passphrase too short (minimum 4 characters)"})",
+                   {{"Content-Type", "application/json"}});
+        return;
+      }
+
+      // Calculate expiration timestamp
+      auto now = std::chrono::system_clock::now();
+      auto expires_at = now + OTP_EXPIRE_DURATION;
+      auto expires_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+        expires_at.time_since_epoch()
+      ).count();
+
+      std::ostringstream data;
+      data << R"({"pin": ")" << pin << R"(", "expiresAt": )" << expires_timestamp << "}";
+
+      resp->write(data.str(), {{"Content-Type", "application/json"}});
+    };
 
     https_server.config.reuse_address = true;
     https_server.config.address = net::af_to_any_address_string(address_family);
