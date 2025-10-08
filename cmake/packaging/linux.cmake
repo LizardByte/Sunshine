@@ -91,6 +91,22 @@ if(NOT BOOST_USE_STATIC)
                 boost-locale >= ${Boost_VERSION}, \
                 boost-log >= ${Boost_VERSION}, \
                 boost-program-options >= ${Boost_VERSION}")
+else()
+    # Even when boost (locale) is static linked, it still requires ICU.
+    # Distros might not have ICU in their base image so when packaging
+    # add ICU as a dependency.
+    # The ICU library is released with the version in their name... :(.
+    find_package(ICU COMPONENTS uc data i18n REQUIRED)
+    # ICU does not provide a minor / major version variable.
+    string(REGEX MATCH "^[0-9]+" ICU_VERSION_MAJOR ${ICU_VERSION})
+    # Debian-based distros have libicu versioned in the name.
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                libicu${ICU_VERSION_MAJOR}")
+    # Fedora based distros provide a general package
+    set(CPACK_RPM_PACKAGE_REQUIRES "\
+                ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                libicu")
 endif()
 
 # This should automatically figure out dependencies, doesn't work with the current config
