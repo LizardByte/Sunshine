@@ -48,6 +48,17 @@ jobs:
             mingw-w64-ucrt-x86_64-boost
             mingw-w64-ucrt-x86_64-x265
 
+      - name: Install Doxygen
+        env:
+          DOXYGEN_VERSION: "1.11.0"
+        shell: pwsh
+        run: |
+          $doxy_ver = $env:DOXYGEN_VERSION
+          $_doxy_ver = $doxy_ver.Replace(".", "_")
+          Invoke-WebRequest -Uri "https://github.com/doxygen/doxygen/releases/download/Release_${_doxy_ver}/doxygen-${doxy_ver}-setup.exe" -OutFile "doxygen-setup.exe"
+          Start-Process -FilePath .\doxygen-setup.exe -ArgumentList '/VERYSILENT' -Wait -NoNewWindow
+          Remove-Item -Path doxygen-setup.exe
+
       - name: Build Sunshine
         run: |
           # Create build directory
