@@ -221,6 +221,7 @@ function add_debian_based_deps() {
     "cmake"
     "desktop-file-utils"
     "doxygen"
+    "file"
     "flex"  # required if we need to compile doxygen
     "gcc-${gcc_version}"
     "g++-${gcc_version}"
