@@ -1216,7 +1216,7 @@ namespace nvhttp {
 
       if (passphrase_it == args.end() || device_name_it == args.end()) {
         resp->write(SimpleWeb::StatusCode::client_error_bad_request,
-                   R"({"error": "Missing required parameters: passphrase and deviceName"})",
+                   "{\"error\": \"Missing required parameters: passphrase and deviceName\"}",
                    {{"Content-Type", "application/json"}});
         return;
       }
@@ -1225,7 +1225,7 @@ namespace nvhttp {
 
       if (otp_pin.empty()) {
         resp->write(SimpleWeb::StatusCode::client_error_bad_request,
-                   R"({"error": "Passphrase too short (minimum 4 characters)"})",
+                   "{\"error\": \"Passphrase too short (minimum 4 characters)\"}",
                    {{"Content-Type", "application/json"}});
         return;
       }
@@ -1238,7 +1238,7 @@ namespace nvhttp {
       ).count();
 
       std::ostringstream data;
-      data << R"({"pin": ")" << otp_pin << R"(", "expiresAt": )" << expires_timestamp << "}";
+      data << "{\"pin\": \"" << otp_pin << "\", \"expiresAt\": " << expires_timestamp << "}";
 
       resp->write(data.str(), {{"Content-Type", "application/json"}});
     };
