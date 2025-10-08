@@ -103,11 +103,11 @@ jobs:
             echo "✅ Copied assets directory"
           fi
 
-          # Create portable zip from raw files
+          # Create portable zip from raw files with the expected name
           cd ../artifacts/portable
-          zip -r ../Sunshine-Windows-portable-raw.zip *
+          zip -r ../Sunshine-Windows-AMD64-portable.zip *
           cd ../../build
-          echo "✅ Created raw portable zip"
+          echo "✅ Created portable zip"
 
           # Now create installer and standard portable via CPack
           cpack -G NSIS || echo "NSIS packaging failed, continuing..."
@@ -158,7 +158,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: sunshine-portable-bundle
-          path: artifacts/Sunshine-Windows-portable-raw.zip
+          path: artifacts/Sunshine-Windows-AMD64-portable.zip
           if-no-files-found: warn
 
       - name: Create Release
