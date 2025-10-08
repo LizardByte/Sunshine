@@ -58,6 +58,7 @@ jobs:
             -G "MinGW Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
             -DSUNSHINE_ASSETS_DIR=assets \
+            -DSUNSHINE_ENABLE_DOCS=OFF \
             -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
             -DSUNSHINE_PUBLISHER_WEBSITE='https://github.com/${{ github.repository }}' \
             -DSUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/${{ github.repository }}/issues' \
