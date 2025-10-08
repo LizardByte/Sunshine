@@ -1221,9 +1221,9 @@ namespace nvhttp {
         return;
       }
 
-      std::string pin = request_otp(passphrase_it->second, device_name_it->second);
+      std::string otp_pin = request_otp(passphrase_it->second, device_name_it->second);
 
-      if (pin.empty()) {
+      if (otp_pin.empty()) {
         resp->write(SimpleWeb::StatusCode::client_error_bad_request,
                    R"({"error": "Passphrase too short (minimum 4 characters)"})",
                    {{"Content-Type", "application/json"}});
@@ -1238,7 +1238,7 @@ namespace nvhttp {
       ).count();
 
       std::ostringstream data;
-      data << R"({"pin": ")" << pin << R"(", "expiresAt": )" << expires_timestamp << "}";
+      data << R"({"pin": ")" << otp_pin << R"(", "expiresAt": )" << expires_timestamp << "}";
 
       resp->write(data.str(), {{"Content-Type", "application/json"}});
     };
