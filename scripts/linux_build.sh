@@ -340,6 +340,11 @@ function install_cuda() {
     return
   fi
 
+  local cuda_override_arg=""
+  if [ "$distro" == "fedora" ]; then
+    cuda_override_arg="--override"
+  fi
+
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
   local cuda_suffix=""
   if [ "$architecture" == "aarch64" ]; then
@@ -371,7 +376,7 @@ function install_cuda() {
   echo "cuda url: ${url}"
   wget "$url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
-  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
+  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
   rm "${build_dir}/cuda.run"
 
   # run cuda patches
@@ -587,6 +592,7 @@ function run_step_cmake() {
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
     if [ -n "$nvcc_path" ]; then
       cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
+      cmake_args+=("-DCMAKE_CUDA_HOST_COMPILER=gcc-${gcc_version}")
     fi
   else
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
