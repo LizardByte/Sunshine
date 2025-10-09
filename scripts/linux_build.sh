@@ -455,6 +455,9 @@ function run_step_deps() {
   if [ "$distro" == "arch" ]; then
     export CC=gcc-14
     export CXX=g++-14
+  elif [ "$distro" == "fedora" ]; then
+    export CC=gcc-${gcc_version}
+    export CXX=g++-${gcc_version}
   elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
     for file in "${gcc_alternative_files[@]}"; do
       file_path="/etc/alternatives/$file"
@@ -535,6 +538,11 @@ function run_step_cmake() {
   nvcc_path=""
   if [ "$skip_cuda" == 0 ]; then
     nvcc_path=$(detect_nvcc_path)
+  fi
+
+  if [ "$distro" == "fedora" ]; then
+    export CC=gcc-${gcc_version}
+    export CXX=g++-${gcc_version}
   fi
 
   # prepare CMAKE args
