@@ -777,7 +777,7 @@ fi
 
 # get directory of this script
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-build_dir="$script_dir/../build"
+build_dir=$(readlink -f "$script_dir/../build")
 echo "Script Directory: $script_dir"
 echo "Build Directory: $build_dir"
 mkdir -p "$build_dir"
