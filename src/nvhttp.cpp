@@ -1214,28 +1214,24 @@ namespace nvhttp {
       auto passphrase_it = args.find("passphrase");
       auto device_name_it = args.find("deviceName");
 
+      std::string error_missing = "{\"error\": \"Missing required parameters: passphrase and deviceName\"}";
+      std::string error_short = "{\"error\": \"Passphrase too short (minimum 4 characters)\"}";
+
       if (passphrase_it == args.end() || device_name_it == args.end()) {
-        resp->write(SimpleWeb::StatusCode::client_error_bad_request,
-                   "{\"error\": \"Missing required parameters: passphrase and deviceName\"}",
-                   {{"Content-Type", "application/json"}});
+        resp->write(SimpleWeb::StatusCode::client_error_bad_request, error_missing, {{"Content-Type", "application/json"}});
         return;
       }
 
       std::string otp_pin = request_otp(passphrase_it->second, device_name_it->second);
 
       if (otp_pin.empty()) {
-        resp->write(SimpleWeb::StatusCode::client_error_bad_request,
-                   "{\"error\": \"Passphrase too short (minimum 4 characters)\"}",
-                   {{"Content-Type", "application/json"}});
+        resp->write(SimpleWeb::StatusCode::client_error_bad_request, error_short, {{"Content-Type", "application/json"}});
         return;
       }
 
-      // Calculate expiration timestamp
       auto now = std::chrono::system_clock::now();
       auto expires_at = now + OTP_EXPIRE_DURATION;
-      auto expires_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-        expires_at.time_since_epoch()
-      ).count();
+      auto expires_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(expires_at.time_since_epoch()).count();
 
       std::ostringstream data;
       data << "{\"pin\": \"" << otp_pin << "\", \"expiresAt\": " << expires_timestamp << "}";
