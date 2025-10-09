@@ -93,8 +93,9 @@ if(NOT BOOST_USE_STATIC)
                 boost-program-options >= ${Boost_VERSION}")
 endif()
 
-# This should automatically figure out dependencies, doesn't work with the current config
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+# This should automatically figure out dependencies on packages
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_RPM_PACKAGE_AUTOREQ ON)
 
 # application icon
 if(NOT ${SUNSHINE_BUILD_FLATPAK})
