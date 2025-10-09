@@ -219,13 +219,18 @@ $(document).ready(function(){
                             }
 
                             let docs_link = document.createElement("a")
-                            docs_link.className = "nav-link text-warning ms-3"
+                            docs_link.className = "nav-link ms-3"
                             docs_link.href = docs_url
                             docs_link.target = "_blank"
                             repo_data_row.appendChild(docs_link)
 
-                            let docs_link_image = document.createElement("i")
-                            docs_link_image.className = "fa-fw fa-solid fa-file-lines"
+                            let docs_link_image = document.createElement("img")
+                            docs_link_image.src = "https://cdn.jsdelivr.net/npm/simple-icons@v15/icons/readthedocs.svg"
+                            docs_link_image.alt = "ReadTheDocs"
+                            docs_link_image.title = "ReadTheDocs"
+                            docs_link_image.style.width = "24px"
+                            docs_link_image.style.height = "24px"
+                            docs_link_image.style.filter = "brightness(0) saturate(100%) invert(72%) sepia(89%) saturate(455%) hue-rotate(358deg) brightness(103%) contrast(104%)"
                             docs_link.prepend(docs_link_image)
                         }
                     }
