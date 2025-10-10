@@ -23,15 +23,6 @@ sudo_cmd="sudo"
 ubuntu_test_repo=0
 step="all"
 
-# common variables
-gcc_alternative_files=(
-  "gcc"
-  "g++"
-  "gcov"
-  "gcc-ar"
-  "gcc-ranlib"
-)
-
 # Reusable function to detect nvcc path
 function detect_nvcc_path() {
   local nvcc_path=""
@@ -457,27 +448,8 @@ function run_step_deps() {
   source ~/.bashrc
 
   #set gcc version based on distros
-  if [ "$distro" == "arch" ]; then
-    export CC=gcc-14
-    export CXX=g++-14
-  elif [ "$distro" == "fedora" ]; then
-    export CC=gcc-${gcc_version}
-    export CXX=g++-${gcc_version}
-  elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-    for file in "${gcc_alternative_files[@]}"; do
-      file_path="/etc/alternatives/$file"
-      if [ -e "$file_path" ]; then
-        ${sudo_cmd} mv "$file_path" "$file_path.bak"
-      fi
-    done
-
-    ${sudo_cmd} update-alternatives --install \
-      /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
-      --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
-      --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
-      --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
-      --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
-  fi
+  export CC=gcc-${gcc_version}
+  export CXX=g++-${gcc_version}
 
   # compile cmake if the version is too low
   if ! check_version "cmake" "$cmake_min" "inf"; then
@@ -545,10 +517,9 @@ function run_step_cmake() {
     nvcc_path=$(detect_nvcc_path)
   fi
 
-  if [ "$distro" == "fedora" ]; then
-    export CC=gcc-${gcc_version}
-    export CXX=g++-${gcc_version}
-  fi
+  #set gcc version based on distros
+  export CC=gcc-${gcc_version}
+  export CXX=g++-${gcc_version}
 
   # prepare CMAKE args
   cmake_args=(
@@ -644,17 +615,6 @@ function run_step_cleanup() {
   echo "Running step: Cleanup"
 
   if [ "$skip_cleanup" == 0 ]; then
-    # Restore the original gcc alternatives
-    if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-      for file in "${gcc_alternative_files[@]}"; do
-        if [ -e "/etc/alternatives/$file.bak" ]; then
-          ${sudo_cmd} mv "/etc/alternatives/$file.bak" "/etc/alternatives/$file"
-        else
-          ${sudo_cmd} rm "/etc/alternatives/$file"
-        fi
-      done
-    fi
-
     # restore the math-vector.h file
     if [ "$architecture" == "aarch64" ] && [ -n "$math_vector_file" ]; then
       ${sudo_cmd} mv -f "$math_vector_file.bak" "$math_vector_file"
