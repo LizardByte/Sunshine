@@ -19,7 +19,7 @@ struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std:
 };
 
 constexpr std::bitset<config_t::MAX_FLAGS> config_flags(const int flag = -1) {
-  std::bitset<3> result = std::bitset<config_t::MAX_FLAGS>();
+  auto result = std::bitset<config_t::MAX_FLAGS>();
   if (flag >= 0) {
     result.set(flag);
   }
