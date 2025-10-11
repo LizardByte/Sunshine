@@ -62,7 +62,7 @@ jobs:
         run: ls -l artifacts
 
       - name: Update GitHub Release
-        uses: LizardByte/actions/actions/release_create@v2025.929.125237
+        uses: LizardByte/actions/actions/release_create@v2025.1011.184228
         with:
           allowUpdates: true
           body: ${{ github.event.release.body }}
