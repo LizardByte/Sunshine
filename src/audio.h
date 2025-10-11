@@ -45,6 +45,7 @@ namespace audio {
       HIGH_QUALITY,  ///< High quality audio
       HOST_AUDIO,  ///< Host audio
       CUSTOM_SURROUND_PARAMS,  ///< Custom surround parameters
+      CONTINUOUS_AUDIO,  ///< Continuous audio
       MAX_FLAGS  ///< Maximum number of flags
     };
 

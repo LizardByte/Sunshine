@@ -1030,6 +1030,10 @@ namespace rtsp_stream {
       }
       config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = valid;
     }
+    if (session.continuous_audio) {
+      BOOST_LOG(info) << "Client requested continuous audio"sv;
+      config.audio.flags[audio::config_t::CONTINUOUS_AUDIO] = true;
+    }
 
     // If the client sent a configured bitrate, we will choose the actual bitrate ourselves
     // by using FEC percentage and audio quality settings. If the calculated bitrate ends up
