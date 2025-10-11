@@ -7,10 +7,12 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <chrono>
 #include <filesystem>
 #include <format>
 #include <fstream>
 #include <set>
+#include <sstream>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -1215,6 +1217,35 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/otp/request$"]["GET"] = [](resp_https_t response, req_https_t request) {
+      auto args = request->parse_query_string();
+      auto passphrase_it = args.find("passphrase");
+      auto device_name_it = args.find("deviceName");
+
+      std::string error_missing = "{\"error\": \"Missing required parameters: passphrase and deviceName\"}";
+      std::string error_short = "{\"error\": \"Passphrase too short (minimum 4 characters)\"}";
+
+      if (passphrase_it == args.end() || device_name_it == args.end()) {
+        response->write(SimpleWeb::StatusCode::client_error_bad_request, error_missing, {{"Content-Type", "application/json"}});
+        return;
+      }
+
+      std::string otp_pin = nvhttp::request_otp(passphrase_it->second, device_name_it->second);
+
+      if (otp_pin.empty()) {
+        response->write(SimpleWeb::StatusCode::client_error_bad_request, error_short, {{"Content-Type", "application/json"}});
+        return;
+      }
+
+      auto now = std::chrono::system_clock::now();
+      auto expires_at = now + std::chrono::minutes(5); // 5 minute expiry
+      auto expires_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(expires_at.time_since_epoch()).count();
+
+      std::ostringstream data;
+      data << "{\"pin\": \"" << otp_pin << "\", \"expiresAt\": " << expires_timestamp << "}";
+
+      response->write(data.str(), {{"Content-Type", "application/json"}});
+    };
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
