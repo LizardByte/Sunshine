@@ -749,6 +749,15 @@ if [ "$architecture" != "x86_64" ] && [ "$architecture" != "aarch64" ]; then
   exit 1
 fi
 
+# export variables for github actions ci
+if [ -f "$GITHUB_ENV" ]; then
+  {
+    echo "CC=gcc-${gcc_version}"
+    echo "CXX=g++-${gcc_version}"
+    echo "GCC_VERSION=${gcc_version}"
+  } >> "$GITHUB_ENV"
+fi
+
 # get directory of this script
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 build_dir=$(readlink -f "$script_dir/../build")
