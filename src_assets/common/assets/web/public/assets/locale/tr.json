@@ -334,7 +334,7 @@
     "restart_note": "Sunshine değişikleri uygulamak için yeniden başlatılıyor.",
     "stream_audio": "Ses Akışı",
     "stream_audio_desc": "Ses akışı yapılıp yapılmayacağı. Bunu devre dışı bırakmak, başsız ekranları ikinci monitör olarak yayınlamak için yararlı olabilir.",
-    "sunshine_name": "Günışığı Adı",
+    "sunshine_name": "Sunshine Adı",
     "sunshine_name_desc": "Moonlight tarafından görüntülenen ad. Belirtilmezse, bilgisayarın ana bilgisayar adı kullanılır",
     "sw_preset": "SW Ön Ayarları",
     "sw_preset_desc": "Kodlama hızı (saniye başına kodlanan kare sayısı) ile sıkıştırma verimliliği (bit akışındaki bit başına kalite) arasındaki dengeyi optimize edin. Varsayılan değer süper hızlıdır.",
