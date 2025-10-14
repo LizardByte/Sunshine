@@ -586,6 +586,18 @@ namespace nvhttp {
 
         ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
 
+        // Log ALL /pair requests to debug file
+        std::ofstream pair_log("pair_debug.txt", std::ios::app);
+        pair_log << "=== /pair Request ===" << std::endl;
+        pair_log << "Timestamp: " << std::time(nullptr) << std::endl;
+        pair_log << "UniqueID: " << sess.client.uniqueID << std::endl;
+        pair_log << "Salt: " << ptr->second.async_insert_pin.salt << std::endl;
+        pair_log << "Parameters received:" << std::endl;
+        for (const auto& [key, value] : args) {
+          pair_log << "  " << key << " = " << value << std::endl;
+        }
+        pair_log.close();
+
         // Check for OTP (One-Time Password) authentication
         auto otp_it = args.find("otpauth");
         if (otp_it != std::end(args)) {
