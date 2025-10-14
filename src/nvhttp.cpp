@@ -573,6 +573,18 @@ namespace nvhttp {
 
     auto uniqID {get_arg(args, "uniqueid")};
 
+    // Log ALL /pair requests at the very start
+    std::ofstream all_pair_log("all_pair_requests.txt", std::ios::app);
+    all_pair_log << "=== ALL /pair Request ===" << std::endl;
+    all_pair_log << "Timestamp: " << std::time(nullptr) << std::endl;
+    all_pair_log << "UniqueID: " << uniqID << std::endl;
+    all_pair_log << "All parameters:" << std::endl;
+    for (const auto& [key, value] : args) {
+      all_pair_log << "  " << key << " = " << value << std::endl;
+    }
+    all_pair_log << std::endl;
+    all_pair_log.close();
+
     args_t::const_iterator it;
     if (it = args.find("phrase"); it != std::end(args)) {
       if (it->second == "getservercert"sv) {
