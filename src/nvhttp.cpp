@@ -748,6 +748,7 @@ namespace nvhttp {
     tree.put("root.appversion", VERSION);
     tree.put("root.GfeVersion", GFE_VERSION);
     tree.put("root.uniqueid", http::unique_id);
+    tree.put("root.BacklightVersion", "1.0"); // Identify as Backlight-managed Sunshine
     tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
