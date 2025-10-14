@@ -3,6 +3,8 @@ name: Build Windows Release
 on:
   workflow_dispatch:  # Manual trigger
   push:
+    branches:
+      - master  # Trigger on master pushes
     tags:
       - 'v*'  # Trigger on version tags like v1.0.0
 
