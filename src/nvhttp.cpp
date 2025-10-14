@@ -589,8 +589,14 @@ namespace nvhttp {
         // Check for OTP (One-Time Password) authentication
         auto otp_it = args.find("otpauth");
         if (otp_it != std::end(args)) {
+          BOOST_LOG(debug) << "OTP auth received: " << otp_it->second;
+          BOOST_LOG(debug) << "Current OTP pin: " << one_time_pin;
+          BOOST_LOG(debug) << "OTP passphrase: " << otp_passphrase;
+          BOOST_LOG(debug) << "Salt: " << ptr->second.async_insert_pin.salt;
+          
           if (one_time_pin.empty() || (std::chrono::steady_clock::now() - otp_creation_time > OTP_EXPIRE_DURATION)) {
             // OTP expired or not available
+            BOOST_LOG(debug) << "OTP expired or not available";
             one_time_pin.clear();
             otp_passphrase.clear();
             otp_device_name.clear();
@@ -599,9 +605,12 @@ namespace nvhttp {
           } else {
             // Validate OTP hash: hash(pin + salt + passphrase)
             auto hash = util::hex(crypto::hash(one_time_pin + ptr->second.async_insert_pin.salt + otp_passphrase), true);
+            BOOST_LOG(debug) << "Expected hash: " << hash.to_string_view();
+            BOOST_LOG(debug) << "Received hash: " << otp_it->second;
 
             if (hash.to_string_view() == otp_it->second) {
               // OTP valid - auto-pair
+              BOOST_LOG(debug) << "OTP validation successful - auto-pairing";
               if (!otp_device_name.empty()) {
                 ptr->second.client.name = std::move(otp_device_name);
               }
@@ -613,6 +622,8 @@ namespace nvhttp {
               otp_passphrase.clear();
               otp_device_name.clear();
               return;
+            } else {
+              BOOST_LOG(debug) << "OTP hash mismatch - falling back to manual PIN";
             }
           }
         }
@@ -747,8 +758,8 @@ namespace nvhttp {
 
     tree.put("root.appversion", VERSION);
     tree.put("root.GfeVersion", GFE_VERSION);
+    tree.put("root.FujiSunshine", "Backbone-Labs-Fork");
     tree.put("root.uniqueid", http::unique_id);
-    tree.put("root.BacklightVersion", "1.0"); // Identify as Backlight-managed Sunshine
     tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
     tree.put("root.MaxLumaPixelsHEVC", video::active_hevc_mode > 1 ? "1869449984" : "0");
