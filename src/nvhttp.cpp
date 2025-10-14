@@ -589,6 +589,15 @@ namespace nvhttp {
         // Check for OTP (One-Time Password) authentication
         auto otp_it = args.find("otpauth");
         if (otp_it != std::end(args)) {
+          // Write to debug file for easier access
+          std::ofstream otp_log("otp_debug.txt", std::ios::app);
+          otp_log << "=== OTP Pairing Attempt ===" << std::endl;
+          otp_log << "OTP auth received: " << otp_it->second << std::endl;
+          otp_log << "Current OTP pin: " << one_time_pin << std::endl;
+          otp_log << "OTP passphrase: " << otp_passphrase << std::endl;
+          otp_log << "Salt: " << ptr->second.async_insert_pin.salt << std::endl;
+          otp_log.close();
+          
           BOOST_LOG(debug) << "OTP auth received: " << otp_it->second;
           BOOST_LOG(debug) << "Current OTP pin: " << one_time_pin;
           BOOST_LOG(debug) << "OTP passphrase: " << otp_passphrase;
@@ -605,11 +614,18 @@ namespace nvhttp {
           } else {
             // Validate OTP hash: hash(pin + salt + passphrase)
             auto hash = util::hex(crypto::hash(one_time_pin + ptr->second.async_insert_pin.salt + otp_passphrase), true);
+            
+            std::ofstream otp_log("otp_debug.txt", std::ios::app);
+            otp_log << "Expected hash: " << hash.to_string_view() << std::endl;
+            otp_log << "Received hash: " << otp_it->second << std::endl;
+            
             BOOST_LOG(debug) << "Expected hash: " << hash.to_string_view();
             BOOST_LOG(debug) << "Received hash: " << otp_it->second;
 
             if (hash.to_string_view() == otp_it->second) {
               // OTP valid - auto-pair
+              otp_log << "✓ OTP validation successful - auto-pairing" << std::endl;
+              otp_log.close();
               BOOST_LOG(debug) << "OTP validation successful - auto-pairing";
               if (!otp_device_name.empty()) {
                 ptr->second.client.name = std::move(otp_device_name);
@@ -623,9 +639,17 @@ namespace nvhttp {
               otp_device_name.clear();
               return;
             } else {
+              otp_log << "✗ OTP hash mismatch - falling back to manual PIN" << std::endl;
+              otp_log.close();
               BOOST_LOG(debug) << "OTP hash mismatch - falling back to manual PIN";
             }
           }
+        } else {
+          // No OTP auth parameter received
+          std::ofstream otp_log("otp_debug.txt", std::ios::app);
+          otp_log << "=== Pairing Attempt (NO OTP) ===" << std::endl;
+          otp_log << "No otpauth parameter received - using manual PIN flow" << std::endl;
+          otp_log.close();
         }
 
         if (config::sunshine.flags[config::flag::PIN_STDIN]) {
