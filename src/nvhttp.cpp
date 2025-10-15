@@ -6,8 +6,10 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <ctime>
 #include <filesystem>
 #include <format>
+#include <fstream>
 #include <string>
 #include <utility>
 
@@ -547,151 +549,6 @@ namespace nvhttp {
       << data.str();
 
     response->close_connection_after_response = true;
-  }
-
-  template<class T>
-  void autopair(std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-    print_req<T>(request);
-
-    pt::ptree tree;
-    auto args = request->parse_query_string();
-
-    BOOST_LOG(info) << "===== /autopair REQUEST START =====";
-    BOOST_LOG(info) << "All parameters:";
-    for (const auto& [key, value] : args) {
-      BOOST_LOG(info) << "  " << key << " = " << value;
-    }
-    BOOST_LOG(info) << "===== /autopair REQUEST END =====";
-
-    std::ofstream autopair_log("autopair_debug.txt", std::ios::app);
-    autopair_log << "=== /autopair Request ===" << std::endl;
-    autopair_log << "Timestamp: " << std::time(nullptr) << std::endl;
-    autopair_log << "Parameters received:" << std::endl;
-    for (const auto& [key, value] : args) {
-      autopair_log << "  " << key << " = " << value << std::endl;
-    }
-
-    if (args.find("uniqueid"s) == std::end(args)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
-      autopair_log << "ERROR: Missing uniqueid parameter" << std::endl;
-      autopair_log.close();
-
-      std::ostringstream oss;
-      pt::write_xml(oss, tree);
-      response->write(oss.str());
-      return;
-    }
-
-    auto uniqID = get_arg(args, "uniqueid");
-    auto otp_it = args.find("otpauth");
-
-    if (otp_it == std::end(args)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put("root.<xmlattr>.status_message", "Missing otpauth parameter - /autopair requires OTP");
-      autopair_log << "ERROR: Missing otpauth parameter" << std::endl;
-      autopair_log.close();
-
-      BOOST_LOG(warning) << "/autopair called without otpauth parameter";
-
-      std::ostringstream oss;
-      pt::write_xml(oss, tree);
-      response->write(oss.str());
-      return;
-    }
-
-    args_t::const_iterator it;
-    if (it = args.find("phrase"); it != std::end(args)) {
-      if (it->second == "getservercert"sv) {
-        pair_session_t sess;
-        sess.client.uniqueID = std::move(uniqID);
-        sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
-
-        auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
-        ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
-
-        autopair_log << "UniqueID: " << ptr->second.client.uniqueID << std::endl;
-        autopair_log << "Salt: " << ptr->second.async_insert_pin.salt << std::endl;
-        autopair_log << "OTP auth received: " << otp_it->second << std::endl;
-        autopair_log << "Current OTP pin: " << one_time_pin << std::endl;
-        autopair_log << "OTP passphrase: " << otp_passphrase << std::endl;
-
-        BOOST_LOG(info) << "OTP auth received: " << otp_it->second;
-        BOOST_LOG(info) << "Current OTP pin: " << one_time_pin;
-        BOOST_LOG(info) << "OTP passphrase: " << otp_passphrase;
-        BOOST_LOG(info) << "Salt: " << ptr->second.async_insert_pin.salt;
-
-        if (one_time_pin.empty() || (std::chrono::steady_clock::now() - otp_creation_time > OTP_EXPIRE_DURATION)) {
-          tree.put("root.<xmlattr>.status_code", 503);
-          tree.put("root.<xmlattr>.status_message", "OTP expired or not available");
-          autopair_log << "ERROR: OTP expired or not available" << std::endl;
-          autopair_log.close();
-
-          BOOST_LOG(warning) << "OTP expired or not available";
-
-          one_time_pin.clear();
-          otp_passphrase.clear();
-          otp_device_name.clear();
-
-          std::ostringstream oss;
-          pt::write_xml(oss, tree);
-          response->write(oss.str());
-          return;
-        }
-
-        auto hash = util::hex(crypto::hash(one_time_pin + ptr->second.async_insert_pin.salt + otp_passphrase), true);
-
-        autopair_log << "Expected hash: " << hash.to_string_view() << std::endl;
-        autopair_log << "Received hash: " << otp_it->second << std::endl;
-
-        BOOST_LOG(info) << "Expected hash: " << hash.to_string_view();
-        BOOST_LOG(info) << "Received hash: " << otp_it->second;
-
-        if (hash.to_string_view() == otp_it->second) {
-          autopair_log << "✓ OTP validation successful - auto-pairing" << std::endl;
-          autopair_log.close();
-
-          BOOST_LOG(info) << "OTP validation successful - auto-pairing";
-
-          if (!otp_device_name.empty()) {
-            ptr->second.client.name = std::move(otp_device_name);
-          }
-
-          getservercert(ptr->second, tree, one_time_pin);
-
-          one_time_pin.clear();
-          otp_passphrase.clear();
-          otp_device_name.clear();
-
-          std::ostringstream oss;
-          pt::write_xml(oss, tree);
-          response->write(oss.str());
-          add_cert->raise(crypto::x509(ptr->second.client.cert));
-          return;
-        } else {
-          tree.put("root.<xmlattr>.status_code", 401);
-          tree.put("root.<xmlattr>.status_message", "OTP hash mismatch");
-          autopair_log << "ERROR: OTP hash mismatch" << std::endl;
-          autopair_log.close();
-
-          BOOST_LOG(warning) << "OTP hash mismatch";
-
-          std::ostringstream oss;
-          pt::write_xml(oss, tree);
-          response->write(oss.str());
-          return;
-        }
-      }
-    }
-
-    tree.put("root.<xmlattr>.status_code", 400);
-    tree.put("root.<xmlattr>.status_message", "Invalid request");
-    autopair_log << "ERROR: Invalid request" << std::endl;
-    autopair_log.close();
-
-    std::ostringstream oss;
-    pt::write_xml(oss, tree);
-    response->write(oss.str());
   }
 
   template<class T>
@@ -1441,6 +1298,10 @@ namespace nvhttp {
       resp->write(data.str(), {{"Content-Type", "application/json"}});
     };
 
+    https_server.resource["^/autopair$"]["GET"] = [&add_cert](auto resp, auto req) {
+      autopair<SunshineHTTPS>(add_cert, resp, req);
+    };
+
     https_server.config.reuse_address = true;
     https_server.config.address = net::af_to_any_address_string(address_family);
     https_server.config.port = port_https;
@@ -1449,9 +1310,6 @@ namespace nvhttp {
     http_server.resource["^/serverinfo$"]["GET"] = serverinfo<SimpleWeb::HTTP>;
     http_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) {
       pair<SimpleWeb::HTTP>(add_cert, resp, req);
-    };
-    http_server.resource["^/autopair$"]["GET"] = [&add_cert](auto resp, auto req) {
-      autopair<SimpleWeb::HTTP>(add_cert, resp, req);
     };
     http_server.resource["^/otp/request$"]["GET"] = [](auto resp, auto req) {
       print_req<SimpleWeb::HTTP>(req);
