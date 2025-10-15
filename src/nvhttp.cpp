@@ -1343,6 +1343,10 @@ namespace nvhttp {
       resp->write(data.str(), {{"Content-Type", "application/json"}});
     };
 
+    http_server.resource["^/autopair$"]["GET"] = [&add_cert](auto resp, auto req) {
+      autopair<SimpleWeb::HTTP>(add_cert, resp, req);
+    };
+
     http_server.config.reuse_address = true;
     http_server.config.address = net::af_to_any_address_string(address_family);
     http_server.config.port = port_http;
