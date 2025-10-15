@@ -63,6 +63,10 @@ jobs:
           Remove-Item -Path doxygen-setup.exe
 
       - name: Build Sunshine
+        env:
+          BUILD_VERSION: ${{ github.ref_name }}
+          BRANCH: ${{ github.ref_name == 'master' && 'master' || github.head_ref }}
+          COMMIT: ${{ github.sha }}
         run: |
           # Create build directory
           mkdir -p build
