@@ -1400,6 +1400,9 @@ namespace nvhttp {
     https_server.resource["^/pair$"]["GET"] = [&add_cert](auto resp, auto req) {
       pair<SunshineHTTPS>(add_cert, resp, req);
     };
+    https_server.resource["^/autopair$"]["GET"] = [&add_cert](auto resp, auto req) {
+      autopair<SunshineHTTPS>(add_cert, resp, req);
+    };
     https_server.resource["^/applist$"]["GET"] = applist;
     https_server.resource["^/appasset$"]["GET"] = appasset;
     https_server.resource["^/launch$"]["GET"] = [&host_audio](auto resp, auto req) {
