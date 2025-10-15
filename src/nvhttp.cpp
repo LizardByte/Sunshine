@@ -666,7 +666,7 @@ namespace nvhttp {
           std::ostringstream oss;
           pt::write_xml(oss, tree);
           response->write(oss.str());
-          add_cert->raise(ptr->second.client.cert);
+          add_cert->raise(crypto::x509(ptr->second.client.cert));
           return;
         } else {
           tree.put("root.<xmlattr>.status_code", 401);
