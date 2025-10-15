@@ -1,0 +1,20 @@
+[33me6d27af5[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Fix workflow to trigger on master pushes
+[33me82e4dba[m[33m ([m[1;33mtag: [m[1;33mv2025.1014.2[m[33m)[m Add debug logging for OTP pairing validation
+[33m7adc8024[m[33m ([m[1;35mrefs/stash[m[33m)[m WIP on master: cae9d63b Fix HTTPS /otp/request 404 by adding endpoint to Web UI server
+[33mb8d7591b[m index on master: cae9d63b Fix HTTPS /otp/request 404 by adding endpoint to Web UI server
+[33mfc399de8[m[33m ([m[1;33mtag: [m[1;33mv2025.1014.1[m[33m)[m Add BacklightVersion field to serverinfo for client identification
+[33mcae9d63b[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.10[m[33m)[m Fix HTTPS /otp/request 404 by adding endpoint to Web UI server
+[33m516ab5d9[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.9[m[33m, [m[1;33mtag: [m[1;33mv2025.1008.1[m[33m)[m Fix: Add /otp/request endpoint to HTTP server (was only on HTTPS)
+[33mecf56e95[m Add zip to MSYS2 dependencies for portable packaging
+[33m4400ef1e[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.0[m[33m)[m Refactor OTP endpoint: extract string literals to variables to avoid MinGW parser issues
+[33mfc87cb6a[m Fix raw string literals in OTP endpoint causing MinGW parser errors
+[33m98ee582b[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.8[m[33m)[m Fix variable name conflict: rename 'pin' to 'otp_pin' to avoid shadowing pin() function
+[33m2d268ecb[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.7[m[33m)[m Fix: use BUILD_TESTS instead of SUNSHINE_BUILD_TESTS
+[33m1bb1be83[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.6[m[33m)[m Disable tests in Windows release build
+[33m4c313770[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.5[m[33m)[m Add Doxygen installation step to Windows build workflow
+[33m0d5a0119[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.4[m[33m)[m Rename portable zip to match expected filename for Fuji bundled manager
+[33m1f34ad3a[m[33m ([m[1;33mtag: [m[1;33mv2025.1008.3[m[33m)[m Add graphviz dependency for Doxygen in Windows build
+[33mac71822a[m Disable docs in Windows build to avoid Doxygen requirement
+[33m330ecc62[m[33m ([m[1;33mtag: [m[1;33mv2025.1007.1[m[33m, [m[1;31morigin/backbone/otp-pairing[m[33m)[m Add HTTP endpoint for OTP requests
+[33mfb18b430[m Add OTP pairing documentation
+[33m0d19a9e6[m Add OTP (One-Time Password) pairing support

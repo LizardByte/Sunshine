@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <!-- TEMPLATE_HEADER - Used by Every UI Page -->
+<meta charset="UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sunshine</title>
+<link rel="icon" type="image/x-icon" href="./images/sunshine.ico">
+
+
+<link href="./assets/css/sunshine.css" rel="stylesheet" />
+
+  <script type="module" crossorigin src="./assets/index-ceeb3be3.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/_plugin-vue_export-helper-5b94bc85.js">
+  <link rel="modulepreload" crossorigin href="./assets/Navbar-b1e84117.js">
+  <link rel="modulepreload" crossorigin href="./assets/ResourceCard-7d187443.js">
+  <link rel="stylesheet" href="./assets/_plugin-vue_export-helper-3a9792a4.css">
+  <link rel="stylesheet" href="./assets/Navbar-13079613.css">
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <h1 class="my-4">{{ $t('index.welcome') }}</h1>
+    <p>{{ $t('index.description') }}</p>
+    <div class="alert alert-danger" v-if="fancyLogs.find(x => x.level === 'Fatal')">
+      <div style="line-height: 32px;">
+        <i class="fas fa-circle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
+        <p v-html="$t('index.startup_errors')"></p>
+        <br>
+      </div>
+      <ul>
+        <li v-for="v in fancyLogs.filter(x => x.level === 'Fatal')">{{v.value}}</li>
+      </ul>
+      <a class="btn btn-danger" href="./troubleshooting#logs">View Logs</a>
+    </div>
+    <!-- Version -->
+    <div class="card p-2 my-4">
+      <div class="card-body" v-if="version">
+        <h2>Version {{version.version}}</h2>
+        <br>
+        <div v-if="loading">
+          {{ $t('index.loading_latest') }}
+        </div>
+        <div class="alert alert-success" v-if="buildVersionIsDirty">
+          {{ $t('index.version_dirty') }} 🌇
+        </div>
+        <div class="alert alert-info" v-if="installedVersionNotStable">
+          {{ $t('index.installed_version_not_stable') }}
+        </div>
+        <div v-else-if="(!preReleaseBuildAvailable || !notifyPreReleases) && !stableBuildAvailable && !buildVersionIsDirty">
+          <div class="alert alert-success">
+            {{ $t('index.version_latest') }}
+          </div>
+        </div>
+        <div v-if="notifyPreReleases && preReleaseBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">
+                <p>{{ $t('index.new_pre_release') }}</p>
+              </div>
+              <a class="btn btn-success m-1" :href="preReleaseVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
+            </div>
+            <pre><b>{{preReleaseVersion.release.name}}</b></pre>
+            <pre>{{preReleaseVersion.release.body}}</pre>
+          </div>
+        </div>
+        <div v-if="stableBuildAvailable">
+          <div class="alert alert-warning">
+            <div class="d-flex justify-content-between">
+              <div class="my-2">
+                <p>{{ $t('index.new_stable') }}</p>
+              </div>
+              <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
+            </div>
+            <h3>{{githubVersion.release.name}}</h3>
+            <pre>{{githubVersion.release.body}}</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Resources -->
+    <div class="my-4">
+      <Resource-Card></Resource-Card>
+    </div>
+  </div>
+</body>
+
+

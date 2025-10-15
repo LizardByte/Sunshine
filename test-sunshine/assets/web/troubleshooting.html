@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+      <!-- TEMPLATE_HEADER - Used by Every UI Page -->
+<meta charset="UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sunshine</title>
+<link rel="icon" type="image/x-icon" href="./images/sunshine.ico">
+
+
+<link href="./assets/css/sunshine.css" rel="stylesheet" />
+
+      <style>
+        .troubleshooting-logs {
+          white-space: pre;
+          font-family: monospace;
+          overflow: auto;
+          max-height: 500px;
+          min-height: 500px;
+          font-size: 16px;
+          position: relative;
+        }
+
+        .copy-icon {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          padding: 8px;
+          cursor: pointer;
+          color: rgba(0, 0, 0, 1);
+          appearance: none;
+          border: none;
+          background: none;
+        }
+
+        .copy-icon:hover {
+          color: rgba(0, 0, 0, 0.75);
+        }
+
+        .copy-icon:active {
+          color: rgba(0, 0, 0, 1);
+        }
+      </style>
+  <script type="module" crossorigin src="./assets/troubleshooting-0c457eea.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/_plugin-vue_export-helper-5b94bc85.js">
+  <link rel="modulepreload" crossorigin href="./assets/Navbar-b1e84117.js">
+  <link rel="stylesheet" href="./assets/_plugin-vue_export-helper-3a9792a4.css">
+  <link rel="stylesheet" href="./assets/Navbar-13079613.css">
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div class="container">
+    <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
+    <!-- Force Close App -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="close_apps">{{ $t('troubleshooting.force_close') }}</h2>
+        <br>
+        <p>{{ $t('troubleshooting.force_close_desc') }}</p>
+        <div class="alert alert-success" v-if="closeAppStatus === true">
+          {{ $t('troubleshooting.force_close_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="closeAppStatus === false">
+          {{ $t('troubleshooting.force_close_error') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
+            {{ $t('troubleshooting.force_close') }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Restart Sunshine -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="restart">{{ $t('troubleshooting.restart_sunshine') }}</h2>
+        <br>
+        <p>{{ $t('troubleshooting.restart_sunshine_desc') }}</p>
+        <div class="alert alert-success" v-if="restartPressed === true">
+          {{ $t('troubleshooting.restart_sunshine_success') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+            {{ $t('troubleshooting.restart_sunshine') }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Reset persistent display device settings -->
+    <div class="card p-2 my-4" v-if="platform === 'windows'">
+      <div class="card-body">
+        <h2 id="dd_reset">{{ $t('troubleshooting.dd_reset') }}</h2>
+        <br>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.dd_reset_desc') }}</p>
+        <div class="alert alert-success" v-if="ddResetStatus === true">
+          {{ $t('troubleshooting.dd_reset_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="ddResetStatus === false">
+          {{ $t('troubleshooting.dd_reset_error') }}
+        </div>
+        <div>
+          <button class="btn btn-warning" :disabled="ddResetPressed" @click="ddResetPersistence">
+            {{ $t('troubleshooting.dd_reset') }}
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Unpair Clients -->
+    <div class="card my-4">
+      <div class="card-body">
+        <div class="p-2">
+          <div class="d-flex justify-content-end align-items-center">
+            <h2 id="unpair" class="text-center me-auto">{{ $t('troubleshooting.unpair_title') }}</h2>
+            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+              {{ $t('troubleshooting.unpair_all') }}
+            </button>
+          </div>
+          <br />
+          <p class="mb-0">{{ $t('troubleshooting.unpair_desc') }}</p>
+          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3" :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
+            <div class="me-2"><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
+            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
+          </div>
+          <div class="alert alert-success mt-3" v-if="unpairAllStatus === true">
+            {{ $t('troubleshooting.unpair_all_success') }}
+          </div>
+          <div class="alert alert-danger mt-3" v-if="unpairAllStatus === false">
+            {{ $t('troubleshooting.unpair_all_error') }}
+          </div>
+        </div>
+      </div>
+      <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
+        <div v-for="client in clients" class="list-group-item d-flex">
+          <div class="p-2 flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
+          <div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
+        </div>
+      </ul>
+      <ul v-else class="list-group list-group-flush list-group-item-light">
+        <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em></div>
+      </ul>
+
+    </div>
+    <!-- Logs -->
+    <div class="card p-2 my-4">
+      <div class="card-body">
+        <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
+        <br>
+        <div class="d-flex justify-content-between align-items-baseline py-2">
+          <p>{{ $t('troubleshooting.logs_desc') }}</p>
+          <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" style="width: 300px">
+        </div>
+        <div>
+          <div class="troubleshooting-logs">
+            <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  
+
+</body>

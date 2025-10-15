@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <!-- TEMPLATE_HEADER - Used by Every UI Page -->
+<meta charset="UTF-8" />
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sunshine</title>
+<link rel="icon" type="image/x-icon" href="./images/sunshine.ico">
+
+
+<link href="./assets/css/sunshine.css" rel="stylesheet" />
+
+  <script type="module" crossorigin src="./assets/welcome-31f38a1f.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/_plugin-vue_export-helper-5b94bc85.js">
+  <link rel="modulepreload" crossorigin href="./assets/ResourceCard-7d187443.js">
+  <link rel="stylesheet" href="./assets/_plugin-vue_export-helper-3a9792a4.css">
+</head>
+
+<body id="app" v-cloak>
+  <main role="main" style="max-width: 1200px; margin: 1em auto">
+    <div class="d-flex gap-4">
+      <div class="card p-2">
+        <header>
+          <h1 class="mb-0">
+            <img src="./images/logo-sunshine-45.png" height="45" alt="">
+            {{ $t('welcome.greeting') }}
+          </h1>
+        </header>
+        <p class="my-2 align-self-start">{{ $t('welcome.create_creds') }}</p>
+        <div class="alert alert-warning">
+          {{ $t('welcome.create_creds_alert') }}
+        </div>
+        <form @submit.prevent="save">
+          <div class="mb-2">
+            <label for="usernameInput" class="form-label">{{ $t('_common.username') }}</label>
+            <input type="text" class="form-control" id="usernameInput" autocomplete="username"
+              v-model="passwordData.newUsername" />
+          </div>
+          <div class="mb-2">
+            <label for="passwordInput" class="form-label">{{ $t('_common.password') }}</label>
+            <input type="password" class="form-control" id="passwordInput" autocomplete="new-password"
+              v-model="passwordData.newPassword" required />
+          </div>
+          <div class="mb-2">
+            <label for="confirmPasswordInput" class="form-label">{{ $t('welcome.confirm_password') }}</label>
+            <input type="password" class="form-control" id="confirmPasswordInput" autocomplete="new-password"
+              v-model="passwordData.confirmNewPassword" required />
+          </div>
+          <button type="submit" class="btn btn-primary w-100 mb-2" v-bind:disabled="loading">
+            {{ $t('welcome.login') }}
+          </button>
+          <div class="alert alert-danger" v-if="error"><b>{{ $t('_common.error') }}</b> {{error}}</div>
+          <div class="alert alert-success" v-if="success">
+            <b>{{ $t('_common.success') }}</b> {{ $t('welcome.welcome_success') }}
+          </div>
+        </form>
+      </div>
+      <div>
+        <Resource-Card></Resource-Card>
+      </div>
+    </div>
+  </main>
+</body>
+
+

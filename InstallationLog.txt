@@ -1,0 +1,16 @@
+************************************* Invoked: Tue Oct 14 11:13:59 2025
+[0] Arguments: C:\Users\rohan\OneDrive\Desktop\Backbone\Fuji-Sunshine\msys2-installer.exe, in
+[36] Operations sanity check succeeded.
+[61] Using metadata cache from "C:/Users/rohan/AppData/Local/cache\\qt-installer-framework\\d75f1c19-3379-3717-ae8d-1404b51494a9"
+[87] Found 0 cached items.
+[111] Loaded control script ":/metadata/installer-config/control_js.js"
+[114] No target directory specified, using default value: ""
+[116] Warning: The installation path cannot be empty, please specify a valid directory.
+************************************* Invoked: Tue Oct 14 11:15:04 2025
+[0] Arguments: C:\Users\rohan\OneDrive\Desktop\Backbone\Fuji-Sunshine\msys2-installer.exe, in
+[11] Operations sanity check succeeded.
+[108] Using metadata cache from "C:/Users/rohan/AppData/Local/cache\\qt-installer-framework\\d75f1c19-3379-3717-ae8d-1404b51494a9"
+[111] Found 0 cached items.
+[124] Loaded control script ":/metadata/installer-config/control_js.js"
+[128] No target directory specified, using default value: ""
+[132] Warning: The installation path cannot be empty, please specify a valid directory.

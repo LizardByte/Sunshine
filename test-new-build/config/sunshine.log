@@ -1,0 +1,174 @@
+[2025-10-10 20:34:30.818]: Info: Sunshine version: 0.0.0.516ab5d.dirty commit: 
+[2025-10-10 20:34:30.820]: Info: Package Publisher: Backbone-Labs
+[2025-10-10 20:34:30.820]: Info: Publisher Website: https://github.com/Backbone-Labs/Fuji-Sunshine
+[2025-10-10 20:34:30.821]: Info: Get support: https://github.com/Backbone-Labs/Fuji-Sunshine/issues
+[2025-10-10 20:34:30.821]: Info: Provided workaround settings for SettingsManager:
+{
+  "hdr_blank_delay": null
+}
+[2025-10-10 20:34:30.834]: Info: Currently available display devices:
+[
+  {
+    "device_id": "{23043c3f-450d-5ad0-8f52-891cc7a7c3e1}",
+    "display_name": "\\\\.\\DISPLAY1",
+    "edid": {
+      "manufacturer_id": "BOE",
+      "product_code": "0CFD",
+      "serial_number": 0
+    },
+    "friendly_name": "",
+    "info": {
+      "hdr_state": null,
+      "origin_point": {
+        "x": 0,
+        "y": 0
+      },
+      "primary": true,
+      "refresh_rate": {
+        "type": "rational",
+        "value": {
+          "denominator": 245196,
+          "numerator": 35309000
+        }
+      },
+      "resolution": {
+        "height": 1080,
+        "width": 1920
+      },
+      "resolution_scale": {
+        "type": "rational",
+        "value": {
+          "denominator": 100,
+          "numerator": 125
+        }
+      }
+    }
+  }
+]
+[2025-10-10 20:34:32.113]: Error: nvprefs: Couldn't open undo file from previous improper termination, or confirm that there's no such file
+[2025-10-10 20:34:34.230]: Info: nvprefs: No need to modify application profile settings
+[2025-10-10 20:34:34.231]: Info: nvprefs: No need to modify global profile settings
+[2025-10-10 20:34:34.299]: Info: Compiling shaders...
+[2025-10-10 20:34:34.472]: Info: Compiled shaders
+[2025-10-10 20:34:34.497]: Info: // Testing for available encoders, this may generate errors. You can safely ignore those errors. //
+[2025-10-10 20:34:34.498]: Info: Trying encoder [nvenc]
+[2025-10-10 20:34:34.756]: Info: 
+Device Description : Intel(R) UHD Graphics
+Device Vendor ID   : 0x00008086
+Device Device ID   : 0x0000A7A8
+Device Video Mem   : 128 MiB
+Device Sys Mem     : 0 MiB
+Share Sys Mem      : 3910 MiB
+Feature Level      : 0x0000B100
+Capture size       : 1920x1080
+Offset             : 0x0
+Virtual Desktop    : 1920x1080
+[2025-10-10 20:34:34.757]: Info: Active GPU has HAGS disabled
+[2025-10-10 20:34:34.757]: Info: Using realtime GPU priority
+[2025-10-10 20:34:34.757]: Info: 
+Colorspace         : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+Bits Per Color     : 8
+Red Primary        : [0.587891,0.364258]
+Green Primary      : [0.352539,0.571289]
+Blue Primary       : [0.162109,0.120117]
+White Point        : [0.313477,0.329102]
+Min Luminance      : 0.5 nits
+Max Luminance      : 270 nits
+Max Full Luminance : 270 nits
+[2025-10-10 20:34:34.758]: Info: Desktop resolution [1920x1080]
+[2025-10-10 20:34:34.758]: Info: Desktop format [DXGI_FORMAT_B8G8R8A8_UNORM]
+[2025-10-10 20:34:34.759]: Info: Display refresh rate [144.003Hz]
+[2025-10-10 20:34:34.759]: Info: Requested frame rate [60fps]
+[2025-10-10 20:34:34.761]: Info: Encoder [nvenc] is not supported on this GPU
+[2025-10-10 20:34:34.784]: Info: Trying encoder [quicksync]
+[2025-10-10 20:34:34.937]: Info: 
+Device Description : Intel(R) UHD Graphics
+Device Vendor ID   : 0x00008086
+Device Device ID   : 0x0000A7A8
+Device Video Mem   : 128 MiB
+Device Sys Mem     : 0 MiB
+Share Sys Mem      : 3910 MiB
+Feature Level      : 0x0000B100
+Capture size       : 1920x1080
+Offset             : 0x0
+Virtual Desktop    : 1920x1080
+[2025-10-10 20:34:34.938]: Info: Active GPU has HAGS disabled
+[2025-10-10 20:34:34.938]: Info: Using realtime GPU priority
+[2025-10-10 20:34:34.938]: Info: 
+Colorspace         : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+Bits Per Color     : 8
+Red Primary        : [0.587891,0.364258]
+Green Primary      : [0.352539,0.571289]
+Blue Primary       : [0.162109,0.120117]
+White Point        : [0.313477,0.329102]
+Min Luminance      : 0.5 nits
+Max Luminance      : 270 nits
+Max Full Luminance : 270 nits
+[2025-10-10 20:34:34.939]: Info: Desktop resolution [1920x1080]
+[2025-10-10 20:34:34.940]: Info: Desktop format [DXGI_FORMAT_B8G8R8A8_UNORM]
+[2025-10-10 20:34:34.940]: Info: Display refresh rate [144.003Hz]
+[2025-10-10 20:34:34.940]: Info: Requested frame rate [60fps]
+[2025-10-10 20:34:34.941]: Info: Creating encoder [h264_qsv]
+[2025-10-10 20:34:34.941]: Info: Color coding: SDR (Rec. 601)
+[2025-10-10 20:34:34.942]: Info: Color depth: 8-bit
+[2025-10-10 20:34:34.942]: Info: Color range: JPEG
+[2025-10-10 20:34:35.566]: Info: Streaming bitrate is 1000000
+[2025-10-10 20:34:35.682]: Info: Creating encoder [hevc_qsv]
+[2025-10-10 20:34:35.682]: Info: Color coding: SDR (Rec. 601)
+[2025-10-10 20:34:35.682]: Info: Color depth: 8-bit
+[2025-10-10 20:34:35.683]: Info: Color range: JPEG
+[2025-10-10 20:34:36.243]: Info: Streaming bitrate is 1000000
+[2025-10-10 20:34:36.795]: Info: Creating encoder [av1_qsv]
+[2025-10-10 20:34:36.796]: Info: Color coding: SDR (Rec. 601)
+[2025-10-10 20:34:36.797]: Info: Color depth: 8-bit
+[2025-10-10 20:34:36.797]: Info: Color range: JPEG
+[2025-10-10 20:34:37.106]: Info: Streaming bitrate is 1000000
+[2025-10-10 20:34:37.117]: Error: [av1_qsv @ 000001df039b4c80] Current codec type is unsupported
+[2025-10-10 20:34:37.117]: Error: [av1_qsv @ 000001df039b4c80] some encoding parameters are not supported by the QSV runtime. Please double check the input parameters.
+[2025-10-10 20:34:37.120]: Error: Could not open codec [av1_qsv]: Function not implemented
+[2025-10-10 20:34:37.209]: Info: 
+Device Description : Intel(R) UHD Graphics
+Device Vendor ID   : 0x00008086
+Device Device ID   : 0x0000A7A8
+Device Video Mem   : 128 MiB
+Device Sys Mem     : 0 MiB
+Share Sys Mem      : 3910 MiB
+Feature Level      : 0x0000B100
+Capture size       : 1920x1080
+Offset             : 0x0
+Virtual Desktop    : 1920x1080
+[2025-10-10 20:34:37.209]: Info: Active GPU has HAGS disabled
+[2025-10-10 20:34:37.210]: Info: Using realtime GPU priority
+[2025-10-10 20:34:37.210]: Info: 
+Colorspace         : DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709
+Bits Per Color     : 8
+Red Primary        : [0.587891,0.364258]
+Green Primary      : [0.352539,0.571289]
+Blue Primary       : [0.162109,0.120117]
+White Point        : [0.313477,0.329102]
+Min Luminance      : 0.5 nits
+Max Luminance      : 270 nits
+Max Full Luminance : 270 nits
+[2025-10-10 20:34:37.210]: Info: Desktop resolution [1920x1080]
+[2025-10-10 20:34:37.210]: Info: Desktop format [DXGI_FORMAT_B8G8R8A8_UNORM]
+[2025-10-10 20:34:37.211]: Info: Display refresh rate [144.003Hz]
+[2025-10-10 20:34:37.211]: Info: Requested frame rate [60fps]
+[2025-10-10 20:34:37.211]: Info: Creating encoder [hevc_qsv]
+[2025-10-10 20:34:37.211]: Info: Color coding: SDR (Rec. 709)
+[2025-10-10 20:34:37.212]: Info: Color depth: 10-bit
+[2025-10-10 20:34:37.212]: Info: Color range: JPEG
+[2025-10-10 20:34:37.630]: Info: Streaming bitrate is 1000000
+[2025-10-10 20:34:37.953]: Info: 
+[2025-10-10 20:34:37.954]: Info: // Ignore any errors mentioned above, they are not relevant. //
+[2025-10-10 20:34:37.954]: Info: 
+[2025-10-10 20:34:37.954]: Info: Found H.264 encoder: h264_qsv [quicksync]
+[2025-10-10 20:34:37.955]: Info: Found HEVC encoder: hevc_qsv [quicksync]
+[2025-10-10 20:34:37.955]: Info: Open the Web UI to set your new username and password and getting started
+[2025-10-10 20:34:37.955]: Info: Starting system tray
+[2025-10-10 20:34:37.956]: Info: File C:\Users\rohan\OneDrive\Desktop\Backbone\Fuji-Sunshine\test-new-build\config\sunshine_state.json doesn't exist
+[2025-10-10 20:34:37.956]: Info: System tray thread started
+[2025-10-10 20:34:37.973]: Info: Configuration UI available at [https://localhost:47990]
+[2025-10-10 20:34:38.094]: Info: System tray created
+[2025-10-10 20:34:38.105]: Info: System tray thread initialized successfully
+[2025-10-10 20:34:38.106]: Info: No main thread features enabled, skipping event loop
+[2025-10-10 20:34:38.745]: Info: Registered Sunshine mDNS service

@@ -1,0 +1,84 @@
+[33mcommit 3fd8c14a03cacef01e7677c779c11589689f8014[m
+Author: Rohan Kapur <me@rohankapur.com>
+Date:   Tue Sep 16 17:42:33 2025 -0700
+
+    Add Backbone/Fuji platform metadata support
+    
+    - Added platform, platform_id, and fuji_game_id fields to ctx_t struct
+    - Updated process.cpp to parse platform metadata from JSON config
+    - Modified nvhttp.cpp to include metadata in GameStream XML responses
+    - Enables Moonlight clients to receive game platform information for proper B3 attribution
+
+[1mdiff --git a/src/nvhttp.cpp b/src/nvhttp.cpp[m
+[1mindex c1d9401c..976fa951 100644[m
+[1m--- a/src/nvhttp.cpp[m
+[1m+++ b/src/nvhttp.cpp[m
+[36m@@ -802,6 +802,17 @@[m [mnamespace nvhttp {[m
+       app.put("IsHdrSupported"s, video::active_hevc_mode == 3 ? 1 : 0);[m
+       app.put("AppTitle"s, proc.name);[m
+       app.put("ID", proc.id);[m
+[32m+[m[41m      [m
+[32m+[m[32m      // Include Backbone/Fuji platform metadata[m
+[32m+[m[32m      if (!proc.platform.empty()) {[m
+[32m+[m[32m        app.put("Platform", proc.platform);[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (!proc.platform_id.empty()) {[m
+[32m+[m[32m        app.put("PlatformID", proc.platform_id);[m
+[32m+[m[32m      }[m
+[32m+[m[32m      if (!proc.fuji_game_id.empty()) {[m
+[32m+[m[32m        app.put("FujiGameID", proc.fuji_game_id);[m
+[32m+[m[32m      }[m
+ [m
+       apps.push_back(std::make_pair("App", std::move(app)));[m
+     }[m
+[1mdiff --git a/src/process.cpp b/src/process.cpp[m
+[1mindex fb123470..e1cc5930 100644[m
+[1m--- a/src/process.cpp[m
+[1m+++ b/src/process.cpp[m
+[36m@@ -596,6 +596,11 @@[m [mnamespace proc {[m
+         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);[m
+         auto wait_all = app_node.get_optional<bool>("wait-all"s);[m
+         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Backbone/Fuji platform metadata[m
+[32m+[m[32m        auto platform = app_node.get_optional<std::string>("platform"s);[m
+[32m+[m[32m        auto platform_id = app_node.get_optional<std::string>("platform_id"s);[m
+[32m+[m[32m        auto fuji_game_id = app_node.get_optional<std::string>("fuji_game_id"s);[m
+ [m
+         std::vector<proc::cmd_t> prep_cmds;[m
+         if (!exclude_global_prep.value_or(false)) {[m
+[36m@@ -665,6 +670,17 @@[m [mnamespace proc {[m
+         ctx.auto_detach = auto_detach.value_or(true);[m
+         ctx.wait_all = wait_all.value_or(true);[m
+         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};[m
+[32m+[m[41m        [m
+[32m+[m[32m        // Set platform metadata if provided[m
+[32m+[m[32m        if (platform) {[m
+[32m+[m[32m          ctx.platform = *platform;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        if (platform_id) {[m
+[32m+[m[32m          ctx.platform_id = *platform_id;[m
+[32m+[m[32m        }[m
+[32m+[m[32m        if (fuji_game_id) {[m
+[32m+[m[32m          ctx.fuji_game_id = *fuji_game_id;[m
+[32m+[m[32m        }[m
+ [m
+         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);[m
+         if (ids.count(std::get<0>(possible_ids)) == 0) {[m
+[1mdiff --git a/src/process.h b/src/process.h[m
+[1mindex f5a81e90..1392158b 100644[m
+[1m--- a/src/process.h[m
+[1m+++ b/src/process.h[m
+[36m@@ -61,6 +61,12 @@[m [mnamespace proc {[m
+     std::string output;[m
+     std::string image_path;[m
+     std::string id;[m
+[32m+[m[41m    [m
+[32m+[m[32m    // Platform metadata fields for Backbone/Fuji integration[m
+[32m+[m[32m    std::string platform;      // "steam", "epic", "gog", etc[m
+[32m+[m[32m    std::string platform_id;   // "570", "Fortnite", etc[m[41m  [m
+[32m+[m[32m    std::string fuji_game_id;  // "steam_570", "epic_Fortnite"[m
+[32m+[m[41m    [m
+     bool elevated;[m
+     bool auto_detach;[m
+     bool wait_all;[m

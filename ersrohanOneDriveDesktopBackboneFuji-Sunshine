@@ -1,0 +1,20 @@
+[33m1931f655[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;33mtag: [m[1;33m1.0.0[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Add raw exe and portable bundle as separate artifacts
+[33m9b9ca24f[m Trigger build after enabling squash-merge only setting
+[33mf75d3f94[m Add Windows build workflow
+[33m3fd8c14a[m Add Backbone/Fuji platform metadata support
+[33m9f6c8325[m docs: use github admonition styles (#4263)
+[33mcadc89aa[m build(deps): bump third-party/doxyconfig from `a73f908` to `1188ef2` (#4264)
+[33m518c9564[m build(deps): bump LizardByte/actions from 2025.907.21827 to 2025.914.154454 in the lizardbyte-actions group (#4260)
+[33mded837a2[m ci(homebrew): add macos-26 support (#4259)
+[33m19babad0[m fix(packaging/Arch): do not fail if cuda was freshly installed (#4257)
+[33m5490ca3a[m fix(packaging/Arch): make cuda and unit tests optional (#4254)
+[33m25e1d415[m chore(l10n): update translations (#4222)
+[33m3bfb7cbe[m build(deps): bump vue-i18n from 11.1.11 to 11.1.12 (#4241)
+[33m5e04d984[m build(deps): bump packaging/linux/flatpak/deps/shared-modules from `b63062b` to `231e052` (#4245)
+[33m0458451f[m build(deps): bump packaging/linux/flatpak/deps/flatpak-builder-tools from `f03a673` to `ea92dc2` (#4224)
+[33m7fdbdb8d[m build(deps): bump vue from 3.5.19 to 3.5.21 (#4227)
+[33m53772a61[m build(deps-dev): bump serve from 14.2.4 to 14.2.5 in the dev-dependencies group (#4237)
+[33m063dd9f1[m build(deps): bump the github-actions group across 1 directory with 3 updates (#4236)
+[33m47b8b3a1[m build(deps): bump LizardByte/actions from 2025.814.40518 to 2025.907.21827 in the lizardbyte-actions group (#4246)
+[33mb4677bab[m build(deps/Linux): include gnu-which as dependency (#4251)
+[33m7f255b3f[m docs(troubleshooting): fix Linux hardware encoding admonition and general cleanup (#4250)

@@ -1,0 +1,16 @@
+/* Hide pages while localization is loading */
+[v-cloak] {
+    display: none;
+}
+
+[data-bs-theme=dark] .element {
+    color: var(--bs-primary-text-emphasis);
+    background-color: var(--bs-primary-bg-subtle);
+}
+
+@media (prefers-color-scheme: dark) {
+    .element {
+        color: var(--bs-primary-text-emphasis);
+        background-color: var(--bs-primary-bg-subtle);
+    }
+}
