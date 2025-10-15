@@ -619,14 +619,14 @@ namespace nvhttp {
           otp_log << "Salt: " << ptr->second.async_insert_pin.salt << std::endl;
           otp_log.close();
           
-          BOOST_LOG(debug) << "OTP auth received: " << otp_it->second;
-          BOOST_LOG(debug) << "Current OTP pin: " << one_time_pin;
-          BOOST_LOG(debug) << "OTP passphrase: " << otp_passphrase;
-          BOOST_LOG(debug) << "Salt: " << ptr->second.async_insert_pin.salt;
+          BOOST_LOG(info) << "OTP auth received: " << otp_it->second;
+          BOOST_LOG(info) << "Current OTP pin: " << one_time_pin;
+          BOOST_LOG(info) << "OTP passphrase: " << otp_passphrase;
+          BOOST_LOG(info) << "Salt: " << ptr->second.async_insert_pin.salt;
           
           if (one_time_pin.empty() || (std::chrono::steady_clock::now() - otp_creation_time > OTP_EXPIRE_DURATION)) {
             // OTP expired or not available
-            BOOST_LOG(debug) << "OTP expired or not available";
+            BOOST_LOG(info) << "OTP expired or not available";
             one_time_pin.clear();
             otp_passphrase.clear();
             otp_device_name.clear();
@@ -640,14 +640,14 @@ namespace nvhttp {
             otp_log << "Expected hash: " << hash.to_string_view() << std::endl;
             otp_log << "Received hash: " << otp_it->second << std::endl;
             
-            BOOST_LOG(debug) << "Expected hash: " << hash.to_string_view();
-            BOOST_LOG(debug) << "Received hash: " << otp_it->second;
+            BOOST_LOG(info) << "Expected hash: " << hash.to_string_view();
+            BOOST_LOG(info) << "Received hash: " << otp_it->second;
 
             if (hash.to_string_view() == otp_it->second) {
               // OTP valid - auto-pair
               otp_log << "✓ OTP validation successful - auto-pairing" << std::endl;
               otp_log.close();
-              BOOST_LOG(debug) << "OTP validation successful - auto-pairing";
+              BOOST_LOG(info) << "OTP validation successful - auto-pairing";
               if (!otp_device_name.empty()) {
                 ptr->second.client.name = std::move(otp_device_name);
               }
@@ -662,7 +662,7 @@ namespace nvhttp {
             } else {
               otp_log << "✗ OTP hash mismatch - falling back to manual PIN" << std::endl;
               otp_log.close();
-              BOOST_LOG(debug) << "OTP hash mismatch - falling back to manual PIN";
+              BOOST_LOG(info) << "OTP hash mismatch - falling back to manual PIN";
             }
           }
         } else {
