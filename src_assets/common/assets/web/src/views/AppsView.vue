@@ -364,7 +364,12 @@
           "Are you sure to delete " + this.apps[id].name + "?"
         );
         if (resp) {
-          fetch("./api/apps/" + id, { method: "DELETE" }).then((r) => {
+          fetch("./api/apps/" + id, {
+            method: "DELETE",
+            headers: { 
+              "Content-Type": "application/json" 
+            },
+          }).then((r) => {
             if (r.status === 200) document.location.reload();
           });
         }
@@ -464,6 +469,9 @@
         this.coverFinderBusy = true;
         fetch("./api/covers/upload", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify({
             key: cover.key,
             url: cover.saveUrl,
@@ -479,6 +487,9 @@
         this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');
         fetch("./api/apps", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(this.editForm),
         }).then((r) => {
           if (r.status === 200) document.location.reload();

@@ -315,6 +315,12 @@ namespace video {
     avcodec_encode_session_t(avcodec_encode_session_t &&other) noexcept = default;
 
     ~avcodec_encode_session_t() {
+      // Flush any remaining frames in the encoder
+      if (avcodec_send_frame(avcodec_ctx.get(), nullptr) == 0) {
+        packet_raw_avcodec pkt;
+        while (avcodec_receive_packet(avcodec_ctx.get(), pkt.av_packet) == 0);
+      }
+
       // Order matters here because the context relies on the hwdevice still being valid
       avcodec_ctx.reset();
       device.reset();
@@ -536,7 +542,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
-        {"filler_data"s, false},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -557,6 +563,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -582,6 +589,7 @@ namespace video {
         {"forced-idr"s, 1},
         {"zerolatency"s, 1},
         {"surfaces"s, 1},
+        {"cbr_padding"s, false},
         {"preset"s, &config::video.nv_legacy.preset},
         {"tune"s, NV_ENC_TUNING_INFO_ULTRA_LOW_LATENCY},
         {"rc"s, NV_ENC_PARAMS_RC_CBR},
@@ -730,6 +738,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, "lowest_latency"s},
+        {"async_depth"s, 1},
         {"skip_frame"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -753,6 +762,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, 1},
+        {"async_depth"s, 1},
         {"skip_frame"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -765,6 +775,18 @@ namespace video {
         {"usage"s, &config::video.amd.amd_usage_hevc},
         {"vbaq"s, &config::video.amd.amd_vbaq},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
+        {"level"s, [](const config_t &cfg) {
+           auto size = cfg.width * cfg.height;
+           // For 4K and below, try to use level 5.1 or 5.2 if possible
+           if (size <= 8912896) {
+             if (size * cfg.framerate <= 534773760) {
+               return "5.1"s;
+             } else if (size * cfg.framerate <= 1069547520) {
+               return "5.2"s;
+             }
+           }
+           return "auto"s;
+         }},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -779,6 +801,7 @@ namespace video {
         {"filler_data"s, false},
         {"forced_idr"s, 1},
         {"latency"s, 1},
+        {"async_depth"s, 1},
         {"frame_skipping"s, 0},
         {"log_to_dbg"s, []() {
            return config::sunshine.min_log_level < 2 ? 1 : 0;
@@ -1509,27 +1532,32 @@ namespace video {
       ctx->height = config.height;
       ctx->time_base = AVRational {1, config.framerate};
       ctx->framerate = AVRational {config.framerate, 1};
+      if (config.framerateX100 > 0) {
+        AVRational fps = video::framerateX100_to_rational(config.framerateX100);
+        ctx->framerate = fps;
+        ctx->time_base = AVRational {fps.den, fps.num};
+      }
 
       switch (config.videoFormat) {
         case 0:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
-          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_H264_HIGH_444_PREDICTIVE : FF_PROFILE_H264_HIGH;
+          ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_H264_HIGH_444_PREDICTIVE : AV_PROFILE_H264_HIGH;
           break;
 
         case 1:
           if (config.chromaSamplingType == 1) {
             // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
-            ctx->profile = FF_PROFILE_HEVC_REXT;
+            ctx->profile = AV_PROFILE_HEVC_REXT;
           } else {
-            ctx->profile = config.dynamicRange ? FF_PROFILE_HEVC_MAIN_10 : FF_PROFILE_HEVC_MAIN;
+            ctx->profile = config.dynamicRange ? AV_PROFILE_HEVC_MAIN_10 : AV_PROFILE_HEVC_MAIN;
           }
           break;
 
         case 2:
           // AV1 supports both 8 and 10 bit encoding with the same Main profile
           // but YUV 4:4:4 sampling requires High profile
-          ctx->profile = (config.chromaSamplingType == 1) ? FF_PROFILE_AV1_HIGH : FF_PROFILE_AV1_MAIN;
+          ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_AV1_HIGH : AV_PROFILE_AV1_MAIN;
           break;
       }
 
@@ -1639,7 +1667,7 @@ namespace video {
       ctx->thread_count = ctx->slices;
 
       AVDictionary *options {nullptr};
-      auto handle_option = [&options](const encoder_t::option_t &option) {
+      auto handle_option = [&options, &config](const encoder_t::option_t &option) {
         std::visit(
           util::overloaded {
             [&](int v) {
@@ -1653,7 +1681,7 @@ namespace video {
                 av_dict_set_int(&options, option.name.c_str(), **v, 0);
               }
             },
-            [&](std::function<int()> v) {
+            [&](const std::function<int()> &v) {
               av_dict_set_int(&options, option.name.c_str(), v(), 0);
             },
             [&](const std::string &v) {
@@ -1663,6 +1691,9 @@ namespace video {
               if (!v->empty()) {
                 av_dict_set(&options, option.name.c_str(), v->c_str(), 0);
               }
+            },
+            [&](const std::function<const std::string(const config_t &cfg)> &v) {
+              av_dict_set(&options, option.name.c_str(), v(config).c_str(), 0);
             }
           },
           option.value
@@ -1875,9 +1906,10 @@ namespace video {
       }
     });
 
-    // set minimum frame time, avoiding violation of client-requested target framerate
-    auto minimum_frame_time = std::chrono::milliseconds(1000 / std::min(config.framerate, (config::video.min_fps_factor * 10)));
-    BOOST_LOG(debug) << "Minimum frame time set to "sv << minimum_frame_time.count() << "ms, based on min fps factor of "sv << config::video.min_fps_factor << "."sv;
+    // set max frame time based on client-requested target framerate.
+    double minimum_fps_target = (config::video.minimum_fps_target > 0.0) ? config::video.minimum_fps_target : config.framerate;
+    std::chrono::duration<double, std::milli> max_frametime {1000.0 / minimum_fps_target};
+    BOOST_LOG(info) << "Minimum FPS target set to ~"sv << (minimum_fps_target / 2) << "fps ("sv << max_frametime.count() * 2 << "ms)"sv;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
@@ -1928,7 +1960,7 @@ namespace video {
 
       // Encode at a minimum FPS to avoid image quality issues with static content
       if (!requested_idr_frame || images->peek()) {
-        if (auto img = images->pop(minimum_frame_time)) {
+        if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
           if (session->convert(*img)) {
             BOOST_LOG(error) << "Could not convert image"sv;

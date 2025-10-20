@@ -7,7 +7,7 @@
 
 // platform includes
 #include <d3dcompiler.h>
-#include <directxmath.h>
+#include <DirectXMath.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -1739,7 +1739,7 @@ namespace platf::dxgi {
     img->data = nullptr;
     if (img->encoder_texture_handle) {
       CloseHandle(img->encoder_texture_handle);
-      img->encoder_texture_handle = NULL;
+      img->encoder_texture_handle = nullptr;
     }
 
     // Initialize format-dependent fields

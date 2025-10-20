@@ -4,8 +4,11 @@
  */
 #define INITGUID
 
+// standard includes
+#include <format>
+
 // platform includes
-#include <audioclient.h>
+#include <Audioclient.h>
 #include <avrt.h>
 #include <mmdeviceapi.h>
 #include <newdev.h>
@@ -27,10 +30,8 @@ DEFINE_PROPERTYKEY(PKEY_Device_DeviceDesc, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x2
 DEFINE_PROPERTYKEY(PKEY_Device_FriendlyName, 0xa45c254e, 0xdf1c, 0x4efd, 0x80, 0x20, 0x67, 0xd1, 0x46, 0xa8, 0x50, 0xe0, 14);  // DEVPROP_TYPE_STRING
 DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b, 0x83, 0xcd, 0x85, 0x6d, 0x6f, 0xef, 0x48, 0x22, 2);
 
-#if defined(__x86_64) || defined(_M_AMD64)
+#if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
   #define STEAM_DRIVER_SUBDIR L"x64"
-#elif defined(__i386) || defined(_M_IX86)
-  #define STEAM_DRIVER_SUBDIR L"x86"
 #else
   #warning No known Steam audio driver for this architecture
 #endif
@@ -170,28 +171,27 @@ namespace {
                          waveformat.SubFormat == KSDATAFORMAT_SUBTYPE_PCM        ? "S" :
                                                                                    "UNKNOWN";
 
-    result += std::to_string(waveformat.Samples.wValidBitsPerSample) + " " +
-              std::to_string(waveformat.Format.nSamplesPerSec) + " ";
+    result += std::format("{} {} ", static_cast<int>(waveformat.Samples.wValidBitsPerSample), static_cast<int>(waveformat.Format.nSamplesPerSec));
 
     switch (waveformat.dwChannelMask) {
-      case (waveformat_mask_stereo):
+      case waveformat_mask_stereo:
         result += "2.0";
         break;
 
-      case (waveformat_mask_surround51_with_backspeakers):
+      case waveformat_mask_surround51_with_backspeakers:
         result += "5.1";
         break;
 
-      case (waveformat_mask_surround51_with_sidespeakers):
+      case waveformat_mask_surround51_with_sidespeakers:
         result += "5.1 (sidespeakers)";
         break;
 
-      case (waveformat_mask_surround71):
+      case waveformat_mask_surround71:
         result += "7.1";
         break;
 
       default:
-        result += std::to_string(waveformat.Format.nChannels) + " channels (unrecognized)";
+        result += std::format("{} channels (unrecognized)", static_cast<int>(waveformat.Format.nChannels));
         break;
     }
 
@@ -377,7 +377,7 @@ namespace platf::audio {
         *ppvInterface = (IMMNotificationClient *) this;
         return S_OK;
       } else {
-        *ppvInterface = NULL;
+        *ppvInterface = nullptr;
         return E_NOINTERFACE;
       }
     }
@@ -432,7 +432,11 @@ namespace platf::audio {
       // Refill the sample buffer if needed
       while (sample_buf_pos - std::begin(sample_buf) < sample_size) {
         auto capture_result = _fill_buffer();
-        if (capture_result != capture_e::ok) {
+        if (capture_result == capture_e::timeout && continuous_audio) {
+          // Write silence to sample_buf
+          std::fill_n(sample_buf_pos, sample_size, 0.0f);
+          sample_buf_pos += sample_size;
+        } else if (capture_result != capture_e::ok) {
           return capture_result;
         }
       }
@@ -447,7 +451,7 @@ namespace platf::audio {
       return capture_e::ok;
     }
 
-    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out) {
+    int init(std::uint32_t sample_rate, std::uint32_t frame_size, std::uint32_t channels_out, bool continuous) {
       audio_event.reset(CreateEventA(nullptr, FALSE, FALSE, nullptr));
       if (!audio_event) {
         BOOST_LOG(error) << "Couldn't create Event handle"sv;
@@ -508,6 +512,7 @@ namespace platf::audio {
       REFERENCE_TIME default_latency;
       audio_client->GetDevicePeriod(&default_latency, nullptr);
       default_latency_ms = default_latency / 1000;
+      continuous_audio = continuous;
 
       std::uint32_t frames;
       status = audio_client->GetBufferSize(&frames);
@@ -678,8 +683,9 @@ namespace platf::audio {
     util::buffer_t<float> sample_buf;
     float *sample_buf_pos;
     int channels;
+    bool continuous_audio;
 
-    HANDLE mmcss_task_handle = NULL;
+    HANDLE mmcss_task_handle = nullptr;
   };
 
   class audio_control_t: public ::platf::audio_control_t {
@@ -761,10 +767,10 @@ namespace platf::audio {
       return std::nullopt;
     }
 
-    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio) override {
       auto mic = std::make_unique<mic_wasapi_t>();
 
-      if (mic->init(sample_rate, frame_size, channels)) {
+      if (mic->init(sample_rate, frame_size, channels, continuous_audio)) {
         return nullptr;
       }
 

@@ -19,8 +19,8 @@
       "only-arches": [
         "x86_64"
       ],
-      "url": "https://developer.download.nvidia.com/compute/cuda/12.6.2/local_installers/cuda_12.6.2_560.35.03_linux.run",
-      "sha256": "3729a89cb58f7ca6a46719cff110d6292aec7577585a8d71340f0dbac54fb237",
+      "url": "https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux.run",
+      "sha256": "0f6d806ddd87230d2adbe8a6006a9d20144fdbda9de2d6acc677daa5d036417a",
       "dest-filename": "cuda.run"
     },
     {
@@ -28,8 +28,8 @@
       "only-arches": [
         "aarch64"
       ],
-      "url": "https://developer.download.nvidia.com/compute/cuda/12.6.2/local_installers/cuda_12.6.2_560.35.03_linux_sbsa.run",
-      "sha256": "2249408848b705c18b9eadfb5161b52e4e36fcc5753647329cce93db141e5466",
+      "url": "https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux_sbsa.run",
+      "sha256": "64f47ab791a76b6889702425e0755385f5fa216c5a9f061875c7deed5f08cdb6",
       "dest-filename": "cuda.run"
     }
   ]

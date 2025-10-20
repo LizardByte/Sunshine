@@ -15,8 +15,11 @@ License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
 
+BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: cmake >= 3.25.0
+BuildRequires: desktop-file-utils
+BuildRequires: libappstream-glib
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
@@ -53,22 +56,23 @@ BuildRequires: which
 BuildRequires: xorg-x11-server-Xvfb
 
 # Conditional BuildRequires for cuda-gcc based on Fedora version
-%if 0%{?fedora} >= 40 && 0%{?fedora} <= 41
+%if 0%{?fedora} <= 41
 BuildRequires: gcc13
 BuildRequires: gcc13-c++
 %global gcc_version 13
-%global cuda_version 12.6.3
-%global cuda_build 560.35.05
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
 %elif %{?fedora} >= 42
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
 %global gcc_version 14
-%global cuda_version 12.8.1
-%global cuda_build 570.124.06
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
 %endif
 
 %global cuda_dir %{_builddir}/cuda
 
+Requires: libayatana-appindicator3 >= 0.5.3
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
 Requires: libdrm > 2.4.97
@@ -81,7 +85,7 @@ Requires: miniupnpc >= 2.2.4
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
-Requires: libayatana-appindicator3 >= 0.5.3
+Requires: which >= 2.21
 
 %description
 Self-hosted game stream host for Moonlight.
@@ -93,9 +97,6 @@ tar -xzf %{SOURCE0} -C %{_builddir}/Sunshine
 
 # list directory
 ls -a %{_builddir}/Sunshine
-
-# patches
-%autopatch -p1
 
 %build
 # exit on error
@@ -171,7 +172,7 @@ function install_cuda() {
       --backup \
       --directory="%{cuda_dir}" \
       --verbose \
-      < "%{_builddir}/Sunshine/packaging/linux/fedora/patches/f42/${architecture}/01-math_functions.patch"
+      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/01-math_functions.patch"
   fi
 }
 
@@ -197,6 +198,11 @@ cmake "${cmake_args[@]}"
 make -j$(nproc) -C "%{_builddir}/Sunshine/build"
 
 %check
+# validate the metainfo file
+appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
+desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
+
 # run tests
 cd %{_builddir}/Sunshine/build
 xvfb-run ./tests/test_sunshine
@@ -205,15 +211,13 @@ xvfb-run ./tests/test_sunshine
 cd %{_builddir}/Sunshine/build
 %make_install
 
-# Add modules-load configuration
-# load the uhid module in initramfs even if it doesn't detect the module as being used during dracut
-# which must be run every time a new kernel is installed
-install -D -m 0644 /dev/stdin %{buildroot}/usr/lib/modules-load.d/uhid.conf <<EOF
-uhid
-EOF
-
 %post
 # Note: this is copied from the postinst script
+
+# Load uhid (DS5 emulation)
+echo "Loading uhid kernel module for DS5 emulation."
+modprobe uhid
+
 # Check if we're in an rpm-ostree environment
 if [ ! -x "$(command -v rpm-ostree)" ]; then
   echo "Not in an rpm-ostree environment, proceeding with post install steps."
@@ -233,10 +237,6 @@ else
   echo "rpm-ostree environment detected, skipping post install steps. Restart to apply the changes."
 fi
 
-%preun
-# Remove modules-load configuration
-rm -f /usr/lib/modules-load.d/uhid.conf
-
 %files
 # Executables
 %caps(cap_sys_admin+p) %{_bindir}/sunshine
@@ -249,17 +249,17 @@ rm -f /usr/lib/modules-load.d/uhid.conf
 %{_udevrulesdir}/*-sunshine.rules
 
 # Modules-load configuration
-%{_modulesloaddir}/uhid.conf
+%{_modulesloaddir}/*-sunshine.conf
 
 # Desktop entries
-%{_datadir}/applications/sunshine*.desktop
+%{_datadir}/applications/*.desktop
 
 # Icons
 %{_datadir}/icons/hicolor/scalable/apps/sunshine.svg
 %{_datadir}/icons/hicolor/scalable/status/sunshine*.svg
 
 # Metainfo
-%{_datadir}/metainfo/sunshine.appdata.xml
+%{_datadir}/metainfo/*.metainfo.xml
 
 # Assets
 %{_datadir}/sunshine/**

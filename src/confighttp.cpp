@@ -8,6 +8,7 @@
 
 // standard includes
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <set>
 
@@ -34,7 +35,6 @@
 #include "process.h"
 #include "utility.h"
 #include "uuid.h"
-#include "version.h"
 
 using namespace std::literals;
 
@@ -81,7 +81,8 @@ namespace confighttp {
   void send_response(resp_https_t response, const nlohmann::json &output_tree) {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
-
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
     response->write(output_tree.dump(), headers);
   }
 
@@ -103,7 +104,9 @@ namespace confighttp {
 
     const SimpleWeb::CaseInsensitiveMultimap headers {
       {"Content-Type", "application/json"},
-      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"}
+      {"WWW-Authenticate", R"(Basic realm="Sunshine Gamestream Host", charset="UTF-8")"},
+      {"X-Frame-Options", "DENY"},
+      {"Content-Security-Policy", "frame-ancestors 'none';"}
     };
 
     response->write(code, tree.dump(), headers);
@@ -119,7 +122,9 @@ namespace confighttp {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
-      {"Location", path}
+      {"Location", path},
+      {"X-Frame-Options", "DENY"},
+      {"Content-Security-Policy", "frame-ancestors 'none';"}
     };
     response->write(SimpleWeb::StatusCode::redirection_temporary_redirect, headers);
   }
@@ -198,6 +203,8 @@ namespace confighttp {
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
 
     response->write(code, tree.dump(), headers);
   }
@@ -218,15 +225,49 @@ namespace confighttp {
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
 
     response->write(code, tree.dump(), headers);
+  }
+
+  /**
+   * @brief Validate the request content type and send bad request when mismatch.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param contentType The expected content type
+   */
+  bool check_content_type(resp_https_t response, req_https_t request, const std::string_view &contentType) {
+    auto requestContentType = request->header.find("content-type");
+    if (requestContentType == request->header.end()) {
+      bad_request(response, request, "Content type not provided");
+      return false;
+    }
+    // Extract the media type part before any parameters (e.g., charset)
+    std::string actualContentType = requestContentType->second;
+    size_t semicolonPos = actualContentType.find(';');
+    if (semicolonPos != std::string::npos) {
+      actualContentType = actualContentType.substr(0, semicolonPos);
+    }
+
+    // Trim whitespace and convert to lowercase for case-insensitive comparison
+    boost::algorithm::trim(actualContentType);
+    boost::algorithm::to_lower(actualContentType);
+
+    std::string expectedContentType(contentType);
+    boost::algorithm::to_lower(expectedContentType);
+
+    if (actualContentType != expectedContentType) {
+      bad_request(response, request, "Content type mismatch");
+      return false;
+    }
+    return true;
   }
 
   /**
    * @brief Get the index page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @todo combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
    */
   void getIndexPage(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
@@ -240,6 +281,8 @@ namespace confighttp {
     std::string content = file_handler::read_file(WEB_DIR "index.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
     response->write(content, headers);
   }
 
@@ -291,6 +334,8 @@ namespace confighttp {
     // if it is, set the content type to the mime type
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", mimeType->second);
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
     std::ifstream in(filePath.string(), std::ios::binary);
     response->write(SimpleWeb::StatusCode::success_ok, in, headers);
   }
@@ -429,6 +474,9 @@ namespace confighttp {
    * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
    */
   void saveApp(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -496,6 +544,9 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -517,6 +568,8 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(resp_https_t response, req_https_t request) {
+    // Skip check_content_type() for this endpoint since the request body is not used.
+
     if (!authenticate(response, request)) {
       return;
     }
@@ -536,7 +589,7 @@ namespace confighttp {
         if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
           error = "No applications to delete";
         } else {
-          error = "'index' out of range, max index is "s + std::to_string(max_index);
+          error = std::format("'index' {} out of range, max index is {}", index, max_index);
         }
         bad_request(response, request, error);
         return;
@@ -553,7 +606,7 @@ namespace confighttp {
       proc::refresh(config::stream.file_apps);
 
       output_tree["status"] = true;
-      output_tree["result"] = "application " + std::to_string(index) + " deleted";
+      output_tree["result"] = std::format("application {} deleted", index);
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "DeleteApp: "sv << e.what();
@@ -597,6 +650,9 @@ namespace confighttp {
    * @api_examples{/api/unpair| POST| {"uuid":"1234"}}
    */
   void unpair(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -627,6 +683,9 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -658,7 +717,7 @@ namespace confighttp {
     nlohmann::json output_tree;
     output_tree["status"] = true;
     output_tree["platform"] = SUNSHINE_PLATFORM;
-    output_tree["version"] = PROJECT_VER;
+    output_tree["version"] = PROJECT_VERSION;
 
     auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
 
@@ -703,6 +762,9 @@ namespace confighttp {
    * @api_examples{/api/config| POST| {"key":"value"}}
    */
   void saveConfig(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -749,6 +811,9 @@ namespace confighttp {
    * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
   void uploadCover(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -811,6 +876,8 @@ namespace confighttp {
     std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
     response->write(SimpleWeb::StatusCode::success_ok, content, headers);
   }
 
@@ -832,6 +899,9 @@ namespace confighttp {
    * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
   void savePassword(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!config::sunshine.username.empty() && !authenticate(response, request)) {
       return;
     }
@@ -902,6 +972,9 @@ namespace confighttp {
    * @api_examples{/api/pin| POST| {"pin":"1234","name":"My PC"}}
    */
   void savePin(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -938,6 +1011,9 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -957,6 +1033,9 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }

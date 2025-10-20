@@ -1,25 +1,35 @@
 {
   "name": "miniupnpc",
   "buildsystem": "cmake-ninja",
+  "builddir": true,
+  "subdir": "miniupnpc",
   "config-opts": [
-    "-DCMAKE_BUILD_TYPE=Release",
-    "-DUPNPC_BUILD_SAMPLE=OFF",
+    "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+    "-DUPNPC_BUILD_STATIC=OFF",
     "-DUPNPC_BUILD_SHARED=ON",
-    "-DUPNPC_BUILD_TESTS=OFF"
+    "-DUPNPC_BUILD_TESTS=OFF",
+    "-DUPNPC_BUILD_SAMPLE=OFF"
   ],
   "sources": [
     {
       "type": "git",
-      "url": "https://salsa.debian.org/miniupnp-team/miniupnpc.git",
-      "commit": "c5fe3aa794e92a503cecec6a4071eb6d310b4e42",
-      "tag": "debian/2.2.4-1",
+      "url": "https://github.com/miniupnp/miniupnp.git",
+      "tag": "miniupnpc_2_3_3",
+      "commit": "bf4215a7574f88aa55859db9db00e3ae58cf42d6",
       "x-checker-data": {
-        "type": "git",
-        "tag-pattern": "^debian\\/(\\d.+)$",
-        "versions": {
-          "<": "2.2.5"
-        }
+        "type": "anitya",
+        "project-id": 1986,
+        "stable-only": true,
+        "tag-template": "miniupnpc_${version0}_${version1}_${version2}"
       }
     }
+  ],
+  "cleanup": [
+    "/share/man",
+    "/lib/pkgconfig",
+    "/lib/libminiupnpc.so",
+    "/lib/cmake",
+    "/include",
+    "/bin/external-ip.sh"
   ]
 }

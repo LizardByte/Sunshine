@@ -12,6 +12,7 @@ extern "C" {
 // standard includes
 #include <array>
 #include <cctype>
+#include <format>
 #include <set>
 #include <unordered_map>
 #include <utility>
@@ -432,11 +433,6 @@ namespace rtsp_stream {
       return 0;
     }
 
-    template<class T, class X>
-    void iterate(std::chrono::duration<T, X> timeout) {
-      io_context.run_one_for(timeout);
-    }
-
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
       auto func = _map_cmd_cb.find(req->message.request.command);
       if (func != std::end(_map_cmd_cb)) {
@@ -494,15 +490,24 @@ namespace rtsp_stream {
      * @param launch_session Streaming session information.
      */
     void session_raise(std::shared_ptr<launch_session_t> launch_session) {
-      auto now = std::chrono::steady_clock::now();
-
       // If a launch event is still pending, don't overwrite it.
-      if (raised_timeout > now && launch_event.peek()) {
+      if (launch_event.view(0s)) {
         return;
       }
-      raised_timeout = now + config::stream.ping_timeout;
 
+      // Raise the new launch session to prepare for the RTSP handshake
       launch_event.raise(std::move(launch_session));
+
+      // Arm the timer to expire this launch session if the client times out
+      raised_timer.expires_after(config::stream.ping_timeout);
+      raised_timer.async_wait([this](const boost::system::error_code &ec) {
+        if (!ec) {
+          auto discarded = launch_event.pop(0s);
+          if (discarded) {
+            BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
+          }
+        }
+      });
     }
 
     /**
@@ -517,6 +522,7 @@ namespace rtsp_stream {
         if (launch_session->id != launch_session_id) {
           BOOST_LOG(error) << "Attempted to clear unexpected session: "sv << launch_session_id << " vs "sv << launch_session->id;
         } else {
+          raised_timer.cancel();
           launch_event.pop();
         }
       }
@@ -541,14 +547,6 @@ namespace rtsp_stream {
      * @examples_end
      */
     void clear(bool all = true) {
-      // if a launch event timed out --> Remove it.
-      if (raised_timeout < std::chrono::steady_clock::now()) {
-        auto discarded = launch_event.pop(0s);
-        if (discarded) {
-          BOOST_LOG(debug) << "Event timeout: "sv << discarded->unique_id;
-        }
-      }
-
       auto lg = _session_slots.lock();
 
       for (auto i = _session_slots->begin(); i != _session_slots->end();) {
@@ -583,15 +581,36 @@ namespace rtsp_stream {
       BOOST_LOG(info) << "New streaming session started [active sessions: "sv << _session_slots->size() << ']';
     }
 
+    /**
+     * @brief Runs an iteration of the RTSP server loop
+     */
+    void iterate() {
+      // If we have a session, we will return to the server loop every
+      // 500ms to allow session cleanup to happen.
+      if (session_count() > 0) {
+        io_context.run_one_for(500ms);
+      } else {
+        io_context.run_one();
+      }
+    }
+
+    /**
+     * @brief Stop the RTSP server.
+     */
+    void stop() {
+      acceptor.close();
+      io_context.stop();
+      clear();
+    }
+
   private:
     std::unordered_map<std::string_view, cmd_func_t> _map_cmd_cb;
 
     sync_util::sync_t<std::set<std::shared_ptr<stream::session_t>>> _session_slots;
 
-    std::chrono::steady_clock::time_point raised_timeout;
-
     boost::asio::io_context io_context;
     tcp::acceptor acceptor {io_context};
+    boost::asio::steady_timer raised_timer {io_context};
 
     std::shared_ptr<socket_t> next_socket;
   };
@@ -846,7 +865,7 @@ namespace rtsp_stream {
     session_option.next = &port_option;
 
     // Moonlight merely requires 'server_port=<port>'
-    auto port_value = "server_port=" + std::to_string(port);
+    auto port_value = std::format("server_port={}", static_cast<int>(port));
 
     port_option.option = const_cast<char *>("Transport");
     port_option.content = port_value.data();
@@ -933,6 +952,7 @@ namespace rtsp_stream {
     args.try_emplace("x-ss-general.encryptionEnabled"sv, "0"sv);
     args.try_emplace("x-ss-video[0].chromaSamplingType"sv, "0"sv);
     args.try_emplace("x-ss-video[0].intraRefresh"sv, "0"sv);
+    args.try_emplace("x-nv-video[0].clientRefreshRateX100"sv, "0"sv);
 
     stream::config_t config;
 
@@ -962,6 +982,7 @@ namespace rtsp_stream {
       config.monitor.height = util::from_view(args.at("x-nv-video[0].clientViewportHt"sv));
       config.monitor.width = util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
       config.monitor.framerate = util::from_view(args.at("x-nv-video[0].maxFPS"sv));
+      config.monitor.framerateX100 = util::from_view(args.at("x-nv-video[0].clientRefreshRateX100"sv));
       config.monitor.bitrate = util::from_view(args.at("x-nv-vqos[0].bw.maximumBitrateKbps"sv));
       config.monitor.slicesPerFrame = util::from_view(args.at("x-nv-video[0].videoEncoderSlicesPerFrame"sv));
       config.monitor.numRefFrames = util::from_view(args.at("x-nv-video[0].maxNumReferenceFrames"sv));
@@ -1010,6 +1031,10 @@ namespace rtsp_stream {
         }
       }
       config.audio.flags[audio::config_t::CUSTOM_SURROUND_PARAMS] = valid;
+    }
+    if (session.continuous_audio) {
+      BOOST_LOG(info) << "Client requested continuous audio"sv;
+      config.audio.flags[audio::config_t::CONTINUOUS_AUDIO] = true;
     }
 
     // If the client sent a configured bitrate, we will choose the actual bitrate ourselves
@@ -1088,9 +1113,8 @@ namespace rtsp_stream {
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
   }
 
-  void rtpThread() {
+  void start() {
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
-    auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
     server.map("OPTIONS"sv, &cmd_option);
     server.map("DESCRIBE"sv, &cmd_describe);
@@ -1106,18 +1130,29 @@ namespace rtsp_stream {
       return;
     }
 
-    while (!shutdown_event->peek()) {
-      server.iterate(std::min(500ms, config::stream.ping_timeout));
+    std::thread rtsp_thread {[&shutdown_event] {
+      auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
-      if (broadcast_shutdown_event->peek()) {
-        server.clear();
-      } else {
-        // cleanup all stopped sessions
-        server.clear(false);
+      while (!shutdown_event->peek()) {
+        server.iterate();
+
+        if (broadcast_shutdown_event->peek()) {
+          server.clear();
+        } else {
+          // cleanup all stopped sessions
+          server.clear(false);
+        }
       }
-    }
 
-    server.clear();
+      server.clear();
+    }};
+
+    // Wait for shutdown
+    shutdown_event->view();
+
+    // Stop the server and join the server thread
+    server.stop();
+    rtsp_thread.join();
   }
 
   void print_msg(PRTSP_MESSAGE msg) {

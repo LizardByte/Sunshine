@@ -1,0 +1,25 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# Create a blog post for a new release and open a PR to the blog repo
+
+name: Release Notifications
+permissions:
+  contents: read
+
+on:
+  release:
+    types:
+      - released  # this triggers when a release is published, but does not include pre-releases or drafts
+
+jobs:
+  update-blog:
+    name: Update blog
+    uses: LizardByte/.github/.github/workflows/__call-release-notifier.yml@master
+    if: github.repository_owner == 'LizardByte'
+    secrets:
+      GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+      GH_NAME: ${{ secrets.GH_BOT_NAME }}
+      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

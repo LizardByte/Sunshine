@@ -12,7 +12,7 @@
 #include <dxgi.h>
 #include <dxgi1_6.h>
 #include <Unknwn.h>
-#include <winrt/Windows.Graphics.Capture.h>
+#include <winrt/windows.graphics.capture.h>
 
 // local includes
 #include "src/platform/common.h"
@@ -173,6 +173,7 @@ namespace platf::dxgi {
     int height_before_rotation;
 
     int client_frame_rate;
+    DXGI_RATIONAL client_frame_rate_strict;
 
     DXGI_FORMAT capture_format;
     D3D_FEATURE_LEVEL feature_level;

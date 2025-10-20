@@ -14,6 +14,8 @@ file(CREATE_LINK "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/shaders"
 if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
     install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.rules"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/udev/rules.d")
+    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.conf"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}/modules-load.d")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
 else()
@@ -27,6 +29,8 @@ else()
     if(SYSTEMD_FOUND)
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.service"
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+        install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.conf"
+                DESTINATION "${SYSTEMD_MODULES_LOAD_DIR}")
     endif()
 endif()
 
@@ -42,9 +46,11 @@ set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin+p) ${SUNSHINE_EXECUTABLE_PATH}"
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
             ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
+            debianutils, \
             libcap2, \
             libcurl4, \
             libdrm2, \
+            libgbm1, \
             libevdev2, \
             libnuma1, \
             libopus0, \
@@ -65,10 +71,12 @@ set(CPACK_RPM_PACKAGE_REQUIRES "\
             libva >= 2.14.0, \
             libwayland-client >= 1.20.0, \
             libX11 >= 1.7.3.1, \
+            mesa-libgbm >= 25.0.7, \
             miniupnpc >= 2.2.4, \
             numactl-libs >= 2.0.14, \
             openssl >= 3.0.2, \
-            pulseaudio-libs >= 10.0")
+            pulseaudio-libs >= 10.0, \
+            which >= 2.21")
 
 if(NOT BOOST_USE_STATIC)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
@@ -85,8 +93,9 @@ if(NOT BOOST_USE_STATIC)
                 boost-program-options >= ${Boost_VERSION}")
 endif()
 
-# This should automatically figure out dependencies, doesn't work with the current config
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+# This should automatically figure out dependencies on packages
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_RPM_PACKAGE_AUTOREQ ON)
 
 # application icon
 if(NOT ${SUNSHINE_BUILD_FLATPAK})
@@ -136,26 +145,13 @@ if(${SUNSHINE_TRAY} STREQUAL 1)
 endif()
 
 # desktop file
-# todo - validate desktop files with `desktop-file-validate`
-if(NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
-else()
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.desktop"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications"
-            RENAME "${PROJECT_FQDN}.desktop")
-endif()
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.desktop"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 if(NOT ${SUNSHINE_BUILD_APPIMAGE} AND NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine_terminal.desktop"
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.terminal.desktop"
             DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
 endif()
 
 # metadata file
-# todo - validate file with `appstream-util validate-relax`
-if(NOT ${SUNSHINE_BUILD_FLATPAK})
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine.appdata.xml"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
-else()
-    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")
-endif()
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_FQDN}.metainfo.xml"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo")

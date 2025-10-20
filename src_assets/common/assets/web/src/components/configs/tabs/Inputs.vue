@@ -45,28 +45,28 @@ const config = ref(props.config)
 
     <!-- Additional options based on gamepad type -->
     <template v-if="config.controller === 'enabled'">
-      <template v-if="config.gamepad === 'ds4' || (config.gamepad === 'auto' && platform === 'windows')">
+      <template v-if="config.gamepad === 'ds4' || config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform !== 'macos')">
         <div class="mb-3 accordion">
           <div class="accordion-item">
             <h2 class="accordion-header">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
                       data-bs-target="#panelsStayOpen-collapseOne">
-                {{ $t(config.gamepad === 'ds4' ? 'config.gamepad_ds4_manual' : 'config.gamepad_auto') }}
+                {{ $t(config.gamepad === 'ds4' ? 'config.gamepad_ds4_manual' : (config.gamepad === 'ds5' ? 'config.gamepad_ds5_manual' : 'config.gamepad_auto')) }}
               </button>
             </h2>
             <div id="panelsStayOpen-collapseOne" class="accordion-collapse collapse show"
                  aria-labelledby="panelsStayOpen-headingOne">
               <div class="accordion-body">
-                <!-- Auto options (Windows only) -->
-                <template v-if="config.gamepad === 'auto'">
-                  <!-- DS4 motion -->
+                <!-- Automatic detection options (for Windows and Linux) -->
+                <template v-if="config.gamepad === 'auto' && (platform === 'windows' || platform === 'linux')">
+                  <!-- Gamepad with motion-capability as DS4(Windows)/DS5(Linux) -->
                   <Checkbox class="mb-3"
                             id="motion_as_ds4"
                             locale-prefix="config"
                             v-model="config.motion_as_ds4"
                             default="true"
                   ></Checkbox>
-                  <!-- DS4 touchpad -->
+                  <!-- Gamepad with touch-capability as DS4(Windows)/DS5(Linux) -->
                   <Checkbox class="mb-3"
                             id="touchpad_as_ds4"
                             locale-prefix="config"
@@ -74,13 +74,21 @@ const config = ref(props.config)
                             default="true"
                   ></Checkbox>
                 </template>
-                <!-- DS4 options (all platforms) -->
-                <template v-if="config.gamepad === 'ds4'">
-                  <!-- DS4 back button as touchpad click -->
+                <!-- DS4 option: DS4 back button as touchpad click (on Automatic: Windows only) -->
+                <template v-if="config.gamepad === 'ds4' || (config.gamepad === 'auto' && platform === 'windows')">
                   <Checkbox class="mb-3"
                             id="ds4_back_as_touchpad_click"
                             locale-prefix="config"
                             v-model="config.ds4_back_as_touchpad_click"
+                            default="true"
+                  ></Checkbox>
+                </template>
+                <!-- DS5 Option: Controller MAC randomization (on Automatic: Linux only) -->
+                <template v-if="config.gamepad === 'ds5' || (config.gamepad === 'auto' && platform === 'linux')">
+                  <Checkbox class="mb-3"
+                            id="ds5_inputtino_randomize_mac"
+                            locale-prefix="config"
+                            v-model="config.ds5_inputtino_randomize_mac"
                             default="true"
                   ></Checkbox>
                 </template>

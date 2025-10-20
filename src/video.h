@@ -24,6 +24,7 @@ namespace video {
     int width;  // Video width in pixels
     int height;  // Video height in pixels
     int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
+    int framerateX100;  // Optional field for streaming at NTSC or similar rates e.g. 59.94 = 5994
     int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
     int slicesPerFrame;  // Number of slices per frame
     int numRefFrames;  // Max number of reference frames
@@ -150,7 +151,7 @@ namespace video {
       option_t(const option_t &) = default;
 
       std::string name;
-      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *> value;
+      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *, std::function<const std::string(const config_t &)>> value;
 
       option_t(std::string &&name, decltype(value) &&value):
           name {std::move(name)},
@@ -352,4 +353,25 @@ namespace video {
    * @warning This is only safe to call when there is no client actively streaming.
    */
   int probe_encoders();
+
+  // Several NTSC standard refresh rates are hardcoded here, because their
+  // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could
+  // reduce 29.97 to 2997/100 but this would be slightly wrong. We also include
+  // support for 23.976 film in case someone wants to stream a film at the perfect
+  // framerate.
+  inline AVRational framerateX100_to_rational(const int framerateX100) {
+    if (framerateX100 % 2997 == 0) {
+      // Multiples of NTSC 29.97 e.g. 59.94, 119.88
+      return AVRational {(framerateX100 / 2997) * 30000, 1001};
+    }
+    switch (framerateX100) {
+      case 2397:  // the other weird NTSC framerate, assume these want 23.976 film
+      case 2398:
+        return AVRational {24000, 1001};
+      default:
+        // any other fractional rate can be reduced by ffmpeg. Max is set to 1 << 26 based on docs:
+        // "rational numbers with |num| <= 1<<26 && |den| <= 1<<26 can be recovered exactly from their double representation"
+        return av_d2q((double) framerateX100 / 100.0f, 1 << 26);
+    }
+  }
 }  // namespace video

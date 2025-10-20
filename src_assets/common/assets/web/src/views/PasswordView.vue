@@ -67,6 +67,9 @@
         this.error = null;
         fetch("./api/password", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(this.passwordData),
         }).then((r) => {
           if (r.status === 200) {

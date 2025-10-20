@@ -121,7 +121,13 @@ namespace platf::dxgi {
     display->display_refresh_rate = dup_desc.ModeDesc.RefreshRate;
     double display_refresh_rate_decimal = (double) display->display_refresh_rate.Numerator / display->display_refresh_rate.Denominator;
     BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_decimal << "Hz]";
-    BOOST_LOG(info) << "Requested frame rate [" << display->client_frame_rate << "fps]";
+    if (display->client_frame_rate_strict.Numerator > 0) {
+      int num = display->client_frame_rate_strict.Numerator;
+      int den = display->client_frame_rate_strict.Denominator;
+      BOOST_LOG(info) << "Requested frame rate [" << num << "/" << den << " exactly " << av_q2d(AVRational {num, den}) << " fps]";
+    } else {
+      BOOST_LOG(info) << "Requested frame rate [" << display->client_frame_rate << "fps]";
+    }
     display->display_refresh_rate_rounded = lround(display_refresh_rate_decimal);
     return 0;
   }
@@ -196,6 +202,10 @@ namespace platf::dxgi {
 
   capture_e display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto adjust_client_frame_rate = [&]() -> DXGI_RATIONAL {
+      // Use exactly the requested rate if the client sent an X100 value
+      if (client_frame_rate_strict.Numerator > 0) {
+        return client_frame_rate_strict;
+      }
       // Adjust capture frame interval when display refresh rate is not integral but very close to requested fps.
       if (display_refresh_rate.Denominator > 1) {
         DXGI_RATIONAL candidate = display_refresh_rate;
@@ -601,12 +611,12 @@ namespace platf::dxgi {
       LUID val;
 
       if (OpenProcessToken(GetCurrentProcess(), flags, &token) &&
-          !!LookupPrivilegeValue(NULL, SE_INC_BASE_PRIORITY_NAME, &val)) {
+          !!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME, &val)) {
         tp.PrivilegeCount = 1;
         tp.Privileges[0].Luid = val;
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
-        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), NULL, NULL)) {
+        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), nullptr, nullptr)) {
           BOOST_LOG(warning) << "Could not set privilege to increase GPU priority";
         }
       }
@@ -705,6 +715,12 @@ namespace platf::dxgi {
     }
 
     client_frame_rate = config.framerate;
+    client_frame_rate_strict = {0, 0};
+    if (config.framerateX100 > 0) {
+      AVRational fps = ::video::framerateX100_to_rational(config.framerateX100);
+      client_frame_rate_strict = DXGI_RATIONAL {static_cast<UINT>(fps.num), static_cast<UINT>(fps.den)};
+    }
+
     dxgi::output6_t output6 {};
     status = output->QueryInterface(IID_IDXGIOutput6, (void **) &output6);
     if (SUCCEEDED(status)) {
@@ -918,20 +934,20 @@ namespace platf::dxgi {
     "DXGI_FORMAT_A8P8",
     "DXGI_FORMAT_B4G4R4A4_UNORM",
 
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
 
     "DXGI_FORMAT_P208",
     "DXGI_FORMAT_V208",

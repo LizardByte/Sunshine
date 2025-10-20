@@ -112,6 +112,7 @@
               "min_log_level": 2,
               "global_prep_cmd": [],
               "notify_pre_releases": "disabled",
+              "system_tray": "enabled",
             },
           },
           {
@@ -123,6 +124,7 @@
               "ds4_back_as_touchpad_click": "enabled",
               "motion_as_ds4": "enabled",
               "touchpad_as_ds4": "enabled",
+              "ds5_inputtino_randomize_mac": "enabled",
               "back_button_timeout": -1,
               "keyboard": "enabled",
               "key_repeat_delay": 500,
@@ -141,6 +143,7 @@
             options: {
               "audio_sink": "",
               "virtual_sink": "",
+              "stream_audio": "enabled",
               "install_steam_audio_drivers": "enabled",
               "adapter_name": "",
               "output_name": "",
@@ -150,12 +153,12 @@
               "dd_refresh_rate_option": "auto",
               "dd_manual_refresh_rate": "",
               "dd_hdr_option": "auto",
+              "dd_wa_hdr_toggle_delay": 0,
               "dd_config_revert_delay": 3000,
               "dd_config_revert_on_disconnect": "disabled",
               "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
-              "dd_wa_hdr_toggle_delay": 0,
-              "min_fps_factor": 1,
               "max_bitrate": 0,
+              "minimum_fps_target": 0
             },
           },
           {
@@ -347,6 +350,9 @@
 
         return fetch("./api/config", {
           method: "POST",
+          headers: {
+            'Content-Type': 'application/json'
+          },
           body: JSON.stringify(config),
         }).then((r) => {
           if (r.status === 200) {
@@ -369,7 +375,10 @@
               this.saved = this.restarted = false;
             }, 5000);
             fetch("./api/restart", {
-              method: "POST"
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
             });
           }
         });

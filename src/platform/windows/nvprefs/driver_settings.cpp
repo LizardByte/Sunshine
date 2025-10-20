@@ -60,7 +60,7 @@ namespace nvprefs {
   void driver_settings_t::destroy() {
     if (session_handle) {
       NvAPI_DRS_DestroySession(session_handle);
-      session_handle = 0;
+      session_handle = nullptr;
     }
     NvAPI_Unload();
   }
@@ -105,7 +105,7 @@ namespace nvprefs {
     if (swapchain_data) {
       NvAPI_Status status;
 
-      NvDRSProfileHandle profile_handle = 0;
+      NvDRSProfileHandle profile_handle = nullptr;
       status = NvAPI_DRS_GetBaseProfile(session_handle, &profile_handle);
       if (status != NVAPI_OK) {
         nvapi_error_message(status);
@@ -168,7 +168,7 @@ namespace nvprefs {
       return true;
     }
 
-    NvDRSProfileHandle profile_handle = 0;
+    NvDRSProfileHandle profile_handle = nullptr;
     status = NvAPI_DRS_GetBaseProfile(session_handle, &profile_handle);
     if (status != NVAPI_OK) {
       nvapi_error_message(status);
@@ -224,7 +224,7 @@ namespace nvprefs {
     NvAPI_UnicodeString profile_name = {};
     fill_nvapi_string(profile_name, sunshine_application_profile_name);
 
-    NvDRSProfileHandle profile_handle = 0;
+    NvDRSProfileHandle profile_handle = nullptr;
     status = NvAPI_DRS_FindProfileByName(session_handle, profile_name, &profile_handle);
 
     if (status != NVAPI_OK) {

@@ -28,9 +28,6 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
 
 set(APPLE_PLIST_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/Info.plist")
 
-# todo - tray is not working on macos
-set(SUNSHINE_TRAY 0)
-
 set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.m"

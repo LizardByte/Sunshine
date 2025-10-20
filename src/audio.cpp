@@ -193,7 +193,8 @@ namespace audio {
     }
 
     auto frame_size = config.packetDuration * stream.sampleRate / 1000;
-    auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size);
+    bool continuous_audio = config.flags[config_t::CONTINUOUS_AUDIO];
+    auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size, continuous_audio);
     if (!mic) {
       return;
     }
@@ -230,7 +231,7 @@ namespace audio {
           BOOST_LOG(info) << "Reinitializing audio capture"sv;
           mic.reset();
           do {
-            mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size);
+            mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, frame_size, continuous_audio);
             if (!mic) {
               BOOST_LOG(warning) << "Couldn't re-initialize audio input"sv;
             }

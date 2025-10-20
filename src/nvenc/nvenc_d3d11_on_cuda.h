@@ -56,7 +56,7 @@ namespace nvenc {
 
     autopop_context push_context();
 
-    HMODULE dll = NULL;
+    HMODULE dll = nullptr;
     const ID3D11DevicePtr d3d_device;
     ID3D11Texture2DPtr d3d_input_texture;
 

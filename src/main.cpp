@@ -20,7 +20,6 @@
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
-#include "version.h"
 #include "video.h"
 
 extern "C" {
@@ -89,12 +88,55 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 }
 #endif
 
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+constexpr bool tray_is_enabled = true;
+#else
+constexpr bool tray_is_enabled = false;
+#endif
+
+void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+  bool run_loop = false;
+
+  // Conditions that would require the main thread event loop
+#ifndef _WIN32
+  run_loop = tray_is_enabled;  // On Windows, tray runs in separate thread, so no main loop needed for tray
+#endif
+
+  if (!run_loop) {
+    BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
+    return;
+  }
+
+  // Main thread event loop
+  BOOST_LOG(info) << "Starting main loop"sv;
+  while (true) {
+    if (shutdown_event->peek()) {
+      BOOST_LOG(info) << "Shutdown event detected, breaking main loop"sv;
+      if (tray_is_enabled && config::sunshine.system_tray) {
+        system_tray::end_tray();
+      }
+      break;
+    }
+
+    if (tray_is_enabled) {
+      system_tray::process_tray_events();
+    }
+
+    // Sleep to avoid busy waiting
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+}
+
 int main(int argc, char *argv[]) {
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
 
 #ifdef _WIN32
+  // Avoid searching the PATH in case a user has configured their system insecurely
+  // by placing a user-writable directory in the system-wide PATH variable.
+  SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
+
   setlocale(LC_ALL, "C");
 #endif
 
@@ -119,7 +161,7 @@ int main(int argc, char *argv[]) {
   // logging can begin at this point
   // if anything is logged prior to this point, it will appear in stdout, but not in the log viewer in the UI
   // the version should be printed to the log before anything else
-  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VER;
+  BOOST_LOG(info) << PROJECT_NAME << " version: " << PROJECT_VERSION << " commit: " << PROJECT_VERSION_COMMIT;
 
   // Log publisher metadata
   log_publisher_data();
@@ -154,7 +196,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Display device session failed to initialize"sv;
   }
 
-#ifdef WIN32
+#ifdef _WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
     // Restore global settings to the undo file left by improper termination of sunshine.exe
@@ -183,7 +225,7 @@ int main(int argc, char *argv[]) {
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
     wnd_class.lpfnWndProc = SessionMonitorWindowProc;
     if (!RegisterClassA(&wnd_class)) {
-      session_monitor_hwnd_promise.set_value(NULL);
+      session_monitor_hwnd_promise.set_value(nullptr);
       BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
       return;
     }
@@ -242,11 +284,6 @@ int main(int argc, char *argv[]) {
 #endif
 
   task_pool.start(1);
-
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  // create tray thread and detach it
-  system_tray::run_tray();
-#endif
 
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -337,6 +374,7 @@ int main(int argc, char *argv[]) {
 
   std::thread httpThread {nvhttp::start};
   std::thread configThread {confighttp::start};
+  std::thread rtspThread {rtsp_stream::start};
 
 #ifdef _WIN32
   // If we're using the default port and GameStream is enabled, warn the user
@@ -346,24 +384,42 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  rtsp_stream::rtpThread();
+  if (tray_is_enabled && config::sunshine.system_tray) {
+    BOOST_LOG(info) << "Starting system tray"sv;
+#ifdef _WIN32
+    // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
+    // he tray icon would not appear even though Sunshine is running correctly otherwise.
+    // Restarting the service would allow the icon to appear normally.
+    // For now we will keep the Windows tray icon on a separate thread.
+    // Ideally, we would run the system tray on the main thread for all platforms.
+    system_tray::init_tray_threaded();
+#else
+    system_tray::init_tray();
+#endif
+  }
+
+  mainThreadLoop(shutdown_event);
+
+  // Wait for shutdown, this is not necessary when we're using the main event loop
+  shutdown_event->view();
 
   httpThread.join();
   configThread.join();
+  rtspThread.join();
 
   task_pool.stop();
   task_pool.join();
 
-  // stop system tray
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  system_tray::end_tray();
-#endif
-
-#ifdef WIN32
+#ifdef _WIN32
   // Restore global NVIDIA control panel settings
   if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
     nvprefs_instance.restore_global_profile();
     nvprefs_instance.unload();
+  }
+
+  // Stop the threaded tray if it was started
+  if (tray_is_enabled && config::sunshine.system_tray) {
+    system_tray::end_tray_threaded();
   }
 #endif
 

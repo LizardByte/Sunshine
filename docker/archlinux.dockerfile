@@ -17,21 +17,11 @@ pacman -Syu --disable-download-timeout --noconfirm
 pacman -Scc --noconfirm
 _DEPS
 
-FROM sunshine-base AS sunshine-build
-
-ARG BRANCH
-ARG BUILD_VERSION
-ARG COMMIT
-ARG CLONE_URL
-# note: BUILD_VERSION may be blank
-
-ENV BRANCH=${BRANCH}
-ENV BUILD_VERSION=${BUILD_VERSION}
-ENV COMMIT=${COMMIT}
+FROM sunshine-base AS sunshine-deps
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# hadolint ignore=SC2016
+# Install dependencies first - this layer will be cached
 RUN <<_SETUP
 #!/bin/bash
 set -e
@@ -41,6 +31,7 @@ useradd -m builder
 echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
 
 # patch the build flags
+# shellcheck disable=SC2016
 sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
 
 # install dependencies
@@ -53,6 +44,26 @@ pacman -Syu --disable-download-timeout --needed --noconfirm \
   xorg-server-xvfb
 pacman -Scc --noconfirm
 _SETUP
+
+FROM sunshine-deps AS sunshine-build
+
+ARG BRANCH
+ARG BUILD_VERSION
+ARG COMMIT
+ARG CLONE_URL
+# note: BUILD_VERSION may be blank
+
+ENV BRANCH=${BRANCH}
+ENV BUILD_VERSION=${BUILD_VERSION}
+ENV COMMIT=${COMMIT}
+ENV CLONE_URL=${CLONE_URL}
+
+# PKGBUILD options
+ENV _use_cuda=true
+ENV _run_unit_tests=true
+ENV _support_headless_testing=true
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Setup builder user
 USER builder
@@ -68,19 +79,16 @@ WORKDIR /build/sunshine/build
 RUN <<_MAKE
 #!/bin/bash
 set -e
-if [[ "${BUILD_VERSION}" == '' ]]; then
+
+sub_version=""
+if [[ "${BRANCH}" != "master" ]]; then
   sub_version=".r${COMMIT}"
-else
-  sub_version=""
 fi
+
 cmake \
+  -DSUNSHINE_CONFIGURE_ONLY=ON \
   -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
   -DSUNSHINE_SUB_VERSION="${sub_version}" \
-  -DGITHUB_CLONE_URL="${CLONE_URL}" \
-  -DGITHUB_BRANCH=${BRANCH} \
-  -DGITHUB_BUILD_VERSION=${BUILD_VERSION} \
-  -DGITHUB_COMMIT="${COMMIT}" \
-  -DSUNSHINE_CONFIGURE_ONLY=ON \
   /build/sunshine
 _MAKE
 
@@ -114,14 +122,13 @@ rm -f /build/sunshine/pkg/sunshine-debug*.pkg.tar.zst
 ls -a
 _PKGBUILD
 
-FROM scratch AS artifacts
-
-COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
-COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /sunshine.pkg.tar.gz
-
 FROM sunshine-base AS sunshine
 
-COPY --link --from=artifacts /sunshine.pkg.tar.zst /
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /sunshine.pkg.tar.zst
+
+# artifacts to be extracted in CI
+COPY --link --from=sunshine-build /build/sunshine/pkg/sunshine*.pkg.tar.zst /artifacts/sunshine.pkg.tar.zst
+COPY --link --from=sunshine-build /build/sunshine/sunshine.pkg.tar.gz /artifacts/sunshine.pkg.tar.gz
 
 # install sunshine
 RUN <<_INSTALL_SUNSHINE
