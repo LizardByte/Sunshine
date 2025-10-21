@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@v2025.1011.184228
+        uses: LizardByte/actions/actions/more_space@v2025.1020.14905
         with:
           analyze-space-savings: true
           clean-all: true
@@ -44,7 +44,7 @@ jobs:
 
       - name: Setup node
         id: node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
 
