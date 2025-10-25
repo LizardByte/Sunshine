@@ -1,335 +1,489 @@
 /**
  * @file src/platform/windows/display_wgc.cpp
- * @brief Definitions for WinRT Windows.Graphics.Capture API
+ * @brief Windows Game Capture (WGC) IPC display implementation with shared session helper and DXGI fallback.
  */
-// platform includes
+
+// standard includes
+#include <algorithm>
+#include <chrono>
 #include <dxgi1_2.h>
+#include <wrl/client.h>
 
 // local includes
-#include "display.h"
-#include "misc.h"
+#include "ipc/ipc_session.h"
+#include "ipc/misc_utils.h"
 #include "src/logging.h"
+#include "src/platform/windows/display.h"
+#include "src/platform/windows/display_vram.h"
+#include "src/platform/windows/misc.h"
+#include "src/utility.h"
 
-// Gross hack to work around MINGW-packages#22160
-#define ____FIReference_1_boolean_INTERFACE_DEFINED__
-
-#include <Windows.Graphics.Capture.Interop.h>
-#include <winrt/windows.foundation.h>
-#include <winrt/windows.foundation.metadata.h>
-#include <winrt/windows.graphics.directx.direct3d11.h>
-
-namespace platf {
-  using namespace std::literals;
-}
-
-namespace winrt {
-  using namespace Windows::Foundation;
-  using namespace Windows::Foundation::Metadata;
-  using namespace Windows::Graphics::Capture;
-  using namespace Windows::Graphics::DirectX::Direct3D11;
-
-  extern "C" {
-    HRESULT __stdcall CreateDirect3D11DeviceFromDXGIDevice(::IDXGIDevice *dxgiDevice, ::IInspectable **graphicsDevice);
-  }
-
-  /**
-   * Windows structures sometimes have compile-time GUIDs. GCC supports this, but in a roundabout way.
-   * If WINRT_IMPL_HAS_DECLSPEC_UUID is true, then the compiler supports adding this attribute to a struct. For example, Visual Studio.
-   * If not, then MinGW GCC has a workaround to assign a GUID to a structure.
-   */
-  struct
-#if WINRT_IMPL_HAS_DECLSPEC_UUID
-    __declspec(uuid("A9B3D012-3DF2-4EE3-B8D1-8695F457D3C1"))
-#endif
-    IDirect3DDxgiInterfaceAccess: ::IUnknown {
-    virtual HRESULT __stdcall GetInterface(REFIID id, void **object) = 0;
-  };
-}  // namespace winrt
-#if !WINRT_IMPL_HAS_DECLSPEC_UUID
-static constexpr GUID GUID__IDirect3DDxgiInterfaceAccess = {
-  0xA9B3D012,
-  0x3DF2,
-  0x4EE3,
-  {0xB8, 0xD1, 0x86, 0x95, 0xF4, 0x57, 0xD3, 0xC1}
-  // compare with __declspec(uuid(...)) for the struct above.
-};
-
-template<>
-constexpr auto __mingw_uuidof<winrt::IDirect3DDxgiInterfaceAccess>() -> GUID const & {
-  return GUID__IDirect3DDxgiInterfaceAccess;
-}
-#endif
+// platform includes
+#include <winrt/base.h>
 
 namespace platf::dxgi {
-  wgc_capture_t::wgc_capture_t() {
-    InitializeConditionVariable(&frame_present_cv);
-  }
 
-  wgc_capture_t::~wgc_capture_t() {
-    if (capture_session) {
-      capture_session.Close();
-    }
-    if (frame_pool) {
-      frame_pool.Close();
-    }
-    item = nullptr;
-    capture_session = nullptr;
-    frame_pool = nullptr;
-  }
+  display_wgc_ipc_vram_t::display_wgc_ipc_vram_t() = default;
 
-  /**
-   * @brief Initialize the Windows.Graphics.Capture backend.
-   * @return 0 on success, -1 on failure.
-   */
-  int wgc_capture_t::init(display_base_t *display, const ::video::config_t &config) {
-    HRESULT status;
-    dxgi::dxgi_t dxgi;
-    winrt::com_ptr<::IInspectable> d3d_comhandle;
-    try {
-      if (!winrt::GraphicsCaptureSession::IsSupported()) {
-        BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows!"sv;
-        return -1;
-      }
-      if (FAILED(status = display->device->QueryInterface(IID_IDXGIDevice, (void **) &dxgi))) {
-        BOOST_LOG(error) << "Failed to query DXGI interface from device [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-      if (FAILED(status = winrt::CreateDirect3D11DeviceFromDXGIDevice(*&dxgi, d3d_comhandle.put()))) {
-        BOOST_LOG(error) << "Failed to query WinRT DirectX interface from device [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-    } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire device: [0x"sv << util::hex(e.code()).to_string_view() << ']';
+  display_wgc_ipc_vram_t::~display_wgc_ipc_vram_t() = default;
+
+  int display_wgc_ipc_vram_t::init(const ::video::config_t &config, const std::string &display_name) {
+    _config = config;
+    _display_name = display_name;
+
+    if (display_base_t::init(config, display_name)) {
       return -1;
     }
 
-    DXGI_OUTPUT_DESC output_desc;
-    uwp_device = d3d_comhandle.as<winrt::IDirect3DDevice>();
-    display->output->GetDesc(&output_desc);
+    capture_format = DXGI_FORMAT_UNKNOWN;  // Start with unknown format (prevents race condition/crash on first frame)
 
-    auto monitor_factory = winrt::get_activation_factory<winrt::GraphicsCaptureItem, IGraphicsCaptureItemInterop>();
-    if (monitor_factory == nullptr ||
-        FAILED(status = monitor_factory->CreateForMonitor(output_desc.Monitor, winrt::guid_of<winrt::IGraphicsCaptureItem>(), winrt::put_abi(item)))) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to acquire display: [0x"sv << util::hex(status).to_string_view() << ']';
+    // Create session
+    _ipc_session = std::make_unique<ipc_session_t>();
+    if (_ipc_session->init(config, display_name, device.get())) {
       return -1;
     }
 
-    if (config.dynamicRange) {
-      display->capture_format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-    } else {
-      display->capture_format = DXGI_FORMAT_B8G8R8A8_UNORM;
-    }
-
-    try {
-      frame_pool = winrt::Direct3D11CaptureFramePool::CreateFreeThreaded(uwp_device, static_cast<winrt::Windows::Graphics::DirectX::DirectXPixelFormat>(display->capture_format), 2, item.Size());
-      capture_session = frame_pool.CreateCaptureSession(item);
-      frame_pool.FrameArrived({this, &wgc_capture_t::on_frame_arrived});
-    } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to create capture session: [0x"sv << util::hex(e.code()).to_string_view() << ']';
-      return -1;
-    }
-    try {
-      if (winrt::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"IsBorderRequired")) {
-        capture_session.IsBorderRequired(false);
-      } else {
-        BOOST_LOG(warning) << "Can't disable colored border around capture area on this version of Windows";
-      }
-    } catch (winrt::hresult_error &e) {
-      BOOST_LOG(warning) << "Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x"sv << util::hex(e.code()).to_string_view() << ']';
-    }
-    try {
-      capture_session.StartCapture();
-    } catch (winrt::hresult_error &e) {
-      BOOST_LOG(error) << "Screen capture is not supported on this device for this release of Windows: failed to start capture: [0x"sv << util::hex(e.code()).to_string_view() << ']';
-      return -1;
-    }
     return 0;
   }
 
-  /**
-   * This function runs in a separate thread spawned by the frame pool and is a producer of frames.
-   * To maintain parity with the original display interface, this frame will be consumed by the capture thread.
-   * Acquire a read-write lock, make the produced frame available to the capture thread, then wake the capture thread.
-   */
-  void wgc_capture_t::on_frame_arrived(winrt::Direct3D11CaptureFramePool const &sender, winrt::IInspectable const &) {
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame frame {nullptr};
-    try {
-      frame = sender.TryGetNextFrame();
-    } catch (winrt::hresult_error &e) {
-      BOOST_LOG(warning) << "Failed to capture frame: "sv << e.code();
-      return;
-    }
-    if (frame != nullptr) {
-      AcquireSRWLockExclusive(&frame_lock);
-      if (produced_frame) {
-        produced_frame.Close();
-      }
-
-      produced_frame = frame;
-      ReleaseSRWLockExclusive(&frame_lock);
-      WakeConditionVariable(&frame_present_cv);
-    }
-  }
-
-  /**
-   * @brief Get the next frame from the producer thread.
-   * If not available, the capture thread blocks until one is, or the wait times out.
-   * @param timeout how long to wait for the next frame
-   * @param out a texture containing the frame just captured
-   * @param out_time the timestamp of the frame just captured
-   */
-  capture_e wgc_capture_t::next_frame(std::chrono::milliseconds timeout, ID3D11Texture2D **out, uint64_t &out_time) {
-    // this CONSUMER runs in the capture thread
-    release_frame();
-
-    AcquireSRWLockExclusive(&frame_lock);
-    if (produced_frame == nullptr && SleepConditionVariableSRW(&frame_present_cv, &frame_lock, timeout.count(), 0) == 0) {
-      ReleaseSRWLockExclusive(&frame_lock);
-      if (GetLastError() == ERROR_TIMEOUT) {
-        return capture_e::timeout;
-      } else {
-        return capture_e::error;
-      }
-    }
-    if (produced_frame) {
-      consumed_frame = produced_frame;
-      produced_frame = nullptr;
-    }
-    ReleaseSRWLockExclusive(&frame_lock);
-    if (consumed_frame == nullptr) {  // spurious wakeup
-      return capture_e::timeout;
-    }
-
-    auto capture_access = consumed_frame.Surface().as<winrt::IDirect3DDxgiInterfaceAccess>();
-    if (capture_access == nullptr) {
+  capture_e display_wgc_ipc_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    if (!_ipc_session) {
       return capture_e::error;
     }
-    capture_access->GetInterface(IID_ID3D11Texture2D, (void **) out);
-    out_time = consumed_frame.SystemRelativeTime().count();  // raw ticks from query performance counter
-    return capture_e::ok;
-  }
 
-  capture_e wgc_capture_t::release_frame() {
-    if (consumed_frame != nullptr) {
-      consumed_frame.Close();
-      consumed_frame = nullptr;
+    // We return capture::reinit for most scenarios because the logic in picking which mode to capture is all handled in the factory function.
+    if (_ipc_session->should_swap_to_dxgi()) {
+      return capture_e::reinit;
     }
-    return capture_e::ok;
-  }
 
-  int wgc_capture_t::set_cursor_visible(bool x) {
-    try {
-      if (capture_session.IsCursorCaptureEnabled() != x) {
-        capture_session.IsCursorCaptureEnabled(x);
+    // Generally this only becomes true if the helper process has crashed or is otherwise not responding.
+    if (_ipc_session->should_reinit()) {
+      return capture_e::reinit;
+    }
+
+    _ipc_session->initialize_if_needed();
+    if (!_ipc_session->is_initialized()) {
+      return capture_e::error;
+    }
+
+    // Most of the code below is copy and pasted from display_vram_t with some elements removed such as cursor blending.
+
+    texture2d_t src;
+    uint64_t frame_qpc;
+
+    auto capture_status = acquire_next_frame(timeout, src, frame_qpc, cursor_visible);
+
+    if (capture_status == capture_e::ok) {
+      // Got a new frame - process it normally
+      auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
+      D3D11_TEXTURE2D_DESC desc;
+      src->GetDesc(&desc);
+
+      // If we don't know the capture format yet, grab it from this texture
+      if (capture_format == DXGI_FORMAT_UNKNOWN) {
+        capture_format = desc.Format;
+        BOOST_LOG(info) << "Capture format [" << dxgi_format_to_string(capture_format) << ']';
       }
-      return 0;
-    } catch (winrt::hresult_error &) {
+
+      // It's possible for our display enumeration to race with mode changes and result in
+      // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
+      if (desc.Width != width_before_rotation || desc.Height != height_before_rotation) {
+        BOOST_LOG(info) << "Capture size changed ["sv << width_before_rotation << 'x' << height_before_rotation << " -> "sv << desc.Width << 'x' << desc.Height << ']';
+        return capture_e::reinit;
+      }
+
+      // It's also possible for the capture format to change on the fly. If that happens,
+      // reinitialize capture to try format detection again and create new images.
+      if (capture_format != desc.Format) {
+        BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
+        return capture_e::reinit;
+      }
+
+      // Get a free image from the pool
+      std::shared_ptr<platf::img_t> img;
+      if (!pull_free_image_cb(img)) {
+        return capture_e::interrupted;
+      }
+
+      auto d3d_img = std::static_pointer_cast<img_d3d_t>(img);
+      d3d_img->blank = false;  // image is always ready for capture
+
+      // Assign the shared texture from the session to the img_d3d_t
+      d3d_img->capture_texture.reset(src.get()); // no need to AddRef() because acquire on ipc uses copy_to
+
+      // Get the keyed mutex from the shared texture
+      HRESULT status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIKeyedMutex), (void **) &d3d_img->capture_mutex);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIKeyedMutex from shared texture [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+
+      // Get the shared handle for the encoder
+      resource1_t resource;
+      status = d3d_img->capture_texture->QueryInterface(__uuidof(IDXGIResource1), (void **) &resource);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to query IDXGIResource1 [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+
+      // Create NT shared handle for the encoder device to use
+      status = resource->CreateSharedHandle(nullptr, DXGI_SHARED_RESOURCE_READ, nullptr, &d3d_img->encoder_texture_handle);
+      if (FAILED(status)) {
+        BOOST_LOG(error) << "Failed to create NT shared texture handle [0x"sv << util::hex(status).to_string_view() << ']';
+        return capture_e::error;
+      }
+
+      // Set the format and other properties
+      d3d_img->format = capture_format;
+      d3d_img->pixel_pitch = get_pixel_pitch();
+      d3d_img->row_pitch = d3d_img->pixel_pitch * d3d_img->width;
+      d3d_img->data = (std::uint8_t *) d3d_img->capture_texture.get();
+
+      img->frame_timestamp = frame_timestamp;
+      img_out = img;
+
+      // Cache this frame for potential reuse
+      last_cached_frame = img;
+
+      return capture_e::ok;
+
+    } else if (capture_status == capture_e::timeout && config::video.capture == "wgcc" && last_cached_frame) {
+      // No new frame available, but we have a cached frame - forward it
+      // This mimics the DDUP ofa::forward_last_img behavior
+      // Only do this for genuine timeouts, not for errors
+      img_out = last_cached_frame;
+      // Update timestamp to current time to maintain proper timing
+      if (img_out) {
+        img_out->frame_timestamp = std::chrono::steady_clock::now();
+      }
+
+      return capture_e::ok;
+
+    } else {
+      // For the default mode just return the capture status on timeouts.
+      return capture_status;
+    }
+  }
+
+  capture_e display_wgc_ipc_vram_t::acquire_next_frame(std::chrono::milliseconds timeout, texture2d_t &src, uint64_t &frame_qpc, bool cursor_visible) {
+    if (!_ipc_session) {
+      return capture_e::error;
+    }
+
+    winrt::com_ptr<ID3D11Texture2D> gpu_tex;
+    auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
+
+    if (status != capture_e::ok) {
+      return status;
+    }
+
+    gpu_tex.copy_to(&src);
+
+    return capture_e::ok;
+  }
+
+  capture_e display_wgc_ipc_vram_t::release_snapshot() {
+    if (_ipc_session) {
+      _ipc_session->release();
+    }
+    return capture_e::ok;
+  }
+
+  int display_wgc_ipc_vram_t::dummy_img(platf::img_t *img_base) {
+    _ipc_session->initialize_if_needed();
+
+    // In certain scenarios (e.g., Windows login screen or when no user session is active),
+    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
+    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
+    if (_ipc_session->is_initialized()) {
+      return display_vram_t::complete_img(img_base, true);
+    }
+
+    auto temp_dxgi = std::make_unique<display_ddup_vram_t>();
+    if (temp_dxgi->init(_config, _display_name) == 0) {
+      return temp_dxgi->dummy_img(img_base);
+    } else {
+      BOOST_LOG(error) << "Failed to initialize DXGI fallback for dummy_img";
       return -1;
     }
   }
 
-  int display_wgc_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
-    if (display_base_t::init(config, display_name) || dup.init(this, config)) {
+  std::shared_ptr<display_t> display_wgc_ipc_vram_t::create(const ::video::config_t &config, const std::string &display_name) {
+    // Check if secure desktop is currently active
+
+    if (platf::dxgi::is_secure_desktop_active()) {
+      // Secure desktop is active, use DXGI fallback
+      BOOST_LOG(debug) << "Secure desktop detected, using DXGI fallback for WGC capture (VRAM)";
+      auto disp = std::make_shared<temp_dxgi_vram_t>();
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    } else {
+      // Secure desktop not active, use WGC IPC
+      BOOST_LOG(debug) << "Using WGC IPC implementation (VRAM)";
+      auto disp = std::make_shared<display_wgc_ipc_vram_t>();
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    }
+
+    return nullptr;
+  }
+
+  display_wgc_ipc_ram_t::display_wgc_ipc_ram_t() = default;
+
+  display_wgc_ipc_ram_t::~display_wgc_ipc_ram_t() = default;
+
+  int display_wgc_ipc_ram_t::init(const ::video::config_t &config, const std::string &display_name) {
+    // Save config for later use
+    _config = config;
+    _display_name = display_name;
+
+    // Initialize the base display class
+    if (display_base_t::init(config, display_name)) {
       return -1;
     }
 
-    texture.reset();
+    // Override dimensions with config values (base class sets them to monitor native resolution)
+    width = config.width;
+    height = config.height;
+    width_before_rotation = config.width;
+    height_before_rotation = config.height;
+
+    // Create session
+    _ipc_session = std::make_unique<ipc_session_t>();
+    if (_ipc_session->init(config, display_name, device.get())) {
+      return -1;
+    }
+
     return 0;
   }
 
-  /**
-   * @brief Get the next frame from the Windows.Graphics.Capture API and copy it into a new snapshot texture.
-   * @param pull_free_image_cb call this to get a new free image from the video subsystem.
-   * @param img_out the captured frame is returned here
-   * @param timeout how long to wait for the next frame
-   * @param cursor_visible whether to capture the cursor
-   */
-  capture_e display_wgc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
-    HRESULT status;
-    texture2d_t src;
-    uint64_t frame_qpc;
-    dup.set_cursor_visible(cursor_visible);
-    auto capture_status = dup.next_frame(timeout, &src, frame_qpc);
-    if (capture_status != capture_e::ok) {
-      return capture_status;
+  capture_e display_wgc_ipc_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    if (!_ipc_session) {
+      return capture_e::error;
     }
 
-    auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
+    if (_ipc_session->should_swap_to_dxgi()) {
+      return capture_e::reinit;
+    }
+
+    // If the helper process crashed or was terminated forcefully by the user, we will re-initialize it.
+    if (_ipc_session->should_reinit()) {
+      return capture_e::reinit;
+    }
+
+    _ipc_session->initialize_if_needed();
+    if (!_ipc_session->is_initialized()) {
+      return capture_e::error;
+    }
+
+    winrt::com_ptr<ID3D11Texture2D> gpu_tex;
+    uint64_t frame_qpc = 0;
+    auto status = _ipc_session->acquire(timeout, gpu_tex, frame_qpc);
+
+    if (status != capture_e::ok) {
+      // For constant FPS mode (wgcc), try to return cached frame on timeout
+      if (status == capture_e::timeout && config::video.capture == "wgcc" && last_cached_frame) {
+        // No new frame available, but we have a cached frame - forward it
+        // This mimics the DDUP ofa::forward_last_img behavior
+        // Only do this for genuine timeouts, not for errors
+        img_out = last_cached_frame;
+        // Update timestamp to current time to maintain proper timing
+        if (img_out) {
+          img_out->frame_timestamp = std::chrono::steady_clock::now();
+        }
+
+        return capture_e::ok;
+      }
+
+      // For the default mode just return the capture status on timeouts.
+      return status;
+    }
+
+    // Get description of the captured texture
     D3D11_TEXTURE2D_DESC desc;
-    src->GetDesc(&desc);
+    gpu_tex->GetDesc(&desc);
 
-    // Create the staging texture if it doesn't exist. It should match the source in size and format.
-    if (texture == nullptr) {
+    // If we don't know the capture format yet, grab it from this texture
+    if (capture_format == DXGI_FORMAT_UNKNOWN) {
       capture_format = desc.Format;
-      BOOST_LOG(info) << "Capture format ["sv << dxgi_format_to_string(capture_format) << ']';
+      BOOST_LOG(info) << "Capture format [" << dxgi_format_to_string(capture_format) << ']';
+    }
 
+    // Check for size changes
+    if (desc.Width != width || desc.Height != height) {
+      BOOST_LOG(info) << "Capture size changed [" << width << 'x' << height << " -> " << desc.Width << 'x' << desc.Height << ']';
+      _ipc_session->release();
+      return capture_e::reinit;
+    }
+
+    // Check for format changes
+    if (capture_format != desc.Format) {
+      BOOST_LOG(info) << "Capture format changed [" << dxgi_format_to_string(capture_format) << " -> " << dxgi_format_to_string(desc.Format) << ']';
+      _ipc_session->release();
+      return capture_e::reinit;
+    }
+
+    // Create or recreate staging texture if needed
+    // Use OUR dimensions (width/height), not the source texture dimensions
+    if (!texture ||
+        width != _last_width ||
+        height != _last_height ||
+        capture_format != _last_format) {
       D3D11_TEXTURE2D_DESC t {};
-      t.Width = width;
-      t.Height = height;
-      t.MipLevels = 1;
-      t.ArraySize = 1;
-      t.SampleDesc.Count = 1;
-      t.Usage = D3D11_USAGE_STAGING;
+      t.Width = width;  // Use display dimensions, not session dimensions
+      t.Height = height;  // Use display dimensions, not session dimensions
       t.Format = capture_format;
+      t.ArraySize = 1;
+      t.MipLevels = 1;
+      t.SampleDesc = {1, 0};
+      t.Usage = D3D11_USAGE_STAGING;
       t.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
 
-      auto status = device->CreateTexture2D(&t, nullptr, &texture);
-
-      if (FAILED(status)) {
-        BOOST_LOG(error) << "Failed to create staging texture [0x"sv << util::hex(status).to_string_view() << ']';
+      auto hr = device->CreateTexture2D(&t, nullptr, &texture);
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to create staging texture: " << hr;
+        _ipc_session->release();
         return capture_e::error;
       }
-    }
 
-    // It's possible for our display enumeration to race with mode changes and result in
-    // mismatched image pool and desktop texture sizes. If this happens, just reinit again.
-    if (desc.Width != width || desc.Height != height) {
-      BOOST_LOG(info) << "Capture size changed ["sv << width << 'x' << height << " -> "sv << desc.Width << 'x' << desc.Height << ']';
-      return capture_e::reinit;
-    }
-    // It's also possible for the capture format to change on the fly. If that happens,
-    // reinitialize capture to try format detection again and create new images.
-    if (capture_format != desc.Format) {
-      BOOST_LOG(info) << "Capture format changed ["sv << dxgi_format_to_string(capture_format) << " -> "sv << dxgi_format_to_string(desc.Format) << ']';
-      return capture_e::reinit;
+      _last_width = width;
+      _last_height = height;
+      _last_format = capture_format;
+
+      BOOST_LOG(info) << "[display_wgc_ipc_ram_t] Created staging texture: "
+                      << width << "x" << height << ", format: " << capture_format;
     }
 
     // Copy from GPU to CPU
-    device_ctx->CopyResource(texture.get(), src.get());
+    device_ctx->CopyResource(texture.get(), gpu_tex.get());
 
+    // Get a free image from the pool
     if (!pull_free_image_cb(img_out)) {
+      _ipc_session->release();
       return capture_e::interrupted;
     }
-    auto img = (img_t *) img_out.get();
 
-    // Map the staging texture for CPU access (making it inaccessible for the GPU)
-    if (FAILED(status = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info))) {
-      BOOST_LOG(error) << "Failed to map texture [0x"sv << util::hex(status).to_string_view() << ']';
+    auto img = img_out.get();
 
-      return capture_e::error;
-    }
+    // If we don't know the final capture format yet, encode a dummy image
+    if (capture_format == DXGI_FORMAT_UNKNOWN) {
+      BOOST_LOG(debug) << "Capture format is still unknown. Encoding a blank image";
 
-    // Now that we know the capture format, we can finish creating the image
-    if (complete_img(img, false)) {
+      if (dummy_img(img)) {
+        _ipc_session->release();
+        return capture_e::error;
+      }
+    } else {
+      // Map the staging texture for CPU access (making it inaccessible for the GPU)
+      auto hr = device_ctx->Map(texture.get(), 0, D3D11_MAP_READ, 0, &img_info);
+      if (FAILED(hr)) {
+        BOOST_LOG(error) << "[display_wgc_ipc_ram_t] Failed to map staging texture: " << hr;
+        _ipc_session->release();
+        return capture_e::error;
+      }
+
+      // Now that we know the capture format, we can finish creating the image
+      if (complete_img(img, false)) {
+        device_ctx->Unmap(texture.get(), 0);
+        img_info.pData = nullptr;
+        _ipc_session->release();
+        return capture_e::error;
+      }
+
+      // Copy exactly like display_ram.cpp: height * img_info.RowPitch
+      std::copy_n((std::uint8_t *) img_info.pData, height * img_info.RowPitch, img->data);
+
+      // Unmap the staging texture to allow GPU access again
       device_ctx->Unmap(texture.get(), 0);
       img_info.pData = nullptr;
-      return capture_e::error;
     }
 
-    std::copy_n((std::uint8_t *) img_info.pData, height * img_info.RowPitch, (std::uint8_t *) img->data);
+    // Set frame timestamp
 
-    // Unmap the staging texture to allow GPU access again
-    device_ctx->Unmap(texture.get(), 0);
-    img_info.pData = nullptr;
+    auto frame_timestamp = std::chrono::steady_clock::now() - qpc_time_difference(qpc_counter(), frame_qpc);
+    img->frame_timestamp = frame_timestamp;
 
-    if (img) {
-      img->frame_timestamp = frame_timestamp;
-    }
+    // Cache this frame for potential reuse in constant FPS mode
+    last_cached_frame = img_out;
 
+    _ipc_session->release();
     return capture_e::ok;
   }
 
-  capture_e display_wgc_ram_t::release_snapshot() {
-    return dup.release_frame();
+  capture_e display_wgc_ipc_ram_t::release_snapshot() {
+    // Not used in RAM path since we handle everything in snapshot()
+    return capture_e::ok;
   }
+
+  int display_wgc_ipc_ram_t::dummy_img(platf::img_t *img_base) {
+    _ipc_session->initialize_if_needed();
+
+    // In certain scenarios (e.g., Windows login screen or when no user session is active),
+    // the IPC session may fail to initialize, making it impossible to perform encoder tests via WGC.
+    // In such cases, we must check if the session was initialized; if not, fall back to DXGI for dummy image generation.
+    if (_ipc_session->is_initialized()) {
+      return display_ram_t::complete_img(img_base, true);
+    }
+
+    auto temp_dxgi = std::make_unique<display_ddup_ram_t>();
+    if (temp_dxgi->init(_config, _display_name) == 0) {
+      return temp_dxgi->dummy_img(img_base);
+    } else {
+      BOOST_LOG(error) << "Failed to initialize DXGI fallback for dummy image check there may be no displays available.";
+      return -1;
+    }
+  }
+
+  std::shared_ptr<display_t> display_wgc_ipc_ram_t::create(const ::video::config_t &config, const std::string &display_name) {
+    // Check if secure desktop is currently active
+
+    if (platf::dxgi::is_secure_desktop_active()) {
+      // Secure desktop is active, use DXGI fallback
+      BOOST_LOG(debug) << "Secure desktop detected, using DXGI fallback for WGC capture (RAM)";
+      auto disp = std::make_shared<temp_dxgi_ram_t>();
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    } else {
+      // Secure desktop not active, use WGC IPC
+      BOOST_LOG(debug) << "Using WGC IPC implementation (RAM)";
+      auto disp = std::make_shared<display_wgc_ipc_ram_t>();
+      if (!disp->init(config, display_name)) {
+        return disp;
+      }
+    }
+
+    return nullptr;
+  }
+
+  capture_e temp_dxgi_vram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    // Check periodically if secure desktop is still active
+    if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
+      _last_check_time = now;
+      if (!platf::dxgi::is_secure_desktop_active()) {
+        BOOST_LOG(debug) << "DXGI Capture is no longer necessary, swapping back to WGC!";
+        return capture_e::reinit;
+      }
+    }
+
+    // Call parent DXGI duplication implementation
+    return display_ddup_vram_t::snapshot(pull_free_image_cb, img_out, timeout, cursor_visible);
+  }
+
+  capture_e temp_dxgi_ram_t::snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor_visible) {
+    // Check periodically if secure desktop is still active
+    if (auto now = std::chrono::steady_clock::now(); now - _last_check_time >= CHECK_INTERVAL) {
+      _last_check_time = now;
+      if (!platf::dxgi::is_secure_desktop_active()) {
+        BOOST_LOG(debug) << "DXGI Capture is no longer necessary, swapping back to WGC!";
+        return capture_e::reinit;
+      }
+    }
+
+    // Call parent DXGI duplication implementation
+    return display_ddup_ram_t::snapshot(pull_free_image_cb, img_out, timeout, cursor_visible);
+  }
+
 }  // namespace platf::dxgi

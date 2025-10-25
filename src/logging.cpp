@@ -19,17 +19,6 @@
 // local includes
 #include "logging.h"
 
-// conditional includes
-#ifdef __ANDROID__
-  #include <android/log.h>
-#else
-  #include <display_device/logging.h>
-#endif
-
-extern "C" {
-#include <libavutil/log.h>
-}
-
 using namespace std::literals;
 
 namespace bl = boost::log;
@@ -45,8 +34,6 @@ bl::sources::severity_logger<int> fatal(5);  // Unrecoverable errors
 #ifdef SUNSHINE_TESTS
 bl::sources::severity_logger<int> tests(10);  // Automatic tests output
 #endif
-
-BOOST_LOG_ATTRIBUTE_KEYWORD(severity, "Severity", int)
 
 namespace logging {
   deinit_t::~deinit_t() {
@@ -103,59 +90,12 @@ namespace logging {
     os << "["sv << std::put_time(&lt, "%Y-%m-%d %H:%M:%S.") << boost::format("%03u") % ms.count() << "]: "sv
        << log_type << view.attribute_values()[message].extract<std::string>();
   }
-#ifdef __ANDROID__
-  namespace sinks = boost::log::sinks;
-  namespace expr = boost::log::expressions;
-
-  void android_log(const std::string &message, int severity) {
-    android_LogPriority android_priority;
-    switch (severity) {
-      case 0:
-        android_priority = ANDROID_LOG_VERBOSE;
-        break;
-      case 1:
-        android_priority = ANDROID_LOG_DEBUG;
-        break;
-      case 2:
-        android_priority = ANDROID_LOG_INFO;
-        break;
-      case 3:
-        android_priority = ANDROID_LOG_WARN;
-        break;
-      case 4:
-        android_priority = ANDROID_LOG_ERROR;
-        break;
-      case 5:
-        android_priority = ANDROID_LOG_FATAL;
-        break;
-      default:
-        android_priority = ANDROID_LOG_UNKNOWN;
-        break;
-    }
-    __android_log_print(android_priority, "Sunshine", "%s", message.c_str());
-  }
-
-  // custom sink backend for android
-  struct android_sink_backend: public sinks::basic_sink_backend<sinks::concurrent_feeding> {
-    void consume(const bl::record_view &rec) {
-      int log_sev = rec[severity].get();
-      const std::string log_msg = rec[expr::smessage].get();
-      // log to android
-      android_log(log_msg, log_sev);
-    }
-  };
-#endif
 
   [[nodiscard]] std::unique_ptr<deinit_t> init(int min_log_level, const std::string &log_file) {
     if (sink) {
       // Deinitialize the logging system before reinitializing it. This can probably only ever be hit in tests.
       deinit();
     }
-
-#ifndef __ANDROID__
-    setup_av_logging(min_log_level);
-    setup_libdisplaydevice_logging(min_log_level);
-#endif
 
     sink = boost::make_shared<text_sink>();
 
@@ -174,72 +114,8 @@ namespace logging {
 
     bl::core::get()->add_sink(sink);
 
-#ifdef __ANDROID__
-    auto android_sink = boost::make_shared<sinks::synchronous_sink<android_sink_backend>>();
-    bl::core::get()->add_sink(android_sink);
-#endif
     return std::make_unique<deinit_t>();
   }
-
-#ifndef __ANDROID__
-  void setup_av_logging(int min_log_level) {
-    if (min_log_level >= 1) {
-      av_log_set_level(AV_LOG_QUIET);
-    } else {
-      av_log_set_level(AV_LOG_DEBUG);
-    }
-    av_log_set_callback([](void *ptr, int level, const char *fmt, va_list vl) {
-      static int print_prefix = 1;
-      char buffer[1024];
-
-      av_log_format_line(ptr, level, fmt, vl, buffer, sizeof(buffer), &print_prefix);
-      if (level <= AV_LOG_ERROR) {
-        // We print AV_LOG_FATAL at the error level. FFmpeg prints things as fatal that
-        // are expected in some cases, such as lack of codec support or similar things.
-        BOOST_LOG(error) << buffer;
-      } else if (level <= AV_LOG_WARNING) {
-        BOOST_LOG(warning) << buffer;
-      } else if (level <= AV_LOG_INFO) {
-        BOOST_LOG(info) << buffer;
-      } else if (level <= AV_LOG_VERBOSE) {
-        // AV_LOG_VERBOSE is less verbose than AV_LOG_DEBUG
-        BOOST_LOG(debug) << buffer;
-      } else {
-        BOOST_LOG(verbose) << buffer;
-      }
-    });
-  }
-
-  void setup_libdisplaydevice_logging(int min_log_level) {
-    constexpr int min_level {static_cast<int>(display_device::Logger::LogLevel::verbose)};
-    constexpr int max_level {static_cast<int>(display_device::Logger::LogLevel::fatal)};
-    const auto log_level {static_cast<display_device::Logger::LogLevel>(std::min(std::max(min_level, min_log_level), max_level))};
-
-    display_device::Logger::get().setLogLevel(log_level);
-    display_device::Logger::get().setCustomCallback([](const display_device::Logger::LogLevel level, const std::string &message) {
-      switch (level) {
-        case display_device::Logger::LogLevel::verbose:
-          BOOST_LOG(verbose) << message;
-          break;
-        case display_device::Logger::LogLevel::debug:
-          BOOST_LOG(debug) << message;
-          break;
-        case display_device::Logger::LogLevel::info:
-          BOOST_LOG(info) << message;
-          break;
-        case display_device::Logger::LogLevel::warning:
-          BOOST_LOG(warning) << message;
-          break;
-        case display_device::Logger::LogLevel::error:
-          BOOST_LOG(error) << message;
-          break;
-        case display_device::Logger::LogLevel::fatal:
-          BOOST_LOG(fatal) << message;
-          break;
-      }
-    });
-  }
-#endif
 
   void log_flush() {
     if (sink) {

@@ -72,7 +72,8 @@ const config = ref(props.config)
           </template>
           <template #windows>
             <option value="ddx">Desktop Duplication API</option>
-            <option value="wgc">Windows.Graphics.Capture {{ $t('_common.beta') }}</option>
+            <option value="wgc">Windows.Graphics.Capture Variable Framerate</option>
+            <option value="wgcc">Windows.Graphics.Capture Constant Framerate</option>
           </template>
         </PlatformLayout>
       </select>
