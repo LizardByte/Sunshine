@@ -203,7 +203,7 @@ jobs:
           tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-Linux-Flatpak-${{ matrix.arch }}
           path: artifacts/

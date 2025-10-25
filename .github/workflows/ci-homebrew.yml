@@ -127,7 +127,7 @@ jobs:
 
       - name: Upload Artifacts
         if: matrix.release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-Homebrew
           path: homebrew/
@@ -196,7 +196,7 @@ jobs:
           matrix.release != true &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
           startsWith(github.repository, 'LizardByte/')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
@@ -225,7 +225,7 @@ jobs:
 
       - name: Upload Artifacts (Beta)
         if: matrix.release
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: beta-Homebrew
           path: homebrew/
