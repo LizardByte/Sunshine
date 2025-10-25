@@ -65,10 +65,10 @@ CUDA is used for NVFBC capture.
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>Sunshine (copr - Fedora 41)</td>
+        <td>Sunshine (copr - Fedora)</td>
     </tr>
     <tr>
-        <td>Sunshine (copr - Fedora 42)</td>
+        <td>Sunshine (copr - OpenSUSE)</td>
     </tr>
     <tr>
         <td>sunshine.pkg.tar.zst</td>
@@ -150,6 +150,7 @@ pacman -R sunshine
 ```
 
 #### Debian/Ubuntu
+
 ##### Install
 Download `sunshine-{distro}-{distro-version}-{arch}.deb` and run the following command.
 ```bash
@@ -168,12 +169,30 @@ sudo dpkg -i ./sunshine-{distro}-{distro-version}-{arch}.deb
 sudo apt remove sunshine
 ```
 
-#### Fedora
+#### Fedora/OpenSUSE
 
 > [!TIP]
 > The package name is case-sensitive.
 
-##### Install
+##### Install (GitHub releases)
+Download `Sunshine-{version}.{distro+version}.{arch}.rpm` and run the following command.
+```bash
+sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
+```
+
+> [!NOTE]
+> The `{distro+version}` is the distro and distro version of the distro we built the package on. The `{arch}` is the
+> architecture of your operating system.
+
+> [!TIP]
+> You can double-click the rpm file to see details about the package and begin installation.
+
+##### Uninstall
+```bash
+sudo dnf remove sunshine
+```
+
+##### Install (Copr)
 1. Enable copr repository.
    ```bash
    sudo dnf copr enable lizardbyte/stable

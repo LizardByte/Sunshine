@@ -7,6 +7,13 @@
 
 %undefine _hardened_build
 
+# Define _metainfodir for OpenSUSE if not already defined
+%if 0%{?suse_version}
+%if !0%{?_metainfodir:1}
+%global _metainfodir %{_datadir}/metainfo
+%endif
+%endif
+
 Name: Sunshine
 Version: %{build_version}
 Release: 1%{?dist}
@@ -15,17 +22,14 @@ License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
 
-BuildRequires: appstream
-# BuildRequires: boost-devel >= 1.86.0
+# Common BuildRequires
 BuildRequires: cmake >= 3.25.0
 BuildRequires: desktop-file-utils
-BuildRequires: libappstream-glib
-BuildRequires: libayatana-appindicator3-devel
+BuildRequires: git
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel
-BuildRequires: libgudev
 BuildRequires: libnotify-devel
 BuildRequires: libva-devel
 BuildRequires: libX11-devel
@@ -36,26 +40,51 @@ BuildRequires: libXi-devel
 BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
-BuildRequires: git
-BuildRequires: mesa-libGL-devel
-BuildRequires: mesa-libgbm-devel
-BuildRequires: miniupnpc-devel
 BuildRequires: npm
-BuildRequires: numactl-devel
 BuildRequires: openssl-devel
-BuildRequires: opus-devel
-BuildRequires: pulseaudio-libs-devel
 BuildRequires: rpm-build
-BuildRequires: systemd-udev
 BuildRequires: systemd-rpm-macros
-%{?sysusers_requires_compat}
 BuildRequires: wget
 BuildRequires: which
 
+%if 0%{?fedora}
+# Fedora-specific BuildRequires
+BuildRequires: appstream
+# BuildRequires: boost-devel >= 1.86.0
+BuildRequires: libappstream-glib
+BuildRequires: libayatana-appindicator3-devel
+BuildRequires: libgudev
+BuildRequires: mesa-libGL-devel
+BuildRequires: mesa-libgbm-devel
+BuildRequires: miniupnpc-devel
+BuildRequires: numactl-devel
+BuildRequires: opus-devel
+BuildRequires: pulseaudio-libs-devel
+BuildRequires: systemd-udev
+%{?sysusers_requires_compat}
 # for unit tests
 BuildRequires: xorg-x11-server-Xvfb
+%endif
 
-# Conditional BuildRequires for cuda-gcc based on Fedora version
+%if 0%{?suse_version}
+# OpenSUSE-specific BuildRequires
+BuildRequires: AppStream
+BuildRequires: appstream-glib
+BuildRequires: libappindicator3-devel
+BuildRequires: libgudev-1_0-devel
+BuildRequires: Mesa-libGL-devel
+BuildRequires: libgbm-devel
+BuildRequires: libminiupnpc-devel
+BuildRequires: libnuma-devel
+BuildRequires: libopus-devel
+BuildRequires: libpulse-devel
+BuildRequires: udev
+# for unit tests
+BuildRequires: xvfb-run
+%endif
+
+# Conditional BuildRequires for cuda-gcc based on distribution version
+%if 0%{?fedora}
 %if 0%{?fedora} <= 41
 BuildRequires: gcc13
 BuildRequires: gcc13-c++
@@ -69,9 +98,34 @@ BuildRequires: gcc14-c++
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
 %endif
+%endif
+
+%if 0%{?suse_version}
+%if 0%{?suse_version} <= 1699
+# OpenSUSE Leap 15.x
+BuildRequires: gcc13
+BuildRequires: gcc13-c++
+%global gcc_version 13
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
+%else
+# OpenSUSE Tumbleweed
+BuildRequires: gcc14
+BuildRequires: gcc14-c++
+%global gcc_version 14
+%global cuda_version 12.9.1
+%global cuda_build 575.57.08
+%endif
+%endif
 
 %global cuda_dir %{_builddir}/cuda
 
+# Common runtime requirements
+Requires: miniupnpc >= 2.2.4
+Requires: which >= 2.21
+
+%if 0%{?fedora}
+# Fedora runtime requirements
 Requires: libayatana-appindicator3 >= 0.5.3
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
@@ -81,11 +135,26 @@ Requires: libopusenc >= 0.2.1
 Requires: libva >= 2.14.0
 Requires: libwayland-client >= 1.20.0
 Requires: libX11 >= 1.7.3.1
-Requires: miniupnpc >= 2.2.4
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
-Requires: which >= 2.21
+%endif
+
+%if 0%{?suse_version}
+# OpenSUSE runtime requirements
+Requires: libappindicator3-1
+Requires: libcap2
+Requires: libcurl4
+Requires: libdrm2
+Requires: libevdev2
+Requires: libopusenc0
+Requires: libva2
+Requires: libwayland-client0
+Requires: libX11-6
+Requires: libnuma1
+Requires: libopenssl3
+Requires: libpulse0
+%endif
 
 %description
 Self-hosted game stream host for Moonlight.
