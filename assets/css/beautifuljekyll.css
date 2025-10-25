@@ -1154,3 +1154,139 @@ pre {
   text-decoration: none;
   color: inherit;
 }
+
+/* --- Amazon Affiliate Section --- */
+.amazon-affiliate-container {
+  margin: 2rem 0;
+  padding: 1.5rem 3.5rem;
+  background-color: color-mix(in srgb, var(--navbar-col) 50%, transparent);
+  border-radius: 0.5rem;
+  border: 1px solid var(--navbar-border-col);
+  position: relative;
+}
+
+.amazon-affiliate-container .affiliate-disclaimer {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.amazon-affiliate-container .affiliate-disclaimer small {
+  color: var(--mid-col);
+  font-size: 0.85rem;
+}
+
+.amazon-affiliate-container .amazon-product-display {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.amazon-affiliate-container .product-nav-btn {
+  background: none;
+  border: none;
+  color: var(--text-col);
+  padding: 0.5rem;
+  cursor: pointer;
+  transition: opacity 0.3s, transform 0.2s;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+}
+
+.amazon-affiliate-container .product-nav-prev {
+  left: 0;
+}
+
+.amazon-affiliate-container .product-nav-next {
+  right: 0;
+}
+
+.amazon-affiliate-container .product-nav-btn:hover {
+  opacity: 0.7;
+}
+
+.amazon-affiliate-container .product-nav-btn:active {
+  transform: translateY(-50%) scale(0.9);
+}
+
+.amazon-affiliate-container .product-nav-btn svg {
+  width: 2rem;
+  height: 2rem;
+  display: block;
+}
+
+.amazon-affiliate-container .product-image {
+  flex: 0 0 auto;
+}
+
+.amazon-affiliate-container .product-image img {
+  max-width: 12.5rem;
+  max-height: 12.5rem;
+  object-fit: contain;
+  border-radius: 0.25rem;
+}
+
+.amazon-affiliate-container .product-details {
+  flex: 1 1 18.75rem;
+}
+
+.amazon-affiliate-container .product-details h4 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+
+.amazon-affiliate-container .product-details h4 a {
+  text-decoration: none;
+  color: var(--link-col);
+}
+
+.amazon-affiliate-container .product-details h4 a:hover {
+  color: var(--hover-col);
+}
+
+.amazon-affiliate-container .product-link {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background-color: var(--link-col);
+  color: var(--page-col);
+  text-decoration: none;
+  border-radius: 0.25rem;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.amazon-affiliate-container .product-link:hover {
+  background-color: var(--hover-col);
+  color: var(--page-col);
+  text-decoration: none;
+}
+
+.amazon-affiliate-container .product-tags {
+  margin-top: 0.75rem;
+}
+
+.amazon-affiliate-container .product-tags small {
+  color: var(--mid-col);
+}
+
+.amazon-affiliate-container .product-tag {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  background-color: color-mix(in srgb, var(--navbar-col) 70%, transparent);
+  border-radius: 0.1875rem;
+  margin-right: 0.3rem;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .amazon-affiliate-container .amazon-product-display {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .amazon-affiliate-container .product-image img {
+    margin: 0 auto;
+  }
+}
