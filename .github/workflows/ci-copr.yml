@@ -44,7 +44,7 @@ jobs:
     if:
       github.event_name == 'release' &&
       startsWith(github.repository, 'LizardByte/') &&
-      github.event.release.prerelease == false
+      github.event.release.prerelease == true
     needs:
       - call-copr-ci
     permissions:
