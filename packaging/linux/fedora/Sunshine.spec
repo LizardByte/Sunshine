@@ -161,9 +161,9 @@ function install_cuda() {
     --toolkitpath="%{cuda_dir}"
   rm "%{_builddir}/cuda.run"
 
-  # we need to patch math_functions.h on fedora 42
+  # we need to patch math_functions.h on fedora 42+
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
-  if [ "%{?fedora}" -eq 42 ]; then
+  if [ "%{?fedora}" -ge 42 ]; then
     echo "Original math_functions.h:"
     find "%{cuda_dir}" -name math_functions.h -exec cat {} \;
 

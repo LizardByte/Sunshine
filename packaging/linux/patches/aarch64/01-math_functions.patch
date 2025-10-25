@@ -1,6 +1,24 @@
 diff '--color=auto' -ur a/cuda/targets/sbsa-linux/include/crt/math_functions.h b/cuda/targets/sbsa-linux/include/crt/math_functions.h
 --- a/cuda/targets/sbsa-linux/include/crt/math_functions.h	2024-08-23 00:25:39.000000000 +0200
 +++ b/cuda/targets/sbsa-linux/include/crt/math_functions.h	2025-02-17 01:19:44.270292640 +0100
+@@ -594,7 +594,7 @@
+  *
+  * \note_accuracy_double
+  */
+-extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double                 rsqrt(double x);
++extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double                 rsqrt(double x) noexcept (true);
+
+ /**
+  * \ingroup CUDA_MATH_SINGLE
+@@ -618,7 +618,7 @@
+  *
+  * \note_accuracy_single
+  */
+-extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float                  rsqrtf(float x);
++extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float                  rsqrtf(float x) noexcept (true);
+
+ #if defined(__QNX__) && !defined(_LIBCPP_VERSION)
+ namespace std {
 @@ -2553,7 +2553,7 @@
   *
   * \note_accuracy_double
@@ -37,3 +55,35 @@ diff '--color=auto' -ur a/cuda/targets/sbsa-linux/include/crt/math_functions.h b
  /**
   * \ingroup CUDA_MATH_DOUBLE
   * \brief  Calculate the sine and cosine of the first input argument
+@@ -5982,13 +5982,13 @@
+ #pragma warning (disable : 4211)
+
+ #endif /* _WIN32 */
+
+-__func__(double rsqrt(double a));
++__func__(double rsqrt(double a) noexcept (true));
+
+ __func__(double rcbrt(double a));
+
+-__func__(double sinpi(double a));
++__func__(double sinpi(double a) noexcept (true));
+
+-__func__(double cospi(double a));
++__func__(double cospi(double a) noexcept (true));
+
+ __func__(void sincospi(double a, double *sptr, double *cptr));
+@@ -6004,10 +6004,10 @@
+ __func__(double erfcx(double a));
+
+-__func__(float rsqrtf(float a));
++__func__(float rsqrtf(float a) noexcept (true));
+
+ __func__(float rcbrtf(float a));
+
+-__func__(float sinpif(float a));
++__func__(float sinpif(float a) noexcept (true));
+
+-__func__(float cospif(float a));
++__func__(float cospif(float a) noexcept (true));
+
+ __func__(void sincospif(float a, float *sptr, float *cptr));
