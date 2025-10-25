@@ -9,7 +9,7 @@
   },
   "type": "module",
   "dependencies": {
-    "@lizardbyte/shared-web": "2025.922.181114",
+    "@lizardbyte/shared-web": "2025.1014.124946",
     "vue": "3.5.22",
     "vue-i18n": "11.1.12"
   },
