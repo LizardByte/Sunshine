@@ -55,3 +55,35 @@ diff '--color=auto' -ur a/cuda/targets/x86_64-linux/include/crt/math_functions.h
  /**
   * \ingroup CUDA_MATH_DOUBLE
   * \brief  Calculate the sine and cosine of the first input argument
+@@ -5982,13 +5982,13 @@
+ #pragma warning (disable : 4211)
+
+ #endif /* _WIN32 */
+
+-__func__(double rsqrt(double a));
++__func__(double rsqrt(double a) noexcept (true));
+
+ __func__(double rcbrt(double a));
+
+-__func__(double sinpi(double a));
++__func__(double sinpi(double a) noexcept (true));
+
+-__func__(double cospi(double a));
++__func__(double cospi(double a) noexcept (true));
+
+ __func__(void sincospi(double a, double *sptr, double *cptr));
+@@ -6004,10 +6004,10 @@
+ __func__(double erfcx(double a));
+
+-__func__(float rsqrtf(float a));
++__func__(float rsqrtf(float a) noexcept (true));
+
+ __func__(float rcbrtf(float a));
+
+-__func__(float sinpif(float a));
++__func__(float sinpif(float a) noexcept (true));
+
+-__func__(float cospif(float a));
++__func__(float cospif(float a) noexcept (true));
+
+ __func__(void sincospif(float a, float *sptr, float *cptr));
