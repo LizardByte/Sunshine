@@ -32,7 +32,7 @@ INSTANTIATE_TEST_SUITE_P(
     &video::amdvce,
     &video::quicksync,
 #endif
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD__)
     &video::vaapi,
 #endif
 #ifdef __APPLE__

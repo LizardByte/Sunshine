@@ -331,7 +331,7 @@
           <div class="form-text" v-if="platform === 'windows'"><b>{{ $t('apps.env_qres_example') }}</b>
             <pre>cmd /C &lt;{{ $t('apps.env_qres_path') }}&gt;\QRes.exe /X:%SUNSHINE_CLIENT_WIDTH% /Y:%SUNSHINE_CLIENT_HEIGHT% /R:%SUNSHINE_CLIENT_FPS%</pre>
           </div>
-          <div class="form-text" v-else-if="platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
+          <div class="form-text" v-else-if="platform === 'freebsd' || platform === 'linux'"><b>{{ $t('apps.env_xrandr_example') }}</b>
             <pre>sh -c "xrandr --output HDMI-1 --mode \"${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT}\" --rate ${SUNSHINE_CLIENT_FPS}"</pre>
           </div>
           <div class="form-text" v-else-if="platform === 'macos'"><b>{{ $t('apps.env_displayplacer_example') }}</b>
@@ -442,8 +442,8 @@
         if (resp) {
           fetch("./api/apps/" + id, {
             method: "DELETE",
-            headers: { 
-              "Content-Type": "application/json" 
+            headers: {
+              "Content-Type": "application/json"
             },
           }).then((r) => {
             if (r.status === 200) document.location.reload();

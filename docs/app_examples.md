@@ -26,6 +26,14 @@ and applications to Sunshine.
 > process is killed.
 
 @tabs{
+  @tab{FreeBSD | <!-- -->
+    \| Field                        \| Value                                                \|
+    \|------------------------------\|------------------------------------------------------\|
+    \| Application Name             \| @code{}Steam Big Picture@endcode                     \|
+    \| Command Preporations -> Undo \| @code{}setsid steam steam://close/bigpicture@endcode \|
+    \| Detached Commands            \| @code{}setsid steam steam://open/bigpicture@endcode  \|
+    \| Image                        \| @code{}steam.png@endcode                             \|
+  }
   @tab{Linux | <!-- -->
     \| Field                        \| Value                                                \|
     \|------------------------------\|------------------------------------------------------\|
@@ -97,6 +105,12 @@ and applications to Sunshine.
 #### URI
 
 @tabs{
+  @tab{FreeBSD | <!-- -->
+    \| Field             \| Value                                                \|
+    \|-------------------\|------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                        \|
+    \| Detached Commands \| @code{}setsid steam steam://rungameid/464920@endcode \|
+  }
   @tab{Linux | <!-- -->
     \| Field             \| Value                                                \|
     \|-------------------\|------------------------------------------------------\|
@@ -119,6 +133,13 @@ and applications to Sunshine.
 
 #### Binary (w/ working directory
 @tabs{
+  @tab{FreeBSD | <!-- -->
+    \| Field             \| Value                                                        \|
+    \|-------------------\|--------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                \|
+    \| Command           \| @code{}MarsSteam@endcode                                     \|
+    \| Working Directory \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+  }
   @tab{Linux | <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
@@ -144,6 +165,12 @@ and applications to Sunshine.
 
 #### Binary (w/o working directory)
 @tabs{
+  @tab{FreeBSD | <!-- -->
+    \| Field             \| Value                                                                  \|
+    \|-------------------\|------------------------------------------------------------------------\|
+    \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
+    \| Command           \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+  }
   @tab{Linux | <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
