@@ -12,9 +12,6 @@ on:
       release_version:
         required: true
         type: string
-    secrets:
-      CODECOV_TOKEN:
-        required: false
 
 jobs:
   build_windows:
@@ -258,7 +255,6 @@ jobs:
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ inputs.release_version }}
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           COMMIT: ${{ inputs.release_commit }}
         run: |
           mkdir -p build
