@@ -118,6 +118,11 @@ jobs:
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
+
+  bundle-analysis:
+    name: Bundle Analysis
+    needs: release-setup
+    uses: ./.github/workflows/ci-bundle.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
