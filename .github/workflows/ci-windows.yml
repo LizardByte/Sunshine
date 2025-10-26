@@ -161,6 +161,7 @@ jobs:
           # dependencies
           dependencies=(
             "git"
+            "mingw-w64-${TOOLCHAIN}-boost"
             "mingw-w64-${TOOLCHAIN}-cmake"
             "mingw-w64-${TOOLCHAIN}-cppwinrt"
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
