@@ -7,6 +7,36 @@ include(dependencies/Boost_Sunshine)
 # submodules
 # moonlight common library
 set(ENET_NO_INSTALL ON CACHE BOOL "Don't install any libraries built for enet")
+
+# Apply FreeBSD patch to ENet if on FreeBSD
+if(FREEBSD)
+    set(ENET_PATCH_FILE "${CMAKE_SOURCE_DIR}/patches/enet-freebsd-support.patch")
+    set(ENET_SOURCE_FILE "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/unix.c")
+    
+    # Check if patch needs to be applied
+    execute_process(
+        COMMAND patch -p0 -N --dry-run -i ${ENET_PATCH_FILE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet
+        RESULT_VARIABLE PATCH_DRY_RUN_RESULT
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+    
+    # Apply patch if it hasn't been applied yet
+    if(PATCH_DRY_RUN_RESULT EQUAL 0)
+        message(STATUS "Applying FreeBSD patch to ENet")
+        execute_process(
+            COMMAND patch -p0 -N -i ${ENET_PATCH_FILE}
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet
+            RESULT_VARIABLE PATCH_RESULT
+        )
+        
+        if(NOT PATCH_RESULT EQUAL 0)
+            message(FATAL_ERROR "Failed to apply FreeBSD patch to ENet")
+        endif()
+    endif()
+endif()
+
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet")
 
 # web server

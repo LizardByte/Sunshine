@@ -1,8 +1,8 @@
 diff --git a/unix.c b/unix.c
-index 1234567..abcdefg 100644
+index 3d57e9d..c2318ca 100644
 --- a/unix.c
 +++ b/unix.c
-@@ -373,6 +373,14 @@ enet_socket_create (ENetSocketType type, int af)
+@@ -373,6 +373,14 @@ enet_socket_create (int af, ENetSocketType type)
      }
  #endif
  
