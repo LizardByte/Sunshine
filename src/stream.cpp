@@ -8,6 +8,11 @@
 #include <future>
 #include <queue>
 
+#ifdef __FreeBSD__
+  #include <netinet/in.h>
+  #include <sys/socket.h>
+#endif
+
 // lib includes
 #include <boost/endian/arithmetic.hpp>
 #include <openssl/err.h>
@@ -519,21 +524,11 @@ namespace stream {
       // Use the local address from the control connection as the source address
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
-
-      // TODO: delete this debug log
-      BOOST_LOG(debug) << "Raw localAddress.address: family=" << peer->localAddress.address.ss_family
-                       << " size=" << peer->localAddress.addressLength
-                       << " data=" << util::hex_vec(std::string_view {(char *) &peer->localAddress.address, static_cast<long long unsigned int>(peer->localAddress.addressLength)});
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
       if (local_address.empty()) {
         BOOST_LOG(warning) << "Couldn't get local address for control connection"sv;
       }
-      try {
-        session_p->localAddress = boost::asio::ip::make_address(local_address);
-      } catch (const boost::system::system_error &e) {
-        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
-        throw;
-      }
+      session_p->localAddress = boost::asio::ip::make_address(local_address);
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
@@ -1722,6 +1717,23 @@ namespace stream {
       return -1;
     }
 
+#ifdef __FreeBSD__
+    // Enable IP_RECVDSTADDR for FreeBSD to receive destination address for IPv4
+    {
+      int on = 1;
+      if (setsockopt(ctx.video_sock.native_handle(), IPPROTO_IP, IP_RECVDSTADDR, &on, sizeof(on)) < 0) {
+        BOOST_LOG(warning) << "Failed to set IP_RECVDSTADDR on video socket";
+      }
+    }
+    // Enable IPV6_RECVPKTINFO for IPv6
+    if (address_family == net::af_e::BOTH) {
+      int on = 1;
+      if (setsockopt(ctx.video_sock.native_handle(), IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) < 0) {
+        BOOST_LOG(warning) << "Failed to set IPV6_RECVPKTINFO on video socket";
+      }
+    }
+#endif
+
     // Set video socket send buffer size (SO_SENDBUF) to 1MB
     try {
       ctx.video_sock.set_option(boost::asio::socket_base::send_buffer_size(1024 * 1024));
@@ -1742,6 +1754,23 @@ namespace stream {
 
       return -1;
     }
+
+#ifdef __FreeBSD__
+    // Enable IP_RECVDSTADDR for FreeBSD to receive destination address for IPv4
+    {
+      int on = 1;
+      if (setsockopt(ctx.audio_sock.native_handle(), IPPROTO_IP, IP_RECVDSTADDR, &on, sizeof(on)) < 0) {
+        BOOST_LOG(warning) << "Failed to set IP_RECVDSTADDR on audio socket";
+      }
+    }
+    // Enable IPV6_RECVPKTINFO for IPv6
+    if (address_family == net::af_e::BOTH) {
+      int on = 1;
+      if (setsockopt(ctx.audio_sock.native_handle(), IPPROTO_IPV6, IPV6_RECVPKTINFO, &on, sizeof(on)) < 0) {
+        BOOST_LOG(warning) << "Failed to set IPV6_RECVPKTINFO on audio socket";
+      }
+    }
+#endif
 
     ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
     if (ec) {

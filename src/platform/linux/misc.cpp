@@ -39,9 +39,6 @@
   #include <netinet/in.h>
   #include <sys/socket.h>
   // Define constants that are missing in FreeBSD
-  #ifndef IP_PKTINFO  // packet info for IPv4
-    #define IP_PKTINFO IP_RECVDSTADDR
-  #endif
   #ifndef SOL_IP  // socket level for IPv4
     #define SOL_IP IPPROTO_IP
   #endif
@@ -51,12 +48,6 @@
   #ifndef SO_PRIORITY  // socket option for priority, disabled for FreeBSD
     #define SO_PRIORITY -1
   #endif
-// Define in_pktinfo structure for IPv4 packet info
-struct in_pktinfo {
-  struct in_addr ipi_addr;
-  struct in_addr ipi_spec_dst;
-  int ipi_ifindex;
-};
 #endif
 
 #ifdef __GNUC__
@@ -401,7 +392,11 @@ namespace platf {
     }
 
     union {
+#ifdef __FreeBSD__
+      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#else
       char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#endif
       struct cmsghdr alignment;
     } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
 
@@ -427,6 +422,18 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
+#ifdef __FreeBSD__
+      // FreeBSD uses IP_SENDSRCADDR instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr srcAddr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(srcAddr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(srcAddr));
+      memcpy(CMSG_DATA(pktinfo_cm), &srcAddr, sizeof(srcAddr));
+#else
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -439,6 +446,7 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#endif
     }
 
     auto const max_iovs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
@@ -608,7 +616,11 @@ namespace platf {
     }
 
     union {
+#ifdef __FreeBSD__
+      char buf[std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#else
       char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#endif
       struct cmsghdr alignment;
     } cmbuf;
 
@@ -632,6 +644,18 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
+#ifdef __FreeBSD__
+      // FreeBSD uses IP_SENDSRCADDR instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr srcAddr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(srcAddr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(srcAddr));
+      memcpy(CMSG_DATA(pktinfo_cm), &srcAddr, sizeof(srcAddr));
+#else
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -644,6 +668,7 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#endif
     }
 
     struct iovec iovs[2];
