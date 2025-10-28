@@ -42,6 +42,21 @@ See [Docker](../DOCKER_README.md) for more information.
    ```sh
    sudo pkg install ./Sunshine-FreeBSD-14.3-{arch}.pkg
    ```
+
+#### Additional Requirements
+
+For gaming on FreeBSD, you'll need to install additional packages:
+
+**For Steam gaming:**
+```sh
+sudo pkg install linux-steam-utils
+```
+
+**For NVIDIA GPU support:**
+```sh
+sudo pkg install nvidia-driver
+```
+
 ##### Uninstall
 ```sh
 sudo pkg delete Sunshine
