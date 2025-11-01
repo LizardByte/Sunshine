@@ -19,7 +19,7 @@ jobs:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       NODE_VERSION: "20"
-      PLATFORM_VERSION: "23.08"
+      PLATFORM_VERSION: "24.08"
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
