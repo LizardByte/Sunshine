@@ -178,8 +178,8 @@ TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
 
   int result = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
 
-  // On systems with macOS 14.2+, this should succeed
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  // On systems with macOS 14.0+, this should succeed
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     EXPECT_EQ(result, 0);
   } else {
@@ -197,7 +197,7 @@ TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
 TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Test with minimum values
     int result1 = [avAudio initializeSystemTapContext:8000 frameSize:64 channels:1];
@@ -218,7 +218,7 @@ TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
 TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Initialize context first
     int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
@@ -251,7 +251,7 @@ TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
 TEST_F(AVAudioTest, CleanupSystemTapContext) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Test cleanup without initialization (should not crash)
     [avAudio cleanupSystemTapContext:nil];  // Should be safe to call
@@ -287,7 +287,7 @@ TEST_F(AVAudioTest, CleanupSystemTapContext) {
 TEST_F(AVAudioTest, CoreAudioTapMuteBehavior) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Initialize context first
     int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
@@ -298,8 +298,8 @@ TEST_F(AVAudioTest, CoreAudioTapMuteBehavior) {
     CATapDescription *mutedTap = [avAudio createSystemTapDescriptionForChannels:2];
     if (mutedTap) {
       EXPECT_NE(mutedTap, nil);
-      // On macOS 14.2+, we should be able to check the mute behavior
-      if (@available(macOS 14.2, *)) {
+      // On macOS 14.0+, we should be able to check the mute behavior
+      if (@available(macOS 14.0, *)) {
         EXPECT_EQ(mutedTap.muteBehavior, CATapMuted);
       }
       [mutedTap release];
@@ -310,8 +310,8 @@ TEST_F(AVAudioTest, CoreAudioTapMuteBehavior) {
     CATapDescription *unmutedTap = [avAudio createSystemTapDescriptionForChannels:2];
     if (unmutedTap) {
       EXPECT_NE(unmutedTap, nil);
-      // On macOS 14.2+, we should be able to check the mute behavior
-      if (@available(macOS 14.2, *)) {
+      // On macOS 14.0+, we should be able to check the mute behavior
+      if (@available(macOS 14.0, *)) {
         EXPECT_EQ(unmutedTap.muteBehavior, CATapUnmuted);
       }
       [unmutedTap release];
@@ -356,7 +356,7 @@ TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
 
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Test initialization with the parameterized configuration
     int initResult = [avAudio initializeSystemTapContext:params.sampleRate
@@ -394,7 +394,7 @@ TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
 TEST_F(AVAudioTest, CleanupSystemTapContextWithTapDescription) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
-  NSOperatingSystemVersion minVersion = {14, 2, 0};
+  NSOperatingSystemVersion minVersion = {14, 0, 0};
   if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
     // Initialize system tap context
     int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];

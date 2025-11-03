@@ -4,7 +4,7 @@
  *
  * This header defines the AVAudio class which provides distinct audio capture methods:
  * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
- * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
+ * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.0+)
  *
  * The system-wide audio tap allows capturing audio from all applications and system sounds,
  * while microphone capture focuses on input from physical or virtual microphone devices.
@@ -65,7 +65,7 @@ typedef struct {
 /**
  * @brief Core Audio capture class for macOS audio input and system-wide audio tapping.
  * Provides functionality for both microphone capture via AVFoundation and system-wide
- * audio capture via Core Audio taps (requires macOS 14.2+).
+ * audio capture via Core Audio taps (requires macOS 14.0+).
  */
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
@@ -115,7 +115,7 @@ typedef struct {
 
 /**
  * @brief Sets up system-wide audio tap for capturing all system audio.
- * Requires macOS 14.2+ and appropriate permissions.
+ * Requires macOS 14.0+ and appropriate permissions.
  * @param sampleRate Target sample rate in Hz
  * @param frameSize Number of frames per buffer
  * @param channels Number of audio channels

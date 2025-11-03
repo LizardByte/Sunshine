@@ -4,7 +4,7 @@
  *
  * This file implements the AVAudio class which provides two distinct audio capture methods:
  * 1. **Microphone capture** - Uses AVFoundation framework to capture from specific microphone devices
- * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.2+)
+ * 2. **System-wide audio tap** - Uses Core Audio taps to capture all system audio output (macOS 14.0+)
  *
  * The implementation handles format conversion, real-time audio processing, and provides
  * a unified interface for both capture methods through a shared circular buffer.
@@ -542,8 +542,8 @@ namespace platf {
   using namespace std::literals;
 
   // Check macOS version requirement
-  if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 2, 0})]) {
-    BOOST_LOG(error) << "macOS version requirement not met (need 14.2+)"sv;
+  if (![[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:((NSOperatingSystemVersion) {14, 0, 0})]) {
+    BOOST_LOG(error) << "macOS version requirement not met (need 14.0+)"sv;
     return -1;
   }
 
