@@ -66,39 +66,36 @@ namespace platf {
       mic->av_audio_capture.hostAudioEnabled = host_audio_enabled ? YES : NO;
       BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
 
-      // Check if macOS system-wide audio tap is enabled
-      if (config::audio.macos_system_wide_audio_tap) {
+      if (config::audio.sink.empty()) {
+        // Use macOS system-wide audio tap
         BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
         BOOST_LOG(info) << "Sample rate: "sv << sample_rate << ", Frame size: "sv << frame_size << ", Channels: "sv << channels;
+
         if ([mic->av_audio_capture setupSystemTap:sample_rate frameSize:frame_size channels:channels]) {
           BOOST_LOG(error) << "Failed to setup system audio tap."sv;
           return nullptr;
         }
+
         BOOST_LOG(info) << "macOS system audio tap capturing."sv;
-        return mic;
-      }
+      } else {
+        // Use specified macOS audio sink
+        const char *audio_sink = config::audio.sink.c_str();
 
-      // Setup microphone approach
-      const char *audio_sink = "";
+        if ((audio_capture_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:audio_sink]]) == nullptr) {
+          BOOST_LOG(error) << "opening microphone '"sv << audio_sink << "' failed. Please set a valid input source in the Sunshine config."sv;
+          BOOST_LOG(error) << "Available inputs:"sv;
 
-      if (!config::audio.sink.empty()) {
-        audio_sink = config::audio.sink.c_str();
-      }
+          for (NSString *name in [AVAudio microphoneNames]) {
+            BOOST_LOG(error) << "\t"sv << [name UTF8String];
+          }
 
-      if ((audio_capture_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:audio_sink]]) == nullptr) {
-        BOOST_LOG(error) << "opening microphone '"sv << audio_sink << "' failed. Please set a valid input source in the Sunshine config."sv;
-        BOOST_LOG(error) << "Available inputs:"sv;
-
-        for (NSString *name in [AVAudio microphoneNames]) {
-          BOOST_LOG(error) << "\t"sv << [name UTF8String];
+          return nullptr;
         }
 
-        return nullptr;
-      }
-
-      if ([mic->av_audio_capture setupMicrophone:audio_capture_device sampleRate:sample_rate frameSize:frame_size channels:channels]) {
-        BOOST_LOG(error) << "Failed to setup microphone."sv;
-        return nullptr;
+        if ([mic->av_audio_capture setupMicrophone:audio_capture_device sampleRate:sample_rate frameSize:frame_size channels:channels]) {
+          BOOST_LOG(error) << "Failed to setup microphone."sv;
+          return nullptr;
+        }
       }
 
       return mic;

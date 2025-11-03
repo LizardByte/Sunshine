@@ -848,31 +848,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-### macos_system_wide_audio_tap
-
-<table>
-    <tr>
-        <td>Description</td>
-        <td colspan="2">
-            @tip{Overrides Audio Sink settings.} 
-            Toggles the creation of a system-wide audio tap that captures outgoing audio from all processes. 
-            This tap can act as an input in a HAL aggregate device, like a virtual microphone. 
-            @note{Requirement: macOS 14.2 or later.}
-            @attention{macOS Privacy Settings: The user must add Terminal or Sunshine to <strong>Privacy & Security &gt; Screen & System Audio Recording &gt; System Audio Recording Only</strong> in System Settings.}
-        </td>
-    </tr>
-    <tr>
-        <td>Default</td>
-        <td colspan="2">disabled</td>
-    </tr>
-    <tr>
-        <td>Example</td>
-        <td colspan="2">@code{}
-            macos_system_wide_audio_tap = disabled
-            @endcode</td>
-    </tr>
-</table>
-
 ### install_steam_audio_drivers
 
 <table>

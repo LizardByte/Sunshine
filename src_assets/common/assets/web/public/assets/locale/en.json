@@ -249,8 +249,6 @@
     "locale_desc": "The locale used for Sunshine's user interface.",
     "log_path": "Logfile Path",
     "log_path_desc": "The file where the current logs of Sunshine are stored.",
-    "macos_system_wide_audio_tap": "macOS System Audio Recording",
-    "macos_system_wide_audio_tap_desc": "Allow Sunshine to access and record audio from your system audio. Requires macOS 14.2 or later. 'System Audio Recording Only' permission must be granted in System Settings -> Security & Privacy -> Privacy -> Screen and System Audio Recording.",
     "max_bitrate": "Maximum Bitrate",
     "max_bitrate_desc": "The maximum bitrate (in Kbps) that Sunshine will encode the stream at. If set to 0, it will always use the bitrate requested by Moonlight.",
     "minimum_fps_target": "Minimum FPS Target",

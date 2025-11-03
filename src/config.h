@@ -149,7 +149,6 @@ namespace config {
     std::string virtual_sink;  ///< Virtual audio sink for audio routing
     bool stream;  ///< Enable audio streaming to clients
     bool install_steam_drivers;  ///< Install Steam audio drivers for enhanced compatibility
-    bool macos_system_wide_audio_tap;  ///< Enable system-wide audio capture on macOS using Core Audio taps (requires macOS 14.2+)
   };
 
   constexpr int ENCRYPTION_MODE_NEVER = 0;  // Never use video encryption, even if the client supports it
