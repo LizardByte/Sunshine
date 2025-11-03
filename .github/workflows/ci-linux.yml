@@ -28,7 +28,7 @@ jobs:
             dist: 22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@v2025.814.40518
+        uses: LizardByte/actions/actions/more_space@v2025.1028.23217
         with:
           analyze-space-savings: true
           clean-all: true
@@ -58,7 +58,7 @@ jobs:
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -186,7 +186,7 @@ jobs:
         working-directory: build
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install gcovr
-          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
+          ${{ steps.python.outputs.python-path }} -m gcovr --gcov-executable "gcov-${GCC_VERSION}" . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
@@ -198,7 +198,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-Linux-${{ matrix.name }}
           path: |
@@ -207,7 +207,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-Linux-${{ matrix.name }}
           path: artifacts/

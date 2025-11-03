@@ -9,7 +9,28 @@ FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-FROM sunshine-base AS sunshine-build
+FROM sunshine-base AS sunshine-deps
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+# Copy only the build script first for better layer caching
+WORKDIR /build/sunshine/
+COPY --link scripts/linux_build.sh ./scripts/linux_build.sh
+
+# Install dependencies first - this layer will be cached
+RUN <<_DEPS
+#!/bin/bash
+set -e
+chmod +x ./scripts/linux_build.sh
+./scripts/linux_build.sh \
+  --step=deps \
+  --ubuntu-test-repo \
+  --sudo-off
+apt-get clean
+rm -rf /var/lib/apt/lists/*
+_DEPS
+
+FROM sunshine-deps AS sunshine-build
 
 ARG BRANCH
 ARG BUILD_VERSION
@@ -20,25 +41,31 @@ ENV BRANCH=${BRANCH}
 ENV BUILD_VERSION=${BUILD_VERSION}
 ENV COMMIT=${COMMIT}
 
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# copy repository
-WORKDIR /build/sunshine/
+# Now copy the full repository
 COPY --link .. .
 
-# cmake and cpack
+# Configure, validate, build and package
 RUN <<_BUILD
 #!/bin/bash
 set -e
-chmod +x ./scripts/linux_build.sh
 ./scripts/linux_build.sh \
+  --step=cmake \
   --publisher-name='LizardByte' \
   --publisher-website='https://app.lizardbyte.dev' \
   --publisher-issue-url='https://app.lizardbyte.dev/support' \
-  --sudo-off \
-  --ubuntu-test-repo
-apt-get clean
-rm -rf /var/lib/apt/lists/*
+  --sudo-off
+
+./scripts/linux_build.sh \
+  --step=validation \
+  --sudo-off
+
+./scripts/linux_build.sh \
+  --step=build \
+  --sudo-off
+
+./scripts/linux_build.sh \
+  --step=package \
+  --sudo-off
 _BUILD
 
 # run tests

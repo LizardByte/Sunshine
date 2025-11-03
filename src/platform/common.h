@@ -15,7 +15,7 @@
 #include <boost/core/noncopyable.hpp>
 #ifndef _WIN32
   #include <boost/asio.hpp>
-  #include <boost/process.hpp>
+  #include <boost/process/v1.hpp>
 #endif
 
 // local includes
@@ -554,7 +554,7 @@ namespace platf {
   public:
     virtual int set_sink(const std::string &sink) = 0;
 
-    virtual std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, [[maybe_unused]] bool host_audio_enabled) = 0;
+    virtual std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous, [[maybe_unused]] bool host_audio_enabled) = 0;
 
     /**
      * @brief Check if the audio sink is available in the system.

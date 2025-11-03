@@ -1,6 +1,13 @@
 # Edit on github: https://github.com/LizardByte/Sunshine/blob/master/packaging/linux/Arch/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
+## options
+: "${_run_unit_tests:=false}" # if set to true; unit tests will be executed post build; useful in CI
+: "${_support_headless_testing:=false}"
+: "${_use_cuda:=detect}" # nvenc
+
+: "${_commit:=@GITHUB_COMMIT@}"
+
 pkgname='sunshine'
 pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
 pkgrel=1
@@ -33,6 +40,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'which'
 )
 
 makedepends=(
@@ -40,7 +48,6 @@ makedepends=(
   'appstream-glib'
   'cmake'
   'desktop-file-utils'
-  'cuda'
   "gcc${_gcc_version}"
   'git'
   'make'
@@ -49,16 +56,44 @@ makedepends=(
 )
 
 optdepends=(
-  'cuda: Nvidia GPU encoding support'
   'libva-mesa-driver: AMD GPU encoding support'
-  'xorg-server-xvfb: Virtual X server for headless testing'
 )
 
 provides=()
 conflicts=()
 
-source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
+source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=${_commit}")
 sha256sums=('SKIP')
+
+# Options Handling
+if [[ "${_use_cuda::1}" == "d" ]] && pacman -Qi cuda &> /dev/null; then
+  _use_cuda=true
+fi
+
+if [[ "${_use_cuda::1}" == "t" ]]; then
+  optdepends+=(
+    'cuda: Nvidia GPU encoding support'
+  )
+fi
+
+if [[ "${_support_headless_testing::1}" == "t" ]]; then
+  optdepends+=(
+    'xorg-server-xvfb: Virtual X server for headless testing'
+  )
+fi
+
+# Ensure makedepends, checkdepends, optdepends are sorted
+if [ -n "${makedepends+x}" ]; then
+  mapfile -t tmp_array < <(printf '%s\n' "${makedepends[@]}" | sort)
+  makedepends=("${tmp_array[@]}")
+  unset tmp_array
+fi
+
+if [ -n "${optdepends+x}" ]; then
+  mapfile -t tmp_array < <(printf '%s\n' "${optdepends[@]}" | sort)
+  optdepends=("${tmp_array[@]}")
+  unset tmp_array
+fi
 
 prepare() {
     cd "$pkgname"
@@ -68,7 +103,7 @@ prepare() {
 build() {
     export BRANCH="@GITHUB_BRANCH@"
     export BUILD_VERSION="@BUILD_VERSION@"
-    export COMMIT="@GITHUB_COMMIT@"
+    export COMMIT="${_commit}"
 
     export CC="gcc-${_gcc_version}"
     export CXX="g++-${_gcc_version}"
@@ -76,18 +111,41 @@ build() {
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
 
-    cmake \
-        -S "$pkgname" \
-        -B build \
-        -Wno-dev \
-        -D BUILD_DOCS=OFF \
-        -D BUILD_WERROR=ON \
-        -D CMAKE_INSTALL_PREFIX=/usr \
-        -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-        -D SUNSHINE_ASSETS_DIR="share/sunshine" \
-        -D SUNSHINE_PUBLISHER_NAME='LizardByte' \
-        -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
-        -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+    export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
+
+    local _cmake_options=(
+      -S "$pkgname"
+      -B build
+      -Wno-dev
+      -D BUILD_DOCS=OFF
+      -D BUILD_WERROR=ON
+      -D CMAKE_INSTALL_PREFIX=/usr
+      -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine
+      -D SUNSHINE_ASSETS_DIR="share/sunshine"
+      -D SUNSHINE_PUBLISHER_NAME='LizardByte'
+      -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
+      -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+    )
+
+    if [[ "${_use_cuda::1}" != "t" ]]; then
+      _cmake_options+=(-DSUNSHINE_ENABLE_CUDA=OFF -DCUDA_FAIL_ON_MISSING=OFF)
+    else
+      # If cuda has just been installed, its variables will not be available in the environment
+      # therefore, set them manually to the expected values on Arch Linux
+      if [ -z "${CUDA_PATH:-}" ] && pacman -Qi cuda &> /dev/null; then
+        local _cuda_gcc_version
+        _cuda_gcc_version="$(LC_ALL=C pacman -Si cuda | grep -Pom1 '^Depends On\s*:.*\bgcc\K[0-9]+\b')"
+
+        export CUDA_PATH=/opt/cuda
+        export NVCC_CCBIN="/usr/bin/g++-${_cuda_gcc_version}"
+      fi
+    fi
+
+    if [[ "${_run_unit_tests::1}" != "t" ]]; then
+      _cmake_options+=(-DBUILD_TESTS=OFF)
+    fi
+
+    cmake "${_cmake_options[@]}"
 
     appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
@@ -98,13 +156,19 @@ build() {
 }
 
 check() {
-    export CC="gcc-${_gcc_version}"
-    export CXX="g++-${_gcc_version}"
+    cd "${srcdir}/build"
+    ./sunshine --version
 
-    cd "${srcdir}/build/tests"
-    ./test_sunshine --gtest_color=yes
+    if [[ "${_run_unit_tests::1}" == "t" ]]; then
+      export CC="gcc-${_gcc_version}"
+      export CXX="g++-${_gcc_version}"
+
+      cd "${srcdir}/build/tests"
+      ./test_sunshine --gtest_color=yes
+    fi
 }
 
 package() {
+    export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
     make -C build install DESTDIR="$pkgdir"
 }

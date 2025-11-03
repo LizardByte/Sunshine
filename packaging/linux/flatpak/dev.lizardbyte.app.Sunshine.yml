@@ -1,7 +1,7 @@
 ---
 app-id: "@PROJECT_FQDN@"
 runtime: org.freedesktop.Platform
-runtime-version: "23.08"  # requires CUDA >= 12.2
+runtime-version: "24.08"
 sdk: org.freedesktop.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.node20

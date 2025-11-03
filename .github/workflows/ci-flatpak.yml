@@ -19,7 +19,7 @@ jobs:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       NODE_VERSION: "20"
-      PLATFORM_VERSION: "23.08"
+      PLATFORM_VERSION: "24.08"
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -32,7 +32,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@v2025.814.40518
+        uses: LizardByte/actions/actions/more_space@v2025.1028.23217
         with:
           analyze-space-savings: true
           clean-all: true
@@ -44,7 +44,7 @@ jobs:
 
       - name: Setup node
         id: node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -56,7 +56,7 @@ jobs:
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -99,23 +99,19 @@ jobs:
 
       - name: Configure Flatpak Manifest
         env:
-          BRANCH: ${{ github.head_ref }}
+          BRANCH: ${{ github.ref }}
         run: |
           # variables for manifest
-          branch="${{ env.BRANCH }}"
-          build_version=${{ inputs.release_version }}
-          commit=${{ inputs.release_commit }}
+          branch="${BRANCH}"
+          build_version="${{ inputs.release_version }}"
+          commit="${{ inputs.release_commit }}"
+          clone_url="${{ github.event.repository.clone_url }}"
 
-          # check the branch variable
-          if [ -z "$branch" ]
-          then
+          if [ "${{ github.event_name }}" == "push" ]; then
             echo "This is a PUSH event"
-            branch=${{ github.ref_name }}
-            clone_url=${{ github.event.repository.clone_url }}
-          else
-            echo "This is a PR event"
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            branch="${{ github.ref_name }}"
           fi
+
           echo "Branch: ${branch}"
           echo "Commit: ${commit}"
           echo "Clone URL: ${clone_url}"
@@ -207,7 +203,7 @@ jobs:
           tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-Linux-Flatpak-${{ matrix.arch }}
           path: artifacts/

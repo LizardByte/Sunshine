@@ -13,14 +13,15 @@ to a specified directory.
 If you are using the Moonlight Internet Hosting Tool, you can remove it from your system when you migrate to Sunshine.
 To stream over the Internet with Sunshine and a UPnP-capable router, enable the UPnP option in the Sunshine Web UI.
 
-@note{Running Sunshine together with versions of the Moonlight Internet Hosting Tool prior to v5.6 will cause UPnP
-port forwarding to become unreliable. Either uninstall the tool entirely or update it to v5.6 or later.}
+> [!NOTE]
+> Running Sunshine together with versions of the Moonlight Internet Hosting Tool prior to v5.6 will cause UPnP
+> port forwarding to become unreliable. Either uninstall the tool entirely or update it to v5.6 or later.
 
 ## Limitations
 Sunshine does have some limitations, as compared to Nvidia GameStream.
 
 * Automatic game/application list.
-* Changing game settings automatically, to optimize streaming.
+* Changing game settings automatically to optimize streaming.
 
 <div class="section_buttons">
 

@@ -12,9 +12,6 @@ on:
       release_version:
         required: true
         type: string
-    secrets:
-      CODECOV_TOKEN:
-        required: false
 
 jobs:
   build_windows:
@@ -164,6 +161,7 @@ jobs:
           # dependencies
           dependencies=(
             "git"
+            "mingw-w64-${TOOLCHAIN}-boost"
             "mingw-w64-${TOOLCHAIN}-cmake"
             "mingw-w64-${TOOLCHAIN}-cppwinrt"
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
@@ -238,7 +236,7 @@ jobs:
 
       - name: Setup python
         id: setup-python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -258,7 +256,6 @@ jobs:
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
           BUILD_VERSION: ${{ inputs.release_version }}
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
           COMMIT: ${{ inputs.release_commit }}
         run: |
           mkdir -p build
@@ -294,8 +291,7 @@ jobs:
         id: test
         shell: msys2 {0}
         working-directory: build/tests
-        run: |
-          ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
+        run: ./test_sunshine.exe --gtest_color=yes --gtest_output=xml:test_results.xml
 
       - name: Generate gcov report
         id: test_report
@@ -317,7 +313,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-${{ matrix.name }}
           path: |
@@ -340,7 +336,7 @@ jobs:
             a "../artifacts/Sunshine-${{ matrix.name }}-debuginfo.7z" "*.dbg"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-${{ matrix.name }}
           path: artifacts/

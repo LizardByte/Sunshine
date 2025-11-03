@@ -1,0 +1,29 @@
+---
+name: CI-Bundle
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  bundle_analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup node
+        id: node
+        uses: actions/setup-node@v6
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: npm run build

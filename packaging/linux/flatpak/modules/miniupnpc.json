@@ -2,6 +2,7 @@
   "name": "miniupnpc",
   "buildsystem": "cmake-ninja",
   "builddir": true,
+  "subdir": "miniupnpc",
   "config-opts": [
     "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
     "-DUPNPC_BUILD_STATIC=OFF",
@@ -11,15 +12,16 @@
   ],
   "sources": [
     {
-      "url": "https://miniupnp.tuxfamily.org/files/miniupnpc-2.3.3.tar.gz",
-      "sha256": "d52a0afa614ad6c088cc9ddff1ae7d29c8c595ac5fdd321170a05f41e634bd1a",
+      "type": "git",
+      "url": "https://github.com/miniupnp/miniupnp.git",
+      "tag": "miniupnpc_2_3_3",
+      "commit": "bf4215a7574f88aa55859db9db00e3ae58cf42d6",
       "x-checker-data": {
         "type": "anitya",
         "project-id": 1986,
         "stable-only": true,
-        "url-template": "https://miniupnp.tuxfamily.org/files/miniupnpc-$version.tar.gz"
-      },
-      "type": "archive"
+        "tag-template": "miniupnpc_${version0}_${version1}_${version2}"
+      }
     }
   ],
   "cleanup": [

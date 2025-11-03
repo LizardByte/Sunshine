@@ -440,7 +440,7 @@ namespace platf {
         return monitor_name;
       }
 
-      std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+      std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio) override {
         // Sink choice priority:
         // 1. Config sink
         // 2. Last sink swapped to (Usually virtual in this case)

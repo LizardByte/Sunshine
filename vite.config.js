@@ -55,9 +55,10 @@ export default defineConfig({
         ViteEjsPlugin({ header }),
         // The Codecov vite plugin should be after all other plugins
         codecovVitePlugin({
-            enableBundleAnalysis: process.env.CODECOV_TOKEN !== undefined,
+            enableBundleAnalysis: true,
             bundleName: "sunshine",
             uploadToken: process.env.CODECOV_TOKEN,
+            gitService: "github",
         }),
     ],
     root: resolve(assetsSrcPath),
