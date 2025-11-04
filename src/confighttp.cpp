@@ -595,7 +595,7 @@ namespace confighttp {
    *     "Detached command"
    *   ],
    *   "image-path": "Full path to the application image. Must be a png file.",
-   *   "appCoverImg": "URL to game cover image (e.g., from IGDB). Optional, can be null if not available."
+   *   "appCoverImg": "URL to game cover image (e.g., from IGDB). Optional, can be null if not available. Used by Fuji desktop app for game library display."
    * }
    * @endcode
    *
