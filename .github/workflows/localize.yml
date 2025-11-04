@@ -4,13 +4,14 @@ permissions:
   contents: read
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/localize.yml'
-      - 'src/**'
-      - 'locale/sunshine.po'
+  # Disabled - only Windows builds needed
+  # push:
+  #   branches:
+  #     - master
+  #   paths:
+  #     - '.github/workflows/localize.yml'
+  #     - 'src/**'
+  #     - 'locale/sunshine.po'
   workflow_dispatch:
 
 env:

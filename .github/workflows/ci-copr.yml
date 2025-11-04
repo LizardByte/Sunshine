@@ -4,10 +4,11 @@ permissions:
   contents: read
 
 on:
-  release:
-    types:
-      - prereleased
-      - released
+  # Disabled - only Windows builds needed
+  # release:
+  #   types:
+  #     - prereleased
+  #     - released
   workflow_call:
     secrets:
       COPR_BETA_WEBHOOK_TOKEN:

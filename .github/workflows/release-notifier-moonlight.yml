@@ -3,9 +3,11 @@ name: Release Notifications (Moonlight)
 permissions: {}
 
 on:
-  release:
-    types:
-      - released  # this triggers when a release is published, but does not include prereleases or drafts
+  # Disabled - only Windows builds needed
+  # release:
+  #   types:
+  #     - released  # this triggers when a release is published, but does not include prereleases or drafts
+  workflow_dispatch:
 
 jobs:
   discord:
