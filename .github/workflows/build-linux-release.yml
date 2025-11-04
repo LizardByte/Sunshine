@@ -2,9 +2,10 @@ name: Build Linux Release
 
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v*'
+  # Disabled - only Windows builds needed
+  # push:
+  #   tags:
+  #     - 'v*'
 
 permissions:
   contents: write
