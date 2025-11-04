@@ -594,7 +594,8 @@ namespace confighttp {
    *   "detached": [
    *     "Detached command"
    *   ],
-   *   "image-path": "Full path to the application image. Must be a png file."
+   *   "image-path": "Full path to the application image. Must be a png file.",
+   *   "appCoverImg": "URL to game cover image (e.g., from IGDB). Optional, can be null if not available."
    * }
    * @endcode
    *
