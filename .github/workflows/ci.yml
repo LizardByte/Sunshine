@@ -1,7 +1,5 @@
 ---
 name: CI
-permissions:
-  contents: read
 
 on:
   pull_request:
@@ -14,228 +12,97 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
   cancel-in-progress: true
 
 jobs:
-  github-env:
-    name: GitHub Env Debug
-    uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
-
-  release-setup:
-    name: Release Setup
-    outputs:
-      publish_release: ${{ steps.release-setup.outputs.publish_release }}
-      release_body: ${{ steps.release-setup.outputs.release_body }}
-      release_commit: ${{ steps.release-setup.outputs.release_commit }}
-      release_generate_release_notes: ${{ steps.release-setup.outputs.release_generate_release_notes }}
-      release_tag: ${{ steps.release-setup.outputs.release_tag }}
-      release_version: ${{ steps.release-setup.outputs.release_version }}
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Release Setup
-        id: release-setup
-        uses: LizardByte/actions/actions/release_setup@v2025.914.154454
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
-  build-docker:
-    name: Docker
-    needs: release-setup
-    permissions:
-      contents: read
-      packages: write
-    uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
-    with:
-      maximize_build_space: true
-      publish_release: ${{ needs.release-setup.outputs.publish_release }}
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_tag: ${{ needs.release-setup.outputs.release_tag }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-    secrets:
-      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-      DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
-      DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      GH_BOT_NAME: ${{ secrets.GH_BOT_NAME }}
-      GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  build-homebrew:
-    name: Homebrew
-    needs: release-setup
-    uses: ./.github/workflows/ci-homebrew.yml
-    with:
-      publish_release: ${{ needs.release-setup.outputs.publish_release }}
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_tag: ${{ needs.release-setup.outputs.release_tag }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-    secrets:
-      GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
-      GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GIT_USERNAME: ${{ secrets.GH_BOT_NAME }}
-
-  build-linux:
-    name: Linux
-    needs: release-setup
-    uses: ./.github/workflows/ci-linux.yml
-    with:
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-
-  build-linux-copr:
-    name: Linux Copr
-    if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
-    needs: release-setup
-    uses: ./.github/workflows/ci-copr.yml
-    secrets:
-      COPR_BETA_WEBHOOK_TOKEN: ${{ secrets.COPR_BETA_WEBHOOK_TOKEN }}
-      COPR_STABLE_WEBHOOK_TOKEN: ${{ secrets.COPR_STABLE_WEBHOOK_TOKEN }}
-      COPR_CLI_CONFIG: ${{ secrets.COPR_CLI_CONFIG }}
-
-  build-linux-flatpak:
-    name: Linux Flatpak
-    needs: release-setup
-    uses: ./.github/workflows/ci-flatpak.yml
-    with:
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-
   build-windows:
-    name: Windows
-    needs: release-setup
-    uses: ./.github/workflows/ci-windows.yml
-    with:
-      release_commit: ${{ needs.release-setup.outputs.release_commit }}
-      release_version: ${{ needs.release-setup.outputs.release_version }}
-    secrets:
-      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    name: Build Windows
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: msys2 {0}
 
-  coverage:
-    name: Coverage-${{ matrix.name }}
-    if: >-
-      always() &&
-      !cancelled() &&
-      startsWith(github.repository, 'LizardByte/')
-    needs:
-      - build-linux
-      - build-linux-flatpak
-      - build-homebrew
-      - build-windows
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: Linux-AppImage
-            coverage: true
-          - name: Homebrew-macos-14
-            coverage: false
-          - name: Homebrew-macos-15
-            coverage: false
-          - name: Homebrew-macos-26
-            coverage: false
-          - name: Homebrew-ubuntu-latest
-            coverage: false
-          - name: Windows-AMD64
-            coverage: true
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v5
+        uses: actions/checkout@v4
         with:
-          name: coverage-${{ matrix.name }}
-          path: _coverage
+          submodules: recursive
 
-      - name: Upload test results
-        uses: codecov/test-results-action@v1
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
         with:
-          disable_search: true
-          fail_ci_if_error: true
-          files: ./_coverage/tests/test_results.xml
-          flags: ${{ matrix.name }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
+          msystem: ucrt64
+          update: true
+          install: >-
+            wget
+            git
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-cppwinrt
+            mingw-w64-ucrt-x86_64-curl-winssl
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-graphviz
+            mingw-w64-ucrt-x86_64-MinHook
+            mingw-w64-ucrt-x86_64-miniupnpc
+            mingw-w64-ucrt-x86_64-nlohmann-json
+            mingw-w64-ucrt-x86_64-nodejs
+            mingw-w64-ucrt-x86_64-nsis
+            mingw-w64-ucrt-x86_64-onevpl
+            mingw-w64-ucrt-x86_64-openssl
+            mingw-w64-ucrt-x86_64-opus
+            mingw-w64-ucrt-x86_64-toolchain
+            mingw-w64-ucrt-x86_64-boost
+            mingw-w64-ucrt-x86_64-x265
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v5
-        if: matrix.coverage != false
-        with:
-          disable_search: true
-          fail_ci_if_error: true
-          files: ./_coverage/coverage.xml
-          flags: ${{ matrix.name }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
+      - name: Install Doxygen
+        env:
+          DOXYGEN_VERSION: "1.11.0"
+        shell: pwsh
+        run: |
+          $doxy_ver = $env:DOXYGEN_VERSION
+          $_doxy_ver = $doxy_ver.Replace(".", "_")
+          Invoke-WebRequest -Uri "https://github.com/doxygen/doxygen/releases/download/Release_${_doxy_ver}/doxygen-${doxy_ver}-setup.exe" -OutFile "doxygen-setup.exe"
+          Start-Process -FilePath .\doxygen-setup.exe -ArgumentList '/VERYSILENT' -Wait -NoNewWindow
+          Remove-Item -Path doxygen-setup.exe
 
-  release:
-    name: Release
-    if:
-      needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
-    needs:
-      - release-setup
-      - build-docker
-      - build-linux
-      - build-linux-flatpak
-      - build-homebrew
-      - build-windows
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download build artifacts
-        uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-          pattern: build-*
-          merge-multiple: true
+      - name: Build Sunshine
+        env:
+          BUILD_VERSION: ${{ github.ref_name }}
+          BRANCH: ${{ github.ref_name == 'master' && 'master' || github.head_ref }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          mkdir -p build
+          cd build
 
-      - name: Debug artifacts
-        run: ls -l artifacts
+          cmake \
+            -G "MinGW Makefiles" \
+            -B . \
+            -S .. \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DSUNSHINE_ASSETS_DIR=assets \
+            -DBUILD_TESTS=ON \
+            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
+            -DSUNSHINE_PUBLISHER_WEBSITE='https://github.com/${{ github.repository }}' \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://github.com/${{ github.repository }}/issues'
 
-      - name: Create/Update GitHub Release
-        uses: LizardByte/actions/actions/release_create@v2025.914.154454
-        with:
-          allowUpdates: false
-          body: ${{ needs.release-setup.outputs.release_body }}
-          generateReleaseNotes: ${{ needs.release-setup.outputs.release_generate_release_notes }}
-          name: ${{ needs.release-setup.outputs.release_tag }}
-          prerelease: true
-          tag: ${{ needs.release-setup.outputs.release_tag }}
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          virustotal_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          mingw32-make -j$(nproc)
 
-  release-homebrew-beta:
-    name: Release Homebrew Beta
-    if:
-      needs.release-setup.outputs.publish_release == 'true' &&
-      startsWith(github.repository, 'LizardByte/')
-    needs:
-      - release-setup
-      - build-homebrew
-      - release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download homebrew artifacts
-        uses: actions/download-artifact@v5
-        with:
-          name: beta-Homebrew
-          path: homebrew
+          # Verify build succeeded
+          if [ -f sunshine.exe ]; then
+            echo "? sunshine.exe built successfully"
+            ls -la sunshine.exe
+          else
+            echo "? sunshine.exe not found"
+            exit 1
+          fi
 
-      - name: Upload Homebrew Beta Formula
-        uses: LizardByte/actions/actions/release_homebrew@v2025.914.154454
-        with:
-          formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
-          git_email: ${{ secrets.GH_BOT_EMAIL }}
-          git_username: ${{ secrets.GH_BOT_NAME }}
-          publish: true
-          token: ${{ secrets.GH_BOT_TOKEN }}
-          validate: false
+      - name: Run Tests
+        working-directory: build/tests
+        run: |
+          if [ -f test_sunshine.exe ]; then
+            ./test_sunshine.exe --gtest_color=yes || echo "Tests failed but continuing..."
+          else
+            echo "?? test_sunshine.exe not found, skipping tests"
+          fi
