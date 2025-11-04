@@ -179,28 +179,54 @@ jobs:
           path: artifacts/Sunshine-Windows-AMD64-portable.zip
           if-no-files-found: warn
 
+      - name: Get Release Version
+        id: release-version
+        shell: pwsh
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if ("$env:IS_TAG" -eq "true") {
+            # Use tag name if it's a tag push
+            $version = "$env:REF_NAME"
+          } else {
+            # Use commit SHA and date for master pushes
+            $date = Get-Date -Format "yyyyMMdd"
+            $sha = "$env:SHA".Substring(0, 7)
+            $version = "auto-$date-$sha"
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Release version: $version"
+
       - name: Create Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.release-version.outputs.version }}
+          name: Sunshine Windows Build ${{ steps.release-version.outputs.version }}
           files: |
             artifacts/sunshine.exe
             artifacts/Sunshine-*.exe
             artifacts/Sunshine-*.zip
           draft: false
-          prerelease: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/') }}
           generate_release_notes: true
           body: |
             ## Sunshine Fork Windows Build
+
+            **Version:** ${{ steps.release-version.outputs.version }}
+            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.ref_name }}
 
             This release includes:
             - `sunshine.exe` - Raw executable only (for bundling with other apps)
             - `Sunshine-Windows-installer.exe` - Windows installer (recommended for standalone use)
             - `Sunshine-Windows-portable.zip` - CPack portable version
-            - `Sunshine-Windows-portable-raw.zip` - Raw portable bundle with exe + DLLs (for Fuji integration)
+            - `Sunshine-Windows-AMD64-portable.zip` - Raw portable bundle with exe + DLLs (for Fuji integration)
 
             ### For Fuji Integration
-            Use `Sunshine-Windows-portable-raw.zip` which contains:
+            Use `Sunshine-Windows-AMD64-portable.zip` which contains:
             - sunshine.exe
             - Required DLL dependencies
             - Assets directory
@@ -213,7 +239,7 @@ jobs:
             2. Run the installer and follow the prompts
 
             **Option 2: Portable**
-            1. Download `Sunshine-Windows-portable.zip` or `Sunshine-Windows-portable-raw.zip`
+            1. Download `Sunshine-Windows-portable.zip` or `Sunshine-Windows-AMD64-portable.zip`
             2. Extract to your desired location
             3. Run `sunshine.exe`
 
