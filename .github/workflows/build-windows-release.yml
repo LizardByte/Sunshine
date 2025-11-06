@@ -53,9 +53,23 @@ jobs:
 
       - name: Initialize submodules
         run: |
+          echo "📦 Initializing submodules..."
           git submodule update --init --recursive
-          echo "✅ Submodules initialized"
-          ls -la third-party/nvapi-open-source-sdk/ || echo "❌ nvapi submodule missing"
+          echo ""
+          echo "📋 Checking nvapi submodule..."
+          if [ -d "third-party/nvapi-open-source-sdk" ]; then
+            echo "✅ nvapi directory exists"
+            ls -la third-party/nvapi-open-source-sdk/ | head -20
+            if [ -f "third-party/nvapi-open-source-sdk/nvapi.h" ]; then
+              echo "✅ nvapi.h found!"
+            else
+              echo "❌ nvapi.h NOT FOUND"
+              exit 1
+            fi
+          else
+            echo "❌ nvapi directory does not exist"
+            exit 1
+          fi
 
       - name: Install Doxygen
         env:
