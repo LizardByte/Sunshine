@@ -121,13 +121,75 @@ jobs:
             echo "✅ Copied assets directory"
           fi
 
-          # Create portable zip from raw files with the expected name
-          cd ../artifacts/portable
-          zip -r ../Sunshine-Windows-AMD64-portable.zip *
-          cd ../../build
-          echo "✅ Created portable zip"
+          # Also provide just the raw exe separately for easy access (before zipping)
+          if [ -f ../artifacts/portable/sunshine.exe ]; then
+            cp ../artifacts/portable/sunshine.exe ../artifacts/sunshine.exe
+            echo "✅ Copied raw sunshine.exe to artifacts root"
+          fi
 
-          # Now create installer and standard portable via CPack
+          # List all artifacts before signing
+          echo "📦 Artifacts before signing:"
+          ls -la ../artifacts/
+          echo "📦 Portable directory contents:"
+          ls -la ../artifacts/portable/ || true
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "5210c127-e061-4a02-ac25-b335a6342acb"
+            }
+
+      - name: Sign Sunshine binaries with Azure Trusted Signing
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: FujiDesktopSigning
+          certificate-profile-name: FujiDesktopCertificateProfile
+          files-folder: ${{ github.workspace }}/artifacts/portable
+          files-folder-filter: exe,dll
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Sign standalone sunshine.exe
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: FujiDesktopSigning
+          certificate-profile-name: FujiDesktopCertificateProfile
+          files-folder: ${{ github.workspace }}/artifacts
+          files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Create signed portable zip
+        shell: msys2 {0}
+        run: |
+          cd artifacts/portable
+          zip -r ../Sunshine-Windows-AMD64-portable.zip *
+          cd ../..
+          echo "✅ Created signed portable zip"
+
+      - name: Build and sign installer
+        shell: msys2 {0}
+        run: |
+          cd build
+          
+          # Create installer with CPack (using signed binaries from artifacts/portable)
           cpack -G NSIS || echo "NSIS packaging failed, continuing..."
           cpack -G ZIP || echo "ZIP packaging failed, continuing..."
 
@@ -142,17 +204,28 @@ jobs:
             echo "✅ Created CPack portable zip"
           fi
 
-          # Also provide just the raw exe separately for easy access
-          if [ -f ../artifacts/portable/sunshine.exe ]; then
-            cp ../artifacts/portable/sunshine.exe ../artifacts/sunshine.exe
-            echo "✅ Copied raw sunshine.exe to artifacts root"
-          fi
+      - name: Sign installer
+        if: hashFiles('artifacts/Sunshine-Windows-installer.exe') != ''
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: FujiDesktopSigning
+          certificate-profile-name: FujiDesktopCertificateProfile
+          files-folder: ${{ github.workspace }}/artifacts
+          files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
-          # List all artifacts
-          echo "📦 All artifacts created:"
-          ls -la ../artifacts/
-          echo "📦 Portable directory contents:"
-          ls -la ../artifacts/portable/ || true
+      - name: List final artifacts
+        shell: pwsh
+        run: |
+          Write-Host "📦 All signed artifacts:"
+          Get-ChildItem -Path artifacts -Recurse | Select-Object FullName, Length
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
@@ -219,32 +292,34 @@ jobs:
             **Commit:** ${{ github.sha }}
             **Branch:** ${{ github.ref_name }}
 
+            ✅ **All binaries are code-signed with Azure Trusted Signing**
+
             This release includes:
-            - `sunshine.exe` - Raw executable only (for bundling with other apps)
-            - `Sunshine-Windows-installer.exe` - Windows installer (recommended for standalone use)
+            - `sunshine.exe` - Raw executable only (for bundling with other apps) - **SIGNED**
+            - `Sunshine-Windows-installer.exe` - Windows installer (recommended for standalone use) - **SIGNED**
             - `Sunshine-Windows-portable.zip` - CPack portable version
-            - `Sunshine-Windows-AMD64-portable.zip` - Raw portable bundle with exe + DLLs (for Fuji integration)
+            - `Sunshine-Windows-AMD64-portable.zip` - Raw portable bundle with exe + DLLs (for Fuji integration) - **All binaries SIGNED**
 
             ### For Fuji Integration
             Use `Sunshine-Windows-AMD64-portable.zip` which contains:
-            - sunshine.exe
-            - Required DLL dependencies
+            - sunshine.exe (code-signed)
+            - Required DLL dependencies (code-signed)
             - Assets directory
             - No installation needed, just extract and run
 
             ### For Standalone Use
 
             **Option 1: Installer (Recommended)**
-            1. Download `Sunshine-Windows-installer.exe`
+            1. Download `Sunshine-Windows-installer.exe` (code-signed)
             2. Run the installer and follow the prompts
 
             **Option 2: Portable**
             1. Download `Sunshine-Windows-portable.zip` or `Sunshine-Windows-AMD64-portable.zip`
             2. Extract to your desired location
-            3. Run `sunshine.exe`
+            3. Run `sunshine.exe` (code-signed)
 
             **Option 3: Raw Executable**
-            1. Download `sunshine.exe` (requires manual dependency management)
+            1. Download `sunshine.exe` (code-signed, requires manual dependency management)
             2. Place in directory with required DLLs
 
             ### Changes
