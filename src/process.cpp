@@ -24,6 +24,7 @@
 #include "config.h"
 #include "crypto.h"
 #include "display_device.h"
+#include "file_handler.h"
 #include "logging.h"
 #include "platform/common.h"
 #include "process.h"
@@ -147,6 +148,46 @@ namespace proc {
     _app = *iter;
     _app_prep_begin = std::begin(_app.prep_cmds);
     _app_prep_it = _app_prep_begin;
+
+    // Update last_played timestamp to current time (ISO 8601 format)
+    auto now = std::chrono::system_clock::now();
+    auto now_time_t = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_buf;
+#ifdef _WIN32
+    gmtime_s(&tm_buf, &now_time_t);
+#else
+    gmtime_r(&now_time_t, &tm_buf);
+#endif
+    char timestamp[32];
+    std::strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%SZ", &tm_buf);
+    _app.last_played = timestamp;
+    iter->last_played = timestamp;  // Update in the vector too
+    
+    // Save updated timestamp to apps.json file
+    try {
+      std::string content = file_handler::read_file(config::stream.file_apps.c_str());
+      pt::ptree file_tree;
+      std::istringstream stream(content);
+      pt::read_json(stream, file_tree);
+      
+      // Find and update the app in the JSON
+      for (auto &app_node : file_tree.get_child("apps")) {
+        if (app_node.second.get<std::string>("id", "") == std::to_string(app_id)) {
+          app_node.second.put("last_played", timestamp);
+          break;
+        }
+      }
+      
+      // Write back to file
+      std::ostringstream output_stream;
+      pt::write_json(output_stream, file_tree);
+      file_handler::write_file(config::stream.file_apps.c_str(), output_stream.str());
+      
+      BOOST_LOG(debug) << "Updated last_played for app ["sv << _app.name << "] to "sv << timestamp;
+    } catch (const std::exception &e) {
+      BOOST_LOG(warning) << "Failed to update last_played timestamp: "sv << e.what();
+      // Don't fail the launch if we can't update the timestamp
+    }
 
     // Add Stream-specific environment variables
     _env["SUNSHINE_APP_ID"] = std::to_string(_app_id);

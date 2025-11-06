@@ -66,6 +66,7 @@ namespace proc {
     std::string platform;      // "steam", "epic", "gog", etc
     std::string platform_id;   // "570", "Fortnite", etc  
     std::string fuji_game_id;  // "steam_570", "epic_Fortnite"
+    std::string last_played;   // ISO 8601 timestamp of last launch
     
     bool elevated;
     bool auto_detach;
