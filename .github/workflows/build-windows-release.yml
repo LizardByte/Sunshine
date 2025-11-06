@@ -51,6 +51,12 @@ jobs:
             mingw-w64-ucrt-x86_64-boost
             mingw-w64-ucrt-x86_64-x265
 
+      - name: Initialize submodules
+        run: |
+          git submodule update --init --recursive
+          echo "✅ Submodules initialized"
+          ls -la third-party/nvapi-open-source-sdk/ || echo "❌ nvapi submodule missing"
+
       - name: Install Doxygen
         env:
           DOXYGEN_VERSION: "1.11.0"
