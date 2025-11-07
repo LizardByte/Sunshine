@@ -1,0 +1,15 @@
+name: 新手专属 - Sunshine Windows 编译工作流
+on:
+  # 手动触发（推荐新手用这个方式）
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "请输入版本号（比如 0.21.0 或 dev）"
+        required: true
+        type: string
+jobs:
+  build:
+    uses: ./.github/workflows/CI-Windows.yml  # 调用项目原有的 Windows 编译逻辑
+    with:
+      release_commit: ${{ github.sha }}  # 编译当前提交的代码
+      release_version: ${{ github.event.inputs.release_version }}  # 使用输入的版本号
