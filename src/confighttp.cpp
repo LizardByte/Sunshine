@@ -640,6 +640,10 @@ namespace confighttp {
         nlohmann::json newApps = nlohmann::json::array();
         for (size_t i = 0; i < apps_node.size(); ++i) {
           if (i == index) {
+            // Preserve last_played from existing app (source of truth)
+            if (apps_node[i].contains("last_played") && !apps_node[i]["last_played"].is_null()) {
+              input_tree["last_played"] = apps_node[i]["last_played"];
+            }
             newApps.push_back(input_tree);
           } else {
             newApps.push_back(apps_node[i]);
