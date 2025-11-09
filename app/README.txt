@@ -1,0 +1,1 @@
+Carpeta App (interfaz de LegionPlay Cloud).
