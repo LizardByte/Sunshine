@@ -1,309 +1,154 @@
-#ifndef LEGIONPLAY_GAME_DETECTOR_H
-#define LEGIONPLAY_GAME_DETECTOR_H
-// trimmed for brevity
-#endif
-/**
- * @file game-detector.js
- * @brief Módulo frontend para mostrar juegos detectados
+    /**
+ * @file game_detector.h
+ * @brief Módulo de autodetección de juegos instalados
  * 
- * Ubicación: src_assets/common/assets/web/game-detector.js
+ * Detecta juegos de múltiples plataformas:
+ * - Steam
+ * - Epic Games Store
+ * - Xbox Game Pass / Microsoft Store
+ * - EA Desktop / Origin
+ * - Ubisoft Connect
+ * - GOG Galaxy
  */
 
-(function() {
-    'use strict';
+#ifndef SUNSHINE_GAME_DETECTOR_H
+#define SUNSHINE_GAME_DETECTOR_H
 
-    const API_BASE = window.location.origin;
-    const GAME_API = `${API_BASE}/api/games`;
+#include <string>
+#include <vector>
+#include <memory>
+#include <optional>
+#include <functional>
 
-    let detectedGames = [];
-    let selectedPlatform = 'all';
+namespace sunshine {
+namespace games {
 
-    // ===== INICIALIZACIÓN =====
+/**
+ * Estructura que representa un juego detectado
+ */
+struct DetectedGame {
+    std::string id;              // ID único (ej: "steam_271590")
+    std::string name;            // Nombre del juego
+    std::string platform;        // Plataforma (steam, epic, xbox, etc.)
+    std::string executable;      // Ruta completa al ejecutable
+    std::string launch_cmd;      // Comando completo para lanzar
+    std::string icon_path;       // Ruta al ícono (opcional)
+    std::string install_dir;     // Directorio de instalación
+    std::string app_id;          // ID de la plataforma (ej: Steam AppID)
+    bool requires_launcher;      // Si necesita launcher abierto
+};
 
-    async function init() {
-        try {
-            await loadDetectedGames();
-            createGameDetectorUI();
-            console.log('Game detector initialized');
-        } catch (error) {
-            console.error('Failed to initialize game detector:', error);
-        }
-    }
+/**
+ * Clase base para detectores de plataforma
+ */
+class PlatformDetector {
+public:
+    virtual ~PlatformDetector() = default;
+    virtual std::vector<DetectedGame> detect() = 0;
+    virtual std::string get_platform_name() const = 0;
+    virtual bool is_installed() const = 0;
+};
 
-    // ===== API CALLS =====
+/**
+ * Detector para Steam
+ */
+class SteamDetector : public PlatformDetector {
+public:
+    std::vector<DetectedGame> detect() override;
+    std::string get_platform_name() const override { return "steam"; }
+    bool is_installed() const override;
 
-    async function loadDetectedGames() {
-        try {
-            const response = await fetch(`${GAME_API}/detected`);
-            if (!response.ok) throw new Error('Failed to fetch games');
-            detectedGames = await response.json();
-        } catch (error) {
-            console.error('Error loading games:', error);
-            detectedGames = [];
-        }
-    }
+private:
+    std::optional<std::string> get_steam_path();
+    std::vector<std::string> get_library_folders(const std::string& steam_path);
+    std::vector<DetectedGame> parse_acf_files(const std::string& library_path);
+    DetectedGame parse_acf_file(const std::string& acf_path);
+};
 
-    async function loadPlatformGames(platform) {
-        try {
-            const response = await fetch(`${GAME_API}/detected/${platform}`);
-            if (!response.ok) throw new Error('Failed to fetch platform games');
-            detectedGames = await response.json();
-        } catch (error) {
-            console.error('Error loading platform games:', error);
-            detectedGames = [];
-        }
-    }
+/**
+ * Detector para Epic Games Store
+ */
+class EpicDetector : public PlatformDetector {
+public:
+    std::vector<DetectedGame> detect() override;
+    std::string get_platform_name() const override { return "epic"; }
+    bool is_installed() const override;
 
-    async function getAvailablePlatforms() {
-        try {
-            const response = await fetch(`${GAME_API}/platforms`);
-            if (!response.ok) throw new Error('Failed to fetch platforms');
-            return await response.json();
-        } catch (error) {
-            console.error('Error loading platforms:', error);
-            return [];
-        }
-    }
+private:
+    std::optional<std::string> get_epic_manifests_path();
+    DetectedGame parse_manifest(const std::string& manifest_path);
+};
 
-    // ===== UI CREATION =====
+/**
+ * Detector para GOG Galaxy
+ */
+class GOGDetector : public PlatformDetector {
+public:
+    std::vector<DetectedGame> detect() override;
+    std::string get_platform_name() const override { return "gog"; }
+    bool is_installed() const override;
 
-    function createGameDetectorUI() {
-        const container = document.querySelector('.container') || document.body;
-        
-        const section = document.createElement('div');
-        section.className = 'game-detector-section';
-        section.innerHTML = `
-            <div class="game-detector-header">
-                <h2>🎮 Juegos Detectados Automáticamente</h2>
-                <div class="game-detector-controls">
-                    <select id="platform-filter" class="form-control">
-                        <option value="all">Todas las plataformas</option>
-                    </select>
-                    <button id="refresh-games" class="btn btn-primary">
-                        🔄 Refrescar
-                    </button>
-                </div>
-            </div>
-            <div id="games-grid" class="games-grid"></div>
-        `;
+private:
+    std::optional<std::string> get_gog_path();
+    std::vector<DetectedGame> parse_gog_registry();
+};
 
-        container.insertBefore(section, container.firstChild);
+/**
+ * Clase principal del Game Detector
+ */
+class GameDetector {
+public:
+    GameDetector();
+    
+    /**
+     * Detecta todos los juegos instalados en todas las plataformas
+     */
+    std::vector<DetectedGame> detect_all_games();
+    
+    /**
+     * Detecta juegos de una plataforma específica
+     */
+    std::vector<DetectedGame> detect_platform(const std::string& platform);
+    
+    /**
+     * Convierte la lista de juegos a JSON
+     */
+    std::string to_json(const std::vector<DetectedGame>& games);
+    
+    /**
+     * Obtiene las plataformas disponibles
+     */
+    std::vector<std::string> get_available_platforms();
+    
+    /**
+     * Instancia singleton
+     */
+    static GameDetector& instance();
 
-        setupEventListeners();
-        renderGames();
-        loadPlatformFilter();
-    }
+private:
+    std::vector<std::unique_ptr<PlatformDetector>> detectors_;
+    void initialize_detectors();
+};
 
-    async function loadPlatformFilter() {
-        const platforms = await getAvailablePlatforms();
-        const select = document.getElementById('platform-filter');
-        
-        platforms.forEach(platform => {
-            const option = document.createElement('option');
-            option.value = platform;
-            option.textContent = getPlatformName(platform);
-            select.appendChild(option);
-        });
-    }
+/**
+ * Funciones de utilidad para Windows Registry
+ */
+namespace winreg {
+    std::optional<std::string> read_string(const std::string& key, const std::string& value);
+    std::vector<std::string> enumerate_subkeys(const std::string& key);
+}
 
-    function setupEventListeners() {
-        const refreshBtn = document.getElementById('refresh-games');
-        const filter = document.getElementById('platform-filter');
+/**
+ * Funciones de utilidad para archivos
+ */
+namespace fileutil {
+    bool file_exists(const std::string& path);
+    bool directory_exists(const std::string& path);
+    std::vector<std::string> list_files(const std::string& dir, const std::string& pattern);
+    std::string read_file(const std::string& path);
+}
 
-        if (refreshBtn) {
-            refreshBtn.addEventListener('click', async () => {
-                refreshBtn.disabled = true;
-                refreshBtn.textContent = '⏳ Cargando...';
-                
-                if (selectedPlatform === 'all') {
-                    await loadDetectedGames();
-                } else {
-                    await loadPlatformGames(selectedPlatform);
-                }
-                
-                renderGames();
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = '🔄 Refrescar';
-            });
-        }
+} // namespace games
+} // namespace sunshine
 
-        if (filter) {
-            filter.addEventListener('change', async (e) => {
-                selectedPlatform = e.target.value;
-                
-                if (selectedPlatform === 'all') {
-                    await loadDetectedGames();
-                } else {
-                    await loadPlatformGames(selectedPlatform);
-                }
-                
-                renderGames();
-            });
-        }
-    }
-
-    // ===== RENDERING =====
-
-    function renderGames() {
-        const grid = document.getElementById('games-grid');
-        if (!grid) return;
-
-        if (detectedGames.length === 0) {
-            grid.innerHTML = `
-                <div class="no-games">
-                    <p>No se encontraron juegos instalados.</p>
-                    <p>Asegúrate de tener Steam, Epic Games u otra plataforma instalada.</p>
-                </div>
-            `;
-            return;
-        }
-
-        grid.innerHTML = '';
-        
-        detectedGames.forEach(game => {
-            const card = createGameCard(game);
-            grid.appendChild(card);
-        });
-    }
-
-    function createGameCard(game) {
-        const card = document.createElement('div');
-        card.className = 'game-card';
-        card.dataset.gameId = game.id;
-
-        const platformIcon = getPlatformIcon(game.platform);
-        const platformColor = getPlatformColor(game.platform);
-
-        card.innerHTML = `
-            <div class="game-card-header" style="background: ${platformColor}">
-                <span class="platform-badge">${platformIcon} ${game.platform.toUpperCase()}</span>
-            </div>
-            <div class="game-card-body">
-                <h3 class="game-title" title="${escapeHtml(game.name)}">
-                    ${escapeHtml(game.name)}
-                </h3>
-                <div class="game-info">
-                    <small>📁 ${truncatePath(game.install_dir || 'N/A')}</small>
-                </div>
-            </div>
-            <div class="game-card-footer">
-                <button class="btn btn-sm btn-primary launch-game" data-cmd="${escapeHtml(game.launch_cmd)}">
-                    ▶️ Lanzar
-                </button>
-            </div>
-        `;
-
-        const launchBtn = card.querySelector('.launch-game');
-        launchBtn.addEventListener('click', () => launchGame(game));
-
-        return card;
-    }
-
-    // ===== GAME ACTIONS =====
-
-    async function launchGame(game) {
-        try {
-            console.log('Launching game:', game.name);
-            console.log('Command:', game.launch_cmd);
-            
-            // Usar la API de Sunshine para lanzar aplicaciones
-            // Esto depende de cómo Sunshine maneje el lanzamiento de apps
-            
-            showNotification(`Lanzando ${game.name}...`, 'info');
-            
-            // Si el juego tiene un comando de lanzamiento, intentar ejecutarlo
-            if (game.launch_cmd.startsWith('steam://')) {
-                window.location.href = game.launch_cmd;
-            } else {
-                // Para otros juegos, puede requerir integración con la API de Sunshine
-                console.warn('Launch method not implemented for this platform');
-            }
-            
-        } catch (error) {
-            console.error('Failed to launch game:', error);
-            showNotification(`Error al lanzar ${game.name}`, 'error');
-        }
-    }
-
-    // ===== UTILITIES =====
-
-    function getPlatformName(platform) {
-        const names = {
-            'steam': 'Steam',
-            'epic': 'Epic Games',
-            'gog': 'GOG Galaxy',
-            'xbox': 'Xbox Game Pass',
-            'ea': 'EA Desktop',
-            'ubisoft': 'Ubisoft Connect'
-        };
-        return names[platform] || platform;
-    }
-
-    function getPlatformIcon(platform) {
-        const icons = {
-            'steam': '🎮',
-            'epic': '🏛️',
-            'gog': '🌟',
-            'xbox': '🎯',
-            'ea': '⚡',
-            'ubisoft': '🔷'
-        };
-        return icons[platform] || '🎮';
-    }
-
-    function getPlatformColor(platform) {
-        const colors = {
-            'steam': 'linear-gradient(135deg, #1b2838, #2a475e)',
-            'epic': 'linear-gradient(135deg, #0078f2, #00a8ff)',
-            'gog': 'linear-gradient(135deg, #8f2d56, #b94277)',
-            'xbox': 'linear-gradient(135deg, #107c10, #00d800)',
-            'ea': 'linear-gradient(135deg, #ff0000, #cc0000)',
-            'ubisoft': 'linear-gradient(135deg, #0055b8, #0077cc)'
-        };
-        return colors[platform] || 'linear-gradient(135deg, #555, #777)';
-    }
-
-    function truncatePath(path, maxLength = 40) {
-        if (!path || path.length <= maxLength) return path;
-        return '...' + path.slice(-maxLength);
-    }
-
-    function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-
-    function showNotification(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
-        
-        // Crear notificación simple
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.textContent = message;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => notification.classList.add('show'), 100);
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-    }
-
-    // ===== EXPORT =====
-
-    window.GameDetector = {
-        init: init,
-        refresh: loadDetectedGames,
-        getGames: () => detectedGames
-    };
-
-    // Auto-init cuando el DOM esté listo
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
-        init();
-    }
-
-})();
+#endif // SUNSHINE_GAME_DETECTOR_H
