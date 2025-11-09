@@ -1,7 +1,3 @@
-#ifndef LEGIONPLAY_GAME_DETECTOR_H
-#define LEGIONPLAY_GAME_DETECTOR_H
-// trimmed for brevity
-#endif
 /**
  * @file game-detector.js
  * @brief Módulo frontend para mostrar juegos detectados
