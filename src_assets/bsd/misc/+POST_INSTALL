@@ -31,12 +31,13 @@ fi
 # Create devfs rules for persistent permissions
 echo "Creating devfs rules for persistent permissions..."
 DEVFS_RULESET_FILE="/etc/devfs.rules"
+RULESET_NUM=47989
 
 # Check if our rules already exist
-if ! grep -q "[sunshine=10]" "$DEVFS_RULESET_FILE" 2>/dev/null; then
-  cat >> "$DEVFS_RULESET_FILE" << 'EOF'
+if ! grep -q "\[sunshine=$RULESET_NUM\]" "$DEVFS_RULESET_FILE" 2>/dev/null; then
+  cat >> "$DEVFS_RULESET_FILE" << EOF
 
-[sunshine=10]
+[sunshine=$RULESET_NUM]
 add path 'uinput' mode 0660 group input
 EOF
   echo "Devfs rules added to $DEVFS_RULESET_FILE"
@@ -44,13 +45,10 @@ else
   echo "Devfs rules already exist in $DEVFS_RULESET_FILE"
 fi
 
-# Apply the devfs ruleset
-echo "Applying devfs ruleset..."
-if devfs ruleset 10 >/dev/null 2>&1; then
-  devfs rule -s 10 applyset
-  echo "Devfs ruleset applied."
-else
-  echo "Note: Devfs ruleset will be applied on next boot."
+# Apply the devfs ruleset immediately (without waiting for reboot)
+echo "Applying devfs ruleset to current system..."
+if [ -e /dev/uinput ]; then
+  devfs -m /dev rule -s $RULESET_NUM apply
 fi
 
 echo ""
