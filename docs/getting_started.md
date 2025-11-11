@@ -587,7 +587,7 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   The following are known limitations.
 
   * Only X11 and Wayland capture are supported
-  * DualSense5 emulation is limited due to missing uhid features
+  * DualSense/DS5 emulation is not available due to missing uhid features
 
 
 ### HDR Support
