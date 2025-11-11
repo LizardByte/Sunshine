@@ -8,10 +8,10 @@ echo "Cleaning up Sunshine configuration..."
 # Remove devfs rules
 DEVFS_RULESET_FILE="/etc/devfs.rules"
 if [ -f "$DEVFS_RULESET_FILE" ]; then
-  if grep -q "# Sunshine virtual input device rules" "$DEVFS_RULESET_FILE"; then
+  if grep -q "[sunshine=10]" "$DEVFS_RULESET_FILE"; then
     echo "Removing devfs rules from $DEVFS_RULESET_FILE..."
     # Create a temporary file without the Sunshine rules
-    sed '/# Sunshine virtual input device rules/,/^$/d' "$DEVFS_RULESET_FILE" > "$DEVFS_RULESET_FILE.tmp"
+    sed '/[sunshine=10]/,/^$/d' "$DEVFS_RULESET_FILE" > "$DEVFS_RULESET_FILE.tmp"
     mv "$DEVFS_RULESET_FILE.tmp" "$DEVFS_RULESET_FILE"
     echo "Devfs rules removed."
   fi

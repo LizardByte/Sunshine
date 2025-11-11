@@ -33,11 +33,10 @@ echo "Creating devfs rules for persistent permissions..."
 DEVFS_RULESET_FILE="/etc/devfs.rules"
 
 # Check if our rules already exist
-if ! grep -q "# Sunshine virtual input device rules" "$DEVFS_RULESET_FILE" 2>/dev/null; then
+if ! grep -q "[sunshine=10]" "$DEVFS_RULESET_FILE" 2>/dev/null; then
   cat >> "$DEVFS_RULESET_FILE" << 'EOF'
 
-# Sunshine virtual input device rules
-[devfsrules_sunshine=10]
+[sunshine=10]
 add path 'uinput' mode 0660 group input
 EOF
   echo "Devfs rules added to $DEVFS_RULESET_FILE"

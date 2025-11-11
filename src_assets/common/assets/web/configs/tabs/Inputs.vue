@@ -29,7 +29,6 @@ const config = ref(props.config)
 
         <PlatformLayout :platform="platform">
           <template #freebsd>
-            <option value="ds5">{{ $t("config.gamepad_ds5") }}</option>
             <option value="switch">{{ $t("config.gamepad_switch") }}</option>
             <option value="xone">{{ $t("config.gamepad_xone") }}</option>
           </template>
