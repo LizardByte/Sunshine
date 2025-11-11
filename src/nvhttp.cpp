@@ -1069,6 +1069,12 @@ namespace nvhttp {
       if (!proc.fuji_game_id.empty()) {
         app.put("FujiGameID", proc.fuji_game_id);
       }
+      if (!proc.last_played.empty()) {
+        app.put("LastPlayed", proc.last_played);
+      }
+      if (!proc.app_cover_img.empty()) {
+        app.put("AppCoverImg", proc.app_cover_img);
+      }
 
       apps.push_back(std::make_pair("App", std::move(app)));
     }

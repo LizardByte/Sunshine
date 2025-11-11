@@ -642,6 +642,8 @@ namespace proc {
         auto platform = app_node.get_optional<std::string>("platform"s);
         auto platform_id = app_node.get_optional<std::string>("platform_id"s);
         auto fuji_game_id = app_node.get_optional<std::string>("fuji_game_id"s);
+        auto last_played = app_node.get_optional<std::string>("last_played"s);
+        auto app_cover_img = app_node.get_optional<std::string>("appCoverImg"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -721,6 +723,12 @@ namespace proc {
         }
         if (fuji_game_id) {
           ctx.fuji_game_id = *fuji_game_id;
+        }
+        if (last_played) {
+          ctx.last_played = *last_played;
+        }
+        if (app_cover_img) {
+          ctx.app_cover_img = *app_cover_img;
         }
 
         auto possible_ids = calculate_app_id(name, ctx.image_path, i++);

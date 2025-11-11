@@ -67,6 +67,7 @@ namespace proc {
     std::string platform_id;   // "570", "Fortnite", etc  
     std::string fuji_game_id;  // "steam_570", "epic_Fortnite"
     std::string last_played;   // ISO 8601 timestamp of last launch
+    std::string app_cover_img; // URL to game cover image from IGDB
     
     bool elevated;
     bool auto_detach;
