@@ -43,16 +43,6 @@
 #include "src/platform/common.h"
 #include "vaapi.h"
 
-#ifdef __FreeBSD__
-  #ifndef IP_PKTINFO  // Check if in_pktinfo is available (FreeBSD may not have it)
-    #define SUNSHINE_USE_SENDSRCADDR 1  // If not available, we'll use IP_SENDSRCADDR with in_addr instead
-  #endif
-
-  #ifndef SO_PRIORITY  // socket option for priority, disabled for FreeBSD
-    #define SO_PRIORITY -1
-  #endif
-#endif
-
 #ifdef __GNUC__
   #define SUNSHINE_GNUC_EXTENSION __extension__
 #else
@@ -430,11 +420,11 @@ namespace platf {
     }
 
     union {
-#ifdef SUNSHINE_USE_SENDSRCADDR
+#ifdef IP_PKTINFO
+      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#elif defined(IP_SENDSRCADDR)
       // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
       char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
-#else
-      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
 #endif
       struct cmsghdr alignment;
     } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
@@ -461,18 +451,7 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
-#ifdef SUNSHINE_USE_SENDSRCADDR
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#else
+#ifdef IP_PKTINFO
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -485,6 +464,17 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
 #endif
     }
 
@@ -655,11 +645,11 @@ namespace platf {
     }
 
     union {
-#ifdef SUNSHINE_USE_SENDSRCADDR
+#ifdef IP_PKTINFO
+      char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#elif defined(IP_SENDSRCADDR)
       // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
       char buf[std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
-#else
-      char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
 #endif
       struct cmsghdr alignment;
     } cmbuf;
@@ -684,18 +674,7 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
-#ifdef SUNSHINE_USE_SENDSRCADDR
-      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
-      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
-      struct in_addr src_addr = saddr_v4.sin_addr;
-
-      cmbuflen += CMSG_SPACE(sizeof(src_addr));
-
-      pktinfo_cm->cmsg_level = IPPROTO_IP;
-      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
-      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
-      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
-#else
+#ifdef IP_PKTINFO
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -708,6 +687,17 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
 #endif
     }
 
@@ -842,9 +832,9 @@ namespace platf {
     // reset SO_PRIORITY back to 0.
     //
     // 6 is the highest priority that can be used without SYS_CAP_ADMIN.
-#ifdef __FreeBSD__
+#ifndef SO_PRIORITY
     // FreeBSD doesn't support SO_PRIORITY, so we skip this
-    BOOST_LOG(debug) << "SO_PRIORITY not supported on FreeBSD, skipping traffic priority setting";
+    BOOST_LOG(debug) << "SO_PRIORITY not supported on this platform, skipping traffic priority setting";
 #else
     int priority = data_type == qos_data_type_e::audio ? 6 : 5;
     if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
