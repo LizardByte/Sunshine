@@ -74,27 +74,33 @@ jobs:
 
       - name: Configure formula
         env:
-          HEAD_REF: ${{ github.head_ref }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
+          MATRIX_RELEASE: ${{ matrix.release }}
+          PR_CLONE_URL: ${{ github.event.pull_request.head.repo.clone_url }}
           PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
           PR_DEFAULT_BRANCH: ${{ github.event.pull_request.head.repo.default_branch }}
+          REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
+          REPOSITORY_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           # variables for formula
-          branch="${HEAD_REF}"
-          build_version="${{ inputs.release_version }}"
-          clone_url="${{ github.event.repository.clone_url }}"
-          commit="${{ inputs.release_commit }}"
-          default_branch="${{ github.event.repository.default_branch }}"
-          tag="${{ github.ref_name }}"
+          branch="${GITHUB_HEAD_REF}"
+          build_version="${INPUT_RELEASE_VERSION}"
+          clone_url="${REPOSITORY_CLONE_URL}"
+          commit="${INPUT_RELEASE_COMMIT}"
+          default_branch="${REPOSITORY_DEFAULT_BRANCH}"
+          tag="${GITHUB_REF_NAME}"
 
-          if [ "${{ github.event_name }}" == "push" ]; then
+          if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
             echo "This is a PUSH event"
-            if [ "${{ matrix.release }}" == "true" ]; then
+            if [ "${MATRIX_RELEASE}" == "true" ]; then
               # we will publish the formula with the release tag
-              tag="${{ inputs.release_tag }}"
+              tag="${INPUT_RELEASE_TAG}"
             fi
-          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+          elif [ "${GITHUB_EVENT_NAME}" == "pull_request" ]; then
             echo "This is a PR event"
-            clone_url=${{ github.event.pull_request.head.repo.clone_url }}
+            clone_url=${PR_CLONE_URL}
             branch="${PR_HEAD_REF}"
             default_branch="${PR_DEFAULT_BRANCH}"
             tag="${PR_HEAD_REF}"

@@ -179,11 +179,11 @@ jobs:
       - name: Should run
         id: should_run
         run: |
-          if [ ${{ github.event_name }} != 'pull_request' ] || [ ${{ matrix.pr }} == 'true' ]; then
-            echo "SHOULD_RUN=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "SHOULD_RUN=false" >> "${GITHUB_OUTPUT}"
+          should_run="false"
+          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ] || [ ${{ matrix.pr }} == "true" ]; then
+            should_run="true"
           fi
+          echo "SHOULD_RUN=${should_run}" >> "${GITHUB_OUTPUT}"
 
       - name: Checkout
         if: steps.should_run.outputs.SHOULD_RUN == 'true'

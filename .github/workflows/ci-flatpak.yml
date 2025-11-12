@@ -18,6 +18,7 @@ jobs:
     name: ${{ matrix.arch }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      MATRIX_ARCH: ${{ matrix.arch }}
       NODE_VERSION: "20"
       PLATFORM_VERSION: "24.08"
     runs-on: ${{ matrix.runner }}
@@ -75,9 +76,9 @@ jobs:
 
           sudo su "$(whoami)" -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
-            org.freedesktop.Platform/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk/${{ matrix.arch }}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${{ matrix.arch }}/${PLATFORM_VERSION} \
+            org.freedesktop.Platform/${MATRIX_ARCH}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk/${MATRIX_ARCH}/${PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${MATRIX_ARCH}/${PLATFORM_VERSION} \
           "
 
           flatpak run org.flatpak.Builder --version
@@ -99,17 +100,19 @@ jobs:
 
       - name: Configure Flatpak Manifest
         env:
-          BRANCH: ${{ github.ref }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          INPUT_RELEASE_COMMIT: ${{ inputs.release_commit }}
+          REPOSITORY_CLONE_URL: ${{ github.event.repository.clone_url }}
         run: |
           # variables for manifest
-          branch="${BRANCH}"
-          build_version="${{ inputs.release_version }}"
-          commit="${{ inputs.release_commit }}"
-          clone_url="${{ github.event.repository.clone_url }}"
+          branch="${GITHUB_REF}"
+          build_version="${INPUT_RELEASE_VERSION}"
+          commit="${INPUT_RELEASE_COMMIT}"
+          clone_url="${REPOSITORY_CLONE_URL}"
 
-          if [ "${{ github.event_name }}" == "push" ]; then
+          if [ "${GITHUB_EVENT_NAME}" == "push" ]; then
             echo "This is a PUSH event"
-            branch="${{ github.ref_name }}"
+            branch="${GITHUB_REF_NAME}"
           fi
 
           echo "Branch: ${branch}"
@@ -124,7 +127,7 @@ jobs:
           mkdir -p build
           mkdir -p artifacts
 
-          cmake -DGITHUB_CLONE_URL=${clone_url} \
+          cmake -DGITHUB_CLONE_URL="${clone_url}" \
             -B build \
             -S . \
             -DSUNSHINE_CONFIGURE_FLATPAK_MAN=ON \
@@ -139,14 +142,14 @@ jobs:
         run: |
           echo "::add-matcher::.github/matchers/gcc-strip3.json"
           sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
-            --arch=${{ matrix.arch }} \
+            --arch=${MATRIX_ARCH} \
             --force-clean \
             --repo=repo \
             --sandbox \
             --stop-at=cuda build-sunshine ${APP_ID}.yml"
           cp -r .flatpak-builder copy-of-flatpak-builder
           sudo su "$(whoami)" -c "flatpak run org.flatpak.Builder \
-            --arch=${{ matrix.arch }} \
+            --arch=${MATRIX_ARCH} \
             --force-clean \
             --repo=repo \
             --sandbox \
@@ -154,20 +157,20 @@ jobs:
           rm -rf .flatpak-builder
           mv copy-of-flatpak-builder .flatpak-builder
           sudo su "$(whoami)" -c "flatpak build-bundle \
-            --arch=${{ matrix.arch }} \
+            --arch=${MATRIX_ARCH} \
             ./repo \
-            ../artifacts/sunshine_${{ matrix.arch }}.flatpak ${APP_ID}"
+            ../artifacts/sunshine_${MATRIX_ARCH}.flatpak ${APP_ID}"
           sudo su "$(whoami)" -c "flatpak build-bundle \
             --runtime \
-            --arch=${{ matrix.arch }} \
+            --arch=${MATRIX_ARCH} \
             ./repo \
-            ../artifacts/sunshine_debug_${{ matrix.arch }}.flatpak ${APP_ID}.Debug"
+            ../artifacts/sunshine_debug_${MATRIX_ARCH}.flatpak ${APP_ID}.Debug"
           echo "::remove-matcher owner=gcc-strip3::"
 
       - name: Lint Flatpak
         working-directory: build
         run: |
-          exceptions_file="${{ github.workspace }}/packaging/linux/flatpak/exceptions.json"
+          exceptions_file="${GITHUB_WORKSPACE}/packaging/linux/flatpak/exceptions.json"
 
           echo "Linting flatpak manifest"
           flatpak run --command=flatpak-builder-lint org.flatpak.Builder \

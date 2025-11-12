@@ -169,9 +169,9 @@ jobs:
             -DSUNSHINE_ENABLE_DRM=OFF \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
-            -DSUNSHINE_PUBLISHER_NAME='${{ github.repository_owner }}' \
-            -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
-            -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+            -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
+            -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support"
 
       - name: Build
         shell: freebsd {0}
@@ -265,7 +265,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: artifacts/

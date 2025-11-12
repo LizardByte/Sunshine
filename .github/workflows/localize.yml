@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 env:
-  file: ./locale/sunshine.po
+  FILE: ./locale/sunshine.po
 
 jobs:
   localize:
@@ -44,20 +44,21 @@ jobs:
 
       - name: Update Strings
         run: |
+          new_file=true
+
           # first, try to remove existing file as xgettext does not remove unused translations
-          if [ -f "${{ env.file }}" ];
+          if [ -f "${FILE}" ];
           then
-              rm ${{ env.file }}
-              echo "new_file=false" >> "${GITHUB_ENV}"
-          else
-              echo "new_file=true" >> "${GITHUB_ENV}"
+              rm "${FILE}"
+              new_file=false
           fi
+          echo "NEW_FILE=${new_file}" >> "${GITHUB_ENV}"
 
           # extract the new strings
           python ./scripts/_locale.py --extract
 
       - name: git diff
-        if: env.new_file == 'false'
+        if: env.NEW_FILE == 'false'
         run: |
           # disable the pager
           git config --global pager.diff false
@@ -67,13 +68,13 @@ jobs:
 
           # set the variable with minimal output, replacing `\t` with ` `
           OUTPUT=$(git diff --numstat locale/sunshine.po | sed -e "s#\t# #g")
-          echo "git_diff=${OUTPUT}" >> "${GITHUB_ENV}"
+          echo "GIT_DIFF=${OUTPUT}" >> "${GITHUB_ENV}"
 
       - name: git reset
         # only run if a single line changed (date/time) and file already existed
         if: >-
-          env.git_diff == '1 1 locale/sunshine.po' &&
-          env.new_file == 'false'
+          env.GIT_DIFF == '1 1 locale/sunshine.po' &&
+          env.NEW_FILE == 'false'
         run: |
           git reset --hard
 
