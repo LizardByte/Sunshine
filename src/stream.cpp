@@ -318,7 +318,7 @@ namespace stream {
     sync_util::sync_t<std::vector<session_t *>> _sessions;
 
     // ENet peer to session mapping for sessions with a peer connected
-    sync_util::sync_t<std::map<net::peer_t, session_t *>> _peer_to_session;
+    sync_util::sync_t<std::unordered_map<net::peer_t, session_t *>> _peer_to_session;
 
     ENetAddress _addr;
     net::host_t _host;
