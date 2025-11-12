@@ -18,6 +18,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      VERSION: ${{ inputs.release_version }}
     runs-on: ubuntu-${{ matrix.dist }}
     strategy:
       fail-fast: false
@@ -89,19 +90,13 @@ jobs:
           chmod +x ./scripts/linux_build.sh
           echo "::add-matcher::.github/matchers/gcc.json"
           ./scripts/linux_build.sh \
-            --publisher-name='${{ github.repository_owner }}' \
-            --publisher-website='https://app.lizardbyte.dev' \
-            --publisher-issue-url='https://app.lizardbyte.dev/support' \
+            --publisher-name="${GITHUB_REPOSITORY_OWNER}" \
+            --publisher-website="https://app.lizardbyte.dev" \
+            --publisher-issue-url="https://app.lizardbyte.dev/support" \
             --skip-cleanup \
             --skip-package \
             --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
           echo "::remove-matcher owner=gcc::"
-
-      - name: Set AppImage Version
-        if: matrix.name == 'AppImage'
-        run: |
-          version=${{ inputs.release_version }}
-          echo "VERSION=${version}" >> "${GITHUB_ENV}"
 
       - name: Package Linux - AppImage
         if: matrix.name == 'AppImage'
