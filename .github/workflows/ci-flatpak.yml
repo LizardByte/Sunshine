@@ -101,6 +101,9 @@ jobs:
         env:
           BRANCH: ${{ github.ref }}
         run: |
+      env:
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
           # variables for manifest
           branch="${BRANCH}"
           build_version="${{ inputs.release_version }}"
