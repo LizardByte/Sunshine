@@ -49,6 +49,16 @@
   #define SUNSHINE_GNUC_EXTENSION
 #endif
 
+#ifndef SOL_IP
+  #define SOL_IP IPPROTO_IP
+#endif
+#ifndef SOL_IPV6
+  #define SOL_IPV6 IPPROTO_IPV6
+#endif
+#ifndef SOL_UDP
+  #define SOL_UDP IPPROTO_UDP
+#endif
+
 using namespace std::literals;
 namespace fs = std::filesystem;
 namespace bp = boost::process::v1;
@@ -523,7 +533,7 @@ namespace platf {
 
           // Enable GSO to perform segmentation of our buffer for us
           auto cm = CMSG_NXTHDR(&msg, pktinfo_cm);
-          cm->cmsg_level = IPPROTO_UDP;
+          cm->cmsg_level = SOL_UDP;
           cm->cmsg_type = UDP_SEGMENT;
           cm->cmsg_len = CMSG_LEN(sizeof(uint16_t));
           *((uint16_t *) CMSG_DATA(cm)) = msg_size;
@@ -791,10 +801,10 @@ namespace platf {
       // With dual-stack sockets, Linux uses IPV6_TCLASS for IPv6 traffic
       // and IP_TOS for IPv4 traffic.
       if (address.is_v6() && !address.to_v6().is_v4_mapped()) {
-        level = IPPROTO_IPV6;
+        level = SOL_IPV6;
         option = IPV6_TCLASS;
       } else {
-        level = IPPROTO_IP;
+        level = SOL_IP;
         option = IP_TOS;
       }
 
