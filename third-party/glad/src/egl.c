@@ -252,7 +252,7 @@ int gladLoadEGL(EGLDisplay display, GLADloadfunc load) {
     return gladLoadEGLUserPtr(display, glad_egl_get_proc_from_userptr, GLAD_GNUC_EXTENSION (void*) load);
 }
 
- 
+
 
 #ifdef GLAD_EGL
 
