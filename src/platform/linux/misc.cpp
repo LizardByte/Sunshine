@@ -10,14 +10,22 @@
 
 // standard includes
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <sstream>
 
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
 #include <ifaddrs.h>
+#include <netinet/in.h>
 #include <netinet/udp.h>
 #include <pwd.h>
+#include <sys/socket.h>
+
+#ifdef __FreeBSD__
+  #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
+#endif
 
 // lib includes
 #include <boost/asio/ip/address.hpp>
@@ -39,6 +47,16 @@
   #define SUNSHINE_GNUC_EXTENSION __extension__
 #else
   #define SUNSHINE_GNUC_EXTENSION
+#endif
+
+#ifndef SOL_IP
+  #define SOL_IP IPPROTO_IP
+#endif
+#ifndef SOL_IPV6
+  #define SOL_IPV6 IPPROTO_IPV6
+#endif
+#ifndef SOL_UDP
+  #define SOL_UDP IPPROTO_UDP
 #endif
 
 using namespace std::literals;
@@ -214,6 +232,40 @@ namespace platf {
 
   std::string get_mac_address(const std::string_view &address) {
     auto ifaddrs = get_ifaddrs();
+
+#ifdef __FreeBSD__
+    // On FreeBSD, we need to find the interface name first, then look for its AF_LINK entry
+    std::string interface_name;
+    for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
+      if (pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
+        interface_name = pos->ifa_name;
+        break;
+      }
+    }
+
+    if (!interface_name.empty()) {
+      // Find the AF_LINK entry for this interface to get MAC address
+      for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
+        if (pos->ifa_addr && pos->ifa_addr->sa_family == AF_LINK &&
+            interface_name == pos->ifa_name) {
+          auto sdl = (struct sockaddr_dl *) pos->ifa_addr;
+          auto mac = (unsigned char *) LLADDR(sdl);
+
+          // Format MAC address as XX:XX:XX:XX:XX:XX
+          std::ostringstream mac_stream;
+          mac_stream << std::hex << std::setfill('0');
+          for (int i = 0; i < sdl->sdl_alen; i++) {
+            if (i > 0) {
+              mac_stream << ':';
+            }
+            mac_stream << std::setw(2) << (int) mac[i];
+          }
+          return mac_stream.str();
+        }
+      }
+    }
+#else
+    // On Linux, read MAC address from sysfs
     for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
       if (pos->ifa_addr && address == from_sockaddr(pos->ifa_addr)) {
         std::ifstream mac_file("/sys/class/net/"s + pos->ifa_name + "/address");
@@ -224,6 +276,7 @@ namespace platf {
         }
       }
     }
+#endif
 
     BOOST_LOG(warning) << "Unable to find MAC address for "sv << address;
     return "00:00:00:00:00:00"s;
@@ -377,7 +430,12 @@ namespace platf {
     }
 
     union {
+#ifdef IP_PKTINFO
       char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
+      char buf[CMSG_SPACE(sizeof(uint16_t)) + std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#endif
       struct cmsghdr alignment;
     } cmbuf = {};  // Must be zeroed for CMSG_NXTHDR()
 
@@ -403,6 +461,7 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
+#ifdef IP_PKTINFO
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -415,6 +474,18 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
+#endif
     }
 
     auto const max_iovs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
@@ -507,8 +578,8 @@ namespace platf {
 
     {
       // If GSO is not supported, use sendmmsg() instead.
-      struct mmsghdr msgs[send_info.block_count];
-      struct iovec iovs[send_info.block_count * (send_info.headers ? 2 : 1)];
+      std::vector<struct mmsghdr> msgs(send_info.block_count);
+      std::vector<struct iovec> iovs(send_info.block_count * (send_info.headers ? 2 : 1));
       int iov_idx = 0;
       for (size_t i = 0; i < send_info.block_count; i++) {
         msgs[i].msg_len = 0;
@@ -584,7 +655,12 @@ namespace platf {
     }
 
     union {
+#ifdef IP_PKTINFO
       char buf[std::max(CMSG_SPACE(sizeof(struct in_pktinfo)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO with struct in_pktinfo
+      char buf[std::max(CMSG_SPACE(sizeof(struct in_addr)), CMSG_SPACE(sizeof(struct in6_pktinfo)))];
+#endif
       struct cmsghdr alignment;
     } cmbuf;
 
@@ -608,6 +684,7 @@ namespace platf {
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
     } else {
+#ifdef IP_PKTINFO
       struct in_pktinfo pktInfo;
 
       struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
@@ -620,6 +697,18 @@ namespace platf {
       pktinfo_cm->cmsg_type = IP_PKTINFO;
       pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(pktInfo));
       memcpy(CMSG_DATA(pktinfo_cm), &pktInfo, sizeof(pktInfo));
+#elif defined(IP_SENDSRCADDR)
+      // FreeBSD uses IP_SENDSRCADDR with struct in_addr instead of IP_PKTINFO
+      struct sockaddr_in saddr_v4 = to_sockaddr(send_info.source_address.to_v4(), 0);
+      struct in_addr src_addr = saddr_v4.sin_addr;
+
+      cmbuflen += CMSG_SPACE(sizeof(src_addr));
+
+      pktinfo_cm->cmsg_level = IPPROTO_IP;
+      pktinfo_cm->cmsg_type = IP_SENDSRCADDR;
+      pktinfo_cm->cmsg_len = CMSG_LEN(sizeof(src_addr));
+      memcpy(CMSG_DATA(pktinfo_cm), &src_addr, sizeof(src_addr));
+#endif
     }
 
     struct iovec iovs[2];
@@ -753,6 +842,10 @@ namespace platf {
     // reset SO_PRIORITY back to 0.
     //
     // 6 is the highest priority that can be used without SYS_CAP_ADMIN.
+#ifndef SO_PRIORITY
+    // FreeBSD doesn't support SO_PRIORITY, so we skip this
+    BOOST_LOG(debug) << "SO_PRIORITY not supported on this platform, skipping traffic priority setting";
+#else
     int priority = data_type == qos_data_type_e::audio ? 6 : 5;
     if (setsockopt(sockfd, SOL_SOCKET, SO_PRIORITY, &priority, sizeof(priority)) == 0) {
       // Reset SO_PRIORITY to 0 when QoS is disabled
@@ -760,6 +853,7 @@ namespace platf {
     } else {
       BOOST_LOG(error) << "Failed to set SO_PRIORITY: "sv << errno;
     }
+#endif
 
     return std::make_unique<qos_t>(sockfd, reset_options);
   }

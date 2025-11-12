@@ -32,6 +32,166 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 * [Stable Docs](https://docs.lizardbyte.dev/projects/sunshine/latest/)
 * [Beta Docs](https://docs.lizardbyte.dev/projects/sunshine/master/)
 
+## 🎮 Feature Compatibility
+
+<table>
+    <caption id="feature_compatibility">Platform Feature Support</caption>
+    <tr>
+        <th>Feature</th>
+        <th>FreeBSD</th>
+        <th>Linux</th>
+        <th>macOS</th>
+        <th>Windows</th>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>Gamepad Emulation</b><br>
+        What type of gamepads can be emulated on the host.<br>
+        Clients may support other gamepads.
+        </td>
+    </tr>
+    <tr>
+        <td>DualShock / DS4 (PlayStation 4)</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>DualSense / DS5 (PlayStation 5)</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>Nintendo Switch Pro</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>Xbox 360</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>Xbox One/Series</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>GPU Encoding</b></td>
+    </tr>
+    <tr>
+        <td>AMD/AMF</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>Intel QuickSync</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>NVIDIA NVENC</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (vaapi)</td>
+        <td>✅ (Video Toolbox)</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td colspan="5" align="center"><b>Screen Capture</b></td>
+    </tr>
+    <tr>
+        <td>DXGI</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>KMS</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>NVIDIA NvFBC</td>
+        <td>➖</td>
+        <td>🟡</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ X11 Support</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Wayland Support</td>
+        <td>➖</td>
+        <td>❌</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Video Toolbox</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Wayland</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Windows.Graphics.Capture</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>🟡</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Portable</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>&nbsp;&nbsp;↳ Service</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>X11</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+</table>
+
+**Legend:** ✅ Supported | 🟡 Partial Support | ❌ Not Yet Supported | ➖ Not Applicable
+
 ## 🖥️ System Requirements
 
 > [!WARNING]
@@ -50,7 +210,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     <tr>
         <td>
             Intel:<br>
-            &nbsp;&nbsp;Linux: VAAPI-compatible, see: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI hardware support</a><br>
+            &nbsp;&nbsp;FreeBSD/Linux: VAAPI-compatible, see: <a href="https://www.intel.com/content/www/us/en/developer/articles/technical/linuxmedia-vaapi.html">VAAPI hardware support</a><br>
             &nbsp;&nbsp;Windows: Skylake or newer with QuickSync encoding support
         </td>
     </tr>
@@ -69,11 +229,8 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>4GB or more</td>
     </tr>
     <tr>
-        <td rowspan="5">OS</td>
-        <td>Windows: 10+ (Windows Server does not support virtual gamepads)</td>
-    </tr>
-    <tr>
-        <td>macOS: 14+</td>
+        <td rowspan="6">OS</td>
+        <td>FreeBSD: 14.3+</td>
     </tr>
     <tr>
         <td>Linux/Debian: 13+ (trixie)</td>
@@ -83,6 +240,12 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     </tr>
     <tr>
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>
+    </tr>
+    <tr>
+        <td>macOS: 14+</td>
+    </tr>
+    <tr>
+        <td>Windows: 11+ (Windows Server does not support virtual gamepads)</td>
     </tr>
     <tr>
         <td rowspan="2">Network</td>
@@ -106,14 +269,14 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     <tr>
         <td>
             Intel:<br>
-            &nbsp;&nbsp;Linux: HD Graphics 510 or higher<br>
+            &nbsp;&nbsp;FreeBSD/Linux: HD Graphics 510 or higher<br>
             &nbsp;&nbsp;Windows: Skylake or newer with QuickSync encoding support
         </td>
     </tr>
     <tr>
         <td>
             Nvidia:<br>
-            &nbsp;&nbsp;Linux: GeForce RTX 2000 series or higher<br>
+            &nbsp;&nbsp;FreeBSD/Linux: GeForce RTX 2000 series or higher<br>
             &nbsp;&nbsp;Windows: Geforce GTX 1080 or higher
         </td>
     </tr>
