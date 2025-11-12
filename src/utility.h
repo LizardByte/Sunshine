@@ -202,13 +202,10 @@ namespace util {
   void append_struct(std::vector<uint8_t> &buf, const T &_struct) {
     constexpr size_t data_len = sizeof(_struct);
 
-    buf.reserve(data_len);
+    buf.reserve(buf.size() + data_len);  // Reserve enough space upfront
 
     auto *data = (uint8_t *) &_struct;
-
-    for (size_t x = 0; x < data_len; ++x) {
-      buf.push_back(data[x]);
-    }
+    buf.insert(buf.end(), data, data + data_len);
   }
 
   template<class T>
