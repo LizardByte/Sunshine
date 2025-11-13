@@ -114,6 +114,7 @@ jobs:
               graphics/wayland \
               lang/python312 \
               multimedia/libva \
+              multimedia/pipewire \
               net/miniupnpc \
               ports-mgmt/pkg \
               security/openssl \
