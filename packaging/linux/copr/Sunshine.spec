@@ -41,6 +41,7 @@ BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: openssl-devel
+BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
 BuildRequires: wget
