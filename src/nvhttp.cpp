@@ -35,6 +35,7 @@
 #include "utility.h"
 #include "uuid.h"
 #include "video.h"
+#include "api/games.h"
 
 using namespace std::literals;
 
@@ -1146,6 +1147,21 @@ namespace nvhttp {
       resume(host_audio, resp, req);
     };
     https_server.resource["^/cancel$"]["GET"] = cancel;
+
+    // --- Rutas de la API de Game Detector ---
+    https_server.resource["^/api/games/detected$"]["GET"] = [](auto resp, auto req) {
+      resp->write(sunshine::api::get_detected_games());
+    };
+
+    https_server.resource["^/api/games/platforms$"]["GET"] = [](auto resp, auto req) {
+      resp->write(sunshine::api::get_available_platforms());
+    };
+
+    https_server.resource["^/api/games/detected/([a-zA-Z0-9_]+)$"]["GET"] = [](auto resp, auto req) {
+      std::string platform = req->path_match[1];
+      resp->write(sunshine::api::get_platform_games(platform));
+    };
+    // --- Fin de las rutas de la API ---
 
     https_server.config.reuse_address = true;
     https_server.config.address = net::af_to_any_address_string(address_family);

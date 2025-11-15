@@ -114,6 +114,12 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/stat_trackers.cpp"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.h"
         "${CMAKE_SOURCE_DIR}/src/rswrapper.c"
+        # Game Detector Module - INICIO
+        "${CMAKE_SOURCE_DIR}/src/games/game_detector.h"
+        "${CMAKE_SOURCE_DIR}/src/games/game_detector.cpp"
+        "${CMAKE_SOURCE_DIR}/src/api/games.h"
+        "${CMAKE_SOURCE_DIR}/src/api/games.cpp"
+        # Game Detector Module - FIN
         ${PLATFORM_TARGET_FILES})
 
 if(NOT SUNSHINE_ASSETS_DIR_DEF)

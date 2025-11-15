@@ -67,6 +67,37 @@
           border-bottom: rgba(0, 0, 0, 0.25) 1px solid;
           vertical-align: top;
         }
+
+        /* Estilos para Game Detector */
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+        .game-card {
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            overflow: hidden;
+            box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075);
+        }
+        .game-card-header {
+            padding: 0.5rem;
+            background: #f8f9fa;
+            font-weight: bold;
+        }
+        .game-card-body {
+            padding: 0.5rem;
+        }
+        .game-title {
+            font-size: 1rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .game-card-footer {
+            padding: 0.5rem;
+            text-align: right;
+        }
       </style>
 </head>
 
@@ -77,6 +108,23 @@
       <h1>{{ $t('apps.applications_title') }}</h1>
       <div>{{ $t('apps.applications_desc') }}</div>
     </div>
+
+    <!-- Sección de Juegos Detectados -->
+    <div class="card p-4 mb-4" v-if="detectedGames.length > 0">
+        <h2>Juegos Detectados Automáticamente</h2>
+        <div class="games-grid mt-3">
+            <div v-for="game in detectedGames" :key="game.id" class="game-card">
+                <div class="game-card-header">{{ game.platform }}</div>
+                <div class="game-card-body">
+                    <h3 class="game-title" :title="game.name">{{ game.name }}</h3>
+                </div>
+                <div class="game-card-footer">
+                    <button class="btn btn-sm btn-primary" @click="launchGame(game)">Lanzar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card p-4">
       <table class="table">
         <thead>
@@ -372,6 +420,7 @@
     data() {
       return {
         apps: [],
+        detectedGames: [], // Array para los juegos detectados
         showEditForm: false,
         editForm: null,
         detachedCmd: "",
@@ -382,18 +431,39 @@
       };
     },
     created() {
+      // Cargar aplicaciones manuales
       fetch("./api/apps")
         .then((r) => r.json())
         .then((r) => {
-          console.log(r);
           this.apps = r.apps;
         });
+
+      // Cargar juegos detectados
+      fetch("./api/games/detected")
+        .then((r) => r.json())
+        .then((games) => {
+            this.detectedGames = games;
+        })
+        .catch(err => console.error("Error al cargar juegos detectados:", err));
 
       fetch("./api/config")
         .then(r => r.json())
         .then(r => this.platform = r.platform);
     },
     methods: {
+      launchGame(game) {
+        if (game.launch_cmd) {
+            // Para comandos como steam://, simplemente los abrimos
+            if (game.launch_cmd.startsWith('steam://')) {
+                window.location.href = game.launch_cmd;
+            } else {
+                // Para otros, podríamos necesitar una API de lanzamiento más genérica
+                alert(`Lanzando: ${game.name}\nComando: ${game.launch_cmd}`);
+            }
+        } else {
+            alert('No hay un comando de lanzamiento definido para este juego.');
+        }
+      },
       newApp() {
         this.editForm = {
           name: "",
@@ -582,3 +652,4 @@
 
   initApp(app);
 </script>
+</html>

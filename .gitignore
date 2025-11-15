@@ -56,3 +56,6 @@ package-lock.json
 # Python
 *.pyc
 venv/
+
+# Log files
+*.log
