@@ -1,0 +1,23 @@
+<RCC>
+    <qresource prefix="/">
+        <file>gui/main.qml</file>
+        <file>gui/PcView.qml</file>
+        <file>gui/AppView.qml</file>
+        <file>gui/SettingsView.qml</file>
+        <file>gui/StreamSegue.qml</file>
+        <file>gui/GamepadMapper.qml</file>
+        <file>gui/QuitSegue.qml</file>
+        <file>gui/NavigableToolButton.qml</file>
+        <file>gui/NavigableItemDelegate.qml</file>
+        <file>gui/NavigableMenuItem.qml</file>
+        <file>gui/CliQuitStreamSegue.qml</file>
+        <file>gui/CliStartStreamSegue.qml</file>
+        <file>gui/AutoResizingComboBox.qml</file>
+        <file>gui/NavigableMenu.qml</file>
+        <file>gui/ErrorMessageDialog.qml</file>
+        <file>gui/NavigableMessageDialog.qml</file>
+        <file>gui/NavigableDialog.qml</file>
+        <file>gui/CenteredGridView.qml</file>
+        <file>gui/CliPair.qml</file>
+    </qresource>
+</RCC>

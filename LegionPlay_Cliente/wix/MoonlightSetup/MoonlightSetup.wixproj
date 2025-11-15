@@ -1,0 +1,25 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DefineConstants>Debug</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputPath>$(INSTALLER_FOLDER)\</OutputPath>
+    <IntermediateOutputPath>$(BUILD_FOLDER)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(SIGN)!=''">
+    <SignOutput>true</SignOutput>
+  </PropertyGroup>
+  <Target Name="SignBundleEngine">
+    <Exec Command='signtool.exe $(SIGNTOOL_PARAMS) %(SignBundleEngine.FullPath)' />
+  </Target>
+  <Target Name="SignBundle">
+    <Exec Command='signtool.exe $(SIGNTOOL_PARAMS) %(SignBundle.FullPath)' />
+  </Target>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Bal.wixext" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+  </ItemGroup>
+</Project>

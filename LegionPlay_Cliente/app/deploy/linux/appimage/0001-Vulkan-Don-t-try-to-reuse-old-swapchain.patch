@@ -1,0 +1,40 @@
+From 78261eb6e2fe728fa5d3843b5b8962b1ca559b7e Mon Sep 17 00:00:00 2001
+From: David Rosca <nowrep@gmail.com>
+Date: Sat, 16 Dec 2023 14:52:01 +0100
+Subject: [PATCH] Vulkan: Don't try to reuse old swapchain
+
+---
+ src/vulkan/swapchain.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/src/vulkan/swapchain.c b/src/vulkan/swapchain.c
+index 0646e57c..c0b07ce4 100644
+--- a/src/vulkan/swapchain.c
++++ b/src/vulkan/swapchain.c
+@@ -612,13 +612,21 @@ static bool vk_sw_recreate(pl_swapchain sw, int w, int h)
+     }
+ #endif
+ 
++    {
++        pl_gpu_flush(gpu);
++        vk_wait_idle(vk);
++        for (int i = 0; i < vk->pool_graphics->num_queues; i++)
++            vk->QueueWaitIdle(vk->pool_graphics->queues[i]);
++        vk->DestroySwapchainKHR(vk->dev, p->swapchain, PL_VK_ALLOC);
++    }
++
+     // Calling `vkCreateSwapchainKHR` puts sinfo.oldSwapchain into a retired
+     // state whether the call succeeds or not, so we always need to garbage
+     // collect it afterwards - asynchronously as it may still be in use
+-    sinfo.oldSwapchain = p->swapchain;
++    /* sinfo.oldSwapchain = p->swapchain; */
+     p->swapchain = VK_NULL_HANDLE;
+     VkResult res = vk->CreateSwapchainKHR(vk->dev, &sinfo, PL_VK_ALLOC, &p->swapchain);
+-    vk_dev_callback(vk, VK_CB_FUNC(destroy_swapchain), vk, vk_wrap_handle(sinfo.oldSwapchain));
++    /* vk_dev_callback(vk, VK_CB_FUNC(destroy_swapchain), vk, vk_wrap_handle(sinfo.oldSwapchain)); */
+     PL_VK_ASSERT(res, "vk->CreateSwapchainKHR(...)");
+ 
+     // Get the new swapchain images
+-- 
+2.43.0
+

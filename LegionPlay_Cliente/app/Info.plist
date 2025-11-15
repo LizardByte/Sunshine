@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>GCSupportsGameMode</key>
+	<true/>
+	<key>CFBundleExecutable</key>
+	<string>Moonlight</string>
+	<key>LSSupportsGameMode</key>
+	<true/>
+	<key>CFBundleGetInfoString</key>
+	<string>Stream games and other applications from another PC</string>
+	<key>CFBundleIconFile</key>
+	<string>moonlight</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.moonlight-stream.Moonlight</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>11.0.0</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSSupportsAutomaticGraphicsSwitching</key>
+	<true/>
+	<key>GCSupportedGameControllers</key>
+	<array>
+		<dict>
+			<key>ProfileName</key>
+			<string>ExtendedGamepad</string>
+		</dict>
+	</array>
+	<key>GCSupportsControllerUserInteraction</key>
+	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Moonlight uses the local network to connect to your gaming PC for streaming.</string>
+	<key>CFBundleVersion</key>
+	<string>VERSION</string>
+	<key>CFBundleShortVersionString</key>
+	<string>VERSION</string>
+	<key>CFBundleDisplayName</key>
+	<string>Moonlight</string>
+    <key>LSApplicationCategoryType</key>
+	<string>public.app-category.games</string>
+</dict>
+</plist>

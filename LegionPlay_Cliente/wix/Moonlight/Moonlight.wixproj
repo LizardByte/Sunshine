@@ -1,0 +1,23 @@
+<Project Sdk="WixToolset.Sdk/6.0.2" ToolsVersion="5.0">
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DefineConstants>Debug</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutputPath>$(BUILD_FOLDER)\</OutputPath>
+    <IntermediateOutputPath>$(BUILD_FOLDER)\</IntermediateOutputPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <DefineConstants>DeployDir=$(DEPLOY_FOLDER);BuildDir=$(BUILD_FOLDER)</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition="$(SIGN)!=''">
+    <SignOutput>true</SignOutput>
+  </PropertyGroup>
+  <Target Name="SignMsi">
+    <Exec Command='signtool.exe $(SIGNTOOL_PARAMS) %(SignMsi.FullPath)' />
+  </Target>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Firewall.wixext" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Util.wixext" Version="6.0.2" />
+    <PackageReference Include="WixToolset.Heat" Version="6.0.2" />
+  </ItemGroup>
+</Project>

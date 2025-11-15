@@ -1,0 +1,16 @@
+[submodule "moonlight-common-c/moonlight-common-c"]
+	path = moonlight-common-c/moonlight-common-c
+	url = https://github.com/moonlight-stream/moonlight-common-c.git
+[submodule "qmdnsengine/qmdnsengine"]
+	path = qmdnsengine/qmdnsengine
+	url = https://github.com/cgutman/qmdnsengine.git
+[submodule "app/SDL_GameControllerDB"]
+	path = app/SDL_GameControllerDB
+	url = https://github.com/gabomdq/SDL_GameControllerDB.git
+[submodule "h264bitstream/h264bitstream"]
+	path = h264bitstream/h264bitstream
+	url = https://github.com/aizvorski/h264bitstream.git
+[submodule "libs"]
+	path = libs
+	url = https://github.com/cgutman/moonlight-qt-prebuilts.git
+	shallow = true

@@ -1,0 +1,130 @@
+﻿<?define ShortName = "Moonlight" ?>
+<?define FullName = "Moonlight Game Streaming Client" ?>
+
+<?define ShortcutName = "$(var.ShortName)" ?>
+<?define ShortcutDesc = "Stream games and other applications from another PC" ?>
+<?define InstallFolder = "Moonlight Game Streaming" ?>
+
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:fire="http://wixtoolset.org/schemas/v4/wxs/firewall" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+
+  <Package Name="$(var.FullName)"
+           Language="1033"
+           Version="!(bind.fileVersion.MoonlightExe)"
+           Manufacturer="Moonlight Game Streaming Project"
+           UpgradeCode="5c09f94e-f809-4c6a-9b7b-597c99f041fe">
+    <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." Schedule="afterInstallInitialize" />
+    <MediaTemplate CompressionLevel="high" EmbedCab="yes" />
+
+    <Property Id="MPSSVC_START">
+      <RegistrySearch Id="MpsSvcStart"
+                      Root="HKLM"
+                      Key="System\CurrentControlSet\Services\MpsSvc"
+                      Name="Start"
+                      Type="raw" />
+    </Property>
+
+    <Launch Condition="Installed OR MPSSVC_START=&quot;#2&quot;"
+            Message="Setup cannot proceed because the Windows Firewall service has been improperly disabled or stopped. You must start the Windows Firewall service (MpsSvc) to continue. If you would like to disable Windows Firewall properly, use the Windows Firewall options in Control Panel." />
+
+    <Property Id="APPDATAFOLDER" Value="%LOCALAPPDATA%\Moonlight Game Streaming Project" />
+
+    <!-- There's no way to delete a registry key on uninstall but not major upgrade, so
+        we have to roll our own deletion via custom action -->
+    <CustomAction Id="DeleteRegistryKey"
+                  Directory="ProgramFiles6432Folder"
+                  ExeCommand="reg.exe delete &quot;HKCU\Software\Moonlight Game Streaming Project&quot; /f"
+                  Execute="deferred"
+                  Return="ignore"
+                  Impersonate="yes" />
+    <InstallExecuteSequence>
+      <Custom Action="DeleteRegistryKey"
+              Before="InstallFinalize"
+              Condition="Installed AND REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <Component Id="MoonlightShortcuts" Directory="INSTALLFOLDER">
+      <Shortcut Id="StartMenuShortcut"
+                Name="$(var.ShortcutName)"
+                Description="$(var.ShortcutDesc)"
+                Target="[#MoonlightExe]"
+                Directory="ApplicationProgramsFolder"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="CleanupStartMenuShortcut"
+                    Directory="ApplicationProgramsFolder"
+                    On="uninstall" />
+      <util:RemoveFolderEx Id="CleanupAppDataFolder"
+                           On="uninstall"
+                           Property="APPDATAFOLDER" />
+      <RegistryValue Root="HKCU"
+                     Key="Software\Moonlight Game Streaming Project"
+                     Name="Installed"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <Component Id="MoonlightDesktopShortcut" Directory="INSTALLFOLDER" Condition="ADDDESKTOPSHORTCUT=1">
+      <Shortcut Id="DesktopShortcut"
+                Name="$(var.ShortcutName)"
+                Description="$(var.ShortcutDesc)"
+                Target="[#MoonlightExe]"
+                Directory="DesktopFolder"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="CleanupDesktopShortcut"
+                    Directory="DesktopFolder"
+                    On="uninstall" />
+      <RegistryValue Root="HKCU"
+                     Key="Software\Moonlight Game Streaming Project"
+                     Name="DesktopShortcutInstalled"
+                     Type="integer"
+                     Value="1"
+                     KeyPath="yes" />
+    </Component>
+
+    <!-- Persist desktop shortcut's installed state to let Bundle.wxs know if
+         the desktop shortcut should installed by default when upgrading the
+         product -->
+    <Component Id="MoonlightDesktopShortcutState" Directory="INSTALLFOLDER">
+      <RegistryValue Root="HKCU"
+                     Key="Software\Moonlight Game Streaming Project"
+                     Name="DesktopShortcutInstallState"
+                     Type="integer"
+                     Value="[ADDDESKTOPSHORTCUT]"
+                     KeyPath="yes" />
+    </Component>
+
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="Moonlight">
+        <File Id="MoonlightExe"
+              KeyPath="yes"
+              Checksum="yes"
+              Source="$(var.BuildDir)\app\$(var.Configuration)\Moonlight.exe">
+          <fire:FirewallException Id="MoonlightFirewallException"
+                                  Scope="any"
+                                  IgnoreFailure="yes"
+                                  Name="$(var.FullName)" />
+        </File>
+      </Component>
+    </DirectoryRef>
+
+    <ComponentGroup Id="MoonlightDependencies" Directory="INSTALLFOLDER">
+      <Files Include="$(var.DeployDir)\**" />
+    </ComponentGroup>
+
+    <Feature Id="ProductFeature" Title="Moonlight" Level="1" ConfigurableDirectory="INSTALLFOLDER">
+      <ComponentRef Id="Moonlight" />
+      <ComponentRef Id="MoonlightShortcuts" />
+      <ComponentRef Id="MoonlightDesktopShortcutState" />
+      <ComponentRef Id="MoonlightDesktopShortcut" />
+      <ComponentGroupRef Id="MoonlightDependencies" />
+    </Feature>
+
+    <StandardDirectory Id="DesktopFolder" />
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="$(var.InstallFolder)" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="$(var.InstallFolder)" />
+    </StandardDirectory>
+  </Package>
+</Wix>

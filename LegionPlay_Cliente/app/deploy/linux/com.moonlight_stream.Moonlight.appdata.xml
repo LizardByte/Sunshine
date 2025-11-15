@@ -1,0 +1,834 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop">
+	<id>com.moonlight_stream.Moonlight</id>
+	<metadata_license>CC0-1.0</metadata_license>
+	<project_license>GPL-3.0+</project_license>
+	<name>Moonlight</name>
+	<summary>Stream games and other applications from another PC running Sunshine or GeForce Experience</summary>
+
+	<description>
+		<p>Moonlight can stream games and other applications from another PC with Sunshine or GeForce Experience software installed.</p>
+		<p>Features include:</p>
+		<ul>
+			<li>Hardware accelerated video decoding with VAAPI, VDPAU, and NVDEC support</li>
+			<li>H.264, HEVC, and AV1 codec support</li>
+			<li>7.1 surround sound audio support</li>
+			<li>10-point multitouch support</li>
+			<li>Gamepad support with force feedback for up to 16 players</li>
+			<li>Support for both pointer capture (for games) and direct mouse control (for remote desktop)</li>
+			<li>Support for passing system-wide keyboard shortcuts like Alt+Tab to the host</li>
+		</ul>
+	</description>
+
+	<url type="homepage">https://moonlight-stream.org</url>
+	<url type="bugtracker">https://github.com/moonlight-stream/moonlight-qt/issues</url>
+	<url type="help">https://github.com/moonlight-stream/moonlight-docs/wiki/Setup-Guide</url>
+
+	<screenshots>
+		<screenshot type="default">
+			<image>https://moonlight-stream.org/appstream_resources/moonlight_screenshot_1.png</image>
+		</screenshot>
+		<screenshot>
+			<image>https://moonlight-stream.org/appstream_resources/moonlight_screenshot_2.png</image>
+		</screenshot>
+	</screenshots>
+
+	<releases>
+		<release version="6.1.0" date="2024-09-16">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Experimental YUV 4:4:4 support for improved text clarity during remote desktop usage</li>
+					<li>HDR is now supported with software decoding (requires GPU with Vulkan support)</li>
+					<li>Bitrate limit can now be increased to 500 Mbps</li>
+					<li>Audio decoding now uses 32-bit floating point format</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed incorrect color range when streaming with AV1 from a host with an AMD GPU</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="6.0.1" date="2024-06-30">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>HDR to SDR tonemapping is now supported by the Vulkan renderer on Linux</li>
+				</ul>
+				<p>Behavior Changes:</p>
+				<ul>
+					<li>More time is now provided for PCs to wake up before displaying an error when starting a stream from the CLI</li>
+					<li>Moonlight will no longer try to guess VA driver names when running libva 2.20 or later</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed crash when the Vulkan renderer executed on a system with no Vulkan devices</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="6.0.0" date="2024-06-06">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>HDR is now supported on Steam Deck and other HDR-capable Linux systems using a new Vulkan-based renderer</li>
+					<li>Vulkan Video decoding of H.264, HEVC, and AV1 is now supported using the new Vulkan renderer</li>
+					<li>Full E2E stream encryption is now supported when streaming from Sunshine v0.22 or later</li>
+					<li>Initiating a stream via the command-line will now automatically wake the target machine if it is sleeping</li>
+					<li>Error codes are now displayed in the connection termination dialog</li>
+					<li>Detailed PC state information is now available via the new "View Details" context menu option (similar to the Android client)</li>
+					<li>The performance overlay can now be configured to be shown by default when starting a stream</li>
+				</ul>
+				<p>Behavior Changes:</p>
+				<ul>
+					<li>The selected bitrate is no longer silently adjusted by Moonlight based upon the video codec or HDR mode</li>
+					<li>The selected mouse mode when starting a stream no longer influences the acceleration curve when the mouse mode is toggled using the Ctrl+Alt+Shift+M key combo while streaming</li>
+					<li>Hardcoded fallback paths for VAAPI and VDPAU drivers are no longer used</li>
+					<li>Per-session keys (rikey and rikeyid values) are now automatically stripped from logs</li>
+					<li>Log messages will now be logged to stderr rather than stdout</li>
+					<li>EGL is now always used instead of GLX for loading OpenGL in X11 environments on non-x86 platforms</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved reliability of streaming during momentary drops of WiFi connections</li>
+					<li>Improved performance with high polling rate mice</li>
+					<li>Improved input latency when a gamepad is connected</li>
+					<li>Added missing command-line options to control HDR and AV1 codec usage</li>
+					<li>Fixed instant connection termination error when streaming over the Internet behind certain Carrier-Grade NAT devices</li>
+					<li>Fixed incorrect MTU detection when streaming over the Internet without a VPN</li>
+					<li>Fixed recovery of audio when no audio output device is present when the stream starts</li>
+					<li>Fixed merging of gamepad state when multi-controller mode is disabled</li>
+					<li>Fixed indefinitely resending mDNS queries when a host could not be resolved</li>
+					<li>Fixed inability to pair when the host is not using a RSA-2048 key</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="5.0.1" date="2023-11-02">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed connection issue streaming from some hosts running GeForce Experience or Sunshine v0.20 and earlier</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="5.0.0" date="2023-10-18">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Custom FPS values</li>
+					<li>Streaming using the AV1 codec from Sunshine hosts</li>
+					<li>Horizontal scrolling with Sunshine hosts</li>
+					<li>Native multi-touch input with Sunshine hosts</li>
+					<li>Controller type information is passed to Sunshine for controller type autoselection</li>
+					<li>Extended features of PS4/PS5 controllers (touchpad, battery state, gyro/accelerometer motion, and RGB LED) are natively passed to Sunshine hosts</li>
+					<li>Support for up to 16 gamepads with Sunshine hosts</li>
+					<li>Frame pacing support on Wayland</li>
+					<li>Host-side processing latency is now displayed in the performance overlay with Sunshine hosts</li>
+					<li>Window title now includes the PC name when streaming</li>
+					<li>Alphabetical sorting of the PC list</li>
+					<li>Updated Play and Stop button design to improve contrast with app box art</li>
+					<li>The settings page automatically scrolls to the selected element when using keyboard or gamepad navigation</li>
+					<li>Pressing Share+PS buttons on PS4/PS5 controllers can be used to emulate a clickpad press</li>
+					<li>Improved audio quality when streaming with a high bitrate from remote hosts</li>
+					<li>Increased mouse polling rate</li>
+				</ul>
+				<p>Behavior Changes:</p>
+				<ul>
+					<li>IPv6 addresses must be provided in URL-escaped form. Example: [2001:db8::1234:5678] or [2001:db8::1234:5678]:47989</li>
+					<li>Default bitrate logic has been adjusted to behave better with custom resolutions and frame rates</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Reduced the frequency of audio underruns (clicks and pops) by increasing audio buffer size</li>
+					<li>Fixed "Quitting App" message never dismissing in some cases</li>
+					<li>Fixed parsing IPv6 literals with port numbers</li>
+					<li>Fixed unnecessary WiFi activity causing stream disruptions</li>
+					<li>Fixed paired hosts being forgotten if Moonlight terminates while writing hosts to disk</li>
+					<li>Fixed freeze when closing the stream on Windows with some software that uses DX11 hooks</li>
+					<li>Fixed delayed PC wake when activating Wake-On-LAN feature</li>
+					<li>Fixed Wake-on-LAN when Sunshine is running on alternate ports</li>
+					<li>Fixed leak of /dev/dri fds when trying to initialize VAAPI decoder</li>
+					<li>Fixed support for the Applications/Menu key</li>
+					<li>Fixed automatic language detection for Simplified Chinese and Traditional Chinese</li>
+					<li>Fixed streaming from Sunshine when the client PC has multiple network interfaces or IPv6 privacy extensions enabled</li>
+					<li>Fixed small receive buffer causing video packet loss on some systems</li>
+					<li>Fixed theme overrides causing the UI to be unusable on some systems</li>
+					<li>Fixed tearing with V-Sync enabled on macOS and Linux when using the SDL renderer (software decoding and some hardware decoders)</li>
+					<li>Fixed stateful V4L2 hardware decoding using h264_v4l2m2m and hevc_v4l2m2m decoders</li>
+					<li>Fixed CVE-2023-42801</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.3.1" date="2022-11-03">
+			<description>
+				<p>Changes:</p>
+				<ul>
+					<li>Fixed crash during specific patterns of audio packet loss</li>
+					<li>Fixed detection of local streaming when using IPv6 addresses</li>
+					<li>Windowed mode streaming now starts maximized if the GUI window was maximized</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.3.0" date="2022-10-28">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Improved support for GeForce Experience 3.26</li>
+					<li>Improved image quality and performance when recovering from video packet loss using HEVC</li>
+					<li>Improved error concealment after audio packet loss</li>
+					<li>Improved UI performance when paired with many hosts or hosts with large numbers of apps</li>
+					<li>Pairing with Sunshine hosts is now supported even if the host is in a streaming session</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed streaming at resolutions below 720x480 with GeForce Experience 3.26</li>
+					<li>Fixed window position and size being lost when toggling between full-screen and windowed mode</li>
+					<li>Fixed initial window size not always respecting the stream aspect ratio</li>
+					<li>Fixed unexpected error when streaming at resolutions above 4096x4096 using Sunshine</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.2.1" date="2022-09-12">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed streaming from hosts running Sunshine</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.2.0" date="2022-09-10">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added support for pairing via the terminal</li>
+					<li>Added support for listing installed apps on a host via the terminal</li>
+					<li>Improved handling of V-Sync on Wayland systems to reduce latency</li>
+					<li>Improved performance using the legacy non-EGL VAAPI rendering code</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed native resolution detection on high DPI Wayland systems</li>
+					<li>Fixed audio crackling with SDL 2.24.0 on systems using PulseAudio</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.1.0" date="2022-05-23">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Overlays are now supported on the non-EGL X11 VAAPI renderer (requires RGBA subpicture support in the VAAPI driver)</li>
+					<li>Cursor lock can now be disabled when in full-screen mode</li>
+				</ul>
+				<p>Behavior Changes:</p>
+				<ul>
+					<li>Moonlight can now reduce the client display resolution in full-screen mode if the current display mode doesn't have a high enough refresh rate for the selected stream frame rate</li>
+					<li>When choosing a new client display resolution in full-screen mode, Moonlight will pick a display mode with the closest aspect ratio to the selected stream resolution</li>
+					<li>Moonlight now defaults to borderless windowed mode on Wayland systems</li>
+
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed missing toolbar buttons in certain languages</li>
+					<li>Fixed some text on the settings page not updating when the language is changed</li>
+					<li>Fixed a frame pacing bug that could cause excessive frame drops</li>
+					<li>Fixed the "keep display awake" setting not being saved when Moonlight restarts</li>
+					<li>Fixed black screen after unmaximizing the Moonlight window on some Linux systems</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="4.0.0" date="2022-04-02">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added a new key combo for locking the mouse cursor to the window (Ctrl+Alt+Shift+L)</li>
+					<li>Added an option to avoid keeping the client display awake while streaming</li>
+				</ul>
+				<p>Behavior Changes:</p>
+				<ul>
+					<li>HDR streaming is now a separate option rather than being part of the Video Codec override dropdown</li>
+					<li>HDR streaming is no longer restricted to apps that are certified by NVIDIA as compatible with GameStream HDR. Some newer games may require an HDR display or EDID emulator dongle connected to your host PC for HDR options to be available.</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed loss of all audio if the active audio device is unplugged while streaming</li>
+					<li>Fixed the GUI being unresponsive after manually quitting when connection to the host is lost</li>
+					<li>Fixed a rare crash if a controller disconnects right as rumble is starting</li>
+					<li>Fixed text rendering on the overlay UI when using SDL_ttf 2.0.18 on Linux</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.2.0" date="2022-01-18">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Reduced CPU usage while streaming</li>
+					<li>Non-ASCII characters are now supported when pasting clipboard data to the host</li>
+					<li>Added support for zero-copy NVDEC rendering for Nvidia Wayland systems</li>
+					<li>Significantly improved performance with asynchronous decoders like V4L2M2M on Linux</li>
+					<li>Added support for color compression planes on newer Intel systems when using VAAPI decoding</li>
+					<li>Added support for copy-back rendering in non-default pixel formats (like the Raspberry Pi SAND format)</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed unexpected GUI input after using the gamepad quit combo</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.1.4" date="2021-06-25">
+			<description>
+				<p>Changes:</p>
+				<ul>
+					<li>Added network latency statistics to the performance overlay</li>
+					<li>Improved audio quality on unreliable connections (requires GeForce Experience 3.19 or later)</li>
+					<li>Reduced video frame drops on unreliable connections (requires GeForce Experience 3.22 or later)</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.1.3" date="2021-05-07">
+			<description>
+				<p>Changes:</p>
+				<ul>
+					<li>Fixed an issue that could cause excessive audio latency on some connections</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.1.2" date="2021-05-03">
+			<description>
+				<p>Changes:</p>
+				<ul>
+					<li>Improved connection reliability and performance with GeForce Experience 3.22</li>
+					<li>Added support for audio encryption with GeForce Experience 3.22</li>
+					<li>Added compatibility update checks for future versions of GeForce Experience</li>
+					<li>Fixed keyboard capture on X11</li>
+					<li>Updated community-contributed translations from Weblate</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.1.1" date="2021-04-09">
+			<description>
+				<p>Changes:</p>
+				<ul>
+					<li>Added support for streaming from GeForce Experience 3.22</li>
+					<li>Added support for AMF-encoded HEVC streams from servers like Sunshine and OpenStream</li>
+					<li>Added new community-contributed translations from Weblate</li>
+					<li>Fixed KMSDRM rendering with buffer modifiers on embedded devices</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.1.0" date="2021-03-14">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>System keyboard shortcuts (Alt+Tab, Super key, Ctrl+Shift+Esc, etc.) can now be (optionally) captured in windowed mode</li>
+					<li>System keyboard shortcuts can now be captured under Wayland</li>
+					<li>Added support for typing the client's clipboard text on the host by pressing Ctrl+Alt+Shift+V</li>
+					<li>Added Ctrl+Alt+Shift+D key combo to minimize the streaming window</li>
+					<li>Added Ctrl+Alt+Shift+C key combo to show the local cursor while streaming in remote desktop mouse mode</li>
+					<li>Added Select+L1+R1+X gamepad button combo to toggle performance overlay</li>
+					<li>Added translations for Simplified Chinese and German</li>
+					<li>Added a language selector on the settings page</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved performance of loading the app grid</li>
+					<li>Fixed video scaling in High DPI mode on Wayland</li>
+					<li>Fixed window icons on Wayland</li>
+					<li>Fixed number pad enter key functionality in the UI</li>
+				</ul>
+			</description>
+		</release>
+		<release version="3.0.0" date="2021-01-17">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added the ability to define a custom streaming resolution using the UI</li>
+					<li>Added the option to capture system key combinations (Alt+Tab, Ctrl+Shift+Esc, Win+Tab, etc) in fullscreen mode</li>
+					<li>Updated gamepad mappings are automatically downloaded each time Moonlight launches</li>
+					<li>The performance overlay is now supported for Linux clients using VAAPI and VDPAU hardware acceleration</li>
+					<li>Added the option to enable "Direct Launch" which immediately launches the specified game when clicking on a PC</li>
+					<li>Added the option to mute audio when the Moonlight window loses input focus</li>
+					<li>Added the option to toggle background gamepad input</li>
+					<li>Added the option to invert scroll direction</li>
+					<li>Added the option to swap gamepad button layout to Nintendo-style</li>
+					<li>Added the option to start the Moonlight UI in fullscreen mode</li>
+					<li>The failing TCP or UDP ports are now displayed when the connection fails</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed PS4 controllers not reading inputs during haptics in some games</li>
+					<li>Fixed some slow decoders causing the receive time value to increase rather than the decode time</li>
+					<li>Native resolution options now refresh each time the settings page is opened, rather than once per launch of Moonlight</li>
+					<li>Fixed no video or audio while streaming over Internet connections that drop packets with QoS tagging enabled</li>
+					<li>Improved connection testing accuracy for connections with low MTUs</li>
+					<li>Fixed inability to open an app's context menu with a gamepad</li>
+				</ul>
+			</description>
+		</release>
+		<release version="2.2.0" date="2020-09-10">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added the ability to hide unwanted apps and games</li>
+					<li>Added a network test to determine if your Internet connection is blocking Moonlight</li>
+					<li>Added the option to swap mouse buttons</li>
+					<li>Added codec and resolution to the on-screen performance stats</li>
+					<li>Added a warning if the connection is too unstable to receive any complete video frames</li>
+					<li>Added a Discord link to the toolbar in settings</li>
+					<li>Enabled the new EGL renderer by default on Linux</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed streaming over networks that block QoS-tagged packets</li>
+					<li>Selecting a frame rate higher than 60 FPS no longer sets the host desktop to 720p</li>
+					<li>Right-side modifier keys no longer press the corresponding left-side keys too</li>
+					<li>Fixed mouse position never reaching the edge of the screen with certain desktop resolutions</li>
+					<li>Improved synchronization between host and client mouse cursor in remote desktop mouse mode</li>
+					<li>Cached box art is now deleted when the PC is removed from Moonlight</li>
+					<li>Fixed several CLI options not properly overriding GUI options</li>
+					<li>Updated included gamepad mappings</li>
+					<li>Updated to Qt 5.15.1</li>
+				</ul>
+			</description>
+		</release>
+		<release version="2.1.0" date="2020-05-17">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Remote desktop mode now allows interaction with the host without having to click to focus the Moonlight window first</li>
+					<li>Added a new EGL renderer for improved performance on Wayland and XWayland</li>
+					<li>Added the option to toggle between direct touchscreen mode and the old trackpad mode</li>
+					<li>Added the option to rename host PCs</li>
+					<li>Added the ability to scroll the settings page with the right analog stick</li>
+					<li>Various UI improvements</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed unreliable mouse capture when the stream begins</li>
+					<li>Fixed cursor being trapped in full-screen mode even when the mouse wasn't captured</li>
+					<li>Fixed key presses not being sent to the host if the Super/Meta/Windows key is pressed</li>
+					<li>Updated included gamepad mappings</li>
+				</ul>
+			</description>
+		</release>
+		<release version="2.0.0" date="2020-04-28">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Remote desktop-optimized mouse mode which doesn't require capturing the mouse cursor</li>
+					<li>Touchscreen input now directly controls the mouse cursor</li>
+					<li>7.1 surround sound support</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved performance on some lossy networks</li>
+					<li>Fixed disconnect delay when streaming from GeForce Experience 3.20.3.63</li>
+					<li>Fixed frame rate not exceeding 60 when streaming from GeForce Experience 3.20.3.63</li>
+					<li>Fixed parsing of command-line options when passing flags prior to the action</li>
+					<li>Fixed an issue that may cause excessive mDNS network traffic while Moonlight is running</li>
+					<li>Fixed hardware decoding on Intel GPUs running Mesa 20.0 and/or the Iris driver</li>
+					<li>Fixed hardware decoding on Comet Lake and later Intel GPUs using the iHD VA-API driver</li>
+					<li>Fixed hardware decoding on AMD Radeon GPUs with XWayland</li>
+					<li>Fixed a crash when using the iHD VA-API driver on Wayland</li>
+					<li>Fixed delay after exiting the stream on Wayland</li>
+					<li>Updated included gamepad mappings</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.2.0" date="2019-12-17">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved video encoding efficiency</li>
+					<li>Improved performance when streaming over a VPN</li>
+					<li>Fixed RTSP handshake error on certain networks</li>
+					<li>Fixed rumble not working on certain gamepads</li>
+					<li>Fixed pairing error when double-clicking on an unpaired PC</li>
+					<li>Updated included SDL gamepad mappings</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.1.1" date="2019-09-29">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved reliability of public IP address detection</li>
+					<li>Fixed connecting to a host PC with multiple network connections</li>
+					<li>Fixed a hang after exiting a full-screen stream with GNOME on Wayland</li>
+					<li>Fixed gamepad hotplugging</li>
+					<li>Updated to SDL 2.0.10</li>
+					<li>Updated to Qt 5.13.1</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.1.0" date="2019-08-05">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added support for NVDEC for NVIDIA GPUs on Wayland</li>
+					<li>Added an option to disable gamepad mouse mode for games that require holding the Start button</li>
+					<li>Added automatic detection of IPv6 addresses for Internet streaming over IPv6 networks</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Improved speed and reliability of automatic PC detection on the local network</li>
+					<li>Fixed audio latency increasing under certain network conditions</li>
+					<li>Fixed 5.1 surround sound sometimes causing no audio to play when streaming over the Internet</li>
+					<li>Fixed graceful termination of games not being detected properly on GFE 3.19</li>
+					<li>Fixed several audio issues on Linux by switching back to SDL for audio</li>
+					<li>Changed client certificate signature algorithm from SHA-1 to SHA-256 for Debian Buster compatibility</li>
+					<li>Updated included gamepad mappings</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.0.1" date="2019-05-27">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed broken video on GeForce Experience 3.19</li>
+				</ul>
+			</description>
+		</release>
+		<release version="1.0.0" date="2019-05-21">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Mouse mode for gamepads (Press and hold Start to toggle)</li>
+					<li>Improved gamepad UI navigation</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed duplicate non-working gamepads appearing on the host</li>
+					<li>Fixed excessive frame queue delay on macOS</li>
+					<li>Fixed excessive audio latency on Steam Link</li>
+					<li>Fixed hiding mouse cursor after streaming on Steam Link</li>
+					<li>Fixed incorrect receive time stats on 32-bit platforms</li>
+					<li>Added UDP ports 48002 and 48010 for Wake-on-LAN</li>
+					<li>Updated included gamepad mappings</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.10.1" date="2019-04-28">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Video performance optimizations</li>
+					<li>VAAPI support on Wayland</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed a crash when attempting to dismiss the connection terminated dialog</li>
+					<li>Fixed a crash when using the overlay on the software decoder</li>
+					<li>Fixed software decoder not displaying output in some cases</li>
+					<li>Fixed some minor UI issues on the PC grid</li>
+					<li>Improved visibility of toolbar highlights</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.10.0" date="2019-04-07">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Redesigned App Grid with larger game artwork and less blank space</li>
+					<li>Redesigned UI dialogs using Material Design</li>
+					<li>Added a connection warning overlay (which can be disabled in settings)</li>
+					<li>Streaming window no longer minimizes when it loses focus in full-screen mode</li>
+					<li>The Steam Link device is now a supported platform</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed several bugs that could cause UI hangs or lag</li>
+					<li>Fixed rumble support on gamepads with limited rumble motor control</li>
+					<li>Fixed increased memory usage if the software renderer gets delayed</li>
+					<li>Fixed crashes on certain desktop configurations when loading the UI</li>
+					<li>Fixed handling of pairing certificates with a bogus date</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.9.1" date="2019-02-17">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added gamepad rumble support</li>
+					<li>Added a dedicated quit button to the running app tile</li>
+					<li>Reduced video latency on Windows and Linux</li>
+					<li>Added a performance overlay for software decoding</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed delayed first video frame with GFE 3.17</li>
+					<li>Fixed erroneously setting host resolution to 720p in certain configurations</li>
+					<li>The connection termination dialog is no longer displayed for intentional termination</li>
+					<li>Fixed some gamepads only functioning for UI navigation and not in game</li>
+					<li>Fixed audio latency increasing when switching audio devices</li>
+					<li>Fixed VDPAU scaling behavior on AMD cards</li>
+					<li>Fixed several bugs in gamepad navigation behavior</li>
+					<li>Work around a bug in QGnomePlatform that breaks dialog rendering on Linux</li>
+					<li>Updated included SDL gamepad mappings</li>
+					<li>Fixed hotkey behavior on non-latin keyboards</li>
+					<li>Fixed incorrect frame drop percentages in debug stats</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.8.1" date="2019-01-08">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Stricter adherence to the specified bitrate when streaming over the Internet</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed audio crackling that impacted certain systems</li>
+					<li>Fixed Wake-on-LAN packets failing to send on some systems</li>
+					<li>Reduced audio latency when resuming a session where audio is already playing</li>
+					<li>Added option to enable the old SDL audio renderer by setting ML_AUDIO=SDL</li>
+					<li>Updated to use the new Qt 5.12 Flatpak runtime</li>
+					<li>Updated to FFmpeg 4.1</li>
+					<li>Minor UI tweaks</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.8.0" date="2018-12-25">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Improved security of pairing - After this update, you must re-pair with your PC!</li>
+					<li>Enabled quitting games started by other Moonlight clients also running this update</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed the video bitrate slider not working above certain values on GFE 3.16</li>
+					<li>Fixed broken Bluetooth audio with PulseAudio</li>
+					<li>Reduced audio latency</li>
+					<li>Fixed some non-gamepad devices triggering the unmapped gamepad dialog box</li>
+					<li>Minor UI tweaks</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.7.0" date="2018-12-05">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added option to quit the app after stopping the stream</li>
+					<li>Added CLI option to quit the running app</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Switched to libsoundio backend to address audio glitches and reduce latency</li>
+					<li>Fixed CLI version output</li>
+					<li>Fixed streaming error messages not showing up when launching from CLI</li>
+					<li>Updated included SDL gamepad mappings</li>
+					<li>Various minor UI tweaks</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.6.4" date="2018-11-20">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added an option to match client display refresh rate when FPS is unlocked</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed multiple gamepads not being detected on the host in some scenarios</li>
+					<li>Fixed an incorrect warning when trying to stream at 4K</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.6.3" date="2018-11-16">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added support for GeForce Experience 3.16</li>
+					<li>Added an option to force Moonlight to start in windowed mode</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed scrolling not working on the settings page</li>
+					<li>Skipped using proxy servers when attempting to stream</li>
+					<li>Fixed a couple possible crashes</li>
+					<li>Renamed the mouse acceleration option to be more clear</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.6.2" date="2018-10-28">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added automatic IP address detection for Internet streaming</li>
+					<li>Added a quit shortcut tip for gamepad users</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed server state polling not being stopped while streaming</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.6.1" date="2018-10-14">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added support for quitting Moonlight via gamepad</li>
+					<li>Added tooltips for games with very long names</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Added a workaround for a memory leak in the VAAPI driver for AMD GPUs</li>
+					<li>Fixed combo boxes on the settings page being too small for certain DPI scaling</li>
+					<li>Reduced power usage when Moonlight is idling in the background for a while</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.6.0" date="2018-10-06">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added keyboard and gamepad UI navigation</li>
+					<li>Added support for mouse X1 and X2 buttons (back and forward)</li>
+					<li>Added support for mouse movement with touchscreens</li>
+					<li>Improved HEVC performance at high bitrates</li>
+					<li>Added support for launching streaming sessions directly from a terminal or script</li>
+					<li>Added quit shortcut for gamepads: Select+Start+L1+R1</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed not saving deletion of PCs</li>
+					<li>Fixed keys being stuck down on the host PC after Moonlight loses focus or quits</li>
+					<li>Fixed some warning dialogs being stuck behind the UI window</li>
+					<li>Updated included gamepad mapping list</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.5.0" date="2018-09-15">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added option to enable mouse acceleration for remote desktop usage</li>
+					<li>Added option to disable automatic PC discovery</li>
+					<li>Added gamepad mappings from gabomdq's SDL_GameControllerDB</li>
+					<li>Added help links to error dialogs</li>
+					<li>Added quit shortcut tip to stream loading page</li>
+					<li>Restored the autodetect audio configuration option</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed quit app dialog starting the wrong app</li>
+					<li>Fixed very high input lag on GFE 3.14.0 and earlier</li>
+					<li>Fixed sending errant mouse click when capturing the mouse</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.4.0" date="2018-09-08">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Added option to enable (unsupported) 90/120 FPS streaming on 60 Hz monitors</li>
+					<li>Added refresh rate matching for better frame pacing on high refresh rate monitors</li>
+					<li>The streaming window now appears on the same monitor the UI was displayed on</li>
+					<li>The streaming window is now centered on the target monitor</li>
+					<li>Display a dialog when the connection is terminated by the remote PC</li>
+					<li>Added option to select between full-screen exclusive and borderless windowed mode</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed streaming with no audio device</li>
+					<li>Fixed mouse lag with some high polling rate mice</li>
+					<li>Improved UI performance on the app grid page</li>
+					<li>1440p and 4K 120 FPS performance is improved to avoid encoder bottlenecks</li>
+					<li>Autodetect audio configuration option removed because it was broken</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.3.0" date="2018-08-21">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Reduced power consumption when the app is minimized</li>
+					<li>Fixed malformed asset requests being sent when the first host in the grid is offline</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.2.0" date="2018-08-12">
+			<description>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Fixed functionality of '=', 'Numpad Dot', and 'Numpad Enter' keys</li>
+					<li>Fixed uninitialized variable causing strange gamepad behavior</li>
+					<li>Added a warning for incompatible configs and decoder failures</li>
+					<li>Added a warning for Wayland performance issues</li>
+					<li>Stopped capturing the mouse by default for windowed streams</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.1.0" date="2018-08-05">
+			<description>
+				<p>New features:</p>
+				<ul>
+					<li>Allow streaming at the client's native resolution</li>
+					<li>VDPAU hardware decoding support for NVIDIA GPUs</li>
+					<li>Updated UI to replace status text with icons</li>
+					<li>Stream window is now resizable</li>
+					<li>Display warnings during game launch for configuration issues</li>
+				</ul>
+				<p>Bugfixes:</p>
+				<ul>
+					<li>Gamepad input now works even if the app doesn't have focus</li>
+					<li>Fixed streaming black screen if the host supported HEVC but the client didn't</li>
+					<li>Fixed broken video scaling causing extra stretching and off-center video</li>
+					<li>Fixed gamepad input issue causing some Y axis inputs to be reversed</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.0.5" date="2018-08-01">
+			<description>
+				<p>Changes from 0.0.4:</p>
+				<ul>
+					<li>Fixed a bug causing increased frame drops and input lag</li>
+					<li>Added support for quitting running games</li>
+					<li>Added support for waking sleeping PCs with Wake-on-LAN</li>
+					<li>Increased the FPS limit to 120 FPS</li>
+				</ul>
+			</description>
+		</release>
+		<release version="0.0.4a" date="2018-07-30">
+			<description>
+				<p>Initial pre-alpha release for Linux. Please file bugs!</p>
+			</description>
+		</release>
+	</releases>
+
+	<categories>
+		<category>Game</category>
+		<category>Qt</category>
+	</categories>
+
+	<developer_name>Moonlight Game Streaming Team</developer_name>
+	<update_contact>cameron@moonlight-stream.org</update_contact>
+
+	<launchable type="desktop-id">com.moonlight_stream.Moonlight.desktop</launchable>
+
+	<provides>
+		<binary>moonlight</binary>
+	</provides>
+
+	<content_rating type="oars-1.0" />
+</component>

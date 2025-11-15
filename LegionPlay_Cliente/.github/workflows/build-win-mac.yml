@@ -1,0 +1,120 @@
+---
+name: Build - Windows and macOS
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      ci_version:
+        required: true
+        type: string
+
+jobs:
+  build:
+    env:
+      CI_VERSION: ${{ inputs.ci_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Windows
+          - os: windows-2025
+            qt_version: 6.10.0
+          # macOS
+          - os: macos-15
+            qt_version: 6.10.0
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          submodules: 'recursive'
+          fetch-depth: 1
+
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install node
+          npm install --global create-dmg
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          set-env: ${{ runner.os != 'Windows' }}
+          add-tools-to-path: ${{ runner.os != 'Windows' }}
+          version: ${{ matrix.qt_version }}
+
+      - name: Install Qt ARM64 (Windows)
+        if: runner.os == 'Windows'
+        uses: jurplel/install-qt-action@v4
+        with:
+          cache: true
+          set-env: false
+          add-tools-to-path: false
+          arch: win64_msvc2022_arm64_cross_compiled
+          version: ${{ matrix.qt_version }}
+
+      - name: Build x64 binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "PATH=%QT_PATH%;%PATH%"
+          scripts\build-arch.bat Release x64
+        env:
+          QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_64\bin
+
+      - name: Build ARM64 binaries (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          set "PATH=%QT_PATH%;%PATH%"
+          scripts\build-arch.bat Release arm64
+        env:
+          QT_PATH: ${{ runner.workspace }}\Qt\${{ matrix.qt_version }}\msvc2022_arm64\bin
+
+      - name: Build Package
+        shell: pwsh
+        run: |
+          if ($Env:RUNNER_OS -eq "Windows") {
+            cmd /c scripts\generate-bundle.bat Release
+          } else {
+            bash scripts/generate-dmg.sh Release
+          }
+
+      - name: Upload Binaries (Windows x64)
+        uses: actions/upload-artifact@v5
+        if: runner.os == 'Windows'
+        with:
+          name: Moonlight-${{ runner.os }}-x64-${{ env.CI_VERSION }}
+          path: build/deploy-x64-release/*
+          if-no-files-found: error
+
+      - name: Upload Binaries (Windows arm64)
+        uses: actions/upload-artifact@v5
+        if: runner.os == 'Windows'
+        with:
+          name: Moonlight-${{ runner.os }}-arm64-${{ env.CI_VERSION }}
+          path: build/deploy-arm64-release/*
+          if-no-files-found: error
+
+      - name: Upload Binaries (macOS)
+        uses: actions/upload-artifact@v5
+        if: runner.os == 'macOS'
+        with:
+          name: Moonlight-${{ runner.os }}-${{ env.CI_VERSION }}
+          path: build/installer-Release/*.dmg
+          compression-level: 0
+          if-no-files-found: error
+
+      - name: Upload Symbols
+        uses: actions/upload-artifact@v5
+        with:
+          name: zDevDbgSyms-${{ runner.os }}-${{ env.CI_VERSION }}
+          path: |
+            build/installer-*/*.dsym/*
+            build/symbols-*/*.pdb
+          if-no-files-found: error

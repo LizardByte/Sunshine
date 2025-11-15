@@ -1,0 +1,99 @@
+<RCC>
+    <qresource prefix="/">
+        <file>res/ic_videogame_asset_white_48px.svg</file>
+        <file>res/desktop_windows-48px.svg</file>
+        <file>res/ic_add_to_queue_white_48px.svg</file>
+        <file>res/baseline-lock-24px.svg</file>
+        <file>res/play_arrow_FILL1_wght700_GRAD200_opsz48.svg</file>
+        <file>res/baseline-warning-24px.svg</file>
+        <file>res/warning_FILL1_wght300_GRAD200_opsz24.svg</file>
+        <file>res/stop_FILL1_wght700_GRAD200_opsz48.svg</file>
+        <file>res/no_app_image.png</file>
+        <file>res/settings.svg</file>
+        <file>res/arrow_left.svg</file>
+        <file>res/question_mark.svg</file>
+        <file>res/moonlight.svg</file>
+        <file>res/update.svg</file>
+        <file>res/baseline-help_outline-24px.svg</file>
+        <file>res/baseline-error_outline-24px.svg</file>
+        <file>res/baseline-check_circle_outline-24px.svg</file>
+        <file>res/discord.svg</file>
+        <file>languages/qml_de.ts</file>
+        <file>languages/qml_de.qm</file>
+        <file>languages/qml_fr.ts</file>
+        <file>languages/qml_fr.qm</file>
+        <file>languages/qml_zh_CN.ts</file>
+        <file>languages/qml_zh_CN.qm</file>
+        <file>languages/qml_nb_NO.ts</file>
+        <file>languages/qml_nb_NO.qm</file>
+        <file>languages/qml_ru.ts</file>
+        <file>languages/qml_ru.qm</file>
+        <file>languages/qml_es.ts</file>
+        <file>languages/qml_es.qm</file>
+        <file>languages/qml_ja.ts</file>
+        <file>languages/qml_ja.qm</file>
+        <file>languages/qml_vi.ts</file>
+        <file>languages/qml_vi.qm</file>
+        <file>languages/qml_th.ts</file>
+        <file>languages/qml_th.qm</file>
+        <file>languages/qml_ko.ts</file>
+        <file>languages/qml_ko.qm</file>
+        <file>languages/qml_hu.ts</file>
+        <file>languages/qml_hu.qm</file>
+        <file>languages/qml_nl.ts</file>
+        <file>languages/qml_nl.qm</file>
+        <file>languages/qml_sv.ts</file>
+        <file>languages/qml_sv.qm</file>
+        <file>languages/qml_tr.ts</file>
+        <file>languages/qml_tr.qm</file>
+        <file>languages/qml_uk.ts</file>
+        <file>languages/qml_uk.qm</file>
+        <file>languages/qml_zh_TW.ts</file>
+        <file>languages/qml_zh_TW.qm</file>
+        <file>languages/qml_el.ts</file>
+        <file>languages/qml_el.qm</file>
+        <file>languages/qml_hi.ts</file>
+        <file>languages/qml_hi.qm</file>
+        <file>languages/qml_it.ts</file>
+        <file>languages/qml_it.qm</file>
+        <file>languages/qml_pt.ts</file>
+        <file>languages/qml_pt.qm</file>
+        <file>languages/qml_pl.ts</file>
+        <file>languages/qml_pl.qm</file>
+        <file>languages/qml_cs.ts</file>
+        <file>languages/qml_cs.qm</file>
+        <file>languages/qml_he.ts</file>
+        <file>languages/qml_he.qm</file>
+        <file>languages/qml_ckb.ts</file>
+        <file>languages/qml_ckb.qm</file>
+        <file>languages/qml_lt.ts</file>
+        <file>languages/qml_lt.qm</file>
+        <file>languages/qml_et.ts</file>
+        <file>languages/qml_et.qm</file>
+        <file>languages/qml_bg.ts</file>
+        <file>languages/qml_bg.qm</file>
+        <file>languages/qml_eo.ts</file>
+        <file>languages/qml_eo.qm</file>
+        <file>languages/qml_ta.ts</file>
+        <file>languages/qml_ta.qm</file>
+        <!-- Don't include pt_BR until it is more complete -->
+        <!--file>languages/qml_pt_BR.qm</file-->
+        <!--file>languages/qml_pt_BR.ts</file-->
+    </qresource>
+    <qresource prefix="/data">
+        <file alias="gamecontrollerdb.txt">SDL_GameControllerDB/gamecontrollerdb.txt</file>
+        <file alias="ModeSeven.ttf">ModeSeven.ttf</file>
+        <file alias="egl_nv12.frag">shaders/egl_nv12.frag</file>
+        <file alias="egl_nv12.vert">shaders/egl_nv12.vert</file>
+        <file alias="egl_opaque.frag">shaders/egl_opaque.frag</file>
+        <file alias="egl_opaque.vert">shaders/egl_opaque.vert</file>
+        <file alias="egl_overlay.frag">shaders/egl_overlay.frag</file>
+        <file alias="egl_overlay.vert">shaders/egl_overlay.vert</file>
+        <file alias="d3d11_vertex.fxc">shaders/d3d11_vertex.fxc</file>
+        <file alias="d3d11_overlay_pixel.fxc">shaders/d3d11_overlay_pixel.fxc</file>
+        <file alias="d3d11_yuv420_pixel.fxc">shaders/d3d11_yuv420_pixel.fxc</file>
+        <file alias="d3d11_ayuv_pixel.fxc">shaders/d3d11_ayuv_pixel.fxc</file>
+        <file alias="d3d11_y410_pixel.fxc">shaders/d3d11_y410_pixel.fxc</file>
+        <file alias="vt_renderer.metal">shaders/vt_renderer.metal</file>
+    </qresource>
+</RCC>
