@@ -137,13 +137,13 @@ namespace platf::dxgi {
     } catch (winrt::hresult_error &e) {
       BOOST_LOG(warning) << "Screen capture may not be fully supported on this device for this release of Windows: failed to disable border around capture area: [0x"sv << util::hex(e.code()).to_string_view() << ']';
     }
-    try{
+    try {
       if (winrt::ApiInformation::IsPropertyPresent(L"Windows.Graphics.Capture.GraphicsCaptureSession", L"MinUpdateInterval")) {
-        capture_session.MinUpdateInterval(4ms); //250Hz
-      }else {
+        capture_session.MinUpdateInterval(4ms);  // 250Hz
+      } else {
         BOOST_LOG(warning) << "Can't set MinUpdateInterval on this version of Windows";
       }
-    }catch(winrt::hresult_error &e) {
+    } catch (winrt::hresult_error &e) {
       BOOST_LOG(warning) << "Screen capture may be capped to 60fps on this device for this release of Windows: failed to set MinUpdateInterval: [0x"sv << util::hex(e.code()).to_string_view() << ']';
     }
     try {
