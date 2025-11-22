@@ -1977,6 +1977,13 @@ namespace video {
       }
 
       session->request_normal_frame();
+      
+      // Only enable Mouse Keys on Windows
+      #ifdef _WIN32
+        // While streaming check to see if the mouse is present and enable Mouse Keys to force the cursor to appear (Windows only)
+        // This is useful for KVM switch scenarios where mouse may disappear during streaming
+        platf::enable_mouse_keys();
+      #endif
     }
   }
 
