@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Release Setup
         id: release-setup
@@ -187,7 +187,7 @@ jobs:
 
       - name: Checkout
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download coverage artifact
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
