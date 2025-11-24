@@ -134,10 +134,14 @@ build() {
       # therefore, set them manually to the expected values on Arch Linux
       if [ -z "${CUDA_PATH:-}" ] && pacman -Qi cuda &> /dev/null; then
         local _cuda_gcc_version
-        _cuda_gcc_version="$(LC_ALL=C pacman -Si cuda | grep -Pom1 '^Depends On\s*:.*\bgcc\K[0-9]+\b')"
+        _cuda_gcc_version="$(LC_ALL=C pacman -Si cuda | grep -Pom1 '^Depends On\s*:.*\bgcc\K[0-9]+\b' || true)"
 
         export CUDA_PATH=/opt/cuda
-        export NVCC_CCBIN="/usr/bin/g++-${_cuda_gcc_version}"
+        if [ -n "$_cuda_gcc_version" ]; then
+          export NVCC_CCBIN="/usr/bin/g++-${_cuda_gcc_version}"
+        else
+          export NVCC_CCBIN="/usr/bin/g++"
+        fi
       fi
     fi
 
