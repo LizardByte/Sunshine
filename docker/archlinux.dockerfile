@@ -137,6 +137,7 @@ set -e
 pacman -U --disable-download-timeout --needed --noconfirm \
   /sunshine.pkg.tar.zst
 pacman -Scc --noconfirm
+rm /etc/pacman.d/gnupg/S.* || true
 _INSTALL_SUNSHINE
 
 # network setup
