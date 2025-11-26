@@ -31,7 +31,6 @@ class Sunshine < Formula
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build
-  depends_on GCC_FORMULA => [:build, :test]
   depends_on "graphviz" => :build
   depends_on "node" => :build
   depends_on "pkgconf" => :build
@@ -48,6 +47,7 @@ class Sunshine < Formula
   end
 
   on_linux do
+    depends_on GCC_FORMULA => [:build, :test]
     depends_on "avahi"
     depends_on "gnu-which"
     depends_on "libayatana-appindicator"
@@ -85,10 +85,12 @@ class Sunshine < Formula
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
 
-    # Use GCC because gcov from llvm cannot handle our paths
-    gcc_path = Formula[GCC_FORMULA]
-    ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
-    ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
+    if OS.linux?
+      # Use GCC because gcov from llvm cannot handle our paths
+      gcc_path = Formula[GCC_FORMULA]
+      ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+      ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
+    end
 
     args = %W[
       -DBUILD_WERROR=ON
@@ -192,20 +194,22 @@ class Sunshine < Formula
       # Change to the source directory for gcovr to work properly
       cd "#{buildpath}/build" do
         # Use GCC version to match what was used during compilation
-        gcc_path = Formula[GCC_FORMULA]
-        gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+        if OS.linux?
+          gcc_path = Formula[GCC_FORMULA]
+          gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
 
-        system "gcovr", ".",
-          "-r", "../src",
-          "--gcov-executable", gcov_executable,
-          "--exclude-noncode-lines",
-          "--exclude-throw-branches",
-          "--exclude-unreachable-branches",
-          "--verbose", # TODO: remove verbose once working for macOS
-          "--xml-pretty",
-          "-o=#{testpath}/coverage.xml"
+          system "gcovr", ".",
+            "-r", "../src",
+            "--gcov-executable", gcov_executable,
+            "--exclude-noncode-lines",
+            "--exclude-throw-branches",
+            "--exclude-unreachable-branches",
+            "--xml-pretty",
+            "-o=#{testpath}/coverage.xml"
+
+          assert_path_exists File.join(testpath, "coverage.xml")
+        end
       end
-      assert_path_exists File.join(testpath, "coverage.xml")
     end
   end
 end
