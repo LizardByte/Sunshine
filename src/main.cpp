@@ -99,32 +99,20 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 
   // Conditions that would require the main thread event loop
 #ifndef _WIN32
-  run_loop = tray_is_enabled;  // On Windows, tray runs in separate thread, so no main loop needed for tray
+  run_loop = tray_is_enabled && config::sunshine.system_tray;  // On Windows, tray runs in separate thread, so no main loop needed for tray
 #endif
 
   if (!run_loop) {
     BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
+    // Wait for shutdown
+    shutdown_event->view();
     return;
   }
 
   // Main thread event loop
   BOOST_LOG(info) << "Starting main loop"sv;
-  while (true) {
-    if (shutdown_event->peek()) {
-      BOOST_LOG(info) << "Shutdown event detected, breaking main loop"sv;
-      if (tray_is_enabled && config::sunshine.system_tray) {
-        system_tray::end_tray();
-      }
-      break;
-    }
-
-    if (tray_is_enabled) {
-      system_tray::process_tray_events();
-    }
-
-    // Sleep to avoid busy waiting
-    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-  }
+  while (system_tray::process_tray_events() == 0);
+  BOOST_LOG(info) << "Main loop has exited"sv;
 }
 
 int main(int argc, char *argv[]) {
@@ -297,7 +285,10 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
+    // Break out of the main loop
     shutdown_event->raise(true);
+    system_tray::end_tray();
+
     display_device_deinit_guard = nullptr;
   });
 
@@ -311,7 +302,10 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
+    // Break out of the main loop
     shutdown_event->raise(true);
+    system_tray::end_tray();
+
     display_device_deinit_guard = nullptr;
   });
 
@@ -400,9 +394,6 @@ int main(int argc, char *argv[]) {
 
   mainThreadLoop(shutdown_event);
 
-  // Wait for shutdown, this is not necessary when we're using the main event loop
-  shutdown_event->view();
-
   httpThread.join();
   configThread.join();
   rtspThread.join();
@@ -415,11 +406,6 @@ int main(int argc, char *argv[]) {
   if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
     nvprefs_instance.restore_global_profile();
     nvprefs_instance.unload();
-  }
-
-  // Stop the threaded tray if it was started
-  if (tray_is_enabled && config::sunshine.system_tray) {
-    system_tray::end_tray_threaded();
   }
 #endif
 
