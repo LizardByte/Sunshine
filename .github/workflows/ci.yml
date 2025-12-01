@@ -170,7 +170,7 @@ jobs:
             coverage: false
             pr: true
           - name: Homebrew-ubuntu-latest
-            coverage: false
+            coverage: true
             pr: true
           - name: Windows-AMD64
             coverage: true
@@ -208,7 +208,9 @@ jobs:
           verbose: true
 
       - name: Upload coverage
-        if: steps.should_run.outputs.SHOULD_RUN == 'true' && matrix.coverage != false
+        if: |
+          steps.should_run.outputs.SHOULD_RUN == 'true'  &&
+          matrix.coverage != false
         uses: codecov/codecov-action@v5
         with:
           disable_search: true

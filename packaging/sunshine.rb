@@ -1,6 +1,9 @@
 require "language/node"
 
 class Sunshine < Formula
+  GCC_VERSION = "14".freeze
+  GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
+
   # conflicts_with "sunshine", because: "sunshine and sunshine-beta cannot be installed at the same time"
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
@@ -31,6 +34,7 @@ class Sunshine < Formula
   depends_on "graphviz" => :build
   depends_on "node" => :build
   depends_on "pkgconf" => :build
+  depends_on "gcovr" => :test
   depends_on "curl"
   depends_on "miniupnpc"
   depends_on "openssl"
@@ -38,7 +42,12 @@ class Sunshine < Formula
   depends_on "boost" => :recommended
   depends_on "icu4c" => :recommended
 
+  on_macos do
+    depends_on "llvm" => [:build, :test]
+  end
+
   on_linux do
+    depends_on GCC_FORMULA => [:build, :test]
     depends_on "avahi"
     depends_on "gnu-which"
     depends_on "libayatana-appindicator"
@@ -75,6 +84,13 @@ class Sunshine < Formula
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
+
+    if OS.linux?
+      # Use GCC because gcov from llvm cannot handle our paths
+      gcc_path = Formula[GCC_FORMULA]
+      ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+      ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
+    end
 
     args = %W[
       -DBUILD_WERROR=ON
@@ -169,7 +185,31 @@ class Sunshine < Formula
     system bin/"sunshine", "--version"
 
     # run the test suite
-    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:test_results.xml"
-    assert_path_exists testpath/"test_results.xml"
+    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
+    assert_path_exists File.join(testpath, "tests", "test_results.xml")
+
+    # create gcovr report
+    buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
+    unless buildpath.empty?
+      # Change to the source directory for gcovr to work properly
+      cd "#{buildpath}/build" do
+        # Use GCC version to match what was used during compilation
+        if OS.linux?
+          gcc_path = Formula[GCC_FORMULA]
+          gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+
+          system "gcovr", ".",
+            "-r", "../src",
+            "--gcov-executable", gcov_executable,
+            "--exclude-noncode-lines",
+            "--exclude-throw-branches",
+            "--exclude-unreachable-branches",
+            "--xml-pretty",
+            "-o=#{testpath}/coverage.xml"
+
+          assert_path_exists File.join(testpath, "coverage.xml")
+        end
+      end
+    end
   end
 end
