@@ -564,6 +564,9 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   This can only be changed by modifying the `apps.json` file directly.
 
 ### Considerations
+* Using virtual input devices may not work in all games.
+  Some games may also ban you for using virtual input.
+  Use at your own risk.
 * On Windows, Sunshine uses the Desktop Duplication API which only supports capturing from the GPU used for display.
   If you want to capture and encode on the eGPU, connect a display or HDMI dummy display dongle to it and run the games
   on that display.
