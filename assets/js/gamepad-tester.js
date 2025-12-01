@@ -44,7 +44,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // If there are other gamepads, select the first one
             const remainingIndices = Object.keys(gamepads);
             if (remainingIndices.length > 0) {
-                activeGamepadIndex = parseInt(remainingIndices[0]);
+                activeGamepadIndex = Number.parseInt(remainingIndices[0]);
                 gamepadSelector.value = activeGamepadIndex;
             } else {
                 stopGamepadLoop();
@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Event listener for gamepad selector change
     gamepadSelector.addEventListener('change', function() {
-        activeGamepadIndex = parseInt(this.value);
+        activeGamepadIndex = Number.parseInt(this.value);
         initGamepadButtons();
         initGamepadAxes();
     });
@@ -409,14 +409,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const vibrationCapabilities = gamepadHelper.getVibrationCapabilities(gamepad);
             if (!vibrationCapabilities.supported) return;
 
-            const duration = parseInt(document.getElementById('vibration-duration').value);
+            const duration = Number.parseInt(document.getElementById('vibration-duration').value);
             let vibrationOptions = { duration };
 
             if (vibrationCapabilities.type === 'dual-rumble') {
-                vibrationOptions.weakMagnitude = parseFloat(document.getElementById('vibration-weak').value);
-                vibrationOptions.strongMagnitude = parseFloat(document.getElementById('vibration-strong').value);
+                vibrationOptions.weakMagnitude = Number.parseFloat(document.getElementById('vibration-weak').value);
+                vibrationOptions.strongMagnitude = Number.parseFloat(document.getElementById('vibration-strong').value);
             } else {
-                const magnitude = parseFloat(document.getElementById('vibration-magnitude').value);
+                const magnitude = Number.parseFloat(document.getElementById('vibration-magnitude').value);
                 vibrationOptions.weakMagnitude = magnitude;
                 vibrationOptions.strongMagnitude = magnitude;
                 vibrationOptions.magnitude = magnitude;
@@ -491,7 +491,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // If we have gamepads already, start the loop
     if (Object.keys(gamepads).length > 0) {
-        activeGamepadIndex = parseInt(Object.keys(gamepads)[0]);
+        activeGamepadIndex = Number.parseInt(Object.keys(gamepads)[0]);
         updateStatus(`Gamepad ${gamepads[activeGamepadIndex].id} connected`);
         startGamepadLoop();
     }
