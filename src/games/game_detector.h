@@ -94,6 +94,16 @@ private:
 };
 
 /**
+ * Detector para Xbox / Microsoft Store (Game Pass)
+ */
+class XboxDetector : public PlatformDetector {
+public:
+    std::vector<DetectedGame> detect() override;
+    std::string get_platform_name() const override { return "xbox"; }
+    bool is_installed() const override;
+};
+
+/**
  * Clase principal del Game Detector
  */
 class GameDetector {

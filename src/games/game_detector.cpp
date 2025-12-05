@@ -1,166 +1,19 @@
-<<<<<<< Updated upstream
-/**
- * @file game_detector.h
- * @brief Módulo de autodetección de juegos instalados
- * 
- * Detecta juegos de múltiples plataformas:
- * - Steam
- * - Epic Games Store
- * - Xbox Game Pass / Microsoft Store
- * - EA Desktop / Origin
- * - Ubisoft Connect
- * - GOG Galaxy
- */
-
-#ifndef SUNSHINE_GAME_DETECTOR_H
-#define SUNSHINE_GAME_DETECTOR_H
-
-#include <string>
-#include <vector>
-#include <memory>
-#include <optional>
-#include <functional>
-=======
 #include "game_detector.h"
 #include "../logging.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <regex>
 #include <filesystem>
+#include <iostream>
 
 #ifdef _WIN32
 #include <windows.h>
+#include <shlobj.h>
 #endif
->>>>>>> Stashed changes
 
 namespace sunshine {
 namespace games {
 
-<<<<<<< Updated upstream
-/**
- * Estructura que representa un juego detectado
- */
-struct DetectedGame {
-    std::string id;              // ID único (ej: "steam_271590")
-    std::string name;            // Nombre del juego
-    std::string platform;        // Plataforma (steam, epic, xbox, etc.)
-    std::string executable;      // Ruta completa al ejecutable
-    std::string launch_cmd;      // Comando completo para lanzar
-    std::string icon_path;       // Ruta al ícono (opcional)
-    std::string install_dir;     // Directorio de instalación
-    std::string app_id;          // ID de la plataforma (ej: Steam AppID)
-    bool requires_launcher;      // Si necesita launcher abierto
-};
-
-/**
- * Clase base para detectores de plataforma
- */
-class PlatformDetector {
-public:
-    virtual ~PlatformDetector() = default;
-    virtual std::vector<DetectedGame> detect() = 0;
-    virtual std::string get_platform_name() const = 0;
-    virtual bool is_installed() const = 0;
-};
-
-/**
- * Detector para Steam
- */
-class SteamDetector : public PlatformDetector {
-public:
-    std::vector<DetectedGame> detect() override;
-    std::string get_platform_name() const override { return "steam"; }
-    bool is_installed() const override;
-
-private:
-    std::optional<std::string> get_steam_path();
-    std::vector<std::string> get_library_folders(const std::string& steam_path);
-    std::vector<DetectedGame> parse_acf_files(const std::string& library_path);
-    DetectedGame parse_acf_file(const std::string& acf_path);
-};
-
-/**
- * Detector para Epic Games Store
- */
-class EpicDetector : public PlatformDetector {
-public:
-    std::vector<DetectedGame> detect() override;
-    std::string get_platform_name() const override { return "epic"; }
-    bool is_installed() const override;
-
-private:
-    std::optional<std::string> get_epic_manifests_path();
-    DetectedGame parse_manifest(const std::string& manifest_path);
-};
-
-/**
- * Detector para GOG Galaxy
- */
-class GOGDetector : public PlatformDetector {
-public:
-    std::vector<DetectedGame> detect() override;
-    std::string get_platform_name() const override { return "gog"; }
-    bool is_installed() const override;
-
-private:
-    std::optional<std::string> get_gog_path();
-    std::vector<DetectedGame> parse_gog_registry();
-};
-
-/**
- * Clase principal del Game Detector
- */
-class GameDetector {
-public:
-    GameDetector();
-    
-    /**
-     * Detecta todos los juegos instalados en todas las plataformas
-     */
-    std::vector<DetectedGame> detect_all_games();
-    
-    /**
-     * Detecta juegos de una plataforma específica
-     */
-    std::vector<DetectedGame> detect_platform(const std::string& platform);
-    
-    /**
-     * Convierte la lista de juegos a JSON
-     */
-    std::string to_json(const std::vector<DetectedGame>& games);
-    
-    /**
-     * Obtiene las plataformas disponibles
-     */
-    std::vector<std::string> get_available_platforms();
-    
-    /**
-     * Instancia singleton
-     */
-    static GameDetector& instance();
-
-private:
-    std::vector<std::unique_ptr<PlatformDetector>> detectors_;
-    void initialize_detectors();
-};
-
-/**
- * Funciones de utilidad para Windows Registry
- */
-namespace winreg {
-    std::optional<std::string> read_string(const std::string& key, const std::string& value);
-    std::vector<std::string> enumerate_subkeys(const std::string& key);
-}
-
-/**
- * Funciones de utilidad para archivos
- */
-namespace fileutil {
-    bool file_exists(const std::string& path);
-    bool directory_exists(const std::string& path);
-    std::vector<std::string> list_files(const std::string& dir, const std::string& pattern);
-    std::string read_file(const std::string& path);
-=======
 // --- Funciones de Ayuda (Windows) ---
 #ifdef _WIN32
 std::string get_registry_value(HKEY hKey, const std::string& subKey, const std::string& valueName) {
@@ -179,6 +32,27 @@ std::string get_registry_value(HKEY hKey, const std::string& subKey, const std::
     RegCloseKey(hSubKey);
     return std::string(buffer);
 }
+
+std::string get_program_data_path() {
+    char path[MAX_PATH];
+    if (SUCCEEDED(SHGetFolderPathA(NULL, CSIDL_COMMON_APPDATA, NULL, 0, path))) {
+        return std::string(path);
+    }
+    return "C:\\ProgramData";
+}
+
+// Helper to execute a command and return output
+std::string exec_command(const std::string& cmd) {
+    std::string result;
+    char buffer[128];
+    FILE* pipe = _popen(cmd.c_str(), "r");
+    if (!pipe) return "ERROR";
+    while (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+        result += buffer;
+    }
+    _pclose(pipe);
+    return result;
+}
 #endif
 
 // --- Implementación de GameDetector ---
@@ -196,6 +70,7 @@ void GameDetector::initialize_detectors() {
     detectors_.push_back(std::make_unique<SteamDetector>());
     detectors_.push_back(std::make_unique<EpicDetector>());
     detectors_.push_back(std::make_unique<GOGDetector>());
+    detectors_.push_back(std::make_unique<XboxDetector>());
 }
 
 std::vector<DetectedGame> GameDetector::detect_all_games() {
@@ -326,33 +201,221 @@ std::vector<DetectedGame> SteamDetector::detect() {
     return games;
 }
 
-// --- Implementaciones de Otros Detectores (Stubs) ---
+// --- Implementación de Epic Games Detector ---
 
 bool EpicDetector::is_installed() const {
-    BOOST_LOG(info) << "Epic detector stub: is_installed() llamado.";
-    return false; // Deshabilitar para la prueba
+#ifdef _WIN32
+    // Verificar si existe la carpeta de manifiestos
+    std::string program_data = get_program_data_path();
+    std::string manifests_path = program_data + "\\Epic\\EpicGamesLauncher\\Data\\Manifests";
+    return std::filesystem::exists(manifests_path);
+#else
+    return false;
+#endif
 }
 
 std::vector<DetectedGame> EpicDetector::detect() {
-    BOOST_LOG(info) << "Epic detector stub: detect() llamado.";
-    return {};
+    std::vector<DetectedGame> games;
+#ifdef _WIN32
+    std::string program_data = get_program_data_path();
+    std::string manifests_path = program_data + "\\Epic\\EpicGamesLauncher\\Data\\Manifests";
+
+    if (!std::filesystem::exists(manifests_path)) {
+        return games;
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(manifests_path)) {
+        if (entry.path().extension() == ".item") {
+            try {
+                std::ifstream item_file(entry.path());
+                nlohmann::json item_json;
+                item_file >> item_json;
+
+                DetectedGame game;
+                game.platform = "Epic";
+
+                if (item_json.contains("DisplayName"))
+                    game.name = item_json["DisplayName"];
+
+                if (item_json.contains("InstallLocation"))
+                    game.install_dir = item_json["InstallLocation"];
+
+                if (item_json.contains("MainGameAppName"))
+                    game.app_id = item_json["MainGameAppName"];
+
+                if (item_json.contains("LaunchExecutable"))
+                    game.executable = item_json["LaunchExecutable"];
+
+                if (!game.name.empty() && !game.app_id.empty()) {
+                    game.id = "epic:" + game.app_id;
+                    // Comando de lanzamiento oficial de Epic
+                    game.launch_cmd = "com.epicgames.launcher://apps/" + game.app_id + "?action=launch&silent=true";
+
+                    // Buscar ícono si es posible (no siempre está en el manifiesto)
+                    // game.icon_path = ...
+
+                    games.push_back(game);
+                }
+            } catch (const std::exception& e) {
+                BOOST_LOG(warning) << "Error parseando manifiesto de Epic: " << entry.path().string() << " - " << e.what();
+            }
+        }
+    }
+#endif
+    return games;
 }
 
+// --- Implementación de GOG Galaxy Detector ---
+
 bool GOGDetector::is_installed() const {
-    BOOST_LOG(info) << "GOG detector stub: is_installed() llamado.";
-    return false; // Deshabilitar para la prueba
+#ifdef _WIN32
+    // Verificar si la clave de registro de GOG existe
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\WOW6432Node\\GOG.com\\Games", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        RegCloseKey(hKey);
+        return true;
+    }
+    // Intentar sin WOW6432Node
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, "SOFTWARE\\GOG.com\\Games", 0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        RegCloseKey(hKey);
+        return true;
+    }
+    return false;
+#else
+    return false;
+#endif
 }
 
 std::vector<DetectedGame> GOGDetector::detect() {
-    BOOST_LOG(info) << "GOG detector stub: detect() llamado.";
-    return {};
->>>>>>> Stashed changes
+    std::vector<DetectedGame> games;
+#ifdef _WIN32
+    const std::vector<std::string> registry_paths = {
+        "SOFTWARE\\WOW6432Node\\GOG.com\\Games",
+        "SOFTWARE\\GOG.com\\Games"
+    };
+
+    for (const auto& reg_path : registry_paths) {
+        HKEY hKey;
+        if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, reg_path.c_str(), 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+            continue;
+        }
+
+        DWORD index = 0;
+        char subKeyName[256];
+        DWORD subKeyNameSize = sizeof(subKeyName);
+
+        while (RegEnumKeyEx(hKey, index, subKeyName, &subKeyNameSize, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS) {
+            std::string gameId = subKeyName;
+            std::string gameKeyPath = reg_path + "\\" + gameId;
+
+            std::string gameName = get_registry_value(HKEY_LOCAL_MACHINE, gameKeyPath, "gameName");
+            std::string exe = get_registry_value(HKEY_LOCAL_MACHINE, gameKeyPath, "exe");
+            std::string path = get_registry_value(HKEY_LOCAL_MACHINE, gameKeyPath, "path");
+
+            if (!gameName.empty() && !path.empty()) {
+                DetectedGame game;
+                game.platform = "GOG";
+                game.name = gameName;
+                game.app_id = gameId;
+                game.install_dir = path;
+                game.id = "gog:" + gameId;
+
+                // Construir ruta completa al ejecutable
+                if (!exe.empty()) {
+                    // Si 'exe' es relativo, lo unimos a 'path'. Si es absoluto, lo usamos tal cual.
+                    std::filesystem::path exePath(exe);
+                    if (exePath.is_absolute()) {
+                        game.executable = exe;
+                    } else {
+                        game.executable = (std::filesystem::path(path) / exePath).string();
+                    }
+                    // Para GOG, lanzamos el ejecutable directamente
+                    game.launch_cmd = "\"" + game.executable + "\"";
+                }
+
+                games.push_back(game);
+            }
+
+            subKeyNameSize = sizeof(subKeyName);
+            index++;
+        }
+        RegCloseKey(hKey);
+    }
+#endif
+    return games;
+}
+
+// --- Implementación de Xbox / Microsoft Store Detector ---
+
+bool XboxDetector::is_installed() const {
+#ifdef _WIN32
+    // En Windows 10/11, la tienda siempre está presente
+    return true;
+#else
+    return false;
+#endif
+}
+
+std::vector<DetectedGame> XboxDetector::detect() {
+    std::vector<DetectedGame> games;
+#ifdef _WIN32
+    // Comando PowerShell para obtener paquetes Appx filtrados
+    // Se filtra por "SignatureKind: Store" para obtener apps de la tienda
+    // NOTA: Esto puede traer muchas apps (Calculadora, Fotos, etc.).
+    // Idealmente, en el futuro se debería filtrar por una lista de "juegos conocidos" o permitir al usuario ocultar.
+    std::string ps_cmd = "powershell -NoProfile -Command \"Get-AppxPackage | Where-Object {$_.SignatureKind -eq 'Store' -and $_.IsFramework -eq $false} | Select-Object Name, PackageFamilyName, InstallLocation | ConvertTo-Json\"";
+
+    std::string json_output = exec_command(ps_cmd);
+    if (json_output.empty() || json_output == "ERROR") {
+        BOOST_LOG(warning) << "Fallo al ejecutar PowerShell para detección de Xbox/Store";
+        return games;
+    }
+
+    try {
+        nlohmann::json root = nlohmann::json::parse(json_output);
+
+        // Convertir a array si es un objeto único (PowerShell ConvertTo-Json quirks)
+        if (!root.is_array()) {
+            root = nlohmann::json::array({root});
+        }
+
+        for (const auto& item : root) {
+            std::string install_loc;
+            if (item.contains("InstallLocation") && !item["InstallLocation"].is_null()) {
+                install_loc = item["InstallLocation"];
+            }
+
+            // Filtrar apps del sistema vacías o sin ruta de instalación
+            if (install_loc.empty()) continue;
+
+            DetectedGame game;
+            game.platform = "Xbox";
+
+            if (item.contains("Name")) game.name = item["Name"];
+            if (item.contains("PackageFamilyName")) game.app_id = item["PackageFamilyName"]; // Usamos PFN como AppID
+
+            game.install_dir = install_loc;
+            game.id = "xbox:" + game.app_id;
+
+            // Comando mágico para lanzar apps UWP: shell:AppsFolder\PackageFamilyName!AppId
+            // Nota: "!App" es el sufijo más común, pero algunos juegos usan "!Game" u otros.
+            // Una forma más robusta sería parsear el AppxManifest.xml, pero por simplicidad usaremos "!App"
+            // y dejaremos que el usuario lo edite si falla.
+            game.launch_cmd = "shell:AppsFolder\\" + game.app_id + "!App";
+
+            // Filtro rudimentario para evitar listar "Calculadora" y similares como "Juegos"
+            // Se asume que los juegos suelen estar en carpetas como "WindowsApps" o "XboxGames"
+            // y que el usuario puede tenerlos en cualquier disco (D:\XboxGames, etc.)
+            // Por ahora, agregamos todo lo que parezca una app de la tienda no-framework.
+            games.push_back(game);
+        }
+
+    } catch (const std::exception& e) {
+        BOOST_LOG(warning) << "Error parseando JSON de Xbox/Store: " << e.what();
+    }
+#endif
+    return games;
 }
 
 } // namespace games
 } // namespace sunshine
-<<<<<<< Updated upstream
-
-#endif // SUNSHINE_GAME_DETECTOR_H
-=======
->>>>>>> Stashed changes
