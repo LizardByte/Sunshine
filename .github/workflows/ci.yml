@@ -99,6 +99,14 @@ jobs:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
 
+  build-archlinux:
+    name: Archlinux
+    needs: release-setup
+    uses: ./.github/workflows/ci-archlinux.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+
   build-linux-copr:
     name: Linux Copr
     if: github.event_name != 'push'  # releases are handled directly in ci-copr.yml
@@ -143,6 +151,7 @@ jobs:
     needs:
       - build-freebsd
       - build-linux
+      - build-archlinux
       - build-linux-flatpak
       - build-homebrew
       - build-windows
@@ -158,6 +167,9 @@ jobs:
             coverage: true
             pr: false
           - name: Linux-AppImage
+            coverage: true
+            pr: true
+          - name: Archlinux
             coverage: true
             pr: true
           - name: Homebrew-macos-14
@@ -227,11 +239,12 @@ jobs:
       startsWith(github.repository, 'LizardByte/')
     needs:
       - release-setup
+      - build-archlinux
       - build-docker
       - build-freebsd
+      - build-homebrew
       - build-linux
       - build-linux-flatpak
-      - build-homebrew
       - build-windows
     runs-on: ubuntu-latest
     steps:
