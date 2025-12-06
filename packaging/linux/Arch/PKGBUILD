@@ -2,7 +2,7 @@
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
 ## options
-: "${_run_unit_tests:=false}" # if set to true; unit tests will be executed post build; useful in CI
+: "${_run_unit_tests:=false}"  # if set to true; unit tests will be executed post build; useful in CI
 : "${_support_headless_testing:=false}"
 : "${_use_cuda:=detect}" # nvenc
 
@@ -53,6 +53,10 @@ makedepends=(
   'make'
   'nodejs'
   'npm'
+)
+
+checkdepends=(
+  'gcovr'
 )
 
 optdepends=(
@@ -160,16 +164,26 @@ build() {
 }
 
 check() {
-    cd "${srcdir}/build"
-    ./sunshine --version
-
     if [[ "${_run_unit_tests::1}" == "t" ]]; then
       export CC="gcc-${_gcc_version}"
       export CXX="g++-${_gcc_version}"
 
       cd "${srcdir}/build/tests"
-      ./test_sunshine --gtest_color=yes
+      ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      # Generate coverage report
+      cd "${srcdir}/build"
+      gcovr --gcov-executable "gcov" . -r "${srcdir}/${pkgname}/src" \
+        --exclude-noncode-lines \
+        --exclude-throw-branches \
+        --exclude-unreachable-branches \
+        --verbose \
+        --xml-pretty \
+        -o coverage.xml
     fi
+
+    cd "${srcdir}/build"
+    ./sunshine --version
 }
 
 package() {
