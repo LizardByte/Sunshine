@@ -48,6 +48,14 @@ jobs:
             os_name: "ubuntu"
             release: true
     steps:
+      - name: More space
+        if: runner.os == 'Linux'
+        uses: LizardByte/actions/actions/more_space@v2025.1028.23217
+        with:
+          analyze-space-savings: true
+          clean-all: true
+          safe-packages: brew
+
       - name: Checkout
         uses: actions/checkout@v6
 
