@@ -161,18 +161,16 @@
               </div>
             </li>
           
-            <li class="nav-item">
-              <a class="nav-link" href="https://github.com/LizardByte">GitHub</a>
-            </li>
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Resources</a>
               <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                     <a class="dropdown-item" href="/blog">Blog</a>
-                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/about/overview.html">Docs</a>
                     <a class="dropdown-item" href="https://github.com/orgs/LizardByte/discussions">Community</a>
                     <a class="dropdown-item" href="/discord">Discord</a>
-                    <a class="dropdown-item" href="/support">Support</a>
+                    <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/about/overview.html">Docs</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte">GitHub</a>
                     <a class="dropdown-item" href="https://status.LizardByte.dev">Status</a>
+                    <a class="dropdown-item" href="/support">Support</a>
               </div>
             </li>
           
@@ -184,12 +182,21 @@
             </li>
           
             <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Downloads</a>
+              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                    <a class="dropdown-item" href="/packages">Packages</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte/homebrew-homebrew">Homebrew</a>
+                    <a class="dropdown-item" href="https://github.com/LizardByte/pacman-repo">Pacman</a>
+              </div>
+            </li>
+          
+            <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Development</a>
               <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                     <a class="dropdown-item" href="https://docs.lizardbyte.dev/latest/developers/contributing.html">Contributing</a>
-                    <a class="dropdown-item" href="/roadmap">Roadmap</a>
                     <a class="dropdown-item" href="https://app.lizardbyte.dev/dashboard">Dashboard</a>
                     <a class="dropdown-item" href="https://status-dev.LizardByte.dev">Dev Status</a>
+                    <a class="dropdown-item" href="/roadmap">Roadmap</a>
               </div>
             </li>
           
