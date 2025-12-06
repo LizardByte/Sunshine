@@ -34,7 +34,7 @@
 #define CURSOR_MODE_EMBEDDED 2
 
 #define PERSIST_FORGET 0
-#define PERSIST_WHILE_RUNNING 1
+#define PERSIST_WHILE_RUNNING 2
 
 #define PORTAL_NAME "org.freedesktop.portal.Desktop"
 #define PORTAL_PATH "/org/freedesktop/portal/desktop"
