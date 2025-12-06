@@ -156,8 +156,7 @@ jobs:
         if: >-
           always() &&
           matrix.release != true &&
-          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
-          startsWith(github.repository, 'LizardByte/')
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         uses: actions/upload-artifact@v5
         with:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
