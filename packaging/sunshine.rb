@@ -65,6 +65,7 @@ class Sunshine < Formula
     depends_on "libxtst"
     depends_on "mesa"
     depends_on "numactl"
+    depends_on "pipewire"
     depends_on "pulseaudio"
     depends_on "systemd"
     depends_on "wayland"

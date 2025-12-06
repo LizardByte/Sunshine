@@ -42,6 +42,7 @@ BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: npm
 BuildRequires: openssl-devel
+BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
 BuildRequires: wget
