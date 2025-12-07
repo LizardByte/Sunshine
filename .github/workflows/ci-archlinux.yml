@@ -1,0 +1,182 @@
+---
+name: CI-Archlinux
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+
+jobs:
+  build_archlinux:
+    name: Archlinux
+    env:
+      _use_cuda: true
+      _run_unit_tests: true
+      _support_headless_testing: true
+      BRANCH: ${{ github.head_ref || github.ref_name }}
+      BUILD_VERSION: ${{ inputs.release_version }}
+      CLONE_URL: ${{ github.event.repository.clone_url }}
+      COMMIT: ${{ inputs.release_commit }}
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux/archlinux:base-devel
+      options: --cpus 4 --memory 8g
+    steps:
+
+      - name: Update keyring
+        shell: bash
+        run: |
+          # Update keyring to avoid signature errors, and update system
+          pacman -Syy --disable-download-timeout --needed --noconfirm \
+            archlinux-keyring
+          pacman -Syu --disable-download-timeout --noconfirm
+          pacman -Scc --noconfirm
+
+      - name: Setup builder user
+        shell: bash
+        run: |
+          # arch prevents running makepkg as root
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+      - name: Patch build flags
+        shell: bash
+        run: |
+          # shellcheck disable=SC2016
+          sed -i 's,#MAKEFLAGS="-j2",MAKEFLAGS="-j$(nproc)",g' /etc/makepkg.conf
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          pacman -Syu --disable-download-timeout --needed --noconfirm \
+            base-devel \
+            cmake \
+            cuda \
+            git \
+            namcap \
+            xorg-server-xvfb
+          pacman -Scc --noconfirm
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Fix workspace permissions
+        shell: bash
+        run: |
+          # Give builder user ownership of the workspace
+          chown -R builder:builder "${GITHUB_WORKSPACE}"
+
+      - name: Configure PKGBUILD
+        shell: bash
+        run: |
+          # Calculate sub_version
+          sub_version=""
+          if [[ "${BRANCH}" != "master" ]]; then
+            sub_version=".r${COMMIT}"
+          fi
+
+          # Configure PKGBUILD file (as root)
+          mkdir -p build
+          cd build
+          cmake \
+            -DSUNSHINE_CONFIGURE_ONLY=ON \
+            -DSUNSHINE_CONFIGURE_PKGBUILD=ON \
+            -DSUNSHINE_SUB_VERSION="${sub_version}" \
+            ..
+
+          # Make sure builder can read from build directory
+          chmod -R a+rX "${GITHUB_WORKSPACE}/build"
+
+      - name: Prepare PKGBUILD Package
+        shell: bash
+        run: |
+          # Create pkg directory and move files (as root)
+          mkdir -p pkg
+          mv build/PKGBUILD pkg/
+          mv build/sunshine.install pkg/
+
+          # Change ownership to builder
+          chown -R builder:builder pkg
+
+          # Run makepkg as builder user
+          cd pkg
+          sudo -u builder makepkg --printsrcinfo | tee .SRCINFO
+
+          # create a PKGBUILD archive
+          cd ..
+          tar -czf sunshine.pkg.tar.gz -C pkg .
+
+      - name: Build PKGBUILD
+        env:
+          DISPLAY: :1
+        id: build
+        shell: bash
+        working-directory: pkg
+        run: |
+          # Add problem matcher
+          echo "::add-matcher::.github/matchers/gcc.json"
+
+          source /etc/profile  # ensure cuda is in the PATH
+
+          # Run Xvfb for headless testing
+          Xvfb "${DISPLAY}" -screen 0 1024x768x24 &
+
+          # Check PKGBUILD
+          sudo -u builder namcap -i PKGBUILD
+
+          # Export PKGBUILD options so they're available to makepkg
+          export _use_cuda="${_use_cuda}"
+          export _run_unit_tests="${_run_unit_tests}"
+          export _support_headless_testing="${_support_headless_testing}"
+
+          # Build the package as builder user (pass through environment variables)
+          sudo -u builder env \
+            _use_cuda="${_use_cuda}" \
+            _run_unit_tests="${_run_unit_tests}" \
+            _support_headless_testing="${_support_headless_testing}" \
+            makepkg -si --noconfirm
+
+          # Remove debug package
+          rm -f sunshine-debug*.pkg.tar.zst
+
+          # Remove problem matcher
+          echo "::remove-matcher owner=gcc::"
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.build.outcome == 'success' || steps.build.outcome == 'failure')
+        uses: actions/upload-artifact@v5
+        with:
+          name: coverage-Archlinux
+          path: |
+            pkg/src/build/coverage.xml
+            pkg/src/build/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Copy Artifacts
+        shell: bash
+        run: |
+          # create artifacts directory
+          mkdir -p artifacts
+
+          # Copy built packages to artifacts
+          cp pkg/sunshine*.pkg.tar.zst artifacts/
+          cp sunshine.pkg.tar.gz artifacts/
+
+          # List artifacts
+          ls -la artifacts/
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v5
+        with:
+          name: build-Archlinux
+          path: artifacts/
+          if-no-files-found: error

@@ -24,7 +24,6 @@ ENTRYPOINT steam && sunshine
 ### SUNSHINE_OS
 Sunshine images are available with the following tag suffixes, based on their respective base images.
 
-- `archlinux`
 - `debian-bookworm`
 - `ubuntu-22.04`
 - `ubuntu-24.04`
@@ -153,7 +152,6 @@ The architectures supported by these images are shown in the table below.
 
 | tag suffix      | amd64/x86_64 | arm64/aarch64 |
 |-----------------|--------------|---------------|
-| archlinux       | ✅            | ❌             |
 | debian-bookworm | ✅            | ✅             |
 | ubuntu-22.04    | ✅            | ✅             |
 | ubuntu-24.04    | ✅            | ✅             |

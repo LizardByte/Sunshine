@@ -19,6 +19,45 @@ include_directories("${GTEST_SOURCE_DIR}/googletest/include" "${GTEST_SOURCE_DIR
 set(CMAKE_CXX_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 set(CMAKE_C_FLAGS "-fprofile-arcs -ftest-coverage -ggdb -O0")
 
+# Find the correct libgcov library path matching the gcc compiler version
+# This ensures the test executable links against the same libgcov version used during compilation
+if(UNIX AND NOT APPLE)
+    # Get the gcc compiler version
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER} -dumpversion
+        OUTPUT_VARIABLE GCC_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    # Extract major version
+    string(REGEX MATCH "^[0-9]+" GCC_MAJOR_VERSION "${GCC_VERSION}")
+
+    # Search for the gcc library directory matching this version
+    file(GLOB GCC_LIB_DIRS "/usr/lib/gcc/*/*${GCC_MAJOR_VERSION}.*")
+
+    if(GCC_LIB_DIRS)
+        list(GET GCC_LIB_DIRS 0 GCC_LIB_DIR)
+        message(STATUS "Found GCC library directory: ${GCC_LIB_DIR}")
+
+        # Look for libgcov.a in the gcc library directory
+        find_library(LIBGCOV_LIBRARY
+            NAMES gcov
+            PATHS ${GCC_LIB_DIR}
+            NO_DEFAULT_PATH
+        )
+
+        if(LIBGCOV_LIBRARY)
+            message(STATUS "Found libgcov: ${LIBGCOV_LIBRARY}")
+            # Store this to link against later
+            set(GCOV_LINK_LIBRARY ${LIBGCOV_LIBRARY})
+        else()
+            message(WARNING "Could not find libgcov in ${GCC_LIB_DIR}")
+        endif()
+    else()
+        message(WARNING "Could not find GCC library directory for version ${GCC_VERSION}")
+    endif()
+endif()
+
 # if windows
 if (WIN32)
     # For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -102,10 +141,20 @@ endforeach()
 add_dependencies(${PROJECT_NAME} sync_locale_files)
 
 set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23)
-target_link_libraries(${PROJECT_NAME}
-        ${SUNSHINE_EXTERNAL_LIBRARIES}
-        gtest
-        ${PLATFORM_LIBRARIES})
+
+# Build the list of libraries to link
+set(TEST_LINK_LIBRARIES
+    ${SUNSHINE_EXTERNAL_LIBRARIES}
+    gtest
+    ${PLATFORM_LIBRARIES}
+)
+
+# Add the specific libgcov library if found
+if(GCOV_LINK_LIBRARY)
+    list(APPEND TEST_LINK_LIBRARIES ${GCOV_LINK_LIBRARY})
+endif()
+
+target_link_libraries(${PROJECT_NAME} ${TEST_LINK_LIBRARIES})
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${SUNSHINE_DEFINITIONS} ${TEST_DEFINITIONS})
 target_compile_options(${PROJECT_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 target_link_options(${PROJECT_NAME} PRIVATE)

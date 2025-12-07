@@ -2,7 +2,7 @@
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
 ## options
-: "${_run_unit_tests:=false}" # if set to true; unit tests will be executed post build; useful in CI
+: "${_run_unit_tests:=false}"  # if set to true; unit tests will be executed post build; useful in CI
 : "${_support_headless_testing:=false}"
 : "${_use_cuda:=detect}" # nvenc
 
@@ -53,6 +53,10 @@ makedepends=(
   'make'
   'nodejs'
   'npm'
+)
+
+checkdepends=(
+  'gcovr'
 )
 
 optdepends=(
@@ -160,16 +164,46 @@ build() {
 }
 
 check() {
-    cd "${srcdir}/build"
-    ./sunshine --version
-
     if [[ "${_run_unit_tests::1}" == "t" ]]; then
       export CC="gcc-${_gcc_version}"
       export CXX="g++-${_gcc_version}"
 
       cd "${srcdir}/build/tests"
-      ./test_sunshine --gtest_color=yes
+      ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      # Generate coverage report
+      # Run gcovr from the build directory (where all .gcda/.gcno files are)
+      # This matches the pattern used in ci-linux.yml
+      cd "${srcdir}/build"
+
+      # Dynamically find the gcov executable from gcc's library directory
+      # This ensures we use the same gcov version as the compiler
+      local gcov_path
+      gcov_path=$(find /usr/lib/gcc/x86_64-pc-linux-gnu/${_gcc_version}.*/ -name gcov -type f 2>/dev/null | head -n 1)
+
+      if [ -z "$gcov_path" ]; then
+        # Fallback to standard gcov if not found
+        gcov_path="gcov"
+      fi
+
+      echo "Using gcov at: $gcov_path"
+
+      # Use the actual relative path to the source directory
+      # From ${srcdir}/build, the source is at ../${pkgname}/src
+      gcovr --gcov-executable "$gcov_path" . -r "../${pkgname}/src" \
+        --exclude-noncode-lines \
+        --exclude-throw-branches \
+        --exclude-unreachable-branches \
+        --verbose \
+        --xml-pretty \
+        -o coverage.xml
+
+      # Post-process the coverage XML to strip the absolute path and show only 'src'
+      sed -i "s|${srcdir}/${pkgname}/src|src|g" coverage.xml
     fi
+
+    cd "${srcdir}/build"
+    ./sunshine --version
 }
 
 package() {
