@@ -198,6 +198,9 @@ check() {
         --xml-pretty \
         -o coverage.xml
 
+      # fix source path in coverage report
+      sed -i "s|<source>${GITHUB_WORKSPACE}/pkg/src/sunshine/src</source>|<source>src</source>|g" "${srcdir}/build/coverage.xml"
+
       echo "Coverage report generated at: ${srcdir}/build/coverage.xml"
       cat "${srcdir}/build/coverage.xml"
     fi
