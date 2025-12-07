@@ -1015,6 +1015,22 @@ namespace nvhttp {
     tree.put("root.currentgame", current_appid);
     tree.put("root.state", current_appid > 0 ? "SUNSHINE_SERVER_BUSY" : "SUNSHINE_SERVER_FREE");
 
+    if (current_appid > 0) {
+      const auto &apps = proc::proc.get_apps();
+      auto it = std::find_if(apps.begin(), apps.end(), [&](const auto &app) {
+        return app.id == std::to_string(current_appid);
+      });
+
+      if (it != apps.end()) {
+        if (!it->name.empty()) {
+          tree.put("root.CurrentGameName", it->name);
+        }
+        if (!it->app_cover_img.empty()) {
+          tree.put("root.CurrentGameCover", it->app_cover_img);
+        }
+      }
+    }
+
     std::ostringstream data;
 
     pt::write_xml(data, tree);
