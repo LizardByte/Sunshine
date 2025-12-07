@@ -66,8 +66,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          submodules: recursive
 
       - name: Fix workspace permissions
         shell: bash
