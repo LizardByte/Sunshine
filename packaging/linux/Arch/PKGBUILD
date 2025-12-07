@@ -188,10 +188,8 @@ check() {
 
       echo "Using gcov at: $gcov_path"
 
-      # Exclude generated files and third-party code
-      # The --exclude patterns filter source files
-      # The --gcov-exclude patterns filter out .gcno/.gcda files during scanning
-      # Use relative path for -r to ensure the XML only shows the repo's source files
+      # Use the actual relative path to the source directory
+      # From ${srcdir}/build, the source is at ../${pkgname}/src
       gcovr --gcov-executable "$gcov_path" . -r "../${pkgname}/src" \
         --exclude-noncode-lines \
         --exclude-throw-branches \
@@ -199,6 +197,9 @@ check() {
         --verbose \
         --xml-pretty \
         -o coverage.xml
+
+      echo "Coverage report generated at: ${srcdir}/build/coverage.xml"
+      cat "${srcdir}/build/coverage.xml"
     fi
 
     cd "${srcdir}/build"
