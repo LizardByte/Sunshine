@@ -168,16 +168,6 @@ check() {
       export CC="gcc-${_gcc_version}"
       export CXX="g++-${_gcc_version}"
 
-      # Set LD_LIBRARY_PATH to use the correct gcc library path
-      # This ensures libgcov matches the gcc version used to compile
-      local gcc_lib_path
-      gcc_lib_path=$(find /usr/lib/gcc/x86_64-pc-linux-gnu/${_gcc_version}.*/ -type d 2>/dev/null | head -n 1)
-
-      if [ -n "$gcc_lib_path" ]; then
-        export LD_LIBRARY_PATH="${gcc_lib_path}:${LD_LIBRARY_PATH}"
-        echo "Using GCC library path: $gcc_lib_path"
-      fi
-
       cd "${srcdir}/build/tests"
       ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
 
@@ -208,12 +198,8 @@ check() {
         --xml-pretty \
         -o coverage.xml
 
-      # fix source path in coverage report
-      sed -i 's|<source>/__w/Sunshine/Sunshine/pkg/src/sunshine/src</source>|<source>src</source>|g' \
-        "${srcdir}/build/coverage.xml"
-
-      echo "Coverage report generated at: ${srcdir}/build/coverage.xml"
-      cat "${srcdir}/build/coverage.xml"
+      # Post-process the coverage XML to strip the absolute path and show only 'src'
+      sed -i "s|${srcdir}/${pkgname}/src|src|g" coverage.xml
     fi
 
     cd "${srcdir}/build"
