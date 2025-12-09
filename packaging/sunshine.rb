@@ -3,6 +3,7 @@ require "language/node"
 class Sunshine < Formula
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
+  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
 
   # conflicts_with "sunshine", because: "sunshine and sunshine-beta cannot be installed at the same time"
   desc "@PROJECT_DESCRIPTION@"
@@ -105,6 +106,14 @@ class Sunshine < Formula
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
 
+    if IS_UPSTREAM_REPO
+      args << "-DBUILD_TESTS=ON"
+      ohai "Building tests: enabled"
+    else
+      args << "-DBUILD_TESTS=OFF"
+      ohai "Building tests: disabled"
+    end
+
     if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
@@ -141,7 +150,8 @@ class Sunshine < Formula
 
     system "make", "-C", "build"
     system "make", "-C", "build", "install"
-    bin.install "build/tests/test_sunshine"
+
+    bin.install "build/tests/test_sunshine" if IS_UPSTREAM_REPO
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
@@ -184,30 +194,32 @@ class Sunshine < Formula
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
-    # run the test suite
-    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
-    assert_path_exists File.join(testpath, "tests", "test_results.xml")
+    if IS_UPSTREAM_REPO
+      # run the test suite
+      system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
+      assert_path_exists File.join(testpath, "tests", "test_results.xml")
 
-    # create gcovr report
-    buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
-    unless buildpath.empty?
-      # Change to the source directory for gcovr to work properly
-      cd "#{buildpath}/build" do
-        # Use GCC version to match what was used during compilation
-        if OS.linux?
-          gcc_path = Formula[GCC_FORMULA]
-          gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+      # create gcovr report
+      buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
+      unless buildpath.empty?
+        # Change to the source directory for gcovr to work properly
+        cd "#{buildpath}/build" do
+          # Use GCC version to match what was used during compilation
+          if OS.linux?
+            gcc_path = Formula[GCC_FORMULA]
+            gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
 
-          system "gcovr", ".",
-            "-r", "../src",
-            "--gcov-executable", gcov_executable,
-            "--exclude-noncode-lines",
-            "--exclude-throw-branches",
-            "--exclude-unreachable-branches",
-            "--xml-pretty",
-            "-o=#{testpath}/coverage.xml"
+            system "gcovr", ".",
+              "-r", "../src",
+              "--gcov-executable", gcov_executable,
+              "--exclude-noncode-lines",
+              "--exclude-throw-branches",
+              "--exclude-unreachable-branches",
+              "--xml-pretty",
+              "-o=#{testpath}/coverage.xml"
 
-          assert_path_exists File.join(testpath, "coverage.xml")
+            assert_path_exists File.join(testpath, "coverage.xml")
+          end
         end
       end
     end
