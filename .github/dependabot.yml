@@ -24,7 +24,10 @@ updates:
     open-pull-requests-limit: 10
 
   - package-ecosystem: "github-actions"
-    directory: "/"
+    directories:
+      - "/"
+      - "/.github/actions/*"
+      - "/actions/*"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
