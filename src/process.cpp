@@ -38,6 +38,8 @@
 
   // _SH constants for _wfsopen()
   #include <share.h>
+  // CoCreateGuid for virtual display
+  #include <objbase.h>
 #endif
 
 #define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
@@ -260,6 +262,60 @@ namespace proc {
       terminate();
     });
 
+#ifdef _WIN32
+    // Store launch session for later use (cleanup)
+    _launch_session = launch_session;
+
+    // Create virtual display if requested
+    if (_app.virtual_display || launch_session->virtual_display) {
+      if (vDisplayDriverStatus != VDISPLAY::DRIVER_STATUS::OK) {
+        // Try init driver again
+        initVDisplayDriver();
+      }
+
+      if (vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK) {
+        // Generate a GUID for the display if not already set
+        if (launch_session->display_guid == GUID{}) {
+          CoCreateGuid(&launch_session->display_guid);
+        }
+
+        uint32_t render_width = launch_session->width;
+        uint32_t render_height = launch_session->height;
+        uint32_t target_fps = launch_session->fps * 1000; // Convert to millihertz
+
+        std::wstring vdisplayName = VDISPLAY::createVirtualDisplay(
+          launch_session->unique_id.c_str(),
+          _app.name.c_str(),
+          render_width,
+          render_height,
+          target_fps,
+          launch_session->display_guid
+        );
+
+        launch_session->virtual_display = true;
+
+        if (!vdisplayName.empty()) {
+          BOOST_LOG(info) << "Virtual Display created: " << platf::to_utf8(vdisplayName);
+
+          // Apply display settings
+          if (launch_session->width && launch_session->height && launch_session->fps) {
+            VDISPLAY::changeDisplaySettings(vdisplayName.c_str(), render_width, render_height, target_fps);
+          }
+
+          _using_virtual_display = true;
+          _virtual_display_name = platf::to_utf8(vdisplayName);
+
+          // Update video output to use the virtual display
+          config::video.output_name = display_device::map_output_name(_virtual_display_name);
+        } else {
+          BOOST_LOG(warning) << "Virtual Display creation failed";
+        }
+      } else {
+        BOOST_LOG(warning) << "Virtual display driver not available, streaming on default display";
+      }
+    }
+#endif
+
     for (; _app_prep_it != std::end(_app.prep_cmds); ++_app_prep_it) {
       auto &cmd = *_app_prep_it;
 
@@ -406,7 +462,24 @@ namespace proc {
       system_tray::update_tray_stopped(proc::proc.get_last_run_app_name());
 #endif
 
+#ifdef _WIN32
+      // Clean up virtual display if we used one
+      if (_using_virtual_display && vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK && _launch_session) {
+        if (VDISPLAY::removeVirtualDisplay(_launch_session->display_guid)) {
+          BOOST_LOG(info) << "Virtual Display removed successfully";
+        } else {
+          BOOST_LOG(warning) << "Virtual Display remove failed";
+        }
+        _using_virtual_display = false;
+        _virtual_display_name.clear();
+        display_device::reset_persistence();
+      } else {
+        display_device::revert_configuration();
+      }
+      _launch_session.reset();
+#else
       display_device::revert_configuration();
+#endif
     }
 
     _app_id = -1;

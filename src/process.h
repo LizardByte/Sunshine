@@ -121,6 +121,13 @@ namespace proc {
     file_t _pipe;
     std::vector<cmd_t>::const_iterator _app_prep_it;
     std::vector<cmd_t>::const_iterator _app_prep_begin;
+
+#ifdef _WIN32
+    // Virtual display state
+    bool _using_virtual_display = false;
+    std::string _virtual_display_name;
+    std::shared_ptr<rtsp_stream::launch_session_t> _launch_session;
+#endif
   };
 
   /**
