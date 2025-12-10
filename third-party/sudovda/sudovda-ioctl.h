@@ -1,6 +1,7 @@
 #pragma once
 
 #include <windows.h>
+#include <winioctl.h>
 
 #ifdef __cplusplus
 namespace SUDOVDA

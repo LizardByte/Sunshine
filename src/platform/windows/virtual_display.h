@@ -9,7 +9,7 @@
 #define FILE_DEVICE_UNKNOWN 0x00000022
 #endif
 
-#include "sudovda/sudovda.h"
+#include "sudovda.h"
 
 namespace VDISPLAY {
 	enum class DRIVER_STATUS {
