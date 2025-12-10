@@ -7,6 +7,10 @@
 // standard includes
 #include <atomic>
 
+#ifdef _WIN32
+  #include <guiddef.h>
+#endif
+
 // local includes
 #include "crypto.h"
 #include "thread_safe.h"
