@@ -72,6 +72,7 @@ namespace proc {
     bool elevated;
     bool auto_detach;
     bool wait_all;
+    bool virtual_display;  // Whether to use virtual display for this app
     std::chrono::seconds exit_timeout;
   };
 
@@ -147,4 +148,13 @@ namespace proc {
   void terminate_process_group(boost::process::v1::child &proc, boost::process::v1::group &group, std::chrono::seconds exit_timeout);
 
   extern proc_t proc;
+
+#ifdef _WIN32
+  // Forward declaration for virtual display support
+  namespace VDISPLAY {
+    enum class DRIVER_STATUS;
+  }
+  extern VDISPLAY::DRIVER_STATUS vDisplayDriverStatus;
+  void initVDisplayDriver();
+#endif
 }  // namespace proc

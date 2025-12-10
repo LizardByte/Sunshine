@@ -34,6 +34,7 @@
 #ifdef _WIN32
   // from_utf8() string conversion function
   #include "platform/windows/misc.h"
+  #include "platform/windows/virtual_display.h"
 
   // _SH constants for _wfsopen()
   #include <share.h>
@@ -47,6 +48,28 @@ namespace proc {
 
   proc_t proc;
 
+#ifdef _WIN32
+  VDISPLAY::DRIVER_STATUS vDisplayDriverStatus = VDISPLAY::DRIVER_STATUS::UNKNOWN;
+
+  void onVDisplayWatchdogFailed() {
+    vDisplayDriverStatus = VDISPLAY::DRIVER_STATUS::WATCHDOG_FAILED;
+    VDISPLAY::closeVDisplayDevice();
+  }
+
+  void initVDisplayDriver() {
+    vDisplayDriverStatus = VDISPLAY::openVDisplayDevice();
+    if (vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK) {
+      if (!VDISPLAY::startPingThread(onVDisplayWatchdogFailed)) {
+        onVDisplayWatchdogFailed();
+        return;
+      }
+      BOOST_LOG(info) << "Virtual display driver initialized successfully";
+    } else {
+      BOOST_LOG(warning) << "Virtual display driver not available (status: " << static_cast<int>(vDisplayDriverStatus) << ")";
+    }
+  }
+#endif
+
   class deinit_t: public platf::deinit_t {
   public:
     ~deinit_t() {
@@ -55,6 +78,9 @@ namespace proc {
   };
 
   std::unique_ptr<platf::deinit_t> init() {
+#ifdef _WIN32
+    initVDisplayDriver();
+#endif
     return std::make_unique<deinit_t>();
   }
 
