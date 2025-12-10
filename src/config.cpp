@@ -528,6 +528,7 @@ namespace config {
 
   nvhttp_t nvhttp {
     "lan",  // origin web manager
+    true,   // headless_mode - disable web UI by default for Fuji/Backbone
 
     PRIVATE_KEY_FILE,
     CERTIFICATE_FILE,
@@ -1170,6 +1171,7 @@ namespace config {
     bool_f(vars, "install_steam_audio_drivers", audio.install_steam_drivers);
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
+    bool_f(vars, "headless_mode", nvhttp.headless_mode);
 
     int to = -1;
     int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});

@@ -172,6 +172,9 @@ namespace config {
     // pc|lan|wan
     std::string origin_web_ui_allowed;
 
+    // When true, disable web UI HTML pages but keep API endpoints
+    bool headless_mode;
+
     std::string pkey;
     std::string cert;
 

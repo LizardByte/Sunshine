@@ -1199,14 +1199,20 @@ namespace confighttp {
       bad_request(response, request);
     };
     server.default_resource["GET"] = not_found;
-    server.resource["^/$"]["GET"] = getIndexPage;
-    server.resource["^/pin/?$"]["GET"] = getPinPage;
-    server.resource["^/apps/?$"]["GET"] = getAppsPage;
-    server.resource["^/clients/?$"]["GET"] = getClientsPage;
-    server.resource["^/config/?$"]["GET"] = getConfigPage;
-    server.resource["^/password/?$"]["GET"] = getPasswordPage;
-    server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
-    server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
+
+    // Only register web UI HTML pages if not in headless mode
+    if (!config::nvhttp.headless_mode) {
+      server.resource["^/$"]["GET"] = getIndexPage;
+      server.resource["^/pin/?$"]["GET"] = getPinPage;
+      server.resource["^/apps/?$"]["GET"] = getAppsPage;
+      server.resource["^/clients/?$"]["GET"] = getClientsPage;
+      server.resource["^/config/?$"]["GET"] = getConfigPage;
+      server.resource["^/password/?$"]["GET"] = getPasswordPage;
+      server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
+      server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
+    }
+
+    // API endpoints are always available
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/apps$"]["GET"] = getApps;
     server.resource["^/api/logs$"]["GET"] = getLogs;
@@ -1252,9 +1258,14 @@ namespace confighttp {
 
       response->write(data.str(), {{"Content-Type", "application/json"}});
     };
-    server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
-    server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
+
+    // Only serve static assets if not in headless mode
+    if (!config::nvhttp.headless_mode) {
+      server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
+      server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
+      server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
+    }
+
     server.config.reuse_address = true;
     server.config.address = net::af_to_any_address_string(address_family);
     server.config.port = port_https;
@@ -1262,7 +1273,11 @@ namespace confighttp {
     auto accept_and_run = [&](auto *server) {
       try {
         server->start([](unsigned short port) {
-          BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
+          if (config::nvhttp.headless_mode) {
+            BOOST_LOG(info) << "Configuration API available at [https://localhost:"sv << port << "] (headless mode - web UI disabled)";
+          } else {
+            BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
+          }
         });
       } catch (boost::system::system_error &err) {
         // It's possible the exception gets thrown after calling server->stop() from a different thread
