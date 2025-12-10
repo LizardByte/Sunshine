@@ -812,7 +812,7 @@ namespace proc {
         ctx.elevated = elevated.value_or(false);
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
-        ctx.virtual_display = virtual_display.value_or(false);
+        ctx.virtual_display = virtual_display.value_or(true);  // Default to true for Fuji/Backbone
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
         
         // Set platform metadata if provided
