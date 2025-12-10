@@ -51,17 +51,17 @@ namespace proc {
   proc_t proc;
 
 #ifdef _WIN32
-  VDISPLAY::DRIVER_STATUS vDisplayDriverStatus = VDISPLAY::DRIVER_STATUS::UNKNOWN;
+  ::VDISPLAY::DRIVER_STATUS vDisplayDriverStatus = ::VDISPLAY::DRIVER_STATUS::UNKNOWN;
 
   void onVDisplayWatchdogFailed() {
-    vDisplayDriverStatus = VDISPLAY::DRIVER_STATUS::WATCHDOG_FAILED;
-    VDISPLAY::closeVDisplayDevice();
+    vDisplayDriverStatus = ::VDISPLAY::DRIVER_STATUS::WATCHDOG_FAILED;
+    ::VDISPLAY::closeVDisplayDevice();
   }
 
   void initVDisplayDriver() {
-    vDisplayDriverStatus = VDISPLAY::openVDisplayDevice();
-    if (vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK) {
-      if (!VDISPLAY::startPingThread(onVDisplayWatchdogFailed)) {
+    vDisplayDriverStatus = ::VDISPLAY::openVDisplayDevice();
+    if (vDisplayDriverStatus == ::VDISPLAY::DRIVER_STATUS::OK) {
+      if (!::VDISPLAY::startPingThread(onVDisplayWatchdogFailed)) {
         onVDisplayWatchdogFailed();
         return;
       }
@@ -268,12 +268,12 @@ namespace proc {
 
     // Create virtual display if requested
     if (_app.virtual_display || launch_session->virtual_display) {
-      if (vDisplayDriverStatus != VDISPLAY::DRIVER_STATUS::OK) {
+      if (vDisplayDriverStatus != ::VDISPLAY::DRIVER_STATUS::OK) {
         // Try init driver again
         initVDisplayDriver();
       }
 
-      if (vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK) {
+      if (vDisplayDriverStatus == ::VDISPLAY::DRIVER_STATUS::OK) {
         // Generate a GUID for the display if not already set
         if (launch_session->display_guid == GUID{}) {
           CoCreateGuid(&launch_session->display_guid);
@@ -283,7 +283,7 @@ namespace proc {
         uint32_t render_height = launch_session->height;
         uint32_t target_fps = launch_session->fps * 1000; // Convert to millihertz
 
-        std::wstring vdisplayName = VDISPLAY::createVirtualDisplay(
+        std::wstring vdisplayName = ::VDISPLAY::createVirtualDisplay(
           launch_session->unique_id.c_str(),
           _app.name.c_str(),
           render_width,
@@ -299,7 +299,7 @@ namespace proc {
 
           // Apply display settings
           if (launch_session->width && launch_session->height && launch_session->fps) {
-            VDISPLAY::changeDisplaySettings(vdisplayName.c_str(), render_width, render_height, target_fps);
+            ::VDISPLAY::changeDisplaySettings(vdisplayName.c_str(), render_width, render_height, target_fps);
           }
 
           _using_virtual_display = true;
@@ -464,8 +464,8 @@ namespace proc {
 
 #ifdef _WIN32
       // Clean up virtual display if we used one
-      if (_using_virtual_display && vDisplayDriverStatus == VDISPLAY::DRIVER_STATUS::OK && _launch_session) {
-        if (VDISPLAY::removeVirtualDisplay(_launch_session->display_guid)) {
+      if (_using_virtual_display && vDisplayDriverStatus == ::VDISPLAY::DRIVER_STATUS::OK && _launch_session) {
+        if (::VDISPLAY::removeVirtualDisplay(_launch_session->display_guid)) {
           BOOST_LOG(info) << "Virtual Display removed successfully";
         } else {
           BOOST_LOG(warning) << "Virtual Display remove failed";
