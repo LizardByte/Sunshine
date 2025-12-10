@@ -13,6 +13,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         ExecShell 'open' 'https://docs.lizardbyte.dev/projects/sunshine'
         nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" add'
+        nsExec::ExecToLog '\\\"$INSTDIR\\\\drivers\\\\sudovda\\\\install.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
         nsExec::ExecToLog \
@@ -37,6 +38,11 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
                 \\\"$INSTDIR\\\\scripts\\\\uninstall-gamepad.ps1\\\"'; \
               skipped if no
         NoGamepad:
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to remove SudoVDA Virtual Display Driver?' \
+            /SD IDNO IDNO NoSudoVDA
+            nsExec::ExecToLog '\\\"$INSTDIR\\\\drivers\\\\sudovda\\\\uninstall.bat\\\"'; skipped if no
+        NoSudoVDA:
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
             /SD IDNO IDNO NoDelete

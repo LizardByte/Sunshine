@@ -25,6 +25,11 @@ install(TARGETS audio-info RUNTIME DESTINATION "tools" COMPONENT audio)
 # Mandatory tools
 install(TARGETS sunshinesvc RUNTIME DESTINATION "tools" COMPONENT application)
 
+# SudoVDA virtual display driver
+install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/drivers/sudovda"
+        DESTINATION "drivers"
+        COMPONENT sudovda)
+
 # Mandatory scripts
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/service/"
         DESTINATION "scripts"
@@ -109,6 +114,11 @@ set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
 set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "Scripts to install and uninstall Virtual Gamepad.")
 set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
+
+# SudoVDA virtual display driver
+set(CPACK_COMPONENT_SUDOVDA_DISPLAY_NAME "SudoVDA")
+set(CPACK_COMPONENT_SUDOVDA_DESCRIPTION "Driver required for Virtual Display to function.")
+set(CPACK_COMPONENT_SUDOVDA_GROUP "Drivers")
 
 # include specific packaging
 include(${CMAKE_MODULE_PATH}/packaging/windows_nsis.cmake)
