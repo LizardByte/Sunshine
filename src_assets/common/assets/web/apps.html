@@ -231,6 +231,15 @@
                   v-model="editForm['wait-all']"
                   default="true"
         ></Checkbox>
+        <!-- virtual display (Windows only) -->
+        <Checkbox v-if="platform === 'windows'"
+                  class="mb-3"
+                  id="virtualDisplay"
+                  label="apps.virtual_display"
+                  desc="apps.virtual_display_desc"
+                  v-model="editForm['virtual-display']"
+                  default="false"
+        ></Checkbox>
         <!-- exit timeout -->
         <div class="mb-3">
           <label for="exitTimeout" class="form-label">{{ $t('apps.exit_timeout') }}</label>
@@ -429,6 +438,9 @@
         }
         if (this.editForm["wait-all"] === undefined) {
           this.editForm["wait-all"] = true;
+        }
+        if (this.editForm["virtual-display"] === undefined && this.platform === 'windows') {
+          this.editForm["virtual-display"] = false;
         }
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;

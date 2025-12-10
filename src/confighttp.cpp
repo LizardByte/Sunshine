@@ -532,7 +532,8 @@ namespace confighttp {
         "exclude-global-prep-cmd",
         "elevated",
         "auto-detach",
-        "wait-all"
+        "wait-all",
+        "virtual-display"
       };
 
       // List of keys to convert to integers

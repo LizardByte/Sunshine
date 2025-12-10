@@ -76,6 +76,8 @@
     "output_desc": "The file where the output of the command is stored, if it is not specified, the output is ignored",
     "output_name": "Output",
     "run_as_desc": "This can be necessary for some applications that require administrator permissions to run properly.",
+    "virtual_display": "Use Virtual Display",
+    "virtual_display_desc": "Create a dedicated virtual display for streaming this application. This allows streaming without a physical monitor connected and can provide better performance for some applications. Requires the SudoVDA driver to be installed.",
     "wait_all": "Continue streaming until all app processes exit",
     "wait_all_desc": "This will continue streaming until all processes started by the app have terminated. When unchecked, streaming will stop when the initial app process exits, even if other app processes are still running.",
     "working_dir": "Working Directory",

@@ -735,6 +735,7 @@ namespace proc {
         auto elevated = app_node.get_optional<bool>("elevated"s);
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
+        auto virtual_display = app_node.get_optional<bool>("virtual-display"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
         
         // Backbone/Fuji platform metadata
@@ -811,6 +812,7 @@ namespace proc {
         ctx.elevated = elevated.value_or(false);
         ctx.auto_detach = auto_detach.value_or(true);
         ctx.wait_all = wait_all.value_or(true);
+        ctx.virtual_display = virtual_display.value_or(false);
         ctx.exit_timeout = std::chrono::seconds {exit_timeout.value_or(5)};
         
         // Set platform metadata if provided
