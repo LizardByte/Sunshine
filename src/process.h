@@ -157,11 +157,16 @@ namespace proc {
   extern proc_t proc;
 
 #ifdef _WIN32
-  // Forward declaration for virtual display support
-  namespace VDISPLAY {
-    enum class DRIVER_STATUS;
-  }
-  extern VDISPLAY::DRIVER_STATUS vDisplayDriverStatus;
   void initVDisplayDriver();
 #endif
 }  // namespace proc
+
+#ifdef _WIN32
+// Forward declaration for virtual display support (global namespace)
+namespace VDISPLAY {
+  enum class DRIVER_STATUS;
+}
+namespace proc {
+  extern ::VDISPLAY::DRIVER_STATUS vDisplayDriverStatus;
+}
+#endif
