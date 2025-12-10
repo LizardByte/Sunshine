@@ -66,6 +66,13 @@ namespace net {
   std::string_view af_to_any_address_string(af_e af);
 
   /**
+   * @brief Get the binding address to use based on config.
+   * @param af Address family.
+   * @return The configured bind address or wildcard if not configured.
+   */
+  std::string get_bind_address(af_e af);
+
+  /**
    * @brief Convert an address to a normalized form.
    * @details Normalization converts IPv4-mapped IPv6 addresses into IPv4 addresses.
    * @param address The address to normalize.
