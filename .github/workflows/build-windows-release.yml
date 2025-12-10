@@ -71,6 +71,61 @@ jobs:
             exit 1
           fi
 
+      - name: Install Windows Driver Kit (WDK)
+        shell: pwsh
+        run: |
+          Write-Host "📦 Installing Windows Driver Kit..."
+
+          # Download WDK installer
+          $wdkUrl = "https://go.microsoft.com/fwlink/?linkid=2249371"  # WDK for Windows 11, version 22H2
+          $wdkInstaller = "$env:TEMP\wdksetup.exe"
+
+          Write-Host "Downloading WDK..."
+          Invoke-WebRequest -Uri $wdkUrl -OutFile $wdkInstaller
+
+          Write-Host "Installing WDK (this may take a few minutes)..."
+          Start-Process -FilePath $wdkInstaller -ArgumentList "/quiet", "/norestart" -Wait -NoNewWindow
+
+          Write-Host "✅ WDK installation completed"
+
+      - name: Clone and Build SudoVDA Driver
+        shell: pwsh
+        run: |
+          Write-Host "📦 Cloning SudoVDA repository..."
+          git clone https://github.com/SudoMaker/SudoVDA.git sudovda-src
+
+          Write-Host "🔨 Building SudoVDA driver..."
+          cd "sudovda-src/Virtual Display Driver (HDR)"
+
+          # Find MSBuild
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+
+          if (-not $msbuild) {
+            Write-Host "❌ MSBuild not found, trying default path..."
+            $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+          }
+
+          Write-Host "Using MSBuild: $msbuild"
+
+          # Build the driver (Release x64)
+          & $msbuild SudoVDA.sln /p:Configuration=Release /p:Platform=x64 /t:Build
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "❌ SudoVDA build failed"
+            exit 1
+          }
+
+          # Find and copy the built DLL
+          $dllPath = Get-ChildItem -Path . -Recurse -Filter "SudoVDA.dll" | Select-Object -First 1
+          if ($dllPath) {
+            Write-Host "✅ SudoVDA.dll built at: $($dllPath.FullName)"
+            Copy-Item $dllPath.FullName -Destination "${{ github.workspace }}/src_assets/windows/drivers/sudovda/"
+            Write-Host "✅ Copied SudoVDA.dll to driver directory"
+          } else {
+            Write-Host "❌ SudoVDA.dll not found after build"
+            exit 1
+          }
+
       - name: Install Doxygen
         env:
           DOXYGEN_VERSION: "1.11.0"
@@ -191,6 +246,22 @@ jobs:
           certificate-profile-name: FujiDesktopCertificateProfile
           files-folder: ${{ github.workspace }}/artifacts
           files-folder-filter: exe
+          files-folder-recurse: false
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Sign SudoVDA driver
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net/
+          trusted-signing-account-name: FujiDesktopSigning
+          certificate-profile-name: FujiDesktopCertificateProfile
+          files-folder: ${{ github.workspace }}/src_assets/windows/drivers/sudovda
+          files-folder-filter: dll
           files-folder-recurse: false
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
