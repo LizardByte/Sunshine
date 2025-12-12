@@ -91,7 +91,7 @@ jobs:
         run: cat generated-sources.json
 
       - name: Cache Flatpak build
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}
