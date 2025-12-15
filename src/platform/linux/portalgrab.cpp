@@ -51,8 +51,9 @@
 using namespace std::literals;
 
 namespace portal {
+  inline std::string restore_token;
+
   static std::string &get_restore_token() {
-    static std::string restore_token;
     return restore_token;
   }
 
@@ -88,11 +89,11 @@ namespace portal {
     int32_t pw_format;
   };
 
-  static constexpr format_map_t format_map[] = {
+  static constexpr std::array<format_map_t, 3> format_map = {{
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
     {0, 0},
-  };
+  }};
 
   struct dbus_response_t {
     GMainLoop *loop;
@@ -591,8 +592,9 @@ namespace portal {
         }
 
         // Add fallback for memptr
-        for (int i = 0; format_map[i].fourcc != 0; i++) {
-          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, format_map[i].pw_format, nullptr, 0);
+        for (const auto &fmt : format_map) {
+          if (fmt.fourcc == 0) break;
+          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
         }
 
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params, n_params);
@@ -736,9 +738,10 @@ namespace portal {
       BOOST_LOG(info) << "Framerate: "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
 
       uint64_t drm_format = 0;
-      for (int n = 0; format_map[n].fourcc != 0; n++) {
-        if (format_map[n].pw_format == d->format.info.raw.format) {
-          drm_format = format_map[n].fourcc;
+      for (const auto &fmt : format_map) {
+        if (fmt.fourcc == 0) break;
+        if (fmt.pw_format == d->format.info.raw.format) {
+          drm_format = fmt.fourcc;
         }
       }
       d->drm_format = drm_format;
@@ -898,9 +901,10 @@ namespace portal {
 
   private:
     static uint32_t lookup_pw_format(uint64_t fourcc) {
-      for (int n = 0; format_map[n].fourcc != 0; n++) {
-        if (format_map[n].fourcc == fourcc) {
-          return format_map[n].pw_format;
+      for (const auto &fmt : format_map) {
+        if (fmt.fourcc == 0) break;
+        if (fmt.fourcc == fourcc) {
+          return fmt.pw_format;
         }
       }
       return 0;
