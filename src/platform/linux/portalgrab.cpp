@@ -554,8 +554,7 @@ namespace portal {
   class session_cache_t {
   public:
     static session_cache_t &instance() {
-      static session_cache_t instance;
-      return instance;
+      return *instance_;
     }
 
     /**
@@ -567,7 +566,7 @@ namespace portal {
      * @return 0 on success, -1 on failure
      */
     int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height) {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::scoped_lock lock(mutex_);
 
       if (valid_) {
         // Return cached session data
@@ -612,7 +611,7 @@ namespace portal {
      * Call this when the session becomes invalid (e.g., on error).
      */
     void invalidate() {
-      std::lock_guard<std::mutex> lock(mutex_);
+      std::scoped_lock lock(mutex_);
       if (valid_) {
         BOOST_LOG(debug) << "Invalidating cached portal session"sv;
         if (pipewire_fd_ >= 0) {
@@ -636,6 +635,7 @@ namespace portal {
     session_cache_t(const session_cache_t &) = delete;
     session_cache_t &operator=(const session_cache_t &) = delete;
 
+    inline static const std::unique_ptr<session_cache_t> instance_ = std::unique_ptr<session_cache_t>(new session_cache_t());
     std::mutex mutex_;
     std::unique_ptr<dbus_t> dbus_;
     int pipewire_fd_ = -1;
