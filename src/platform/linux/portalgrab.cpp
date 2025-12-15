@@ -740,6 +740,7 @@ namespace portal {
             }
           } else {
             img->data = (std::uint8_t *) buf->datas[0].data;
+            img->row_pitch = buf->datas[0].chunk->stride;
           }
         }
       }
@@ -922,6 +923,13 @@ namespace portal {
       auto img_egl = (egl::img_descriptor_t *) img_out.get();
       img_egl->reset();
       pipewire.fill_img(img_egl);
+
+      // Check if we got valid data (either DMA-BUF fd or memory pointer)
+      if (img_egl->sd.fds[0] < 0 && img_egl->data == nullptr) {
+        // No buffer available yet from pipewire
+        return platf::capture_e::timeout;
+      }
+
       img_egl->sequence = ++sequence;
 
       return platf::capture_e::ok;
@@ -1068,13 +1076,35 @@ namespace portal {
         return -1;
       }
 
-      // Detect display GPU vendor
-      const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
-      if (vendor) {
-        BOOST_LOG(debug) << "EGL vendor: "sv << vendor;
-        display_is_nvidia = std::string_view(vendor).contains("NVIDIA");
-        if (display_is_nvidia) {
-          BOOST_LOG(info) << "Display GPU is NVIDIA - DMA-BUF will be enabled for CUDA"sv;
+      // Detect if this is a pure NVIDIA system (not hybrid Intel+NVIDIA)
+      // On hybrid systems, the wayland compositor typically runs on Intel,
+      // so DMA-BUFs from portal will come from Intel and cannot be imported into CUDA.
+      // Check if Intel GPU exists - if so, assume hybrid system and disable CUDA DMA-BUF.
+      bool has_intel_gpu = std::ifstream("/sys/class/drm/card0/device/vendor").good() ||
+                           std::ifstream("/sys/class/drm/card1/device/vendor").good();
+      if (has_intel_gpu) {
+        // Read vendor IDs to check for Intel (0x8086)
+        auto check_intel = [](const std::string &path) {
+          std::ifstream f(path);
+          if (f.good()) {
+            std::string vendor;
+            f >> vendor;
+            return vendor == "0x8086";
+          }
+          return false;
+        };
+        bool intel_present = check_intel("/sys/class/drm/card0/device/vendor") ||
+                             check_intel("/sys/class/drm/card1/device/vendor");
+        if (intel_present) {
+          BOOST_LOG(info) << "Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
+          display_is_nvidia = false;
+        } else {
+          // No Intel GPU found, check if NVIDIA is present
+          const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
+          if (vendor && std::string_view(vendor).contains("NVIDIA")) {
+            BOOST_LOG(info) << "Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
+            display_is_nvidia = true;
+          }
         }
       }
 
