@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <string.h>
 #include <string_view>
 #include <thread>
@@ -52,6 +53,9 @@
 using namespace std::literals;
 
 namespace portal {
+  // Forward declarations
+  class session_cache_t;
+
   class restore_token_t {
   public:
     static std::string get() {
@@ -541,6 +545,106 @@ namespace portal {
     }
   };
 
+  /**
+   * @brief Singleton cache for portal session data.
+   *
+   * This prevents creating multiple portal sessions during encoder probing,
+   * which would show multiple screen recording indicators in the system tray.
+   */
+  class session_cache_t {
+  public:
+    static session_cache_t &instance() {
+      static session_cache_t instance;
+      return instance;
+    }
+
+    /**
+     * @brief Get or create a portal session.
+     *
+     * If a cached session exists and is valid, returns the cached data.
+     * Otherwise, creates a new session and caches it.
+     *
+     * @return 0 on success, -1 on failure
+     */
+    int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height) {
+      std::lock_guard<std::mutex> lock(mutex_);
+
+      if (valid_) {
+        // Return cached session data
+        pipewire_fd = dup(pipewire_fd_);  // Duplicate FD for each caller
+        pipewire_node = pipewire_node_;
+        width = width_;
+        height = height_;
+        BOOST_LOG(debug) << "Reusing cached portal session"sv;
+        return 0;
+      }
+
+      // Create new session
+      dbus_ = std::make_unique<dbus_t>();
+      if (dbus_->init() < 0) {
+        return -1;
+      }
+      if (dbus_->connect_to_portal() < 0) {
+        dbus_.reset();
+        return -1;
+      }
+
+      // Cache the session data
+      pipewire_fd_ = dbus_->pipewire_fd;
+      pipewire_node_ = dbus_->pipewire_node;
+      width_ = dbus_->width;
+      height_ = dbus_->height;
+      valid_ = true;
+
+      // Return to caller (duplicate FD so each caller has their own)
+      pipewire_fd = dup(pipewire_fd_);
+      pipewire_node = pipewire_node_;
+      width = width_;
+      height = height_;
+
+      BOOST_LOG(debug) << "Created new portal session (cached)"sv;
+      return 0;
+    }
+
+    /**
+     * @brief Invalidate the cached session.
+     *
+     * Call this when the session becomes invalid (e.g., on error).
+     */
+    void invalidate() {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (valid_) {
+        BOOST_LOG(debug) << "Invalidating cached portal session"sv;
+        if (pipewire_fd_ >= 0) {
+          close(pipewire_fd_);
+          pipewire_fd_ = -1;
+        }
+        dbus_.reset();
+        valid_ = false;
+      }
+    }
+
+  private:
+    session_cache_t() = default;
+    ~session_cache_t() {
+      if (pipewire_fd_ >= 0) {
+        close(pipewire_fd_);
+      }
+    }
+
+    // Prevent copying
+    session_cache_t(const session_cache_t &) = delete;
+    session_cache_t &operator=(const session_cache_t &) = delete;
+
+    std::mutex mutex_;
+    std::unique_ptr<dbus_t> dbus_;
+    int pipewire_fd_ = -1;
+    int pipewire_node_ = 0;
+    int width_ = 0;
+    int height_ = 0;
+    bool valid_ = false;
+  };
+
   class pipewire_t {
   public:
     pipewire_t():
@@ -794,18 +898,17 @@ namespace portal {
       if (get_dmabuf_modifiers() < 0) {
         return -1;
       }
-      if (dbus.init() < 0) {
-        return -1;
-      }
-      if (dbus.connect_to_portal() < 0) {
+
+      // Use cached portal session to avoid creating multiple screen recordings
+      int pipewire_fd = -1;
+      int pipewire_node = 0;
+      if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, width, height) < 0) {
         return -1;
       }
 
-      width = dbus.width;
-      height = dbus.height;
       framerate = config.framerate;
 
-      pipewire.init(dbus.pipewire_fd, dbus.pipewire_node);
+      pipewire.init(pipewire_fd, pipewire_node);
 
       return 0;
     }
@@ -984,7 +1087,6 @@ namespace portal {
 
     platf::mem_type_e mem_type;
     wl::display_t wl_display;
-    dbus_t dbus;
     pipewire_t pipewire;
     struct dmabuf_format_info_t dmabuf_infos[MAX_DMABUF_FORMATS];
     int n_dmabuf_infos;
