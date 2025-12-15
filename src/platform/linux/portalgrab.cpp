@@ -1085,8 +1085,7 @@ namespace portal {
       if (has_intel_gpu) {
         // Read vendor IDs to check for Intel (0x8086)
         auto check_intel = [](const std::string &path) {
-          std::ifstream f(path);
-          if (f.good()) {
+          if (std::ifstream f(path); f.good()) {
             std::string vendor;
             f >> vendor;
             return vendor == "0x8086";
