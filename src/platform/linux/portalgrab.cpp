@@ -48,7 +48,7 @@
 using namespace std::literals;
 
 namespace portal {
-  static char *restore_token;
+  static std::string restore_token;
 
   struct format_map_t {
     uint64_t fourcc;
@@ -82,9 +82,15 @@ namespace portal {
   class dbus_t {
   public:
     ~dbus_t() {
-      g_object_unref(screencast_proxy);
-      g_object_unref(remote_desktop_proxy);
-      g_object_unref(conn);
+      if (screencast_proxy) {
+        g_object_unref(screencast_proxy);
+      }
+      if (remote_desktop_proxy) {
+        g_object_unref(remote_desktop_proxy);
+      }
+      if (conn) {
+        g_object_unref(conn);
+      }
     }
 
     int init() {
@@ -111,57 +117,59 @@ namespace portal {
       create_session_path(conn, NULL, &session_token);
 
       // Try combined RemoteDesktop + ScreenCast session first
-      if (create_session(loop, &session_path, session_token) < 0) {
-        return -1;
-      }
+      bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
 
-      // Try to select devices and sources for combined session
-      bool use_screencast_only = false;
-      if (select_remote_desktop_devices(loop, session_path) < 0) {
-        BOOST_LOG(warning) << "RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
-        use_screencast_only = true;
-        // Need to create a new session for ScreenCast-only mode
-        g_free(session_path);
-        session_path = NULL;
-        create_session_path(conn, NULL, &session_token);
-        if (create_screencast_session(loop, &session_path, session_token) < 0) {
-          return -1;
-        }
-      }
-
-      if (select_screencast_sources(loop, session_path) < 0) {
-        // If combined session failed, try ScreenCast-only
-        if (!use_screencast_only) {
-          BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
-          use_screencast_only = true;
-          g_free(session_path);
-          session_path = NULL;
-          create_session_path(conn, NULL, &session_token);
-          if (create_screencast_session(loop, &session_path, session_token) < 0) {
-            return -1;
-          }
-          if (select_screencast_sources(loop, session_path) < 0) {
-            return -1;
-          }
-        } else {
-          return -1;
-        }
-      }
-
+      // Fall back to ScreenCast-only if RemoteDesktop failed
       if (use_screencast_only) {
-        if (start_screencast_session(loop, session_path, pipewire_node, width, height) < 0) {
+        if (try_screencast_only_session(loop, &session_path, session_token) < 0) {
           return -1;
         }
-      } else {
-        if (start_session(loop, session_path, pipewire_node, width, height) < 0) {
-          return -1;
-        }
+      }
+
+      if (start_portal_session(loop, session_path, pipewire_node, width, height, use_screencast_only) < 0) {
+        return -1;
       }
 
       if (open_pipewire_remote(session_path, pipewire_fd) < 0) {
         return -1;
       }
 
+      return 0;
+    }
+
+    // Try to create a combined RemoteDesktop + ScreenCast session
+    // Returns true on success, false if should fall back to ScreenCast-only
+    bool try_remote_desktop_session(GMainLoop *loop, gchar **session_path, gchar *session_token) {
+      if (create_portal_session(loop, session_path, session_token, false) < 0) {
+        return false;
+      }
+
+      if (select_remote_desktop_devices(loop, *session_path) < 0) {
+        BOOST_LOG(warning) << "RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
+        g_free(*session_path);
+        *session_path = NULL;
+        return false;
+      }
+
+      if (select_screencast_sources(loop, *session_path) < 0) {
+        BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
+        g_free(*session_path);
+        *session_path = NULL;
+        return false;
+      }
+
+      return true;
+    }
+
+    // Create a ScreenCast-only session
+    int try_screencast_only_session(GMainLoop *loop, gchar **session_path, gchar *session_token) {
+      create_session_path(conn, NULL, &session_token);
+      if (create_portal_session(loop, session_path, session_token, true) < 0) {
+        return -1;
+      }
+      if (select_screencast_sources(loop, *session_path) < 0) {
+        return -1;
+      }
       return 0;
     }
 
@@ -175,7 +183,10 @@ namespace portal {
     GDBusProxy *screencast_proxy;
     GDBusProxy *remote_desktop_proxy;
 
-    int create_session(GMainLoop *loop, gchar **session_path_out, const gchar *session_token) {
+    int create_portal_session(GMainLoop *loop, gchar **session_path_out, const gchar *session_token, bool use_screencast) {
+      GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
+      const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
+
       dbus_response_t response = {
         0,
       };
@@ -190,77 +201,10 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
 
       if (err) {
-        BOOST_LOG(error) << "Could not create session: "sv << err->message;
-        return -1;
-      }
-
-      // Get actual request path from reply and subscribe to it
-      const gchar *request_path = NULL;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
-
-      g_autoptr(GVariant) create_response = dbus_response_wait(&response);
-
-      if (!create_response) {
-        BOOST_LOG(error) << "CreateSession: no response received"sv;
-        return -1;
-      }
-
-      // Debug: print the response type and contents
-      g_autofree gchar *response_str = g_variant_print(create_response, TRUE);
-      BOOST_LOG(debug) << "CreateSession response: "sv << response_str;
-
-      guint32 response_code;
-      g_autoptr(GVariant) results = NULL;
-      g_variant_get(create_response, "(u@a{sv})", &response_code, &results);
-
-      BOOST_LOG(debug) << "CreateSession response_code: "sv << response_code;
-
-      if (response_code != 0) {
-        BOOST_LOG(error) << "CreateSession failed with response code: "sv << response_code;
-        return -1;
-      }
-
-      g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", NULL);
-      if (!session_handle_v) {
-        g_autofree gchar *results_str = g_variant_print(results, TRUE);
-        BOOST_LOG(error) << "CreateSession: session_handle not found in response. Results: "sv << results_str;
-        return -1;
-      }
-      // Value may be wrapped in a variant, unwrap if needed
-      if (g_variant_is_of_type(session_handle_v, G_VARIANT_TYPE_VARIANT)) {
-        g_autoptr(GVariant) inner = g_variant_get_variant(session_handle_v);
-        *session_path_out = g_strdup(g_variant_get_string(inner, NULL));
-      } else {
-        *session_path_out = g_strdup(g_variant_get_string(session_handle_v, NULL));
-      }
-
-      BOOST_LOG(debug) << "CreateSession: got session handle: "sv << *session_path_out;
-      return 0;
-    }
-
-    int create_screencast_session(GMainLoop *loop, gchar **session_path_out, const gchar *session_token) {
-      dbus_response_t response = {
-        0,
-      };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
-
-      GVariantBuilder builder;
-      g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
-      g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
-      g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
-      g_variant_builder_add(&builder, "{sv}", "session_handle_token", g_variant_new_string(session_token));
-      g_variant_builder_close(&builder);
-
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
-
-      if (err) {
-        BOOST_LOG(error) << "Could not create ScreenCast session: "sv << err->message;
+        BOOST_LOG(error) << "Could not create "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
@@ -271,7 +215,7 @@ namespace portal {
       g_autoptr(GVariant) create_response = dbus_response_wait(&response);
 
       if (!create_response) {
-        BOOST_LOG(error) << "ScreenCast CreateSession: no response received"sv;
+        BOOST_LOG(error) << session_type << " CreateSession: no response received"sv;
         return -1;
       }
 
@@ -279,16 +223,16 @@ namespace portal {
       g_autoptr(GVariant) results = NULL;
       g_variant_get(create_response, "(u@a{sv})", &response_code, &results);
 
-      BOOST_LOG(debug) << "ScreenCast CreateSession response_code: "sv << response_code;
+      BOOST_LOG(debug) << session_type << " CreateSession response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << "ScreenCast CreateSession failed with response code: "sv << response_code;
+        BOOST_LOG(error) << session_type << " CreateSession failed with response code: "sv << response_code;
         return -1;
       }
 
       g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", NULL);
       if (!session_handle_v) {
-        BOOST_LOG(error) << "ScreenCast CreateSession: session_handle not found in response"sv;
+        BOOST_LOG(error) << session_type << " CreateSession: session_handle not found in response"sv;
         return -1;
       }
 
@@ -299,7 +243,7 @@ namespace portal {
         *session_path_out = g_strdup(g_variant_get_string(session_handle_v, NULL));
       }
 
-      BOOST_LOG(debug) << "ScreenCast CreateSession: got session handle: "sv << *session_path_out;
+      BOOST_LOG(debug) << session_type << " CreateSession: got session handle: "sv << *session_path_out;
       return 0;
     }
 
@@ -316,8 +260,8 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (restore_token) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token));
+      if (!restore_token.empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token.c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -367,8 +311,8 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (restore_token) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token));
+      if (!restore_token.empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token.c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -402,53 +346,10 @@ namespace portal {
       return 0;
     }
 
-    int start_session(GMainLoop *loop, const gchar *session_path, int &pipewire_node, int &width, int &height) {
-      dbus_response_t response = {
-        0,
-      };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, int &pipewire_node, int &width, int &height, bool use_screencast) {
+      GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
+      const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
-      GVariantBuilder builder;
-      g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
-      g_variant_builder_add(&builder, "o", session_path);
-      g_variant_builder_add(&builder, "s", "");
-      g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
-      g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
-      g_variant_builder_close(&builder);
-
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
-      if (err) {
-        BOOST_LOG(error) << "Could not start session: "sv << err->message;
-        return -1;
-      }
-
-      const gchar *request_path = NULL;
-      g_variant_get(reply, "(o)", &request_path);
-      dbus_response_init(&response, loop, conn, request_path);
-
-      g_autoptr(GVariant) start_response = dbus_response_wait(&response);
-
-      g_autoptr(GVariant) dict = NULL, streams = NULL;
-      g_variant_get(start_response, "(u@a{sv})", NULL, &dict, NULL);
-      streams = g_variant_lookup_value(dict, "streams", G_VARIANT_TYPE("a(ua{sv})"));
-      // Preserve restore token for multiple runs (e.g. probing)
-      if (!restore_token) {
-        g_variant_lookup(dict, "restore_token", "s", &restore_token, NULL);
-      }
-
-      GVariantIter iter;
-      g_autoptr(GVariant) value = NULL;
-      g_variant_iter_init(&iter, streams);
-      while (g_variant_iter_next(&iter, "(u@a{sv})", &pipewire_node, &value)) {
-        g_variant_lookup(value, "size", "(ii)", &width, &height, NULL);
-      }
-
-      return 0;
-    }
-
-    int start_screencast_session(GMainLoop *loop, const gchar *session_path, int &pipewire_node, int &width, int &height) {
       dbus_response_t response = {
         0,
       };
@@ -464,9 +365,9 @@ namespace portal {
       g_variant_builder_close(&builder);
 
       g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
       if (err) {
-        BOOST_LOG(error) << "Could not start ScreenCast session: "sv << err->message;
+        BOOST_LOG(error) << "Could not start "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
@@ -477,7 +378,7 @@ namespace portal {
       g_autoptr(GVariant) start_response = dbus_response_wait(&response);
 
       if (!start_response) {
-        BOOST_LOG(error) << "ScreenCast Start: no response received"sv;
+        BOOST_LOG(error) << session_type << " Start: no response received"sv;
         return -1;
       }
 
@@ -485,22 +386,25 @@ namespace portal {
       g_autoptr(GVariant) dict = NULL, streams = NULL;
       g_variant_get(start_response, "(u@a{sv})", &response_code, &dict);
 
-      BOOST_LOG(debug) << "ScreenCast Start response_code: "sv << response_code;
+      BOOST_LOG(debug) << session_type << " Start response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << "ScreenCast Start failed with response code: "sv << response_code;
+        BOOST_LOG(error) << session_type << " Start failed with response code: "sv << response_code;
         return -1;
       }
 
       streams = g_variant_lookup_value(dict, "streams", G_VARIANT_TYPE("a(ua{sv})"));
       if (!streams) {
-        BOOST_LOG(error) << "ScreenCast Start: no streams in response"sv;
+        BOOST_LOG(error) << session_type << " Start: no streams in response"sv;
         return -1;
       }
 
       // Preserve restore token for multiple runs (e.g. probing)
-      if (!restore_token) {
-        g_variant_lookup(dict, "restore_token", "s", &restore_token, NULL);
+      if (restore_token.empty()) {
+        const gchar *token = NULL;
+        if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
+          restore_token = token;
+        }
       }
 
       GVariantIter iter;
@@ -985,8 +889,7 @@ namespace portal {
           BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
         }
 
-        EGLint i;
-        for (i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
+        for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
           uint32_t pw_format = 0;
           for (int n = 0; format_map[n].fourcc != 0; n++) {
             if (format_map[n].fourcc == dmabuf_formats[i]) {
