@@ -4,7 +4,9 @@
  */
 // standard includes
 #include <fcntl.h>
+#include <fstream>
 #include <string.h>
+#include <string_view>
 #include <thread>
 
 // lib includes
@@ -50,6 +52,33 @@ using namespace std::literals;
 namespace portal {
   static std::string restore_token;
 
+  static std::string get_token_file_path() {
+    return platf::appdata().string() + "/portal_token";
+  }
+
+  static void load_restore_token() {
+    std::ifstream file(get_token_file_path());
+    if (file.is_open()) {
+      std::getline(file, restore_token);
+      if (!restore_token.empty()) {
+        BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
+      }
+    }
+  }
+
+  static void save_restore_token() {
+    if (restore_token.empty()) {
+      return;
+    }
+    std::ofstream file(get_token_file_path());
+    if (file.is_open()) {
+      file << restore_token;
+      BOOST_LOG(info) << "Saved portal restore token to disk"sv;
+    } else {
+      BOOST_LOG(warning) << "Failed to save portal restore token"sv;
+    }
+  }
+
   struct format_map_t {
     uint64_t fourcc;
     int32_t pw_format;
@@ -94,6 +123,8 @@ namespace portal {
     }
 
     int init() {
+      load_restore_token();
+
       conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
       if (!conn) {
         return -1;
@@ -120,10 +151,8 @@ namespace portal {
       bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
 
       // Fall back to ScreenCast-only if RemoteDesktop failed
-      if (use_screencast_only) {
-        if (try_screencast_only_session(loop, &session_path, session_token) < 0) {
-          return -1;
-        }
+      if (use_screencast_only && try_screencast_only_session(loop, &session_path) < 0) {
+        return -1;
       }
 
       if (start_portal_session(loop, session_path, pipewire_node, width, height, use_screencast_only) < 0) {
@@ -139,7 +168,7 @@ namespace portal {
 
     // Try to create a combined RemoteDesktop + ScreenCast session
     // Returns true on success, false if should fall back to ScreenCast-only
-    bool try_remote_desktop_session(GMainLoop *loop, gchar **session_path, gchar *session_token) {
+    bool try_remote_desktop_session(GMainLoop *loop, gchar **session_path, const gchar *session_token) {
       if (create_portal_session(loop, session_path, session_token, false) < 0) {
         return false;
       }
@@ -162,9 +191,10 @@ namespace portal {
     }
 
     // Create a ScreenCast-only session
-    int try_screencast_only_session(GMainLoop *loop, gchar **session_path, gchar *session_token) {
-      create_session_path(conn, nullptr, &session_token);
-      if (create_portal_session(loop, session_path, session_token, true) < 0) {
+    int try_screencast_only_session(GMainLoop *loop, gchar **session_path) {
+      g_autofree gchar *new_session_token = nullptr;
+      create_session_path(conn, nullptr, &new_session_token);
+      if (create_portal_session(loop, session_path, new_session_token, true) < 0) {
         return -1;
       }
       if (select_screencast_sources(loop, *session_path) < 0) {
@@ -346,7 +376,7 @@ namespace portal {
       return 0;
     }
 
-    int start_portal_session(GMainLoop *loop, const gchar *session_path, int &pipewire_node, int &width, int &height, bool use_screencast) {
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, int &out_pipewire_node, int &out_width, int &out_height, bool use_screencast) {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
@@ -383,7 +413,8 @@ namespace portal {
       }
 
       guint32 response_code;
-      g_autoptr(GVariant) dict = nullptr, streams = nullptr;
+      g_autoptr(GVariant) dict = nullptr;
+      g_autoptr(GVariant) streams = nullptr;
       g_variant_get(start_response, "(u@a{sv})", &response_code, &dict);
 
       BOOST_LOG(debug) << session_type << " Start response_code: "sv << response_code;
@@ -404,14 +435,15 @@ namespace portal {
         const gchar *token = nullptr;
         if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
           restore_token = token;
+          save_restore_token();
         }
       }
 
       GVariantIter iter;
       g_autoptr(GVariant) value = nullptr;
       g_variant_iter_init(&iter, streams);
-      while (g_variant_iter_next(&iter, "(u@a{sv})", &pipewire_node, &value)) {
-        g_variant_lookup(value, "size", "(ii)", &width, &height, nullptr);
+      while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
+        g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
       }
 
       return 0;
@@ -491,8 +523,8 @@ namespace portal {
 
   class pipewire_t {
   public:
-    pipewire_t() {
-      loop = pw_thread_loop_new("Pipewire thread", nullptr);
+    pipewire_t():
+        loop(pw_thread_loop_new("Pipewire thread", nullptr)) {
       pw_thread_loop_start(loop);
     }
 
@@ -859,6 +891,47 @@ namespace portal {
     }
 
   private:
+    static uint32_t lookup_pw_format(uint64_t fourcc) {
+      for (int n = 0; format_map[n].fourcc != 0; n++) {
+        if (format_map[n].fourcc == fourcc) {
+          return format_map[n].pw_format;
+        }
+      }
+      return 0;
+    }
+
+    void query_dmabuf_formats(EGLDisplay egl_display) {
+      EGLint num_dmabuf_formats = 0;
+      EGLint dmabuf_formats[MAX_DMABUF_FORMATS] = {0};
+      eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats, &num_dmabuf_formats);
+
+      if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
+        BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
+      }
+
+      for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
+        uint32_t pw_format = lookup_pw_format(dmabuf_formats[i]);
+        if (pw_format == 0) {
+          continue;
+        }
+
+        EGLint num_modifiers = 0;
+        EGLuint64KHR mods[MAX_DMABUF_MODIFIERS] = {0};
+        EGLBoolean external_only;
+        eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods, &external_only, &num_modifiers);
+
+        if (num_modifiers > MAX_DMABUF_MODIFIERS) {
+          BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
+        }
+
+        dmabuf_infos[n_dmabuf_infos].format = pw_format;
+        dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
+        dmabuf_infos[n_dmabuf_infos].modifiers =
+          (uint64_t *) g_memdup2(mods, sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
+        ++n_dmabuf_infos;
+      }
+    }
+
     int get_dmabuf_modifiers() {
       if (wl_display.init() < 0) {
         return -1;
@@ -873,50 +946,14 @@ namespace portal {
       const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
       if (vendor) {
         BOOST_LOG(debug) << "EGL vendor: "sv << vendor;
-        display_is_nvidia = (strstr(vendor, "NVIDIA") != nullptr);
+        display_is_nvidia = (std::string_view(vendor).find("NVIDIA") != std::string_view::npos);
         if (display_is_nvidia) {
           BOOST_LOG(info) << "Display GPU is NVIDIA - DMA-BUF will be enabled for CUDA"sv;
         }
       }
 
       if (eglQueryDmaBufFormatsEXT && eglQueryDmaBufModifiersEXT) {
-        EGLint num_dmabuf_formats = 0;
-        EGLint dmabuf_formats[MAX_DMABUF_FORMATS] = {
-          0,
-        };
-        eglQueryDmaBufFormatsEXT(egl_display.get(), MAX_DMABUF_FORMATS, (EGLint *) &dmabuf_formats, &num_dmabuf_formats);
-        if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
-          BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
-        }
-
-        for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
-          uint32_t pw_format = 0;
-          for (int n = 0; format_map[n].fourcc != 0; n++) {
-            if (format_map[n].fourcc == dmabuf_formats[i]) {
-              pw_format = format_map[n].pw_format;
-            }
-          }
-
-          if (pw_format == 0) {
-            continue;
-          }
-
-          EGLint num_modifiers = 0;
-          EGLuint64KHR mods[MAX_DMABUF_MODIFIERS] = {
-            0,
-          };
-          EGLBoolean external_only;
-          eglQueryDmaBufModifiersEXT(egl_display.get(), dmabuf_formats[i], MAX_DMABUF_MODIFIERS, (EGLuint64KHR *) &mods, &external_only, &num_modifiers);
-          if (num_modifiers > MAX_DMABUF_MODIFIERS) {
-            BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
-          }
-
-          dmabuf_infos[n_dmabuf_infos].format = pw_format;
-          dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
-          dmabuf_infos[n_dmabuf_infos].modifiers =
-            (uint64_t *) g_memdup2(mods, sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
-          ++n_dmabuf_infos;
-        }
+        query_dmabuf_formats(egl_display.get());
       }
 
       return 0;
