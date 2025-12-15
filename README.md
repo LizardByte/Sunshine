@@ -192,6 +192,23 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 
 **Legend:** ✅ Supported | 🟡 Partial Support | ❌ Not Yet Supported | ➖ Not Applicable
 
+## 🔧 Building with XDG Portal Support (Linux)
+
+To build Sunshine with XDG Portal and Wayland support:
+
+```bash
+mkdir -p build && cd build
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DSUNSHINE_ENABLE_WAYLAND=ON \
+      -DSUNSHINE_ENABLE_PORTAL=ON \
+      -DSUNSHINE_BUILD_WAYLAND=ON \
+      -DBUILD_DOCS=OFF \
+      -DBUILD_TESTS=OFF \
+      ..
+make -j$(nproc)
+sudo make install
+```
+
 ## 🖥️ System Requirements
 
 > [!WARNING]
