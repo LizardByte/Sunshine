@@ -6,6 +6,7 @@
 #include <array>
 #include <fcntl.h>
 #include <fstream>
+#include <memory>
 #include <string.h>
 #include <string_view>
 #include <thread>
@@ -54,34 +55,34 @@ namespace portal {
   class restore_token_t {
   public:
     static std::string get() {
-      return instance().token_;
+      return *token_;
     }
 
-    static void set(const std::string &value) {
-      instance().token_ = value;
+    static void set(std::string_view value) {
+      *token_ = value;
     }
 
     static bool empty() {
-      return instance().token_.empty();
+      return token_->empty();
     }
 
     static void load() {
       std::ifstream file(get_file_path());
       if (file.is_open()) {
-        std::getline(file, instance().token_);
-        if (!instance().token_.empty()) {
+        std::getline(file, *token_);
+        if (!token_->empty()) {
           BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
         }
       }
     }
 
     static void save() {
-      if (instance().token_.empty()) {
+      if (token_->empty()) {
         return;
       }
       std::ofstream file(get_file_path());
       if (file.is_open()) {
-        file << instance().token_;
+        file << *token_;
         BOOST_LOG(info) << "Saved portal restore token to disk"sv;
       } else {
         BOOST_LOG(warning) << "Failed to save portal restore token"sv;
@@ -89,15 +90,10 @@ namespace portal {
     }
 
   private:
-    std::string token_;
+    static inline const std::unique_ptr<std::string> token_ = std::make_unique<std::string>();
 
     static std::string get_file_path() {
       return platf::appdata().string() + "/portal_token";
-    }
-
-    static restore_token_t &instance() {
-      static restore_token_t inst;
-      return inst;
     }
   };
 
