@@ -3,6 +3,7 @@
  * @brief Definitions for XDG portal grab.
  */
 // standard includes
+#include <array>
 #include <fcntl.h>
 #include <fstream>
 #include <string.h>
@@ -50,7 +51,10 @@
 using namespace std::literals;
 
 namespace portal {
-  static std::string restore_token;
+  static std::string &get_restore_token() {
+    static std::string restore_token;
+    return restore_token;
+  }
 
   static std::string get_token_file_path() {
     return platf::appdata().string() + "/portal_token";
@@ -59,20 +63,20 @@ namespace portal {
   static void load_restore_token() {
     std::ifstream file(get_token_file_path());
     if (file.is_open()) {
-      std::getline(file, restore_token);
-      if (!restore_token.empty()) {
+      std::getline(file, get_restore_token());
+      if (!get_restore_token().empty()) {
         BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
       }
     }
   }
 
   static void save_restore_token() {
-    if (restore_token.empty()) {
+    if (get_restore_token().empty()) {
       return;
     }
     std::ofstream file(get_token_file_path());
     if (file.is_open()) {
-      file << restore_token;
+      file << get_restore_token();
       BOOST_LOG(info) << "Saved portal restore token to disk"sv;
     } else {
       BOOST_LOG(warning) << "Failed to save portal restore token"sv;
@@ -82,7 +86,9 @@ namespace portal {
   struct format_map_t {
     uint64_t fourcc;
     int32_t pw_format;
-  } format_map[] = {
+  };
+
+  static constexpr format_map_t format_map[] = {
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
     {0, 0},
@@ -290,8 +296,8 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (!restore_token.empty()) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token.c_str()));
+      if (!get_restore_token().empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(get_restore_token().c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -341,8 +347,8 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (!restore_token.empty()) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token.c_str()));
+      if (!get_restore_token().empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(get_restore_token().c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -431,10 +437,10 @@ namespace portal {
       }
 
       // Preserve restore token for multiple runs (e.g. probing)
-      if (restore_token.empty()) {
+      if (get_restore_token().empty()) {
         const gchar *token = nullptr;
         if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
-          restore_token = token;
+          get_restore_token() = token;
           save_restore_token();
         }
       }
@@ -902,8 +908,8 @@ namespace portal {
 
     void query_dmabuf_formats(EGLDisplay egl_display) {
       EGLint num_dmabuf_formats = 0;
-      EGLint dmabuf_formats[MAX_DMABUF_FORMATS] = {0};
-      eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats, &num_dmabuf_formats);
+      std::array<EGLint, MAX_DMABUF_FORMATS> dmabuf_formats = {0};
+      eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
 
       if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
         BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
@@ -916,9 +922,9 @@ namespace portal {
         }
 
         EGLint num_modifiers = 0;
-        EGLuint64KHR mods[MAX_DMABUF_MODIFIERS] = {0};
+        std::array<EGLuint64KHR, MAX_DMABUF_MODIFIERS> mods = {0};
         EGLBoolean external_only;
-        eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods, &external_only, &num_modifiers);
+        eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods.data(), &external_only, &num_modifiers);
 
         if (num_modifiers > MAX_DMABUF_MODIFIERS) {
           BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
@@ -927,7 +933,7 @@ namespace portal {
         dmabuf_infos[n_dmabuf_infos].format = pw_format;
         dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
         dmabuf_infos[n_dmabuf_infos].modifiers =
-          (uint64_t *) g_memdup2(mods, sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
+          (uint64_t *) g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
         ++n_dmabuf_infos;
       }
     }
@@ -946,7 +952,7 @@ namespace portal {
       const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
       if (vendor) {
         BOOST_LOG(debug) << "EGL vendor: "sv << vendor;
-        display_is_nvidia = (std::string_view(vendor).find("NVIDIA") != std::string_view::npos);
+        display_is_nvidia = std::string_view(vendor).contains("NVIDIA");
         if (display_is_nvidia) {
           BOOST_LOG(info) << "Display GPU is NVIDIA - DMA-BUF will be enabled for CUDA"sv;
         }
