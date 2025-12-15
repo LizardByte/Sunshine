@@ -51,38 +51,55 @@
 using namespace std::literals;
 
 namespace portal {
-  inline std::string restore_token;
+  class restore_token_t {
+  public:
+    static std::string get() {
+      return instance().token_;
+    }
 
-  static std::string &get_restore_token() {
-    return restore_token;
-  }
+    static void set(const std::string &value) {
+      instance().token_ = value;
+    }
 
-  static std::string get_token_file_path() {
-    return platf::appdata().string() + "/portal_token";
-  }
+    static bool empty() {
+      return instance().token_.empty();
+    }
 
-  static void load_restore_token() {
-    std::ifstream file(get_token_file_path());
-    if (file.is_open()) {
-      std::getline(file, get_restore_token());
-      if (!get_restore_token().empty()) {
-        BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
+    static void load() {
+      std::ifstream file(get_file_path());
+      if (file.is_open()) {
+        std::getline(file, instance().token_);
+        if (!instance().token_.empty()) {
+          BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
+        }
       }
     }
-  }
 
-  static void save_restore_token() {
-    if (get_restore_token().empty()) {
-      return;
+    static void save() {
+      if (instance().token_.empty()) {
+        return;
+      }
+      std::ofstream file(get_file_path());
+      if (file.is_open()) {
+        file << instance().token_;
+        BOOST_LOG(info) << "Saved portal restore token to disk"sv;
+      } else {
+        BOOST_LOG(warning) << "Failed to save portal restore token"sv;
+      }
     }
-    std::ofstream file(get_token_file_path());
-    if (file.is_open()) {
-      file << get_restore_token();
-      BOOST_LOG(info) << "Saved portal restore token to disk"sv;
-    } else {
-      BOOST_LOG(warning) << "Failed to save portal restore token"sv;
+
+  private:
+    std::string token_;
+
+    static std::string get_file_path() {
+      return platf::appdata().string() + "/portal_token";
     }
-  }
+
+    static restore_token_t &instance() {
+      static restore_token_t inst;
+      return inst;
+    }
+  };
 
   struct format_map_t {
     uint64_t fourcc;
@@ -130,7 +147,7 @@ namespace portal {
     }
 
     int init() {
-      load_restore_token();
+      restore_token_t::load();
 
       conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
       if (!conn) {
@@ -297,8 +314,8 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (!get_restore_token().empty()) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(get_restore_token().c_str()));
+      if (!restore_token_t::empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -348,8 +365,8 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (!get_restore_token().empty()) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(get_restore_token().c_str()));
+      if (!restore_token_t::empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
       }
       g_variant_builder_close(&builder);
 
@@ -438,11 +455,11 @@ namespace portal {
       }
 
       // Preserve restore token for multiple runs (e.g. probing)
-      if (get_restore_token().empty()) {
+      if (restore_token_t::empty()) {
         const gchar *token = nullptr;
         if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
-          get_restore_token() = token;
-          save_restore_token();
+          restore_token_t::set(token);
+          restore_token_t::save();
         }
       }
 
