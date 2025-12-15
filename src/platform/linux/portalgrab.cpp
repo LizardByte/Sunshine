@@ -94,15 +94,15 @@ namespace portal {
     }
 
     int init() {
-      conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
+      conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
       if (!conn) {
         return -1;
       }
-      remote_desktop_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, NULL, PORTAL_NAME, PORTAL_PATH, REMOTE_DESKTOP_IFACE, NULL, NULL);
+      remote_desktop_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, REMOTE_DESKTOP_IFACE, nullptr, nullptr);
       if (!remote_desktop_proxy) {
         return -1;
       }
-      screencast_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, NULL, PORTAL_NAME, PORTAL_PATH, SCREENCAST_IFACE, NULL, NULL);
+      screencast_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, SCREENCAST_IFACE, nullptr, nullptr);
       if (!screencast_proxy) {
         return -1;
       }
@@ -111,10 +111,10 @@ namespace portal {
     }
 
     int connect_to_portal() {
-      g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
-      g_autofree gchar *session_path = NULL;
-      g_autofree gchar *session_token = NULL;
-      create_session_path(conn, NULL, &session_token);
+      g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
+      g_autofree gchar *session_path = nullptr;
+      g_autofree gchar *session_token = nullptr;
+      create_session_path(conn, nullptr, &session_token);
 
       // Try combined RemoteDesktop + ScreenCast session first
       bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
@@ -147,14 +147,14 @@ namespace portal {
       if (select_remote_desktop_devices(loop, *session_path) < 0) {
         BOOST_LOG(warning) << "RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
         g_free(*session_path);
-        *session_path = NULL;
+        *session_path = nullptr;
         return false;
       }
 
       if (select_screencast_sources(loop, *session_path) < 0) {
         BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
         g_free(*session_path);
-        *session_path = NULL;
+        *session_path = nullptr;
         return false;
       }
 
@@ -163,7 +163,7 @@ namespace portal {
 
     // Create a ScreenCast-only session
     int try_screencast_only_session(GMainLoop *loop, gchar **session_path, gchar *session_token) {
-      create_session_path(conn, NULL, &session_token);
+      create_session_path(conn, nullptr, &session_token);
       if (create_portal_session(loop, session_path, session_token, true) < 0) {
         return -1;
       }
@@ -190,8 +190,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
@@ -200,15 +200,15 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "session_handle_token", g_variant_new_string(session_token));
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
         BOOST_LOG(error) << "Could not create "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
-      const gchar *request_path = NULL;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -220,7 +220,7 @@ namespace portal {
       }
 
       guint32 response_code;
-      g_autoptr(GVariant) results = NULL;
+      g_autoptr(GVariant) results = nullptr;
       g_variant_get(create_response, "(u@a{sv})", &response_code, &results);
 
       BOOST_LOG(debug) << session_type << " CreateSession response_code: "sv << response_code;
@@ -230,7 +230,7 @@ namespace portal {
         return -1;
       }
 
-      g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", NULL);
+      g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", nullptr);
       if (!session_handle_v) {
         BOOST_LOG(error) << session_type << " CreateSession: session_handle not found in response"sv;
         return -1;
@@ -238,9 +238,9 @@ namespace portal {
 
       if (g_variant_is_of_type(session_handle_v, G_VARIANT_TYPE_VARIANT)) {
         g_autoptr(GVariant) inner = g_variant_get_variant(session_handle_v);
-        *session_path_out = g_strdup(g_variant_get_string(inner, NULL));
+        *session_path_out = g_strdup(g_variant_get_string(inner, nullptr));
       } else {
-        *session_path_out = g_strdup(g_variant_get_string(session_handle_v, NULL));
+        *session_path_out = g_strdup(g_variant_get_string(session_handle_v, nullptr));
       }
 
       BOOST_LOG(debug) << session_type << " CreateSession: got session handle: "sv << *session_path_out;
@@ -251,8 +251,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -265,15 +265,15 @@ namespace portal {
       }
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
         BOOST_LOG(error) << "Could not select devices: "sv << err->message;
         return -1;
       }
 
-      const gchar *request_path = NULL;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -285,7 +285,7 @@ namespace portal {
       }
 
       guint32 response_code;
-      g_variant_get(devices_response, "(u@a{sv})", &response_code, NULL);
+      g_variant_get(devices_response, "(u@a{sv})", &response_code, nullptr);
       BOOST_LOG(debug) << "SelectDevices response_code: "sv << response_code;
 
       if (response_code != 0) {
@@ -300,8 +300,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -316,14 +316,14 @@ namespace portal {
       }
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "Could not select sources: "sv << err->message;
         return -1;
       }
 
-      const gchar *request_path = NULL;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -335,7 +335,7 @@ namespace portal {
       }
 
       guint32 response_code;
-      g_variant_get(sources_response, "(u@a{sv})", &response_code, NULL);
+      g_variant_get(sources_response, "(u@a{sv})", &response_code, nullptr);
       BOOST_LOG(debug) << "SelectSources response_code: "sv << response_code;
 
       if (response_code != 0) {
@@ -353,8 +353,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_token = NULL;
-      create_request_path(conn, NULL, &request_token);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
@@ -364,14 +364,14 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "Could not start "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
-      const gchar *request_path = NULL;
+      const gchar *request_path = nullptr;
       g_variant_get(reply, "(o)", &request_path);
       dbus_response_init(&response, loop, conn, request_path);
 
@@ -383,7 +383,7 @@ namespace portal {
       }
 
       guint32 response_code;
-      g_autoptr(GVariant) dict = NULL, streams = NULL;
+      g_autoptr(GVariant) dict = nullptr, streams = nullptr;
       g_variant_get(start_response, "(u@a{sv})", &response_code, &dict);
 
       BOOST_LOG(debug) << session_type << " Start response_code: "sv << response_code;
@@ -401,17 +401,17 @@ namespace portal {
 
       // Preserve restore token for multiple runs (e.g. probing)
       if (restore_token.empty()) {
-        const gchar *token = NULL;
+        const gchar *token = nullptr;
         if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
           restore_token = token;
         }
       }
 
       GVariantIter iter;
-      g_autoptr(GVariant) value = NULL;
+      g_autoptr(GVariant) value = nullptr;
       g_variant_iter_init(&iter, streams);
       while (g_variant_iter_next(&iter, "(u@a{sv})", &pipewire_node, &value)) {
-        g_variant_lookup(value, "size", "(ii)", &width, &height, NULL);
+        g_variant_lookup(value, "size", "(ii)", &width, &height, nullptr);
       }
 
       return 0;
@@ -419,10 +419,10 @@ namespace portal {
 
     int open_pipewire_remote(const gchar *session_path, int &fd) {
       GUnixFDList *fd_list;
-      GVariant *msg = g_variant_new("(oa{sv})", session_path, NULL);
+      GVariant *msg = g_variant_new("(oa{sv})", session_path, nullptr);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, NULL, &fd_list, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &fd_list, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "Could not open pipewire remote: "sv << err->message;
         return -1;
@@ -430,7 +430,7 @@ namespace portal {
 
       int fd_handle;
       g_variant_get(reply, "(h)", &fd_handle);
-      fd = g_unix_fd_list_get(fd_list, fd_handle, NULL);
+      fd = g_unix_fd_list_get(fd_list, fd_handle, nullptr);
       return 0;
     }
 
@@ -443,7 +443,7 @@ namespace portal {
     static gchar *get_sender_string(GDBusConnection *conn) {
       gchar *sender = g_strdup(g_dbus_connection_get_unique_name(conn) + 1);
       gchar *dot;
-      while ((dot = strstr(sender, ".")) != NULL) {
+      while ((dot = strstr(sender, ".")) != nullptr) {
         *dot = '_';
       }
       return sender;
@@ -480,7 +480,7 @@ namespace portal {
 
     static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
       response->loop = loop;
-      response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, NULL, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, NULL);
+      response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
     }
 
     static GVariant *dbus_response_wait(struct dbus_response_t *response) {
@@ -492,7 +492,7 @@ namespace portal {
   class pipewire_t {
   public:
     pipewire_t() {
-      loop = pw_thread_loop_new("Pipewire thread", NULL);
+      loop = pw_thread_loop_new("Pipewire thread", nullptr);
       pw_thread_loop_start(loop);
     }
 
@@ -519,9 +519,9 @@ namespace portal {
       fd = stream_fd;
       node = stream_node;
 
-      context = pw_context_new(pw_thread_loop_get_loop(loop), NULL, 0);
-      core = pw_context_connect_fd(context, dup(fd), NULL, 0);
-      pw_core_add_listener(core, &core_listener, &core_events, NULL);
+      context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
+      core = pw_context_connect_fd(context, dup(fd), nullptr, 0);
+      pw_core_add_listener(core, &core_listener, &core_events, nullptr);
     }
 
     void ensure_stream(platf::mem_type_e mem_type, uint32_t width, uint32_t height, uint32_t refresh_rate, struct dmabuf_format_info_t *dmabuf_infos, int n_dmabuf_infos, bool display_is_nvidia) {
@@ -529,7 +529,7 @@ namespace portal {
       if (!stream_data.stream) {
         struct pw_properties *props;
 
-        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", NULL);
+        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
 
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
@@ -554,7 +554,7 @@ namespace portal {
 
         // Add fallback for memptr
         for (int i = 0; format_map[i].fourcc != 0; i++) {
-          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, format_map[i].pw_format, NULL, 0);
+          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, format_map[i].pw_format, nullptr, 0);
         }
 
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params, n_params);
@@ -651,7 +651,7 @@ namespace portal {
 
     static void on_process(void *user_data) {
       struct stream_data_t *d = (struct stream_data_t *) user_data;
-      struct pw_buffer *b = NULL;
+      struct pw_buffer *b = nullptr;
 
       while (true) {
         struct pw_buffer *aux = pw_stream_dequeue_buffer(d->stream);
@@ -664,7 +664,7 @@ namespace portal {
         b = aux;
       }
 
-      if (b == NULL) {
+      if (b == nullptr) {
         BOOST_LOG(warning) << "out of pipewire buffers"sv;
         return;
       }
@@ -678,9 +678,9 @@ namespace portal {
     static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
       struct stream_data_t *d = (struct stream_data_t *) user_data;
 
-      d->current_buffer = NULL;
+      d->current_buffer = nullptr;
 
-      if (param == NULL || id != SPA_PARAM_Format) {
+      if (param == nullptr || id != SPA_PARAM_Format) {
         return;
       }
       if (spa_format_parse(param, &d->format.media_type, &d->format.media_subtype) < 0) {
@@ -706,7 +706,7 @@ namespace portal {
       d->drm_format = drm_format;
 
       uint32_t buffer_types = 0;
-      if (spa_pod_find_prop(param, NULL, SPA_FORMAT_VIDEO_modifier) != NULL && d->drm_format) {
+      if (spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier) != nullptr && d->drm_format) {
         BOOST_LOG(info) << "using DMA-BUF buffers"sv;
         buffer_types |= 1 << SPA_DATA_DmaBuf;
       } else {
@@ -958,7 +958,7 @@ namespace platf {
       return {};
     }
 
-    pw_init(NULL, NULL);
+    pw_init(nullptr, nullptr);
 
     display_names.emplace_back("org.freedesktop.portal.Desktop");
     return display_names;
