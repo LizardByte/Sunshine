@@ -91,7 +91,7 @@ namespace {
 
 }  // namespace
 
-namespace bp = boost::process;
+namespace bp = boost::process::v1;
 
 using namespace std::literals;
 
