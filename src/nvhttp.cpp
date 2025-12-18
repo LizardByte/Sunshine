@@ -952,6 +952,15 @@ namespace nvhttp {
     tree.put("root.GfeVersion", GFE_VERSION);
     tree.put("root.FujiSunshine", "Backbone-Labs-Fork");
     tree.put("root.BacklightVersion", "1.0");
+#ifdef _WIN32
+    tree.put("root.HostOS", "windows");
+#elif defined(__APPLE__)
+    tree.put("root.HostOS", "macos");
+#elif defined(__linux__)
+    tree.put("root.HostOS", "linux");
+#else
+    tree.put("root.HostOS", "unknown");
+#endif
     tree.put("root.uniqueid", http::unique_id);
     tree.put("root.HttpsPort", net::map_port(PORT_HTTPS));
     tree.put("root.ExternalPort", net::map_port(PORT_HTTP));
