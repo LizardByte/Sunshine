@@ -12,6 +12,9 @@
 #include <dxgi.h>
 #include <dxgi1_6.h>
 #include <Unknwn.h>
+#ifdef __clang__
+#include "include/wgc_interop_guids.h"
+#endif
 #include <winrt/windows.graphics.capture.h>
 
 // local includes
