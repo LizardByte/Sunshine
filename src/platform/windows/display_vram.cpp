@@ -1907,6 +1907,12 @@ namespace platf::dxgi {
       if (!boost::algorithm::ends_with(name, "_nvenc")) {
         return false;
       }
+    } else if (adapter_desc.VendorId == 0x4D4F4351 ||  // Qualcomm (QCOM as MOQC reversed)
+               adapter_desc.VendorId == 0x5143) {      // Qualcomm alternate ID
+      // If it's not a MediaFoundation encoder, it's not compatible with a Qualcomm GPU
+      if (!boost::algorithm::ends_with(name, "_mf")) {
+        return false;
+      }
     } else {
       BOOST_LOG(warning) << "Unknown GPU vendor ID: " << util::hex(adapter_desc.VendorId).to_string_view();
     }
