@@ -38,13 +38,16 @@ if(NOT DEFINED SUNSHINE_ICON_PATH)
     set(SUNSHINE_ICON_PATH "${CMAKE_SOURCE_DIR}/sunshine.ico")
 endif()
 
+# For cross-compilation with llvm-rc, use relative path from build dir
+file(RELATIVE_PATH SUNSHINE_ICON_RELATIVE "${CMAKE_BINARY_DIR}" "${SUNSHINE_ICON_PATH}")
+
 # Create a separate object library for the RC file with minimal includes
 add_library(sunshine_rc_object OBJECT "${CMAKE_SOURCE_DIR}/src/platform/windows/windows.rc")
 
 # Set minimal properties for RC compilation - only what's needed for the resource file
 # Otherwise compilation can fail due to "line too long" errors
 set_target_properties(sunshine_rc_object PROPERTIES
-    COMPILE_DEFINITIONS "PROJECT_ICON_PATH=${SUNSHINE_ICON_PATH};PROJECT_NAME=${PROJECT_NAME};PROJECT_VENDOR=${SUNSHINE_PUBLISHER_NAME};PROJECT_VERSION=${PROJECT_VERSION};PROJECT_VERSION_MAJOR=${PROJECT_VERSION_MAJOR};PROJECT_VERSION_MINOR=${PROJECT_VERSION_MINOR};PROJECT_VERSION_PATCH=${PROJECT_VERSION_PATCH}"  # cmake-lint: disable=C0301
+    COMPILE_DEFINITIONS "PROJECT_ICON_PATH=\"${SUNSHINE_ICON_RELATIVE}\";PROJECT_NAME=${PROJECT_NAME};PROJECT_VENDOR=\"${SUNSHINE_PUBLISHER_NAME}\";PROJECT_VERSION=${PROJECT_VERSION};PROJECT_VERSION_MAJOR=${PROJECT_VERSION_MAJOR};PROJECT_VERSION_MINOR=${PROJECT_VERSION_MINOR};PROJECT_VERSION_PATCH=${PROJECT_VERSION_PATCH}"  # cmake-lint: disable=C0301
     INCLUDE_DIRECTORIES ""
 )
 
