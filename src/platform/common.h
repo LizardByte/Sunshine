@@ -52,13 +52,16 @@ namespace boost {
     class path;
   }
 
-  namespace process::inline v1 {
-    class child;
-    class group;
-    template<typename Char>
-    class basic_environment;
-    typedef basic_environment<char> environment;
-  }  // namespace process::inline v1
+  namespace process {
+    namespace v1 {
+      class child;
+      class group;
+      template<typename Char>
+      class basic_environment;
+      typedef basic_environment<char> environment;
+    }  // namespace v1
+    using namespace v1;
+  }  // namespace process
 }  // namespace boost
 #endif
 namespace video {
