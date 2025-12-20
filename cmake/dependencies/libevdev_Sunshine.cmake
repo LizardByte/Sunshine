@@ -15,10 +15,11 @@ else()
     include(ExternalProject)
 
     ExternalProject_Add(libevdev
-            URL http://www.freedesktop.org/software/libevdev/${LIBEVDEV_VERSION}.tar.xz
+            URL https://github.com/LizardByte-infrastructure/libevdev/archive/refs/tags/${LIBEVDEV_VERSION}.tar.gz
             PREFIX ${LIBEVDEV_VERSION}
-            CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
-            BUILD_COMMAND "make"
+            BUILD_IN_SOURCE 1
+            CONFIGURE_COMMAND sh <SOURCE_DIR>/autogen.sh && <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+            BUILD_COMMAND make
             INSTALL_COMMAND ""
     )
 
@@ -26,9 +27,9 @@ else()
     message(STATUS "libevdev source dir: ${SOURCE_DIR}")
     set(EVDEV_INCLUDE_DIR "${SOURCE_DIR}")
 
-    ExternalProject_Get_Property(libevdev BINARY_DIR)
-    message(STATUS "libevdev binary dir: ${BINARY_DIR}")
-    set(EVDEV_LIBRARY "${BINARY_DIR}/libevdev/.libs/libevdev.a")
+    ExternalProject_Get_Property(libevdev SOURCE_DIR)
+    message(STATUS "libevdev build dir: ${SOURCE_DIR}")
+    set(EVDEV_LIBRARY "${SOURCE_DIR}/libevdev/.libs/libevdev.a")
 
     # compile libevdev before sunshine
     set(SUNSHINE_TARGET_DEPENDENCIES ${SUNSHINE_TARGET_DEPENDENCIES} libevdev)
