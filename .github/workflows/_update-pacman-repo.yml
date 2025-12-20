@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  update-homebrew-release:
+  update-pacman-repo:
     name: Update pacman repo
     uses: LizardByte/.github/.github/workflows/__call-update-pacman-repo.yml@master
     if: github.repository_owner == 'LizardByte'
