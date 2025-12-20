@@ -13,6 +13,11 @@
 // Gross hack to work around MINGW-packages#22160
 #define ____FIReference_1_boolean_INTERFACE_DEFINED__
 
+// GUID specializations for clang compatibility
+#ifdef __clang__
+#include "include/wgc_interop_guids.h"
+#endif
+
 #include <Windows.Graphics.Capture.Interop.h>
 #include <winrt/windows.foundation.h>
 #include <winrt/windows.foundation.metadata.h>
