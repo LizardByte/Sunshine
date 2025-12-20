@@ -36,21 +36,21 @@ jobs:
         include:
           # https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners/about-github-hosted-runners#standard-github-hosted-runners-for-public-repositories
           # while GitHub has larger macOS runners, they are not available for our repos :(
-          - os_version: "14"
-            os_name: "macos"
-          - os_version: "15"
-            os_name: "macos"
-          - os_version: "26"
-            os_name: "macos"
-          - os_version: "latest"
-            os_name: "ubuntu"
-          - os_version: "latest"  # this job will only configure the formula for release, no validation
-            os_name: "ubuntu"
-            release: true
+          - os_name: "macos"
+            os_version: "14"
+          - os_name: "macos"
+            os_version: "15"
+          - os_name: "macos"
+            os_version: "26"
+          - os_name: "ubuntu"
+            os_version: "22.04"
+          - os_name: "ubuntu"
+            os_version: "latest"
+            release: true  # this job will only configure the formula for release, no validation
     steps:
       - name: More space
         if: runner.os == 'Linux'
-        uses: LizardByte/actions/actions/more_space@v2025.1028.23217
+        uses: LizardByte/actions/actions/more_space@v2025.1220.21713
         with:
           analyze-space-savings: true
           clean-all: true
@@ -142,7 +142,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@v2025.1028.23217
+        uses: LizardByte/actions/actions/release_homebrew@v2025.1220.21713
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
@@ -178,7 +178,22 @@ jobs:
 
           # update the formula
           sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
-          sed -i 's/# conflicts_with/conflicts_with/' $formula_file
+          sed -i 's/conflicts_with "sunshine-beta"/conflicts_with "sunshine"/' $formula_file
+          sed -i '0,/^  version .*$/d' $formula_file
+
+          # update livecheck to check for latest stable or pre-release
+          # shellcheck disable=SC1004
+          sed -i '/strategy :github_latest do |json, regex|/,/^    end$/c\
+              strategy :github_releases do |json, regex|\
+                json.map do |release|\
+                  next if release["draft"]\
+          \
+                  match = release["tag_name"]?\&.match(regex)\
+                  next if match.blank?\
+          \
+                  match[1]\
+                end\
+              end' $formula_file
 
           # print new file
           echo "New formula:"
