@@ -25,6 +25,15 @@ class Sunshine < Formula
     end
   end
 
+  bottle do
+    root_url "https://ghcr.io/v2/lizardbyte/homebrew"
+    rebuild 1
+    sha256 arm64_tahoe:   "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_sequoia: "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_sonoma:  "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 x86_64_linux:  "0000000000000000000000000000000000000000000000000000000000000000"
+  end
+
   option "with-docs", "Enable docs"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
