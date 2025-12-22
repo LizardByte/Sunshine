@@ -1140,32 +1140,14 @@ namespace nvhttp {
 
     auto current_appid = proc::proc.running();
     if (current_appid > 0) {
-      auto requested_appid_str = get_arg(args, "appid");
-      int requested_appid = 0;
-      try {
-        requested_appid = std::stoi(requested_appid_str);
-      } catch (...) {
-        // Keep default 0
-      }
+      // DISABLED: Auto-terminate logic moved to StreamGameManager.ps1 via global_prep_cmd
+      // The enhanced script handles process tree capture and multi-stage termination
+      // which is more reliable than Sunshine's built-in terminate for multi-exe games
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", 400);
+      tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
 
-      // If we are launching a different app than what is running, terminate the old one
-      if (requested_appid > 0 && current_appid != requested_appid) {
-        BOOST_LOG(info) << "Switching games: Terminating app " << current_appid << " to launch " << requested_appid;
-        
-        rtsp_stream::terminate_sessions();
-        proc::proc.terminate();
-        display_device::revert_configuration();
-        
-        // Wait a moment for the process to die
-        // This is a simple blocking wait, could be improved
-        std::this_thread::sleep_for(std::chrono::seconds(2));
-      } else {
-        tree.put("root.resume", 0);
-        tree.put("root.<xmlattr>.status_code", 400);
-        tree.put("root.<xmlattr>.status_message", "An app is already running on this host");
-
-        return;
-      }
+      return;
     }
 
     host_audio = util::from_view(get_arg(args, "localAudioPlayMode"));
