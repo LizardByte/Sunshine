@@ -201,6 +201,17 @@ namespace nvhttp {
   bool unpair_client(std::string_view uuid);
 
   /**
+   * @brief Rename a paired client.
+   * @param uuid The UUID of the client to rename.
+   * @param new_name The new display name for the client.
+   * @return True if the client was renamed successfully.
+   * @examples
+   * nvhttp::rename_client("4D7BB2DD-5704-A405-B41C-891A022932E1", "iPhone 15 Pro");
+   * @examples_end
+   */
+  bool rename_client(std::string_view uuid, std::string_view new_name);
+
+  /**
    * @brief Get all paired clients.
    * @return The list of all paired clients.
    * @examples

@@ -1581,4 +1581,18 @@ namespace nvhttp {
     load_state();
     return removed;
   }
+
+  bool rename_client(const std::string_view uuid, const std::string_view new_name) {
+    client_t &client = client_root;
+    for (auto &device : client.named_devices) {
+      if (device.uuid == uuid) {
+        device.name = std::string(new_name);
+        save_state();
+        BOOST_LOG(info) << "Renamed client " << uuid << " to: " << new_name;
+        return true;
+      }
+    }
+    BOOST_LOG(warning) << "Client not found for rename: " << uuid;
+    return false;
+  }
 }  // namespace nvhttp

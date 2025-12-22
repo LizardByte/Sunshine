@@ -834,6 +834,45 @@ namespace confighttp {
   }
 
   /**
+   * @brief Rename a paired client.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/clients/rename| POST| {"uuid":"1234","name":"iPhone 15 Pro"}}
+   */
+  void renameClient(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+
+    try {
+      nlohmann::json output_tree;
+      const nlohmann::json input_tree = nlohmann::json::parse(ss);
+      const std::string uuid = input_tree.value("uuid", "");
+      const std::string name = input_tree.value("name", "");
+
+      if (uuid.empty() || name.empty()) {
+        bad_request(response, request, "Missing uuid or name parameter");
+        return;
+      }
+
+      output_tree["status"] = nvhttp::rename_client(uuid, name);
+      send_response(response, output_tree);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "Rename client: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
    * @brief Get the configuration settings.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1227,6 +1266,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/list$"]["GET"] = getClients;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
+    server.resource["^/api/clients/rename$"]["POST"] = renameClient;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/otp/request$"]["GET"] = [](resp_https_t response, req_https_t request) {
