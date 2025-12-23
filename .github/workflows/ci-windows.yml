@@ -210,7 +210,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-${{ matrix.name }}
           path: |
@@ -233,7 +233,7 @@ jobs:
             a "../artifacts/Sunshine-${{ matrix.name }}-debuginfo.7z" "*.dbg"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-${{ matrix.name }}
           path: artifacts/

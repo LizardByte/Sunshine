@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: prep
           path: gh-pages-template/
