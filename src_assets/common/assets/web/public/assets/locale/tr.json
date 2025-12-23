@@ -138,6 +138,8 @@
     "av1_mode_desc": "İstemcinin AV1 Ana 8 bit veya 10 bit video akışları talep etmesini sağlar. AV1'in kodlanması daha yoğun CPU gerektirir, bu nedenle bunun etkinleştirilmesi yazılım kodlaması kullanılırken performansı düşürebilir.",
     "back_button_timeout": "Ana/Ev Tuşu Emülasyon Zaman Aşımı",
     "back_button_timeout_desc": "Geri/Seçim düğmesi belirtilen milisaniye sayısı kadar basılı tutulursa, Ana Sayfa/Güdüm düğmesine basılması taklit edilir. <0 (varsayılan) değerine ayarlanırsa, Geri/Seç düğmesinin basılı tutulması Ana Sayfa/Güdüm düğmesini taklit etmeyecektir.",
+    "bind_address": "Adres bağlama",
+    "bind_address_desc": "Sunshine'ın bağlanacağı belirli IP adresini ayarlayın. Boş bırakılırsa, Sunshine mevcut tüm adreslere bağlanır.",
     "capture": "Belirli Bir Yakalama Yöntemini Zorlama",
     "capture_desc": "Otomatik modda Sunshine çalışan ilk sürücüyü kullanacaktır. NvFBC yamalanmış nvidia sürücüleri gerektirir.",
     "cert": "Sertifika",
