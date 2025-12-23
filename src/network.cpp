@@ -105,7 +105,7 @@ namespace net {
     return BOTH;
   }
 
-  std::string_view af_to_any_address_string(af_e af) {
+  std::string_view af_to_any_address_string(const af_e af) {
     switch (af) {
       case IPV4:
         return "0.0.0.0"sv;
@@ -115,6 +115,16 @@ namespace net {
 
     // avoid warning
     return "::"sv;
+  }
+
+  std::string get_bind_address(const af_e af) {
+    // If bind_address is configured, use it
+    if (!config::sunshine.bind_address.empty()) {
+      return config::sunshine.bind_address;
+    }
+
+    // Otherwise use the wildcard address for the given address family
+    return std::string(af_to_any_address_string(af));
   }
 
   boost::asio::ip::address normalize_address(boost::asio::ip::address address) {
@@ -159,8 +169,8 @@ namespace net {
       enet_initialize();
     });
 
-    auto any_addr = net::af_to_any_address_string(af);
-    enet_address_set_host(&addr, any_addr.data());
+    const auto bind_addr = net::get_bind_address(af);
+    enet_address_set_host(&addr, bind_addr.c_str());
     enet_address_set_port(&addr, port);
 
     // Maximum of 128 clients, which should be enough for anyone

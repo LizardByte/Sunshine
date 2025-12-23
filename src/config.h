@@ -253,6 +253,7 @@ namespace config {
 
     std::uint16_t port;
     std::string address_family;
+    std::string bind_address;
 
     std::string log_file;
     bool notify_pre_releases;

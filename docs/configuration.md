@@ -1502,6 +1502,46 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### bind_address
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Set the IP address to bind Sunshine to. This is useful when you have multiple network interfaces
+            and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
+            interfaces (0.0.0.0 for IPv4 or :: for IPv6).
+            <br><br>
+            <strong>Note:</strong> The address must be valid for the system and must match the address family
+            being used. When using IPv6, you can specify an IPv6 address even with address_family set to "both".
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty - bind to all interfaces)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (IPv4)</td>
+        <td colspan="2">@code{}
+            bind_address = 192.168.1.100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (IPv6)</td>
+        <td colspan="2">@code{}
+            bind_address = 2001:db8::1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (Loopback)</td>
+        <td colspan="2">@code{}
+            bind_address = 127.0.0.1
+            @endcode</td>
+    </tr>
+</table>
+
 ### port
 
 <table>
