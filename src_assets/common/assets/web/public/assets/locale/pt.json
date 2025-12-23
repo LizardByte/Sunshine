@@ -138,6 +138,8 @@
     "av1_mode_desc": "Permite ao cliente solicitar fluxos de vídeo AV1 principal de 8 bits ou de 10 bits. AV1 usa mais CPU para codificar, então permite que isso reduza o desempenho ao usar a codificação do software.",
     "back_button_timeout": "Tempo de Emulação do Botão Home/Guia",
     "back_button_timeout_desc": "Se o botão Voltar / Selecionar for mantido pressionado para o número especificado de milissegundos, um botão Home/Guia será pressionado. Se definido como um valor < 0 (padrão), segurar o botão Voltar/Selecionar não irá simular o botão Home/Guia.",
+    "bind_address": "Vincular endereço",
+    "bind_address_desc": "Defina o endereço IP específico de Sunshine será ligado. Se deixado em branco, Sunshine será vinculado a todos os endereços disponíveis.",
     "capture": "Forçar um Método de Captura Específica",
     "capture_desc": "Modo automático Sunshine usará o primeiro que funciona. NvFBC requer drivers nvidia corrigidos.",
     "cert": "Certificado",
