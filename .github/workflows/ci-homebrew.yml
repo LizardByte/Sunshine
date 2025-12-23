@@ -120,7 +120,7 @@ jobs:
 
       - name: Upload Artifacts
         if: matrix.release
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-Homebrew
           path: homebrew/
@@ -157,7 +157,7 @@ jobs:
           always() &&
           matrix.release != true &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
@@ -201,7 +201,7 @@ jobs:
 
       - name: Upload Artifacts (Beta)
         if: matrix.release
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: beta-Homebrew
           path: homebrew/

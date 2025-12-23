@@ -193,7 +193,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-Linux-${{ matrix.name }}
           path: |
@@ -202,7 +202,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-Linux-${{ matrix.name }}
           path: artifacts/

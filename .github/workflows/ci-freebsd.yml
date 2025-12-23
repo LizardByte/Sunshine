@@ -256,7 +256,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: |
@@ -265,7 +265,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: artifacts/

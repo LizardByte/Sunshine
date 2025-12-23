@@ -153,7 +153,7 @@ jobs:
         if: >-
           always() &&
           (steps.build.outcome == 'success' || steps.build.outcome == 'failure')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-Archlinux
           path: |
@@ -175,7 +175,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-Archlinux
           path: artifacts/
