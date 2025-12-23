@@ -499,7 +499,7 @@ namespace config {
       {},  // manual_refresh_rate
       video_t::dd_t::hdr_option_e::automatic,  // hdr_option
       3s,  // config_revert_delay
-      {},  // config_revert_on_disconnect
+      true,  // config_revert_on_disconnect - always revert display settings when client disconnects
       {},  // mode_remapping
       {}  // wa
     },  // display_device
