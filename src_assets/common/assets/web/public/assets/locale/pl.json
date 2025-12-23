@@ -138,6 +138,8 @@
     "av1_mode_desc": "Umożliwia klientowi żądanie 8-bitowych lub 10-bitowych strumieni wideo AV1 Main. Kodowanie AV1 jest bardziej obciążające dla procesora, więc włączenie tej opcji może zmniejszyć wydajność podczas korzystania z kodowania programowego.",
     "back_button_timeout": "Limit czasu emulacji przycisku Home/Guide",
     "back_button_timeout_desc": "Jeśli przycisk Wstecz/Wybierz zostanie przytrzymany przez określoną liczbę milisekund, nastąpi emulacja naciśnięcia przycisku Home/Guide. Jeśli ustawiono wartość < 0 (domyślnie), przytrzymanie przycisku Wstecz/Wybierz nie będzie emulować przycisku Home/Guide.",
+    "bind_address": "Powiąż adres",
+    "bind_address_desc": "Ustaw konkretny adres IP Sunshine będzie powiązany. Jeśli pozostanie puste, Sunshine będzie powiązać ze wszystkimi dostępnymi adresami.",
     "capture": "Wymuś określoną metodę przechwytywania",
     "capture_desc": "W trybie automatycznym Sunshine użyje pierwszego działającego sterownika. NvFBC wymaga poprawionych sterowników NVIDIA.",
     "cert": "Certyfikat",
