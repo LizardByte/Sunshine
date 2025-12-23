@@ -138,6 +138,8 @@
     "av1_mode_desc": "Lehetővé teszi az ügyfél számára, hogy AV1 Main 8 bites vagy 10 bites videófolyamokat kérjen. Az AV1 kódolása CPU-igényesebb, ezért ennek engedélyezése csökkentheti a teljesítményt szoftveres kódolás esetén.",
     "back_button_timeout": "Home/Guide gomb Emulációs időkorlát",
     "back_button_timeout_desc": "Ha a Back/Select gombot a megadott számú milliszekundumig lenyomva tartja, a Home/Guide gomb megnyomása utánozódik. Ha < 0 értékre van beállítva (alapértelmezett), a Back/Select gomb nyomva tartása nem emulálja a Home/Guide gombot.",
+    "bind_address": "Kötési cím",
+    "bind_address_desc": "Állítsa be az adott IP-címet, amelyhez a Sunshine kötődni fog. Ha üresen hagyja, a Sunshine az összes elérhető címhez kötődik.",
     "capture": "Speciális rögzítési módszer kikényszerítése",
     "capture_desc": "Automatikus üzemmódban a Sunshine az elsőt használja, amelyik működik. Az NvFBC javított nvidia illesztőprogramokat igényel.",
     "cert": "Tanúsítvány",
