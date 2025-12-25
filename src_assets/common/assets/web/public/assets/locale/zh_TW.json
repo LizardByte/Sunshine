@@ -138,6 +138,8 @@
     "av1_mode_desc": "允許用戶端要求 AV1 Main 8 位元或 10 位元視訊串流。AV1 的編碼較耗費 CPU，因此使用軟體編碼時，啟用此功能可能會降低效能。",
     "back_button_timeout": "主畫面/導覽按鈕模擬超時",
     "back_button_timeout_desc": "如果按住 Back/Select 按鈕達到指定的毫秒數，系統會模擬 Home/Guide 按鈕的按下動作。若設定為小於 0（預設值），則按住 Back/Select 按鈕不會模擬 Home/Guide 按鈕。",
+    "bind_address": "綁定地址",
+    "bind_address_desc": "設定陽光將綁定的特定 IP 位址。若留空，Sunshine 將與所有可用位址綁定。",
     "capture": "強制使用特定的擷取方式",
     "capture_desc": "在自動模式下，Sunshine 會使用第一個有效的驅動程式。NvFBC 需要已修補的 nvidia 驅動程式。",
     "cert": "憑證",

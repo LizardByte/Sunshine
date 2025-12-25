@@ -138,6 +138,8 @@
     "av1_mode_desc": "Consente al client di richiedere flussi video AV1 Main 8-bit o 10-bit. AV1 è più intensivo da codificare per la CPU, quindi abilitandolo, si utilizza la codifica software, si possono ridurre le prestazioni.",
     "back_button_timeout": "Timeout Emulazione Home/Tasto Guida",
     "back_button_timeout_desc": "Se il pulsante Indietro/Select viene premuto per il numero specificato di millisecondi, viene emulato un pulsante Home/Tasto Guida. Se impostato a un valore < 0 (predefinito), tenendo premuto il pulsante Indietro/Select non verrà emulato il pulsante Home/Tasto Guida.",
+    "bind_address": "Indirizzo di collegamento",
+    "bind_address_desc": "Impostare l'indirizzo IP specifico Sunshine si legherà. Se lasciato vuoto, Sunshine si legherà a tutti gli indirizzi disponibili.",
     "capture": "Forza un metodo di acquisizione specifico",
     "capture_desc": "In modalità automatica Sunshine userà il primo che funziona. NvFBC richiede driver nvidia patchati.",
     "cert": "Certificato",

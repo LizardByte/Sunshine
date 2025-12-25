@@ -138,6 +138,8 @@
     "av1_mode_desc": "Permet au client de demander des flux vidéo AV1 8-bit ou 10-bit. AV1 est plus gourmand en CPU pour l'encodage, ce qui peut réduire les performances lors de l'utilisation de l'encodage logiciel.",
     "back_button_timeout": "Délai d'émulation du bouton Home/Guide",
     "back_button_timeout_desc": "Si le bouton Précédent/Sélection est enfoncé pour le nombre spécifié de millisecondes, un bouton Accueil/Guide est émulé. Si défini à une valeur < 0 (par défaut), maintenir le bouton Retour/Sélectionner n'émulera pas le bouton Accueil/Guide.",
+    "bind_address": "Adresse de liaison",
+    "bind_address_desc": "Définir l'adresse IP spécifique à laquelle Sunshine se liera. Si laissé vide, Sunshine se liera à toutes les adresses disponibles.",
     "capture": "Forcer une méthode de capture spécifique",
     "capture_desc": "En mode automatique, Sunshine utilisera le premier qui fonctionne. NvFBC nécessite des pilotes nvidia corrigés.",
     "cert": "Certificat",

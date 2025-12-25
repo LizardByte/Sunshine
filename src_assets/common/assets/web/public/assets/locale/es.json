@@ -138,6 +138,8 @@
     "av1_mode_desc": "Permite al cliente solicitar flujos de vídeo AV1 Main de 8-bit o de 10-bits. AV1 es más intensivo en CPU para codificar, por lo que permitir esto puede reducir el rendimiento al usar la codificación de software.",
     "back_button_timeout": "Tiempo de Emulación de Botón de Inicio/Guía",
     "back_button_timeout_desc": "Si se mantiene presionado el botón Atrás/Seleccionar para el número de milisegundos especificado, se emula un botón Inicio/Guía. Si se establece un valor < 0 (por defecto), mantener presionado el botón Volver/Seleccionar no se activará el botón Inicio/Guía.",
+    "bind_address": "Enlazar dirección",
+    "bind_address_desc": "Establecer la dirección IP específica Sunshine se enlazará. Si se deja en blanco, Sunshine se enlazará a todas las direcciones disponibles.",
     "capture": "Forzar un método de captura específico",
     "capture_desc": "En modo automático Sunshine usará el primero que funcione.",
     "cert": "Certificado",

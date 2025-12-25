@@ -138,6 +138,8 @@
     "av1_mode_desc": "Ermöglicht dem Client, AV1 Haupt-8-bit oder 10-bit Video-Streams anzufordern. AV1 ist CPU-intensiver zum Kodieren, daher kann die Aktivierung die Leistung bei der Verwendung von Software Codierung verringern.",
     "back_button_timeout": "Timeout für Home/Guide Button Emulation",
     "back_button_timeout_desc": "Wenn die Schaltfläche Zurück/Auswählen für die angegebene Anzahl an Millisekunden gedrückt gehalten wird, wird die Taste Home/Guide emuliert. Wenn auf einen Wert < 0 (Standard) gesetzt ist, wird die Home/Guide-Taste nicht nachgeahmt.",
+    "bind_address": "Binde Adresse",
+    "bind_address_desc": "Legen Sie die spezifische IP-Adresse fest, an die sich Sunshine bindet. Wenn leer gelassen, wird Sunshine an alle verfügbaren Adressen gebunden.",
     "capture": "Erzwinge eine bestimmte Aufnahmemethode",
     "capture_desc": "Im automatischen Modus wird Sunshine den ersten verwenden, der funktioniert. NvFBC benötigt gepatchte Nvidia-Treiber.",
     "cert": "Zertifikat",
