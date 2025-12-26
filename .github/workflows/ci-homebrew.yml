@@ -179,7 +179,7 @@ jobs:
           # update the formula
           sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
           sed -i 's/conflicts_with "sunshine-beta"/conflicts_with "sunshine"/' $formula_file
-          sed -i '0,/^  version .*$/d' $formula_file
+          sed -i '/^  version .*$/d' $formula_file
 
           # update livecheck to check for latest stable or pre-release
           # shellcheck disable=SC1004
