@@ -19,6 +19,7 @@
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
 #include "src/thread_safe.h"
+#include "utf_utils.h"
 
 #define _FN(x, ret, args) \
   typedef ret(*x##_fn) args; \
@@ -109,8 +110,8 @@ namespace platf::publish {
     std::wstring domain {SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size()};
 
     auto hostname = platf::get_host_name();
-    auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
-    auto host = from_utf8(hostname + ".local");
+    auto name = utf_utils::from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
+    auto host = utf_utils::from_utf8(hostname + ".local");
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();
