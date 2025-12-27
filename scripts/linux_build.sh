@@ -706,6 +706,16 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   gcc_version="14"
   nvm_node=0
   dev_tools_group="development-tools"
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
+  distro="fedora"
+  version="43"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+  dev_tools_group="development-tools"
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
