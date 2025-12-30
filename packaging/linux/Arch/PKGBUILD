@@ -17,7 +17,16 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL-3.0-only')
 install=sunshine.install
 
-_gcc_version=14
+# this variable remains for future cases where we need an older version of gcc for cuda compatibility
+_gcc_version=15
+_versioned_gcc=false  # set to true if we need a versioned gcc, e.g. gcc14
+
+_gcc_dep_suffix=""
+_gcc_env_suffix=""
+if [ "${_versioned_gcc}" = true ]; then
+  _gcc_dep_suffix="${_gcc_version}"
+  _gcc_env_suffix="-${_gcc_version}"
+fi
 
 depends=(
   'avahi'
@@ -48,7 +57,7 @@ makedepends=(
   'appstream-glib'
   'cmake'
   'desktop-file-utils'
-  "gcc${_gcc_version}"
+  "gcc${_gcc_dep_suffix}"
   'git'
   'make'
   'nodejs'
@@ -109,8 +118,8 @@ build() {
     export BUILD_VERSION="@BUILD_VERSION@"
     export COMMIT="${_commit}"
 
-    export CC="gcc-${_gcc_version}"
-    export CXX="g++-${_gcc_version}"
+    export CC="gcc${_gcc_env_suffix}"
+    export CXX="g++${_gcc_env_suffix}"
 
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
@@ -165,8 +174,8 @@ build() {
 
 check() {
     if [[ "${_run_unit_tests::1}" == "t" ]]; then
-      export CC="gcc-${_gcc_version}"
-      export CXX="g++-${_gcc_version}"
+      export CC="gcc${_gcc_env_suffix}"
+      export CXX="g++${_gcc_env_suffix}"
 
       cd "${srcdir}/build/tests"
       ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
