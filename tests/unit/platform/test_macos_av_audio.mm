@@ -372,7 +372,7 @@ TEST_P(ProcessSystemAudioIOProcTest, When_InputProvided_Then_BehaviorMatchesExpe
     EXPECT_EQ(finalAvailableBytes, inputDataSize);
 
     // Verify the actual audio data matches what we put in (first few samples)
-    // Limit validation to min(8, channels * 2) per optimization spec
+    // Limit validation to min(8, channels * 2) samples to keep test efficient
     UInt32 samplesToTest = std::min(8U, params.channels * 2);
     if (bufferData && finalAvailableBytes >= sizeof(float) * samplesToTest) {
       float *outputSamples = (float *) bufferData;
