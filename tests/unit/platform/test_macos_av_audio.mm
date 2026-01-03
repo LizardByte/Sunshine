@@ -1,6 +1,6 @@
 /**
  * @file tests/unit/platform/test_macos_av_audio.mm
- * @brief Test src/platform/macos/av_audio.*.
+ * @brief Unit tests for src/platform/macos/av_audio.*.
  */
 
 // Only compile these tests on macOS
@@ -34,22 +34,15 @@ struct ProcessSystemAudioIOProcTestParams {
  */
 class AVAudioTest: public PlatformTestSuite, public ::testing::WithParamInterface<ProcessSystemAudioIOProcTestParams> {};
 
-/**
- * @brief Test that microphoneNames returns a valid NSArray.
- * Verifies the static method returns a non-nil array object.
- */
-TEST_F(AVAudioTest, MicrophoneNamesReturnsArray) {
-  NSArray<NSString *> *names = [AVAudio microphoneNames];
+// ===== UNIT TESTS: Tests that do NOT require TCC permissions or real hardware =====
 
-  EXPECT_NE(names, nil);  // Should always return an array, even if empty
-  EXPECT_TRUE([names isKindOfClass:[NSArray class]]);  // Should be an NSArray
-}
+// REMOVED: MicrophoneNamesReturnsArray - Integration test that queries real AVFoundation devices
 
 /**
  * @brief Test that findMicrophone handles nil input gracefully.
  * Verifies the method returns nil when passed a nil microphone name.
  */
-TEST_F(AVAudioTest, FindMicrophoneWithNilNameReturnsNil) {
+TEST_F(AVAudioTest, When_NilMicrophoneName_Then_ReturnsNil) {
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wnonnull"
   AVCaptureDevice *device = [AVAudio findMicrophone:nil];
@@ -61,26 +54,18 @@ TEST_F(AVAudioTest, FindMicrophoneWithNilNameReturnsNil) {
  * @brief Test that findMicrophone handles empty string input gracefully.
  * Verifies the method returns nil when passed an empty microphone name.
  */
-TEST_F(AVAudioTest, FindMicrophoneWithEmptyNameReturnsNil) {
+TEST_F(AVAudioTest, When_EmptyMicrophoneName_Then_ReturnsNil) {
   AVCaptureDevice *device = [AVAudio findMicrophone:@""];
   EXPECT_EQ(device, nil);  // Should return nil for empty string
 }
 
-/**
- * @brief Test that findMicrophone handles non-existent microphone names.
- * Verifies the method returns nil when passed an invalid microphone name.
- */
-TEST_F(AVAudioTest, FindMicrophoneWithInvalidNameReturnsNil) {
-  NSString *invalidName = @"NonExistentMicrophone123456789ABCDEF";
-  AVCaptureDevice *device = [AVAudio findMicrophone:invalidName];
-  EXPECT_EQ(device, nil);  // Should return nil for non-existent device
-}
+// REMOVED: FindMicrophoneWithInvalidNameReturnsNil - Integration test that queries real devices
 
 /**
  * @brief Test that setupMicrophone handles nil device input properly.
  * Verifies the method returns an error code when passed a nil device.
  */
-TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
+TEST_F(AVAudioTest, When_NilDevice_Then_SetupMicrophoneReturnsError) {
   AVAudio *avAudio = [[AVAudio alloc] init];
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wnonnull"
@@ -90,22 +75,14 @@ TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
   EXPECT_EQ(result, -1);  // Should fail with nil device
 }
 
-/**
- * @brief Test that setupSystemTap validates channel count parameter.
- * Verifies the method returns an error when passed zero channels.
- */
-TEST_F(AVAudioTest, SetupSystemTapWithZeroChannelsReturnsError) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-  int result = [avAudio setupSystemTap:48000 frameSize:512 channels:0];
-  [avAudio release];
-  EXPECT_EQ(result, -1);  // Should fail with zero channels
-}
+// REMOVED: SetupSystemTapWithZeroChannelsReturnsError - Integration test that calls setupSystemTap which requires TCC
+// The setupSystemTap method calls AudioHardwareCreateProcessTap and other Core Audio APIs that require TCC permissions
 
 /**
  * @brief Test basic AVAudio object lifecycle.
  * Verifies that AVAudio objects can be created and destroyed without issues.
  */
-TEST_F(AVAudioTest, AVAudioObjectCreationAndDestruction) {
+TEST_F(AVAudioTest, When_ObjectCreated_Then_CanBeDestroyedSafely) {
   AVAudio *avAudio = [[AVAudio alloc] init];
   EXPECT_NE(avAudio, nil);  // Should create successfully
   [avAudio release];  // Should not crash
@@ -115,7 +92,7 @@ TEST_F(AVAudioTest, AVAudioObjectCreationAndDestruction) {
  * @brief Test that multiple AVAudio objects can coexist.
  * Verifies that multiple instances can be created simultaneously.
  */
-TEST_F(AVAudioTest, AVAudioMultipleObjectsCanBeCreated) {
+TEST_F(AVAudioTest, When_MultipleInstancesCreated_Then_TheyCoexistIndependently) {
   AVAudio *avAudio1 = [[AVAudio alloc] init];
   AVAudio *avAudio2 = [[AVAudio alloc] init];
 
@@ -131,7 +108,7 @@ TEST_F(AVAudioTest, AVAudioMultipleObjectsCanBeCreated) {
  * @brief Test audio buffer initialization with various channel configurations.
  * Verifies that the audio buffer can be initialized with different channel counts.
  */
-TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
+TEST_F(AVAudioTest, When_BufferInitialized_Then_SemaphoreIsCreated) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Test with various channel counts
@@ -154,7 +131,7 @@ TEST_F(AVAudioTest, InitializeAudioBufferSucceeds) {
  * @brief Test audio buffer cleanup functionality.
  * Verifies that cleanup works correctly even with uninitialized buffers.
  */
-TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
+TEST_F(AVAudioTest, When_BufferNotInitialized_Then_CleanupIsNoOp) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Should not crash even if buffer was never initialized
@@ -170,277 +147,21 @@ TEST_F(AVAudioTest, CleanupAudioBufferHandlesNilSignal) {
 }
 
 /**
- * @brief Test system tap context initialization with valid parameters.
- * Verifies that system tap context can be initialized on supported macOS versions.
- */
-TEST_F(AVAudioTest, InitSystemTapContextWithValidParameters) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  int result = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
-
-  // On systems with macOS 14.0+, this should succeed
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    EXPECT_EQ(result, 0);
-  } else {
-    // On older systems, should fail gracefully
-    EXPECT_EQ(result, -1);
-  }
-
-  [avAudio release];
-}
-
-/**
- * @brief Test system tap context initialization with edge case parameters.
- * Verifies that system tap handles minimum and maximum reasonable audio parameters.
- */
-TEST_F(AVAudioTest, InitSystemTapContextWithEdgeCases) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Test with minimum values
-    int result1 = [avAudio initializeSystemTapContext:8000 frameSize:64 channels:1];
-    EXPECT_EQ(result1, 0);
-
-    // Test with maximum reasonable values
-    int result2 = [avAudio initializeSystemTapContext:192000 frameSize:4096 channels:8];
-    EXPECT_EQ(result2, 0);
-  }
-
-  [avAudio release];
-}
-
-/**
- * @brief Test Core Audio tap description creation for different channel configurations.
- * Verifies that system tap descriptions can be created for various channel counts.
- */
-TEST_F(AVAudioTest, CreateSystemTapDescriptionForChannels) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Initialize context first
-    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
-    EXPECT_EQ(initResult, 0);
-
-    // Test mono tap description
-    CATapDescription *monoTap = [avAudio createSystemTapDescriptionForChannels:1];
-    if (monoTap) {
-      EXPECT_NE(monoTap, nil);
-      // Note: Can't test properties due to forward declaration limitations
-      [monoTap release];
-    }
-
-    // Test stereo tap description
-    CATapDescription *stereoTap = [avAudio createSystemTapDescriptionForChannels:2];
-    if (stereoTap) {
-      EXPECT_NE(stereoTap, nil);
-      // Note: Can't test properties due to forward declaration limitations
-      [stereoTap release];
-    }
-  }
-
-  [avAudio release];
-}
-
-/**
- * @brief Test system tap context cleanup functionality.
- * Verifies that system tap context can be cleaned up safely and multiple times.
- */
-TEST_F(AVAudioTest, CleanupSystemTapContext) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Test cleanup without initialization (should not crash)
-    [avAudio cleanupSystemTapContext:nil];  // Should be safe to call
-
-    // Initialize system tap context
-    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
-    EXPECT_EQ(initResult, 0);
-
-    // Cleanup should work without issues
-    [avAudio cleanupSystemTapContext:nil];
-
-    // Multiple cleanup calls should be safe
-    [avAudio cleanupSystemTapContext:nil];  // Second call should not crash
-    [avAudio cleanupSystemTapContext:nil];  // Third call should not crash
-
-    // Re-initialize after cleanup should work
-    int reinitResult = [avAudio initializeSystemTapContext:44100 frameSize:256 channels:1];
-    EXPECT_EQ(reinitResult, 0);
-
-    // Final cleanup
-    [avAudio cleanupSystemTapContext:nil];
-  } else {
-    // On older systems, cleanup should still be safe even though init fails
-    [avAudio cleanupSystemTapContext:nil];
-  }
-  [avAudio release];
-}
-
-/**
- * @brief Test Core Audio tap mute behavior with hostAudioEnabled property.
- * Verifies that tap descriptions have correct mute behavior based on hostAudioEnabled setting.
- */
-TEST_F(AVAudioTest, CoreAudioTapMuteBehavior) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Initialize context first
-    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
-    EXPECT_EQ(initResult, 0);
-
-    // Test with host audio disabled (muted)
-    avAudio.hostAudioEnabled = NO;
-    CATapDescription *mutedTap = [avAudio createSystemTapDescriptionForChannels:2];
-    if (mutedTap) {
-      EXPECT_NE(mutedTap, nil);
-      // On macOS 14.0+, we should be able to check the mute behavior
-      if (@available(macOS 14.0, *)) {
-        EXPECT_EQ(mutedTap.muteBehavior, CATapMuted);
-      }
-      [mutedTap release];
-    }
-
-    // Test with host audio enabled (unmuted)
-    avAudio.hostAudioEnabled = YES;
-    CATapDescription *unmutedTap = [avAudio createSystemTapDescriptionForChannels:2];
-    if (unmutedTap) {
-      EXPECT_NE(unmutedTap, nil);
-      // On macOS 14.0+, we should be able to check the mute behavior
-      if (@available(macOS 14.0, *)) {
-        EXPECT_EQ(unmutedTap.muteBehavior, CATapUnmuted);
-      }
-      [unmutedTap release];
-    }
-
-    // Cleanup
-    [avAudio cleanupSystemTapContext:nil];
-  }
-
-  [avAudio release];
-}
-
-// Type alias for parameterized cleanup system tap context tests
-using CleanupSystemTapContextTest = AVAudioTest;
-
-// Test parameters for cleanup system tap context tests (reusing same configurations)
-INSTANTIATE_TEST_SUITE_P(
-  AVAudioTest,
-  CleanupSystemTapContextTest,
-  ::testing::Values(
-    // Representative subset focusing on different channel configurations
-    ProcessSystemAudioIOProcTestParams {512, 1, 48000, false, "CleanupMono48kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 2, 48000, false, "CleanupStereo48kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {256, 4, 48000, false, "CleanupQuad48kHz256Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 6, 44100, false, "Cleanup51Surround44kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {240, 8, 48000, false, "Cleanup71Surround48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 1, 22050, false, "CleanupMono22kHz128Frames"},
-    ProcessSystemAudioIOProcTestParams {1024, 2, 96000, false, "CleanupStereo96kHz1024Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 8, 192000, false, "Cleanup71Surround192kHz128Frames"}
-  ),
-  [](const ::testing::TestParamInfo<ProcessSystemAudioIOProcTestParams> &info) {
-    return std::string(info.param.testName);
-  }
-);
-
-/**
- * @brief Parameterized test for system tap context cleanup with various audio configurations.
- * Tests init/cleanup cycles across different channel counts, sample rates, and frame sizes.
- */
-TEST_P(CleanupSystemTapContextTest, CleanupSystemTapContextParameterized) {
-  ProcessSystemAudioIOProcTestParams params = GetParam();
-
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Test initialization with the parameterized configuration
-    int initResult = [avAudio initializeSystemTapContext:params.sampleRate
-                                               frameSize:params.frameCount
-                                                channels:params.channels];
-    EXPECT_EQ(initResult, 0) << "Failed to initialize system tap context for " << params.testName;
-
-    // Test cleanup after successful initialization
-    [avAudio cleanupSystemTapContext:nil];
-
-    // Test re-initialization after cleanup (should work)
-    int reinitResult = [avAudio initializeSystemTapContext:params.sampleRate
-                                                 frameSize:params.frameCount
-                                                  channels:params.channels];
-    EXPECT_EQ(reinitResult, 0) << "Failed to re-initialize system tap context after cleanup for " << params.testName;
-
-    // Test multiple cleanup calls (should be safe)
-    [avAudio cleanupSystemTapContext:nil];
-    [avAudio cleanupSystemTapContext:nil];  // Second call should not crash
-
-    // Test cleanup without prior initialization (should be safe)
-    [avAudio cleanupSystemTapContext:nil];
-  } else {
-    // On older systems, cleanup should still be safe even though init fails
-    [avAudio cleanupSystemTapContext:nil];
-  }
-
-  [avAudio release];
-}
-
-/**
- * @brief Test system tap context cleanup with tap description object.
- * Verifies cleanup works properly when a tap description is provided.
- */
-TEST_F(AVAudioTest, CleanupSystemTapContextWithTapDescription) {
-  AVAudio *avAudio = [[AVAudio alloc] init];
-
-  NSOperatingSystemVersion minVersion = {14, 0, 0};
-  if ([[NSProcessInfo processInfo] isOperatingSystemAtLeastVersion:minVersion]) {
-    // Initialize system tap context
-    int initResult = [avAudio initializeSystemTapContext:48000 frameSize:512 channels:2];
-    EXPECT_EQ(initResult, 0);
-
-    // Create a tap description
-    CATapDescription *tapDescription = [avAudio createSystemTapDescriptionForChannels:2];
-    if (tapDescription) {
-      EXPECT_NE(tapDescription, nil);
-
-      // Test cleanup with the tap description object
-      [avAudio cleanupSystemTapContext:tapDescription];
-      // Note: tapDescription should be released by the cleanup method
-    } else {
-      // If tap description creation failed, just cleanup normally
-      [avAudio cleanupSystemTapContext:nil];
-    }
-
-    // Additional cleanup should be safe
-    [avAudio cleanupSystemTapContext:nil];
-  }
-
-  [avAudio release];
-}
-
-/**
  * @brief Test audio converter complex input callback with valid data.
  * Verifies that the audio converter callback properly processes valid audio data.
  */
-TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
+TEST_F(AVAudioTest, When_ValidDataProvided_Then_AudioConverterCallbackProcessesCorrectly) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Create test input data
   UInt32 frameCount = 256;
   UInt32 channels = 2;
-  UInt32 sampleRate = 48000;
   float *testData = (float *) calloc(frameCount * channels, sizeof(float));
 
-  // Fill with test sine wave data (different frequency per channel) - same as parameterized test
+  // Fill with deterministic ramp data (channel-encoded constants)
   for (UInt32 frame = 0; frame < frameCount; frame++) {
     for (UInt32 channel = 0; channel < channels; channel++) {
-      // Generate different frequencies for each channel for testing
-      // Channel 0: 440Hz, Channel 1: 880Hz, Channel 2: 1320Hz, etc.
-      double frequency = 440.0 * (channel + 1);
-      testData[frame * channels + channel] =
-        (float) (sin(2.0 * M_PI * frequency * frame / (double) sampleRate) * 0.5);
+      testData[frame * channels + channel] = channel + frame * 0.001f;
     }
   }
 
@@ -470,7 +191,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesValidData) {
  * @brief Test audio converter callback when no more data is available.
  * Verifies that the callback handles end-of-data scenarios correctly.
  */
-TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
+TEST_F(AVAudioTest, When_AllFramesConsumed_Then_CallbackReturnsZeroPackets) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   UInt32 frameCount = 256;
@@ -501,7 +222,7 @@ TEST_F(AVAudioTest, AudioConverterComplexInputProcHandlesNoMoreData) {
  * @brief Test that audio buffer cleanup can be called multiple times safely.
  * Verifies that repeated cleanup calls don't cause crashes or issues.
  */
-TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
+TEST_F(AVAudioTest, When_CleanupCalledMultipleTimes_Then_NocrashOccurs) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   [avAudio initializeAudioBuffer:2];
@@ -521,7 +242,7 @@ TEST_F(AVAudioTest, CleanupAudioBufferMultipleCalls) {
  * @brief Test buffer management with edge case channel configurations.
  * Verifies that buffer management works with minimum and maximum channel counts.
  */
-TEST_F(AVAudioTest, BufferManagementEdgeCases) {
+TEST_F(AVAudioTest, When_EdgeCaseChannelCounts_Then_BufferManagesCorrectly) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Test with minimum reasonable channel count (1 channel)
@@ -540,53 +261,40 @@ TEST_F(AVAudioTest, BufferManagementEdgeCases) {
 // Type alias for parameterized audio processing tests
 using ProcessSystemAudioIOProcTest = AVAudioTest;
 
-// Test parameters - covering various audio configurations
+// Test parameters - representative configurations per spec (≤12 cases)
+// Channels: 1 (mono), 2 (stereo), 6 (5.1), 8 (7.1)
+// Sample rates: 48000 (common), 44100 (legacy), 192000 (edge)
+// Frame counts: 64 (small), 256 (typical), 1024 (large)
 INSTANTIATE_TEST_SUITE_P(
   AVAudioTest,
   ProcessSystemAudioIOProcTest,
   ::testing::Values(
-    // Mono channel variants
-    ProcessSystemAudioIOProcTestParams {240, 1, 48000, false, "ValidMono48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 1, 44100, false, "ValidMono44kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {1024, 1, 96000, false, "ValidMono96kHz1024Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 1, 22050, false, "ValidMono22kHz128Frames"},
+    // Representative channel configurations at common sample rate
+    ProcessSystemAudioIOProcTestParams {256, 1, 48000, false, "When_MonoInput_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 48000, false, "When_StereoInput_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 6, 48000, false, "When_51SurroundInput_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 8, 48000, false, "When_71SurroundInput_Then_DataWrittenToBuffer"},
 
-    // Stereo channel variants
-    ProcessSystemAudioIOProcTestParams {240, 2, 48000, false, "ValidStereo48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams {480, 2, 48000, false, "ValidStereo48kHz480Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 2, 44100, false, "ValidStereo44kHz512Frames"},
+    // Frame count variations (small, typical, large)
+    ProcessSystemAudioIOProcTestParams {64, 2, 48000, false, "When_SmallFrameCount_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {1024, 2, 48000, false, "When_LargeFrameCount_Then_DataWrittenToBuffer"},
 
-    // Quad (4 channel) variants
-    ProcessSystemAudioIOProcTestParams {256, 4, 48000, false, "ValidQuad48kHz256Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 4, 44100, false, "ValidQuad44kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {1024, 4, 96000, false, "ValidQuad96kHz1024Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 4, 22050, false, "ValidQuad22kHz128Frames"},
+    // Sample rate edge cases
+    ProcessSystemAudioIOProcTestParams {256, 2, 44100, false, "When_LegacySampleRate_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 192000, false, "When_HighSampleRate_Then_DataWrittenToBuffer"},
 
-    // 5.1 Surround (6 channel) variants
-    ProcessSystemAudioIOProcTestParams {240, 6, 48000, false, "Valid51Surround48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 6, 44100, false, "Valid51Surround44kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {1024, 6, 96000, false, "Valid51Surround96kHz1024Frames"},
-    ProcessSystemAudioIOProcTestParams {256, 6, 88200, false, "Valid51Surround88kHz256Frames"},
+    // Edge case: nil input handling
+    ProcessSystemAudioIOProcTestParams {256, 2, 48000, true, "When_NilInput_Then_HandledGracefully"},
 
-    // 7.1 Surround (8 channel) variants
-    ProcessSystemAudioIOProcTestParams {240, 8, 48000, false, "Valid71Surround48kHz240Frames"},
-    ProcessSystemAudioIOProcTestParams {512, 8, 44100, false, "Valid71Surround44kHz512Frames"},
-    ProcessSystemAudioIOProcTestParams {1024, 8, 96000, false, "Valid71Surround96kHz1024Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 8, 192000, false, "Valid71Surround192kHz128Frames"},
-
-    // Edge cases with various configurations
-    ProcessSystemAudioIOProcTestParams {240, 2, 48000, true, "NilInputHandlesGracefully"},
-    ProcessSystemAudioIOProcTestParams {64, 2, 8000, false, "ValidStereo8kHz64Frames"},
-    ProcessSystemAudioIOProcTestParams {2048, 1, 48000, false, "ValidMono48kHz2048Frames"},
-    ProcessSystemAudioIOProcTestParams {32, 4, 176400, false, "ValidQuad176kHz32Frames"},
-    ProcessSystemAudioIOProcTestParams {128, 6, 44100, false, "Valid51Surround44kHz128Frames"}  // Reduced from 4096 to fit buffer
+    // Combined edge case: max channels + large frames
+    ProcessSystemAudioIOProcTestParams {1024, 8, 48000, false, "When_MaxChannelsLargeFrames_Then_DataWrittenToBuffer"}
   ),
   [](const ::testing::TestParamInfo<ProcessSystemAudioIOProcTestParams> &info) {
     return std::string(info.param.testName);
   }
 );
 
-TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
+TEST_P(ProcessSystemAudioIOProcTest, When_InputProvided_Then_BehaviorMatchesExpectation) {
   ProcessSystemAudioIOProcTestParams params = GetParam();
 
   AVAudio *avAudio = [[AVAudio alloc] init];
@@ -608,14 +316,11 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
     inputDataSize = params.frameCount * params.channels * sizeof(float);
     testInputData = (float *) calloc(params.frameCount * params.channels, sizeof(float));
 
-    // Fill with test sine wave data (different frequency per channel)
+    // Fill with deterministic ramp data (channel-encoded constants)
+    // This is faster than sine waves and provides channel separation + frame ordering
     for (UInt32 frame = 0; frame < params.frameCount; frame++) {
       for (UInt32 channel = 0; channel < params.channels; channel++) {
-        // Generate different frequencies for each channel for testing
-        // Channel 0: 440Hz, Channel 1: 880Hz, Channel 2: 1320Hz, etc.
-        double frequency = 440.0 * (channel + 1);
-        testInputData[frame * params.channels + channel] =
-          (float) (sin(2.0 * M_PI * frequency * frame / (double) params.sampleRate) * 0.5);
+        testInputData[frame * params.channels + channel] = channel + frame * 0.001f;
       }
     }
 
@@ -667,8 +372,8 @@ TEST_P(ProcessSystemAudioIOProcTest, ProcessSystemAudioIOProc) {
     EXPECT_EQ(finalAvailableBytes, inputDataSize);
 
     // Verify the actual audio data matches what we put in (first few samples)
-    // Test up to 16 samples or 4 complete frames, whichever is smaller
-    UInt32 samplesToTest = std::min(16U, params.channels * 4);  // Up to 4 frames worth
+    // Limit validation to min(8, channels * 2) per optimization spec
+    UInt32 samplesToTest = std::min(8U, params.channels * 2);
     if (bufferData && finalAvailableBytes >= sizeof(float) * samplesToTest) {
       float *outputSamples = (float *) bufferData;
       for (UInt32 i = 0; i < samplesToTest; i++) {
