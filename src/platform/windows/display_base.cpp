@@ -41,7 +41,7 @@ namespace platf {
 }
 
 namespace platf::dxgi {
-  namespace bp = boost::process;
+  namespace bp = boost::process::v1;
 
   /**
    * DDAPI-specific initialization goes here.

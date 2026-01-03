@@ -138,6 +138,8 @@
     "av1_mode_desc": "Cho phép khách hàng yêu cầu luồng video AV1 Main 8-bit hoặc 10-bit. AV1 đòi hỏi nhiều tài nguyên CPU hơn để mã hóa, do đó việc kích hoạt tính năng này có thể làm giảm hiệu suất khi sử dụng mã hóa phần mềm.",
     "back_button_timeout": "Thời gian chờ cho nút Home/Hướng dẫn",
     "back_button_timeout_desc": "Nếu nút Back/Select được giữ nhấn trong số mili giây đã chỉ định, thao tác nhấn nút Home/Guide sẽ được mô phỏng. Nếu giá trị được đặt nhỏ hơn 0 (mặc định), việc giữ nút Back/Select sẽ không mô phỏng thao tác nhấn nút Home/Guide.",
+    "bind_address": "Địa chỉ liên kết",
+    "bind_address_desc": "Đặt địa chỉ IP cụ thể mà Sunshine sẽ kết nối. Nếu để trống, Sunshine sẽ kết nối với tất cả các địa chỉ có sẵn.",
     "capture": "Buộc sử dụng phương pháp capture cụ thể",
     "capture_desc": "Ở chế độ tự động, Sunshine sẽ sử dụng trình điều khiển đầu tiên hoạt động. NvFBC yêu cầu trình điều khiển NVIDIA đã được vá.",
     "cert": "Chứng chỉ",

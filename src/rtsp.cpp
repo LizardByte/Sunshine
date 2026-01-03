@@ -412,7 +412,14 @@ namespace rtsp_stream {
 
       acceptor.set_option(boost::asio::socket_base::reuse_address {true});
 
-      acceptor.bind(tcp::endpoint(af == net::IPV4 ? tcp::v4() : tcp::v6(), port), ec);
+      auto bind_addr_str = net::get_bind_address(af);
+      const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
+      if (ec) {
+        BOOST_LOG(error) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+        return -1;
+      }
+
+      acceptor.bind(tcp::endpoint(bind_addr, port), ec);
       if (ec) {
         return -1;
       }

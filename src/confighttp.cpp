@@ -1219,7 +1219,7 @@ namespace confighttp {
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
     server.config.reuse_address = true;
-    server.config.address = net::af_to_any_address_string(address_family);
+    server.config.address = net::get_bind_address(address_family);
     server.config.port = port_https;
 
     auto accept_and_run = [&](auto *server) {

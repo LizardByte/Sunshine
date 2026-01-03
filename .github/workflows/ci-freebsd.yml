@@ -1,0 +1,272 @@
+---
+name: CI-FreeBSD
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+
+env:
+  BRANCH: ${{ github.head_ref || github.ref_name }}
+  BUILD_VERSION: ${{ inputs.release_version }}
+  COMMIT: ${{ inputs.release_commit }}
+  FREEBSD_CLANG_VERSION: 19
+
+jobs:
+  setup-matrix:
+    name: Setup Build Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    steps:
+      - name: Generate Matrix
+        id: generate-matrix
+        shell: bash
+        run: |
+          # Base matrix with amd64 build
+          matrix='{
+            "include": [
+              {
+                "bsd_release": "14.3",
+                "arch": "x86_64",
+                "cmake_processor": "amd64",
+                "runner": "ubuntu-latest"
+              }
+            ]
+          }'
+
+          # Add aarch64 build only if not a pull request event
+          if [[ "${{ github.event_name }}" != "pull_request" ]]; then
+            matrix=$(echo "$matrix" | jq '.include += [{
+              "bsd_release": "14.3",
+              "arch": "aarch64",
+              "cmake_processor": "aarch64",
+              "runner": "ubuntu-latest"
+            }]')
+          fi
+
+          # Use heredoc for multiline JSON output
+          {
+            echo "matrix<<EOF"
+            echo "$matrix"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Generated matrix:"
+          echo "$matrix" | jq .
+
+  build_freebsd:
+    name: ${{ matrix.cmake_processor }}-${{ matrix.bsd_release }}
+    runs-on: ubuntu-latest
+    needs: setup-matrix
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Get Processor Count
+        id: processor_count
+        shell: bash
+        run: |
+          PROCESSOR_COUNT=$(nproc)
+          echo "PROCESSOR_COUNT=${PROCESSOR_COUNT}" >> "${GITHUB_OUTPUT}"
+          echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
+
+      - name: Setup FreeBSD
+        uses: vmactions/freebsd-vm@670398e4236735b8b65805c3da44b7a511fb8b27  # v1.3.0
+        with:
+          arch: ${{ matrix.arch }}
+          cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
+          envs: 'BRANCH BUILD_VERSION COMMIT'
+          # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
+          # TODO: docs are off because doxygen is too old: https://www.freshports.org/devel/doxygen/ must be >= 1.10
+          prepare: |
+            set -e
+
+            pkg update
+            pkg upgrade -y
+            pkg install -y \
+              audio/opus \
+              audio/pulseaudio \
+              devel/boost-all \
+              devel/cmake-core \
+              devel/evdev-proto \
+              devel/git \
+              devel/libayatana-appindicator \
+              devel/libevdev \
+              devel/libnotify \
+              devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
+              devel/ninja \
+              devel/pkgconf \
+              ftp/curl \
+              graphics/libdrm \
+              graphics/wayland \
+              lang/python312 \
+              multimedia/libva \
+              net/miniupnpc \
+              ports-mgmt/pkg \
+              security/openssl \
+              shells/bash \
+              www/npm \
+              x11/libX11 \
+              x11/libxcb \
+              x11/libXfixes \
+              x11/libXrandr \
+              x11/libXtst \
+              x11-servers/xorg-server
+
+            # create symlink for shebang bash compatibility
+            ln -s /usr/local/bin/bash /bin/bash
+
+            # setup python
+            ln -s /usr/local/bin/python3.12 /usr/local/bin/python
+            python -m ensurepip
+          release: ${{ matrix.bsd_release }}
+          run: |
+            set -e
+            # install gcvor
+            python -m pip install gcovr
+
+            # fix git safe.directory issues
+            git config --global --add safe.directory "*"
+          sync: nfs  # sshfs is used for build-deps; however it's much slower than nfs
+
+      - name: Configure
+        shell: freebsd {0}
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}"
+
+          cc_path="$(which clang${{ env.FREEBSD_CLANG_VERSION }})"
+          cxx_path="$(which clang++${{ env.FREEBSD_CLANG_VERSION }})"
+
+          export CC="${cc_path}"
+          export CXX="${cxx_path}"
+
+          mkdir -p build
+          cmake \
+            -B build \
+            -G Ninja \
+            -S . \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_WERROR=OFF \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DSUNSHINE_ASSETS_DIR=share/assets \
+            -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
+            -DSUNSHINE_ENABLE_CUDA=OFF \
+            -DSUNSHINE_ENABLE_DRM=OFF \
+            -DSUNSHINE_ENABLE_WAYLAND=ON \
+            -DSUNSHINE_ENABLE_X11=ON \
+            -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
+            -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support"
+
+      - name: Build
+        shell: freebsd {0}
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}"
+          ninja -C build
+
+      - name: Package
+        shell: freebsd {0}
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}"
+
+          mkdir -p artifacts
+
+          cd build
+          cpack -G FREEBSD
+
+          # move compiled files to artifacts
+          mv ./cpack_artifacts/Sunshine.pkg \
+            ../artifacts/Sunshine-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}.pkg
+
+      - name: Debug
+        if: always()
+        shell: bash
+        working-directory: build/cpack_artifacts/_CPack_Packages/FreeBSD/FREEBSD/Sunshine
+        run: |
+          echo "FreeBSD CPack Debug"
+          echo "===== Staging Directory Contents ====="
+          ls -la
+          echo ""
+          echo "===== +MANIFEST Content ====="
+          cat +MANIFEST
+          echo ""
+
+          # use tar to print the contents of the pkg
+          cd "${GITHUB_WORKSPACE}/artifacts"
+          echo "===== Package Contents ====="
+          tar -tvf Sunshine-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}.pkg
+          echo ""
+          echo "===== Package Statistics ====="
+          echo -n "Total files in package: "
+          tar -tf Sunshine-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}.pkg 2>&1 | wc -l
+          echo ""
+          echo "Package file size:"
+          ls -lh Sunshine-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}.pkg
+
+      - name: Test
+        id: test
+        shell: freebsd {0}
+        run: |
+          set -e
+          cd "${GITHUB_WORKSPACE}/build/tests"
+
+          export DISPLAY=:1
+          Xvfb ${DISPLAY} -screen 0 1024x768x24 &
+          XVFB_PID=$!
+
+          ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+          kill ${XVFB_PID}
+
+      - name: Generate gcov report
+        id: test_report
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        shell: freebsd {0}
+        run: |
+          cd "${GITHUB_WORKSPACE}/build"
+          python -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --verbose \
+            --xml-pretty \
+            -o coverage.xml
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success')
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
+          path: |
+            build/coverage.xml
+            build/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
+          path: artifacts/
+          if-no-files-found: error

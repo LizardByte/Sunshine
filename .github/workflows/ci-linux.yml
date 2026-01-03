@@ -18,6 +18,7 @@ jobs:
     name: ${{ matrix.name }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      VERSION: ${{ inputs.release_version }}
     runs-on: ubuntu-${{ matrix.dist }}
     strategy:
       fail-fast: false
@@ -28,13 +29,13 @@ jobs:
             dist: 22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@v2025.1028.23217
+        uses: LizardByte/actions/actions/more_space@c2e99809a28d738261f986b884cad52fe3a91d5b  # v2025.1227.191137
         with:
           analyze-space-savings: true
           clean-all: true
 
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -89,19 +90,13 @@ jobs:
           chmod +x ./scripts/linux_build.sh
           echo "::add-matcher::.github/matchers/gcc.json"
           ./scripts/linux_build.sh \
-            --publisher-name='${{ github.repository_owner }}' \
-            --publisher-website='https://app.lizardbyte.dev' \
-            --publisher-issue-url='https://app.lizardbyte.dev/support' \
+            --publisher-name="${GITHUB_REPOSITORY_OWNER}" \
+            --publisher-website="https://app.lizardbyte.dev" \
+            --publisher-issue-url="https://app.lizardbyte.dev/support" \
             --skip-cleanup \
             --skip-package \
             --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
           echo "::remove-matcher owner=gcc::"
-
-      - name: Set AppImage Version
-        if: matrix.name == 'AppImage'
-        run: |
-          version=${{ inputs.release_version }}
-          echo "VERSION=${version}" >> "${GITHUB_ENV}"
 
       - name: Package Linux - AppImage
         if: matrix.name == 'AppImage'
@@ -198,7 +193,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: coverage-Linux-${{ matrix.name }}
           path: |
@@ -207,7 +202,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: build-Linux-${{ matrix.name }}
           path: artifacts/

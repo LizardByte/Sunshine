@@ -20,6 +20,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-restrict)
         endif()
     endif()
+
+    # GCC 15 will complain about uninitialized variables in some cases (Simple-Web-Server)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # Clang specific compile options
 

@@ -520,7 +520,12 @@ namespace stream {
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
-      session_p->localAddress = boost::asio::ip::make_address(local_address);
+      try {
+        session_p->localAddress = boost::asio::ip::make_address(local_address);
+      } catch (const boost::system::system_error &e) {
+        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        throw;
+      }
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
@@ -1716,7 +1721,14 @@ namespace stream {
       BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
     }
 
-    ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);
+    auto bind_addr_str = net::get_bind_address(address_family);
+    const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
+    if (ec) {
+      BOOST_LOG(fatal) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+      return -1;
+    }
+
+    ctx.video_sock.bind(udp::endpoint(bind_addr, video_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
@@ -1730,7 +1742,7 @@ namespace stream {
       return -1;
     }
 
-    ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
+    ctx.audio_sock.bind(udp::endpoint(bind_addr, audio_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 

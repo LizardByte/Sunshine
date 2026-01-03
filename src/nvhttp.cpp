@@ -40,6 +40,8 @@ using namespace std::literals;
 
 namespace nvhttp {
 
+  static constexpr std::string_view EMPTY_PROPERTY_TREE_ERROR_MSG = "Property tree is empty. Probably, control flow got interrupted by an unexpected C++ exception. This is a bug in Sunshine. Moonlight-qt will report Malformed XML (missing root element)."sv;
+
   namespace fs = std::filesystem;
   namespace pt = boost::property_tree;
 
@@ -816,6 +818,10 @@ namespace nvhttp {
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
 
+      if (tree.empty()) {
+        BOOST_LOG(error) << EMPTY_PROPERTY_TREE_ERROR_MSG;
+      }
+
       pt::write_xml(data, tree);
       response->write(data.str());
       response->close_connection_after_response = true;
@@ -921,6 +927,10 @@ namespace nvhttp {
     pt::ptree tree;
     auto g = util::fail_guard([&]() {
       std::ostringstream data;
+
+      if (tree.empty()) {
+        BOOST_LOG(error) << EMPTY_PROPERTY_TREE_ERROR_MSG;
+      }
 
       pt::write_xml(data, tree);
       response->write(data.str());
@@ -1148,7 +1158,7 @@ namespace nvhttp {
     https_server.resource["^/cancel$"]["GET"] = cancel;
 
     https_server.config.reuse_address = true;
-    https_server.config.address = net::af_to_any_address_string(address_family);
+    https_server.config.address = net::get_bind_address(address_family);
     https_server.config.port = port_https;
 
     http_server.default_resource["GET"] = not_found<SimpleWeb::HTTP>;
@@ -1158,7 +1168,7 @@ namespace nvhttp {
     };
 
     http_server.config.reuse_address = true;
-    http_server.config.address = net::af_to_any_address_string(address_family);
+    http_server.config.address = net::get_bind_address(address_family);
     http_server.config.port = port_http;
 
     auto accept_and_run = [&](auto *http_server) {

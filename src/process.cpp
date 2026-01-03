@@ -17,6 +17,7 @@
 #include <boost/program_options/parsers.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/token_functions.hpp>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 
@@ -97,11 +98,17 @@ namespace proc {
 
   boost::filesystem::path find_working_directory(const std::string &cmd, boost::process::v1::environment &env) {
     // Parse the raw command string into parts to get the actual command portion
+    std::vector<std::string> parts;
+    try {
 #ifdef _WIN32
-    auto parts = boost::program_options::split_winmain(cmd);
+      parts = boost::program_options::split_winmain(cmd);
 #else
-    auto parts = boost::program_options::split_unix(cmd);
+      parts = boost::program_options::split_unix(cmd);
 #endif
+    } catch (boost::escaped_list_error &err) {
+      BOOST_LOG(error) << "Boost failed to parse command ["sv << cmd << "] because " << err.what();
+      return boost::filesystem::path();
+    }
     if (parts.empty()) {
       BOOST_LOG(error) << "Unable to parse command: "sv << cmd;
       return boost::filesystem::path();
@@ -217,10 +224,14 @@ namespace proc {
         }
       }
 
-      child.wait();
+      child.wait(ec);
+      if (ec) {
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] wait failed with error code ["sv << ec << ']';
+        return -1;
+      }
       auto ret = child.exit_code();
-      if (ret != 0 && ec != std::errc::permission_denied) {
-        BOOST_LOG(error) << '[' << cmd.do_cmd << "] failed with code ["sv << ret << ']';
+      if (ret != 0) {
+        BOOST_LOG(error) << '[' << cmd.do_cmd << "] exited with code ["sv << ret << ']';
         return -1;
       }
     }

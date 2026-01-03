@@ -897,7 +897,7 @@ namespace video {
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE | YUV444_SUPPORT
   };
 
-#ifdef __linux__
+#if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
   encoder_t vaapi {
     "vaapi"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
@@ -1032,7 +1032,7 @@ namespace video {
     &quicksync,
     &amdvce,
 #endif
-#ifdef __linux__
+#if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
     &vaapi,
 #endif
 #ifdef __APPLE__
@@ -2467,8 +2467,8 @@ namespace video {
     encoder.av1.capabilities.set();
 
     // First, test encoder viability
-    config_t config_max_ref_frames {1920, 1080, 60, 1000, 1, 1, 1, 0, 0, 0};
-    config_t config_autoselect {1920, 1080, 60, 1000, 1, 0, 1, 0, 0, 0};
+    config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0};
+    config_t config_autoselect {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 0};
 
     // If the encoder isn't supported at all (not even H.264), bail early
     reset_display(disp, encoder.platform_formats->dev_type, output_name, config_autoselect);
@@ -2563,14 +2563,14 @@ namespace video {
     {
       // H.264 is special because encoders may support YUV 4:4:4 without supporting 10-bit color depth
       if (encoder.flags & YUV444_SUPPORT) {
-        config_t config_h264_yuv444 {1920, 1080, 60, 1000, 1, 0, 1, 0, 0, 1};
+        config_t config_h264_yuv444 {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 1};
         encoder.h264[encoder_t::YUV444] = disp->is_codec_supported(encoder.h264.name, config_h264_yuv444) &&
                                           validate_config(disp, encoder, config_h264_yuv444) >= 0;
       } else {
         encoder.h264[encoder_t::YUV444] = false;
       }
 
-      const config_t generic_hdr_config = {1920, 1080, 60, 1000, 1, 0, 3, 1, 1, 0};
+      const config_t generic_hdr_config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, 1, 1, 0};
 
       // Reset the display since we're switching from SDR to HDR
       reset_display(disp, encoder.platform_formats->dev_type, output_name, generic_hdr_config);

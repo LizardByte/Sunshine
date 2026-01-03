@@ -138,6 +138,8 @@
     "av1_mode_desc": "Tillåter klienten att begära AV1 Main 8-bitars eller 10-bitars videoströmmar. AV1 är mer CPU-intensiv att koda, så att detta kan minska prestandan vid användning av programkodning.",
     "back_button_timeout": "Hem/Guide Knapp Emulation Timeout",
     "back_button_timeout_desc": "Om knappen Bakåt/Select hålls ned för det angivna antalet millisekunder, emuleras en Hem/Guide knapptryckning. Om satt till ett värde < 0 (standard) kommer inte knappen Hem/Guide att efterliknas knappen.",
+    "bind_address": "Bind adress",
+    "bind_address_desc": "Ange den specifika IP-adressen Sunshine kommer att binda till. Om den lämnas tom, Sunshine kommer att binda till alla tillgängliga adresser.",
     "capture": "Tvinga en specifik fångstmetod",
     "capture_desc": "På automatiskt läge Sunshine kommer att använda den första som fungerar. NvFBC kräver lappade nvidia-drivrutiner.",
     "cert": "Certifikat",

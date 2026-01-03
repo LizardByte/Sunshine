@@ -14,8 +14,6 @@ on:
     branches:
       - master
   pull_request:
-    branches:
-      - master
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 

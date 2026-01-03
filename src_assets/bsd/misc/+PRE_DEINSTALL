@@ -1,0 +1,32 @@
+#!/bin/sh
+
+# FreeBSD pre-deinstall script for Sunshine
+# This script cleans up configuration added during installation
+
+echo "Cleaning up Sunshine configuration..."
+
+# Remove devfs rules
+DEVFS_RULESET_FILE="/etc/devfs.rules"
+RULESET_NUM=47989
+
+# Remove rules from /etc/devfs.rules
+if [ -f "$DEVFS_RULESET_FILE" ]; then
+  if grep -q "\[sunshine=$RULESET_NUM\]" "$DEVFS_RULESET_FILE"; then
+    echo "Removing devfs rules from $DEVFS_RULESET_FILE..."
+    # Remove the [sunshine=47989] section and its rules (match the section header and the next line)
+    sed -i.bak '/^\[sunshine='"$RULESET_NUM"'\]$/,/^add path.*uinput/d' "$DEVFS_RULESET_FILE"
+    echo "Devfs rules removed from file."
+  fi
+fi
+
+echo "Removing devfs ruleset from memory..."
+devfs rule -s $RULESET_NUM delset 2>/dev/null || true
+
+# Note: We intentionally do NOT:
+# - Remove the 'input' group (other software may use it)
+
+echo "Cleanup complete."
+echo ""
+echo "NOTE: The 'input' group has not been removed as other software may use it."
+echo "If you wish to remove it manually, run: pw groupdel input"
+echo ""
