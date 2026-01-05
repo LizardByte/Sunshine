@@ -23,7 +23,7 @@ _versioned_gcc=false  # set to true if we need a versioned gcc, e.g. gcc14
 
 _gcc_dep_suffix=""
 _gcc_env_suffix=""
-if [ "${_versioned_gcc}" = true ]; then
+if [ "${_versioned_gcc}" == true ]; then
   _gcc_dep_suffix="${_gcc_version}"
   _gcc_env_suffix="-${_gcc_version}"
 fi
