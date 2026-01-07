@@ -528,7 +528,7 @@ namespace config {
 
   nvhttp_t nvhttp {
     "lan",  // origin web manager
-    true,   // headless_mode - disable web UI by default for Fuji/Backbone
+    false,  // headless_mode - web UI enabled for debugging
 
     PRIVATE_KEY_FILE,
     CERTIFICATE_FILE,

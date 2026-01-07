@@ -111,10 +111,13 @@ namespace platf::publish {
     auto hostname = platf::get_host_name();
     auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
     auto host = from_utf8(hostname + ".local");
+    auto port = net::map_port(nvhttp::PORT_HTTP);
+
+    BOOST_LOG(info) << "mDNS service registration - hostname: "sv << hostname << ", port: "sv << port;
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();
-    instance.wPort = net::map_port(nvhttp::PORT_HTTP);
+    instance.wPort = port;
     instance.pszHostName = host.data();
 
     // Setting these values ensures Windows mDNS answers comply with RFC 1035.
