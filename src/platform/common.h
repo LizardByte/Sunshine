@@ -610,6 +610,8 @@ namespace platf {
   };
   void adjust_thread_priority(thread_priority_e priority);
 
+  void enable_mouse_keys();
+
   // Allow OS-specific actions to be taken to prepare for streaming
   void streaming_will_start();
   void streaming_will_stop();
