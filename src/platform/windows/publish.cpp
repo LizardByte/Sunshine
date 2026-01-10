@@ -96,6 +96,8 @@ namespace platf::publish {
   VOID WINAPI register_cb(DWORD status, PVOID pQueryContext, PDNS_SERVICE_INSTANCE pInstance) {
     auto alarm = (safe::alarm_t<PDNS_SERVICE_INSTANCE>::element_type *) pQueryContext;
 
+    BOOST_LOG(info) << "mDNS register_cb called - status: "sv << status << ", pInstance: "sv << (pInstance ? "valid" : "null");
+
     if (status) {
       print_status("register_cb()"sv, status);
     }
@@ -113,7 +115,7 @@ namespace platf::publish {
     auto host = from_utf8(hostname + ".local");
     auto port = net::map_port(nvhttp::PORT_HTTP);
 
-    BOOST_LOG(info) << "mDNS service registration - hostname: "sv << hostname << ", port: "sv << port;
+    BOOST_LOG(info) << "mDNS service registration - hostname: "sv << hostname << ", port: "sv << port << " (config port: "sv << config::sunshine.port << ")";
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();
@@ -218,13 +220,22 @@ namespace platf::publish {
   }
 
   std::unique_ptr<::platf::deinit_t> start() {
+    BOOST_LOG(info) << "mDNS: Attempting to load dnsapi.dll..."sv;
     HMODULE handle = LoadLibrary("dnsapi.dll");
 
-    if (!handle || load_funcs(handle)) {
-      BOOST_LOG(error) << "Couldn't load dnsapi.dll, You'll need to add PC manually from Moonlight"sv;
+    if (!handle) {
+      BOOST_LOG(error) << "mDNS: Failed to load dnsapi.dll - GetLastError: "sv << GetLastError();
       return nullptr;
     }
 
+    BOOST_LOG(info) << "mDNS: dnsapi.dll loaded successfully"sv;
+
+    if (load_funcs(handle)) {
+      BOOST_LOG(error) << "mDNS: Failed to load required functions from dnsapi.dll"sv;
+      return nullptr;
+    }
+
+    BOOST_LOG(info) << "mDNS: All required functions loaded, creating registration..."sv;
     return std::make_unique<mdns_registration_t>();
   }
 }  // namespace platf::publish
