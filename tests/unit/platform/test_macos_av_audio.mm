@@ -13,7 +13,6 @@
   #import <CoreAudio/CoreAudio.h>
   #import <Foundation/Foundation.h>
 
-  // Include the header for the class we're testing
   #import <src/platform/macos/av_audio.h>
 
 /**
@@ -34,15 +33,11 @@ struct ProcessSystemAudioIOProcTestParams {
  */
 class AVAudioTest: public PlatformTestSuite, public ::testing::WithParamInterface<ProcessSystemAudioIOProcTestParams> {};
 
-// ===== UNIT TESTS: Tests that do NOT require TCC permissions or real hardware =====
-
-// REMOVED: MicrophoneNamesReturnsArray - Integration test that queries real AVFoundation devices
-
 /**
  * @brief Test that findMicrophone handles nil input gracefully.
  * Verifies the method returns nil when passed a nil microphone name.
  */
-TEST_F(AVAudioTest, When_NilMicrophoneName_Then_ReturnsNil) {
+TEST_F(AVAudioTest, FindMicrophoneWithNilReturnsNil) {
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wnonnull"
   AVCaptureDevice *device = [AVAudio findMicrophone:nil];
@@ -54,7 +49,7 @@ TEST_F(AVAudioTest, When_NilMicrophoneName_Then_ReturnsNil) {
  * @brief Test that findMicrophone handles empty string input gracefully.
  * Verifies the method returns nil when passed an empty microphone name.
  */
-TEST_F(AVAudioTest, When_EmptyMicrophoneName_Then_ReturnsNil) {
+TEST_F(AVAudioTest, FindMicrophoneWithEmptyStringReturnsNil) {
   AVCaptureDevice *device = [AVAudio findMicrophone:@""];
   EXPECT_EQ(device, nil);  // Should return nil for empty string
 }
@@ -65,7 +60,7 @@ TEST_F(AVAudioTest, When_EmptyMicrophoneName_Then_ReturnsNil) {
  * @brief Test that setupMicrophone handles nil device input properly.
  * Verifies the method returns an error code when passed a nil device.
  */
-TEST_F(AVAudioTest, When_NilDevice_Then_SetupMicrophoneReturnsError) {
+TEST_F(AVAudioTest, SetupMicrophoneWithNilDeviceReturnsError) {
   AVAudio *avAudio = [[AVAudio alloc] init];
   #pragma clang diagnostic push
   #pragma clang diagnostic ignored "-Wnonnull"
@@ -75,14 +70,11 @@ TEST_F(AVAudioTest, When_NilDevice_Then_SetupMicrophoneReturnsError) {
   EXPECT_EQ(result, -1);  // Should fail with nil device
 }
 
-// REMOVED: SetupSystemTapWithZeroChannelsReturnsError - Integration test that calls setupSystemTap which requires TCC
-// The setupSystemTap method calls AudioHardwareCreateProcessTap and other Core Audio APIs that require TCC permissions
-
 /**
  * @brief Test basic AVAudio object lifecycle.
  * Verifies that AVAudio objects can be created and destroyed without issues.
  */
-TEST_F(AVAudioTest, When_ObjectCreated_Then_CanBeDestroyedSafely) {
+TEST_F(AVAudioTest, ObjectLifecycle) {
   AVAudio *avAudio = [[AVAudio alloc] init];
   EXPECT_NE(avAudio, nil);  // Should create successfully
   [avAudio release];  // Should not crash
@@ -92,7 +84,7 @@ TEST_F(AVAudioTest, When_ObjectCreated_Then_CanBeDestroyedSafely) {
  * @brief Test that multiple AVAudio objects can coexist.
  * Verifies that multiple instances can be created simultaneously.
  */
-TEST_F(AVAudioTest, When_MultipleInstancesCreated_Then_TheyCoexistIndependently) {
+TEST_F(AVAudioTest, MultipleObjectsCoexist) {
   AVAudio *avAudio1 = [[AVAudio alloc] init];
   AVAudio *avAudio2 = [[AVAudio alloc] init];
 
@@ -108,7 +100,7 @@ TEST_F(AVAudioTest, When_MultipleInstancesCreated_Then_TheyCoexistIndependently)
  * @brief Test audio buffer initialization with various channel configurations.
  * Verifies that the audio buffer can be initialized with different channel counts.
  */
-TEST_F(AVAudioTest, When_BufferInitialized_Then_SemaphoreIsCreated) {
+TEST_F(AVAudioTest, InitializeAudioBuffer) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Test with various channel counts
@@ -131,7 +123,7 @@ TEST_F(AVAudioTest, When_BufferInitialized_Then_SemaphoreIsCreated) {
  * @brief Test audio buffer cleanup functionality.
  * Verifies that cleanup works correctly even with uninitialized buffers.
  */
-TEST_F(AVAudioTest, When_BufferNotInitialized_Then_CleanupIsNoOp) {
+TEST_F(AVAudioTest, CleanupUninitializedBuffer) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Should not crash even if buffer was never initialized
@@ -150,7 +142,7 @@ TEST_F(AVAudioTest, When_BufferNotInitialized_Then_CleanupIsNoOp) {
  * @brief Test audio converter complex input callback with valid data.
  * Verifies that the audio converter callback properly processes valid audio data.
  */
-TEST_F(AVAudioTest, When_ValidDataProvided_Then_AudioConverterCallbackProcessesCorrectly) {
+TEST_F(AVAudioTest, AudioConverterComplexInputProc) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Create test input data
@@ -191,7 +183,7 @@ TEST_F(AVAudioTest, When_ValidDataProvided_Then_AudioConverterCallbackProcessesC
  * @brief Test audio converter callback when no more data is available.
  * Verifies that the callback handles end-of-data scenarios correctly.
  */
-TEST_F(AVAudioTest, When_AllFramesConsumed_Then_CallbackReturnsZeroPackets) {
+TEST_F(AVAudioTest, AudioConverterInputProcNoMoreData) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   UInt32 frameCount = 256;
@@ -222,7 +214,7 @@ TEST_F(AVAudioTest, When_AllFramesConsumed_Then_CallbackReturnsZeroPackets) {
  * @brief Test that audio buffer cleanup can be called multiple times safely.
  * Verifies that repeated cleanup calls don't cause crashes or issues.
  */
-TEST_F(AVAudioTest, When_CleanupCalledMultipleTimes_Then_NocrashOccurs) {
+TEST_F(AVAudioTest, CleanupAudioBufferMultipleTimes) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   [avAudio initializeAudioBuffer:2];
@@ -242,7 +234,7 @@ TEST_F(AVAudioTest, When_CleanupCalledMultipleTimes_Then_NocrashOccurs) {
  * @brief Test buffer management with edge case channel configurations.
  * Verifies that buffer management works with minimum and maximum channel counts.
  */
-TEST_F(AVAudioTest, When_EdgeCaseChannelCounts_Then_BufferManagesCorrectly) {
+TEST_F(AVAudioTest, BufferManagementEdgeCases) {
   AVAudio *avAudio = [[AVAudio alloc] init];
 
   // Test with minimum reasonable channel count (1 channel)
@@ -261,7 +253,7 @@ TEST_F(AVAudioTest, When_EdgeCaseChannelCounts_Then_BufferManagesCorrectly) {
 // Type alias for parameterized audio processing tests
 using ProcessSystemAudioIOProcTest = AVAudioTest;
 
-// Test parameters - representative configurations per spec (≤12 cases)
+// Test parameters - representative configurations to cover a range of scenarios
 // Channels: 1 (mono), 2 (stereo), 6 (5.1), 8 (7.1)
 // Sample rates: 48000 (common), 44100 (legacy), 192000 (edge)
 // Frame counts: 64 (small), 256 (typical), 1024 (large)
@@ -270,31 +262,31 @@ INSTANTIATE_TEST_SUITE_P(
   ProcessSystemAudioIOProcTest,
   ::testing::Values(
     // Representative channel configurations at common sample rate
-    ProcessSystemAudioIOProcTestParams {256, 1, 48000, false, "When_MonoInput_Then_DataWrittenToBuffer"},
-    ProcessSystemAudioIOProcTestParams {256, 2, 48000, false, "When_StereoInput_Then_DataWrittenToBuffer"},
-    ProcessSystemAudioIOProcTestParams {256, 6, 48000, false, "When_51SurroundInput_Then_DataWrittenToBuffer"},
-    ProcessSystemAudioIOProcTestParams {256, 8, 48000, false, "When_71SurroundInput_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 1, 48000, false, "Mono48kHz"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 48000, false, "Stereo48kHz"},
+    ProcessSystemAudioIOProcTestParams {256, 6, 48000, false, "Surround51_48kHz"},
+    ProcessSystemAudioIOProcTestParams {256, 8, 48000, false, "Surround71_48kHz"},
 
     // Frame count variations (small, typical, large)
-    ProcessSystemAudioIOProcTestParams {64, 2, 48000, false, "When_SmallFrameCount_Then_DataWrittenToBuffer"},
-    ProcessSystemAudioIOProcTestParams {1024, 2, 48000, false, "When_LargeFrameCount_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {64, 2, 48000, false, "SmallFrameCount"},
+    ProcessSystemAudioIOProcTestParams {1024, 2, 48000, false, "LargeFrameCount"},
 
     // Sample rate edge cases
-    ProcessSystemAudioIOProcTestParams {256, 2, 44100, false, "When_LegacySampleRate_Then_DataWrittenToBuffer"},
-    ProcessSystemAudioIOProcTestParams {256, 2, 192000, false, "When_HighSampleRate_Then_DataWrittenToBuffer"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 44100, false, "LegacySampleRate44kHz"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 192000, false, "HighSampleRate192kHz"},
 
     // Edge case: nil input handling
-    ProcessSystemAudioIOProcTestParams {256, 2, 48000, true, "When_NilInput_Then_HandledGracefully"},
+    ProcessSystemAudioIOProcTestParams {256, 2, 48000, true, "NilInputHandling"},
 
     // Combined edge case: max channels + large frames
-    ProcessSystemAudioIOProcTestParams {1024, 8, 48000, false, "When_MaxChannelsLargeFrames_Then_DataWrittenToBuffer"}
+    ProcessSystemAudioIOProcTestParams {1024, 8, 48000, false, "MaxChannelsLargeFrames"}
   ),
   [](const ::testing::TestParamInfo<ProcessSystemAudioIOProcTestParams> &info) {
     return std::string(info.param.testName);
   }
 );
 
-TEST_P(ProcessSystemAudioIOProcTest, When_InputProvided_Then_BehaviorMatchesExpectation) {
+TEST_P(ProcessSystemAudioIOProcTest, ProcessAudioInput) {
   ProcessSystemAudioIOProcTestParams params = GetParam();
 
   AVAudio *avAudio = [[AVAudio alloc] init];
