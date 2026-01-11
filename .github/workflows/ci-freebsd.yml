@@ -136,7 +136,7 @@ jobs:
           run: |
             set -e
             # install gcvor
-            python -m pip install gcovr
+            python  -m pip install git+https://github.com/Spacetown/gcovr.git@fix_possible_wrong_line_number_for_function  # gcovr
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"
@@ -248,9 +248,25 @@ jobs:
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
+            --gcov-keep \
             --verbose \
             --xml-pretty \
             -o coverage.xml
+
+      - name: Upload gcovr debug files
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: gcovr-FreeBSD-debug
+          path: |
+            build/utility.h*
+            build/audio.cpp.gcda.utility.h*
+            tests/CMakeFiles/test_sunshine.dir/__/src/cbs.cpp.gcda
+            tests/CMakeFiles/test_sunshine.dir/__/src/audio.cpp.gcda
+            build/cbs.cpp.gcda.utility.h##b0e2bfc9a5b182a580239e9f560fff7a.gcov
+            build/audio.cpp.gcda.utility.h##b0e2bfc9a5b182a580239e9f560fff7a.gcov
+
+          if-no-files-found: error
 
       - name: Upload coverage artifact
         if: >-
