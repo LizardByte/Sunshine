@@ -109,6 +109,7 @@
   import { createApp } from 'vue'
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
+  import { Modal } from 'bootstrap/dist/js/bootstrap'
 
   let app = createApp({
     components: {
@@ -136,7 +137,7 @@
     },
     mounted() {
       // Initialize Bootstrap modal
-      this.modal = new bootstrap.Modal(this.$refs.confirmModal);
+      this.modal = new Modal(this.$refs.confirmModal);
     },
     methods: {
       async fetchSessions() {
