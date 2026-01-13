@@ -46,10 +46,33 @@ namespace stream {
       RUNNING,  ///< The session is running
     };
 
+    /**
+     * @brief Information about an active streaming session.
+     */
+    struct session_info_t {
+      std::string id;           ///< Unique session identifier
+      std::string client_name;  ///< Name of the connected client
+      std::string ip_address;   ///< Client's IP address
+      std::chrono::steady_clock::time_point start_time;  ///< When the session started
+    };
+
     std::shared_ptr<session_t> alloc(config_t &config, rtsp_stream::launch_session_t &launch_session);
     int start(session_t &session, const std::string &addr_string);
     void stop(session_t &session);
     void join(session_t &session);
     state_e state(session_t &session);
+
+    /**
+     * @brief Get a list of all active streaming sessions.
+     * @return Vector of session information.
+     */
+    std::vector<session_info_t> get_all_sessions();
+
+    /**
+     * @brief Disconnect a session by its ID.
+     * @param session_id The unique session identifier.
+     * @return true if the session was found and stopped, false otherwise.
+     */
+    bool disconnect(const std::string &session_id);
   }  // namespace session
 }  // namespace stream
