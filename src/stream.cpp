@@ -2073,6 +2073,16 @@ namespace stream {
       return session;
     }
 
+    /**
+     * @brief Get information about all active streaming sessions.
+     *
+     * This function retrieves a list of all currently running streaming sessions,
+     * including client name, IP address, and session start time. It looks up
+     * friendly client names from the paired clients database.
+     *
+     * @return A vector of session_info_t structures describing each active session.
+     *         Returns an empty vector if no sessions are active.
+     */
     std::vector<session_info_t> get_all_sessions() {
       std::vector<session_info_t> result;
 
@@ -2125,6 +2135,16 @@ namespace stream {
       return result;
     }
 
+    /**
+     * @brief Disconnect an active streaming session by its ID.
+     *
+     * This function allows administrators to forcefully terminate a streaming
+     * session from the web UI. It finds the session by its launch_session_id
+     * and calls stop() to cleanly shut it down.
+     *
+     * @param session_id The session ID (as a string) to disconnect.
+     * @return true if the session was found and disconnected, false otherwise.
+     */
     bool disconnect(const std::string &session_id) {
       // Check if any app is running before trying to access broadcast context
       if (proc::proc.running() == 0) {
