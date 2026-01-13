@@ -50,9 +50,9 @@ namespace stream {
      * @brief Information about an active streaming session.
      */
     struct session_info_t {
-      std::string id;           ///< Unique session identifier
+      std::string id;  ///< Unique session identifier
       std::string client_name;  ///< Name of the connected client
-      std::string ip_address;   ///< Client's IP address
+      std::string ip_address;  ///< Client's IP address
       std::chrono::steady_clock::time_point start_time;  ///< When the session started
     };
 
