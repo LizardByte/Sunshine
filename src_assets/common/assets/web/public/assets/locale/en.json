@@ -396,6 +396,7 @@
     "home": "Home",
     "password": "Change Password",
     "pin": "PIN",
+    "sessions": "Sessions",
     "theme_auto": "Auto",
     "theme_dark": "Dark",
     "theme_light": "Light",
@@ -427,6 +428,22 @@
     "resources": "Resources",
     "resources_desc": "Resources for Sunshine!",
     "third_party_notice": "Third Party Notice"
+  },
+  "sessions": {
+    "actions": "Actions",
+    "auto_refresh": "Auto-refresh",
+    "cancel": "Cancel",
+    "client": "Client",
+    "confirm_disconnect": "Are you sure you want to disconnect",
+    "confirm_disconnect_title": "Confirm Disconnect",
+    "disconnect": "Disconnect",
+    "disconnect_error": "Failed to disconnect session",
+    "disconnected": "Session disconnected successfully",
+    "duration": "Duration",
+    "ip_address": "IP Address",
+    "no_sessions": "No active streaming sessions",
+    "refresh": "Refresh",
+    "title": "Active Sessions"
   },
   "troubleshooting": {
     "dd_reset": "Reset Persistent Display Device Settings",

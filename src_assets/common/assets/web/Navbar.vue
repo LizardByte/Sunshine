@@ -20,6 +20,9 @@
             <a class="nav-link" href="./apps"><i class="fas fa-fw fa-stream"></i> {{ $t('navbar.applications') }}</a>
           </li>
           <li class="nav-item">
+            <a class="nav-link" href="./sessions"><i class="fas fa-fw fa-satellite-dish"></i> {{ $t('navbar.sessions') }}</a>
+          </li>
+          <li class="nav-item">
             <a class="nav-link" href="./config"><i class="fas fa-fw fa-cog"></i> {{ $t('navbar.configuration') }}</a>
           </li>
           <li class="nav-item">
