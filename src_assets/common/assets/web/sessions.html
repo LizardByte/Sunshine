@@ -147,6 +147,7 @@
           const data = await response.json();
           if (data.status) {
             this.sessions = data.sessions || [];
+            this.errorMessage = null;  // Clear any previous error on success
           } else {
             this.errorMessage = 'Failed to fetch sessions';
           }
