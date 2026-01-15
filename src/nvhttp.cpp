@@ -339,6 +339,10 @@ namespace nvhttp {
     uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
     std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
+
+    // Enable virtual display if configured
+    launch_session->virtual_display = config::video.auto_virtual_display;
+
     return launch_session;
   }
 
