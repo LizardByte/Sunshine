@@ -142,7 +142,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@copilot/fix-homebrew-action-fork-token
+        uses: LizardByte/actions/actions/release_homebrew@fix/release_homebrew/skip-livecheck-if-running-action-from-fork
         with:
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
