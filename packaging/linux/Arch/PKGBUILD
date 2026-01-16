@@ -169,7 +169,7 @@ build() {
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
 
-    make -C build
+    cmake --build build
 }
 
 check() {
@@ -217,5 +217,5 @@ check() {
 
 package() {
     export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
-    make -C build install DESTDIR="$pkgdir"
+    DESTDIR="$pkgdir" cmake --install build
 }
