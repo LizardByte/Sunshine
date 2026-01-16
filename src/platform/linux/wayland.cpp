@@ -454,6 +454,7 @@ namespace wl {
     self->current_wl_buffer = buffer;
 
     // Start the actual copy
+    zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_copy(frame, buffer);
   }
 
@@ -468,6 +469,7 @@ namespace wl {
     BOOST_LOG(error) << "Failed to create buffer from params"sv;
     self->cleanup_gbm();
 
+    zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_destroy(frame);
     self->status = REINIT;
   }
