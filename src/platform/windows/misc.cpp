@@ -390,23 +390,26 @@ namespace platf {
 
     size += 1 /* L'\0' */;
 
-    wchar_t env_block[size];
+    std::vector<wchar_t> env_block(size);
     int offset = 0;
     for (const auto &entry : env) {
       auto name = entry.get_name();
       auto value = entry.to_string();
 
       // Construct the NAME=VAL\0 string
-      append_string_to_environment_block(env_block, offset, utf_utils::from_utf8(name));
-      env_block[offset++] = L'=';
-      append_string_to_environment_block(env_block, offset, utf_utils::from_utf8(value));
-      env_block[offset++] = L'\0';
+      append_string_to_environment_block(env_block.data(), offset, utf_utils::from_utf8(name));
+      env_block[offset] = L'=';
+      offset++;
+      append_string_to_environment_block(env_block.data(), offset, utf_utils::from_utf8(value));
+      env_block[offset] = L'\0';
+      offset++;
     }
 
     // Append a final null terminator
-    env_block[offset++] = L'\0';
+    env_block[offset] = L'\0';
+    offset++;
 
-    return std::wstring(env_block, offset);
+    return std::wstring(env_block.data(), offset);
   }
 
   LPPROC_THREAD_ATTRIBUTE_LIST allocate_proc_thread_attr_list(DWORD attribute_count) {
