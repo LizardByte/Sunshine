@@ -380,7 +380,7 @@ namespace platf {
     offset += wstr.length();
   }
 
-  std::wstring create_environment_block(bp::environment &env) {
+  std::wstring create_environment_block(const bp::environment &env) {
     int size = 0;
     for (const auto &entry : env) {
       auto name = entry.get_name();
