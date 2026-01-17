@@ -327,6 +327,10 @@ namespace platf {
     // Unimplemented
   }
 
+  void enable_mouse_keys() {
+    // Unimplemented
+  }
+
   void streaming_will_start() {
     // Nothing to do
   }
