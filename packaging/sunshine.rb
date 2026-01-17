@@ -1,6 +1,8 @@
 require "language/node"
 
 class Sunshine < Formula
+  CUDA_VERSION = "13.1".freeze
+  CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
@@ -56,6 +58,7 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
+    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => [:build, :recommended]
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "ayatana-ido"
@@ -163,7 +166,21 @@ class Sunshine < Formula
       ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
     end
 
-    args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
+    if OS.linux?
+      if build.with?(CUDA_FORMULA)
+        cuda_path = Formula["lizardbyte/homebrew/#{CUDA_FORMULA}"]
+        nvcc_path = "#{cuda_path.opt_bin}/nvcc"
+        gcc_path = Formula[GCC_FORMULA]
+
+        args << "-DSUNSHINE_ENABLE_CUDA=ON"
+        args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+        args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+        ohai "CUDA enabled with nvcc at: #{nvcc_path}"
+      else
+        args << "-DSUNSHINE_ENABLE_CUDA=OFF"
+        ohai "CUDA disabled"
+      end
+    end
 
     system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
             *std_cmake_args,
