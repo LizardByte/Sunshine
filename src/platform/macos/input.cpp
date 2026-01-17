@@ -449,19 +449,19 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   void scroll(input_t &input, const int high_res_distance) {
-    CGEventRef upEvent = CGEventCreateScrollWheelEvent(
-      nullptr,
-      kCGScrollEventUnitLine,
-      2,
-      high_res_distance > 0 ? 1 : -1,
-      high_res_distance
-    );
+    int wheelY = high_res_distance / 120;
+    int wheelX = 0;
+    CGEventRef upEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 2, wheelY, wheelX);
     CGEventPost(kCGHIDEventTap, upEvent);
     CFRelease(upEvent);
   }
 
   void hscroll(input_t &input, int high_res_distance) {
-    // Unimplemented
+    int wheelY = 0;
+    int wheelX = high_res_distance / 120;
+    CGEventRef upEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 2, wheelY, wheelX);
+    CGEventPost(kCGHIDEventTap, upEvent);
+    CFRelease(upEvent);
   }
 
   /**
@@ -532,9 +532,10 @@ const KeyCodeMap kKeyCodesMap[] = {
     auto output_name = display_device::map_output_name(config::video.output_name);
     // If output_name is set, try to find the display with that display id
     if (!output_name.empty()) {
-      uint32_t max_display = 32;
+      const int MAX_DISPLAYS = 32;
+      uint32_t max_display = MAX_DISPLAYS;
       uint32_t display_count;
-      CGDirectDisplayID displays[max_display];
+      CGDirectDisplayID displays[MAX_DISPLAYS];
       if (CGGetActiveDisplayList(max_display, displays, &display_count) != kCGErrorSuccess) {
         BOOST_LOG(error) << "Unable to get active display list , error: "sv << std::endl;
       } else {
