@@ -50,7 +50,7 @@ pkg install -y \
 #### Linux
 Dependencies vary depending on the distribution. You can reference our
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh) script for a list of
-dependencies we use in Debian-based and Fedora-based distributions. Please submit a PR if you would like to extend the
+dependencies we use in Debian-based, Fedora-based and Arch-based distributions. Please submit a PR if you would like to extend the
 script to support other distributions.
 
 ##### CUDA Toolkit

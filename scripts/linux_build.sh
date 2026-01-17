@@ -157,6 +157,7 @@ dependencies=()
 
 function add_arch_deps() {
   dependencies+=(
+    'appstream-glib'
     'avahi'
     'base-devel'
     'cmake'
@@ -596,6 +597,12 @@ function run_step_build() {
 
   # Build the project
   ninja -C "build"
+
+  # Prepare binary with setcap for execution
+  sudo cp build/sunshine /tmp
+  sudo setcap cap_sys_admin+p /tmp/sunshine
+  sudo getcap /tmp/sunshine
+  sudo mv /tmp/sunshine build/sunshine
 }
 
 function run_step_package() {
