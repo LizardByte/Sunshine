@@ -320,10 +320,10 @@ namespace platf {
       std::string env_val = env_tuple.substr(env_tuple.find('=') + 1);
 
       // Perform a case-insensitive search to see if this variable name already exists
-      auto itr = std::find_if(env.cbegin(), env.cend(), [&](const auto &e) {
-        return boost::iequals(e.get_name(), env_name);
-      });
-      if (itr != env.cend()) {
+      if (auto itr = std::find_if(env.begin(), env.end(), [&](const auto &e) {
+            return boost::iequals(e.get_name(), env_name);
+          });
+          itr != env.end()) {
         // Use this existing name if it is already present to ensure we merge properly
         env_name = itr->get_name();
       }
