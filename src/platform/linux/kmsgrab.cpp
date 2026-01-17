@@ -1542,6 +1542,8 @@ namespace platf {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
+            monitor_descriptor.viewport.width    = monitor->viewport.width;
+            monitor_descriptor.viewport.height   = monitor->viewport.height;
 
             // A sanity check, it's guesswork after all.
             if (
