@@ -310,6 +310,9 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
+> [!TIP]
+> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
+
 ### macOS
 
 > [!IMPORTANT]
@@ -320,6 +323,8 @@ This package requires that you have [Homebrew](https://docs.brew.sh/Installation
 
 ##### Install
 ```bash
+brew update
+brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
 ```
