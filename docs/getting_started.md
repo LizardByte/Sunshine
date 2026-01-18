@@ -214,6 +214,11 @@ sudo dnf remove sunshine
 ```
 
 ##### Install (Copr)
+
+> [!IMPORTANT]
+> Stable builds are only available if the Sunshine release was made after the Fedora version release.
+> Because of this, it is often recommended to use the beta copr.
+
 1. Enable copr repository.
    ```bash
    sudo dnf copr enable lizardbyte/stable
