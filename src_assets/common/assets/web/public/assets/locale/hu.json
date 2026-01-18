@@ -123,7 +123,7 @@
     "amd_usage_webcam": "webcam -- webkamera (lassú)",
     "amd_vbaq": "AMF variancia alapú adaptív kvantálás (VBAQ)",
     "amd_vbaq_desc": "Az emberi vizuális rendszer általában kevésbé érzékeny az erősen textúrázott területeken lévő hibákra. VBAQ módban a pixel varianciát használják a térbeli textúrák komplexitásának jelzésére, lehetővé téve a kódolónak, hogy több bitet allokoljon a simább területekhez. Ennek a funkciónak az engedélyezése javítja a szubjektív vizuális minőséget bizonyos tartalmakkal.",
-    "apply_note": "Kattints az 'Alkalmazás' gombra, hogy újraindítsd a Sunshine-t és alkalmazd a változásokat. Ez megszakítja a futó munkameneteket.",
+    "apply_note": "Kattints az 'Alkalmazás' gombra a Sunshine újraindításához és a változtatások alkalmazásához. Ez megszakítja a futó munkameneteket.",
     "audio_sink": "Hang kimenet",
     "audio_sink_desc_linux": "Az Audio Loopback-hez használt hangkimenet neve. Ha nem adod meg ezt a változót, a pulseaudio az alapértelmezett monitor eszközt választja. A hangkimenet nevét a következő parancsok valamelyikével találhatod meg:",
     "audio_sink_desc_macos": "Az Audio Loopback-hez használt hangkimenet neve. A Sunshine csak mikrofonokat tud elérni macOS-en a rendszer korlátozásai miatt. A rendszer hangjának streameléséhez használd a Soundflower-t vagy a BlackHole-t.",
