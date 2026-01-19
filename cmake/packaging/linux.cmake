@@ -105,10 +105,11 @@ list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
         audio/opus
         ftp/curl
         devel/libevdev
+        multimedia/pipewire
         net/avahi
-        x11/libX11
         net/miniupnpc
         security/openssl
+        x11/libX11
 )
 
 if(NOT BOOST_USE_STATIC)
