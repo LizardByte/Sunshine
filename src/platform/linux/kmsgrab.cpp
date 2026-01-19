@@ -1177,11 +1177,13 @@ namespace platf {
               vblank_timestamp = std::chrono::steady_clock::time_point(std::chrono::duration_cast<std::chrono::steady_clock::duration>(vblank_time));
               
               // Skip frame if display Hz > client FPS (e.g., 120Hz display, 60fps stream)
-              auto now = std::chrono::steady_clock::now();
-              if (now < next_frame) {
-                continue;  // Skip this vblank, wait for next one
+              if (*vblank_timestamp < next_frame) {
+                continue;
               }
-              next_frame = now + delay;
+              next_frame += delay;
+              if (next_frame < *vblank_timestamp) {
+                next_frame = *vblank_timestamp + delay;
+              }
             } else {
               // Vblank wait failed, fall back to timer-based delay
               auto now = std::chrono::steady_clock::now();
@@ -1434,11 +1436,13 @@ namespace platf {
               vblank_timestamp = std::chrono::steady_clock::time_point(std::chrono::duration_cast<std::chrono::steady_clock::duration>(vblank_time));
               
               // Skip frame if display Hz > client FPS (e.g., 120Hz display, 60fps stream)
-              auto now = std::chrono::steady_clock::now();
-              if (now < next_frame) {
-                continue;  // Skip this vblank, wait for next one
+              if (*vblank_timestamp < next_frame) {
+                continue;
               }
-              next_frame = now + delay;
+              next_frame += delay;
+              if (next_frame < *vblank_timestamp) {
+                next_frame = *vblank_timestamp + delay;
+              }
             } else {
               // Vblank wait failed, fall back to timer-based delay
               auto now = std::chrono::steady_clock::now();
