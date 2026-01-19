@@ -2167,7 +2167,7 @@ namespace video {
     }
     ctx.hdr_events->raise(std::move(hdr_info));
 
-    auto session = make_encode_session(disp, encoder, ctx.config, img.width, img.height, std::move(encode_device));
+    auto session = make_encode_session(disp, encoder, ctx.config, ctx.config.width, ctx.config.height, std::move(encode_device));
     if (!session) {
       return std::nullopt;
     }
