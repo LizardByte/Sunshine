@@ -198,8 +198,10 @@ class Sunshine < Formula
 
     args << "-DSUNSHINE_ENABLE_CUDA=ON"
     args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+    args << "-DCMAKE_CUDA_TOOLKIT_ROOT_DIR=#{cuda_path.opt_libexec}"
     args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
     ohai "CUDA enabled with nvcc at: #{nvcc_path}"
+    ohai "CUDA toolkit root: #{cuda_path.opt_libexec}"
   end
 
   def build_cmake_args
