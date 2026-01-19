@@ -1,0 +1,976 @@
+/**
+ * Backbone Theme for Backlight (Sunshine fork)
+ *
+ * This CSS file overrides Bootstrap's default styling to match
+ * Backbone's design system: dark theme, orange accents, premium feel.
+ */
+
+/* ============================================
+   CSS VARIABLES - BACKBONE DESIGN TOKENS
+   ============================================ */
+:root {
+  /* Backbone Color Palette */
+  --bb-primary: #ff6b35;
+  --bb-primary-rgb: 255, 107, 53;
+  --bb-accent: #ff8c5a;
+  --bb-accent-rgb: 255, 140, 90;
+
+  --bb-background: #000000;
+  --bb-card: #1c1c1e;
+  --bb-card-elevated: #2c2c2e;
+  --bb-border: #38383a;
+  --bb-input: #1c1c1e;
+
+  --bb-text-primary: #ffffff;
+  --bb-text-secondary: #98989d;
+  --bb-text-muted: #636366;
+
+  --bb-destructive: #ff453a;
+  --bb-destructive-rgb: 255, 69, 58;
+  --bb-success: #30d158;
+  --bb-success-rgb: 48, 209, 88;
+  --bb-warning: #ffd60a;
+  --bb-warning-rgb: 255, 214, 10;
+  --bb-info: #0a84ff;
+  --bb-info-rgb: 10, 132, 255;
+
+  /* Typography */
+  --bb-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display',
+                    'Inter', 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --bb-font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+  --bb-letter-spacing: -0.02em;
+
+  /* Spacing & Radius */
+  --bb-radius-sm: 4px;
+  --bb-radius: 8px;
+  --bb-radius-lg: 12px;
+  --bb-radius-xl: 16px;
+
+  /* Shadows */
+  --bb-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --bb-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+  --bb-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+  --bb-shadow-glow: 0 0 20px rgba(255, 107, 53, 0.3);
+
+  /* Transitions */
+  --bb-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --bb-transition-fast: 100ms ease;
+}
+
+/* ============================================
+   BOOTSTRAP VARIABLE OVERRIDES
+   ============================================ */
+:root,
+[data-bs-theme="light"],
+[data-bs-theme="dark"],
+[data-bs-theme="auto"] {
+  /* Force dark theme */
+  --bs-body-bg: var(--bb-background);
+  --bs-body-color: var(--bb-text-primary);
+  --bs-emphasis-color: var(--bb-text-primary);
+
+  /* Primary color */
+  --bs-primary: var(--bb-primary);
+  --bs-primary-rgb: var(--bb-primary-rgb);
+  --bs-link-color: var(--bb-primary);
+  --bs-link-hover-color: var(--bb-accent);
+  --bs-link-color-rgb: var(--bb-primary-rgb);
+
+  /* Component colors */
+  --bs-secondary-bg: var(--bb-card);
+  --bs-tertiary-bg: var(--bb-card-elevated);
+  --bs-border-color: var(--bb-border);
+  --bs-border-color-translucent: rgba(56, 56, 58, 0.5);
+
+  /* Form colors */
+  --bs-form-control-bg: var(--bb-input);
+  --bs-form-select-bg: var(--bb-input);
+
+  /* State colors */
+  --bs-success: var(--bb-success);
+  --bs-success-rgb: var(--bb-success-rgb);
+  --bs-danger: var(--bb-destructive);
+  --bs-danger-rgb: var(--bb-destructive-rgb);
+  --bs-warning: var(--bb-warning);
+  --bs-warning-rgb: var(--bb-warning-rgb);
+  --bs-info: var(--bb-info);
+  --bs-info-rgb: var(--bb-info-rgb);
+
+  /* Card */
+  --bs-card-bg: var(--bb-card);
+  --bs-card-border-color: var(--bb-border);
+  --bs-card-cap-bg: var(--bb-card);
+
+  /* Code */
+  --bs-code-color: var(--bb-accent);
+
+  /* Text */
+  --bs-secondary-color: var(--bb-text-secondary);
+  --bs-tertiary-color: var(--bb-text-muted);
+}
+
+/* ============================================
+   GLOBAL STYLES
+   ============================================ */
+html {
+  color-scheme: dark;
+}
+
+body {
+  font-family: var(--bb-font-family) !important;
+  letter-spacing: var(--bb-letter-spacing);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bb-background) !important;
+  color: var(--bb-text-primary) !important;
+  min-height: 100vh;
+}
+
+/* ============================================
+   TYPOGRAPHY
+   ============================================ */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--bb-text-primary);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+}
+
+p {
+  color: var(--bb-text-primary);
+}
+
+a {
+  color: var(--bb-primary);
+  text-decoration: none;
+  transition: color var(--bb-transition);
+}
+
+a:hover {
+  color: var(--bb-accent);
+}
+
+code, pre {
+  font-family: var(--bb-font-mono);
+  background-color: var(--bb-card) !important;
+  border-radius: var(--bb-radius-sm);
+}
+
+pre {
+  padding: 1rem;
+  border: 1px solid var(--bb-border);
+  border-radius: var(--bb-radius);
+}
+
+/* ============================================
+   CARDS
+   ============================================ */
+.card {
+  background-color: var(--bb-card) !important;
+  border: 1px solid var(--bb-border) !important;
+  border-radius: var(--bb-radius) !important;
+  box-shadow: var(--bb-shadow);
+  transition: box-shadow var(--bb-transition), border-color var(--bb-transition);
+}
+
+.card:hover {
+  border-color: rgba(255, 107, 53, 0.3);
+}
+
+.card-header {
+  background-color: transparent !important;
+  border-bottom: 1px solid var(--bb-border) !important;
+  padding: 1rem 1.25rem;
+}
+
+.card-body {
+  padding: 1.25rem;
+}
+
+.card-footer {
+  background-color: transparent !important;
+  border-top: 1px solid var(--bb-border) !important;
+}
+
+.card-title {
+  color: var(--bb-text-primary);
+  font-weight: 600;
+}
+
+.card-text {
+  color: var(--bb-text-secondary);
+}
+
+/* ============================================
+   BUTTONS
+   ============================================ */
+.btn {
+  font-weight: 500;
+  border-radius: var(--bb-radius) !important;
+  padding: 0.5rem 1rem;
+  transition: all var(--bb-transition);
+  border: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--bb-primary);
+  outline-offset: 2px;
+}
+
+/* Primary Button - Backbone Orange */
+.btn-primary {
+  background-color: var(--bb-primary) !important;
+  border-color: var(--bb-primary) !important;
+  color: white !important;
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background-color: var(--bb-accent) !important;
+  border-color: var(--bb-accent) !important;
+  box-shadow: var(--bb-shadow-glow);
+  transform: translateY(-1px);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+/* Success Button */
+.btn-success {
+  background-color: var(--bb-success) !important;
+  border-color: var(--bb-success) !important;
+  color: white !important;
+}
+
+.btn-success:hover,
+.btn-success:focus {
+  background-color: #28b84d !important;
+  border-color: #28b84d !important;
+  box-shadow: 0 0 20px rgba(48, 209, 88, 0.3);
+}
+
+/* Danger Button */
+.btn-danger {
+  background-color: var(--bb-destructive) !important;
+  border-color: var(--bb-destructive) !important;
+  color: white !important;
+}
+
+.btn-danger:hover,
+.btn-danger:focus {
+  background-color: #ff6961 !important;
+  border-color: #ff6961 !important;
+  box-shadow: 0 0 20px rgba(255, 69, 58, 0.3);
+}
+
+/* Warning Button */
+.btn-warning {
+  background-color: var(--bb-warning) !important;
+  border-color: var(--bb-warning) !important;
+  color: #000 !important;
+}
+
+.btn-warning:hover,
+.btn-warning:focus {
+  background-color: #ffdf33 !important;
+  border-color: #ffdf33 !important;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background-color: var(--bb-card-elevated) !important;
+  border: 1px solid var(--bb-border) !important;
+  color: var(--bb-text-primary) !important;
+}
+
+.btn-secondary:hover,
+.btn-secondary:focus {
+  background-color: var(--bb-border) !important;
+  border-color: var(--bb-text-muted) !important;
+}
+
+/* Outline Buttons */
+.btn-outline-primary {
+  border: 1px solid var(--bb-primary) !important;
+  color: var(--bb-primary) !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background-color: var(--bb-primary) !important;
+  color: white !important;
+}
+
+.btn-outline-secondary {
+  border: 1px solid var(--bb-border) !important;
+  color: var(--bb-text-secondary) !important;
+  background-color: transparent !important;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus {
+  background-color: var(--bb-card-elevated) !important;
+  color: var(--bb-text-primary) !important;
+  border-color: var(--bb-text-muted) !important;
+}
+
+/* Link Button */
+.btn-link {
+  color: var(--bb-primary) !important;
+}
+
+.btn-link:hover {
+  color: var(--bb-accent) !important;
+}
+
+/* Close Button */
+.btn-close {
+  filter: invert(1);
+  opacity: 0.6;
+}
+
+.btn-close:hover {
+  opacity: 1;
+}
+
+/* ============================================
+   FORM CONTROLS
+   ============================================ */
+.form-control,
+.form-select {
+  background-color: var(--bb-input) !important;
+  border: 1px solid var(--bb-border) !important;
+  color: var(--bb-text-primary) !important;
+  border-radius: var(--bb-radius) !important;
+  padding: 0.625rem 0.875rem;
+  transition: border-color var(--bb-transition), box-shadow var(--bb-transition);
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--bb-primary) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
+  background-color: var(--bb-card-elevated) !important;
+}
+
+.form-control::placeholder {
+  color: var(--bb-text-muted) !important;
+  opacity: 1;
+}
+
+.form-control:disabled,
+.form-select:disabled {
+  background-color: var(--bb-card) !important;
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Form Labels */
+.form-label {
+  color: var(--bb-text-primary);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+/* Form Text/Help */
+.form-text {
+  color: var(--bb-text-secondary) !important;
+  font-size: 0.875rem;
+}
+
+/* Checkboxes */
+.form-check-input {
+  background-color: var(--bb-input) !important;
+  border-color: var(--bb-border) !important;
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.form-check-input:checked {
+  background-color: var(--bb-primary) !important;
+  border-color: var(--bb-primary) !important;
+}
+
+.form-check-input:focus {
+  border-color: var(--bb-primary) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
+}
+
+.form-check-label {
+  color: var(--bb-text-primary);
+}
+
+/* Switches */
+.form-switch .form-check-input {
+  width: 2.5rem;
+  height: 1.25rem;
+  border-radius: 0.75rem;
+}
+
+.form-switch .form-check-input:checked {
+  background-color: var(--bb-primary) !important;
+}
+
+/* Input Groups */
+.input-group-text {
+  background-color: var(--bb-card-elevated) !important;
+  border-color: var(--bb-border) !important;
+  color: var(--bb-text-secondary) !important;
+}
+
+/* Range Input */
+.form-range::-webkit-slider-thumb {
+  background-color: var(--bb-primary);
+}
+
+.form-range::-webkit-slider-runnable-track {
+  background-color: var(--bb-border);
+}
+
+/* ============================================
+   ALERTS
+   ============================================ */
+.alert {
+  border-radius: var(--bb-radius) !important;
+  border-width: 1px;
+  padding: 1rem 1.25rem;
+}
+
+.alert-success {
+  background-color: rgba(48, 209, 88, 0.1) !important;
+  border-color: rgba(48, 209, 88, 0.3) !important;
+  color: var(--bb-success) !important;
+}
+
+.alert-danger {
+  background-color: rgba(255, 69, 58, 0.1) !important;
+  border-color: rgba(255, 69, 58, 0.3) !important;
+  color: var(--bb-destructive) !important;
+}
+
+.alert-warning {
+  background-color: rgba(255, 214, 10, 0.1) !important;
+  border-color: rgba(255, 214, 10, 0.3) !important;
+  color: var(--bb-warning) !important;
+}
+
+.alert-info {
+  background-color: rgba(255, 107, 53, 0.1) !important;
+  border-color: rgba(255, 107, 53, 0.3) !important;
+  color: var(--bb-accent) !important;
+}
+
+.alert-primary {
+  background-color: rgba(255, 107, 53, 0.1) !important;
+  border-color: rgba(255, 107, 53, 0.3) !important;
+  color: var(--bb-primary) !important;
+}
+
+.alert-secondary {
+  background-color: var(--bb-card) !important;
+  border-color: var(--bb-border) !important;
+  color: var(--bb-text-secondary) !important;
+}
+
+/* ============================================
+   TABLES
+   ============================================ */
+.table {
+  color: var(--bb-text-primary) !important;
+  --bs-table-bg: transparent;
+  --bs-table-border-color: var(--bb-border);
+}
+
+.table > thead {
+  border-bottom: 2px solid var(--bb-border);
+}
+
+.table > thead th {
+  color: var(--bb-text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  padding: 0.75rem;
+}
+
+.table > tbody > tr {
+  border-bottom: 1px solid var(--bb-border);
+  transition: background-color var(--bb-transition-fast);
+}
+
+.table > tbody > tr:hover {
+  background-color: var(--bb-card) !important;
+}
+
+.table > tbody td {
+  padding: 0.875rem 0.75rem;
+  vertical-align: middle;
+}
+
+.table-striped > tbody > tr:nth-of-type(odd) {
+  background-color: rgba(28, 28, 30, 0.5) !important;
+}
+
+/* ============================================
+   NAVIGATION TABS
+   ============================================ */
+.nav-tabs {
+  border-bottom: 1px solid var(--bb-border) !important;
+  gap: 0.25rem;
+}
+
+.nav-tabs .nav-link {
+  color: var(--bb-text-secondary) !important;
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  padding: 0.75rem 1rem;
+  font-weight: 500;
+  transition: color var(--bb-transition), border-color var(--bb-transition);
+  background-color: transparent !important;
+  border-radius: 0 !important;
+}
+
+.nav-tabs .nav-link:hover {
+  color: var(--bb-text-primary) !important;
+  border-bottom-color: var(--bb-text-muted) !important;
+}
+
+.nav-tabs .nav-link.active {
+  color: var(--bb-primary) !important;
+  border-bottom-color: var(--bb-primary) !important;
+  background-color: transparent !important;
+}
+
+/* Pills */
+.nav-pills .nav-link {
+  color: var(--bb-text-secondary) !important;
+  border-radius: var(--bb-radius) !important;
+  padding: 0.5rem 1rem;
+}
+
+.nav-pills .nav-link:hover {
+  background-color: var(--bb-card) !important;
+  color: var(--bb-text-primary) !important;
+}
+
+.nav-pills .nav-link.active {
+  background-color: var(--bb-primary) !important;
+  color: white !important;
+}
+
+/* ============================================
+   DROPDOWNS
+   ============================================ */
+.dropdown-menu {
+  background-color: var(--bb-card) !important;
+  border: 1px solid var(--bb-border) !important;
+  border-radius: var(--bb-radius) !important;
+  box-shadow: var(--bb-shadow-lg);
+  padding: 0.5rem;
+}
+
+.dropdown-item {
+  color: var(--bb-text-primary) !important;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--bb-radius-sm);
+  transition: background-color var(--bb-transition-fast);
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+  background-color: var(--bb-card-elevated) !important;
+  color: var(--bb-primary) !important;
+}
+
+.dropdown-item.active,
+.dropdown-item:active {
+  background-color: var(--bb-primary) !important;
+  color: white !important;
+}
+
+.dropdown-divider {
+  border-color: var(--bb-border) !important;
+  margin: 0.5rem 0;
+}
+
+.dropdown-header {
+  color: var(--bb-text-muted) !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ============================================
+   MODALS
+   ============================================ */
+.modal-content {
+  background-color: var(--bb-card) !important;
+  border: 1px solid var(--bb-border) !important;
+  border-radius: var(--bb-radius-lg) !important;
+  box-shadow: var(--bb-shadow-lg);
+}
+
+.modal-header {
+  border-bottom: 1px solid var(--bb-border) !important;
+  padding: 1.25rem;
+}
+
+.modal-title {
+  color: var(--bb-text-primary);
+  font-weight: 600;
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+.modal-footer {
+  border-top: 1px solid var(--bb-border) !important;
+  padding: 1rem 1.25rem;
+}
+
+.modal-backdrop {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* ============================================
+   LIST GROUPS
+   ============================================ */
+.list-group {
+  border-radius: var(--bb-radius) !important;
+}
+
+.list-group-item {
+  background-color: var(--bb-card) !important;
+  border-color: var(--bb-border) !important;
+  color: var(--bb-text-primary) !important;
+  padding: 0.875rem 1rem;
+  transition: background-color var(--bb-transition-fast);
+}
+
+.list-group-item:hover {
+  background-color: var(--bb-card-elevated) !important;
+}
+
+.list-group-item.active {
+  background-color: var(--bb-primary) !important;
+  border-color: var(--bb-primary) !important;
+}
+
+.list-group-item-action:focus {
+  background-color: var(--bb-card-elevated) !important;
+}
+
+/* ============================================
+   BADGES
+   ============================================ */
+.badge {
+  font-weight: 500;
+  padding: 0.35em 0.65em;
+  border-radius: var(--bb-radius-sm);
+}
+
+.bg-primary {
+  background-color: var(--bb-primary) !important;
+}
+
+.bg-success {
+  background-color: var(--bb-success) !important;
+}
+
+.bg-danger {
+  background-color: var(--bb-destructive) !important;
+}
+
+.bg-warning {
+  background-color: var(--bb-warning) !important;
+  color: #000 !important;
+}
+
+.bg-info {
+  background-color: var(--bb-info) !important;
+}
+
+.bg-secondary {
+  background-color: var(--bb-card-elevated) !important;
+}
+
+/* ============================================
+   PROGRESS BARS
+   ============================================ */
+.progress {
+  background-color: rgba(255, 107, 53, 0.2) !important;
+  border-radius: var(--bb-radius) !important;
+  height: 0.5rem;
+  overflow: hidden;
+}
+
+.progress-bar {
+  background-color: var(--bb-primary) !important;
+  transition: width 0.3s ease;
+}
+
+/* ============================================
+   ACCORDIONS
+   ============================================ */
+.accordion-item {
+  background-color: var(--bb-card) !important;
+  border-color: var(--bb-border) !important;
+}
+
+.accordion-button {
+  background-color: var(--bb-card) !important;
+  color: var(--bb-text-primary) !important;
+  font-weight: 500;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: var(--bb-card-elevated) !important;
+  color: var(--bb-primary) !important;
+}
+
+.accordion-button:focus {
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
+  border-color: var(--bb-primary) !important;
+}
+
+.accordion-button::after {
+  filter: invert(1);
+}
+
+.accordion-body {
+  background-color: var(--bb-card) !important;
+}
+
+/* ============================================
+   BREADCRUMBS
+   ============================================ */
+.breadcrumb {
+  background-color: transparent;
+}
+
+.breadcrumb-item a {
+  color: var(--bb-primary);
+}
+
+.breadcrumb-item.active {
+  color: var(--bb-text-secondary);
+}
+
+.breadcrumb-item + .breadcrumb-item::before {
+  color: var(--bb-text-muted);
+}
+
+/* ============================================
+   PAGINATION
+   ============================================ */
+.page-link {
+  background-color: var(--bb-card) !important;
+  border-color: var(--bb-border) !important;
+  color: var(--bb-text-primary) !important;
+}
+
+.page-link:hover {
+  background-color: var(--bb-card-elevated) !important;
+  color: var(--bb-primary) !important;
+}
+
+.page-item.active .page-link {
+  background-color: var(--bb-primary) !important;
+  border-color: var(--bb-primary) !important;
+}
+
+.page-item.disabled .page-link {
+  background-color: var(--bb-card) !important;
+  color: var(--bb-text-muted) !important;
+}
+
+/* ============================================
+   TOOLTIPS
+   ============================================ */
+.tooltip-inner {
+  background-color: var(--bb-card-elevated) !important;
+  color: var(--bb-text-primary) !important;
+  border-radius: var(--bb-radius-sm);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  box-shadow: var(--bb-shadow);
+}
+
+.bs-tooltip-top .tooltip-arrow::before,
+.bs-tooltip-auto[data-popper-placement^="top"] .tooltip-arrow::before {
+  border-top-color: var(--bb-card-elevated) !important;
+}
+
+.bs-tooltip-bottom .tooltip-arrow::before,
+.bs-tooltip-auto[data-popper-placement^="bottom"] .tooltip-arrow::before {
+  border-bottom-color: var(--bb-card-elevated) !important;
+}
+
+/* ============================================
+   POPOVERS
+   ============================================ */
+.popover {
+  background-color: var(--bb-card) !important;
+  border-color: var(--bb-border) !important;
+  border-radius: var(--bb-radius) !important;
+  box-shadow: var(--bb-shadow-lg);
+}
+
+.popover-header {
+  background-color: var(--bb-card-elevated) !important;
+  border-bottom-color: var(--bb-border) !important;
+  color: var(--bb-text-primary);
+}
+
+.popover-body {
+  color: var(--bb-text-secondary);
+}
+
+/* ============================================
+   SPINNERS
+   ============================================ */
+.spinner-border {
+  border-color: var(--bb-primary);
+  border-right-color: transparent;
+}
+
+.spinner-grow {
+  background-color: var(--bb-primary);
+}
+
+/* ============================================
+   CONFIG PAGE SPECIFIC
+   ============================================ */
+.config-page {
+  background-color: var(--bb-card) !important;
+  border: 1px solid var(--bb-border) !important;
+  border-top: none !important;
+  border-radius: 0 0 var(--bb-radius) var(--bb-radius) !important;
+  padding: 1.5rem !important;
+}
+
+/* ============================================
+   APPS PAGE SPECIFIC
+   ============================================ */
+.env-table {
+  border-color: var(--bb-border) !important;
+}
+
+/* App cover images */
+.app-cover {
+  border-radius: var(--bb-radius);
+  transition: transform var(--bb-transition), box-shadow var(--bb-transition);
+}
+
+.app-cover:hover {
+  transform: scale(1.02);
+  box-shadow: var(--bb-shadow-glow);
+}
+
+/* ============================================
+   CUSTOM SCROLLBAR
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bb-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bb-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bb-card-elevated);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bb-border) var(--bb-background);
+}
+
+/* ============================================
+   SELECTION
+   ============================================ */
+::selection {
+  background-color: rgba(255, 107, 53, 0.3);
+  color: var(--bb-text-primary);
+}
+
+/* ============================================
+   PREMIUM UTILITY CLASSES
+   ============================================ */
+.glass-effect {
+  background: rgba(28, 28, 30, 0.8) !important;
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.glow-primary {
+  transition: box-shadow var(--bb-transition);
+}
+
+.glow-primary:hover {
+  box-shadow: var(--bb-shadow-glow);
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--bb-primary) 0%, var(--bb-accent) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ============================================
+   RESPONSIVE ADJUSTMENTS
+   ============================================ */
+@media (max-width: 768px) {
+  .card-body {
+    padding: 1rem;
+  }
+
+  .modal-content {
+    border-radius: var(--bb-radius) !important;
+  }
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 107, 53, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(255, 107, 53, 0.5);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
