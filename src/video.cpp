@@ -2144,10 +2144,6 @@ namespace video {
 
     encode_session.ctx = &ctx;
 
-    // Update display dimensions from actual captured image to ensure encoder uses correct size
-    disp->width = img.width;
-    disp->height = img.height;
-
     auto encode_device = make_encode_device(*disp, encoder, ctx.config);
     if (!encode_device) {
       return std::nullopt;
@@ -2167,7 +2163,7 @@ namespace video {
     }
     ctx.hdr_events->raise(std::move(hdr_info));
 
-    auto session = make_encode_session(disp, encoder, ctx.config, ctx.config.width, ctx.config.height, std::move(encode_device));
+    auto session = make_encode_session(disp, encoder, ctx.config, img.width, img.height, std::move(encode_device));
     if (!session) {
       return std::nullopt;
     }

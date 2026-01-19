@@ -71,8 +71,8 @@ namespace vk {
         vkGetMemoryFdKHR_fn = (PFN_vkGetMemoryFdKHR)vkGetDeviceProcAddr(vk_dev, "vkGetMemoryFdKHR");
       }
 
-      // Create sws for RGB->NV12 conversion
-      auto sws_opt = egl::sws_t::make(frame->width, frame->height, frame->width, frame->height, frames_ctx->sw_format);
+      // Create sws for RGB->NV12 conversion with scaling from capture to encode resolution
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, frames_ctx->sw_format);
       if (!sws_opt) return -1;
       sws = std::move(*sws_opt);
 
