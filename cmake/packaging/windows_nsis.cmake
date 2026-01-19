@@ -15,8 +15,18 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" add'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-        nsExec::ExecToLog \
-          'powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"$INSTDIR\\\\scripts\\\\install-gamepad.ps1\\\"'
+        IfFileExists \\\"$INSTDIR\\\\scripts\\\\install-gamepad.ps1\\\" 0 NoGamepad
+        MessageBox MB_YESNO|MB_ICONQUESTION \
+            'Do you want to install Virtual Gamepad?$\\r$\\n\
+This is required for gamepad input from Moonlight.$\\r$\\n$\\r$\\n\
+Note: See considerations at$\\r$\\n\
+https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#considerations' \
+            /SD IDNO IDNO NoGamepad
+            nsExec::ExecToLog \
+              'powershell.exe -NoProfile -ExecutionPolicy Bypass -File \
+                \\\"$INSTDIR\\\\scripts\\\\install-gamepad.ps1\\\"'; \
+              skipped if no
+        NoGamepad:
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
         NoController:
@@ -29,6 +39,7 @@ set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
         nsExec::ExecToLog '\\\"$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe\\\" --restore-nvprefs-undo'
+        IfFileExists \\\"$INSTDIR\\\\scripts\\\\uninstall-gamepad.ps1\\\" 0 NoGamepad
         MessageBox MB_YESNO|MB_ICONQUESTION \
             'Do you want to remove Virtual Gamepad?' \
             /SD IDNO IDNO NoGamepad
