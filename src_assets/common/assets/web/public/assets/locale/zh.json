@@ -376,7 +376,11 @@
     "wan_encryption_mode": "公网加密模式",
     "wan_encryption_mode_1": "为支持的客户端启用（默认）",
     "wan_encryption_mode_2": "强制所有客户端使用",
-    "wan_encryption_mode_desc": "这决定了在公网串流时是否加密。加密会降低串流性能，尤其是在性能较弱的主机和客户端上。"
+    "wan_encryption_mode_desc": "这决定了在公网串流时是否加密。加密会降低串流性能，尤其是在性能较弱的主机和客户端上。",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine 是供 Moonlight 使用的自建游戏串流服务。",

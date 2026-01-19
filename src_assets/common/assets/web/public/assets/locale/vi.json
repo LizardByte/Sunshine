@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Chế độ mã hóa WAN",
     "wan_encryption_mode_1": "Được kích hoạt cho các khách hàng được hỗ trợ (mặc định)",
     "wan_encryption_mode_2": "Yêu cầu đối với tất cả khách hàng",
-    "wan_encryption_mode_desc": "Điều này xác định thời điểm mã hóa sẽ được sử dụng khi truyền phát qua Internet. Mã hóa có thể làm giảm hiệu suất truyền phát, đặc biệt là trên các máy chủ và thiết bị khách có cấu hình yếu."
+    "wan_encryption_mode_desc": "Điều này xác định thời điểm mã hóa sẽ được sử dụng khi truyền phát qua Internet. Mã hóa có thể làm giảm hiệu suất truyền phát, đặc biệt là trên các máy chủ và thiết bị khách có cấu hình yếu.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine là một nền tảng phát trực tiếp game tự chủ cho Moonlight.",

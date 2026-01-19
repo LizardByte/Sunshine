@@ -376,7 +376,11 @@
     "wan_encryption_mode": "WAN titkosítási mód",
     "wan_encryption_mode_1": "Engedélyezve a támogatott kliensgépeken (alapértelmezett)",
     "wan_encryption_mode_2": "Minden kliensgép számára kötelező",
-    "wan_encryption_mode_desc": "Ez határozza meg, mikor használjunk titkosítást az interneten keresztüli streameléskor. A titkosítás csökkentheti a streamelés teljesítményét, különösen gyengébb gazdagépeken és klienseken."
+    "wan_encryption_mode_desc": "Ez határozza meg, mikor használjunk titkosítást az interneten keresztüli streameléskor. A titkosítás csökkentheti a streamelés teljesítményét, különösen gyengébb gazdagépeken és klienseken.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "A Sunshine saját üzemeltetésű játékstream-host a Moonlight-hoz.",

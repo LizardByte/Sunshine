@@ -376,7 +376,11 @@
     "wan_encryption_mode": "WAN-Verschlüsselungsmodus",
     "wan_encryption_mode_1": "Aktiviert für unterstützte Clients (Standard)",
     "wan_encryption_mode_2": "Benötigt für alle Kunden",
-    "wan_encryption_mode_desc": "Dies legt fest, wann Verschlüsselung beim Streaming über das Internet verwendet wird. Verschlüsselung kann die Streaming-Leistung senken, insbesondere auf weniger leistungsfähigen Hosts und Clients."
+    "wan_encryption_mode_desc": "Dies legt fest, wann Verschlüsselung beim Streaming über das Internet verwendet wird. Verschlüsselung kann die Streaming-Leistung senken, insbesondere auf weniger leistungsfähigen Hosts und Clients.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine ist ein selbst gehosteter Game-Stream-Host für Moonlight.",

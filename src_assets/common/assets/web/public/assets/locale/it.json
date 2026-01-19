@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Modalità Crittografia WAN",
     "wan_encryption_mode_1": "Abilitato per i client supportati (predefinito)",
     "wan_encryption_mode_2": "Obbligatorio per tutti i client",
-    "wan_encryption_mode_desc": "Questo determina quando la crittografia sarà utilizzata durante lo streaming su Internet. La crittografia può ridurre le prestazioni di streaming, in particolare su host e client meno potenti."
+    "wan_encryption_mode_desc": "Questo determina quando la crittografia sarà utilizzata durante lo streaming su Internet. La crittografia può ridurre le prestazioni di streaming, in particolare su host e client meno potenti.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine è una piattaforma autonoma di game stream per Moonlight.",

@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Режим шифрования WAN",
     "wan_encryption_mode_1": "Включено для поддерживаемых клиентов (по умолчанию)",
     "wan_encryption_mode_2": "Требуется для всех клиентов",
-    "wan_encryption_mode_desc": "Определяет, когда будет использоваться шифрование при вещании через Интернет. Шифрование может снизить качество вещания, особенно на более слабых серверах и клиентах."
+    "wan_encryption_mode_desc": "Определяет, когда будет использоваться шифрование при вещании через Интернет. Шифрование может снизить качество вещания, особенно на более слабых серверах и клиентах.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine - это ваш собственный сервер вещания игр для Moonlight.",

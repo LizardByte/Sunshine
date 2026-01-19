@@ -376,7 +376,11 @@
     "wan_encryption_mode": "WAN 암호화 모드",
     "wan_encryption_mode_1": "지원되는 클라이언트에 사용(기본값)",
     "wan_encryption_mode_2": "모든 사용자에게 필수",
-    "wan_encryption_mode_desc": "인터넷을 통해 스트리밍할 때 암호화를 사용할 시기를 결정합니다. 암호화는 특히 성능이 낮은 호스트와 클라이언트에서 스트리밍 성능을 저하시킬 수 있습니다."
+    "wan_encryption_mode_desc": "인터넷을 통해 스트리밍할 때 암호화를 사용할 시기를 결정합니다. 암호화는 특히 성능이 낮은 호스트와 클라이언트에서 스트리밍 성능을 저하시킬 수 있습니다.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine은 Moonlight의 게임 스트리밍 프로그램입니다.",

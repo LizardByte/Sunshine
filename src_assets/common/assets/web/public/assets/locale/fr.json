@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Mode de chiffrement WAN",
     "wan_encryption_mode_1": "Activé pour les clients pris en charge (par défaut)",
     "wan_encryption_mode_2": "Obligatoire pour tous les clients",
-    "wan_encryption_mode_desc": "Ceci détermine quand le chiffrement sera utilisé lors du streaming par Internet. Le chiffrement peut réduire les performances de streaming, en particulier sur les hôtes et clients moins puissants."
+    "wan_encryption_mode_desc": "Ceci détermine quand le chiffrement sera utilisé lors du streaming par Internet. Le chiffrement peut réduire les performances de streaming, en particulier sur les hôtes et clients moins puissants.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine est un serveur de streaming auto-hébergé pour Moonlight.",

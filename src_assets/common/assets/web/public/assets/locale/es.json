@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Modo de cifrado WAN",
     "wan_encryption_mode_1": "Activado para clientes compatibles (por defecto)",
     "wan_encryption_mode_2": "Requerido para todos los clientes",
-    "wan_encryption_mode_desc": "Esto determina cuándo se utilizará el cifrado al transmitir a través de Internet. El cifrado puede reducir el rendimiento de la transmisión, especialmente en hosts y clientes menos poderosos."
+    "wan_encryption_mode_desc": "Esto determina cuándo se utilizará el cifrado al transmitir a través de Internet. El cifrado puede reducir el rendimiento de la transmisión, especialmente en hosts y clientes menos poderosos.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Sunshine es un servidor de transmisión de juego autoalojado para Moonlight.",

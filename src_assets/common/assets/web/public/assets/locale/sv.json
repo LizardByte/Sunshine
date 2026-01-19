@@ -376,7 +376,11 @@
     "wan_encryption_mode": "WAN krypteringsläge",
     "wan_encryption_mode_1": "Aktiverad för stödda klienter (standard)",
     "wan_encryption_mode_2": "Krävs för alla kunder",
-    "wan_encryption_mode_desc": "Detta avgör när kryptering kommer att användas vid strömning över Internet. Kryptering kan minska strömningsprestanda, särskilt på mindre kraftfulla värdar och klienter."
+    "wan_encryption_mode_desc": "Detta avgör när kryptering kommer att användas vid strömning över Internet. Kryptering kan minska strömningsprestanda, särskilt på mindre kraftfulla värdar och klienter.",
+    "vk_tune": "Tuning",
+    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
+    "vk_rc_mode": "Rate Control",
+    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
   },
   "index": {
     "description": "Solsken är en själv-värd spel ström värd för Moonlight.",

@@ -376,7 +376,11 @@
     "wan_encryption_mode": "Tryb szyfrowania WAN",
     "wan_encryption_mode_1": "Włączone dla obsługiwanych klientów (domyślnie)",
     "wan_encryption_mode_2": "Wymagane dla wszystkich klientów",
-    "wan_encryption_mode_desc": "Określa, kiedy szyfrowanie będzie używane podczas przesyłania strumieniowego przez Internet. Szyfrowanie może zmniejszyć wydajność przesyłania strumieniowego, szczególnie na mniej wydajnych hostach i klientach."
+    "wan_encryption_mode_desc": "Określa, kiedy szyfrowanie będzie używane podczas przesyłania strumieniowego przez Internet. Szyfrowanie może zmniejszyć wydajność przesyłania strumieniowego, szczególnie na mniej wydajnych hostach i klientach.",
+    "vk_tune": "Dostrajanie",
+    "vk_tune_desc": "Tryby niskiego opóźnienia zmniejszają opóźnienie kodowania kosztem jakości.",
+    "vk_rc_mode": "Kontrola przepływności",
+    "vk_rc_mode_desc": "Tryb kontroli przepływności kodowania. Auto pozwala sterownikowi zdecydować."
   },
   "index": {
     "description": "Sunshine jest samodzielnym hostem strumienia gry dla Moonlight.",
