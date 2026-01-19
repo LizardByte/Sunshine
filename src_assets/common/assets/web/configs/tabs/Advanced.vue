@@ -67,6 +67,7 @@ const config = ref(props.config)
           <template #freebsd>
             <option value="wlr">wlroots</option>
             <option value="x11">X11</option>
+            <option value="portal">XDG Portal</option>
           </template>
           <template #linux>
             <option value="nvfbc">NvFBC</option>
