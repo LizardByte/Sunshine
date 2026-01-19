@@ -157,6 +157,7 @@ dependencies=()
 
 function add_arch_deps() {
   dependencies+=(
+    'appstream-glib'
     'avahi'
     'base-devel'
     'cmake'

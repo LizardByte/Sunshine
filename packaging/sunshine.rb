@@ -1,6 +1,8 @@
 require "language/node"
 
 class Sunshine < Formula
+  CUDA_VERSION = "13.1".freeze
+  CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
   GCC_VERSION = "14".freeze
   GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
   IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
@@ -33,13 +35,12 @@ class Sunshine < Formula
     sha256 x86_64_linux:  "0000000000000000000000000000000000000000000000000000000000000000"
   end
 
-  option "with-docs", "Enable docs"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
 
   depends_on "cmake" => :build
-  depends_on "doxygen" => :build
-  depends_on "graphviz" => :build
+  depends_on "doxygen" => [:build, :recommended]
+  depends_on "graphviz" => :build if build.with? "doxygen"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
   depends_on "gcovr" => :test
@@ -56,6 +57,7 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
+    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => [:build, :recommended]
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "ayatana-ido"
@@ -103,19 +105,23 @@ class Sunshine < Formula
     cause "Requires C++23 support"
   end
 
-  def install
+  def setup_build_environment
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
 
-    if OS.linux?
-      # Use GCC because gcov from llvm cannot handle our paths
-      gcc_path = Formula[GCC_FORMULA]
-      ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
-      ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
-    end
+    setup_linux_gcc_environment if OS.linux?
+  end
 
-    args = %W[
+  def setup_linux_gcc_environment
+    # Use GCC because gcov from llvm cannot handle our paths
+    gcc_path = Formula[GCC_FORMULA]
+    ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+    ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
+  end
+
+  def base_cmake_args
+    %W[
       -DBUILD_WERROR=ON
       -DCMAKE_CXX_STANDARD=23
       -DCMAKE_INSTALL_PREFIX=#{prefix}
@@ -127,7 +133,9 @@ class Sunshine < Formula
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+  end
 
+  def add_test_args(args)
     if IS_UPSTREAM_REPO
       args << "-DBUILD_TESTS=ON"
       ohai "Building tests: enabled"
@@ -135,50 +143,97 @@ class Sunshine < Formula
       args << "-DBUILD_TESTS=OFF"
       ohai "Building tests: disabled"
     end
+  end
 
-    if build.with? "docs"
+  def add_docs_args(args)
+    if build.with? "doxygen"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
     else
       ohai "Building docs: disabled"
       args << "-DBUILD_DOCS=OFF"
     end
+  end
 
+  def add_boost_args(args)
     if build.without? "static-boost"
       args << "-DBOOST_USE_STATIC=OFF"
       ohai "Disabled statically linking Boost libraries"
     else
-      args << "-DBOOST_USE_STATIC=ON"
-      ohai "Enabled statically linking Boost libraries"
-
-      unless Formula["icu4c"].any_version_installed?
-        odie <<~EOS
-          icu4c must be installed to link against static Boost libraries,
-          either install icu4c or use brew install sunshine --with-static-boost instead
-        EOS
-      end
-      ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-      icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
-      ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
-      ENV["LIBRARY_PATH"] = icu4c_lib_path
-      ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
+      configure_static_boost(args)
     end
+  end
 
-    args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
+  def configure_static_boost(args)
+    args << "-DBOOST_USE_STATIC=ON"
+    ohai "Enabled statically linking Boost libraries"
 
+    unless Formula["icu4c"].any_version_installed?
+      odie <<~EOS
+        icu4c must be installed to link against static Boost libraries,
+        either install icu4c or use brew install sunshine --with-static-boost instead
+      EOS
+    end
+    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
+    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
+    ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
+    ENV["LIBRARY_PATH"] = icu4c_lib_path
+    ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
+  end
+
+  def add_cuda_args(args)
+    return unless OS.linux?
+
+    if build.with?(CUDA_FORMULA)
+      configure_cuda(args)
+    else
+      args << "-DSUNSHINE_ENABLE_CUDA=OFF"
+      ohai "CUDA disabled"
+    end
+  end
+
+  def configure_cuda(args)
+    cuda_path = Formula["lizardbyte/homebrew/#{CUDA_FORMULA}"]
+    nvcc_path = "#{cuda_path.opt_bin}/nvcc"
+    gcc_path = Formula[GCC_FORMULA]
+
+    args << "-DSUNSHINE_ENABLE_CUDA=ON"
+    args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+    args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+    ohai "CUDA enabled with nvcc at: #{nvcc_path}"
+  end
+
+  def build_cmake_args
+    args = base_cmake_args
+    add_test_args(args)
+    add_docs_args(args)
+    add_boost_args(args)
+    add_cuda_args(args)
+    args
+  end
+
+  def build_and_install_project
     system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
             *std_cmake_args,
-            *args
+            *build_cmake_args
 
     system "make", "-C", "build"
     system "make", "-C", "build", "install"
+  end
 
+  def install_platform_specific_files
     bin.install "build/tests/test_sunshine" if IS_UPSTREAM_REPO
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
 
     bin.install "src_assets/linux/misc/postinst" if OS.linux?
+  end
+
+  def install
+    setup_build_environment
+    build_and_install_project
+    install_platform_specific_files
   end
 
   service do

@@ -50,8 +50,19 @@ pkg install -y \
 #### Linux
 Dependencies vary depending on the distribution. You can reference our
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh) script for a list of
-dependencies we use in Debian-based and Fedora-based distributions. Please submit a PR if you would like to extend the
+dependencies we use in Debian-based, Fedora-based and Arch-based distributions. Please submit a PR if you would like to extend the
 script to support other distributions.
+
+##### KMS Capture
+If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this. If building
+from source and using the binary directly, this will also work:
+
+```bash
+sudo cp build/sunshine /tmp
+sudo setcap cap_sys_admin+p /tmp/sunshine
+sudo getcap /tmp/sunshine
+sudo mv /tmp/sunshine build/sunshine
+```
 
 ##### CUDA Toolkit
 Sunshine requires CUDA Toolkit for NVFBC capture. There are two caveats to CUDA:
