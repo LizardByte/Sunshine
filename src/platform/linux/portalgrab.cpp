@@ -454,11 +454,10 @@ namespace portal {
         return -1;
       }
 
-      // Preserve restore token for multiple runs (e.g. probing)
-      if (restore_token_t::empty()) {
-        const gchar *token = nullptr;
-        if (g_variant_lookup(dict, "restore_token", "s", &token) && token) {
-          restore_token_t::set(token);
+      const gchar *new_token = nullptr;
+      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && strlen(new_token) > 0) {
+        if (restore_token_t::get() != new_token) {
+          restore_token_t::set(new_token);
           restore_token_t::save();
         }
       }
@@ -553,9 +552,7 @@ namespace portal {
    */
   class session_cache_t {
   public:
-    static session_cache_t &instance() {
-      return *instance_;
-    }
+    static session_cache_t &instance();
 
     /**
      * @brief Get or create a portal session.
@@ -635,7 +632,6 @@ namespace portal {
     session_cache_t(const session_cache_t &) = delete;
     session_cache_t &operator=(const session_cache_t &) = delete;
 
-    inline static const std::shared_ptr<session_cache_t> instance_ = std::shared_ptr<session_cache_t>(new session_cache_t());
     std::mutex mutex_;
     std::unique_ptr<dbus_t> dbus_;
     int pipewire_fd_ = -1;
@@ -644,6 +640,12 @@ namespace portal {
     int height_ = 0;
     bool valid_ = false;
   };
+
+  session_cache_t &session_cache_t::instance() {
+    alignas(session_cache_t) static std::byte storage[sizeof(session_cache_t)];
+    static session_cache_t *instance_ = new (storage) session_cache_t();
+    return *instance_;
+  }
 
   class pipewire_t {
   public:
