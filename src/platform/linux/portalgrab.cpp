@@ -622,6 +622,7 @@ namespace portal {
 
   private:
     session_cache_t() = default;
+
     ~session_cache_t() {
       if (pipewire_fd_ >= 0) {
         close(pipewire_fd_);
@@ -703,7 +704,7 @@ namespace portal {
         // On hybrid GPU systems (Intel+NVIDIA), DMA-BUFs come from the Intel GPU and cannot
         // be imported into CUDA, so we fall back to memory buffers in that case.
         bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
-                          (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
+                                                 (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
             params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
@@ -712,7 +713,9 @@ namespace portal {
 
         // Add fallback for memptr
         for (const auto &fmt : format_map) {
-          if (fmt.fourcc == 0) break;
+          if (fmt.fourcc == 0) {
+            break;
+          }
           params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
         }
 
@@ -859,7 +862,9 @@ namespace portal {
 
       uint64_t drm_format = 0;
       for (const auto &fmt : format_map) {
-        if (fmt.fourcc == 0) break;
+        if (fmt.fourcc == 0) {
+          break;
+        }
         if (fmt.pw_format == d->format.info.raw.format) {
           drm_format = fmt.fourcc;
         }
@@ -1028,7 +1033,9 @@ namespace portal {
   private:
     static uint32_t lookup_pw_format(uint64_t fourcc) {
       for (const auto &fmt : format_map) {
-        if (fmt.fourcc == 0) break;
+        if (fmt.fourcc == 0) {
+          break;
+        }
         if (fmt.fourcc == fourcc) {
           return fmt.pw_format;
         }
