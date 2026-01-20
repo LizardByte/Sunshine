@@ -3,8 +3,13 @@
  * @brief Definitions for XDG portal grab.
  */
 // standard includes
+#include <array>
 #include <fcntl.h>
+#include <fstream>
+#include <memory>
+#include <mutex>
 #include <string.h>
+#include <string_view>
 #include <thread>
 
 // lib includes
@@ -48,16 +53,64 @@
 using namespace std::literals;
 
 namespace portal {
-  static char *restore_token;
+  // Forward declarations
+  class session_cache_t;
+
+  class restore_token_t {
+  public:
+    static std::string get() {
+      return *token_;
+    }
+
+    static void set(std::string_view value) {
+      *token_ = value;
+    }
+
+    static bool empty() {
+      return token_->empty();
+    }
+
+    static void load() {
+      std::ifstream file(get_file_path());
+      if (file.is_open()) {
+        std::getline(file, *token_);
+        if (!token_->empty()) {
+          BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
+        }
+      }
+    }
+
+    static void save() {
+      if (token_->empty()) {
+        return;
+      }
+      std::ofstream file(get_file_path());
+      if (file.is_open()) {
+        file << *token_;
+        BOOST_LOG(info) << "Saved portal restore token to disk"sv;
+      } else {
+        BOOST_LOG(warning) << "Failed to save portal restore token"sv;
+      }
+    }
+
+  private:
+    static inline const std::unique_ptr<std::string> token_ = std::make_unique<std::string>();
+
+    static std::string get_file_path() {
+      return platf::appdata().string() + "/portal_token";
+    }
+  };
 
   struct format_map_t {
     uint64_t fourcc;
     int32_t pw_format;
-  } format_map[] = {
+  };
+
+  static constexpr std::array<format_map_t, 3> format_map = {{
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
     {0, 0},
-  };
+  }};
 
   struct dbus_response_t {
     GMainLoop *loop;
@@ -82,21 +135,29 @@ namespace portal {
   class dbus_t {
   public:
     ~dbus_t() {
-      g_object_unref(screencast_proxy);
-      g_object_unref(remote_desktop_proxy);
-      g_object_unref(conn);
+      if (screencast_proxy) {
+        g_object_unref(screencast_proxy);
+      }
+      if (remote_desktop_proxy) {
+        g_object_unref(remote_desktop_proxy);
+      }
+      if (conn) {
+        g_object_unref(conn);
+      }
     }
 
     int init() {
-      conn = g_bus_get_sync(G_BUS_TYPE_SESSION, NULL, NULL);
+      restore_token_t::load();
+
+      conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
       if (!conn) {
         return -1;
       }
-      remote_desktop_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, NULL, PORTAL_NAME, PORTAL_PATH, REMOTE_DESKTOP_IFACE, NULL, NULL);
+      remote_desktop_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, REMOTE_DESKTOP_IFACE, nullptr, nullptr);
       if (!remote_desktop_proxy) {
         return -1;
       }
-      screencast_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, NULL, PORTAL_NAME, PORTAL_PATH, SCREENCAST_IFACE, NULL, NULL);
+      screencast_proxy = g_dbus_proxy_new_sync(conn, G_DBUS_PROXY_FLAGS_NONE, nullptr, PORTAL_NAME, PORTAL_PATH, SCREENCAST_IFACE, nullptr, nullptr);
       if (!screencast_proxy) {
         return -1;
       }
@@ -105,26 +166,64 @@ namespace portal {
     }
 
     int connect_to_portal() {
-      g_autoptr(GMainLoop) loop = g_main_loop_new(NULL, FALSE);
-      g_autofree gchar *session_path = NULL, *session_token = NULL;
-      create_session_path(conn, &session_path, &session_token);
+      g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
+      g_autofree gchar *session_path = nullptr;
+      g_autofree gchar *session_token = nullptr;
+      create_session_path(conn, nullptr, &session_token);
 
-      if (create_session(loop, session_path, session_token) < 0) {
+      // Try combined RemoteDesktop + ScreenCast session first
+      bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
+
+      // Fall back to ScreenCast-only if RemoteDesktop failed
+      if (use_screencast_only && try_screencast_only_session(loop, &session_path) < 0) {
         return -1;
       }
-      if (select_remote_desktop_devices(loop, session_path) < 0) {
+
+      if (start_portal_session(loop, session_path, pipewire_node, width, height, use_screencast_only) < 0) {
         return -1;
       }
-      if (select_screencast_sources(loop, session_path) < 0) {
-        return -1;
-      }
-      if (start_session(loop, session_path, pipewire_node, width, height) < 0) {
-        return -1;
-      }
+
       if (open_pipewire_remote(session_path, pipewire_fd) < 0) {
         return -1;
       }
 
+      return 0;
+    }
+
+    // Try to create a combined RemoteDesktop + ScreenCast session
+    // Returns true on success, false if should fall back to ScreenCast-only
+    bool try_remote_desktop_session(GMainLoop *loop, gchar **session_path, const gchar *session_token) {
+      if (create_portal_session(loop, session_path, session_token, false) < 0) {
+        return false;
+      }
+
+      if (select_remote_desktop_devices(loop, *session_path) < 0) {
+        BOOST_LOG(warning) << "RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
+        g_free(*session_path);
+        *session_path = nullptr;
+        return false;
+      }
+
+      if (select_screencast_sources(loop, *session_path) < 0) {
+        BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
+        g_free(*session_path);
+        *session_path = nullptr;
+        return false;
+      }
+
+      return true;
+    }
+
+    // Create a ScreenCast-only session
+    int try_screencast_only_session(GMainLoop *loop, gchar **session_path) {
+      g_autofree gchar *new_session_token = nullptr;
+      create_session_path(conn, nullptr, &new_session_token);
+      if (create_portal_session(loop, session_path, new_session_token, true) < 0) {
+        return -1;
+      }
+      if (select_screencast_sources(loop, *session_path) < 0) {
+        return -1;
+      }
       return 0;
     }
 
@@ -138,13 +237,15 @@ namespace portal {
     GDBusProxy *screencast_proxy;
     GDBusProxy *remote_desktop_proxy;
 
-    int create_session(GMainLoop *loop, const gchar *session_path, const gchar *session_token) {
+    int create_portal_session(GMainLoop *loop, gchar **session_path_out, const gchar *session_token, bool use_screencast) {
+      GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
+      const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
+
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_path = NULL, *request_token = NULL;
-      create_request_path(conn, &request_path, &request_token);
-      dbus_response_init(&response, loop, conn, request_path);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(a{sv})"));
@@ -153,15 +254,50 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "session_handle_token", g_variant_new_string(session_token));
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
-        BOOST_LOG(error) << "Could not create session: "sv << err->message;
+        BOOST_LOG(error) << "Could not create "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
-      g_autoptr(GVariant) ignore = dbus_response_wait(&response);
+      const gchar *request_path = nullptr;
+      g_variant_get(reply, "(o)", &request_path);
+      dbus_response_init(&response, loop, conn, request_path);
+
+      g_autoptr(GVariant) create_response = dbus_response_wait(&response);
+
+      if (!create_response) {
+        BOOST_LOG(error) << session_type << " CreateSession: no response received"sv;
+        return -1;
+      }
+
+      guint32 response_code;
+      g_autoptr(GVariant) results = nullptr;
+      g_variant_get(create_response, "(u@a{sv})", &response_code, &results);
+
+      BOOST_LOG(debug) << session_type << " CreateSession response_code: "sv << response_code;
+
+      if (response_code != 0) {
+        BOOST_LOG(error) << session_type << " CreateSession failed with response code: "sv << response_code;
+        return -1;
+      }
+
+      g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", nullptr);
+      if (!session_handle_v) {
+        BOOST_LOG(error) << session_type << " CreateSession: session_handle not found in response"sv;
+        return -1;
+      }
+
+      if (g_variant_is_of_type(session_handle_v, G_VARIANT_TYPE_VARIANT)) {
+        g_autoptr(GVariant) inner = g_variant_get_variant(session_handle_v);
+        *session_path_out = g_strdup(g_variant_get_string(inner, nullptr));
+      } else {
+        *session_path_out = g_strdup(g_variant_get_string(session_handle_v, nullptr));
+      }
+
+      BOOST_LOG(debug) << session_type << " CreateSession: got session handle: "sv << *session_path_out;
       return 0;
     }
 
@@ -169,9 +305,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_path = NULL, *request_token = NULL;
-      create_request_path(conn, &request_path, &request_token);
-      dbus_response_init(&response, loop, conn, request_path);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -179,20 +314,39 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (restore_token) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token));
+      if (!restore_token_t::empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
       }
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
         BOOST_LOG(error) << "Could not select devices: "sv << err->message;
         return -1;
       }
 
-      g_autoptr(GVariant) ignore = dbus_response_wait(&response);
+      const gchar *request_path = nullptr;
+      g_variant_get(reply, "(o)", &request_path);
+      dbus_response_init(&response, loop, conn, request_path);
+
+      g_autoptr(GVariant) devices_response = dbus_response_wait(&response);
+
+      if (!devices_response) {
+        BOOST_LOG(error) << "SelectDevices: no response received"sv;
+        return -1;
+      }
+
+      guint32 response_code;
+      g_variant_get(devices_response, "(u@a{sv})", &response_code, nullptr);
+      BOOST_LOG(debug) << "SelectDevices response_code: "sv << response_code;
+
+      if (response_code != 0) {
+        BOOST_LOG(error) << "SelectDevices failed with response code: "sv << response_code;
+        return -1;
+      }
+
       return 0;
     }
 
@@ -200,9 +354,8 @@ namespace portal {
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_path = NULL, *request_token = NULL;
-      create_request_path(conn, &request_path, &request_token);
-      dbus_response_init(&response, loop, conn, request_path);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(oa{sv})"));
@@ -211,58 +364,109 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
-      g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_FORGET));
+      g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
+      if (!restore_token_t::empty()) {
+        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
+      }
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "Could not select sources: "sv << err->message;
         return -1;
       }
 
-      g_autoptr(GVariant) ignore = dbus_response_wait(&response);
+      const gchar *request_path = nullptr;
+      g_variant_get(reply, "(o)", &request_path);
+      dbus_response_init(&response, loop, conn, request_path);
+
+      g_autoptr(GVariant) sources_response = dbus_response_wait(&response);
+
+      if (!sources_response) {
+        BOOST_LOG(error) << "SelectSources: no response received"sv;
+        return -1;
+      }
+
+      guint32 response_code;
+      g_variant_get(sources_response, "(u@a{sv})", &response_code, nullptr);
+      BOOST_LOG(debug) << "SelectSources response_code: "sv << response_code;
+
+      if (response_code != 0) {
+        BOOST_LOG(error) << "SelectSources failed with response code: "sv << response_code;
+        return -1;
+      }
+
       return 0;
     }
 
-    int start_session(GMainLoop *loop, const gchar *session_path, int &pipewire_node, int &width, int &height) {
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, int &out_pipewire_node, int &out_width, int &out_height, bool use_screencast) {
+      GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
+      const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
+
       dbus_response_t response = {
         0,
       };
-      g_autofree gchar *request_path = NULL, *request_token = NULL;
-      create_request_path(conn, &request_path, &request_token);
-      dbus_response_init(&response, loop, conn, request_path);
+      g_autofree gchar *request_token = nullptr;
+      create_request_path(conn, nullptr, &request_token);
 
       GVariantBuilder builder;
       g_variant_builder_init(&builder, G_VARIANT_TYPE("(osa{sv})"));
       g_variant_builder_add(&builder, "o", session_path);
-      g_variant_builder_add(&builder, "s", "");
+      g_variant_builder_add(&builder, "s", "");  // parent_window
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_close(&builder);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
-        BOOST_LOG(error) << "Could not start session: "sv << err->message;
+        BOOST_LOG(error) << "Could not start "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
+      const gchar *request_path = nullptr;
+      g_variant_get(reply, "(o)", &request_path);
+      dbus_response_init(&response, loop, conn, request_path);
+
       g_autoptr(GVariant) start_response = dbus_response_wait(&response);
 
-      g_autoptr(GVariant) dict = NULL, streams = NULL;
-      g_variant_get(start_response, "(u@a{sv})", NULL, &dict, NULL);
+      if (!start_response) {
+        BOOST_LOG(error) << session_type << " Start: no response received"sv;
+        return -1;
+      }
+
+      guint32 response_code;
+      g_autoptr(GVariant) dict = nullptr;
+      g_autoptr(GVariant) streams = nullptr;
+      g_variant_get(start_response, "(u@a{sv})", &response_code, &dict);
+
+      BOOST_LOG(debug) << session_type << " Start response_code: "sv << response_code;
+
+      if (response_code != 0) {
+        BOOST_LOG(error) << session_type << " Start failed with response code: "sv << response_code;
+        return -1;
+      }
+
       streams = g_variant_lookup_value(dict, "streams", G_VARIANT_TYPE("a(ua{sv})"));
-      // Preserve restore token for multiple runs (e.g. probing)
-      if (!restore_token) {
-        g_variant_lookup(dict, "restore_token", "s", &restore_token, NULL);
+      if (!streams) {
+        BOOST_LOG(error) << session_type << " Start: no streams in response"sv;
+        return -1;
+      }
+
+      const gchar *new_token = nullptr;
+      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && strlen(new_token) > 0) {
+        if (restore_token_t::get() != new_token) {
+          restore_token_t::set(new_token);
+          restore_token_t::save();
+        }
       }
 
       GVariantIter iter;
-      g_autoptr(GVariant) value = NULL;
+      g_autoptr(GVariant) value = nullptr;
       g_variant_iter_init(&iter, streams);
-      while (g_variant_iter_next(&iter, "(u@a{sv})", &pipewire_node, &value)) {
-        g_variant_lookup(value, "size", "(ii)", &width, &height, NULL);
+      while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
+        g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
       }
 
       return 0;
@@ -270,10 +474,10 @@ namespace portal {
 
     int open_pipewire_remote(const gchar *session_path, int &fd) {
       GUnixFDList *fd_list;
-      GVariant *msg = g_variant_new("(oa{sv})", session_path, NULL);
+      GVariant *msg = g_variant_new("(oa{sv})", session_path, nullptr);
 
-      g_autoptr(GError) err = NULL;
-      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, NULL, &fd_list, NULL, &err);
+      g_autoptr(GError) err = nullptr;
+      g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &fd_list, nullptr, &err);
       if (err) {
         BOOST_LOG(error) << "Could not open pipewire remote: "sv << err->message;
         return -1;
@@ -281,7 +485,7 @@ namespace portal {
 
       int fd_handle;
       g_variant_get(reply, "(h)", &fd_handle);
-      fd = g_unix_fd_list_get(fd_list, fd_handle, NULL);
+      fd = g_unix_fd_list_get(fd_list, fd_handle, nullptr);
       return 0;
     }
 
@@ -294,7 +498,7 @@ namespace portal {
     static gchar *get_sender_string(GDBusConnection *conn) {
       gchar *sender = g_strdup(g_dbus_connection_get_unique_name(conn) + 1);
       gchar *dot;
-      while ((dot = strstr(sender, ".")) != NULL) {
+      while ((dot = strstr(sender, ".")) != nullptr) {
         *dot = '_';
       }
       return sender;
@@ -331,7 +535,7 @@ namespace portal {
 
     static void dbus_response_init(struct dbus_response_t *response, GMainLoop *loop, GDBusConnection *conn, const char *request_path) {
       response->loop = loop;
-      g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, NULL, G_DBUS_SIGNAL_FLAGS_NO_MATCH_RULE, on_response_received_cb, response, NULL);
+      response->subscription_id = g_dbus_connection_signal_subscribe(conn, PORTAL_NAME, REQUEST_IFACE, "Response", request_path, nullptr, G_DBUS_SIGNAL_FLAGS_NONE, on_response_received_cb, response, nullptr);
     }
 
     static GVariant *dbus_response_wait(struct dbus_response_t *response) {
@@ -340,10 +544,114 @@ namespace portal {
     }
   };
 
+  /**
+   * @brief Singleton cache for portal session data.
+   *
+   * This prevents creating multiple portal sessions during encoder probing,
+   * which would show multiple screen recording indicators in the system tray.
+   */
+  class session_cache_t {
+  public:
+    static session_cache_t &instance();
+
+    /**
+     * @brief Get or create a portal session.
+     *
+     * If a cached session exists and is valid, returns the cached data.
+     * Otherwise, creates a new session and caches it.
+     *
+     * @return 0 on success, -1 on failure
+     */
+    int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height) {
+      std::scoped_lock lock(mutex_);
+
+      if (valid_) {
+        // Return cached session data
+        pipewire_fd = dup(pipewire_fd_);  // Duplicate FD for each caller
+        pipewire_node = pipewire_node_;
+        width = width_;
+        height = height_;
+        BOOST_LOG(debug) << "Reusing cached portal session"sv;
+        return 0;
+      }
+
+      // Create new session
+      dbus_ = std::make_unique<dbus_t>();
+      if (dbus_->init() < 0) {
+        return -1;
+      }
+      if (dbus_->connect_to_portal() < 0) {
+        dbus_.reset();
+        return -1;
+      }
+
+      // Cache the session data
+      pipewire_fd_ = dbus_->pipewire_fd;
+      pipewire_node_ = dbus_->pipewire_node;
+      width_ = dbus_->width;
+      height_ = dbus_->height;
+      valid_ = true;
+
+      // Return to caller (duplicate FD so each caller has their own)
+      pipewire_fd = dup(pipewire_fd_);
+      pipewire_node = pipewire_node_;
+      width = width_;
+      height = height_;
+
+      BOOST_LOG(debug) << "Created new portal session (cached)"sv;
+      return 0;
+    }
+
+    /**
+     * @brief Invalidate the cached session.
+     *
+     * Call this when the session becomes invalid (e.g., on error).
+     */
+    void invalidate() {
+      std::scoped_lock lock(mutex_);
+      if (valid_) {
+        BOOST_LOG(debug) << "Invalidating cached portal session"sv;
+        if (pipewire_fd_ >= 0) {
+          close(pipewire_fd_);
+          pipewire_fd_ = -1;
+        }
+        dbus_.reset();
+        valid_ = false;
+      }
+    }
+
+  private:
+    session_cache_t() = default;
+
+    ~session_cache_t() {
+      if (pipewire_fd_ >= 0) {
+        close(pipewire_fd_);
+      }
+    }
+
+    // Prevent copying
+    session_cache_t(const session_cache_t &) = delete;
+    session_cache_t &operator=(const session_cache_t &) = delete;
+
+    std::mutex mutex_;
+    std::unique_ptr<dbus_t> dbus_;
+    int pipewire_fd_ = -1;
+    int pipewire_node_ = 0;
+    int width_ = 0;
+    int height_ = 0;
+    bool valid_ = false;
+  };
+
+  session_cache_t &session_cache_t::instance() {
+    alignas(session_cache_t) static std::byte storage[sizeof(session_cache_t)];
+    static session_cache_t *instance_ = new (storage) session_cache_t();
+    return *instance_;
+  }
+
   class pipewire_t {
   public:
-    pipewire_t() {
-      loop = pw_thread_loop_new("Pipewire thread", NULL);
+    pipewire_t():
+        loop(pw_thread_loop_new("Pipewire thread", nullptr)) {
       pw_thread_loop_start(loop);
     }
 
@@ -370,17 +678,17 @@ namespace portal {
       fd = stream_fd;
       node = stream_node;
 
-      context = pw_context_new(pw_thread_loop_get_loop(loop), NULL, 0);
-      core = pw_context_connect_fd(context, dup(fd), NULL, 0);
-      pw_core_add_listener(core, &core_listener, &core_events, NULL);
+      context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
+      core = pw_context_connect_fd(context, dup(fd), nullptr, 0);
+      pw_core_add_listener(core, &core_listener, &core_events, nullptr);
     }
 
-    void ensure_stream(platf::mem_type_e mem_type, uint32_t width, uint32_t height, uint32_t refresh_rate, struct dmabuf_format_info_t *dmabuf_infos, int n_dmabuf_infos) {
+    void ensure_stream(platf::mem_type_e mem_type, uint32_t width, uint32_t height, uint32_t refresh_rate, struct dmabuf_format_info_t *dmabuf_infos, int n_dmabuf_infos, bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       if (!stream_data.stream) {
         struct pw_properties *props;
 
-        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", NULL);
+        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
 
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
@@ -392,15 +700,23 @@ namespace portal {
         const struct spa_pod *params[MAX_PARAMS];
 
         // Add preferred parameters for DMA-BUF with modifiers
-        if (n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi || mem_type == platf::mem_type_e::cuda)) {
+        // Use DMA-BUF for VAAPI, or for CUDA when the display GPU is NVIDIA (pure NVIDIA system).
+        // On hybrid GPU systems (Intel+NVIDIA), DMA-BUFs come from the Intel GPU and cannot
+        // be imported into CUDA, so we fall back to memory buffers in that case.
+        bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
+                                                 (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
+        if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
             params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
           }
         }
 
         // Add fallback for memptr
-        for (int i = 0; format_map[i].fourcc != 0; i++) {
-          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, format_map[i].pw_format, NULL, 0);
+        for (const auto &fmt : format_map) {
+          if (fmt.fourcc == 0) {
+            break;
+          }
+          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
         }
 
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params, n_params);
@@ -429,6 +745,7 @@ namespace portal {
             }
           } else {
             img->data = (std::uint8_t *) buf->datas[0].data;
+            img->row_pitch = buf->datas[0].chunk->stride;
           }
         }
       }
@@ -497,7 +814,7 @@ namespace portal {
 
     static void on_process(void *user_data) {
       struct stream_data_t *d = (struct stream_data_t *) user_data;
-      struct pw_buffer *b = NULL;
+      struct pw_buffer *b = nullptr;
 
       while (true) {
         struct pw_buffer *aux = pw_stream_dequeue_buffer(d->stream);
@@ -510,7 +827,7 @@ namespace portal {
         b = aux;
       }
 
-      if (b == NULL) {
+      if (b == nullptr) {
         BOOST_LOG(warning) << "out of pipewire buffers"sv;
         return;
       }
@@ -524,9 +841,9 @@ namespace portal {
     static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
       struct stream_data_t *d = (struct stream_data_t *) user_data;
 
-      d->current_buffer = NULL;
+      d->current_buffer = nullptr;
 
-      if (param == NULL || id != SPA_PARAM_Format) {
+      if (param == nullptr || id != SPA_PARAM_Format) {
         return;
       }
       if (spa_format_parse(param, &d->format.media_type, &d->format.media_subtype) < 0) {
@@ -544,15 +861,18 @@ namespace portal {
       BOOST_LOG(info) << "Framerate: "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
 
       uint64_t drm_format = 0;
-      for (int n = 0; format_map[n].fourcc != 0; n++) {
-        if (format_map[n].pw_format == d->format.info.raw.format) {
-          drm_format = format_map[n].fourcc;
+      for (const auto &fmt : format_map) {
+        if (fmt.fourcc == 0) {
+          break;
+        }
+        if (fmt.pw_format == d->format.info.raw.format) {
+          drm_format = fmt.fourcc;
         }
       }
       d->drm_format = drm_format;
 
       uint32_t buffer_types = 0;
-      if (spa_pod_find_prop(param, NULL, SPA_FORMAT_VIDEO_modifier) != NULL && d->drm_format) {
+      if (spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier) != nullptr && d->drm_format) {
         BOOST_LOG(info) << "using DMA-BUF buffers"sv;
         buffer_types |= 1 << SPA_DATA_DmaBuf;
       } else {
@@ -586,18 +906,17 @@ namespace portal {
       if (get_dmabuf_modifiers() < 0) {
         return -1;
       }
-      if (dbus.init() < 0) {
-        return -1;
-      }
-      if (dbus.connect_to_portal() < 0) {
+
+      // Use cached portal session to avoid creating multiple screen recordings
+      int pipewire_fd = -1;
+      int pipewire_node = 0;
+      if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, width, height) < 0) {
         return -1;
       }
 
-      width = dbus.width;
-      height = dbus.height;
       framerate = config.framerate;
 
-      pipewire.init(dbus.pipewire_fd, dbus.pipewire_node);
+      pipewire.init(pipewire_fd, pipewire_node);
 
       return 0;
     }
@@ -611,6 +930,13 @@ namespace portal {
       auto img_egl = (egl::img_descriptor_t *) img_out.get();
       img_egl->reset();
       pipewire.fill_img(img_egl);
+
+      // Check if we got valid data (either DMA-BUF fd or memory pointer)
+      if (img_egl->sd.fds[0] < 0 && img_egl->data == nullptr) {
+        // No buffer available yet from pipewire
+        return platf::capture_e::timeout;
+      }
+
       img_egl->sequence = ++sequence;
 
       return platf::capture_e::ok;
@@ -635,7 +961,7 @@ namespace portal {
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      pipewire.ensure_stream(mem_type, width, height, framerate, (struct dmabuf_format_info_t *) dmabuf_infos, n_dmabuf_infos);
+      pipewire.ensure_stream(mem_type, width, height, framerate, (struct dmabuf_format_info_t *) dmabuf_infos, n_dmabuf_infos, display_is_nvidia);
 
       while (true) {
         auto now = std::chrono::steady_clock::now();
@@ -680,9 +1006,12 @@ namespace portal {
 
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == platf::mem_type_e::cuda) {
-        if (n_dmabuf_infos > 0) {
+        if (display_is_nvidia && n_dmabuf_infos > 0) {
+          // Display GPU is NVIDIA - can use DMA-BUF directly
           return cuda::make_avcodec_gl_encode_device(width, height, 0, 0);
         } else {
+          // Hybrid system (Intel display + NVIDIA encode) - use memory buffer path
+          // DMA-BUFs from Intel GPU cannot be imported into CUDA
           return cuda::make_avcodec_encode_device(width, height, false);
         }
       }
@@ -702,6 +1031,50 @@ namespace portal {
     }
 
   private:
+    static uint32_t lookup_pw_format(uint64_t fourcc) {
+      for (const auto &fmt : format_map) {
+        if (fmt.fourcc == 0) {
+          break;
+        }
+        if (fmt.fourcc == fourcc) {
+          return fmt.pw_format;
+        }
+      }
+      return 0;
+    }
+
+    void query_dmabuf_formats(EGLDisplay egl_display) {
+      EGLint num_dmabuf_formats = 0;
+      std::array<EGLint, MAX_DMABUF_FORMATS> dmabuf_formats = {0};
+      eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
+
+      if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
+        BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
+      }
+
+      for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
+        uint32_t pw_format = lookup_pw_format(dmabuf_formats[i]);
+        if (pw_format == 0) {
+          continue;
+        }
+
+        EGLint num_modifiers = 0;
+        std::array<EGLuint64KHR, MAX_DMABUF_MODIFIERS> mods = {0};
+        EGLBoolean external_only;
+        eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods.data(), &external_only, &num_modifiers);
+
+        if (num_modifiers > MAX_DMABUF_MODIFIERS) {
+          BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
+        }
+
+        dmabuf_infos[n_dmabuf_infos].format = pw_format;
+        dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
+        dmabuf_infos[n_dmabuf_infos].modifiers =
+          (uint64_t *) g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
+        ++n_dmabuf_infos;
+      }
+    }
+
     int get_dmabuf_modifiers() {
       if (wl_display.init() < 0) {
         return -1;
@@ -712,45 +1085,39 @@ namespace portal {
         return -1;
       }
 
-      if (eglQueryDmaBufFormatsEXT && eglQueryDmaBufModifiersEXT) {
-        EGLint num_dmabuf_formats = 0;
-        EGLint dmabuf_formats[MAX_DMABUF_FORMATS] = {
-          0,
+      // Detect if this is a pure NVIDIA system (not hybrid Intel+NVIDIA)
+      // On hybrid systems, the wayland compositor typically runs on Intel,
+      // so DMA-BUFs from portal will come from Intel and cannot be imported into CUDA.
+      // Check if Intel GPU exists - if so, assume hybrid system and disable CUDA DMA-BUF.
+      bool has_intel_gpu = std::ifstream("/sys/class/drm/card0/device/vendor").good() ||
+                           std::ifstream("/sys/class/drm/card1/device/vendor").good();
+      if (has_intel_gpu) {
+        // Read vendor IDs to check for Intel (0x8086)
+        auto check_intel = [](const std::string &path) {
+          if (std::ifstream f(path); f.good()) {
+            std::string vendor;
+            f >> vendor;
+            return vendor == "0x8086";
+          }
+          return false;
         };
-        eglQueryDmaBufFormatsEXT(egl_display.get(), MAX_DMABUF_FORMATS, (EGLint *) &dmabuf_formats, &num_dmabuf_formats);
-        if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
-          BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
+        bool intel_present = check_intel("/sys/class/drm/card0/device/vendor") ||
+                             check_intel("/sys/class/drm/card1/device/vendor");
+        if (intel_present) {
+          BOOST_LOG(info) << "Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
+          display_is_nvidia = false;
+        } else {
+          // No Intel GPU found, check if NVIDIA is present
+          const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
+          if (vendor && std::string_view(vendor).contains("NVIDIA")) {
+            BOOST_LOG(info) << "Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
+            display_is_nvidia = true;
+          }
         }
+      }
 
-        EGLint i;
-        for (i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
-          uint32_t pw_format = 0;
-          for (int n = 0; format_map[n].fourcc != 0; n++) {
-            if (format_map[n].fourcc == dmabuf_formats[i]) {
-              pw_format = format_map[n].pw_format;
-            }
-          }
-
-          if (pw_format == 0) {
-            continue;
-          }
-
-          EGLint num_modifiers = 0;
-          EGLuint64KHR mods[MAX_DMABUF_MODIFIERS] = {
-            0,
-          };
-          EGLBoolean external_only;
-          eglQueryDmaBufModifiersEXT(egl_display.get(), dmabuf_formats[i], MAX_DMABUF_MODIFIERS, (EGLuint64KHR *) &mods, &external_only, &num_modifiers);
-          if (num_modifiers > MAX_DMABUF_MODIFIERS) {
-            BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
-          }
-
-          dmabuf_infos[n_dmabuf_infos].format = pw_format;
-          dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
-          dmabuf_infos[n_dmabuf_infos].modifiers =
-            (uint64_t *) g_memdup2(mods, sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
-          ++n_dmabuf_infos;
-        }
+      if (eglQueryDmaBufFormatsEXT && eglQueryDmaBufModifiersEXT) {
+        query_dmabuf_formats(egl_display.get());
       }
 
       return 0;
@@ -758,10 +1125,10 @@ namespace portal {
 
     platf::mem_type_e mem_type;
     wl::display_t wl_display;
-    dbus_t dbus;
     pipewire_t pipewire;
     struct dmabuf_format_info_t dmabuf_infos[MAX_DMABUF_FORMATS];
     int n_dmabuf_infos;
+    bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
     std::chrono::nanoseconds delay;
     std::uint64_t sequence {};
     uint32_t framerate;
@@ -791,7 +1158,7 @@ namespace platf {
       return {};
     }
 
-    pw_init(NULL, NULL);
+    pw_init(nullptr, nullptr);
 
     display_names.emplace_back("org.freedesktop.portal.Desktop");
     return display_names;
