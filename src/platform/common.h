@@ -270,6 +270,8 @@ namespace platf {
   struct touch_port_t {
     int offset_x, offset_y;
     int width, height;
+    int logical_width, logical_height;
+    int env_logical_width, env_logical_height;
   };
 
   // These values must match Limelight-internal.h's SS_FF_* constants!
@@ -535,8 +537,10 @@ namespace platf {
     // Offsets for when streaming a specific monitor. By default, they are 0.
     int offset_x, offset_y;
     int env_width, env_height;
+    int env_logical_width, env_logical_height;
 
     int width, height;
+    int logical_width, logical_height;
 
   protected:
     // collect capture timing data (at loglevel debug)

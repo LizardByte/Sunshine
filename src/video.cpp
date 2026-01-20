@@ -1991,7 +1991,11 @@ namespace video {
     float wt = config.width;
     float ht = config.height;
 
+    float lwd = display->logical_width;
+    float lhd = display->logical_height;
+
     auto scalar = std::fminf(wt / wd, ht / hd);
+    auto scalar_tpcoords = std::fminf(wd / lwd, hd / lhd);
 
     auto w2 = scalar * wd;
     auto h2 = scalar * hd;
@@ -2008,9 +2012,12 @@ namespace video {
       },
       display->env_width,
       display->env_height,
+      display->env_logical_width,
+      display->env_logical_height,
       offsetX,
       offsetY,
       1.0f / scalar,
+      scalar_tpcoords
     };
   }
 
