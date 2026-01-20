@@ -1060,6 +1060,7 @@ namespace stream {
     });
 
     // This thread handles latency-sensitive control messages
+    platf::set_thread_name("stream::controlBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
     // Check for both the full shutdown event and the shutdown event for this
@@ -1189,6 +1190,8 @@ namespace stream {
     std::array<char, 2048> buf[2];
     std::function<void(const boost::system::error_code, size_t)> recv_func[2];
 
+    platf::set_thread_name("stream::recv");
+
     auto populate_peer_to_session = [&]() {
       while (message_queue_queue->peek()) {
         auto message_queue_opt = message_queue_queue->pop();
@@ -1271,6 +1274,7 @@ namespace stream {
     auto video_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
+    platf::set_thread_name("stream::videoBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(debug, "Frame processing latency", "ms");
@@ -1610,6 +1614,7 @@ namespace stream {
     audio_packet.rtp.ssrc = 0;
 
     // Audio traffic is sent on this thread
+    platf::set_thread_name("stream::audioBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     while (auto packet = packets->pop()) {
@@ -1848,6 +1853,7 @@ namespace stream {
   }
 
   void videoThread(session_t *session) {
+    platf::set_thread_name("session::video");
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });
@@ -1869,6 +1875,7 @@ namespace stream {
   }
 
   void audioThread(session_t *session) {
+    platf::set_thread_name("session::audio");
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });

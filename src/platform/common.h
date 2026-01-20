@@ -613,6 +613,12 @@ namespace platf {
   };
   void adjust_thread_priority(thread_priority_e priority);
 
+  /**
+   * @brief Name the current thread for use with development tools.
+   * @note On Linux this will be truncated after 15 characters.
+   */
+  void set_thread_name(const std::string& name);
+
   void enable_mouse_keys();
 
   // Allow OS-specific actions to be taken to prepare for streaming

@@ -207,6 +207,7 @@ int main(int argc, char *argv[]) {
   auto session_monitor_join_thread_future = session_monitor_join_thread_promise.get_future();
 
   std::thread session_monitor_thread([&]() {
+    platf::set_thread_name("session_monitor");
     session_monitor_join_thread_promise.set_value_at_thread_exit();
 
     WNDCLASSA wnd_class {};

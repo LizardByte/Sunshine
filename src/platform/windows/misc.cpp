@@ -1052,6 +1052,14 @@ namespace platf {
     }
   }
 
+  void set_thread_name(const std::string& name) {
+    std::wstring wname = utf_utils::from_utf8(name);
+    HRESULT hr = SetThreadDescription(GetCurrentThread(), wname.c_str());
+    if (FAILED(hr)) {
+      BOOST_LOG(error) << "SetThreadDescription failed: " << hr;
+    }
+  }
+
   void streaming_will_start() {
     static std::once_flag load_wlanapi_once_flag;
     std::call_once(load_wlanapi_once_flag, []() {

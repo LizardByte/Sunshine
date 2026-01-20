@@ -327,6 +327,10 @@ namespace platf {
     // Unimplemented
   }
 
+  void set_thread_name(const std::string& name) {
+    pthread_setname_np(pthread_self(), name.c_str());
+  }
+
   void enable_mouse_keys() {
     // Unimplemented
   }

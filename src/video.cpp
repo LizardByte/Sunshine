@@ -1253,6 +1253,7 @@ namespace video {
     };
 
     // Capture takes place on this thread
+    platf::set_thread_name("video::capture");
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
     while (capture_ctx_queue->running()) {
@@ -2292,6 +2293,7 @@ namespace video {
     });
 
     // Encoding and capture takes place on this thread
+    platf::set_thread_name("video::capture_sync");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     std::vector<std::string> display_names;

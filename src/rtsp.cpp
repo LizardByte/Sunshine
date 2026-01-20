@@ -1121,6 +1121,7 @@ namespace rtsp_stream {
   }
 
   void start() {
+    platf::set_thread_name("rtsp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     server.map("OPTIONS"sv, &cmd_option);
@@ -1138,6 +1139,7 @@ namespace rtsp_stream {
     }
 
     std::thread rtsp_thread {[&shutdown_event] {
+      platf::set_thread_name("rtsp::handler");
       auto broadcast_shutdown_event = mail::man->event<bool>(mail::broadcast_shutdown);
 
       while (!shutdown_event->peek()) {
