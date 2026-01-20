@@ -1,8 +1,8 @@
 /**
- * Backbone Theme for Backlight (Sunshine fork)
+ * Backbone Theme for Backbone PC Streaming
  *
  * This CSS file overrides Bootstrap's default styling to match
- * Backbone's design system: dark theme, orange accents, premium feel.
+ * Backbone's design system: dark theme, orange accents, glassy premium feel.
  */
 
 /* ============================================
@@ -51,6 +51,14 @@
   --bb-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
   --bb-shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
   --bb-shadow-glow: 0 0 20px rgba(255, 107, 53, 0.3);
+
+  /* Glass Effect Variables */
+  --bb-glass-bg: rgba(28, 28, 30, 0.7);
+  --bb-glass-bg-elevated: rgba(44, 44, 46, 0.7);
+  --bb-glass-border: rgba(255, 255, 255, 0.08);
+  --bb-glass-border-hover: rgba(255, 255, 255, 0.12);
+  --bb-glass-blur: 20px;
+  --bb-glass-saturate: 180%;
 
   /* Transitions */
   --bb-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
@@ -162,23 +170,26 @@ pre {
 }
 
 /* ============================================
-   CARDS
+   CARDS - Glassy Design
    ============================================ */
 .card {
-  background-color: var(--bb-card) !important;
-  border: 1px solid var(--bb-border) !important;
-  border-radius: var(--bb-radius) !important;
-  box-shadow: var(--bb-shadow);
-  transition: box-shadow var(--bb-transition), border-color var(--bb-transition);
+  background: var(--bb-glass-bg) !important;
+  backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  -webkit-backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  border: 1px solid var(--bb-glass-border) !important;
+  border-radius: var(--bb-radius-lg) !important;
+  box-shadow: var(--bb-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: box-shadow var(--bb-transition), border-color var(--bb-transition), transform var(--bb-transition);
 }
 
 .card:hover {
-  border-color: rgba(255, 107, 53, 0.3);
+  border-color: var(--bb-glass-border-hover) !important;
+  box-shadow: var(--bb-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .card-header {
-  background-color: transparent !important;
-  border-bottom: 1px solid var(--bb-border) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-bottom: 1px solid var(--bb-glass-border) !important;
   padding: 1rem 1.25rem;
 }
 
@@ -187,8 +198,8 @@ pre {
 }
 
 .card-footer {
-  background-color: transparent !important;
-  border-top: 1px solid var(--bb-border) !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-top: 1px solid var(--bb-glass-border) !important;
 }
 
 .card-title {
@@ -335,23 +346,25 @@ pre {
 }
 
 /* ============================================
-   FORM CONTROLS
+   FORM CONTROLS - Glassy Design
    ============================================ */
 .form-control,
 .form-select {
-  background-color: var(--bb-input) !important;
-  border: 1px solid var(--bb-border) !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--bb-glass-border) !important;
   color: var(--bb-text-primary) !important;
   border-radius: var(--bb-radius) !important;
   padding: 0.625rem 0.875rem;
-  transition: border-color var(--bb-transition), box-shadow var(--bb-transition);
+  transition: border-color var(--bb-transition), box-shadow var(--bb-transition), background var(--bb-transition);
 }
 
 .form-control:focus,
 .form-select:focus {
   border-color: var(--bb-primary) !important;
-  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.2) !important;
-  background-color: var(--bb-card-elevated) !important;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  background: rgba(0, 0, 0, 0.4) !important;
 }
 
 .form-control::placeholder {
@@ -429,48 +442,56 @@ pre {
 }
 
 /* ============================================
-   ALERTS
+   ALERTS - Glassy Design
    ============================================ */
 .alert {
   border-radius: var(--bb-radius) !important;
   border-width: 1px;
   padding: 1rem 1.25rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .alert-success {
-  background-color: rgba(48, 209, 88, 0.1) !important;
-  border-color: rgba(48, 209, 88, 0.3) !important;
+  background: rgba(48, 209, 88, 0.1) !important;
+  border-color: rgba(48, 209, 88, 0.25) !important;
   color: var(--bb-success) !important;
+  box-shadow: inset 0 1px 0 rgba(48, 209, 88, 0.1);
 }
 
 .alert-danger {
-  background-color: rgba(255, 69, 58, 0.1) !important;
-  border-color: rgba(255, 69, 58, 0.3) !important;
+  background: rgba(255, 69, 58, 0.1) !important;
+  border-color: rgba(255, 69, 58, 0.25) !important;
   color: var(--bb-destructive) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 69, 58, 0.1);
 }
 
 .alert-warning {
-  background-color: rgba(255, 214, 10, 0.1) !important;
-  border-color: rgba(255, 214, 10, 0.3) !important;
+  background: rgba(255, 214, 10, 0.1) !important;
+  border-color: rgba(255, 214, 10, 0.25) !important;
   color: var(--bb-warning) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 214, 10, 0.1);
 }
 
 .alert-info {
-  background-color: rgba(255, 107, 53, 0.1) !important;
-  border-color: rgba(255, 107, 53, 0.3) !important;
+  background: rgba(255, 107, 53, 0.1) !important;
+  border-color: rgba(255, 107, 53, 0.25) !important;
   color: var(--bb-accent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 107, 53, 0.1);
 }
 
 .alert-primary {
-  background-color: rgba(255, 107, 53, 0.1) !important;
-  border-color: rgba(255, 107, 53, 0.3) !important;
+  background: rgba(255, 107, 53, 0.1) !important;
+  border-color: rgba(255, 107, 53, 0.25) !important;
   color: var(--bb-primary) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 107, 53, 0.1);
 }
 
 .alert-secondary {
-  background-color: var(--bb-card) !important;
-  border-color: var(--bb-border) !important;
+  background: var(--bb-glass-bg) !important;
+  border-color: var(--bb-glass-border) !important;
   color: var(--bb-text-secondary) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 /* ============================================
@@ -561,13 +582,15 @@ pre {
 }
 
 /* ============================================
-   DROPDOWNS
+   DROPDOWNS - Glassy Design
    ============================================ */
 .dropdown-menu {
-  background-color: var(--bb-card) !important;
-  border: 1px solid var(--bb-border) !important;
+  background: var(--bb-glass-bg) !important;
+  backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  -webkit-backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  border: 1px solid var(--bb-glass-border) !important;
   border-radius: var(--bb-radius) !important;
-  box-shadow: var(--bb-shadow-lg);
+  box-shadow: var(--bb-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   padding: 0.5rem;
 }
 
@@ -604,18 +627,21 @@ pre {
 }
 
 /* ============================================
-   MODALS
+   MODALS - Glassy Design
    ============================================ */
 .modal-content {
-  background-color: var(--bb-card) !important;
-  border: 1px solid var(--bb-border) !important;
+  background: var(--bb-glass-bg) !important;
+  backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  -webkit-backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  border: 1px solid var(--bb-glass-border) !important;
   border-radius: var(--bb-radius-lg) !important;
-  box-shadow: var(--bb-shadow-lg);
+  box-shadow: var(--bb-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .modal-header {
-  border-bottom: 1px solid var(--bb-border) !important;
+  border-bottom: 1px solid var(--bb-glass-border) !important;
   padding: 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .modal-title {
@@ -628,12 +654,14 @@ pre {
 }
 
 .modal-footer {
-  border-top: 1px solid var(--bb-border) !important;
+  border-top: 1px solid var(--bb-glass-border) !important;
   padding: 1rem 1.25rem;
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .modal-backdrop {
-  background-color: rgba(0, 0, 0, 0.8) !important;
+  background-color: rgba(0, 0, 0, 0.85) !important;
+  backdrop-filter: blur(4px);
 }
 
 /* ============================================
@@ -907,13 +935,29 @@ pre {
 }
 
 /* ============================================
-   PREMIUM UTILITY CLASSES
+   PREMIUM UTILITY CLASSES - Glassy Effects
    ============================================ */
 .glass-effect {
-  background: rgba(28, 28, 30, 0.8) !important;
-  backdrop-filter: saturate(180%) blur(20px);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: var(--bb-glass-bg) !important;
+  backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  -webkit-backdrop-filter: saturate(var(--bb-glass-saturate)) blur(var(--bb-glass-blur));
+  border: 1px solid var(--bb-glass-border) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.glass-effect-strong {
+  background: rgba(28, 28, 30, 0.85) !important;
+  backdrop-filter: saturate(200%) blur(30px);
+  -webkit-backdrop-filter: saturate(200%) blur(30px);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  box-shadow: var(--bb-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.glass-effect-subtle {
+  background: rgba(28, 28, 30, 0.5) !important;
+  backdrop-filter: saturate(150%) blur(12px);
+  -webkit-backdrop-filter: saturate(150%) blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
 .glow-primary {
@@ -929,6 +973,25 @@ pre {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.border-glow {
+  position: relative;
+}
+
+.border-glow::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255, 107, 53, 0.3) 0%, rgba(255, 140, 90, 0.1) 100%);
+  z-index: -1;
+  opacity: 0;
+  transition: opacity var(--bb-transition);
+}
+
+.border-glow:hover::before {
+  opacity: 1;
 }
 
 /* ============================================
