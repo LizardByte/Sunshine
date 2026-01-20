@@ -19,6 +19,7 @@
 #include <mach-o/dyld.h>
 #include <net/if_dl.h>
 #include <pwd.h>
+#include <sys/qos.h>
 
 // lib includes
 #include <boost/asio/ip/address.hpp>
@@ -211,7 +212,28 @@ namespace platf {
   }
 
   void adjust_thread_priority(thread_priority_e priority) {
-    // Unimplemented
+    qos_class_t mac_priority;
+
+    switch (priority) {
+      case thread_priority_e::low:
+        mac_priority = QOS_CLASS_UTILITY;
+        break;
+      case thread_priority_e::normal:
+        mac_priority = QOS_CLASS_DEFAULT;
+        break;
+      case thread_priority_e::high:
+        mac_priority = QOS_CLASS_USER_INITIATED;
+        break;
+      case thread_priority_e::critical:
+        mac_priority = QOS_CLASS_USER_INTERACTIVE;
+        break;
+      default:
+        BOOST_LOG(error) << "Unknown thread priority: "sv << (int) priority;
+        return;
+    }
+
+    // https://github.com/apple/darwin-libpthread/blob/main/include/sys/qos.h
+    pthread_set_qos_class_self_np(mac_priority, 0);
   }
 
   void enable_mouse_keys() {
