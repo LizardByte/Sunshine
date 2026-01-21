@@ -170,7 +170,7 @@ namespace input {
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
         mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0}, 0, 0, 0, 1, 1.0f},
+        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
         accumulated_hscroll_delta {} {
     }
@@ -502,8 +502,7 @@ namespace input {
     */
     float final_x = (x + touch_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
     float final_y = (y + touch_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
-
-    return std::pair {final_x, final_y};
+    return std::pair{final_x, final_y};
   }
 
   /**
@@ -568,13 +567,23 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
-  
 
+    int touch_port_dim_x;
+    int touch_port_dim_y;
+    if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
+      touch_port_dim_x = touch_port.env_logical_width;
+      touch_port_dim_y = touch_port.env_logical_height;
+    }
+    else {
+      touch_port_dim_x = touch_port.env_width;
+      touch_port_dim_y = touch_port.env_height;
+    }
+  
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
-      touch_port.env_logical_width,
-      touch_port.env_logical_height
+      touch_port_dim_x,
+      touch_port_dim_y
     };
 
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);

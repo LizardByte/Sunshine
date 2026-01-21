@@ -1991,11 +1991,19 @@ namespace video {
     float wt = config.width;
     float ht = config.height;
 
-    float lwd = display->logical_width;
-    float lhd = display->logical_height;
-
     auto scalar = std::fminf(wt / wd, ht / hd);
-    auto scalar_tpcoords = std::fminf(wd / lwd, hd / lhd);
+    
+    // we initialize scalar_tpcoords and logical dimensions to default values in case they are not set (non-KMS)
+    float scalar_tpcoords = 1.0f;
+    int display_env_logical_width = 0;
+    int display_env_logical_height = 0;
+    if (display->logical_width && display->logical_height && display->env_logical_width && display->env_logical_height) {
+      float lwd = display->logical_width;
+      float lhd = display->logical_height;
+      scalar_tpcoords = std::fminf(wd / lwd, hd / lhd);
+      display_env_logical_width = display->env_logical_width;
+      display_env_logical_height = display->env_logical_height;
+    }
 
     auto w2 = scalar * wd;
     auto h2 = scalar * hd;
@@ -2012,12 +2020,12 @@ namespace video {
       },
       display->env_width,
       display->env_height,
-      display->env_logical_width,
-      display->env_logical_height,
       offsetX,
       offsetY,
       1.0f / scalar,
-      scalar_tpcoords
+      scalar_tpcoords,
+      display_env_logical_width,
+      display_env_logical_height
     };
   }
 
