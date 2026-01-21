@@ -251,7 +251,7 @@ namespace stream {
     // If encryption isn't enabled
     if (!encrypted) {
       std::copy(std::begin(plaintext), std::end(plaintext), destination);
-      return plaintext.size();
+      return (int) plaintext.size();
     }
 
     return cbc.encrypt(std::string_view {(char *) std::begin(plaintext), plaintext.size()}, destination, &iv);
@@ -567,7 +567,7 @@ namespace stream {
 
   void control_server_t::iterate(std::chrono::milliseconds timeout) {
     ENetEvent event;
-    auto res = enet_host_service(_host.get(), &event, timeout.count());
+    auto res = enet_host_service(_host.get(), &event, (enet_uint32) timeout.count());
 
     if (res > 0) {
       auto session = get_session(event.peer, event.data);
@@ -698,9 +698,9 @@ namespace stream {
         }
 
         // packets = parity_shards + data_shards
-        rs_t rs {reed_solomon_new(data_shards, parity_shards)};
+        rs_t rs {reed_solomon_new((int) data_shards, (int) parity_shards)};
 
-        reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+        reed_solomon_encode(rs.get(), shards_p.begin(), (int) nr_shards, (int) blocksize);
       }
 
       return {
@@ -1427,7 +1427,7 @@ namespace stream {
           for (int x = 0; x < packets; ++x) {
             auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
 
-            inspect->packet.frameIndex = packet->frame_index();
+            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
             inspect->packet.streamPacketIndex = ((uint32_t) lowseq + x) << 8;
 
             // Match multiFecFlags with Moonlight
@@ -1479,7 +1479,7 @@ namespace stream {
             auto *inspect = (video_packet_raw_t *) shards.data(x);
 
             inspect->packet.fecInfo =
-              (x << 12 |
+              (uint32_t) (x << 12 |
                shards.data_shards << 22 |
                shards.percentage << 4);
 
@@ -1488,7 +1488,7 @@ namespace stream {
             inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
 
             inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
-            inspect->packet.frameIndex = packet->frame_index();
+            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
 
             // Encrypt this shard if video encryption is enabled
             if (session->video.cipher) {
@@ -1506,7 +1506,7 @@ namespace stream {
 
               // Encrypt the target buffer in place
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
-              prefix->frameNumber = packet->frame_index();
+              prefix->frameNumber = (std::uint32_t) packet->frame_index();
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
               session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
             }

@@ -305,12 +305,12 @@ namespace nvhttp {
       x++;
     }
     launch_session->unique_id = (get_arg(args, "uniqueid", "unknown"));
-    launch_session->appid = util::from_view(get_arg(args, "appid", "unknown"));
+    launch_session->appid = (int) util::from_view(get_arg(args, "appid", "unknown"));
     launch_session->enable_sops = util::from_view(get_arg(args, "sops", "0"));
-    launch_session->surround_info = util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
+    launch_session->surround_info = (int) util::from_view(get_arg(args, "surroundAudioInfo", "196610"));
     launch_session->surround_params = (get_arg(args, "surroundParams", ""));
     launch_session->continuous_audio = util::from_view(get_arg(args, "continuousAudio", "0"));
-    launch_session->gcmap = util::from_view(get_arg(args, "gcmap", "0"));
+    launch_session->gcmap = (int) util::from_view(get_arg(args, "gcmap", "0"));
     launch_session->enable_hdr = util::from_view(get_arg(args, "hdrMode", "0"));
 
     // Encrypted RTSP is enabled with client reported corever >= 1
@@ -331,7 +331,7 @@ namespace nvhttp {
     RAND_bytes((unsigned char *) &launch_session->control_connect_data, sizeof(launch_session->control_connect_data));
 
     launch_session->iv.resize(16);
-    uint32_t prepend_iv = util::endian::big<uint32_t>(util::from_view(get_arg(args, "rikeyid")));
+    uint32_t prepend_iv = util::endian::big<uint32_t>((int) util::from_view(get_arg(args, "rikeyid")));
     auto prepend_iv_p = (uint8_t *) &prepend_iv;
     std::copy(prepend_iv_p, prepend_iv_p + sizeof(prepend_iv), std::begin(launch_session->iv));
     return launch_session;
@@ -893,7 +893,7 @@ namespace nvhttp {
     }
 
     if (appid > 0) {
-      auto err = proc::proc.execute(appid, launch_session);
+      auto err = proc::proc.execute((int) appid, launch_session);
       if (err) {
         tree.put("root.<xmlattr>.status_code", err);
         tree.put("root.<xmlattr>.status_message", "Failed to start the specified application");
@@ -1041,7 +1041,7 @@ namespace nvhttp {
     print_req<SunshineHTTPS>(request);
 
     auto args = request->parse_query_string();
-    auto app_image = proc::proc.get_app_image(util::from_view(get_arg(args, "appid")));
+    auto app_image = proc::proc.get_app_image((int) util::from_view(get_arg(args, "appid")));
 
     std::ifstream in(app_image, std::ios::binary);
     SimpleWeb::CaseInsensitiveMultimap headers;

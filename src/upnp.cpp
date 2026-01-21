@@ -56,9 +56,9 @@ namespace upnp {
    */
   int UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr) {
 #if (MINIUPNPC_API_VERSION >= 18)
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), lan_addr.size(), nullptr, 0);
+    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size(), nullptr, 0);
 #else
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), lan_addr.size());
+    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size());
 #endif
   }
 
