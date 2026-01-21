@@ -1992,7 +1992,7 @@ namespace video {
     float ht = config.height;
 
     auto scalar = std::fminf(wt / wd, ht / hd);
-    
+
     // we initialize scalar_tpcoords and logical dimensions to default values in case they are not set (non-KMS)
     float scalar_tpcoords = 1.0f;
     int display_env_logical_width = 0;

@@ -502,7 +502,7 @@ namespace input {
     */
     float final_x = (x + touch_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
     float final_y = (y + touch_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
-    return std::pair{final_x, final_y};
+    return std::pair {final_x, final_y};
   }
 
   /**
@@ -573,12 +573,11 @@ namespace input {
     if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
       touch_port_dim_x = touch_port.env_logical_width;
       touch_port_dim_y = touch_port.env_logical_height;
-    }
-    else {
+    } else {
       touch_port_dim_x = touch_port.env_width;
       touch_port_dim_y = touch_port.env_height;
     }
-  
+
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
