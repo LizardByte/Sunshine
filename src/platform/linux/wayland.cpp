@@ -144,8 +144,8 @@ namespace wl {
   }
 
   void monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
-    viewport.width = width;
-    viewport.height = height;
+    viewport.logical_width = width;
+    viewport.logical_height = height;
     BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
   }
 
