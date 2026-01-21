@@ -147,6 +147,13 @@ namespace confighttp {
       return false;
     }
 
+    // Skip authentication for localhost connections if enabled
+    // This allows companion apps like Fuji to access the web UI without credentials
+    if (config::nvhttp.localhost_auth_bypass && ip_type == net::PC) {
+      BOOST_LOG(debug) << "Web UI: ["sv << address << "] -- localhost auth bypass"sv;
+      return true;
+    }
+
     // If credentials are shown, redirect the user to a /welcome page
     if (config::sunshine.username.empty()) {
       send_redirect(response, request, "/welcome");

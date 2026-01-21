@@ -177,6 +177,10 @@ namespace config {
     // When true, disable web UI HTML pages but keep API endpoints
     bool headless_mode;
 
+    // When true, skip authentication for localhost (127.0.0.1/::1) connections
+    // This allows companion apps like Fuji to access the web UI without credentials
+    bool localhost_auth_bypass;
+
     std::string pkey;
     std::string cert;
 

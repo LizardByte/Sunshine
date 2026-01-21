@@ -531,6 +531,7 @@ namespace config {
   nvhttp_t nvhttp {
     "lan",  // origin web manager
     false,  // headless_mode - web UI enabled for debugging
+    true,   // localhost_auth_bypass - skip auth for 127.0.0.1/::1 connections
 
     PRIVATE_KEY_FILE,
     CERTIFICATE_FILE,
@@ -1176,6 +1177,7 @@ namespace config {
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
     bool_f(vars, "headless_mode", nvhttp.headless_mode);
+    bool_f(vars, "localhost_auth_bypass", nvhttp.localhost_auth_bypass);
 
     int to = -1;
     int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
