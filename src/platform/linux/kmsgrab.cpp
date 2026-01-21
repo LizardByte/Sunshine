@@ -123,6 +123,9 @@ namespace platf {
     static int env_width;
     static int env_height;
 
+    static int env_logical_width;
+    static int env_logical_height;
+
     std::string_view plane_type(std::uint64_t val) {
       switch (val) {
         case DRM_PLANE_TYPE_OVERLAY:
@@ -686,12 +689,18 @@ namespace platf {
             this->env_width = ::platf::kms::env_width;
             this->env_height = ::platf::kms::env_height;
 
+            this->env_logical_width = ::platf::kms::env_logical_width;
+            this->env_logical_height = ::platf::kms::env_logical_height;
+
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
               auto &viewport = monitor->second.viewport;
 
               width = viewport.width;
               height = viewport.height;
+
+              logical_width = viewport.logical_width;
+              logical_height = viewport.logical_height;
 
               switch (card.get_panel_orientation(plane->plane_id)) {
                 case DRM_MODE_ROTATE_270:
@@ -1542,8 +1551,8 @@ namespace platf {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
-            monitor_descriptor.viewport.width = monitor->viewport.width;
-            monitor_descriptor.viewport.height = monitor->viewport.height;
+            monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
+            monitor_descriptor.viewport.logical_height = monitor->viewport.logical_height;
 
             // A sanity check, it's guesswork after all.
             if (
@@ -1682,6 +1691,9 @@ namespace platf {
     kms::env_width = 0;
     kms::env_height = 0;
 
+    kms::env_logical_width = 0;
+    kms::env_logical_height = 0;
+
     for (auto &card_descriptor : cds) {
       for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
         BOOST_LOG(debug) << "Monitor description"sv;
@@ -1690,6 +1702,9 @@ namespace platf {
 
         kms::env_width = std::max(kms::env_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
         kms::env_height = std::max(kms::env_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
+
+        kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
+        kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
       }
     }
 

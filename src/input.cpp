@@ -170,7 +170,7 @@ namespace input {
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
         mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f},
+        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
         accumulated_hscroll_delta {} {
     }
@@ -480,7 +480,29 @@ namespace input {
     x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
     y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
 
-    return std::pair {(x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv};
+    /*
+    x and y here below have the coordinates of the surface of the streaming resolution,
+    and are dependent on how that comes configured from the client (scalar_inv is calculated
+    from the proportion of that and the device's **physical** size).
+    */
+    x = (x - offsetX) * touch_port.scalar_inv;
+    y = (y - offsetY) * touch_port.scalar_inv;
+
+    /*
+    This final operation is a bit weird and has been brought about with lots of trial and error. A better
+    way to do this may exist.
+
+    Basically, this is what makes the touchscreen map to the coordinates inputtino expects properly.
+    Since inputtino's dimensions are now logical (because scaling breaks everything otherwise), using the previous
+    x and y coordinates would be incorrect when screens are scaled, because the touch port is smaller (or larger)
+    by a factor (that factor is touch_port.scalar_tpcoords), and that factor must be used to account for that difference
+    when moving the cursor. Otherwise, it will move either slower or faster than your finger proportionally to
+    scalar_tpcoords, and be offset *inversely* proportionally to scalar_tpcoords. So you must account for both differences
+    by multiplying and dividing.
+    */
+    float final_x = (x + touch_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    float final_y = (y + touch_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    return std::pair {final_x, final_y};
   }
 
   /**
@@ -545,11 +567,22 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
+
+    int touch_port_dim_x;
+    int touch_port_dim_y;
+    if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
+      touch_port_dim_x = touch_port.env_logical_width;
+      touch_port_dim_y = touch_port.env_logical_height;
+    } else {
+      touch_port_dim_x = touch_port.env_width;
+      touch_port_dim_y = touch_port.env_height;
+    }
+
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
+      touch_port_dim_x,
+      touch_port_dim_y
     };
 
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
