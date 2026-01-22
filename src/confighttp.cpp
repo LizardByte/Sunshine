@@ -163,7 +163,7 @@ namespace confighttp {
     auto &rawAuth = auth->second;
     auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
 
-    int index = authData.find(':');
+    auto index = (int) authData.find(':');
     if (index >= authData.size() - 1) {
       return false;
     }

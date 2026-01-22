@@ -858,7 +858,7 @@ namespace input {
       return;
     }
 
-    auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
+    int size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
     platf::unicode(platf_input, packet->text, size);
   }
 
