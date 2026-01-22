@@ -433,8 +433,8 @@ After adding yourself to the group, log out and log back in for the changes to t
 sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
 ```
 
-#### X11 Capture
-For X11 capture to work, you may need to disable the capabilities that were set for KMS capture.
+#### X11/XDG Capture
+For X11 or XDG Portal capture to work, you may need to disable the capabilities that were set for KMS capture.
 
 ```bash
 sudo setcap -r $(readlink -f $(which sunshine))
