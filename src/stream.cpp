@@ -1480,8 +1480,8 @@ namespace stream {
 
             inspect->packet.fecInfo =
               (uint32_t) (x << 12 |
-               shards.data_shards << 22 |
-               shards.percentage << 4);
+                          shards.data_shards << 22 |
+                          shards.percentage << 4);
 
             inspect->rtp.header = 0x80 | FLAG_EXTENSION;
             inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
