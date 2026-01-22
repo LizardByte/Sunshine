@@ -336,6 +336,10 @@ echo "npm version: $(npm --version)"
 cd %{_builddir}/Sunshine/build
 %make_install
 
+# setcap will break XDG Desktop Portal's security policy, so create a copy that can have elevated capabilities
+# this is only necessary for immutable distributions with rpm-ostree
+install -Dm755 %{_builddir}/Sunshine/build/sunshine %{_bindir}/sunshine-kms
+
 %post
 # Note: this is copied from the postinst script
 
@@ -364,8 +368,7 @@ fi
 
 %files
 # Executables
-%caps(cap_sys_admin+p) %{_bindir}/sunshine
-%caps(cap_sys_admin+p) %{_bindir}/sunshine-*
+%caps(cap_sys_admin+p) %{_bindir}/sunshine-kms
 
 # Systemd unit file for user services
 %{_userunitdir}/sunshine.service
