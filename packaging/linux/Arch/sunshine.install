@@ -1,7 +1,3 @@
-do_setcap() {
-  setcap cap_sys_admin+p $(readlink -f usr/bin/sunshine)
-}
-
 do_udev_reload() {
   udevadm control --reload-rules
   udevadm trigger --property-match=DEVNAME=/dev/uinput
@@ -11,13 +7,11 @@ do_udev_reload() {
 }
 
 post_install() {
-  do_setcap
   do_udev_reload
   modprobe uhid
 }
 
 post_upgrade() {
-  do_setcap
   do_udev_reload
   modprobe uhid
 }
