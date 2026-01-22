@@ -16,6 +16,10 @@ BUILD_VER=""
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT=$(git rev-parse --short HEAD)
 
+export BUILD_VER
+export BRANCH
+export COMMIT
+
 # boost could be included here but cmake will build the right version we need
 required_formulas=(
   "cmake"
@@ -66,6 +70,7 @@ function run_step_deps() {
   echo "Running step: Install dependencies"
   brew update
   brew install "${required_formulas[@]}"
+  return 0
 }
 
 function run_step_cmake() {
@@ -88,13 +93,13 @@ function run_step_cmake() {
   )
 
   # Publisher metadata
-  if [ -n "$publisher_name" ]; then
+  if [[ -n "$publisher_name" ]]; then
     cmake_args+=("-DSUNSHINE_PUBLISHER_NAME='${publisher_name}'")
   fi
-  if [ -n "$publisher_website" ]; then
+  if [[ -n "$publisher_website" ]]; then
     cmake_args+=("-DSUNSHINE_PUBLISHER_WEBSITE='${publisher_website}'")
   fi
-  if [ -n "$publisher_issue_url" ]; then
+  if [[ -n "$publisher_issue_url" ]]; then
     cmake_args+=("-DSUNSHINE_PUBLISHER_ISSUE_URL='${publisher_issue_url}'")
   fi
 
@@ -103,16 +108,18 @@ function run_step_cmake() {
   echo "cmake args:"
   echo "${cmake_args[@]}"
   cmake "${cmake_args[@]}"
+  return 0
 }
 
 function run_step_build() {
   echo "Running step: Build"
-  make -C "${build_dir}" -j ${num_processors}
+  make -C "${build_dir}" -j "${num_processors}"
 
   echo "*** To complete installation, run:"
   echo
   echo "  sudo make -C \"${build_dir}\" install"
   echo "  /usr/local/bin/sunshine"
+  return 0
 }
 
 function run_install() {
@@ -137,10 +144,11 @@ function run_install() {
       exit 1
       ;;
   esac
+  return 0
 }
 
 # Parse named arguments
-while getopts ":hs-:" opt; do
+while getopts ":h-:" opt; do
   case ${opt} in
     h ) _usage 0 ;;
     - )
