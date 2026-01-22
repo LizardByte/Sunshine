@@ -32,15 +32,18 @@ class Sunshine < Formula
     sha256 arm64_tahoe:   "0000000000000000000000000000000000000000000000000000000000000000"
     sha256 arm64_sequoia: "0000000000000000000000000000000000000000000000000000000000000000"
     sha256 arm64_sonoma:  "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_linux:   "0000000000000000000000000000000000000000000000000000000000000000"
     sha256 x86_64_linux:  "0000000000000000000000000000000000000000000000000000000000000000"
   end
 
+  option "with-cuda", "Enable CUDA support (Linux only)"
+  option "with-docs", "Enable docs build"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
 
   depends_on "cmake" => :build
-  depends_on "doxygen" => [:build, :recommended]
-  depends_on "graphviz" => :build if build.with? "doxygen"
+  depends_on "doxygen" => :build if build.with? "docs"
+  depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
   depends_on "pkgconf" => :build
   depends_on "gcovr" => :test
@@ -57,7 +60,7 @@ class Sunshine < Formula
 
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
-    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => [:build, :recommended]
+    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "ayatana-ido"
@@ -145,7 +148,7 @@ class Sunshine < Formula
   end
 
   def add_docs_args(args)
-    if build.with? "doxygen"
+    if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
     else
