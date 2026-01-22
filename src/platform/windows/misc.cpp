@@ -1052,7 +1052,7 @@ namespace platf {
     }
   }
 
-  void set_thread_name(const std::string& name) {
+  void set_thread_name(const std::string &name) {
     std::wstring wname = utf_utils::from_utf8(name);
     HRESULT hr = SetThreadDescription(GetCurrentThread(), wname.c_str());
     if (FAILED(hr)) {
