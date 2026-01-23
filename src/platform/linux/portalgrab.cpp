@@ -30,25 +30,30 @@
 #include "vaapi.h"
 #include "wayland.h"
 
-#define SPA_POD_BUFFER_SIZE 4096
-#define MAX_PARAMS 200
-#define MAX_DMABUF_FORMATS 200
-#define MAX_DMABUF_MODIFIERS 200
+namespace {
+  // Buffer and limit constants
+  constexpr int SPA_POD_BUFFER_SIZE = 4096;
+  constexpr int MAX_PARAMS = 200;
+  constexpr int MAX_DMABUF_FORMATS = 200;
+  constexpr int MAX_DMABUF_MODIFIERS = 200;
 
-#define SOURCE_TYPE_MONITOR 1
-#define CURSOR_MODE_EMBEDDED 2
+  // Portal configuration constants
+  constexpr uint32_t SOURCE_TYPE_MONITOR = 1;
+  constexpr uint32_t CURSOR_MODE_EMBEDDED = 2;
 
-#define PERSIST_FORGET 0
-#define PERSIST_WHILE_RUNNING 2
+  constexpr uint32_t PERSIST_FORGET = 0;
+  constexpr uint32_t PERSIST_WHILE_RUNNING = 2;
 
-#define PORTAL_NAME "org.freedesktop.portal.Desktop"
-#define PORTAL_PATH "/org/freedesktop/portal/desktop"
-#define REMOTE_DESKTOP_IFACE "org.freedesktop.portal.RemoteDesktop"
-#define SCREENCAST_IFACE "org.freedesktop.portal.ScreenCast"
-#define REQUEST_IFACE "org.freedesktop.portal.Request"
+  // Portal D-Bus interface names and paths
+  constexpr const char *PORTAL_NAME = "org.freedesktop.portal.Desktop";
+  constexpr const char *PORTAL_PATH = "/org/freedesktop/portal/desktop";
+  constexpr const char *REMOTE_DESKTOP_IFACE = "org.freedesktop.portal.RemoteDesktop";
+  constexpr const char *SCREENCAST_IFACE = "org.freedesktop.portal.ScreenCast";
+  constexpr const char *REQUEST_IFACE = "org.freedesktop.portal.Request";
 
-#define REQUEST_PREFIX "/org/freedesktop/portal/desktop/request/"
-#define SESSION_PREFIX "/org/freedesktop/portal/desktop/session/"
+  constexpr const char *REQUEST_PREFIX = "/org/freedesktop/portal/desktop/request/";
+  constexpr const char *SESSION_PREFIX = "/org/freedesktop/portal/desktop/session/";
+}  // namespace
 
 using namespace std::literals;
 
@@ -242,7 +247,7 @@ namespace portal {
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
       dbus_response_t response = {
-        0,
+        nullptr,
       };
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
@@ -303,7 +308,7 @@ namespace portal {
 
     int select_remote_desktop_devices(GMainLoop *loop, const gchar *session_path) {
       dbus_response_t response = {
-        0,
+        nullptr,
       };
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
@@ -352,7 +357,7 @@ namespace portal {
 
     int select_screencast_sources(GMainLoop *loop, const gchar *session_path) {
       dbus_response_t response = {
-        0,
+        nullptr,
       };
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
@@ -405,7 +410,7 @@ namespace portal {
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
       dbus_response_t response = {
-        0,
+        nullptr,
       };
       g_autofree gchar *request_token = nullptr;
       create_request_path(conn, nullptr, &request_token);
@@ -455,11 +460,9 @@ namespace portal {
       }
 
       const gchar *new_token = nullptr;
-      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && strlen(new_token) > 0) {
-        if (restore_token_t::get() != new_token) {
-          restore_token_t::set(new_token);
-          restore_token_t::save();
-        }
+      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && strlen(new_token) > 0 && restore_token_t::get() != new_token) {
+        restore_token_t::set(new_token);
+        restore_token_t::save();
       }
 
       GVariantIter iter;
@@ -489,7 +492,7 @@ namespace portal {
       return 0;
     }
 
-    static void on_response_received_cb(GDBusConnection *connection, const gchar *sender_name, const gchar *object_path, const gchar *interface_name, const gchar *signal_name, GVariant *parameters, gpointer user_data) {
+    static void on_response_received_cb([[maybe_unused]] GDBusConnection *connection, [[maybe_unused]] const gchar *sender_name, [[maybe_unused]] const gchar *object_path, [[maybe_unused]] const gchar *interface_name, [[maybe_unused]] const gchar *signal_name, GVariant *parameters, gpointer user_data) {
       dbus_response_t *response = (dbus_response_t *) user_data;
       response->response = g_variant_ref_sink(parameters);
       g_main_loop_quit(response->loop);
