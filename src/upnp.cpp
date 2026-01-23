@@ -299,6 +299,7 @@ namespace upnp {
      * @brief Maintains UPnP port forwarding rules
      */
     void upnp_thread_proc() {
+      platf::set_thread_name("upnp");
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
       bool mapped = false;
       IGDdatas data;

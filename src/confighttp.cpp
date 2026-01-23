@@ -1172,6 +1172,7 @@ namespace confighttp {
   }
 
   void start() {
+    platf::set_thread_name("confighttp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -1224,6 +1225,7 @@ namespace confighttp {
 
     auto accept_and_run = [&](auto *server) {
       try {
+        platf::set_thread_name("confighttp::tcp");
         server->start([](unsigned short port) {
           BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
         });

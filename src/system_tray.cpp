@@ -305,6 +305,7 @@ namespace system_tray {
 
   // Threading functions available on all platforms
   static void tray_thread_worker() {
+    platf::set_thread_name("system_tray");
     BOOST_LOG(info) << "System tray thread started"sv;
 
     // Initialize the tray in this thread
