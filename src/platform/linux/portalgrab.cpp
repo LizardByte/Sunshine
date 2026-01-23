@@ -807,7 +807,7 @@ namespace portal {
       BOOST_LOG(info) << "Connected to pipewire version "sv << pw_info->version;
     }
 
-    static void on_core_error_cb(void *user_data, uint32_t id, int seq, int res, const char *message) {
+    static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {
       BOOST_LOG(info) << "Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
     }
 
@@ -818,7 +818,7 @@ namespace portal {
     };
 
     static void on_process(void *user_data) {
-      struct stream_data_t *d = (struct stream_data_t *) user_data;
+      const auto d = static_cast<struct stream_data_t *>(user_data);
       struct pw_buffer *b = nullptr;
 
       while (true) {
@@ -844,7 +844,7 @@ namespace portal {
     }
 
     static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
-      struct stream_data_t *d = (struct stream_data_t *) user_data;
+      const auto d = static_cast<struct stream_data_t *>(user_data);
 
       d->current_buffer = nullptr;
 
@@ -1028,10 +1028,10 @@ namespace portal {
     int dummy_img(platf::img_t *img) override {
       if (!img) {
         return -1;
-      };
+      }
 
       img->data = new std::uint8_t[img->height * img->row_pitch];
-      std::fill_n((std::uint8_t *) img->data, img->height * img->row_pitch, 0);
+      std::fill_n(img->data, img->height * img->row_pitch, 0);
       return 0;
     }
 
