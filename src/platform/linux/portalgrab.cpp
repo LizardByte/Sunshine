@@ -493,7 +493,7 @@ namespace portal {
     }
 
     static void on_response_received_cb([[maybe_unused]] GDBusConnection *connection, [[maybe_unused]] const gchar *sender_name, [[maybe_unused]] const gchar *object_path, [[maybe_unused]] const gchar *interface_name, [[maybe_unused]] const gchar *signal_name, GVariant *parameters, gpointer user_data) {
-      dbus_response_t *response = (dbus_response_t *) user_data;
+      auto *response = static_cast<dbus_response_t *>(user_data);
       response->response = g_variant_ref_sink(parameters);
       g_main_loop_quit(response->loop);
     }
@@ -646,8 +646,8 @@ namespace portal {
   };
 
   session_cache_t &session_cache_t::instance() {
-    alignas(session_cache_t) static std::byte storage[sizeof(session_cache_t)];
-    static session_cache_t *instance_ = new (storage) session_cache_t();
+    alignas(session_cache_t) static std::array<std::byte, sizeof(session_cache_t)> storage;
+    static auto instance_ = new (storage.data()) session_cache_t();
     return *instance_;
   }
 
@@ -696,11 +696,11 @@ namespace portal {
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
 
-        uint8_t buffer[SPA_POD_BUFFER_SIZE];
-        struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+        std::array<uint8_t, SPA_POD_BUFFER_SIZE> buffer;
+        struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
 
         int n_params = 0;
-        const struct spa_pod *params[MAX_PARAMS];
+        std::array<const struct spa_pod *, MAX_PARAMS> params;
 
         // Add preferred parameters for DMA-BUF with modifiers
         // Use DMA-BUF for VAAPI, or for CUDA when the display GPU is NVIDIA (pure NVIDIA system).
@@ -767,8 +767,8 @@ namespace portal {
 
     static struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
       struct spa_pod_frame object_frame, modifier_frame;
-      struct spa_rectangle sizes[3];
-      struct spa_fraction framerates[3];
+      std::array<struct spa_rectangle, 3> sizes;
+      std::array<struct spa_fraction, 3> framerates;
 
       sizes[0] = SPA_RECTANGLE(width, height);  // Preferred
       sizes[1] = SPA_RECTANGLE(1, 1);
@@ -884,10 +884,10 @@ namespace portal {
       }
 
       // Ack the buffer type
-      uint8_t buffer[SPA_POD_BUFFER_SIZE];
-      const struct spa_pod *params[1];
+      std::array<uint8_t, SPA_POD_BUFFER_SIZE> buffer;
+      std::array<const struct spa_pod *, 1> params;
       int n_params = 0;
-      struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer, sizeof(buffer));
+      struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
       params[n_params++] = (const struct spa_pod *) spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types));
       pw_stream_update_params(d->stream, params, n_params);
     }
@@ -964,7 +964,7 @@ namespace portal {
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      pipewire.ensure_stream(mem_type, width, height, framerate, (struct dmabuf_format_info_t *) dmabuf_infos, n_dmabuf_infos, display_is_nvidia);
+      pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
 
       while (true) {
         auto now = std::chrono::steady_clock::now();
@@ -1129,7 +1129,7 @@ namespace portal {
     platf::mem_type_e mem_type;
     wl::display_t wl_display;
     pipewire_t pipewire;
-    struct dmabuf_format_info_t dmabuf_infos[MAX_DMABUF_FORMATS];
+    std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;
     int n_dmabuf_infos;
     bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
     std::chrono::nanoseconds delay;
