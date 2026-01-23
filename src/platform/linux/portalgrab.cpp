@@ -5,6 +5,7 @@
 // standard includes
 #include <array>
 #include <fcntl.h>
+#include <format>
 #include <fstream>
 #include <memory>
 #include <mutex>
@@ -517,7 +518,7 @@ namespace portal {
       }
       if (out_path) {
         g_autofree gchar *sender = get_sender_string(conn);
-        *out_path = g_strdup_printf(REQUEST_PREFIX "%s/Sunshine%u", sender, request_count);
+        *out_path = g_strdup(std::format("{}{}{}{}", REQUEST_PREFIX, sender, "/Sunshine", request_count).c_str());
       }
     }
 
@@ -532,7 +533,7 @@ namespace portal {
 
       if (out_path) {
         g_autofree gchar *sender = get_sender_string(conn);
-        *out_path = g_strdup_printf(SESSION_PREFIX "%s/Sunshine%u", sender, session_count);
+        *out_path = g_strdup(std::format("{}{}{}{}", SESSION_PREFIX, sender, "/Sunshine", session_count).c_str());
       }
     }
 
