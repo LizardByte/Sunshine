@@ -50,12 +50,12 @@ pkg install -y \
 #### Linux
 Dependencies vary depending on the distribution. You can reference our
 [linux_build.sh](https://github.com/LizardByte/Sunshine/blob/master/scripts/linux_build.sh) script for a list of
-dependencies we use in Debian-based, Fedora-based and Arch-based distributions. Please submit a PR if you would like to
-extend the script to support other distributions.
+dependencies we use in Debian-based, Fedora-based and Arch-based distributions. Please submit a PR if you would like to extend the
+script to support other distributions.
 
 ##### KMS Capture
-If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this.
-If building from source and using the binary directly, this will also work:
+If you are using KMS, patching the Sunshine binary with `setcap` is required. Some post-install scripts handle this. If building
+from source and using the binary directly, this will also work:
 
 ```bash
 sudo cp build/sunshine /tmp

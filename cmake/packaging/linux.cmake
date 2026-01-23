@@ -62,6 +62,10 @@ if(FREEBSD)
     list(APPEND CPACK_POST_BUILD_SCRIPTS "${CMAKE_MODULE_PATH}/packaging/freebsd_custom_cpack.cmake")
 endif()
 
+# Apply setcap for RPM
+# https://github.com/coreos/rpm-ostree/discussions/5036#discussioncomment-10291071
+set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin+p) ${SUNSHINE_EXECUTABLE_PATH}")
+
 # Dependencies
 set(CPACK_DEB_COMPONENT_INSTALL ON)
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
