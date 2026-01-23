@@ -51,8 +51,8 @@ namespace {
   constexpr const char *SCREENCAST_IFACE = "org.freedesktop.portal.ScreenCast";
   constexpr const char *REQUEST_IFACE = "org.freedesktop.portal.Request";
 
-  constexpr const char *REQUEST_PREFIX = "/org/freedesktop/portal/desktop/request/";
-  constexpr const char *SESSION_PREFIX = "/org/freedesktop/portal/desktop/session/";
+  constexpr const char REQUEST_PREFIX[] = "/org/freedesktop/portal/desktop/request/";
+  constexpr const char SESSION_PREFIX[] = "/org/freedesktop/portal/desktop/session/";
 }  // namespace
 
 using namespace std::literals;
@@ -722,7 +722,7 @@ namespace portal {
           params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
         }
 
-        pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params, n_params);
+        pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
       }
       pw_thread_loop_unlock(loop);
     }
@@ -766,7 +766,8 @@ namespace portal {
     int node;
 
     static struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
-      struct spa_pod_frame object_frame, modifier_frame;
+      struct spa_pod_frame object_frame;
+      struct spa_pod_frame modifier_frame;
       std::array<struct spa_rectangle, 3> sizes;
       std::array<struct spa_fraction, 3> framerates;
 
@@ -889,7 +890,7 @@ namespace portal {
       int n_params = 0;
       struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
       params[n_params++] = (const struct spa_pod *) spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types));
-      pw_stream_update_params(d->stream, params, n_params);
+      pw_stream_update_params(d->stream, params.data(), n_params);
     }
 
     constexpr static const struct pw_stream_events stream_events = {
