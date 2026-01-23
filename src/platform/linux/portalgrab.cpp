@@ -460,8 +460,7 @@ namespace portal {
         return -1;
       }
 
-      const gchar *new_token = nullptr;
-      if (g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && strlen(new_token) > 0 && restore_token_t::get() != new_token) {
+      if (const gchar *new_token = nullptr; g_variant_lookup(dict, "restore_token", "s", &new_token) && new_token && new_token[0] != '\0' && restore_token_t::get() != new_token) {
         restore_token_t::set(new_token);
         restore_token_t::save();
       }
@@ -711,7 +710,9 @@ namespace portal {
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
-            params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
+            auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, dmabuf_infos[i].format, dmabuf_infos[i].modifiers, dmabuf_infos[i].n_modifiers);
+            params[n_params] = format_param;
+            n_params++;
           }
         }
 
@@ -720,7 +721,9 @@ namespace portal {
           if (fmt.fourcc == 0) {
             break;
           }
-          params[n_params++] = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
+          auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
+          params[n_params] = format_param;
+          n_params++;
         }
 
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
@@ -890,7 +893,9 @@ namespace portal {
       std::array<const struct spa_pod *, 1> params;
       int n_params = 0;
       struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
-      params[n_params++] = (const struct spa_pod *) spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types));
+      auto buffer_param = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types)));
+      params[n_params] = buffer_param;
+      n_params++;
       pw_stream_update_params(d->stream, params.data(), n_params);
     }
 
@@ -994,7 +999,7 @@ namespace portal {
             push_captured_image_cb(std::move(img_out), true);
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -1142,7 +1147,8 @@ namespace portal {
 
 namespace platf {
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
+    using enum platf::mem_type_e;
+    if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
