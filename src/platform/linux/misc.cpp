@@ -983,12 +983,6 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-#ifdef SUNSHINE_BUILD_PORTAL
-    if (sources[source::PORTAL]) {
-      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
-      return portal_display(hwdevice_type, display_name, config);
-    }
-#endif
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
@@ -1011,6 +1005,12 @@ namespace platf {
     if (sources[source::X11]) {
       BOOST_LOG(info) << "Screencasting with X11"sv;
       return x11_display(hwdevice_type, display_name, config);
+    }
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+    if (sources[source::PORTAL]) {
+      BOOST_LOG(info) << "Screencasting with XDG portal"sv;
+      return portal_display(hwdevice_type, display_name, config);
     }
 #endif
 
