@@ -313,8 +313,9 @@ fi
 %caps(cap_sys_admin+p) %{_bindir}/sunshine
 %caps(cap_sys_admin+p) %{_bindir}/sunshine-*
 
-# Systemd unit file for user services
+# Systemd unit files for user services
 %{_userunitdir}/sunshine.service
+%{_userunitdir}/sunshine-kms.service
 
 # Udev rules
 %{_udevrulesdir}/*-sunshine.rules
