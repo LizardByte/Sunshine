@@ -686,12 +686,10 @@ namespace portal {
       pw_core_add_listener(core, &core_listener, &core_events, nullptr);
     }
 
-    void ensure_stream(platf::mem_type_e mem_type, uint32_t width, uint32_t height, uint32_t refresh_rate, struct dmabuf_format_info_t *dmabuf_infos, int n_dmabuf_infos, bool display_is_nvidia) {
+    void ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       if (!stream_data.stream) {
-        struct pw_properties *props;
-
-        props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
+        struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
 
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
@@ -739,7 +737,7 @@ namespace portal {
         buf = stream_data.current_buffer->buffer;
         if (buf->datas[0].chunk->size != 0) {
           if (buf->datas[0].type == SPA_DATA_DmaBuf) {
-            auto img_descriptor = (egl::img_descriptor_t *) img;
+            const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
             img_descriptor->sd.width = stream_data.format.info.raw.size.width;
             img_descriptor->sd.height = stream_data.format.info.raw.size.height;
             img_descriptor->sd.modifier = stream_data.format.info.raw.modifier;
@@ -751,7 +749,7 @@ namespace portal {
               img_descriptor->sd.offsets[i] = buf->datas[i].chunk->offset;
             }
           } else {
-            img->data = (std::uint8_t *) buf->datas[0].data;
+            img->data = static_cast<std::uint8_t *>(buf->datas[0].data);
             img->row_pitch = buf->datas[0].chunk->stride;
           }
         }
@@ -803,10 +801,10 @@ namespace portal {
         spa_pod_builder_pop(b, &modifier_frame);
       }
 
-      return (struct spa_pod *) spa_pod_builder_pop(b, &object_frame);
+      return static_cast<struct spa_pod *>(spa_pod_builder_pop(b, &object_frame));
     }
 
-    static void on_core_info_cb(void *user_data, const struct pw_core_info *pw_info) {
+    static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {
       BOOST_LOG(info) << "Connected to pipewire version "sv << pw_info->version;
     }
 
@@ -937,7 +935,7 @@ namespace portal {
         return platf::capture_e::interrupted;
       }
 
-      auto img_egl = (egl::img_descriptor_t *) img_out.get();
+      const auto img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
       img_egl->reset();
       pipewire.fill_img(img_egl);
 
@@ -986,8 +984,7 @@ namespace portal {
         next_frame = now + delay;
 
         std::shared_ptr<platf::img_t> img_out;
-        auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
-        switch (status) {
+        switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
           case platf::capture_e::interrupted:
@@ -1080,7 +1077,7 @@ namespace portal {
         dmabuf_infos[n_dmabuf_infos].format = pw_format;
         dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
         dmabuf_infos[n_dmabuf_infos].modifiers =
-          (uint64_t *) g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers);
+          static_cast<uint64_t *>(g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers));
         ++n_dmabuf_infos;
       }
     }
