@@ -40,7 +40,9 @@ namespace {
 
   // Portal configuration constants
   constexpr uint32_t SOURCE_TYPE_MONITOR = 1;
+  constexpr uint32_t CURSOR_MODE_HIDDEN = 1;
   constexpr uint32_t CURSOR_MODE_EMBEDDED = 2;
+  constexpr uint32_t CURSOR_MODE_METADATA = 4;
 
   constexpr uint32_t PERSIST_FORGET = 0;
   constexpr uint32_t PERSIST_WHILE_RUNNING = 2;
@@ -152,7 +154,8 @@ namespace portal {
       }
     }
 
-    int init() {
+    int init(uint32_t cursor_mode_value = CURSOR_MODE_EMBEDDED) {
+      cursor_mode = cursor_mode_value;
       restore_token_t::load();
 
       conn = g_bus_get_sync(G_BUS_TYPE_SESSION, nullptr, nullptr);
@@ -237,6 +240,7 @@ namespace portal {
     int pipewire_node;
     int width;
     int height;
+    uint32_t cursor_mode;
 
   private:
     GDBusConnection *conn;
@@ -369,7 +373,7 @@ namespace portal {
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
-      g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
+      g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(cursor_mode));
       g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
       if (!restore_token_t::empty()) {
         g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
@@ -563,10 +567,17 @@ namespace portal {
      * If a cached session exists and is valid, returns the cached data.
      * Otherwise, creates a new session and caches it.
      *
+     * @param cursor_mode The cursor mode to use (CURSOR_MODE_HIDDEN or CURSOR_MODE_EMBEDDED)
      * @return 0 on success, -1 on failure
      */
-    int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height) {
+    int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height, uint32_t cursor_mode = CURSOR_MODE_EMBEDDED) {
       std::scoped_lock lock(mutex_);
+
+      // If cursor mode changed, invalidate the cached session
+      if (valid_ && cursor_mode_ != cursor_mode) {
+        BOOST_LOG(debug) << "Cursor mode changed from " << cursor_mode_ << " to " << cursor_mode << ", invalidating cached session"sv;
+        invalidate_locked();
+      }
 
       if (valid_) {
         // Return cached session data
@@ -580,7 +591,7 @@ namespace portal {
 
       // Create new session
       dbus_ = std::make_unique<dbus_t>();
-      if (dbus_->init() < 0) {
+      if (dbus_->init(cursor_mode) < 0) {
         return -1;
       }
       if (dbus_->connect_to_portal() < 0) {
@@ -593,6 +604,7 @@ namespace portal {
       pipewire_node_ = dbus_->pipewire_node;
       width_ = dbus_->width;
       height_ = dbus_->height;
+      cursor_mode_ = cursor_mode;
       valid_ = true;
 
       // Return to caller (duplicate FD so each caller has their own)
@@ -601,7 +613,7 @@ namespace portal {
       width = width_;
       height = height_;
 
-      BOOST_LOG(debug) << "Created new portal session (cached)"sv;
+      BOOST_LOG(debug) << "Created new portal session (cached) with cursor_mode=" << cursor_mode;
       return 0;
     }
 
@@ -612,15 +624,7 @@ namespace portal {
      */
     void invalidate() {
       std::scoped_lock lock(mutex_);
-      if (valid_) {
-        BOOST_LOG(debug) << "Invalidating cached portal session"sv;
-        if (pipewire_fd_ >= 0) {
-          close(pipewire_fd_);
-          pipewire_fd_ = -1;
-        }
-        dbus_.reset();
-        valid_ = false;
-      }
+      invalidate_locked();
     }
 
   private:
@@ -629,6 +633,19 @@ namespace portal {
     ~session_cache_t() {
       if (pipewire_fd_ >= 0) {
         close(pipewire_fd_);
+      }
+    }
+
+    // Internal invalidate without locking (for use when already locked)
+    void invalidate_locked() {
+      if (valid_) {
+        BOOST_LOG(debug) << "Invalidating cached portal session"sv;
+        if (pipewire_fd_ >= 0) {
+          close(pipewire_fd_);
+          pipewire_fd_ = -1;
+        }
+        dbus_.reset();
+        valid_ = false;
       }
     }
 
@@ -642,6 +659,7 @@ namespace portal {
     int pipewire_node_ = 0;
     int width_ = 0;
     int height_ = 0;
+    uint32_t cursor_mode_ = CURSOR_MODE_EMBEDDED;
     bool valid_ = false;
   };
 
@@ -916,9 +934,11 @@ namespace portal {
       }
 
       // Use cached portal session to avoid creating multiple screen recordings
+      // Start with cursor embedded by default
       int pipewire_fd = -1;
       int pipewire_node = 0;
-      if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, width, height) < 0) {
+      current_cursor_mode = CURSOR_MODE_EMBEDDED;
+      if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, width, height, current_cursor_mode) < 0) {
         return -1;
       }
 
@@ -930,7 +950,29 @@ namespace portal {
     }
 
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool show_cursor) {
-      // FIXME: show_cursor is ignored
+      // Determine the desired cursor mode based on show_cursor parameter
+      uint32_t desired_cursor_mode = show_cursor ? CURSOR_MODE_EMBEDDED : CURSOR_MODE_HIDDEN;
+
+      // If cursor mode changed, we need to recreate the session
+      if (desired_cursor_mode != current_cursor_mode) {
+        BOOST_LOG(debug) << "Cursor visibility changed, recreating portal session"sv;
+        current_cursor_mode = desired_cursor_mode;
+
+        // Recreate the session with new cursor mode
+        int pipewire_fd = -1;
+        int pipewire_node = 0;
+        int new_height = 0;
+        int new_width = 0;
+        if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, new_width, new_height, current_cursor_mode) < 0) {
+          BOOST_LOG(error) << "Failed to recreate session with new cursor mode"sv;
+          return platf::capture_e::error;
+        }
+
+        // Reinitialize PipeWire with the new session
+        pipewire.init(pipewire_fd, pipewire_node);
+        pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
+      }
+
       if (!pull_free_image_cb(img_out)) {
         return platf::capture_e::interrupted;
       }
@@ -1139,6 +1181,7 @@ namespace portal {
     std::chrono::nanoseconds delay;
     std::uint64_t sequence {};
     uint32_t framerate;
+    uint32_t current_cursor_mode = CURSOR_MODE_EMBEDDED;  // Track current cursor mode
   };
 }  // namespace portal
 
