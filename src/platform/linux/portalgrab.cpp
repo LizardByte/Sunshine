@@ -946,6 +946,7 @@ namespace portal {
       }
 
       img_egl->sequence = ++sequence;
+      img_egl->frame_timestamp = std::chrono::steady_clock::now();
 
       return platf::capture_e::ok;
     }
