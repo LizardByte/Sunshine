@@ -2,7 +2,7 @@
 Description=@PROJECT_DESCRIPTION@
 StartLimitIntervalSec=500
 StartLimitBurst=5
-Conflicts=sunshine-kms.service
+Conflicts=sunshine.service
 
 [Service]
 # Avoid starting Sunshine before the desktop is fully initialized.
@@ -11,7 +11,6 @@ ExecStartPre=/bin/sleep 5
 @SUNSHINE_SERVICE_STOP_COMMAND@
 Restart=on-failure
 RestartSec=5s
-NoNewPrivileges=true
 
 [Install]
 WantedBy=xdg-desktop-autostart.target
