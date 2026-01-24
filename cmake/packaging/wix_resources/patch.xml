@@ -1,0 +1,5 @@
+<CPackWiXPatch>
+  <CPackWiXFragment Id="CM_G_Core">
+    <FeatureRef Id="RunSunshineInstallScripts"/>
+  </CPackWiXFragment>
+</CPackWiXPatch>

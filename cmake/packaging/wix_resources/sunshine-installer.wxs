@@ -1,0 +1,52 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Fragment>
+    <StandardDirectory Id="ProgramMenuFolder">
+        <Directory Id="ProgramMenuSubfolder" Name="LizardByte">
+            <Component Id="ApplicationShortcut" Guid="*">
+                <Shortcut Id="ApplicationStartMenuShortcut"
+                          Name="Sunshine"
+                          Description="Sunshine Game Stream Host"
+                          Target="[INSTALL_ROOT]sunshine.exe"
+                          Arguments="--shortcut"
+                          WorkingDirectory="INSTALL_ROOT"/>
+                <RemoveFolder Id="CleanUpShortCut" Directory="ProgramMenuSubfolder" On="uninstall"/>
+                <RegistryValue Root="HKCU" Key="Software\LizardByte\Sunshine" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+            </Component>
+        </Directory>
+    </StandardDirectory>
+
+    <CustomAction Id="CA_ResetPermissions" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]icacls.exe&quot; &quot;.&quot; /reset" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_UpdatePathAdd" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\update-path.bat&quot; add" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_UpdatePathRemove" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\update-path.bat&quot; remove" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_MigrateConfig" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\migrate-config.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_FirewallAdd" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\add-firewall-rule.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_FirewallRemove" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\delete-firewall-rule.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_GamepadInstall" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALL_ROOT]scripts\install-gamepad.ps1&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_GamepadUninstall" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALL_ROOT]scripts\uninstall-gamepad.ps1&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_ServiceInstall" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\install-service.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_ServiceAutostart" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\autostart-service.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_ServiceUninstall" Directory="INSTALL_ROOT" ExeCommand="&quot;[SystemFolder]cmd.exe&quot; /c &quot;[INSTALL_ROOT]scripts\uninstall-service.bat&quot;" Execute="deferred" Return="ignore" Impersonate="no" />
+    <CustomAction Id="CA_RestoreNvPrefs" Directory="INSTALL_ROOT" ExeCommand="&quot;[INSTALL_ROOT]sunshine.exe&quot; --restore-nvprefs-undo" Execute="deferred" Return="ignore" Impersonate="no" />
+
+    <InstallExecuteSequence>
+        <Custom Action="CA_ResetPermissions" After="InstallFiles" Condition="NOT Installed" />
+        <Custom Action="CA_UpdatePathAdd" After="CA_ResetPermissions" Condition="NOT Installed" />
+        <Custom Action="CA_MigrateConfig" After="CA_UpdatePathAdd" Condition="NOT Installed" />
+        <Custom Action="CA_FirewallAdd" After="CA_MigrateConfig" Condition="NOT Installed" />
+        <Custom Action="CA_GamepadInstall" After="CA_FirewallAdd" Condition="NOT Installed" />
+        <Custom Action="CA_ServiceInstall" After="CA_GamepadInstall" Condition="NOT Installed" />
+        <Custom Action="CA_ServiceAutostart" After="CA_ServiceInstall" Condition="NOT Installed" />
+
+        <Custom Action="CA_FirewallRemove" Before="RemoveFiles" Condition="REMOVE=&quot;ALL&quot;" />
+        <Custom Action="CA_ServiceUninstall" Before="CA_FirewallRemove" Condition="REMOVE=&quot;ALL&quot;" />
+        <Custom Action="CA_GamepadUninstall" After="CA_ServiceUninstall" Condition="REMOVE=&quot;ALL&quot;" />
+        <Custom Action="CA_RestoreNvPrefs" After="CA_GamepadUninstall" Condition="REMOVE=&quot;ALL&quot;" />
+        <Custom Action="CA_UpdatePathRemove" After="CA_RestoreNvPrefs" Condition="REMOVE=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
+
+    <!-- We need this in order to actually run our custom actions, but let's hide it -->
+    <Feature Id="RunSunshineInstallScripts" Title="Run Sunshine Installation Scripts" Level="1" Display="hidden">
+       <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+  </Fragment>
+</Wix>
