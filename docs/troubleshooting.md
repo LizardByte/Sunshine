@@ -160,10 +160,12 @@ sudo usermod -aG input $USER
 ```
 
 ### KMS Streaming fails
-If screencasting fails with KMS, you may need to run the following to force unprivileged screencasting.
+If screencasting fails with KMS, you may be using the unprivileged sunshine service unit. Switch to the privileged
+sunshine-kms service:
 
 ```bash
-sudo setcap -r $(readlink -f $(which sunshine))
+systemctl --user disable sunshine
+systemctl --user enable sunshine-kms --now
 ```
 
 > [!NOTE]
