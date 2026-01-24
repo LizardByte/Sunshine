@@ -970,18 +970,21 @@ namespace portal {
       auto next_frame = std::chrono::steady_clock::now();
 
       pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
+      sleep_overshoot_logger.reset();
 
       while (true) {
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
-          std::this_thread::sleep_for((next_frame - now) / 3 * 2);
+          std::this_thread::sleep_for(next_frame - now);
+          sleep_overshoot_logger.first_point(next_frame);
+          sleep_overshoot_logger.second_point_now_and_log();
         }
-        while (next_frame > now) {
-          std::this_thread::sleep_for(1ns);
-          now = std::chrono::steady_clock::now();
+
+        next_frame += delay;
+        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
+          next_frame = now + delay;
         }
-        next_frame = now + delay;
 
         std::shared_ptr<platf::img_t> img_out;
         switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
