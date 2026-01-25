@@ -21,6 +21,21 @@
       </ul>
       <a class="btn btn-danger" href="./troubleshooting#logs">View Logs</a>
     </div>
+    <!-- ViGEmBus Warning -->
+    <div class="alert alert-warning" v-if="platform === 'windows' && controllerEnabled && vigembus && (!vigembus.installed || !vigembus.version_compatible)">
+      <div style="line-height: 32px;">
+        <i class="fas fa-triangle-exclamation" style="font-size: 32px;margin-right: 0.25em;"></i>
+        <div v-if="!vigembus.installed">
+          <p><strong>{{ $t('index.vigembus_not_installed_title') }}</strong></p>
+          <p>{{ $t('index.vigembus_not_installed_desc') }}</p>
+        </div>
+        <div v-else-if="!vigembus.version_compatible">
+          <p><strong>{{ $t('index.vigembus_outdated_title') }}</strong></p>
+          <p>{{ $t('index.vigembus_outdated_desc', { version: vigembus.version }) }}</p>
+        </div>
+        <a class="btn btn-warning" href="./troubleshooting#vigembus">{{ $t('index.fix_now') }}</a>
+      </div>
+    </div>
     <!-- Version -->
     <div class="card p-2 my-4">
       <div class="card-body" v-if="version">
@@ -94,18 +109,32 @@
         preReleaseVersion: null,
         loading: true,
         logs: null,
+        platform: "",
+        controllerEnabled: false,
+        vigembus: null,
       }
     },
     async created() {
       try {
         let config = await fetch("./api/config").then((r) => r.json());
         this.notifyPreReleases = config.notify_pre_releases;
+        this.platform = config.platform;
+        this.controllerEnabled = config.controller !== "disabled";
         this.version = new SunshineVersion(null, config.version);
         console.log("Version: ", this.version.version)
         this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
         console.log("GitHub Version: ", this.githubVersion.version)
         this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
         console.log("Pre-Release Version: ", this.preReleaseVersion.version)
+
+        // Fetch ViGEmBus status only on Windows when controller is enabled
+        if (this.platform === 'windows' && this.controllerEnabled) {
+          try {
+            this.vigembus = await fetch("./api/vigembus/status").then((r) => r.json());
+          } catch (e) {
+            console.error("Failed to fetch ViGEmBus status:", e);
+          }
+        }
       } catch (e) {
         console.error(e);
       }

@@ -20,6 +20,13 @@
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
+#ifdef _WIN32
+  #include "platform/windows/misc.h"
+
+  #include <vector>
+  #include <Windows.h>
+#endif
+
 // local includes
 #include "config.h"
 #include "confighttp.h"
@@ -1171,6 +1178,132 @@ namespace confighttp {
     platf::restart();
   }
 
+  /**
+   * @brief Get ViGEmBus driver version and installation status.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vigembus/status| GET| null}
+   */
+  void getViGEmBusStatus(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+
+#ifdef _WIN32
+    std::string version_str;
+    bool installed = false;
+    bool version_compatible = false;
+
+    // Check if ViGEmBus driver exists
+    std::filesystem::path driver_path = std::filesystem::path(std::getenv("SystemRoot") ? std::getenv("SystemRoot") : "C:\\Windows") / "System32" / "drivers" / "ViGEmBus.sys";
+
+    if (std::filesystem::exists(driver_path)) {
+      installed = platf::getFileVersionInfo(driver_path, version_str);
+      if (installed) {
+        // Parse version string to check compatibility (>= 1.17.0.0)
+        std::vector<std::string> version_parts;
+        std::stringstream ss(version_str);
+        std::string part;
+        while (std::getline(ss, part, '.')) {
+          version_parts.push_back(part);
+        }
+
+        if (version_parts.size() >= 2) {
+          int major = std::stoi(version_parts[0]);
+          int minor = std::stoi(version_parts[1]);
+          version_compatible = (major > 1) || (major == 1 && minor >= 17);
+        }
+      }
+    }
+
+    output_tree["installed"] = installed;
+    output_tree["version"] = version_str;
+    output_tree["version_compatible"] = version_compatible;
+    output_tree["packaged_version"] = VIGEMBUS_PACKAGED_VERSION;
+#else
+    output_tree["error"] = "ViGEmBus is only available on Windows";
+    output_tree["installed"] = false;
+    output_tree["version"] = "";
+    output_tree["version_compatible"] = false;
+    output_tree["packaged_version"] = "";
+#endif
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Install ViGEmBus driver with elevated permissions.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vigembus/install| POST| null}
+   */
+  void installViGEmBus(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+
+#ifdef _WIN32
+    // Get the path to the vigembus installer
+    const std::filesystem::path installer_path = platf::appdata().parent_path() / "scripts" / "vigembus_installer.exe";
+
+    if (!std::filesystem::exists(installer_path)) {
+      output_tree["status"] = false;
+      output_tree["error"] = "ViGEmBus installer not found";
+      send_response(response, output_tree);
+      return;
+    }
+
+    // Run the installer with elevated permissions
+    std::error_code ec;
+    boost::filesystem::path working_dir = boost::filesystem::path(installer_path.string()).parent_path();
+    boost::process::v1::environment env = boost::this_process::environment();
+
+    // Run with elevated permissions, non-interactive
+    const std::string install_cmd = std::format("{} /quiet", installer_path.string());
+    auto child = platf::run_command(true, false, install_cmd, working_dir, env, nullptr, ec, nullptr);
+
+    if (ec) {
+      output_tree["status"] = false;
+      output_tree["error"] = "Failed to start installer: " + ec.message();
+      send_response(response, output_tree);
+      return;
+    }
+
+    // Wait for the installer to complete
+    child.wait(ec);
+
+    if (ec) {
+      output_tree["status"] = false;
+      output_tree["error"] = "Installer failed: " + ec.message();
+    } else {
+      int exit_code = child.exit_code();
+      output_tree["status"] = (exit_code == 0);
+      output_tree["exit_code"] = exit_code;
+      if (exit_code != 0) {
+        output_tree["error"] = std::format("Installer exited with code {}", exit_code);
+      }
+    }
+#else
+    output_tree["status"] = false;
+    output_tree["error"] = "ViGEmBus installation is only available on Windows";
+#endif
+
+    send_response(response, output_tree);
+  }
+
   void start() {
     platf::set_thread_name("confighttp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
@@ -1209,6 +1342,8 @@ namespace confighttp {
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
+    server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
+    server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;

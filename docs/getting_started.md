@@ -369,21 +369,7 @@ overflow menu. Different versions of Windows may provide slightly different step
    scripts/delete-firewall-rule.bat
    ```
 
-4. Virtual Gamepad Support
-
-   Install:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/install-gamepad.bat
-   ```
-
-   Uninstall:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/uninstall-gamepad.bat
-   ```
-
-5. Windows service
+4. Windows service
 
    Install:
    ```bash
@@ -464,6 +450,11 @@ Sunshine can only access microphones on macOS due to system limitations. To stre
 
 > [!CAUTION]
 > Gamepads are not currently supported.
+
+### Windows
+In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
+in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
+recommended to restart your computer.
 
 ## Usage
 

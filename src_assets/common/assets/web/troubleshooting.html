@@ -40,6 +40,45 @@
   <Navbar></Navbar>
   <div class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
+    <!-- ViGEmBus Installation -->
+    <div class="card p-2 my-4" v-if="platform === 'windows' && controllerEnabled">
+      <div class="card-body">
+        <h2 id="vigembus">{{ $t('troubleshooting.vigembus_install') }}</h2>
+        <br>
+        <p style="white-space: pre-line">{{ $t('troubleshooting.vigembus_desc') }}</p>
+        <div v-if="vigembus.installed && vigembus.version">
+          <p><strong>{{ $t('troubleshooting.vigembus_current_version') }}:</strong> {{ vigembus.version }}</p>
+          <div class="alert alert-success" v-if="vigembus.version_compatible">
+            {{ $t('troubleshooting.vigembus_compatible') }}
+          </div>
+          <div class="alert alert-danger" v-if="!vigembus.version_compatible">
+            {{ $t('troubleshooting.vigembus_incompatible') }}
+          </div>
+        </div>
+        <div class="alert alert-warning" v-else-if="!vigembus.installed">
+          {{ $t('troubleshooting.vigembus_not_installed') }}
+        </div>
+        <div class="alert alert-success" v-if="vigemBusInstallStatus === true">
+          {{ $t('troubleshooting.vigembus_install_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="vigemBusInstallStatus === false">
+          {{ vigemBusInstallError || $t('troubleshooting.vigembus_install_error') }}
+        </div>
+        <div>
+          <button
+            :class="vigembus.installed && vigembus.version === vigembus.packaged_version ? 'btn btn-danger' : 'btn btn-primary'"
+            :disabled="vigemBusInstallPressed"
+            @click="installViGEmBus">
+            <template v-if="vigembus.installed && vigembus.version === vigembus.packaged_version">
+              {{ $t('troubleshooting.vigembus_force_reinstall_button', { version: vigembus.packaged_version }) }}
+            </template>
+            <template v-else>
+              {{ $t('troubleshooting.vigembus_install_button', { version: vigembus.packaged_version }) }}
+            </template>
+          </button>
+        </div>
+      </div>
+    </div>
     <!-- Force Close App -->
     <div class="card p-2 my-4">
       <div class="card-body">
@@ -169,8 +208,18 @@
           restartPressed: false,
           showApplyMessage: false,
           platform: "",
+          controllerEnabled: false,
           unpairAllPressed: false,
           unpairAllStatus: null,
+          vigembus: {
+            installed: false,
+            version: '',
+            version_compatible: false,
+            packaged_version: '',
+          },
+          vigemBusInstallPressed: false,
+          vigemBusInstallStatus: null,
+          vigemBusInstallError: null,
         };
       },
       computed: {
@@ -186,6 +235,11 @@
           .then((r) => r.json())
           .then((r) => {
             this.platform = r.platform;
+            this.controllerEnabled = r.controller !== "disabled";
+            // Fetch ViGEmBus status only on Windows when gamepad is enabled
+            if (this.platform === 'windows' && this.controllerEnabled) {
+              this.refreshViGEmBusStatus();
+            }
           });
 
         this.logInterval = setInterval(() => {
@@ -207,7 +261,7 @@
         },
         closeApp() {
           this.closeAppPressed = true;
-          fetch("./api/apps/close", { 
+          fetch("./api/apps/close", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -223,7 +277,7 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("./api/clients/unpair-all", { 
+          fetch("./api/clients/unpair-all", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -240,12 +294,12 @@
             });
         },
         unpairSingle(uuid) {
-          fetch("./api/clients/unpair", { 
-            method: "POST", 
+          fetch("./api/clients/unpair", {
+            method: "POST",
             headers: {
               'Content-Type': 'application/json'
-            }, 
-            body: JSON.stringify({ uuid }) 
+            },
+            body: JSON.stringify({ uuid })
           }).then(() => {
             this.showApplyMessage = true;
             this.refreshClients();
@@ -285,11 +339,11 @@
         },
         ddResetPersistence() {
           this.ddResetPressed = true;
-          fetch("/api/reset-display-device-persistence", { 
+          fetch("/api/reset-display-device-persistence", {
             method: "POST",
-            headers: { 
-              "Content-Type": "application/json" 
-            } 
+            headers: {
+              "Content-Type": "application/json"
+            }
           })
             .then((r) => r.json())
             .then((r) => {
@@ -298,6 +352,55 @@
               setTimeout(() => {
                 this.ddResetStatus = null;
               }, 5000);
+            });
+        },
+        refreshViGEmBusStatus() {
+          fetch("/api/vigembus/status")
+            .then((r) => r.json())
+            .then((r) => {
+              this.vigembus = {
+                installed: r.installed || false,
+                version: r.version || '',
+                version_compatible: r.version_compatible || false,
+                packaged_version: r.packaged_version,
+              };
+            })
+            .catch((err) => {
+              console.error("Failed to fetch ViGEmBus status:", err);
+            });
+        },
+        installViGEmBus() {
+          this.vigemBusInstallPressed = true;
+          this.vigemBusInstallStatus = null;
+          this.vigemBusInstallError = null;
+          fetch("/api/vigembus/install", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            }
+          })
+            .then((r) => r.json())
+            .then((r) => {
+              this.vigemBusInstallPressed = false;
+              this.vigemBusInstallStatus = r.status;
+              if (!r.status && r.error) {
+                this.vigemBusInstallError = r.error;
+              }
+              setTimeout(() => {
+                this.vigemBusInstallStatus = null;
+                this.vigemBusInstallError = null;
+              }, 10000);
+              // Refresh status after installation attempt
+              this.refreshViGEmBusStatus();
+            })
+            .catch((err) => {
+              this.vigemBusInstallPressed = false;
+              this.vigemBusInstallStatus = false;
+              this.vigemBusInstallError = err.message;
+              setTimeout(() => {
+                this.vigemBusInstallStatus = null;
+                this.vigemBusInstallError = null;
+              }, 10000);
             });
         },
       },
