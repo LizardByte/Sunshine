@@ -39,7 +39,6 @@
 
 <script>
 import ThemeToggle from './ThemeToggle.vue'
-import { initDiscord } from '@lizardbyte/shared-web/src/js/discord.js'
 
 export default {
   components: { ThemeToggle },
@@ -49,7 +48,6 @@ export default {
   mounted() {
     let el = document.querySelector("a[href='" + document.location.pathname + "']");
     if (el) el.classList.add("active")
-    initDiscord();
   }
 }
 </script>
