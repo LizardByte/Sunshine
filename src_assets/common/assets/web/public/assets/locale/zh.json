@@ -462,10 +462,10 @@
     "vigembus_desc": "ViGEmBus 需要虚拟游戏板支持。如果缺少或过时的驱动程序，请安装或更新驱动程序(需要1.17或更高版本)。",
     "vigembus_incompatible": "ViGEmBus 版本过旧。请安装版本1.17或更多。",
     "vigembus_install": "ViGEmBus 驱动",
-    "vigembus_install_button": "Install ViGEmBus v{version}",
+    "vigembus_install_button": "安装 ViGEmBus v{version}",
     "vigembus_install_error": "安装 ViGEmBus 驱动程序失败。",
     "vigembus_install_success": "ViGEmBus 驱动安装成功！您可能需要重新启动您的计算机。",
-    "vigembus_force_reinstall_button": "Force Reinstall ViGEmBus v{version}",
+    "vigembus_force_reinstall_button": "强制重装 ViGEmBus v{version}",
     "vigembus_not_installed": "ViGEmBus 未安装。"
   },
   "welcome": {
