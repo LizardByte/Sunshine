@@ -777,9 +777,9 @@ namespace portal {
       sizes[1] = SPA_RECTANGLE(1, 1);
       sizes[2] = SPA_RECTANGLE(8192, 4096);
 
-      framerates[0] = SPA_FRACTION(refresh_rate, 1);  // Preferred
+      framerates[0] = SPA_FRACTION(0, 1);  // we only want variable rate, thus bypassing compositor pacing
       framerates[1] = SPA_FRACTION(0, 1);
-      framerates[2] = SPA_FRACTION(1000, 1);
+      framerates[2] = SPA_FRACTION(0, 1);
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
@@ -787,6 +787,7 @@ namespace portal {
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
 
       if (n_modifiers) {
         spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY | SPA_POD_PROP_FLAG_DONT_FIXATE);
@@ -864,7 +865,12 @@ namespace portal {
 
       BOOST_LOG(info) << "Video format: "sv << d->format.info.raw.format;
       BOOST_LOG(info) << "Size: "sv << d->format.info.raw.size.width << "x"sv << d->format.info.raw.size.height;
-      BOOST_LOG(info) << "Framerate: "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
+      if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
+        BOOST_LOG(info) << "Framerate (from compositor): 0/1 (variable rate capture)";
+      } else {
+        BOOST_LOG(info) << "Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
+        BOOST_LOG(info) << "Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+      }
 
       uint64_t drm_format = 0;
       for (const auto &fmt : format_map) {
