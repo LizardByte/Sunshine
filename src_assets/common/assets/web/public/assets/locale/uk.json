@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine - це самостійний ігровий стримінговий хостинг для Moonlight.",
     "download": "Завантажити",
+    "fix_now": "Виправити",
     "installed_version_not_stable": "Ви використовуєте попередню версію Sunshine. Ви можете зіткнутися з помилками або іншими проблемами. Будь ласка, повідомляйте про будь-які проблеми, з якими ви зіткнулися. Дякуємо, що допомагаєте зробити Sunshine кращою програмою!",
     "loading_latest": "Завантаження останньої версії...",
     "new_pre_release": "Доступна нова Pre-Release версія!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Увага!</b> Sunshine виявив ці помилки під час запуску. Ми НАПОЛЕГЛИВО <b>РЕКОМЕНДУЄМО</b> виправити їх перед стримінгом.",
     "version_dirty": "Дякуємо, що допомагаєте зробити Sunshine кращою програмою!",
     "version_latest": "Ви використовуєте останню версію Sunshine",
+    "vigembus_not_installed_desc": "Віртуальна ігрова підтримка не працюватиме без драйвера ViGEmBus. Натисніть на кнопку нижче, щоб встановити його.",
+    "vigembus_not_installed_title": "ViGEmBus драйвер не встановлено",
+    "vigembus_outdated_desc": "Ви використовуєте застарілу версію ViGEmBus (v{version}). Версія 1. Потрібно 7 або вище для підтримки коректної роботи геймпада. Натисніть на кнопку нижче, щоб оновити.",
+    "vigembus_outdated_title": "ViGEmBus водій застарілий",
     "welcome": "Привіт, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Немає пов'язаних пристроїв.",
     "unpair_single_success": "Однак пристрій(ої) все ще можуть бути в активному сеансі. Використовуйте кнопку \"Примусове закриття\" вище, щоб завершити будь-які відкриті сеанси.",
     "unpair_single_unknown": "Невідомий клієнт",
-    "unpair_title": "Відв'язати пристрої"
+    "unpair_title": "Відв'язати пристрої",
+    "vigembus_compatible": "ViGEmBus встановлено та сумісний.",
+    "vigembus_current_version": "Поточна версія",
+    "vigembus_desc": "ViGEmBus необхідний для підтримки віртуальних геймпадів. Встановіть або оновіть драйвера, якщо він відсутній або застарілий (версії 1.17 або вище).",
+    "vigembus_incompatible": "Версія ViGEmBus застаріла. Будь ласка, встановіть версію 1.17 або вище.",
+    "vigembus_install": "ViGEmBus драйвер",
+    "vigembus_install_button": "Встановіть ViGEmBus в{version}",
+    "vigembus_install_error": "Не вдалося встановити драйвер ViGEmBus.",
+    "vigembus_install_success": "ViGEmBus успішно встановлений! Перезапустіть комп'ютер.",
+    "vigembus_force_reinstall_button": "Примусово перевстановити ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus не встановлено."
   },
   "welcome": {
     "confirm_password": "Підтвердити пароль",
