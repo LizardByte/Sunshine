@@ -63,8 +63,8 @@
               </div>
               <a class="btn btn-success m-1" :href="preReleaseVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
-            <pre><b>{{preReleaseVersion.release.name}}</b></pre>
-            <pre>{{preReleaseVersion.release.body}}</pre>
+            <h3>{{preReleaseVersion.release.name}}</h3>
+            <div class="markdown-body" v-html="convertMarkdownToHtml(preReleaseVersion.release.body)"></div>
           </div>
         </div>
         <div v-if="stableBuildAvailable">
@@ -76,7 +76,7 @@
               <a class="btn btn-success m-1" :href="githubVersion.release.html_url" target="_blank">{{ $t('index.download') }}</a>
             </div>
             <h3>{{githubVersion.release.name}}</h3>
-            <pre>{{githubVersion.release.body}}</pre>
+            <div class="markdown-body" v-html="convertMarkdownToHtml(githubVersion.release.body)"></div>
           </div>
         </div>
       </div>
@@ -90,10 +90,20 @@
 
 <script type="module">
   import { createApp } from 'vue'
+  import { marked } from 'marked'
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
   import ResourceCard from './ResourceCard.vue'
   import SunshineVersion from './sunshine_version'
+
+  // Configure marked to allow HTML
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: true,
+    mangle: false,
+    sanitize: false
+  });
 
   console.log("Hello, Sunshine!")
   let app = createApp({
@@ -178,6 +188,12 @@
           logLines.push({ timestamp: rawLogLines[i], level: rawLogLines[i + 1].split(":")[0], value: rawLogLines[i + 1] });
         }
         return logLines;
+      }
+    },
+    methods: {
+      convertMarkdownToHtml(markdown) {
+        if (!markdown) return '';
+        return marked.parse(markdown);
       }
     }
   });
