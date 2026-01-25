@@ -39,6 +39,9 @@ basic authentication with the admin username and password.
 ## POST /api/config
 @copydoc confighttp::saveConfig()
 
+## GET /api/covers/{index}
+@copydoc confighttp::getCover()
+
 ## POST /api/covers/upload
 @copydoc confighttp::uploadCover()
 

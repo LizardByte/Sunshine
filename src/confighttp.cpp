@@ -192,12 +192,12 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request) {
+  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Not Found") {
     constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
     tree["status_code"] = code;
-    tree["error"] = "Not Found";
+    tree["error"] = error_message;
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
@@ -929,6 +929,73 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get an application's image.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @note{The index in the url path is the application index.}
+   *
+   * @api_examples{/api/cover/9999 | GET| null}
+   */
+  void getCover(resp_https_t response, req_https_t request) {
+    // Skip check_content_type() for this endpoint since the request body is not used.
+
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    try {
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps_node = file_tree["apps"];
+      const int index = std::stoi(request->path_match[1]);
+
+      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
+        std::string error;
+        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
+          error = "No applications found";
+        } else {
+          error = std::format("'index' {} out of range, max index is {}", index, max_index);
+        }
+        bad_request(response, request, error);
+        return;
+      }
+
+      auto &app = apps_node[index];
+      if (!app.contains("image-path") || app["image-path"].is_null()) {
+        not_found(response, request, "This application has no image");
+        return;
+      }
+
+      std::string path = app["image-path"];
+
+      if (!std::filesystem::exists(path)) {
+        BOOST_LOG(debug) << "File not found: " << path;
+        not_found(response, request, "Image not found, check if the path exists");
+        return;
+      }
+      std::ifstream in(path, std::ios::binary);
+      if (!in) {
+        BOOST_LOG(debug) << "Unable to read file: " << path;
+        not_found(response, request, "Unable to read image");
+        return;
+      }
+
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "image/png");
+      headers.emplace("X-Frame-Options", "DENY");
+      headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "GetCover: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
    * @brief Upload a cover image.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1324,7 +1391,9 @@ namespace confighttp {
     server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
-    server.default_resource["GET"] = not_found;
+    server.default_resource["GET"] = [](resp_https_t response, req_https_t request) {
+      not_found(response, request);
+    };
     server.resource["^/$"]["GET"] = getIndexPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
@@ -1351,6 +1420,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
