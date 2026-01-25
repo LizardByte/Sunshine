@@ -57,6 +57,12 @@ basic authentication with the admin username and password.
 ## POST /api/restart
 @copydoc confighttp::restart()
 
+## GET /api/vigembus/status
+@copydoc confighttp::getViGEmBusStatus()
+
+## POST /api/vigembus/install
+@copydoc confighttp::installViGEmBus()
+
 <div class="section_buttons">
 
 | Previous                                    |                                  Next |

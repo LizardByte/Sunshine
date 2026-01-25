@@ -48,6 +48,11 @@ set_target_properties(sunshine_rc_object PROPERTIES
     INCLUDE_DIRECTORIES ""
 )
 
+# ViGEmBus version
+set(VIGEMBUS_PACKAGED_V "1.21.442")
+set(VIGEMBUS_PACKAGED_V_2 "${VIGEMBUS_PACKAGED_V}.0")
+list(APPEND SUNSHINE_DEFINITIONS VIGEMBUS_PACKAGED_VERSION="${VIGEMBUS_PACKAGED_V_2}")
+
 set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/windows/publish.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/misc.h"

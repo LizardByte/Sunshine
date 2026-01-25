@@ -1761,4 +1761,31 @@ namespace platf {
   std::unique_ptr<high_precision_timer> create_high_precision_timer() {
     return std::make_unique<win32_high_precision_timer>();
   }
+
+  bool getFileVersionInfo(const std::filesystem::path &file_path, std::string &version_str) {
+    DWORD handle = 0;
+    DWORD size = GetFileVersionInfoSizeW(file_path.wstring().c_str(), &handle);
+    if (size == 0) {
+      return false;
+    }
+
+    std::vector<BYTE> buffer(size);
+    if (!GetFileVersionInfoW(file_path.wstring().c_str(), handle, size, buffer.data())) {
+      return false;
+    }
+
+    VS_FIXEDFILEINFO *file_info = nullptr;
+    if (UINT file_info_size = 0; !VerQueryValueW(buffer.data(), L"\\", (LPVOID *) &file_info, &file_info_size)) {
+      return false;
+    }
+
+    DWORD major = HIWORD(file_info->dwFileVersionMS);
+    DWORD minor = LOWORD(file_info->dwFileVersionMS);
+    DWORD build = HIWORD(file_info->dwFileVersionLS);
+    DWORD revision = LOWORD(file_info->dwFileVersionLS);
+
+    version_str = std::format("{}.{}.{}.{}", major, minor, build, revision);
+
+    return true;
+  }
 }  // namespace platf

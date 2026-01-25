@@ -5,9 +5,11 @@ install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
 # ViGEmBus installer
-set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/vigembus_installer.exe")
+set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/scripts/vigembus_installer.exe")
+set(VIGEMBUS_DOWNLOAD_URL_1 "https://github.com/nefarius/ViGEmBus/releases/download")
+set(VIGEMBUS_DOWNLOAD_URL_2 "v${VIGEMBUS_PACKAGED_V_2}/ViGEmBus_${VIGEMBUS_PACKAGED_V}_x64_x86_arm64.exe")
 file(DOWNLOAD
-        "https://github.com/nefarius/ViGEmBus/releases/download/v1.21.442.0/ViGEmBus_1.21.442_x64_x86_arm64.exe"
+        "${VIGEMBUS_DOWNLOAD_URL_1}/${VIGEMBUS_DOWNLOAD_URL_2}"
         ${VIGEMBUS_INSTALLER}
         SHOW_PROGRESS
         EXPECTED_HASH SHA256=155c50f1eec07bdc28d2f61a3e3c2c6c132fee7328412de224695f89143316bc
@@ -45,9 +47,6 @@ install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/autostart/"
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/firewall/"
         DESTINATION "scripts"
         COMPONENT firewall)
-install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/misc/gamepad/"
-        DESTINATION "scripts"
-        COMPONENT gamepad)
 
 # Sunshine assets
 install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/windows/assets/"
@@ -107,7 +106,7 @@ set(CPACK_COMPONENT_FIREWALL_GROUP "Scripts")
 
 # gamepad scripts
 set(CPACK_COMPONENT_GAMEPAD_DISPLAY_NAME "Virtual Gamepad")
-set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "Scripts to install and uninstall Virtual Gamepad.")
+set(CPACK_COMPONENT_GAMEPAD_DESCRIPTION "ViGEmBus installer for virtual gamepad support.")
 set(CPACK_COMPONENT_GAMEPAD_GROUP "Scripts")
 
 # include specific packaging

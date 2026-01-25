@@ -223,7 +223,12 @@ launchctl load -w /Library/LaunchAgents/org.freedesktop.dbus-session.plist
 ## Windows
 
 ### No gamepad detected
-Verify that you've installed [Nefarius Virtual Gamepad](https://github.com/nefarius/ViGEmBus/releases/latest).
+You must install ViGEmBus to use virtual gamepads. You can install this from the troubleshooting tab of the web UI.
+
+Alternatively, you can manually install it from
+[ViGEmBus releases](https://github.com/nefarius/ViGEmBus/releases/latest). You must use version 1.17 or newer.
+
+After installation, it is recommended to restart your computer.
 
 ### Permission denied
 Since Sunshine runs as a service on Windows, it may not have the same level of access that your regular user account
