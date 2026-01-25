@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine est un serveur de streaming auto-hébergé pour Moonlight.",
     "download": "Télécharger",
+    "fix_now": "Corriger maintenant",
     "installed_version_not_stable": "Vous utilisez une version pré-publiée de Sunshine. Vous pouvez rencontrer des bugs ou d'autres problèmes. Veuillez signaler tout problème que vous rencontrez. Merci de nous aider à faire de Sunshine un meilleur logiciel!",
     "loading_latest": "Chargement de la dernière version...",
     "new_pre_release": "Une nouvelle préversion est disponible !",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Attention !</b> Sunshine a détecté ces erreurs lors du démarrage. Nous <b>recommandons vivement de</b> les corriger avant de commencer à streamer.",
     "version_dirty": "Merci de contribuer à faire de Sunshine un meilleur logiciel !",
     "version_latest": "Vous utilisez la dernière version de Sunshine",
+    "vigembus_not_installed_desc": "Le support de la manette virtuelle ne fonctionnera pas sans le pilote ViGEmbus. Cliquez sur le bouton ci-dessous pour l'installer.",
+    "vigembus_not_installed_title": "Pilote ViGEmBus non installé",
+    "vigembus_outdated_desc": "Vous utilisez une version obsolète de ViGEmBus (v{version}). Version 1. 7 ou plus est nécessaire pour une prise en charge adéquate de la manette. Cliquez sur le bouton ci-dessous pour mettre à jour.",
+    "vigembus_outdated_title": "Pilote ViGEmBus obsolète",
     "welcome": "Bonjour, Sunshine !"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Il n'y a aucun appareil associé.",
     "unpair_single_success": "Cependant, le(s) appareil(s) peuvent toujours être dans une session active. Utilisez le bouton 'Forcer la fermeture' ci-dessus pour mettre fin à toute session ouverte.",
     "unpair_single_unknown": "Client inconnu",
-    "unpair_title": "Dissocier les périphériques"
+    "unpair_title": "Dissocier les périphériques",
+    "vigembus_compatible": "ViGEmBus est installé et compatible.",
+    "vigembus_current_version": "Version actuelle",
+    "vigembus_desc": "ViGEmBus est requis pour la prise en charge de la manette virtuelle. Installez ou mettez à jour le pilote s'il est manquant ou obsolète (version 1.17 ou supérieure requise).",
+    "vigembus_incompatible": "La version ViGEmBus est trop ancienne. Veuillez installer la version 1.17 ou supérieure.",
+    "vigembus_install": "Pilote ViGEmBus",
+    "vigembus_install_button": "Installer ViGEmBus v{version}",
+    "vigembus_install_error": "Impossible d'installer le pilote ViGEmbus.",
+    "vigembus_install_success": "Le pilote ViGEmBus a été installé avec succès ! Vous devrez peut-être redémarrer votre ordinateur.",
+    "vigembus_force_reinstall_button": "Forcer la réinstallation de ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus n'est pas installé."
   },
   "welcome": {
     "confirm_password": "Confirmation du mot de passe",
