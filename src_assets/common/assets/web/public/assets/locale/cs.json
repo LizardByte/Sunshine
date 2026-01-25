@@ -459,14 +459,14 @@
     "unpair_title": "Zrušit párování",
     "vigembus_compatible": "ViGEmBus je nainstalován a kompatibilní.",
     "vigembus_current_version": "Aktuální verze",
-    "vigembus_desc": "ViGEmBus is required for virtual gamepad support. Install or update the driver if it's missing or outdated (version 1.17 or higher required).",
-    "vigembus_incompatible": "ViGEmBus version is too old. Please install version 1.17 or higher.",
-    "vigembus_install": "ViGEmBus Driver",
-    "vigembus_install_button": "Install ViGEmBus v{version}",
-    "vigembus_install_error": "Failed to install ViGEmBus driver.",
-    "vigembus_install_success": "ViGEmBus driver installed successfully! You may need to restart your computer.",
-    "vigembus_force_reinstall_button": "Force Reinstall ViGEmBus v{version}",
-    "vigembus_not_installed": "ViGEmBus is not installed."
+    "vigembus_desc": "ViGEmBus je vyžadován pro podporu virtuálních gamepadů. Nainstalujte nebo aktualizujte ovladač, pokud chybí nebo je zastaralý (verze 1.17 nebo vyšší).",
+    "vigembus_incompatible": "ViGEmBus verze je příliš stará. Prosím, nainstalujte verzi 1.17 nebo vyšší.",
+    "vigembus_install": "Ovladač ViGEmBus",
+    "vigembus_install_button": "Nainstalovat ViGEmBus v{version}",
+    "vigembus_install_error": "Nepodařilo se nainstalovat ovladač ViGEmBus.",
+    "vigembus_install_success": "Ovladač ViGEmBus byl úspěšně nainstalován! Možná budete muset restartovat počítač.",
+    "vigembus_force_reinstall_button": "Vynutit přeinstalování ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus není nainstalován."
   },
   "welcome": {
     "confirm_password": "Potvrdit heslo",
