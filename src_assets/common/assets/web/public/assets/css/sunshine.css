@@ -14,3 +14,104 @@
         background-color: var(--bs-primary-bg-subtle);
     }
 }
+
+/* Markdown body styling for release notes */
+.markdown-body {
+    font-size: 1rem;
+    line-height: 1.6;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.markdown-body h2 {
+    font-size: 1.5rem;
+    border-bottom: 1px solid rgba(var(--bs-body-color-rgb), 0.1);
+    padding-bottom: 0.3rem;
+}
+
+.markdown-body h3 {
+    font-size: 1.25rem;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+    padding-left: 2rem;
+    margin-bottom: 1rem;
+}
+
+.markdown-body li {
+    margin-bottom: 0.25rem;
+}
+
+.markdown-body a {
+    color: var(--bs-link-color);
+    text-decoration: none;
+}
+
+.markdown-body a:hover {
+    text-decoration: underline;
+}
+
+.markdown-body img {
+    max-width: 100%;
+    height: auto;
+    vertical-align: middle;
+}
+
+.markdown-body code {
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    background-color: rgba(var(--bs-body-color-rgb), 0.05);
+    border-radius: 6px;
+}
+
+.markdown-body pre {
+    padding: 1rem;
+    overflow: auto;
+    font-size: 85%;
+    line-height: 1.45;
+    background-color: rgba(var(--bs-body-color-rgb), 0.05);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.markdown-body blockquote {
+    padding: 0 1rem;
+    color: rgba(var(--bs-body-color-rgb), 0.65);
+    border-left: 0.25rem solid rgba(var(--bs-body-color-rgb), 0.15);
+    margin-bottom: 1rem;
+}
+
+.markdown-body table {
+    border-spacing: 0;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+}
+
+.markdown-body table th,
+.markdown-body table td {
+    padding: 6px 13px;
+    border: 1px solid rgba(var(--bs-body-color-rgb), 0.15);
+}
+
+.markdown-body table tr:nth-child(2n) {
+    background-color: rgba(var(--bs-body-color-rgb), 0.03);
+}
+
+.markdown-body hr {
+    height: 0.25rem;
+    padding: 0;
+    margin: 1.5rem 0;
+    background-color: rgba(var(--bs-body-color-rgb), 0.1);
+    border: 0;
+}
