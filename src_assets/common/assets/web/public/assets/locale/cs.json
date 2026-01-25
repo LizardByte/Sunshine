@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine je samostatný hostitel herního streamu pro Moonlight.",
     "download": "Stáhnout",
+    "fix_now": "Opravit nyní",
     "installed_version_not_stable": "Používáte předběžnou verzi Sunshine. Mohou se vyskytnout chyby nebo jiné problémy. Nahlaste prosím všechny problémy, se kterými se setkáte. Děkujeme, že pomáháte vytvořit lepší software Sunshine!",
     "loading_latest": "Načítání nejnovější verze...",
     "new_pre_release": "K dispozici je nová verze před vydáním!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Pozor!</b> Sunshine zjistil tyto chyby při spuštění. <b>DŮRAZNĚ DOPORUČUJEME</b> je před streamováním opravit.",
     "version_dirty": "Děkujeme, že pomáháte vylepšovat software Sunshine!",
     "version_latest": "Používáte nejnovější verzi Sunshine",
+    "vigembus_not_installed_desc": "Podpora virtuálního gamepadu nebude fungovat bez ovladače ViGEmBus. Pro instalaci klikněte na tlačítko níže.",
+    "vigembus_not_installed_title": "Ovladač ViGEmBus není nainstalován",
+    "vigembus_outdated_desc": "Používáte zastaralou verzi ViGEmBus (v{version}). Verze 1. Pro správnou podporu gamepadu je potřeba 7 nebo vyšší. Klikněte na tlačítko níže pro aktualizaci.",
+    "vigembus_outdated_title": "ViGEmBus Driver je zastaralý",
     "welcome": "Ahoj, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Neexistují žádná spárovaná zařízení.",
     "unpair_single_success": "Zařízení však mohou být stále v aktivní relaci. Pomocí výše uvedeného tlačítka \"Vynutit ukončení\" ukončete všechny otevřené relace.",
     "unpair_single_unknown": "Neznámý klient",
-    "unpair_title": "Zrušit párování"
+    "unpair_title": "Zrušit párování",
+    "vigembus_compatible": "ViGEmBus je nainstalován a kompatibilní.",
+    "vigembus_current_version": "Aktuální verze",
+    "vigembus_desc": "ViGEmBus is required for virtual gamepad support. Install or update the driver if it's missing or outdated (version 1.17 or higher required).",
+    "vigembus_incompatible": "ViGEmBus version is too old. Please install version 1.17 or higher.",
+    "vigembus_install": "ViGEmBus Driver",
+    "vigembus_install_button": "Install ViGEmBus v{version}",
+    "vigembus_install_error": "Failed to install ViGEmBus driver.",
+    "vigembus_install_success": "ViGEmBus driver installed successfully! You may need to restart your computer.",
+    "vigembus_force_reinstall_button": "Force Reinstall ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus is not installed."
   },
   "welcome": {
     "confirm_password": "Potvrdit heslo",
