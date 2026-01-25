@@ -381,6 +381,7 @@
   "index": {
     "description": "O sol é um anfitrião de jogos auto-hospedado para o Moonlight.",
     "download": "BAIXAR",
+    "fix_now": "Corrigir agora",
     "installed_version_not_stable": "Você está executando uma versão de pré-lançamento do Sol. Você pode enfrentar erros ou outros problemas. Por favor, reporte qualquer problema que você encontrar. Obrigado por ajudar a fazer do sol um software melhor!",
     "loading_latest": "Carregando a última versão...",
     "new_pre_release": "Uma nova versão de pré-lançamento está disponível!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Atenção!</b> A Sunshine detectou estes erros durante o arranque. Recomendamos <b>vivamente que</b> os corrija antes de transmitir.",
     "version_dirty": "Obrigado por ajudar a fazer do sol um software melhor!",
     "version_latest": "Você está executando a última versão do Sunshine",
+    "vigembus_not_installed_desc": "O suporte ao gamepad virtual não funcionará sem o driver do ViGEmBus. Clique no botão abaixo para instalá-lo.",
+    "vigembus_not_installed_title": "Driver ViGEmBus não instalado",
+    "vigembus_outdated_desc": "Você está executando uma versão desatualizada do ViGEmBus (v{version}). Versão 1. É necessário 7 ou superior para o suporte adequado ao controle. Clique no botão abaixo para atualizar.",
+    "vigembus_outdated_title": "Driver ViGEmBus desatualizado",
     "welcome": "Olá, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Não há dispositivos emparelhados.",
     "unpair_single_success": "No entanto, os dispositivos ainda podem estar em uma sessão ativa. Use o botão 'Forçar Fechar' acima para finalizar todas as sessões abertas.",
     "unpair_single_unknown": "Cliente Desconhecido",
-    "unpair_title": "Desconectar dispositivos"
+    "unpair_title": "Desconectar dispositivos",
+    "vigembus_compatible": "ViGEmBus é instalado e compatível.",
+    "vigembus_current_version": "Versão Atual",
+    "vigembus_desc": "ViGEmBus é necessário para suporte de controle virtual. Instale ou atualize o driver se estiver ausente ou desatualizado (versão 1.17 ou superior necessária).",
+    "vigembus_incompatible": "A versão do ViGEmBus é muito antiga. Por favor, instale a versão 1.17 ou superior.",
+    "vigembus_install": "Motorista ViGEmBus",
+    "vigembus_install_button": "Instalar ViGEmBus v{version}",
+    "vigembus_install_error": "Falha ao instalar o driver ViGEmBus.",
+    "vigembus_install_success": "ViGEmBus foi instalado com sucesso! Talvez seja necessário reiniciar seu computador.",
+    "vigembus_force_reinstall_button": "Forçar Reinstalação ViGEmBus v{version}",
+    "vigembus_not_installed": "O ViGEmBus não está instalado."
   },
   "welcome": {
     "confirm_password": "Confirmar a senha",
