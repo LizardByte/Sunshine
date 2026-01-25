@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine - это ваш собственный сервер вещания игр для Moonlight.",
     "download": "Скачать",
+    "fix_now": "Исправить сейчас",
     "installed_version_not_stable": "Вы используете предварительную версию Sunshine. Вы можете столкнуться с ошибками или другими проблемами. Пожалуйста, сообщайте о проблемах, с которыми вы столкнётесь. Благодарим за помощь по улучшению Sunshine!",
     "loading_latest": "Загрузка свежей версии...",
     "new_pre_release": "Доступна новая предварительная версия!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Внимание!</b> Sunshine обнаружил эти ошибки во время запуска. Мы <b>НАСТОЯТЕЛЬНО РЕКОМЕНДУЕМ</b> исправить их перед запуском вещания.",
     "version_dirty": "Спасибо за помощь по улучшению Sunshine!",
     "version_latest": "Вы используете свежую версию Sunshine",
+    "vigembus_not_installed_desc": "Поддержка виртуального геймпада не будет работать без драйвера ViGEmBus. Нажмите на кнопку ниже, чтобы установить его.",
+    "vigembus_not_installed_title": "Драйвер ViGEmBus не установлен",
+    "vigembus_outdated_desc": "Вы используете устаревшую версию ViGEmBus (v{version}). Версия 1. Для корректной поддержки геймпада требуется 7 или выше. Нажмите на кнопку ниже, чтобы обновиться.",
+    "vigembus_outdated_title": "Драйвер ViGEmBus устарел",
     "welcome": "Привет, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Нет привязанных устройств.",
     "unpair_single_success": "Однако, устройство (устройства) может находиться в имеющемся сеансе. Воспользуйтесь кнопкой «Принудительное закрытие» выше для завершения всех сеансов.",
     "unpair_single_unknown": "Неизвестный клиент",
-    "unpair_title": "Отвязать устройства"
+    "unpair_title": "Отвязать устройства",
+    "vigembus_compatible": "ViGEmBus установлен и совместим.",
+    "vigembus_current_version": "Текущая версия",
+    "vigembus_desc": "Для поддержки виртуального геймпада требуется ViGEmBus. Установите или обновите драйвер, если он отсутствует или устарел (требуется версия 1.17 или выше).",
+    "vigembus_incompatible": "Версия ViGEmBus устарела. Пожалуйста, установите версию 1.17 или выше.",
+    "vigembus_install": "Водитель ViGEmBus",
+    "vigembus_install_button": "Установить ViGEmBus v{version}",
+    "vigembus_install_error": "Не удалось установить драйвер ViGEmBus.",
+    "vigembus_install_success": "Драйвер ViGEmBus успешно установлен! Вам может потребоваться перезагрузить компьютер.",
+    "vigembus_force_reinstall_button": "Принудительно переустановить ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus не установлен."
   },
   "welcome": {
     "confirm_password": "Подтвердите пароль",
