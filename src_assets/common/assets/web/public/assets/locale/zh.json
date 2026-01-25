@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine 是供 Moonlight 使用的自建游戏串流服务。",
     "download": "下载",
+    "fix_now": "立即修复",
     "installed_version_not_stable": "您正在运行一个 Sunshine 的预发布版本。您可能会遇到 Bug 或其他问题。 请报告您遇到的任何问题。感谢您帮助将 Sunshine 变得更好！",
     "loading_latest": "正在检测最新版本...",
     "new_pre_release": "有新的预发布版本可用！",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>请注意！</b>Sunshine 在启动过程中检测到这些错误。我们<b>强烈建议</b>您在串流之前修复这些错误。",
     "version_dirty": "感谢您的帮助，让 Sunshine 变得更好！",
     "version_latest": "您正在运行最新版本的 Sunshine",
+    "vigembus_not_installed_desc": "ViGEmBus 驱动程序虚拟游戏板支持无法正常工作。点击下面的按钮安装它。",
+    "vigembus_not_installed_title": "ViGEmBus 驱动程序未安装",
+    "vigembus_outdated_desc": "您运行的是过时版本的 ViGEmBus (v{version})。需要 1.17 或更高版本才能正常支持游戏手柄。单击下面的按钮进行更新。",
+    "vigembus_outdated_title": "ViGEmBus 驱动程序已过期",
     "welcome": "你好，Sunshine！"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "没有配对的设备。",
     "unpair_single_success": "然而，设备可能仍然处于活动会话中，使用上面的“强制关闭”按钮结束任何打开的会话。",
     "unpair_single_unknown": "未知客户端",
-    "unpair_title": "取消配对设备"
+    "unpair_title": "取消配对设备",
+    "vigembus_compatible": "ViGEmBus 已安装并兼容。",
+    "vigembus_current_version": "当前版本",
+    "vigembus_desc": "ViGEmBus 需要虚拟游戏板支持。如果缺少或过时的驱动程序，请安装或更新驱动程序(需要1.17或更高版本)。",
+    "vigembus_incompatible": "ViGEmBus 版本过旧。请安装版本1.17或更多。",
+    "vigembus_install": "ViGEmBus 驱动",
+    "vigembus_install_button": "Install ViGEmBus v{version}",
+    "vigembus_install_error": "安装 ViGEmBus 驱动程序失败。",
+    "vigembus_install_success": "ViGEmBus 驱动安装成功！您可能需要重新启动您的计算机。",
+    "vigembus_force_reinstall_button": "Force Reinstall ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus 未安装。"
   },
   "welcome": {
     "confirm_password": "确认密码",
