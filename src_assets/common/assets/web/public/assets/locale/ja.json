@@ -381,6 +381,7 @@
   "index": {
     "description": "サンシャインはムーンライトのための自己ホストゲームストリームホストです。",
     "download": "ダウンロード",
+    "fix_now": "今すぐ修正",
     "installed_version_not_stable": "Sunshineのプレリリース版を実行しています。バグやその他の問題が発生する可能性があります。 問題が発生した場合は報告してください。Sunshineをより良いソフトウェアにしていただきありがとうございます！",
     "loading_latest": "最新のリリースを読み込んでいます...",
     "new_pre_release": "新しいプレリリースバージョンが利用可能です!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>注意</b>Sunshineは起動時にこれらのエラーを検出しました。ストリーミングの前にこれらのエラーを修正することを<b>強くお勧め</b>します。",
     "version_dirty": "Sunshineをより良いソフトウェアにしてくれてありがとうございます!",
     "version_latest": "サンシャインの最新バージョンを実行しています",
+    "vigembus_not_installed_desc": "ViGEmBusドライバなしでは仮想ゲームパッドのサポートは機能しません。インストールするには下のボタンをクリックしてください。",
+    "vigembus_not_installed_title": "ViGEmBusドライバがインストールされていません",
+    "vigembus_outdated_desc": "ViGEmBus(v{version})の古いバージョンを実行しています。 バージョン 1. 適切なゲームパッドをサポートするには、7以上が必要です。アップデートするには下のボタンをクリックしてください。",
+    "vigembus_outdated_title": "ViGEmBusドライバが古くなっています",
     "welcome": "こんにちは、サンシャイン！"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "ペアリングされたデバイスがありません。",
     "unpair_single_success": "ただし、デバイスはまだアクティブなセッションにいる可能性があります。上の「強制終了」ボタンを使用して、開いているセッションを終了します。",
     "unpair_single_unknown": "不明なクライアント",
-    "unpair_title": "デバイスのペアリングを解除"
+    "unpair_title": "デバイスのペアリングを解除",
+    "vigembus_compatible": "ViGEmBusがインストールされ、互換性があります。",
+    "vigembus_current_version": "現在のバージョン",
+    "vigembus_desc": "ViGEmBus is required for virtual gamepad support. Install or update the driver if it's missing or outdated (version 1.17 or higher required).",
+    "vigembus_incompatible": "ViGEmBus version is too old. Please install version 1.17 or higher.",
+    "vigembus_install": "ViGEmBus Driver",
+    "vigembus_install_button": "Install ViGEmBus v{version}",
+    "vigembus_install_error": "Failed to install ViGEmBus driver.",
+    "vigembus_install_success": "ViGEmBus driver installed successfully! You may need to restart your computer.",
+    "vigembus_force_reinstall_button": "Force Reinstall ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus is not installed."
   },
   "welcome": {
     "confirm_password": "パスワードの確認",
