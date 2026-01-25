@@ -381,6 +381,7 @@
   "index": {
     "description": "Solsken är en själv-värd spel ström värd för Moonlight.",
     "download": "Hämta",
+    "fix_now": "Fixa nu",
     "installed_version_not_stable": "Du kör en förhandsversion av Sunshine. Du kan uppleva buggar eller andra problem. Vänligen rapportera eventuella problem du stöter. Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "loading_latest": "Laddar senaste utgåvan...",
     "new_pre_release": "En ny version av förhandsversionen är tillgänglig!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Uppmärksamhet!</b> Solsken upptäckte dessa fel vid uppstart. Vi <b>STARKLIG KUNSKAP</b> fixar dem innan vi streamar.",
     "version_dirty": "Tack för att du hjälper till att göra Sunshine till en bättre programvara!",
     "version_latest": "Du kör den senaste versionen av Sunshine",
+    "vigembus_not_installed_desc": "Stöd för virtuella spel fungerar inte utan ViGEmBus-drivrutinen. Klicka på knappen nedan för att installera det.",
+    "vigembus_not_installed_title": "ViGEmBus drivrutin inte installerad",
+    "vigembus_outdated_desc": "Du kör en föråldrad version av ViGEmBus (v{version}). 7 eller högre krävs för korrekt gamepad stöd. Klicka på knappen nedan för att uppdatera.",
+    "vigembus_outdated_title": "ViGEmBus förare föråldrad",
     "welcome": "Hej, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Det finns inga parkopplade enheter.",
     "unpair_single_success": "Enheten (er) kan dock fortfarande vara i en aktiv session. Använd knappen \"Tvinga nära\" ovan för att avsluta alla öppna sessioner.",
     "unpair_single_unknown": "Okänd klient",
-    "unpair_title": "Ta bort enheter"
+    "unpair_title": "Ta bort enheter",
+    "vigembus_compatible": "ViGEmBus är installerat och kompatibelt.",
+    "vigembus_current_version": "Nuvarande version",
+    "vigembus_desc": "ViGEmBus krävs för virtuell gamepad support. Installera eller uppdatera drivrutinen om den saknas eller är föråldrad (version 1.17 eller högre krävs).",
+    "vigembus_incompatible": "ViGEmBus version är för gammal. Installera version 1.17 eller senare.",
+    "vigembus_install": "ViGEmBus förare",
+    "vigembus_install_button": "Installera ViGEmBus v{version}",
+    "vigembus_install_error": "Det gick inte att installera ViGEmBus-drivrutinen.",
+    "vigembus_install_success": "ViGEmBus drivrutin installerad! Du kan behöva starta om datorn.",
+    "vigembus_force_reinstall_button": "Tvinga ominstallation av ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus är inte installerat."
   },
   "welcome": {
     "confirm_password": "Bekräfta lösenord",
