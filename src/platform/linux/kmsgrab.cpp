@@ -691,6 +691,8 @@ namespace platf {
 
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
+              auto &viewport = monitor->second.viewport;
+
               // Use physical framebuffer size, not logical viewport (which may be scaled)
               width = fb->width;
               height = fb->height;

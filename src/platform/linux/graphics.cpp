@@ -543,9 +543,28 @@ namespace egl {
       gl::tex_t::make(1)
     };
 
+    // If import failed with modifier, retry without modifier
+    if (!rgb->xrgb8 && xrgb.modifier != DRM_FORMAT_MOD_INVALID) {
+      static bool logged_modifier_fallback = false;
+      if (!logged_modifier_fallback) {
+        BOOST_LOG(info) << "RGB import with modifier 0x"sv << std::hex << xrgb.modifier 
+                        << " failed, using implicit modifier"sv << std::dec;
+        logged_modifier_fallback = true;
+      }
+      
+      surface_descriptor_t xrgb_linear = xrgb;
+      xrgb_linear.modifier = DRM_FORMAT_MOD_INVALID;
+      auto attribs_linear = surface_descriptor_to_egl_attribs(xrgb_linear);
+      
+      rgb = rgb_t {
+        egl_display,
+        eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs_linear.data()),
+        gl::tex_t::make(1)
+      };
+    }
+
     if (!rgb->xrgb8) {
       BOOST_LOG(error) << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
-
       return std::nullopt;
     }
 

@@ -110,8 +110,19 @@ namespace vk {
         sequence = descriptor.sequence;
         rgb = egl::rgb_t {};
         auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
-        if (!rgb_opt) return -1;
-        rgb = std::move(*rgb_opt);
+        if (!rgb_opt) {
+          // EGL import failed - use blank frame to avoid crash
+          BOOST_LOG(warning) << "RGB import failed, using blank frame"sv;
+          rgb = egl::create_blank(img);
+        } else {
+          rgb = std::move(*rgb_opt);
+        }
+      }
+
+      // Ensure rgb texture is valid before proceeding
+      if (!rgb->tex[0]) {
+        BOOST_LOG(error) << "No valid RGB texture available"sv;
+        return -1;
       }
 
       // Setup Vulkan→EGL zero-copy interop if needed
