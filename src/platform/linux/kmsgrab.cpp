@@ -618,6 +618,14 @@ namespace platf {
             }
           }
 
+          // Skip Nvidia cards if we're looking for VAAPI devices
+          // This is important for hybrid GPU laptops where the display
+          // may be connected through NVIDIA but rendering happens on Intel
+          if (mem_type == mem_type_e::vaapi && card.is_nvidia()) {
+            BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+            continue;
+          }
+
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
             // Skip unused planes
@@ -1621,6 +1629,14 @@ namespace platf {
         } else {
           continue;
         }
+      }
+
+      // Skip Nvidia cards if we're looking for VAAPI devices
+      // This is important for hybrid GPU laptops where the display
+      // may be connected through NVIDIA but rendering happens on Intel
+      if (hwdevice_type == mem_type_e::vaapi && card.is_nvidia()) {
+        BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+        continue;
       }
 
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
