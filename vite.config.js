@@ -68,6 +68,7 @@ export default defineConfig({
             input: {
                 apps: resolve(assetsSrcPath, 'apps.html'),
                 config: resolve(assetsSrcPath, 'config.html'),
+                featured: resolve(assetsSrcPath, 'featured.html'),
                 index: resolve(assetsSrcPath, 'index.html'),
                 password: resolve(assetsSrcPath, 'password.html'),
                 pin: resolve(assetsSrcPath, 'pin.html'),

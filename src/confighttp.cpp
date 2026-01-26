@@ -388,6 +388,26 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the featured apps page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getFeaturedPage(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string content = file_handler::read_file(WEB_DIR "featured.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    response->write(content, headers);
+  }
+
+  /**
    * @brief Get the password page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -955,9 +975,6 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -985,6 +1002,13 @@ namespace confighttp {
       // Use validate_app_image_path to resolve and validate the path
       // This handles extension validation, PNG signature validation, and path resolution
       std::string validated_path = proc::validate_app_image_path(app_image_path);
+
+      // Check if we got the default image path (means validation failed or no image configured)
+      if (validated_path == DEFAULT_APP_IMAGE_PATH) {
+        BOOST_LOG(debug) << "Application at index " << index << " does not have a valid cover image";
+        not_found(response, request, "Cover image not found");
+        return;
+      }
 
       // Open and stream the validated file
       std::ifstream in(validated_path, std::ios::binary);
@@ -1410,6 +1434,7 @@ namespace confighttp {
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
     server.resource["^/clients/?$"]["GET"] = getClientsPage;
     server.resource["^/config/?$"]["GET"] = getConfigPage;
+    server.resource["^/featured/?$"]["GET"] = getFeaturedPage;
     server.resource["^/password/?$"]["GET"] = getPasswordPage;
     server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
     server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;

@@ -10,9 +10,12 @@
   "type": "module",
   "dependencies": {
     "@lizardbyte/shared-web": "2025.922.181114",
+    "date-fns": "4.1.0",
+    "lucide-vue-next": "0.563.0",
     "marked": "17.0.1",
     "vue": "3.5.27",
-    "vue-i18n": "11.2.8"
+    "vue-i18n": "11.2.8",
+    "vue3-simple-icons": "15.6.0"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "1.9.1",
