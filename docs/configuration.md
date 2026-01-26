@@ -2154,7 +2154,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>vulkan</td>
-        <td>Use FFmpeg Vulkan encoder (AMD, Intel, NVIDIA).
+        <td>Use Vulkan encoder (AMD, Intel, NVIDIA).
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
