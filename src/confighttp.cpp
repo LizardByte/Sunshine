@@ -975,7 +975,7 @@ namespace confighttp {
 
       auto &app = apps[index];
       if (!app.contains("image-path") || app["image-path"].is_null()) {
-        not_found(response, request, "This application has no image");
+        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
         return;
       }
 
