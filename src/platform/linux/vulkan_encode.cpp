@@ -72,7 +72,6 @@ namespace vk {
       }
 
       // Create sws for RGB->NV12 conversion with scaling from capture to encode resolution
-      BOOST_LOG(info) << "Vulkan sws: capture " << width << "x" << height << " -> encode " << frame->width << "x" << frame->height;
       auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, frames_ctx->sw_format);
       if (!sws_opt) return -1;
       sws = std::move(*sws_opt);
@@ -262,7 +261,6 @@ namespace vk {
     if (av_hwdevice_ctx_create(&dev, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) < 0)
       return false;
     av_buffer_unref(&dev);
-    BOOST_LOG(info) << "Vulkan Video encoding available"sv;
     return true;
   }
 
