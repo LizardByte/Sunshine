@@ -376,11 +376,7 @@
     "wan_encryption_mode": "WAN暗号化モード",
     "wan_encryption_mode_1": "サポートされているクライアントで有効になっています（デフォルト）",
     "wan_encryption_mode_2": "すべてのクライアントに必要です",
-    "wan_encryption_mode_desc": "これは、インターネット経由でストリーミングする際に暗号化がいつ使用されるかを決定します。特に強力なホストやクライアントでは、暗号化によりストリーミングパフォーマンスが低下します。",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "これは、インターネット経由でストリーミングする際に暗号化がいつ使用されるかを決定します。特に強力なホストやクライアントでは、暗号化によりストリーミングパフォーマンスが低下します。"
   },
   "index": {
     "description": "サンシャインはムーンライトのための自己ホストゲームストリームホストです。",

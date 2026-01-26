@@ -376,11 +376,7 @@
     "wan_encryption_mode": "Режим шифрування WAN",
     "wan_encryption_mode_1": "Увімкнено для підтримуваних клієнтів (за замовчуванням)",
     "wan_encryption_mode_2": "Обов'язково для всіх клієнтів",
-    "wan_encryption_mode_desc": "Цей параметр визначає, коли буде використовуватися шифрування під час потокового передавання через Інтернет. Шифрування може знизити продуктивність потокового стримінгу, особливо на менш потужних хостах і клієнтах.",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "Цей параметр визначає, коли буде використовуватися шифрування під час потокового передавання через Інтернет. Шифрування може знизити продуктивність потокового стримінгу, особливо на менш потужних хостах і клієнтах."
   },
   "index": {
     "description": "Sunshine - це самостійний ігровий стримінговий хостинг для Moonlight.",

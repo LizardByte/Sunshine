@@ -376,11 +376,7 @@
     "wan_encryption_mode": "WAN 加密模式",
     "wan_encryption_mode_1": "對支援的用戶端啟用（預設）",
     "wan_encryption_mode_2": "所有用戶端都需要",
-    "wan_encryption_mode_desc": "這會決定在網際網路上串流時，何時會使用加密。加密可能會降低串流效能，尤其是在效能較低的主機和用戶端上。",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "這會決定在網際網路上串流時，何時會使用加密。加密可能會降低串流效能，尤其是在效能較低的主機和用戶端上。"
   },
   "index": {
     "description": "Sunshine 是 Moonlight 的自架遊戲串流主機。",

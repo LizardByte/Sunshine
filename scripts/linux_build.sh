@@ -187,6 +187,8 @@ function add_arch_deps() {
     'openssl'
     'opus'
     'udev'
+    'vulkan-headers'
+    'vulkan-icd-loader'
     'wayland'
   )
 
@@ -239,6 +241,7 @@ function add_debian_based_deps() {
     "libxfixes-dev"  # X11
     "libxrandr-dev"  # X11
     "libxtst-dev"  # X11
+    "libvulkan-dev"  # Vulkan
     "ninja-build"
     "npm"  # web-ui
     "systemd"
@@ -313,6 +316,8 @@ function add_fedora_deps() {
     "opus-devel"
     "pulseaudio-libs-devel"
     "rpm-build"  # if you want to build an RPM binary package
+    "vulkan-headers"
+    "vulkan-loader-devel"
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing

@@ -376,11 +376,7 @@
     "wan_encryption_mode": "WAN Şifreleme Modu",
     "wan_encryption_mode_1": "Desteklenen istemciler için etkin (varsayılan)",
     "wan_encryption_mode_2": "Tüm istemciler için gerekli",
-    "wan_encryption_mode_desc": "Bu, İnternet üzerinden akış yaparken şifrelemenin ne zaman kullanılacağını belirler. Şifreleme, özellikle daha az güçlü ana bilgisayarlarda ve istemcilerde akış performansını düşürebilir.",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "Bu, İnternet üzerinden akış yaparken şifrelemenin ne zaman kullanılacağını belirler. Şifreleme, özellikle daha az güçlü ana bilgisayarlarda ve istemcilerde akış performansını düşürebilir."
   },
   "index": {
     "description": "Sunshine, Moonlight için kendi kendine barındırılan bir oyun akışı sunucusudur.",

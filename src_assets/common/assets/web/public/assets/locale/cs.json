@@ -376,11 +376,7 @@
     "wan_encryption_mode": "Režim šifrování WAN",
     "wan_encryption_mode_1": "Povoleno pro podporované klienty (výchozí)",
     "wan_encryption_mode_2": "Vyžadováno pro všechny klienty",
-    "wan_encryption_mode_desc": "Určuje, kdy bude šifrování použito při streamování přes internet. Šifrování může snížit streamovací výkon, zejména u méně výkonných hostitelů a klientů.",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "Určuje, kdy bude šifrování použito při streamování přes internet. Šifrování může snížit streamovací výkon, zejména u méně výkonných hostitelů a klientů."
   },
   "index": {
     "description": "Sunshine je samostatný hostitel herního streamu pro Moonlight.",

@@ -27,9 +27,7 @@
 #include "src/utility.h"
 #include "src/video.h"
 #include "vaapi.h"
-#ifdef SUNSHINE_BUILD_VULKAN
 #include "vulkan_encode.h"
-#endif
 #include "wayland.h"
 
 using namespace std::literals;

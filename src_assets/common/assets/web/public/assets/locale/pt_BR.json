@@ -376,11 +376,7 @@
     "wan_encryption_mode": "Modo de criptografia WAN",
     "wan_encryption_mode_1": "Ativado para clientes compatíveis (padrão)",
     "wan_encryption_mode_2": "Necessário para todos os clientes",
-    "wan_encryption_mode_desc": "Isso determina quando a criptografia será usada durante a transmissão pela Internet. A criptografia pode reduzir o desempenho da transmissão, principalmente em hosts e clientes menos potentes.",
-    "vk_tune": "Tuning",
-    "vk_tune_desc": "Low latency modes reduce encoding delay at the cost of quality.",
-    "vk_rc_mode": "Rate Control",
-    "vk_rc_mode_desc": "Rate control mode for encoding. Auto lets the driver decide."
+    "wan_encryption_mode_desc": "Isso determina quando a criptografia será usada durante a transmissão pela Internet. A criptografia pode reduzir o desempenho da transmissão, principalmente em hosts e clientes menos potentes."
   },
   "index": {
     "description": "O Sunshine é um host de fluxo de jogos auto-hospedado para o Moonlight.",
