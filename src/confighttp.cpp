@@ -263,6 +263,29 @@ namespace confighttp {
   }
 
   /**
+   * @brief Validates the application index and sends error response if invalid.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param index The application index/id.
+   */
+  bool check_app_index(resp_https_t response, req_https_t request, int index) {
+    std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+    nlohmann::json file_tree = nlohmann::json::parse(file);
+    auto &apps = file_tree["apps"];
+    if (index < 0 || index >= static_cast<int>(apps.size())) {
+      std::string error;
+      if (const int max_index = static_cast<int>(apps.size()) - 1; max_index < 0) {
+        error = "No applications found";
+      } else {
+        error = std::format("'index' {} out of range, max index is {}", index, max_index);
+      }
+      bad_request(response, request, error);
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * @brief Get the index page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -711,25 +734,19 @@ namespace confighttp {
     try {
       nlohmann::json output_tree;
       nlohmann::json new_apps = nlohmann::json::array();
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
-      nlohmann::json file_tree = nlohmann::json::parse(file);
-      auto &apps_node = file_tree["apps"];
       const int index = std::stoi(request->path_match[1]);
 
-      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
-        std::string error;
-        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
-          error = "No applications to delete";
-        } else {
-          error = std::format("'index' {} out of range, max index is {}", index, max_index);
-        }
-        bad_request(response, request, error);
+      if (!check_app_index(response, request, index)) {
         return;
       }
 
-      for (size_t i = 0; i < apps_node.size(); ++i) {
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      for (size_t i = 0; i < apps.size(); ++i) {
         if (i != index) {
-          new_apps.push_back(apps_node[i]);
+          new_apps.push_back(apps[i]);
         }
       }
       file_tree["apps"] = new_apps;
@@ -947,23 +964,16 @@ namespace confighttp {
     print_req(request);
 
     try {
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
-      nlohmann::json file_tree = nlohmann::json::parse(file);
-      auto &apps_node = file_tree["apps"];
       const int index = std::stoi(request->path_match[1]);
-
-      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
-        std::string error;
-        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
-          error = "No applications found";
-        } else {
-          error = std::format("'index' {} out of range, max index is {}", index, max_index);
-        }
-        bad_request(response, request, error);
+      if (!check_app_index(response, request, index)) {
         return;
       }
 
-      auto &app = apps_node[index];
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      auto &app = apps[index];
       if (!app.contains("image-path") || app["image-path"].is_null()) {
         not_found(response, request, "This application has no image");
         return;
