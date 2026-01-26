@@ -164,14 +164,14 @@ If screencasting fails with KMS, you may be using the unprivileged sunshine serv
 sunshine-kms service:
 
 ```bash
-systemctl --user disable sunshine
-systemctl --user enable sunshine-kms --now
+systemctl --user --now disable sunshine
+systemctl --user --now enable sunshine-kms
 ```
 
 > [!NOTE]
-> The above command will not work with the AppImage or Flatpak packages. Please refer to the
-> [AppImage setup](md_docs_2getting__started.html#appimage) or
-> [Flatpak setup](md_docs_2getting__started.html#flatpak) for more specific instructions.
+> The above commands will not work with the AppImage or Flatpak packages, as KMS screencasting
+> requires elevated privileges which are not allowed by their respective packaging security policies.
+> As an alternative, XDG Portal capture is recommended.
 
 ### KMS streaming fails on Nvidia GPUs
 If KMS screen capture results in a black screen being streamed, you may need to
