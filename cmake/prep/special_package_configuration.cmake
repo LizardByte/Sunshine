@@ -27,6 +27,7 @@ elseif(UNIX)
     # configure service
     configure_file(packaging/linux/sunshine.service.in sunshine.service @ONLY)
     configure_file(packaging/linux/sunshine-kms.service.in sunshine-kms.service @ONLY)
+    configure_file(packaging/linux/00-sunshine-kms.preset.in 00-sunshine-kms.preset @ONLY)
 
     # configure the arch linux pkgbuild
     if(${SUNSHINE_CONFIGURE_PKGBUILD})

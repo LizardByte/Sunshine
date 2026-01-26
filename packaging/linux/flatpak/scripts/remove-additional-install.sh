@@ -3,9 +3,8 @@
 # User Service
 systemctl --user stop sunshine
 rm "$HOME/.config/systemd/user/sunshine.service"
-rm "$HOME/.config/systemd/user/sunshine-kms.service"
 systemctl --user daemon-reload
-echo "Sunshine User Services have been removed."
+echo "Sunshine User Service has been removed."
 
 # Remove rules
 flatpak-spawn --host pkexec sh -c "rm /etc/modules-load.d/60-sunshine.conf"

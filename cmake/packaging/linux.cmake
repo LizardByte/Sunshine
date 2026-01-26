@@ -20,6 +20,8 @@ if(${SUNSHINE_BUILD_APPIMAGE} OR ${SUNSHINE_BUILD_FLATPAK})
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine-kms.service"
             DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user")
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/00-sunshine-kms.preset"
+            DESTINATION "${SUNSHINE_ASSETS_DIR}/systemd/user-preset")
 else()
     find_package(Systemd)
     find_package(Udev)
@@ -33,6 +35,8 @@ else()
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
         install(FILES "${CMAKE_CURRENT_BINARY_DIR}/sunshine-kms.service"
                 DESTINATION "${SYSTEMD_USER_UNIT_INSTALL_DIR}")
+        install(FILES "${CMAKE_CURRENT_BINARY_DIR}/00-sunshine-kms.preset"
+                DESTINATION "${SYSTEMD_USER_PRESET_INSTALL_DIR}")
         install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/misc/60-sunshine.conf"
                 DESTINATION "${SYSTEMD_MODULES_LOAD_DIR}")
     endif()

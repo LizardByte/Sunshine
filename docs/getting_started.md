@@ -274,14 +274,9 @@ flatpak install --user ./sunshine_{arch}.flatpak
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
 
-##### Run with NVFBC capture (X11 Only)
+##### Run with NVFBC capture (X11 Only) or XDG Portal (Wayland Only)
 ```bash
 flatpak run dev.lizardbyte.app.Sunshine
-```
-
-##### Run with KMS capture (Wayland & X11)
-```bash
-sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run dev.lizardbyte.app.Sunshine
 ```
 
 ##### Uninstall
@@ -430,9 +425,10 @@ After adding yourself to the group, log out and log back in for the changes to t
 systemctl --user start sunshine
 ```
 
-**Start on boot**
+**Start on boot (unprivileged; swap logic for KMS)**
 ```bash
-systemctl --user enable sunshine
+systemctl --user --now disable sunshine-kms
+systemctl --user --now enable sunshine
 ```
 
 ### macOS
