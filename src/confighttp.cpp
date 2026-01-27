@@ -191,6 +191,7 @@ namespace confighttp {
    * @brief Send a 404 Not Found response.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   * @param error_message The error message to include in the response.
    */
   void not_found(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Not Found") {
     constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
