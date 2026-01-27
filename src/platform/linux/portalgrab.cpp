@@ -735,9 +735,19 @@ namespace portal {
       if (stream_data.current_buffer) {
         struct spa_buffer *buf;
         buf = stream_data.current_buffer->buffer;
+        struct spa_meta_header *h;
+        h = static_cast<struct spa_meta_header *>(
+          spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
+        );
+
         if (buf->datas[0].chunk->size != 0) {
+          const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+          img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
+          if (h) {
+            img_descriptor->sequence = h->seq;
+          }
+
           if (buf->datas[0].type == SPA_DATA_DmaBuf) {
-            const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
             img_descriptor->sd.width = stream_data.format.info.raw.size.width;
             img_descriptor->sd.height = stream_data.format.info.raw.size.height;
             img_descriptor->sd.modifier = stream_data.format.info.raw.modifier;
@@ -892,14 +902,15 @@ namespace portal {
         buffer_types |= 1 << SPA_DATA_MemPtr;
       }
 
-      // Ack the buffer type
+      // Ack the buffer type and request metadata
       std::array<uint8_t, SPA_POD_BUFFER_SIZE> buffer;
-      std::array<const struct spa_pod *, 1> params;
+      std::array<const struct spa_pod *, 2> params;
       int n_params = 0;
       struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
-      auto buffer_param = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types)));
-      params[n_params] = buffer_param;
-      n_params++;
+
+      params[n_params++] = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types)));
+      params[n_params++] = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Header), SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_header))));
+
       pw_stream_update_params(d->stream, params.data(), n_params);
     }
 
@@ -943,6 +954,7 @@ namespace portal {
 
       const auto img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
       img_egl->reset();
+      img_egl->sequence = 0; // Ensure that we will be reading metadata buffers
       pipewire.fill_img(img_egl);
 
       // Check if we got valid data (either DMA-BUF fd or memory pointer)
@@ -951,8 +963,10 @@ namespace portal {
         return platf::capture_e::timeout;
       }
 
-      img_egl->sequence = ++sequence;
-
+      // If no metadata was available, use fallback counter
+      if (img_egl->sequence == 0) {
+        img_egl->sequence = ++fallback_sequence;
+      }
       return platf::capture_e::ok;
     }
 
@@ -978,35 +992,95 @@ namespace portal {
       pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
       sleep_overshoot_logger.reset();
 
+      std::shared_ptr<platf::img_t> last_good_img;
+      uint64_t last_sent_sequence = std::numeric_limits<uint64_t>::max();
+
       while (true) {
         auto now = std::chrono::steady_clock::now();
-
-        if (next_frame > now) {
-          std::this_thread::sleep_for(next_frame - now);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
-        }
-
-        next_frame += delay;
-        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-          next_frame = now + delay;
-        }
+        auto frame_deadline = next_frame;
 
         std::shared_ptr<platf::img_t> img_out;
-        switch (const auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor)) {
-          case platf::capture_e::reinit:
-          case platf::capture_e::error:
-          case platf::capture_e::interrupted:
-            return status;
-          case platf::capture_e::timeout:
-            push_captured_image_cb(std::move(img_out), false);
-            break;
-          case platf::capture_e::ok:
-            push_captured_image_cb(std::move(img_out), true);
-            break;
-          default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
-            return status;
+        bool got_new_frame = false;
+
+        // Poll until deadline OR we find a new frame
+        while (now < frame_deadline) {
+          auto status = snapshot(pull_free_image_cb, img_out, 1000ms, *cursor);
+
+          switch (status) {
+            case platf::capture_e::reinit:
+            case platf::capture_e::error:
+            case platf::capture_e::interrupted:
+              return status;
+
+            case platf::capture_e::timeout:
+              break;
+
+            case platf::capture_e::ok:
+              {
+                auto img_desc = static_cast<egl::img_descriptor_t *>(img_out.get());
+                uint64_t current_seq = img_desc->sequence;
+
+                if (current_seq != last_sent_sequence) {
+                  // Found new frame!
+                  got_new_frame = true;
+                  last_sent_sequence = current_seq;
+
+                  // Update our persistent cache for future duplicates
+                  last_good_img = img_out;
+
+                  // Move the original pointer
+                  // last_good_img keeps the ref-count alive for us
+                  push_captured_image_cb(std::move(img_out), true);
+
+                  // Pacing logic
+                  now = std::chrono::steady_clock::now();
+                  if (now < frame_deadline) {
+                    std::this_thread::sleep_for(frame_deadline - now);
+                    sleep_overshoot_logger.first_point(frame_deadline);
+                    sleep_overshoot_logger.second_point_now_and_log();
+                  }
+                  goto next_frame_label;
+                }
+                // Same sequence: img_out will be released automatically
+                // on next snapshot() or end of loop
+                break;
+              }
+
+            default:
+              BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
+              return status;
+          }
+
+          std::this_thread::sleep_for(1ms);
+          now = std::chrono::steady_clock::now();
+        }
+
+        // Hit deadline without a new frame - send duplicate from cache
+        if (!got_new_frame) {
+          if (last_good_img) {
+            // Update timestamp so the encoder doesn't think the frame is "late"
+            last_good_img->frame_timestamp = std::chrono::steady_clock::now();
+
+            // Copy the pointer to push, keeping the original in our cache
+            auto img_duplicate = last_good_img;
+            push_captured_image_cb(std::move(img_duplicate), false);
+          } else {
+            // Fallback for very first frame if portal is slow to start
+            std::shared_ptr<platf::img_t> empty_img;
+            if (pull_free_image_cb(empty_img)) {
+              push_captured_image_cb(std::move(empty_img), false);
+            }
+          }
+        }
+
+      next_frame_label:
+        next_frame += delay;
+        now = std::chrono::steady_clock::now();
+
+        // If we are slipping behind, catch up to the current time
+        if (next_frame < now) {
+          BOOST_LOG(debug) << "Portal: Frame pacing slipped, catching up";
+          next_frame = now + delay;
         }
       }
 
@@ -1146,7 +1220,7 @@ namespace portal {
     int n_dmabuf_infos;
     bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
     std::chrono::nanoseconds delay;
-    std::uint64_t sequence {};
+    std::uint64_t fallback_sequence {};
     uint32_t framerate;
   };
 }  // namespace portal
