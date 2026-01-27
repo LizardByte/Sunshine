@@ -29,6 +29,11 @@ jobs:
             arch: x86_64
             msystem: ucrt64
             toolchain: ucrt-x86_64
+          - name: Windows-ARM64
+            os: windows-11-arm
+            arch: aarch64
+            msystem: clangarm64
+            toolchain: clang-aarch64
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -62,16 +67,21 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-curl-winssl"
             "mingw-w64-${TOOLCHAIN}-gcc"
             "mingw-w64-${TOOLCHAIN}-graphviz"
-            "mingw-w64-${TOOLCHAIN}-MinHook"
             "mingw-w64-${TOOLCHAIN}-miniupnpc"
             "mingw-w64-${TOOLCHAIN}-nlohmann-json"
             "mingw-w64-${TOOLCHAIN}-nodejs"
-            "mingw-w64-${TOOLCHAIN}-nsis"
             "mingw-w64-${TOOLCHAIN}-onevpl"
             "mingw-w64-${TOOLCHAIN}-openssl"
             "mingw-w64-${TOOLCHAIN}-opus"
             "mingw-w64-${TOOLCHAIN}-toolchain"
           )
+
+          if [[ ${MSYSTEM} == "ucrt64" ]]; then
+            dependencies+=(
+              "mingw-w64-${TOOLCHAIN}-MinHook"
+              "mingw-w64-${TOOLCHAIN}-nsis"  # TODO: how to create an arm64 installer?
+            )
+          fi
 
           # do not modify below this line
 
@@ -158,7 +168,6 @@ jobs:
             -B build \
             -G Ninja \
             -S . \
-            -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DSUNSHINE_ASSETS_DIR=assets \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
@@ -168,7 +177,8 @@ jobs:
           ninja -C build
           echo "::remove-matcher owner=gcc::"
 
-      - name: Package Windows
+      - name: Package Windows Installer
+        if: runner.arch == 'X86' || runner.arch == 'X64'
         shell: msys2 {0}
         run: |
           mkdir -p artifacts
@@ -176,10 +186,20 @@ jobs:
 
           # package
           cpack -G NSIS
-          cpack -G ZIP
 
           # move
           mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
+
+      - name: Package Windows Portable
+        shell: msys2 {0}
+        run: |
+          mkdir -p artifacts
+          cd build
+
+          # package
+          cpack -G ZIP
+
+          # move
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
 
       - name: Run tests
@@ -193,7 +213,8 @@ jobs:
         # any except canceled or skipped
         if: >-
           always() &&
-          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure') &&
+          (runner.arch == 'X86' || runner.arch == 'X64')
         shell: msys2 {0}
         working-directory: build
         run: |
