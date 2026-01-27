@@ -285,39 +285,6 @@ namespace confighttp {
   }
 
   /**
-   * @brief Validates a path whether it is a valid png.
-   * @param path The path to the png file.
-   */
-  bool check_valid_png(fs::path path) {
-    // PNG signature as defined in PNG specification
-    // http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
-    static constexpr std::array<unsigned char, 8> PNG_SIGNATURE = {
-      0x89,
-      0x50,
-      0x4E,
-      0x47,
-      0x0D,
-      0x0A,
-      0x1A,
-      0x0A
-    };
-
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-      return false;
-    }
-
-    std::array<unsigned char, 8> header;
-    file.read(reinterpret_cast<char *>(header.data()), 8);
-
-    if (file.gcount() != 8) {
-      return false;
-    }
-
-    return header == PNG_SIGNATURE;
-  }
-
-  /**
    * @brief Get the index page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -987,8 +954,9 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(resp_https_t response, req_https_t request) {
-    // Skip check_content_type() for this endpoint since the request body is not used.
-
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1006,37 +974,22 @@ namespace confighttp {
       auto &apps = file_tree["apps"];
 
       auto &app = apps[index];
-      if (!app.contains("image-path") || app["image-path"].is_null()) {
-        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
-        return;
+
+      // Get the image path from the app configuration
+      std::string app_image_path;
+      if (app.contains("image-path") && !app["image-path"].is_null()) {
+        app_image_path = app["image-path"];
       }
 
-      fs::path path = app["image-path"];
+      // Use validate_app_image_path to resolve and validate the path
+      // This handles extension validation, PNG signature validation, and path resolution
+      std::string validated_path = proc::validate_app_image_path(app_image_path);
 
-      const fs::path coverdir = platf::appdata().string() + "/covers/";
-      if (fs::exists(coverdir / path)) {
-        path = coverdir / path;
-      }
-
-      if (fs::exists(platf::appdata() / path)) {
-        path = platf::appdata().string() / path;
-      }
-
-      if (!fs::exists(path) || path.extension() != ".png") {
-        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
-        return;
-      }
-
-      std::ifstream in(path, std::ios::binary);
+      // Open and stream the validated file
+      std::ifstream in(validated_path, std::ios::binary);
       if (!in) {
-        BOOST_LOG(debug) << "Unable to read file: " << path;
-        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
-        return;
-      }
-
-      if (!check_valid_png(path)) {
-        BOOST_LOG(debug) << "User requested corrupted png: " << path;
-        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
+        BOOST_LOG(warning) << "Unable to read cover image file: " << validated_path;
+        bad_request(response, request, "Unable to read cover image file");
         return;
       }
 
