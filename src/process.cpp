@@ -39,8 +39,6 @@
   #include <share.h>
 #endif
 
-#define DEFAULT_APP_IMAGE_PATH SUNSHINE_ASSETS_DIR "/box.png"
-
 namespace proc {
   using namespace std::literals;
   namespace pt = boost::property_tree;
@@ -466,6 +464,40 @@ namespace proc {
     return ss.str();
   }
 
+  /**
+   * @brief Validates a path whether it is a valid PNG.
+   * @param path The path to the PNG file.
+   * @return true if the file has a valid PNG signature, false otherwise.
+   */
+  bool check_valid_png(const std::filesystem::path &path) {
+    // PNG signature as defined in PNG specification
+    // http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
+    static constexpr std::array<unsigned char, 8> PNG_SIGNATURE = {
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A
+    };
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+      return false;
+    }
+
+    std::array<unsigned char, 8> header;
+    file.read(reinterpret_cast<char *>(header.data()), 8);
+
+    if (file.gcount() != 8) {
+      return false;
+    }
+
+    return header == PNG_SIGNATURE;
+  }
+
   std::string validate_app_image_path(std::string app_image_path) {
     if (app_image_path.empty()) {
       return DEFAULT_APP_IMAGE_PATH;
@@ -475,25 +507,36 @@ namespace proc {
     auto image_extension = std::filesystem::path(app_image_path).extension().string();
     boost::to_lower(image_extension);
 
-    // return the default box image if extension is not "png"
+    // return the default box image if the extension is not "png"
     if (image_extension != ".png") {
       return DEFAULT_APP_IMAGE_PATH;
     }
 
     // check if image is in assets directory
-    auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path;
-    if (std::filesystem::exists(full_image_path)) {
+    if (auto full_image_path = std::filesystem::path(SUNSHINE_ASSETS_DIR) / app_image_path; std::filesystem::exists(full_image_path)) {
+      // Validate PNG signature
+      if (!check_valid_png(full_image_path)) {
+        BOOST_LOG(warning) << "Invalid PNG file at path ["sv << full_image_path << ']';
+        return DEFAULT_APP_IMAGE_PATH;
+      }
       return full_image_path.string();
-    } else if (app_image_path == "./assets/steam.png") {
+    }
+
+    if (app_image_path == "./assets/steam.png") {
       // handle old default steam image definition
       return SUNSHINE_ASSETS_DIR "/steam.png";
     }
 
     // check if specified image exists
-    std::error_code code;
-    if (!std::filesystem::exists(app_image_path, code)) {
+    if (std::error_code code; !std::filesystem::exists(app_image_path, code)) {
       // return default box image if image does not exist
       BOOST_LOG(warning) << "Couldn't find app image at path ["sv << app_image_path << ']';
+      return DEFAULT_APP_IMAGE_PATH;
+    }
+
+    // Validate PNG signature
+    if (!check_valid_png(app_image_path)) {
+      BOOST_LOG(warning) << "Invalid PNG file at path ["sv << app_image_path << ']';
       return DEFAULT_APP_IMAGE_PATH;
     }
 

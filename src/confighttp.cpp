@@ -191,13 +191,14 @@ namespace confighttp {
    * @brief Send a 404 Not Found response.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   * @param error_message The error message to include in the response.
    */
-  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request) {
+  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Not Found") {
     constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
     tree["status_code"] = code;
-    tree["error"] = "Not Found";
+    tree["error"] = error_message;
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
@@ -257,6 +258,28 @@ namespace confighttp {
 
     if (actualContentType != expectedContentType) {
       bad_request(response, request, "Content type mismatch");
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * @brief Validates the application index and sends error response if invalid.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param index The application index/id.
+   */
+  bool check_app_index(resp_https_t response, req_https_t request, int index) {
+    std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+    nlohmann::json file_tree = nlohmann::json::parse(file);
+    if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
+      std::string error;
+      if (const int max_index = static_cast<int>(apps.size()) - 1; max_index < 0) {
+        error = "No applications found";
+      } else {
+        error = std::format("'index' {} out of range, max index is {}", index, max_index);
+      }
+      bad_request(std::move(response), std::move(request), error);
       return false;
     }
     return true;
@@ -711,25 +734,19 @@ namespace confighttp {
     try {
       nlohmann::json output_tree;
       nlohmann::json new_apps = nlohmann::json::array();
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
-      nlohmann::json file_tree = nlohmann::json::parse(file);
-      auto &apps_node = file_tree["apps"];
       const int index = std::stoi(request->path_match[1]);
 
-      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
-        std::string error;
-        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
-          error = "No applications to delete";
-        } else {
-          error = std::format("'index' {} out of range, max index is {}", index, max_index);
-        }
-        bad_request(response, request, error);
+      if (!check_app_index(response, request, index)) {
         return;
       }
 
-      for (size_t i = 0; i < apps_node.size(); ++i) {
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      for (size_t i = 0; i < apps.size(); ++i) {
         if (i != index) {
-          new_apps.push_back(apps_node[i]);
+          new_apps.push_back(apps[i]);
         }
       }
       file_tree["apps"] = new_apps;
@@ -924,6 +941,67 @@ namespace confighttp {
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
+   * @brief Get an application's image.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @note{The index in the url path is the application index.}
+   *
+   * @api_examples{/api/covers/9999 | GET| null}
+   */
+  void getCover(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    try {
+      const int index = std::stoi(request->path_match[1]);
+      if (!check_app_index(response, request, index)) {
+        return;
+      }
+
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      auto &app = apps[index];
+
+      // Get the image path from the app configuration
+      std::string app_image_path;
+      if (app.contains("image-path") && !app["image-path"].is_null()) {
+        app_image_path = app["image-path"];
+      }
+
+      // Use validate_app_image_path to resolve and validate the path
+      // This handles extension validation, PNG signature validation, and path resolution
+      std::string validated_path = proc::validate_app_image_path(app_image_path);
+
+      // Open and stream the validated file
+      std::ifstream in(validated_path, std::ios::binary);
+      if (!in) {
+        BOOST_LOG(warning) << "Unable to read cover image file: " << validated_path;
+        bad_request(response, request, "Unable to read cover image file");
+        return;
+      }
+
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "image/png");
+      headers.emplace("X-Frame-Options", "DENY");
+      headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "GetCover: "sv << e.what();
       bad_request(response, request, e.what());
     }
   }
@@ -1324,7 +1402,9 @@ namespace confighttp {
     server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
-    server.default_resource["GET"] = not_found;
+    server.default_resource["GET"] = [](resp_https_t response, req_https_t request) {
+      not_found(response, request);
+    };
     server.resource["^/$"]["GET"] = getIndexPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
@@ -1351,6 +1431,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
