@@ -214,6 +214,11 @@ sudo dnf remove sunshine
 ```
 
 ##### Install (Copr)
+
+> [!IMPORTANT]
+> Stable builds are only available if the Sunshine release was made after the Fedora version release.
+> Because of this, it is often recommended to use the beta copr.
+
 1. Enable copr repository.
    ```bash
    sudo dnf copr enable lizardbyte/stable
@@ -310,6 +315,9 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
+> [!TIP]
+> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
+
 ### macOS
 
 > [!IMPORTANT]
@@ -320,6 +328,8 @@ This package requires that you have [Homebrew](https://docs.brew.sh/Installation
 
 ##### Install
 ```bash
+brew update
+brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
 ```
