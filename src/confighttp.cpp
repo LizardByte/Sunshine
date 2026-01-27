@@ -288,7 +288,7 @@ namespace confighttp {
    * @brief Validates a path whether it is a valid png.
    * @param path The path to the png file.
    */
-  bool check_valid_png(std::filesystem::path path) {
+  bool check_valid_png(fs::path path) {
     // PNG signature as defined in PNG specification
     // http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
     static constexpr std::array<unsigned char, 8> PNG_SIGNATURE = {
@@ -1011,18 +1011,18 @@ namespace confighttp {
         return;
       }
 
-      std::filesystem::path path = app["image-path"];
+      fs::path path = app["image-path"];
 
-      const std::filesystem::path coverdir = platf::appdata().string() + "/covers/";
-      if (std::filesystem::exists(coverdir / path)) {
+      const fs::path coverdir = platf::appdata().string() + "/covers/";
+      if (fs::exists(coverdir / path)) {
         path = coverdir / path;
       }
 
-      if (std::filesystem::exists(platf::appdata() / path)) {
+      if (fs::exists(platf::appdata() / path)) {
         path = platf::appdata().string() / path;
       }
 
-      if (!std::filesystem::exists(path) || fs::path(path).extension() != ".png") {
+      if (!fs::exists(path) || path.extension() != ".png") {
         not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
         return;
       }
