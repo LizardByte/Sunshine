@@ -271,18 +271,50 @@ namespace confighttp {
   bool check_app_index(resp_https_t response, req_https_t request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
-    auto &apps = file_tree["apps"];
-    if (index < 0 || index >= static_cast<int>(apps.size())) {
+    if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
       std::string error;
       if (const int max_index = static_cast<int>(apps.size()) - 1; max_index < 0) {
         error = "No applications found";
       } else {
         error = std::format("'index' {} out of range, max index is {}", index, max_index);
       }
-      bad_request(response, request, error);
+      bad_request(std::move(response), std::move(request), error);
       return false;
     }
     return true;
+  }
+
+  /**
+   * @brief Validates a path whether it is a valid png.
+   * @param path The path to the png file.
+   */
+  bool check_valid_png(std::filesystem::path path) {
+    // PNG signature as defined in PNG specification
+    // http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html
+    static constexpr std::array<unsigned char, 8> PNG_SIGNATURE = {
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      0x1A,
+      0x0A
+    };
+
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+      return false;
+    }
+
+    std::array<unsigned char, 8> header;
+    file.read(reinterpret_cast<char *>(header.data()), 8);
+
+    if (file.gcount() != 8) {
+      return false;
+    }
+
+    return header == PNG_SIGNATURE;
   }
 
   /**
@@ -952,7 +984,7 @@ namespace confighttp {
    *
    * @note{The index in the url path is the application index.}
    *
-   * @api_examples{/api/cover/9999 | GET| null}
+   * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(resp_https_t response, req_https_t request) {
     // Skip check_content_type() for this endpoint since the request body is not used.
@@ -979,17 +1011,32 @@ namespace confighttp {
         return;
       }
 
-      std::string path = app["image-path"];
+      std::filesystem::path path = app["image-path"];
 
-      if (!std::filesystem::exists(path)) {
-        BOOST_LOG(debug) << "File not found: " << path;
-        not_found(response, request, "Image not found, check if the path exists");
+      const std::string coverdir = platf::appdata().string() + "/covers/";
+      if (std::filesystem::exists(coverdir / path)) {
+        path = coverdir / path;
+      }
+
+      if (std::filesystem::exists(platf::appdata() / path)) {
+        path = platf::appdata().string() / path;
+      }
+
+      if (!std::filesystem::exists(path) || fs::path(path).extension() != ".png") {
+        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
         return;
       }
+
       std::ifstream in(path, std::ios::binary);
       if (!in) {
         BOOST_LOG(debug) << "Unable to read file: " << path;
-        not_found(response, request, "Unable to read image");
+        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
+        return;
+      }
+
+      if (!check_valid_png(path)) {
+        BOOST_LOG(debug) << "User requested corrupted png: " << path;
+        not_found(response, request, "'image-path' not set or does not have a 'png' file extension");
         return;
       }
 
