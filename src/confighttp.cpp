@@ -1013,7 +1013,7 @@ namespace confighttp {
 
       std::filesystem::path path = app["image-path"];
 
-      const std::string coverdir = platf::appdata().string() + "/covers/";
+      const std::filesystem::path coverdir = platf::appdata().string() + "/covers/";
       if (std::filesystem::exists(coverdir / path)) {
         path = coverdir / path;
       }
