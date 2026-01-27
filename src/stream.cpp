@@ -26,6 +26,7 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "network.h"
+#include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
 #include "stream.h"
@@ -405,6 +406,8 @@ namespace stream {
     } control;
 
     std::uint32_t launch_session_id;
+    std::string client_unique_id;
+    std::chrono::steady_clock::time_point start_time;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
@@ -1986,6 +1989,7 @@ namespace stream {
       session.audio.peer.port(0);
 
       session.pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
+      session.start_time = std::chrono::steady_clock::now();
 
       session.audioThread = std::thread {audioThread, &session};
       session.videoThread = std::thread {videoThread, &session};
@@ -2010,6 +2014,7 @@ namespace stream {
 
       session->shutdown_event = mail->event<bool>(mail::shutdown);
       session->launch_session_id = launch_session.id;
+      session->client_unique_id = launch_session.unique_id;
 
       session->config = config;
 
@@ -2073,6 +2078,116 @@ namespace stream {
       session->mail = std::move(mail);
 
       return session;
+    }
+
+    /**
+     * @brief Get information about all active streaming sessions.
+     *
+     * This function retrieves a list of all currently running streaming sessions,
+     * including client name, IP address, and session start time. It looks up
+     * friendly client names from the paired clients database.
+     *
+     * @return A vector of session_info_t structures describing each active session.
+     *         Returns an empty vector if no sessions are active.
+     */
+    std::vector<session_info_t> get_all_sessions() {
+      std::vector<session_info_t> result;
+
+      // Check if any app is running before trying to access broadcast context
+      // This avoids triggering broadcast initialization when there's no active stream
+      if (proc::proc.running() == 0) {
+        return result;
+      }
+
+      // Get the paired clients to look up names
+      auto clients_json = nvhttp::get_all_clients();
+
+      // Access the broadcast context to get sessions
+      auto ref = broadcast.ref();
+      if (!ref) {
+        return result;
+      }
+
+      auto lg = ref->control_server._sessions.lock();
+      for (auto *session : *ref->control_server._sessions) {
+        if (session->state.load(std::memory_order_relaxed) != state_e::RUNNING) {
+          continue;
+        }
+
+        session_info_t info;
+
+        // Generate a unique ID from the session's launch_session_id
+        info.id = std::to_string(session->launch_session_id);
+
+        // Look up client name from paired clients list
+        info.client_name = session->client_unique_id;  // Default to unique_id
+        for (const auto &client : clients_json) {
+          if (client.contains("uuid") && client["uuid"] == session->client_unique_id) {
+            if (client.contains("name")) {
+              info.client_name = client["name"];
+            }
+            break;
+          }
+        }
+
+        // Get IP address from the control peer address
+        info.ip_address = session->control.expected_peer_address;
+
+        // Get start time
+        info.start_time = session->start_time;
+
+        result.push_back(std::move(info));
+      }
+
+      return result;
+    }
+
+    /**
+     * @brief Disconnect an active streaming session by its ID.
+     *
+     * This function allows administrators to forcefully terminate a streaming
+     * session from the web UI. It finds the session by its launch_session_id
+     * and calls stop() to cleanly shut it down.
+     *
+     * @param session_id The session ID (as a string) to disconnect.
+     * @return true if the session was found and disconnected, false otherwise.
+     */
+    bool disconnect(const std::string &session_id) {
+      // Check if any app is running before trying to access broadcast context
+      if (proc::proc.running() == 0) {
+        BOOST_LOG(warning) << "No active streaming session to disconnect";
+        return false;
+      }
+
+      // Convert session_id to launch_session_id
+      uint32_t launch_id;
+      try {
+        launch_id = std::stoul(session_id);
+      } catch (const std::exception &) {
+        BOOST_LOG(warning) << "Invalid session ID: " << session_id;
+        return false;
+      }
+
+      // Access the broadcast context to find and stop the session
+      auto ref = broadcast.ref();
+      if (!ref) {
+        return false;
+      }
+
+      auto lg = ref->control_server._sessions.lock();
+      for (auto *session : *ref->control_server._sessions) {
+        if (session->launch_session_id == launch_id) {
+          if (session->state.load(std::memory_order_relaxed) == state_e::RUNNING) {
+            BOOST_LOG(info) << "Disconnecting session " << session_id << " by admin request";
+            stop(*session);
+            return true;
+          }
+          break;
+        }
+      }
+
+      BOOST_LOG(warning) << "Session not found or not running: " << session_id;
+      return false;
     }
   }  // namespace session
 }  // namespace stream

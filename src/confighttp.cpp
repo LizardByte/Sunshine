@@ -40,6 +40,7 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
+#include "stream.h"
 #include "utility.h"
 #include "uuid.h"
 
@@ -360,6 +361,26 @@ namespace confighttp {
     print_req(request);
 
     std::string content = file_handler::read_file(WEB_DIR "clients.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    response->write(content, headers);
+  }
+
+  /**
+   * @brief Get the sessions page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getSessionsPage(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string content = file_handler::read_file(WEB_DIR "sessions.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     headers.emplace("X-Frame-Options", "DENY");
@@ -847,6 +868,88 @@ namespace confighttp {
     nlohmann::json output_tree;
     output_tree["status"] = true;
     send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Get the list of active streaming sessions.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/sessions| GET| null}
+   */
+  void getSessions(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    auto sessions = stream::session::get_all_sessions();
+
+    nlohmann::json sessions_json = nlohmann::json::array();
+    auto now = std::chrono::steady_clock::now();
+
+    for (const auto &session : sessions) {
+      nlohmann::json session_json;
+      session_json["id"] = session.id;
+      session_json["client_name"] = session.client_name;
+      session_json["ip_address"] = session.ip_address;
+
+      // Calculate duration in seconds
+      auto duration = std::chrono::duration_cast<std::chrono::seconds>(now - session.start_time);
+      session_json["duration_seconds"] = duration.count();
+
+      sessions_json.push_back(session_json);
+    }
+
+    nlohmann::json output_tree;
+    output_tree["sessions"] = sessions_json;
+    output_tree["status"] = true;
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Disconnect an active streaming session.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the post request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *  "session_id": "<id>"
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/sessions/disconnect| POST| {"session_id":"1234"}}
+   */
+  void disconnectSession(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+
+    try {
+      nlohmann::json output_tree;
+      const nlohmann::json input_tree = nlohmann::json::parse(ss);
+      const std::string session_id = input_tree.value("session_id", "");
+
+      if (session_id.empty()) {
+        bad_request(response, request, "Missing session_id");
+        return;
+      }
+
+      output_tree["status"] = stream::session::disconnect(session_id);
+      send_response(response, output_tree);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "DisconnectSession: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
   }
 
   /**
@@ -1409,6 +1512,7 @@ namespace confighttp {
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
     server.resource["^/clients/?$"]["GET"] = getClientsPage;
+    server.resource["^/sessions/?$"]["GET"] = getSessionsPage;
     server.resource["^/config/?$"]["GET"] = getConfigPage;
     server.resource["^/password/?$"]["GET"] = getPasswordPage;
     server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
@@ -1429,6 +1533,8 @@ namespace confighttp {
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/clients/list$"]["GET"] = getClients;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
+    server.resource["^/api/sessions$"]["GET"] = getSessions;
+    server.resource["^/api/sessions/disconnect$"]["POST"] = disconnectSession;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
