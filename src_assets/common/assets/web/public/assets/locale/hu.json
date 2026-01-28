@@ -382,7 +382,7 @@
     "description": "A Sunshine saját üzemeltetésű játékstream-host a Moonlight-hoz.",
     "download": "Letöltés",
     "fix_now": "Fix Now",
-    "installed_version_not_stable": "A Sunshine egy előzetes verzióját futtatod. Hibákkal vagy más problémákkal találkozhatsz. Kérjük, jelentsd az összes problémát amivel találkozol. Köszönjük, hogy segítesz a Sunshine-t jobb szoftverré tenni!",
+    "installed_version_not_stable": "A Sunshine egy előzetes verzióját futtatod. Hibákkal vagy más problémákkal találkozhatsz. Jelentsd az összes problémát amivel találkozol. Köszönjük, hogy segítesz a Sunshine-t jobb szoftverré tenni!",
     "loading_latest": "Legújabb kiadás betöltése...",
     "new_pre_release": "Elérhető egy új előzetes verzió!",
     "new_stable": "Elérhető egy új stabil verzió!",
@@ -392,7 +392,7 @@
     "vigembus_not_installed_desc": "A virtuális gamepad támogatás nem működik a ViGEmBus illesztőprogram nélkül. Kattintson az alábbi gombra a telepítéshez.",
     "vigembus_not_installed_title": "A ViGEmBus illesztőprogram nincs telepítve",
     "vigembus_outdated_desc": "Ön a ViGEmBus egy elavult verzióját futtatja (v{version}). Az 1.17-es vagy magasabb verzió szükséges a megfelelő gamepad támogatáshoz. Kattintson az alábbi gombra a frissítéshez.",
-    "vigembus_outdated_title": "ViGEmBus illesztőprogram elavult",
+    "vigembus_outdated_title": "A ViGEmBus illesztőprogram elavult",
     "welcome": "Helló, Sunshine!"
   },
   "navbar": {
@@ -460,10 +460,10 @@
     "vigembus_compatible": "A ViGEmBus telepítve van és kompatibilis.",
     "vigembus_current_version": "Jelenlegi verzió",
     "vigembus_desc": "A ViGEmBus szükséges a virtuális gamepad támogatásához. Telepítse vagy frissítse az illesztőprogramot, ha hiányzik vagy elavult (1.17-es vagy újabb verzió szükséges).",
-    "vigembus_incompatible": "A ViGEmBus verziója túl régi. Kérjük, telepítse az 1.17-es vagy újabb verziót.",
+    "vigembus_incompatible": "A ViGEmBus verziója túl régi. Telepítsd az 1.17-es vagy újabb verziót.",
     "vigembus_install": "ViGEmBus illesztőprogram",
-    "vigembus_install_button": "A ViGEmBus v{version}telepítése",
-    "vigembus_install_error": "A ViGEmBus illesztőprogram telepítése sikertelen volt.",
+    "vigembus_install_button": "A ViGEmBus {version} telepítése",
+    "vigembus_install_error": "Nem sikerült a ViGEmBus illesztőprogram telepítése.",
     "vigembus_install_success": "A ViGEmBus illesztőprogram sikeresen települt! Előfordulhat, hogy újra kell indítania a számítógépet.",
     "vigembus_force_reinstall_button": "A ViGEmBus v{version}újratelepítésének kikényszerítése",
     "vigembus_not_installed": "A ViGEmBus nincs telepítve."
