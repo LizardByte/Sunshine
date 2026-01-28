@@ -139,7 +139,7 @@
     "back_button_timeout": "Limit czasu emulacji przycisku Home/Guide",
     "back_button_timeout_desc": "Jeśli przycisk Wstecz/Wybierz zostanie przytrzymany przez określoną liczbę milisekund, nastąpi emulacja naciśnięcia przycisku Home/Guide. Jeśli ustawiono wartość < 0 (domyślnie), przytrzymanie przycisku Wstecz/Wybierz nie będzie emulować przycisku Home/Guide.",
     "bind_address": "Powiąż adres",
-    "bind_address_desc": "Ustaw konkretny adres IP Sunshine będzie powiązany. Jeśli pozostanie puste, Sunshine będzie powiązać ze wszystkimi dostępnymi adresami.",
+    "bind_address_desc": "Ustaw konkretny adres IP, do którego Sunshine będzie powiązany. Jeśli pozostanie puste, Sunshine będzie powiązany ze wszystkimi dostępnymi adresami.",
     "capture": "Wymuś określoną metodę przechwytywania",
     "capture_desc": "W trybie automatycznym Sunshine użyje pierwszego działającego sterownika. NvFBC wymaga poprawionych sterowników NVIDIA.",
     "cert": "Certyfikat",
@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine jest samodzielnym hostem strumienia gry dla Moonlight.",
     "download": "Pobierz",
+    "fix_now": "Napraw teraz",
     "installed_version_not_stable": "Korzystasz z przedpremierowej wersji Sunshine. Mogą wystąpić błędy lub inne problemy. Prosimy o zgłaszanie wszelkich napotkanych problemów. Dziękujemy za pomoc w ulepszaniu oprogramowania Sunshine!",
     "loading_latest": "Ładowanie najnowszej wersji...",
     "new_pre_release": "Dostępna jest nowa wersja przedpremierowa!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Uwaga!</b> Sunshine wykrył te błędy podczas uruchamiania. <b>ZDECYDOWANIE ZALECAMY</b> ich naprawienie przed rozpoczęciem streamowania.",
     "version_dirty": "Dziękujemy za pomoc w ulepszaniu oprogramowania Sunshine!",
     "version_latest": "Korzystasz z najnowszej wersji Sunshine",
+    "vigembus_not_installed_desc": "Wirtualna obsługa gamepad nie będzie działać bez sterownika ViGEmBus. Kliknij poniższy przycisk, aby go zainstalować.",
+    "vigembus_not_installed_title": "Kierowca ViGEmBus nie jest zainstalowany",
+    "vigembus_outdated_desc": "Używasz przestarzałej wersji ViGEmBus (v{version}). Wersja 1. Dla prawidłowego wsparcia gamepada wymagane jest 7 lub więcej. Kliknij poniższy przycisk, aby zaktualizować.",
+    "vigembus_outdated_title": "Kierowca ViGEmBus nieaktualny",
     "welcome": "Witaj, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Nie ma sparowanych urządzeń.",
     "unpair_single_success": "Urządzenia mogą być jednak nadal w aktywnej sesji. Użyj przycisku \"Wymuś zamknięcie\" powyżej, aby zakończyć wszystkie otwarte sesje.",
     "unpair_single_unknown": "Nieznany klient",
-    "unpair_title": "Odparuj urządzenia"
+    "unpair_title": "Odparuj urządzenia",
+    "vigembus_compatible": "ViGEmBus jest zainstalowany i kompatybilny.",
+    "vigembus_current_version": "Aktualna wersja",
+    "vigembus_desc": "ViGEmBus jest wymagany do obsługi wirtualnej gamepa. Zainstaluj lub zaktualizuj sterownik, jeśli jest brakujący lub przestarzały (wymagana jest wersja 1.17 lub wyższa).",
+    "vigembus_incompatible": "Wersja ViGEmBus jest zbyt stara. Proszę zainstalować wersję 1.17 lub wyższą.",
+    "vigembus_install": "Kierowca ViGEmBus",
+    "vigembus_install_button": "Zainstaluj ViGEmBus /{version}",
+    "vigembus_install_error": "Nie udało się zainstalować sterownika ViGEmBus.",
+    "vigembus_install_success": "Sterownik ViGEmBus zainstalowany pomyślnie! Może być konieczne ponowne uruchomienie komputera.",
+    "vigembus_force_reinstall_button": "Wymuś ponowną instalację ViGEmBus /{version}",
+    "vigembus_not_installed": "ViGEmBus nie jest zainstalowany."
   },
   "welcome": {
     "confirm_password": "Potwierdź hasło",

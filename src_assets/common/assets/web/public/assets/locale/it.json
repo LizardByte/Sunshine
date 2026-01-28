@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine è una piattaforma autonoma di game stream per Moonlight.",
     "download": "Download",
+    "fix_now": "Correggi Ora",
     "installed_version_not_stable": "Stai eseguendo una versione in anteprima di Sunshine. Potresti riscontrare bug o altri problemi. Si prega di segnalare eventuali problemi incontrati. Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "loading_latest": "Caricamento dell'ultima versione...",
     "new_pre_release": "Una nuova versione pre-rilascio è disponibile!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Attenzione!</b> Sunshine ha rilevato questi errori durante l'avvio. Ti <b>raccomandamo vivamente </b> di risolverli prima dello streaming.",
     "version_dirty": "Grazie per aver contribuito a rendere Sunshine un software migliore!",
     "version_latest": "Stai eseguendo l'ultima versione di Sunshine",
+    "vigembus_not_installed_desc": "Il supporto al gamepad virtuale non funzionerà senza il driver ViGEmBus. Fare clic sul pulsante qui sotto per installarlo.",
+    "vigembus_not_installed_title": "Driver ViGEmBus Non Installato",
+    "vigembus_outdated_desc": "Stai utilizzando una versione obsoleta di ViGEmBus (v{version}). Versione 1. 7 o superiore è necessario per il supporto corretto del gamepad. Fare clic sul pulsante qui sotto per aggiornare.",
+    "vigembus_outdated_title": "Driver ViGEmBus Andato",
     "welcome": "Ciao, Sunshine!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Non ci sono dispositivi accoppiati.",
     "unpair_single_success": "Tuttavia, il dispositivo o i dispositivi possono essere ancora in una sessione attiva. Usa il pulsante 'Force Close' sopra per terminare qualsiasi sessione aperta.",
     "unpair_single_unknown": "Client Sconosciuto",
-    "unpair_title": "Rimuovi Dispositivi"
+    "unpair_title": "Rimuovi Dispositivi",
+    "vigembus_compatible": "ViGEmBus è installato e compatibile.",
+    "vigembus_current_version": "Versione Attuale",
+    "vigembus_desc": "ViGEmBus è richiesto per il supporto al gamepad virtuale. Installare o aggiornare il driver se mancante o obsoleto (versione 1.17 o superiore richiesta).",
+    "vigembus_incompatible": "La versione di ViGEmBus è troppo vecchia. Si prega di installare la versione 1.17 o superiore.",
+    "vigembus_install": "Driver ViGEmBus",
+    "vigembus_install_button": "Installa ViGEmBus v{version}",
+    "vigembus_install_error": "Installazione del driver ViGEmBus non riuscita.",
+    "vigembus_install_success": "Driver ViGEmBus installato con successo! Potrebbe essere necessario riavviare il computer.",
+    "vigembus_force_reinstall_button": "Forza la reinstallazione ViGEmBus v{version}",
+    "vigembus_not_installed": "ViGEmBus non è installato."
   },
   "welcome": {
     "confirm_password": "Conferma password",

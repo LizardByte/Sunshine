@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine, Moonlight için kendi kendine barındırılan bir oyun akışı sunucusudur.",
     "download": "İndir",
+    "fix_now": "Şimdi Düzelt",
     "installed_version_not_stable": "Sunshine'ın yayın öncesi bir sürümünü çalıştırıyorsunuz. Hatalar veya başka sorunlar yaşayabilirsiniz. Lütfen karşılaştığınız sorunları bildirin. Sunshine'ın daha iyi bir yazılım olmasına yardımcı olduğunuz için teşekkür ederiz!",
     "loading_latest": "Son sürüm yükleniyor...",
     "new_pre_release": "Yeni Bir Yayın Öncesi Sürüm Mevcut!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Dikkat!</b> Sunshine başlatma sırasında bu hataları tespit etti. Yayınlamadan önce bunları düzeltmenizi <b>ŞİDDETLE TAVSİYE</b> EDERİZ.",
     "version_dirty": "Sunshine'ı daha iyi bir yazılım haline getirmeye yardımcı olduğunuz için teşekkür ederiz!",
     "version_latest": "Sunshine'ın en son sürümünü çalıştırıyorsunuz",
+    "vigembus_not_installed_desc": "Sanal gamepad desteği ViGEmBus sürücüsü olmadan çalışmayacaktır. Yüklemek için aşağıdaki düğmeye tıklayın.",
+    "vigembus_not_installed_title": "ViGEmBus Sürücüsü Yüklü Değil",
+    "vigembus_outdated_desc": "ViGEmBus'ın eski bir sürümünü çalıştırıyorsunuz (v{version}). Uygun gamepad desteği için sürüm 1.17 veya üstü gereklidir. Güncellemek için aşağıdaki düğmeye tıklayın.",
+    "vigembus_outdated_title": "ViGEmBus Sürücüsü Güncel Değil",
     "welcome": "Sunshine'a hoş geldiniz!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Eşleştirilmiş cihaz yok.",
     "unpair_single_success": "Ancak, cihaz(lar) hala aktif bir oturumda olabilir. Açık oturumları sonlandırmak için yukarıdaki 'Kapatmaya Zorla' düğmesini kullanın.",
     "unpair_single_unknown": "Bilinmeyen İstemci",
-    "unpair_title": "Cihazların Eşleşmesini Kaldır"
+    "unpair_title": "Cihazların Eşleşmesini Kaldır",
+    "vigembus_compatible": "ViGEmBus yüklü ve uyumludur.",
+    "vigembus_current_version": "Güncel Sürüm",
+    "vigembus_desc": "Sanal gamepad desteği için ViGEmBus gereklidir. Eksik veya eski ise sürücüyü yükleyin veya güncelleyin (sürüm 1.17 veya üstü gereklidir).",
+    "vigembus_incompatible": "ViGEmBus sürümü çok eski. Lütfen 1.17 veya daha yüksek bir sürüm yükleyin.",
+    "vigembus_install": "ViGEmBus Sürücüsü",
+    "vigembus_install_button": "ViGEmBus v{version}adresini yükleyin",
+    "vigembus_install_error": "ViGEmBus sürücüsü yüklenemedi.",
+    "vigembus_install_success": "ViGEmBus sürücüsü başarıyla yüklendi! Bilgisayarınızı yeniden başlatmanız gerekebilir.",
+    "vigembus_force_reinstall_button": "ViGEmBus v'yi Yeniden Yüklemeye Zorla{version}",
+    "vigembus_not_installed": "ViGEmBus yüklü değil."
   },
   "welcome": {
     "confirm_password": "Şifreyi onayla",

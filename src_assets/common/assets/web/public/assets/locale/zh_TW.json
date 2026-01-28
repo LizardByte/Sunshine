@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine 是 Moonlight 的自架遊戲串流主機。",
     "download": "下載",
+    "fix_now": "立即修復",
     "installed_version_not_stable": "您正在運行的是 Sunshine 的預發行版本。您可能會遇到錯誤或其他問題。請報告您遇到的任何問題。感謝您的協助，讓 Sunshine 成為更好的軟體！",
     "loading_latest": "正在載入最新版本…",
     "new_pre_release": "提供新的預發行版本！",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>注意！</b> Sunshine 在啟動時檢測到這些錯誤。我們<b>強烈建議</b>在開始串流之前修復它們。",
     "version_dirty": "感謝您的協助，讓 Sunshine 成為更好的軟體！",
     "version_latest": "您正在執行最新版本的 Sunshine",
+    "vigembus_not_installed_desc": "如果沒有 ViGEmBus 驅動程式，虛擬遊戲板支援將無法運作。按一下下面的按鈕安裝。",
+    "vigembus_not_installed_title": "未安裝 ViGEmBus 驅動程式",
+    "vigembus_outdated_desc": "您運行的是過時版本的 ViGEmBus (v{version})。需要 1.17 或更高版本才能正常支援遊戲板。按一下下面的按鈕進行更新。",
+    "vigembus_outdated_title": "ViGEmBus 驅動程式過時",
     "welcome": "你好，Sunshine！"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "沒有已配對的裝置。",
     "unpair_single_success": "然而，該裝置仍可能處於使用中的工作階段。請使用上方的「強制關閉」按鈕結束任何使用中的工作階段。",
     "unpair_single_unknown": "未知的用戶端",
-    "unpair_title": "解除配對裝置"
+    "unpair_title": "解除配對裝置",
+    "vigembus_compatible": "ViGEmBus 已安裝且相容。",
+    "vigembus_current_version": "目前版本",
+    "vigembus_desc": "虛擬遊戲手柄支援需要 ViGEmBus。如果驅動程式遺失或過時，請安裝或更新（需要 1.17 或更高版本）。",
+    "vigembus_incompatible": "ViGEmBus 版本太舊。請安裝 1.17 或更高版本。",
+    "vigembus_install": "ViGEmBus 驅動程式",
+    "vigembus_install_button": "安裝 ViGEmBus v{version}",
+    "vigembus_install_error": "安裝 ViGEmBus 驅動程式失敗。",
+    "vigembus_install_success": "ViGEmBus 驅動程式安裝成功！您可能需要重新啟動電腦。",
+    "vigembus_force_reinstall_button": "強制重新安裝 ViGEmBus v{version}",
+    "vigembus_not_installed": "未安裝 ViGEmBus。"
   },
   "welcome": {
     "confirm_password": "確認密碼",

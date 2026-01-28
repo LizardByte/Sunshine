@@ -381,6 +381,7 @@
   "index": {
     "description": "Sunshine là một nền tảng phát trực tiếp game tự chủ cho Moonlight.",
     "download": "Tải xuống",
+    "fix_now": "Sửa ngay",
     "installed_version_not_stable": "Bạn đang sử dụng phiên bản thử nghiệm của Sunshine. Bạn có thể gặp phải lỗi hoặc các vấn đề khác. Vui lòng báo cáo bất kỳ vấn đề nào bạn gặp phải. Cảm ơn bạn đã giúp Sunshine trở thành phần mềm tốt hơn!",
     "loading_latest": "Đang tải phiên bản mới nhất...",
     "new_pre_release": "Phiên bản thử nghiệm mới đã có sẵn!",
@@ -388,6 +389,10 @@
     "startup_errors": "<b>Lưu ý!</b> Sunshine đã phát hiện các lỗi sau đây trong quá trình khởi động. Chúng tôi <b>KHUYẾN NGHỊ MẠNH MẼ bạn</b> khắc phục các lỗi này trước khi bắt đầu phát trực tuyến.",
     "version_dirty": "Cảm ơn bạn đã giúp Sunshine trở thành phần mềm tốt hơn!",
     "version_latest": "Bạn đang sử dụng phiên bản mới nhất của Sunshine.",
+    "vigembus_not_installed_desc": "Hỗ trợ gamepad ảo sẽ không hoạt động nếu không có trình điều khiển ViGEmBus. Nhấp vào nút bên dưới để cài đặt nó.",
+    "vigembus_not_installed_title": "Trình điều khiển ViGEmBus chưa được cài đặt",
+    "vigembus_outdated_desc": "Bạn đang sử dụng phiên bản cũ của ViGEmBus (v{version}). Phiên bản 1.17 hoặc cao hơn là cần thiết để hỗ trợ gamepad đúng cách. Nhấp vào nút bên dưới để cập nhật.",
+    "vigembus_outdated_title": "ViGEmBus Tài xế lỗi thời",
     "welcome": "Chào nắng!"
   },
   "navbar": {
@@ -451,7 +456,17 @@
     "unpair_single_no_devices": "Không có thiết bị nào được ghép đôi.",
     "unpair_single_success": "Tuy nhiên, thiết bị (các thiết bị) có thể vẫn đang trong phiên hoạt động. Nhấn nút 'Buộc đóng' ở trên để kết thúc tất cả các phiên đang mở.",
     "unpair_single_unknown": "Khách hàng không xác định",
-    "unpair_title": "Ngắt kết nối thiết bị"
+    "unpair_title": "Ngắt kết nối thiết bị",
+    "vigembus_compatible": "ViGEmBus đã được cài đặt và tương thích.",
+    "vigembus_current_version": "Phiên bản hiện tại",
+    "vigembus_desc": "ViGEmBus là thành phần bắt buộc để hỗ trợ gamepad ảo. Vui lòng cài đặt hoặc cập nhật trình điều khiển nếu nó bị thiếu hoặc đã lỗi thời (yêu cầu phiên bản 1.17 trở lên).",
+    "vigembus_incompatible": "Phiên bản ViGEmBus hiện tại quá cũ. Vui lòng cài đặt phiên bản 1.17 hoặc cao hơn.",
+    "vigembus_install": "Tài xế xe buýt ViGEmBus",
+    "vigembus_install_button": "Cài đặt ViGEmBus phiên bản{version}",
+    "vigembus_install_error": "Không thể cài đặt trình điều khiển ViGEmBus.",
+    "vigembus_install_success": "ViGEmBus đã được cài đặt thành công! Bạn có thể cần khởi động lại máy tính.",
+    "vigembus_force_reinstall_button": "Buộc cài đặt lại ViGEmBus phiên bản{version}",
+    "vigembus_not_installed": "ViGEmBus chưa được cài đặt."
   },
   "welcome": {
     "confirm_password": "Xác nhận mật khẩu",
