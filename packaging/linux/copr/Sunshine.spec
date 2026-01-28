@@ -42,6 +42,7 @@ BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: npm
 BuildRequires: openssl-devel
+BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
 BuildRequires: wget
@@ -187,9 +188,10 @@ cmake_args=(
   "-DCMAKE_INSTALL_PREFIX=%{_prefix}"
   "-DSUNSHINE_ASSETS_DIR=%{_datadir}/sunshine"
   "-DSUNSHINE_EXECUTABLE_PATH=%{_bindir}/sunshine"
+  "-DSUNSHINE_ENABLE_DRM=ON"
+  "-DSUNSHINE_ENABLE_PORTAL=ON"
   "-DSUNSHINE_ENABLE_WAYLAND=ON"
   "-DSUNSHINE_ENABLE_X11=ON"
-  "-DSUNSHINE_ENABLE_DRM=ON"
   "-DSUNSHINE_PUBLISHER_NAME=LizardByte"
   "-DSUNSHINE_PUBLISHER_WEBSITE=https://app.lizardbyte.dev"
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
@@ -311,8 +313,10 @@ fi
 %caps(cap_sys_admin+p) %{_bindir}/sunshine
 %caps(cap_sys_admin+p) %{_bindir}/sunshine-*
 
-# Systemd unit file for user services
+# Systemd unit/preset files for user services
 %{_userunitdir}/sunshine.service
+%{_userunitdir}/sunshine-kms.service
+%{_userpresetdir}/00-sunshine-kms.preset
 
 # Udev rules
 %{_udevrulesdir}/*-sunshine.rules
