@@ -4,7 +4,7 @@ Read our contribution guide in our organization level
 
 ## Recommended Tools
 
-| Tool                                                                                                                                                                           | Description                                                                                                                                                                           |
+| Tool                                                                                                                                                                           | Description                                                             |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | <a href="https://www.jetbrains.com/clion/"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/CLion_icon.svg" width="30" height="30"></a><br>CLion | Recommended IDE for C and C++ development. Free for non-commercial use. |
 
@@ -16,6 +16,7 @@ Read our contribution guide in our organization level
 * [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
   (check `template_header.html` and `template_header_main.html`).
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).
+* Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
 * The JS framework used by the more interactive pages is [Vus.js](https://vuejs.org).
 
 #### Building

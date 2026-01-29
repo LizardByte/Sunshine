@@ -3,37 +3,6 @@
 
 <head>
       <%- header %>
-      <style>
-        .troubleshooting-logs {
-          white-space: pre;
-          font-family: monospace;
-          overflow: auto;
-          max-height: 500px;
-          min-height: 500px;
-          font-size: 16px;
-          position: relative;
-        }
-
-        .copy-icon {
-          position: absolute;
-          top: 8px;
-          right: 8px;
-          padding: 8px;
-          cursor: pointer;
-          color: rgba(0, 0, 0, 1);
-          appearance: none;
-          border: none;
-          background: none;
-        }
-
-        .copy-icon:hover {
-          color: rgba(0, 0, 0, 0.75);
-        }
-
-        .copy-icon:active {
-          color: rgba(0, 0, 0, 1);
-        }
-      </style>
 </head>
 
 <body id="app" v-cloak>
@@ -41,27 +10,31 @@
   <div class="container">
     <h1 class="my-4">{{ $t('troubleshooting.troubleshooting') }}</h1>
     <!-- ViGEmBus Installation -->
-    <div class="card p-2 my-4" v-if="platform === 'windows' && controllerEnabled">
+    <div class="card my-4" v-if="platform === 'windows' && controllerEnabled">
       <div class="card-body">
         <h2 id="vigembus">{{ $t('troubleshooting.vigembus_install') }}</h2>
-        <br>
         <p style="white-space: pre-line">{{ $t('troubleshooting.vigembus_desc') }}</p>
         <div v-if="vigembus.installed && vigembus.version">
           <p><strong>{{ $t('troubleshooting.vigembus_current_version') }}:</strong> {{ vigembus.version }}</p>
           <div class="alert alert-success" v-if="vigembus.version_compatible">
+            <check-circle :size="18" class="icon"></check-circle>
             {{ $t('troubleshooting.vigembus_compatible') }}
           </div>
           <div class="alert alert-danger" v-if="!vigembus.version_compatible">
+            <alert-circle :size="18" class="icon"></alert-circle>
             {{ $t('troubleshooting.vigembus_incompatible') }}
           </div>
         </div>
         <div class="alert alert-warning" v-else-if="!vigembus.installed">
+          <alert-triangle :size="18" class="icon"></alert-triangle>
           {{ $t('troubleshooting.vigembus_not_installed') }}
         </div>
         <div class="alert alert-success" v-if="vigemBusInstallStatus === true">
+          <check-circle :size="18" class="icon"></check-circle>
           {{ $t('troubleshooting.vigembus_install_success') }}
         </div>
         <div class="alert alert-danger" v-if="vigemBusInstallStatus === false">
+          <alert-circle :size="18" class="icon"></alert-circle>
           {{ vigemBusInstallError || $t('troubleshooting.vigembus_install_error') }}
         </div>
         <div>
@@ -69,65 +42,67 @@
             :class="vigembus.installed && vigembus.version === vigembus.packaged_version ? 'btn btn-danger' : 'btn btn-primary'"
             :disabled="vigemBusInstallPressed"
             @click="installViGEmBus">
-            <template v-if="vigembus.installed && vigembus.version === vigembus.packaged_version">
-              {{ $t('troubleshooting.vigembus_force_reinstall_button', { version: vigembus.packaged_version }) }}
-            </template>
-            <template v-else>
-              {{ $t('troubleshooting.vigembus_install_button', { version: vigembus.packaged_version }) }}
-            </template>
+            <download :size="18" class="icon" v-if="!(vigembus.installed && vigembus.version === vigembus.packaged_version)"></download>
+            <refresh-cw :size="18" class="icon" v-else></refresh-cw>
+            {{ vigembus.installed && vigembus.version === vigembus.packaged_version ? $t('troubleshooting.vigembus_force_reinstall_button', { version: vigembus.packaged_version }) : $t('troubleshooting.vigembus_install_button', { version: vigembus.packaged_version }) }}
           </button>
         </div>
       </div>
     </div>
     <!-- Force Close App -->
-    <div class="card p-2 my-4">
+    <div class="card my-4">
       <div class="card-body">
         <h2 id="close_apps">{{ $t('troubleshooting.force_close') }}</h2>
-        <br>
         <p>{{ $t('troubleshooting.force_close_desc') }}</p>
         <div class="alert alert-success" v-if="closeAppStatus === true">
+          <check-circle :size="18" class="icon"></check-circle>
           {{ $t('troubleshooting.force_close_success') }}
         </div>
         <div class="alert alert-danger" v-if="closeAppStatus === false">
+          <alert-circle :size="18" class="icon"></alert-circle>
           {{ $t('troubleshooting.force_close_error') }}
         </div>
         <div>
           <button class="btn btn-warning" :disabled="closeAppPressed" @click="closeApp">
+            <x-circle :size="18" class="icon"></x-circle>
             {{ $t('troubleshooting.force_close') }}
           </button>
         </div>
       </div>
     </div>
     <!-- Restart Sunshine -->
-    <div class="card p-2 my-4">
+    <div class="card my-4">
       <div class="card-body">
         <h2 id="restart">{{ $t('troubleshooting.restart_sunshine') }}</h2>
-        <br>
         <p>{{ $t('troubleshooting.restart_sunshine_desc') }}</p>
         <div class="alert alert-success" v-if="restartPressed === true">
+          <check-circle :size="18" class="icon"></check-circle>
           {{ $t('troubleshooting.restart_sunshine_success') }}
         </div>
         <div>
           <button class="btn btn-warning" :disabled="restartPressed" @click="restart">
+            <refresh-cw :size="18" class="icon"></refresh-cw>
             {{ $t('troubleshooting.restart_sunshine') }}
           </button>
         </div>
       </div>
     </div>
     <!-- Reset persistent display device settings -->
-    <div class="card p-2 my-4" v-if="platform === 'windows'">
+    <div class="card my-4" v-if="platform === 'windows'">
       <div class="card-body">
         <h2 id="dd_reset">{{ $t('troubleshooting.dd_reset') }}</h2>
-        <br>
         <p style="white-space: pre-line">{{ $t('troubleshooting.dd_reset_desc') }}</p>
         <div class="alert alert-success" v-if="ddResetStatus === true">
+          <check-circle :size="18" class="icon"></check-circle>
           {{ $t('troubleshooting.dd_reset_success') }}
         </div>
         <div class="alert alert-danger" v-if="ddResetStatus === false">
+          <alert-circle :size="18" class="icon"></alert-circle>
           {{ $t('troubleshooting.dd_reset_error') }}
         </div>
         <div>
           <button class="btn btn-warning" :disabled="ddResetPressed" @click="ddResetPersistence">
+            <rotate-ccw :size="18" class="icon"></rotate-ccw>
             {{ $t('troubleshooting.dd_reset') }}
           </button>
         </div>
@@ -136,50 +111,77 @@
     <!-- Unpair Clients -->
     <div class="card my-4">
       <div class="card-body">
-        <div class="p-2">
-          <div class="d-flex justify-content-end align-items-center">
-            <h2 id="unpair" class="text-center me-auto">{{ $t('troubleshooting.unpair_title') }}</h2>
-            <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
-              {{ $t('troubleshooting.unpair_all') }}
-            </button>
-          </div>
-          <br />
-          <p class="mb-0">{{ $t('troubleshooting.unpair_desc') }}</p>
-          <div id="apply-alert" class="alert alert-success d-flex align-items-center mt-3" :style="{ 'display': (showApplyMessage ? 'flex !important': 'none !important') }">
-            <div class="me-2"><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
-            <button class="btn btn-success ms-auto apply" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
-          </div>
-          <div class="alert alert-success mt-3" v-if="unpairAllStatus === true">
-            {{ $t('troubleshooting.unpair_all_success') }}
-          </div>
-          <div class="alert alert-danger mt-3" v-if="unpairAllStatus === false">
-            {{ $t('troubleshooting.unpair_all_error') }}
-          </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h2 id="unpair" class="mb-0">{{ $t('troubleshooting.unpair_title') }}</h2>
+          <button class="btn btn-danger" :disabled="unpairAllPressed" @click="unpairAll">
+            <trash-2 :size="18" class="icon"></trash-2>
+            {{ $t('troubleshooting.unpair_all') }}
+          </button>
+        </div>
+        <p>{{ $t('troubleshooting.unpair_desc') }}</p>
+        <div class="alert alert-success d-flex align-items-center" v-if="showApplyMessage">
+          <check-circle :size="18" class="icon"></check-circle>
+          <div><b>{{ $t('_common.success') }}</b> {{ $t('troubleshooting.unpair_single_success') }}</div>
+          <button class="btn btn-success ms-auto" @click="clickedApplyBanner">{{ $t('_common.dismiss') }}</button>
+        </div>
+        <div class="alert alert-success" v-if="unpairAllStatus === true">
+          <check-circle :size="18" class="icon"></check-circle>
+          {{ $t('troubleshooting.unpair_all_success') }}
+        </div>
+        <div class="alert alert-danger" v-if="unpairAllStatus === false">
+          <alert-circle :size="18" class="icon"></alert-circle>
+          {{ $t('troubleshooting.unpair_all_error') }}
         </div>
       </div>
-      <ul id="client-list" class="list-group list-group-flush list-group-item-light" v-if="clients && clients.length > 0">
-        <div v-for="client in clients" class="list-group-item d-flex">
-          <div class="p-2 flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
-          <div class="me-2 ms-auto btn btn-danger" @click="unpairSingle(client.uuid)"><i class="fas fa-trash"></i></div>
-        </div>
+      <ul class="list-group list-group-flush" v-if="clients && clients.length > 0">
+        <li v-for="client in clients" :key="client.uuid" class="list-group-item d-flex align-items-center">
+          <div class="flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
+          <button class="btn btn-danger ms-auto" @click="unpairSingle(client.uuid)">
+            <trash-2 :size="18" class="icon"></trash-2>
+          </button>
+        </li>
       </ul>
-      <ul v-else class="list-group list-group-flush list-group-item-light">
-        <div class="list-group-item p-3 text-center"><em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em></div>
+      <ul v-else class="list-group list-group-flush">
+        <li class="list-group-item p-3 text-center">
+          <em>{{ $t('troubleshooting.unpair_single_no_devices') }}</em>
+        </li>
       </ul>
-
     </div>
     <!-- Logs -->
-    <div class="card p-2 my-4">
+    <div class="card my-4">
       <div class="card-body">
         <h2 id="logs">{{ $t('troubleshooting.logs') }}</h2>
-        <br>
         <div class="d-flex justify-content-between align-items-baseline py-2">
           <p>{{ $t('troubleshooting.logs_desc') }}</p>
-          <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" style="width: 300px">
+          <div class="input-group" style="max-width: 300px">
+            <span class="input-group-text">
+              <search :size="18" class="icon"></search>
+            </span>
+            <input type="text" class="form-control" v-model="logFilter" :placeholder="$t('troubleshooting.logs_find')" />
+          </div>
         </div>
         <div>
-          <div class="troubleshooting-logs">
-            <button class="copy-icon"><i class="fas fa-copy " @click="copyLogs"></i></button>{{actualLogs}}
+          <div class="troubleshooting-logs" ref="logsContainer">
+            <div class="log-nav-overlay">
+              <div class="log-nav-controls">
+                <button class="log-nav-btn" @click="scrollLogsTo('top')" title="Jump to Top">
+                  <chevrons-up :size="18" class="icon"></chevrons-up>
+                </button>
+                <button class="log-nav-btn" @click="navigateToLog('prev')" :disabled="!hasPrevLog" title="Previous Warning/Error">
+                  <chevron-up :size="18" class="icon"></chevron-up>
+                </button>
+                <button class="log-nav-btn" @click="navigateToLog('next')" :disabled="!hasNextLog" title="Next Warning/Error">
+                  <chevron-down :size="18" class="icon"></chevron-down>
+                </button>
+                <button class="log-nav-btn" @click="scrollLogsTo('bottom')" title="Jump to Bottom">
+                  <chevrons-down :size="18" class="icon"></chevrons-down>
+                </button>
+                <button class="log-nav-btn" @click="copyLogs" title="Copy Logs">
+                  <copy :size="18" class="icon"></copy>
+                </button>
+              </div>
+            </div>
+            <pre class="mb-0" v-html="highlightedLogs"></pre>
           </div>
         </div>
       </div>
@@ -190,10 +192,40 @@
     import { createApp } from 'vue'
     import { initApp } from './init'
     import Navbar from './Navbar.vue'
+    import {
+      AlertCircle,
+      AlertTriangle,
+      CheckCircle,
+      ChevronDown,
+      ChevronUp,
+      ChevronsDown,
+      ChevronsUp,
+      Copy,
+      Download,
+      RefreshCw,
+      RotateCcw,
+      Search,
+      Trash2,
+      XCircle,
+    } from 'lucide-vue-next'
 
     const app = createApp({
       components: {
-        Navbar
+        Navbar,
+        AlertCircle,
+        AlertTriangle,
+        CheckCircle,
+        ChevronDown,
+        ChevronUp,
+        ChevronsDown,
+        ChevronsUp,
+        Copy,
+        Download,
+        RefreshCw,
+        RotateCcw,
+        Search,
+        Trash2,
+        XCircle,
       },
       data() {
         return {
@@ -220,14 +252,126 @@
           vigemBusInstallPressed: false,
           vigemBusInstallStatus: null,
           vigemBusInstallError: null,
+          currentLogIndex: -1,
+          logLines: [],
         };
       },
       computed: {
         actualLogs() {
           if (!this.logFilter) return this.logs;
-          let lines = this.logs.split("\n");
-          lines = lines.filter(x => x.indexOf(this.logFilter) !== -1);
-          return lines.join("\n");
+          const filterLower = this.logFilter.toLowerCase();
+          return this.logs
+            .split("\n")
+            .filter((x) => x.toLowerCase().includes(filterLower))
+            .join("\n");
+        },
+
+        /**
+         * Parse the (possibly multi-line) log output into timestamp-prefixed entries.
+         * Each entry starts with: [YYYY-MM-DD HH:MM:SS.mmm]:
+         */
+        parsedLogEntries() {
+          const text = this.actualLogs || '';
+
+          // Match on timestamp tokens, but keep everything between them as the entry body.
+          // Using a global exec loop lets us split without losing delimiters and works
+          // even when entries span multiple lines.
+          const tsRegex = /\[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\]:/g;
+
+          const entries = [];
+          const matches = Array.from(text.matchAll(tsRegex));
+
+          // If no timestamps are found, treat everything as a single entry.
+          if (matches.length === 0) {
+            const raw = text.trimEnd();
+            if (!raw) return [];
+            return [
+              {
+                index: 0,
+                raw,
+                level: 'Info',
+                cssClass: 'log-line-info',
+              },
+            ];
+          }
+
+          for (let i = 0; i < matches.length; i++) {
+            const start = matches[i].index;
+            const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+            const raw = text.slice(start, end).trimEnd();
+            if (!raw) continue;
+
+            // Determine level based on the *first* level token in the entry.
+            // Sunshine logs are typically: "[ts]: Level: message".
+            // Some messages may contain additional embedded timestamps, but we treat
+            // those as part of the entry content.
+            let level = 'Info';
+            let cssClass = 'log-line-info';
+
+            if (/\]:\s*Fatal:/i.test(raw)) {
+              level = 'Fatal';
+              cssClass = 'log-line-fatal';
+            } else if (/\]:\s*(Error|Critical):/i.test(raw)) {
+              level = 'Error';
+              cssClass = 'log-line-error';
+            } else if (/\]:\s*Warning:/i.test(raw)) {
+              level = 'Warning';
+              cssClass = 'log-line-warning';
+            } else if (/\]:\s*Debug:/i.test(raw)) {
+              level = 'Debug';
+              cssClass = 'log-line-debug';
+            }
+
+            entries.push({
+              index: entries.length,
+              raw,
+              level,
+              cssClass,
+            });
+          }
+
+          return entries;
+        },
+
+        highlightedLogs() {
+          const escapeHtml = (s) =>
+            s
+              .replaceAll('&', '&amp;')
+              .replaceAll('<', '&lt;')
+              .replaceAll('>', '&gt;')
+              .replaceAll('"', '&quot;')
+              .replaceAll("'", '&#39;');
+
+          return this.parsedLogEntries
+            .map((entry) => {
+              const safe = escapeHtml(entry.raw);
+              const isSelected = entry.index === this.currentLogIndex;
+              const selectedClass = isSelected ? ' log-entry-selected' : '';
+              return `<span data-entry-index="${entry.index}" data-log-level="${entry.cssClass}" class="${entry.cssClass}${selectedClass}">${safe}</span>`;
+            })
+            // Separate entries visually with a newline.
+            .join("\n");
+        },
+
+        errorWarningEntries() {
+          // Only navigate between warnings/errors/fatal/critical
+          return this.parsedLogEntries
+            .filter((e) => e.level === 'Warning' || e.level === 'Error' || e.level === 'Fatal')
+            .map((e) => e.index);
+        },
+
+        hasNextLog() {
+          const indices = this.errorWarningEntries;
+          if (indices.length === 0) return false;
+          if (this.currentLogIndex === -1) return true;
+          return indices.some((i) => i > this.currentLogIndex);
+        },
+
+        hasPrevLog() {
+          const indices = this.errorWarningEntries;
+          if (indices.length === 0) return false;
+          if (this.currentLogIndex === -1) return false;
+          return indices.some((i) => i < this.currentLogIndex);
         }
       },
       created() {
@@ -323,6 +467,7 @@
           this.showApplyMessage = false;
         },
         copyLogs() {
+          // Copy the filtered view if a filter is active.
           navigator.clipboard.writeText(this.actualLogs);
         },
         restart() {
@@ -402,6 +547,62 @@
                 this.vigemBusInstallError = null;
               }, 10000);
             });
+        },
+        navigateToLog(direction) {
+          const indices = this.errorWarningEntries;
+          if (indices.length === 0) return;
+
+          let targetIndex;
+
+          if (direction === 'next') {
+            if (this.currentLogIndex === -1) {
+              targetIndex = indices[0];
+            } else {
+              const nextIndices = indices.filter((i) => i > this.currentLogIndex);
+              if (nextIndices.length === 0) return;
+              targetIndex = nextIndices[0];
+            }
+          } else if (direction === 'prev') {
+            if (this.currentLogIndex === -1) return;
+            const prevIndices = indices.filter((i) => i < this.currentLogIndex);
+            if (prevIndices.length === 0) return;
+            targetIndex = prevIndices[prevIndices.length - 1];
+          } else {
+            return;
+          }
+
+          this.currentLogIndex = targetIndex;
+
+          this.$nextTick(() => {
+            const container = this.$refs.logsContainer;
+            if (!container) return;
+
+            const el = container.querySelector(`[data-entry-index="${targetIndex}"]`);
+            if (!el) return;
+
+            // Ensure it's visible even for tall multi-line entries.
+            const containerRect = container.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const relativeTop = elRect.top - containerRect.top;
+
+            container.scrollTop = container.scrollTop + relativeTop - containerRect.height * 0.15;
+          });
+        },
+        scrollLogsTo(where) {
+          const container = this.$refs.logsContainer;
+          if (!container) return;
+
+          // Reset the selected error/warning index when jumping to top or bottom
+          this.currentLogIndex = -1;
+
+          if (where === 'top') {
+            container.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+          }
+
+          if (where === 'bottom') {
+            container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+          }
         },
       },
     });
