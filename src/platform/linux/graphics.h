@@ -295,8 +295,6 @@ namespace egl {
 
     // Increment sequence when new rgb_t needs to be created
     std::uint64_t sequence;
-    // pts metadata from pipewire
-    std::optional<std::uint64_t> pts;
   };
 
   class sws_t {
