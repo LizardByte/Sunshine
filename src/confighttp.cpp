@@ -86,7 +86,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param output_tree The JSON tree to send.
    */
-  void send_response(const resp_https_t& response, const nlohmann::json &output_tree) {
+  void send_response(const resp_https_t &response, const nlohmann::json &output_tree) {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
     headers.emplace("X-Frame-Options", "DENY");
@@ -99,7 +99,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void send_unauthorized(const resp_https_t& response, const req_https_t &request) {
+  void send_unauthorized(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
 
@@ -192,7 +192,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void not_found(const resp_https_t &response, [[maybe_unused]] const req_https_t& request, const std::string &error_message = "Not Found") {
+  void not_found(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message = "Not Found") {
     constexpr auto code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
@@ -213,7 +213,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void bad_request(const resp_https_t &response, [[maybe_unused]] const req_https_t& request, const std::string &error_message = "Bad Request") {
+  void bad_request(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message = "Bad Request") {
     constexpr auto code = SimpleWeb::StatusCode::client_error_bad_request;
 
     nlohmann::json tree;
@@ -235,7 +235,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param contentType The expected content type
    */
-  bool check_content_type(const resp_https_t& response, const req_https_t &request, const std::string_view &contentType) {
+  bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType) {
     const auto requestContentType = request->header.find("content-type");
     if (requestContentType == request->header.end()) {
       bad_request(response, request, "Content type not provided");
@@ -281,7 +281,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param index The application index/id.
    */
-  bool check_app_index(const resp_https_t& response, const req_https_t& request, int index) {
+  bool check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
     if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
@@ -305,7 +305,7 @@ namespace confighttp {
    * @param require_auth Whether to require authentication (default: true).
    * @param redirect_if_username If true, redirect to "/" when username is set (for welcome page).
    */
-  void getPage(const resp_https_t& response, const req_https_t &request, const char *html_file, const bool require_auth = true, const bool redirect_if_username = false) {
+  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth = true, const bool redirect_if_username = false) {
     // Special handling for welcome page: redirect if username is already set
     if (redirect_if_username && !config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
@@ -329,7 +329,6 @@ namespace confighttp {
     response->write(content, headers);
   }
 
-
   /**
    * @brief Get the favicon image.
    * @param response The HTTP response object.
@@ -337,7 +336,7 @@ namespace confighttp {
    * @todo combine function with getSunshineLogoImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getFaviconImage(const resp_https_t& response, const req_https_t &request) {
+  void getFaviconImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
@@ -355,7 +354,7 @@ namespace confighttp {
    * @todo combine function with getFaviconImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getSunshineLogoImage(const resp_https_t& response, const req_https_t &request) {
+  void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
@@ -382,7 +381,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void getNodeModules(const resp_https_t& response, const req_https_t& request) {
+  void getNodeModules(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
     fs::path nodeModulesPath(webDirPath / "assets");
@@ -427,7 +426,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps| GET| null}
    */
-  void getApps(const resp_https_t& response, const req_https_t &request) {
+  void getApps(const resp_https_t &response, const req_https_t &request) {
     if (!check_request_body_empty(response, request)) {
       return;
     }
@@ -515,7 +514,7 @@ namespace confighttp {
    *
    * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
    */
-  void saveApp(const resp_https_t& response, const req_https_t& request) {
+  void saveApp(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -808,7 +807,7 @@ namespace confighttp {
    *
    * @api_examples{/api/config| POST| {"key":"value"}}
    */
-  void saveConfig(const resp_https_t& response, const req_https_t& request) {
+  void saveConfig(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -852,7 +851,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/9999 | GET| null}
    */
-  void getCover(const resp_https_t& response, const req_https_t& request) {
+  void getCover(const resp_https_t &response, const req_https_t &request) {
     if (!check_request_body_empty(response, request)) {
       return;
     }
@@ -925,7 +924,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
-  void uploadCover(const resp_https_t& response, const req_https_t& request) {
+  void uploadCover(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1016,7 +1015,7 @@ namespace confighttp {
    *
    * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
-  void savePassword(const resp_https_t& response, const req_https_t& request) {
+  void savePassword(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
