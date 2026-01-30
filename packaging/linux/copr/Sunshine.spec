@@ -283,6 +283,15 @@ nvm use node
 echo "Node.js version: $(node --version)"
 echo "npm version: $(npm --version)"
 echo "npm location: $(which npm)"
+echo "node location: $(which node)"
+
+# Add npm and node path to cmake args
+NPM_PATH=$(which npm)
+NODE_PATH=$(which node)
+cmake_args+=("-DNPM=${NPM_PATH}")
+
+# Add node bin directory to PATH for make
+export PATH="$(dirname ${NODE_PATH}):${PATH}"
 %endif
 
 # setup the version
@@ -308,6 +317,21 @@ cd %{_builddir}/Sunshine/build
 xvfb-run ./tests/test_sunshine
 
 %install
+# Load NVM for Fedora 44+ so npm is available during make install
+%if 0%{?fedora} > 43
+export HOME=${HOME:-/builddir}
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use node
+
+# Add node bin directory to PATH for make install
+NODE_PATH=$(which node)
+export PATH="$(dirname ${NODE_PATH}):${PATH}"
+
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+%endif
+
 cd %{_builddir}/Sunshine/build
 %make_install
 
