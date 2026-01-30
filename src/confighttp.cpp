@@ -262,6 +262,20 @@ namespace confighttp {
   }
 
   /**
+   * @brief Validate that the request body is empty and send bad request if not.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @return True if the request body is empty, false otherwise.
+   */
+  bool check_request_body_empty(const resp_https_t &response, const req_https_t &request) {
+    if (request->content.rdbuf()->in_avail() > 0 || request->content.peek() != std::char_traits<char>::eof()) {
+      bad_request(response, request, "Request body must be empty");
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * @brief Validates the application index and sends error response if invalid.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -414,6 +428,9 @@ namespace confighttp {
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t& response, const req_https_t &request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -569,7 +586,7 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
-    if (!check_content_type(response, request, "application/json")) {
+    if (!check_request_body_empty(response, request)) {
       return;
     }
     if (!authenticate(response, request)) {
@@ -593,8 +610,9 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
-    // TODO: is it okay to skip content check?
-    // Skip check_content_type because the request body is not used
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -641,6 +659,9 @@ namespace confighttp {
    * @api_examples{/api/clients/list| GET| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -702,7 +723,7 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
-    if (!check_content_type(response, request, "application/json")) {
+    if (!check_request_body_empty(response, request)) {
       return;
     }
     if (!authenticate(response, request)) {
@@ -727,6 +748,9 @@ namespace confighttp {
    * @api_examples{/api/config| GET| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -756,6 +780,10 @@ namespace confighttp {
    */
   void getLocale(const resp_https_t &response, const req_https_t &request) {
     // we need to return the locale whether authenticated or not
+
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
 
     print_req(request);
 
@@ -825,6 +853,9 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(const resp_https_t& response, const req_https_t& request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -951,6 +982,9 @@ namespace confighttp {
    * @api_examples{/api/logs| GET| null}
    */
   void getLogs(const resp_https_t &response, const req_https_t &request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1095,7 +1129,7 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
-    if (!check_content_type(response, request, "application/json")) {
+    if (!check_request_body_empty(response, request)) {
       return;
     }
     if (!authenticate(response, request)) {
@@ -1117,7 +1151,7 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
-    if (!check_content_type(response, request, "application/json")) {
+    if (!check_request_body_empty(response, request)) {
       return;
     }
     if (!authenticate(response, request)) {
@@ -1138,6 +1172,9 @@ namespace confighttp {
    * @api_examples{/api/vigembus/status| GET| null}
    */
   void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
+    if (!check_request_body_empty(response, request)) {
+      return;
+    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1196,7 +1233,7 @@ namespace confighttp {
    * @api_examples{/api/vigembus/install| POST| null}
    */
   void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
-    if (!check_content_type(response, request, "application/json")) {
+    if (!check_request_body_empty(response, request)) {
       return;
     }
     if (!authenticate(response, request)) {
