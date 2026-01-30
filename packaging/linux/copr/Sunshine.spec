@@ -51,6 +51,10 @@ BuildRequires: which
 BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: libappstream-glib
+%if 0%{fedora} > 43
+# needed for npm from nvm
+BuildRequires: libatomic
+%endif
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libgudev
 BuildRequires: mesa-libGL-devel
