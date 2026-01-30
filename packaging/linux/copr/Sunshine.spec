@@ -40,7 +40,6 @@ BuildRequires: libXi-devel
 BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
-BuildRequires: npm
 BuildRequires: openssl-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
@@ -57,6 +56,9 @@ BuildRequires: libgudev
 BuildRequires: mesa-libGL-devel
 BuildRequires: mesa-libgbm-devel
 BuildRequires: miniupnpc-devel
+%if 0%{?fedora} < 44
+BuildRequires: nodejs-npm
+%endif
 BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
@@ -78,6 +80,7 @@ BuildRequires: libminiupnpc-devel
 BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
+BuildRequires: npm
 BuildRequires: udev
 # for unit tests
 BuildRequires: xvfb-run
@@ -253,6 +256,30 @@ if [ -n "%{cuda_version}" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${
 else
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
 fi
+
+# Install and setup NVM for Fedora 44+
+%if 0%{?fedora} > 43
+echo "Installing NVM for Fedora 44+..."
+export HOME=${HOME:-/builddir}
+export NVM_DIR="$HOME/.nvm"
+
+# Install NVM
+if [ ! -d "$NVM_DIR" ]; then
+  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+fi
+
+# Load NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install and use Node.js
+nvm install node
+nvm use node
+
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+echo "npm location: $(which npm)"
+%endif
 
 # setup the version
 export BRANCH=%{branch}
