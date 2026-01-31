@@ -84,6 +84,12 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
+    bool kms_vblank;  // Wait for vblank in KMS capture
+
+    struct {
+      int tune;     // 0=default, 1=hq, 2=ll, 3=ull
+      int rc_mode;  // 0=auto, 1=cqp, 2=cbr, 3=vbr
+    } vk;
 
     struct dd_t {
       struct workarounds_t {

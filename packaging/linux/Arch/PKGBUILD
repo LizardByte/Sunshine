@@ -49,6 +49,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'vulkan-icd-loader'
   'which'
 )
 
@@ -62,6 +63,7 @@ makedepends=(
   'make'
   'nodejs'
   'npm'
+  'vulkan-headers'
 )
 
 checkdepends=(

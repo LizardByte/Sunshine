@@ -2090,6 +2090,32 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### kms_vblank
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Wait for vertical blank (vblank) when using KMS capture. This synchronizes frame capture with the display
+            refresh rate, which can reduce tearing and improve frame pacing. When the display refresh rate is higher
+            than the stream frame rate, frames are automatically skipped to match the target FPS.
+            @note{Applies to Linux only, when using KMS capture.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            kms_vblank = disabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### encoder
 
 <table>
@@ -2125,6 +2151,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>vaapi</td>
         <td>Use VA-API (AMD, Intel)</td>
+    </tr>
+    <tr>
+        <td>vulkan</td>
+        <td>Use Vulkan encoder (AMD, Intel, NVIDIA).
+            @note{Applies to Linux only.}</td>
     </tr>
     <tr>
         <td>software</td>
