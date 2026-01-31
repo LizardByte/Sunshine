@@ -39,6 +39,8 @@ namespace confighttp {
   bool check_request_body_empty(const resp_https_t &response, const req_https_t &request);
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
   void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, bool require_auth = true, bool redirect_if_username = false);
+  void getAsset(const resp_https_t &response, const req_https_t &request);
+  void getLocale(const resp_https_t &response, const req_https_t &request);
 }  // namespace confighttp
 
 // mime types map

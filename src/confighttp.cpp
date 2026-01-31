@@ -377,11 +377,11 @@ namespace confighttp {
   }
 
   /**
-   * @brief Get an asset from the node_modules directory.
+   * @brief Get an asset.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void getNodeModules(const resp_https_t &response, const req_https_t &request) {
+  void getAsset(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
     fs::path nodeModulesPath(webDirPath / "assets");
@@ -1358,7 +1358,7 @@ namespace confighttp {
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
+    server.resource["^/assets\\/.+$"]["GET"] = getAsset;
 
     server.config.reuse_address = true;
     server.config.address = net::get_bind_address(address_family);
