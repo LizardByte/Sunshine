@@ -120,29 +120,18 @@ protected:
     // Set test locale
     config::sunshine.locale = "en";
 
-    // Create test web directory
+    // Create test web directory in temp
     test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";
     std::filesystem::create_directories(test_web_dir / "web");
 
-    // Create test HTML file in the actual WEB_DIR for getPage to read
-    // Note: WEB_DIR might not exist yet, so create it
-    try {
-      std::filesystem::path web_dir_path(WEB_DIR);
-      if (!std::filesystem::exists(web_dir_path)) {
-        std::filesystem::create_directories(web_dir_path);
-      }
-      web_dir_test_file = web_dir_path / "test_page.html";
+    // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
+    std::filesystem::path web_dir_path(WEB_DIR);
+    std::filesystem::create_directories(web_dir_path);
+    web_dir_test_file = web_dir_path / "test_page.html";
 
-      std::ofstream test_html(web_dir_test_file);
-      if (test_html.is_open()) {
-        test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
-        test_html.close();
-      }
-    } catch (const std::exception &e) {
-      // If we can't create the file, getPage tests will be skipped
-      // Log but don't fail setup
-      std::cerr << "Warning: Could not create test file in WEB_DIR: " << e.what() << std::endl;
-    }
+    std::ofstream test_html(web_dir_test_file);
+    test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
+    test_html.close();
 
     // Write certificates to temp files (Simple-Web-Server expects file paths)
     cert_file = test_web_dir / "test_cert.pem";
