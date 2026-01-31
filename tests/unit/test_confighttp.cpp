@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <iostream>
 #include <thread>
 
 // lib imports
@@ -98,28 +99,50 @@ protected:
   std::string saved_username;
   std::string saved_password;
   std::string saved_salt;
+  std::string saved_locale;
   std::filesystem::path test_web_dir;
   std::filesystem::path cert_file;
   std::filesystem::path key_file;
+  std::filesystem::path web_dir_test_file;
 
   void SetUp() override {
     // Save current config
     saved_username = config::sunshine.username;
     saved_password = config::sunshine.password;
     saved_salt = config::sunshine.salt;
+    saved_locale = config::sunshine.locale;
 
     // Set up test credentials
     config::sunshine.username = "testuser";
     config::sunshine.salt = "testsalt";
     config::sunshine.password = util::hex(crypto::hash("testpass" + config::sunshine.salt)).to_string();
 
-    // Create test web directory with an HTML file
+    // Set test locale
+    config::sunshine.locale = "en";
+
+    // Create test web directory
     test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";
     std::filesystem::create_directories(test_web_dir / "web");
 
-    std::ofstream test_file(test_web_dir / "web" / "test.html");
-    test_file << "<html><body>Test Page</body></html>";
-    test_file.close();
+    // Create test HTML file in the actual WEB_DIR for getPage to read
+    // Note: WEB_DIR might not exist yet, so create it
+    try {
+      std::filesystem::path web_dir_path(WEB_DIR);
+      if (!std::filesystem::exists(web_dir_path)) {
+        std::filesystem::create_directories(web_dir_path);
+      }
+      web_dir_test_file = web_dir_path / "test_page.html";
+
+      std::ofstream test_html(web_dir_test_file);
+      if (test_html.is_open()) {
+        test_html << "<html><head><title>Test Page</title></head><body><h1>Test Page Content</h1></body></html>";
+        test_html.close();
+      }
+    } catch (const std::exception &e) {
+      // If we can't create the file, getPage tests will be skipped
+      // Log but don't fail setup
+      std::cerr << "Warning: Could not create test file in WEB_DIR: " << e.what() << std::endl;
+    }
 
     // Write certificates to temp files (Simple-Web-Server expects file paths)
     cert_file = test_web_dir / "test_cert.pem";
@@ -183,6 +206,91 @@ protected:
       confighttp::bad_request(response, request, "Test bad request");
     };
 
+    // Add a route to test send_response with JSON
+    server->resource["^/json-test$"]["GET"] = [](
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                [[maybe_unused]] const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                              ) {
+      // Call the actual confighttp::send_response function
+      nlohmann::json test_json;
+      test_json["status"] = "success";
+      test_json["message"] = "Test JSON response";
+      test_json["code"] = 200;
+      confighttp::send_response(response, test_json);
+    };
+
+    // Add a route to test send_redirect
+    server->resource["^/redirect-test$"]["GET"] = [](
+                                                    const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                    const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                  ) {
+      // Call the actual confighttp::send_redirect function
+      confighttp::send_redirect(response, request, "/redirected-location");
+    };
+
+    // Add a route to test check_content_type
+    server->resource["^/content-type-test$"]["POST"] = [](
+                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                       ) {
+      // Call the actual confighttp::check_content_type function
+      if (confighttp::check_content_type(response, request, "application/json")) {
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", "text/plain");
+        response->write("content-type-valid", headers);
+      }
+      // If check fails, check_content_type already sent an error response
+    };
+
+    // Add a route to test check_request_body_empty
+    server->resource["^/empty-body-test$"]["POST"] = [](
+                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                     ) {
+      // Call the actual confighttp::check_request_body_empty function
+      if (confighttp::check_request_body_empty(response, request)) {
+        SimpleWeb::CaseInsensitiveMultimap headers;
+        headers.emplace("Content-Type", "text/plain");
+        response->write("body-is-empty", headers);
+      }
+      // If check fails, check_request_body_empty already sent an error response
+    };
+
+    // Add a route to test getPage (requires auth)
+    server->resource["^/page-test$"]["GET"] = [this](
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                              ) {
+      // Call the actual confighttp::getPage function
+      // Note: This will read from WEB_DIR, so we need to ensure the file exists there
+      confighttp::getPage(response, request, "test_page.html", true, false);
+    };
+
+    // Add a route to test getPage without auth requirement
+    server->resource["^/page-noauth-test$"]["GET"] = [this](
+                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                       const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                     ) {
+      confighttp::getPage(response, request, "test_page.html", false, false);
+    };
+
+    // Add a route to test getPage with redirect_if_username
+    server->resource["^/page-redirect-test$"]["GET"] = [this](
+                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                         const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                       ) {
+      confighttp::getPage(response, request, "test_page.html", false, true);
+    };
+
+    // Add a route to test getLocale
+    server->resource["^/locale-test$"]["GET"] = [](
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                ) {
+      // Call the actual confighttp::getLocale function
+      confighttp::getLocale(response, request);
+    };
+
     // Start server
     server_thread = std::thread([this]() {
       server->start([this](unsigned short assigned_port) {
@@ -213,6 +321,12 @@ protected:
     config::sunshine.username = saved_username;
     config::sunshine.password = saved_password;
     config::sunshine.salt = saved_salt;
+    config::sunshine.locale = saved_locale;
+
+    // Clean up test HTML file from WEB_DIR
+    if (std::filesystem::exists(web_dir_test_file)) {
+      std::filesystem::remove(web_dir_test_file);
+    }
 
     if (std::filesystem::exists(test_web_dir)) {
       std::filesystem::remove_all(test_web_dir);
@@ -333,4 +447,222 @@ TEST_F(ConfigHttpTest, BadRequestResponse) {
   const std::string body = response->content.string();
   ASSERT_TRUE(body.find("Test bad request") != std::string::npos);
   ASSERT_TRUE(body.find("400") != std::string::npos);
+}
+
+// Test: confighttp::send_response() sends proper JSON response
+TEST_F(ConfigHttpTest, SendResponseJson) {
+  const auto response = client->request("GET", "/json-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  // Check Content-Type
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
+
+  // Check security headers
+  const auto x_frame = response->header.find("X-Frame-Options");
+  ASSERT_NE(x_frame, response->header.end());
+  ASSERT_EQ(x_frame->second, "DENY");
+
+  const auto csp = response->header.find("Content-Security-Policy");
+  ASSERT_NE(csp, response->header.end());
+  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+
+  // Check JSON content
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("\"status\":\"success\"") != std::string::npos || body.find("\"status\": \"success\"") != std::string::npos);
+  ASSERT_TRUE(body.find("Test JSON response") != std::string::npos);
+  ASSERT_TRUE(body.find("200") != std::string::npos);
+}
+
+// Test: confighttp::send_redirect() sends proper redirect response
+TEST_F(ConfigHttpTest, SendRedirectResponse) {
+  const auto response = client->request("GET", "/redirect-test");
+  ASSERT_EQ(response->status_code, "307 Temporary Redirect");
+
+  // Check Location header
+  const auto location = response->header.find("Location");
+  ASSERT_NE(location, response->header.end());
+  ASSERT_EQ(location->second, "/redirected-location");
+
+  // Check security headers
+  const auto x_frame = response->header.find("X-Frame-Options");
+  ASSERT_NE(x_frame, response->header.end());
+  ASSERT_EQ(x_frame->second, "DENY");
+
+  const auto csp = response->header.find("Content-Security-Policy");
+  ASSERT_NE(csp, response->header.end());
+  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+}
+
+// Test: confighttp::check_content_type() accepts valid content type
+TEST_F(ConfigHttpTest, CheckContentTypeValid) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json");
+
+  const auto response = client->request("POST", "/content-type-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const std::string body = response->content.string();
+  ASSERT_EQ(body, "content-type-valid");
+}
+
+// Test: confighttp::check_content_type() rejects missing content type
+TEST_F(ConfigHttpTest, CheckContentTypeMissing) {
+  const auto response = client->request("POST", "/content-type-test");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("Content type not provided") != std::string::npos);
+}
+
+// Test: confighttp::check_content_type() rejects wrong content type
+TEST_F(ConfigHttpTest, CheckContentTypeWrong) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "text/plain");
+
+  const auto response = client->request("POST", "/content-type-test", "", headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("Content type mismatch") != std::string::npos);
+}
+
+// Test: confighttp::check_content_type() handles content type with charset
+TEST_F(ConfigHttpTest, CheckContentTypeWithCharset) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Content-Type", "application/json; charset=utf-8");
+
+  const auto response = client->request("POST", "/content-type-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const std::string body = response->content.string();
+  ASSERT_EQ(body, "content-type-valid");
+}
+
+// Test: confighttp::check_request_body_empty() accepts empty body
+TEST_F(ConfigHttpTest, CheckRequestBodyEmpty) {
+  const auto response = client->request("POST", "/empty-body-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const std::string body = response->content.string();
+  ASSERT_EQ(body, "body-is-empty");
+}
+
+// Test: confighttp::check_request_body_empty() rejects non-empty body
+TEST_F(ConfigHttpTest, CheckRequestBodyNotEmpty) {
+  const auto response = client->request("POST", "/empty-body-test", "some data");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("Request body must be empty") != std::string::npos);
+}
+
+// Test: confighttp::getPage() serves HTML with authentication
+TEST_F(ConfigHttpTest, GetPageWithAuth) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/page-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  // Check Content-Type
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_TRUE(content_type->second.find("text/html") != std::string::npos);
+  ASSERT_TRUE(content_type->second.find("charset=utf-8") != std::string::npos);
+
+  // Check security headers
+  const auto x_frame = response->header.find("X-Frame-Options");
+  ASSERT_NE(x_frame, response->header.end());
+  ASSERT_EQ(x_frame->second, "DENY");
+
+  const auto csp = response->header.find("Content-Security-Policy");
+  ASSERT_NE(csp, response->header.end());
+  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+
+  // Check HTML content
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("<html>") != std::string::npos);
+  ASSERT_TRUE(body.find("Test Page Content") != std::string::npos);
+  ASSERT_TRUE(body.find("</html>") != std::string::npos);
+}
+
+// Test: confighttp::getPage() requires authentication when require_auth=true
+TEST_F(ConfigHttpTest, GetPageRequiresAuth) {
+  const auto response = client->request("GET", "/page-test");
+  ASSERT_EQ(response->status_code, "401 Unauthorized");
+
+  // Should have WWW-Authenticate header since auth is required
+  const auto www_auth = response->header.find("WWW-Authenticate");
+  ASSERT_NE(www_auth, response->header.end());
+}
+
+// Test: confighttp::getPage() works without authentication when require_auth=false
+TEST_F(ConfigHttpTest, GetPageWithoutAuthRequired) {
+  const auto response = client->request("GET", "/page-noauth-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  // Check HTML content is served
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("Test Page Content") != std::string::npos);
+}
+
+// Test: confighttp::getPage() redirects when redirect_if_username=true and username is set
+TEST_F(ConfigHttpTest, GetPageRedirectsWhenUsernameSet) {
+  // Username is set in SetUp(), so redirect_if_username should trigger redirect
+  const auto response = client->request("GET", "/page-redirect-test");
+  ASSERT_EQ(response->status_code, "307 Temporary Redirect");
+
+  // Check redirect location
+  const auto location = response->header.find("Location");
+  ASSERT_NE(location, response->header.end());
+  ASSERT_EQ(location->second, "/");
+}
+
+// Test: confighttp::getPage() doesn't redirect when username is empty
+TEST_F(ConfigHttpTest, GetPageNoRedirectWhenUsernameEmpty) {
+  // Temporarily clear username
+  const std::string saved = config::sunshine.username;
+  config::sunshine.username = "";
+
+  const auto response = client->request("GET", "/page-redirect-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  // Restore username
+  config::sunshine.username = saved;
+}
+
+// Test: confighttp::getLocale() returns locale JSON
+TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
+  const auto response = client->request("GET", "/locale-test");
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  // Check Content-Type
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
+
+  // Check security headers
+  const auto x_frame = response->header.find("X-Frame-Options");
+  ASSERT_NE(x_frame, response->header.end());
+  ASSERT_EQ(x_frame->second, "DENY");
+
+  const auto csp = response->header.find("Content-Security-Policy");
+  ASSERT_NE(csp, response->header.end());
+  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+
+  // Check JSON content
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("\"status\":true") != std::string::npos || body.find("\"status\": true") != std::string::npos);
+  ASSERT_TRUE(body.find("\"locale\":\"en\"") != std::string::npos || body.find("\"locale\": \"en\"") != std::string::npos);
+}
+
+// Test: confighttp::getLocale() rejects non-empty body
+TEST_F(ConfigHttpTest, GetLocaleRejectsNonEmptyBody) {
+  const auto response = client->request("GET", "/locale-test", "some data");
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+
+  const std::string body = response->content.string();
+  ASSERT_TRUE(body.find("Request body must be empty") != std::string::npos);
 }
