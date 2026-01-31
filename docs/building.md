@@ -126,33 +126,51 @@ sudo port install "${dependencies[@]}"
 ```
 
 #### Windows
-First you need to install [MSYS2](https://www.msys2.org), then startup "MSYS2 UCRT64" and execute the following
-commands.
+
+@warning{Cross-compilation is not supported on Windows. You must build on the target architecture.}
+
+First you need to install [MSYS2](https://www.msys2.org).
+ 
+For AMD64 startup "MSYS2 UCRT64", or for ARM64 startup "MSYS2 CLANGARM64", then execute the following commands.
 
 ##### Update all packages
 ```bash
 pacman -Syu
 ```
 
+##### Set toolchain variable
+For UCRT64:
+```bash
+export TOOLCHAIN="ucrt-x86_64"
+```
+
+For CLANGARM64:
+```bash
+export TOOLCHAIN="clang-aarch64"
+```
+
 ##### Install dependencies
 ```bash
 dependencies=(
   "git"
-  "mingw-w64-ucrt-x86_64-boost"  # Optional
-  "mingw-w64-ucrt-x86_64-cmake"
-  "mingw-w64-ucrt-x86_64-cppwinrt"
-  "mingw-w64-ucrt-x86_64-curl-winssl"
-  "mingw-w64-ucrt-x86_64-doxygen"  # Optional, for docs... better to install official Doxygen
-  "mingw-w64-ucrt-x86_64-graphviz"  # Optional, for docs
-  "mingw-w64-ucrt-x86_64-MinHook"
-  "mingw-w64-ucrt-x86_64-miniupnpc"
-  "mingw-w64-ucrt-x86_64-nodejs"
-  "mingw-w64-ucrt-x86_64-nsis"
-  "mingw-w64-ucrt-x86_64-onevpl"
-  "mingw-w64-ucrt-x86_64-openssl"
-  "mingw-w64-ucrt-x86_64-opus"
-  "mingw-w64-ucrt-x86_64-toolchain"
+  "mingw-w64-${TOOLCHAIN}-boost"  # Optional
+  "mingw-w64-${TOOLCHAIN}-cmake"
+  "mingw-w64-${TOOLCHAIN}-cppwinrt"
+  "mingw-w64-${TOOLCHAIN}-curl-winssl"
+  "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
+  "mingw-w64-${TOOLCHAIN}-miniupnpc"
+  "mingw-w64-${TOOLCHAIN}-nodejs"
+  "mingw-w64-${TOOLCHAIN}-onevpl"
+  "mingw-w64-${TOOLCHAIN}-openssl"
+  "mingw-w64-${TOOLCHAIN}-opus"
+  "mingw-w64-${TOOLCHAIN}-toolchain"
 )
+if [[ ${MSYSTEM} == "ucrt64" ]]; then
+  dependencies+=(
+    "mingw-w64-${TOOLCHAIN}-MinHook"
+    "mingw-w64-${TOOLCHAIN}-nsis"  # TODO: how to create an arm64 installer?
+  )
+fi
 pacman -S "${dependencies[@]}"
 ```
 
@@ -199,7 +217,7 @@ ninja -C build
   }}
   @tab{Windows | @tabs{
     @tab{Installer | ```bash
-      cpack -G NSIS --config ./build/CPackConfig.cmake
+      cpack -G NSIS --config ./build/CPackConfig.cmake # Not working on CLANGARM64
       ```}
     @tab{Portable | ```bash
       cpack -G ZIP --config ./build/CPackConfig.cmake
