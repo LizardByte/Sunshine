@@ -192,7 +192,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void not_found(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message = "Not Found") {
+  void not_found(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message) {
     constexpr auto code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
@@ -213,7 +213,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void bad_request(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message = "Bad Request") {
+  void bad_request(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message) {
     constexpr auto code = SimpleWeb::StatusCode::client_error_bad_request;
 
     nlohmann::json tree;
@@ -305,7 +305,7 @@ namespace confighttp {
    * @param require_auth Whether to require authentication (default: true).
    * @param redirect_if_username If true, redirect to "/" when username is set (for welcome page).
    */
-  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth = true, const bool redirect_if_username = false) {
+  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth, const bool redirect_if_username) {
     // Special handling for welcome page: redirect if username is already set
     if (redirect_if_username && !config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
