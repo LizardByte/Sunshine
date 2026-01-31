@@ -38,10 +38,10 @@
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers.git
 	branch = sdk/12.0
-[submodule "third-party/nvapi-open-source-sdk"]
-	path = third-party/nvapi-open-source-sdk
-	url = https://github.com/LizardByte/nvapi-open-source-sdk.git
-	branch = sdk
+[submodule "third-party/nvapi"]
+	path = third-party/nvapi
+	url = https://github.com/NVIDIA/nvapi.git
+	branch = main
 [submodule "third-party/Simple-Web-Server"]
 	path = third-party/Simple-Web-Server
 	url = https://github.com/LizardByte-infrastructure/Simple-Web-Server.git
