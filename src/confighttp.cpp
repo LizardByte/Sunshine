@@ -60,6 +60,20 @@ namespace confighttp {
     REMOVE  ///< Remove client
   };
 
+  // CSRF token management
+  struct csrf_token_t {
+    std::string token;
+    std::chrono::steady_clock::time_point expiration;
+  };
+
+  // Store CSRF tokens with thread safety
+  std::map<std::string, csrf_token_t> csrf_tokens;
+  std::mutex csrf_tokens_mutex;
+
+  // CSRF token configuration
+  constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
+  constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
+
   /**
    * @brief Log the request details.
    * @param request The HTTP request object.
@@ -262,16 +276,168 @@ namespace confighttp {
   }
 
   /**
-   * @brief Validate that the request body is empty and send bad request if not.
+   * @brief Get a unique client identifier for CSRF token management.
+   * @param request The HTTP request object.
+   * @return A unique identifier based on username or IP address.
+   */
+  std::string get_client_id(const req_https_t &request) {
+    // Try to use authenticated username as client ID
+    if (!config::sunshine.username.empty()) {
+      const auto auth = request->header.find("authorization");
+      if (auth != request->header.end()) {
+        const auto &rawAuth = auth->second;
+        if (rawAuth.rfind("Basic "sv, 0) == 0) {
+          auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+          const auto index = static_cast<int>(authData.find(':'));
+          if (index < authData.size() - 1) {
+            return authData.substr(0, index);  // Return username
+          }
+        }
+      }
+    }
+
+    // Fall back to IP address if no username
+    return net::addr_to_normalized_string(request->remote_endpoint().address());
+  }
+
+  /**
+   * @brief Generate a new CSRF token for a client.
+   * @param client_id A unique identifier for the client (e.g., session ID or username).
+   * @return The generated CSRF token.
+   */
+  std::string generate_csrf_token(const std::string &client_id) {
+    // Generate a cryptographically secure random token
+    std::string token = crypto::rand_alphabet(CSRF_TOKEN_SIZE);
+
+    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+
+    // Clean up expired tokens first
+    auto now = std::chrono::steady_clock::now();
+    for (auto it = csrf_tokens.begin(); it != csrf_tokens.end();) {
+      if (it->second.expiration < now) {
+        it = csrf_tokens.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    // Store the token with expiration
+    csrf_tokens[client_id] = csrf_token_t {
+      token,
+      now + CSRF_TOKEN_LIFETIME
+    };
+
+    return token;
+  }
+
+  /**
+   * @brief Validate a CSRF token from a request.
+   *
+   * This function implements a hybrid CSRF protection approach:
+   * 1. Same-origin requests (detected via Origin or Referer headers matching configured allowed origins) are allowed without tokens
+   * 2. Cross-origin requests must provide a valid CSRF token
+   *
+   * This allows the existing web UI to work without modifications while still protecting
+   * against CSRF attacks from malicious external sites.
+   *
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @return True if the request body is empty, false otherwise.
+   * @param client_id A unique identifier for the client (e.g., session ID or username).
+   * @return True if the CSRF token is valid or request is same-origin, false otherwise.
    */
-  bool check_request_body_empty(const resp_https_t &response, const req_https_t &request) {
-    if (request->content.rdbuf()->in_avail() > 0 || request->content.peek() != std::char_traits<char>::eof()) {
-      bad_request(response, request, "Request body must be empty");
+  bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
+    // Helper function to check if a URL starts with any allowed origin
+    auto is_allowed_origin = [](const std::string &url) -> bool {
+      for (const auto &allowed_origin : config::sunshine.csrf_allowed_origins) {
+        // Ensure exact prefix match (with : or / after to prevent malicious.com matching allowed.com)
+        if (url.rfind(allowed_origin, 0) == 0) {  // rfind with pos=0 checks if url starts with allowed_origin
+          // Check that it's followed by : (port) or / (path) or is exact match
+          size_t len = allowed_origin.length();
+          if (url.length() == len || url[len] == ':' || url[len] == '/') {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // Check if request is from same origin (Origin or Referer header matches configured allowed origins)
+    auto origin_it = request->header.find("Origin");
+    if (origin_it != request->header.end()) {
+      if (is_allowed_origin(origin_it->second)) {
+        // Same origin request - allow without CSRF token
+        return true;
+      }
+    }
+
+    // If we have a Referer header, check if it's same-origin
+    auto referer_it = request->header.find("Referer");
+    if (referer_it != request->header.end()) {
+      if (is_allowed_origin(referer_it->second)) {
+        // Same origin request - allow without CSRF token
+        return true;
+      }
+    }
+
+    // Not a same-origin request, require CSRF token
+    // Extract token from X-CSRF-Token header
+    auto header_it = request->header.find("X-CSRF-Token");
+    if (header_it == request->header.end()) {
+      // Also check query parameters as fallback
+      auto query_params = request->parse_query_string();
+      auto query_it = query_params.find("csrf_token");
+      if (query_it == query_params.end()) {
+        bad_request(response, request, "Missing CSRF token");
+        return false;
+      }
+
+      // Validate token from query parameter
+      std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+      auto token_it = csrf_tokens.find(client_id);
+
+      if (token_it == csrf_tokens.end()) {
+        bad_request(response, request, "Invalid CSRF token");
+        return false;
+      }
+
+      auto now = std::chrono::steady_clock::now();
+      if (token_it->second.expiration < now) {
+        csrf_tokens.erase(token_it);
+        bad_request(response, request, "CSRF token expired");
+        return false;
+      }
+
+      if (token_it->second.token != query_it->second) {
+        bad_request(response, request, "Invalid CSRF token");
+        return false;
+      }
+
+      return true;
+    }
+
+    // Validate token from header
+    const std::string &provided_token = header_it->second;
+
+    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+    auto token_it = csrf_tokens.find(client_id);
+
+    if (token_it == csrf_tokens.end()) {
+      bad_request(response, request, "Invalid CSRF token");
       return false;
     }
+
+    auto now = std::chrono::steady_clock::now();
+    if (token_it->second.expiration < now) {
+      csrf_tokens.erase(token_it);
+      bad_request(response, request, "CSRF token expired");
+      return false;
+    }
+
+    if (token_it->second.token != provided_token) {
+      bad_request(response, request, "Invalid CSRF token");
+      return false;
+    }
+
     return true;
   }
 
@@ -420,6 +586,28 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get a CSRF token for the authenticated user.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/csrf-token| GET| null}
+   */
+  void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string client_id = get_client_id(request);
+    std::string token = generate_csrf_token(client_id);
+
+    nlohmann::json output_tree;
+    output_tree["csrf_token"] = token;
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Get the list of available applications.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -427,9 +615,6 @@ namespace confighttp {
    * @api_examples{/api/apps| GET| null}
    */
   void getApps(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -522,6 +707,11 @@ namespace confighttp {
       return;
     }
 
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
     print_req(request);
 
     std::stringstream ss;
@@ -585,10 +775,12 @@ namespace confighttp {
    * @api_examples{/api/apps/close| POST| null}
    */
   void closeApp(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -609,10 +801,12 @@ namespace confighttp {
    * @api_examples{/api/apps/9999| DELETE| null}
    */
   void deleteApp(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -658,9 +852,6 @@ namespace confighttp {
    * @api_examples{/api/clients/list| GET| null}
    */
   void getClients(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -696,6 +887,11 @@ namespace confighttp {
       return;
     }
 
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
     print_req(request);
 
     std::stringstream ss;
@@ -722,10 +918,12 @@ namespace confighttp {
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
   void unpairAll(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -747,9 +945,6 @@ namespace confighttp {
    * @api_examples{/api/config| GET| null}
    */
   void getConfig(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -780,10 +975,6 @@ namespace confighttp {
   void getLocale(const resp_https_t &response, const req_https_t &request) {
     // we need to return the locale whether authenticated or not
 
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
-
     print_req(request);
 
     nlohmann::json output_tree;
@@ -812,6 +1003,11 @@ namespace confighttp {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -852,9 +1048,6 @@ namespace confighttp {
    * @api_examples{/api/covers/9999 | GET| null}
    */
   void getCover(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -981,9 +1174,6 @@ namespace confighttp {
    * @api_examples{/api/logs| GET| null}
    */
   void getLogs(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1020,6 +1210,11 @@ namespace confighttp {
       return;
     }
     if (!config::sunshine.username.empty() && !authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1096,6 +1291,11 @@ namespace confighttp {
       return;
     }
 
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
     print_req(request);
 
     std::stringstream ss;
@@ -1128,10 +1328,12 @@ namespace confighttp {
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
   void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1150,10 +1352,12 @@ namespace confighttp {
    * @api_examples{/api/restart| POST| null}
    */
   void restart(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1171,9 +1375,6 @@ namespace confighttp {
    * @api_examples{/api/vigembus/status| GET| null}
    */
   void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
-      return;
-    }
     if (!authenticate(response, request)) {
       return;
     }
@@ -1232,10 +1433,12 @@ namespace confighttp {
    * @api_examples{/api/vigembus/install| POST| null}
    */
   void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
-    if (!check_request_body_empty(response, request)) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1347,6 +1550,7 @@ namespace confighttp {
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/pin$"]["POST"] = savePin;
     server.resource["^/api/logs$"]["GET"] = getLogs;

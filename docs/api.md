@@ -5,9 +5,37 @@ Sunshine has a RESTful API which can be used to interact with the service.
 Unless otherwise specified, authentication is required for all API calls. You can authenticate using
 basic authentication with the admin username and password.
 
+## CSRF Protection
+
+State-changing API endpoints (POST, DELETE) are protected against Cross-Site Request Forgery (CSRF) attacks.
+
+**For Web Browsers:**
+- Requests from same-origin (configured via `csrf_allowed_origins`) are automatically allowed
+- Cross-origin requests require a CSRF token
+
+**For Non-Browser Applications:**
+- Applications making requests from the same origin configured in `csrf_allowed_origins` do NOT need CSRF tokens
+- The `Origin` or `Referer` header is automatically checked
+- If your application is making requests from a different origin, you need to:
+  1. Get a CSRF token from `GET /api/csrf-token`
+  2. Include it in requests via `X-CSRF-Token` header or `csrf_token` query parameter
+
+**Example:**
+```bash
+# Get CSRF token (if needed)
+curl -u user:pass https://localhost:47990/api/csrf-token
+
+# Use token in request
+curl -u user:pass -H "X-CSRF-Token: your_token_here" \
+  -X POST https://localhost:47990/api/restart
+```
+
 @htmlonly
 <script src="api.js"></script>
 @endhtmlonly
+
+## GET /api/csrf-token
+@copydoc confighttp::getCSRFToken()
 
 ## GET /api/apps
 @copydoc confighttp::getApps()
