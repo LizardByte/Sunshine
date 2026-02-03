@@ -50,7 +50,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install npm dependencies
-        run: npm install --package-lock-only
+        run: npm install --ignore-scripts --package-lock-only
 
       - name: Debug package-lock.json
         run: cat package-lock.json

@@ -54,10 +54,9 @@ endif()
 #WebUI build
 find_program(NPM npm REQUIRED)
 
+set(NPM_INSTALL_FLAGS "--ignore-scripts")
 if (NPM_OFFLINE)
-    set(NPM_INSTALL_FLAGS "--offline")
-else()
-    set(NPM_INSTALL_FLAGS "")
+    set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
 endif()
 
 add_custom_target(web-ui ALL
