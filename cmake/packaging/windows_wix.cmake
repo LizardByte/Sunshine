@@ -85,4 +85,8 @@ file(RENAME "${CMAKE_BINARY_DIR}/LICENSE" "${CMAKE_BINARY_DIR}/LICENSE.txt")
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/LICENSE.txt")  # cpack will covert this to an RTF if it is txt
 
 # https://cmake.org/cmake/help/latest/cpack_gen/wix.html#variable:CPACK_WIX_ARCHITECTURE
-set(CPACK_WIX_ARCHITECTURE "x64")
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
+    set(CPACK_WIX_ARCHITECTURE "arm64")
+else()
+    set(CPACK_WIX_ARCHITECTURE "x64")
+endif()
