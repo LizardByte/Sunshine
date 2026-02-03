@@ -21,7 +21,7 @@ jobs:
         uses: actions/setup-node@v6
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm install --ignore-scripts
 
       - name: Build
         env:
