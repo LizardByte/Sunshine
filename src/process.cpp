@@ -753,29 +753,30 @@ namespace proc {
   void refresh(const std::string &file_name) {
     auto proc_opt = proc::parse(file_name);
 
-    if (proc_opt) {
-      // If it is running, the environment variable (SUNSHINE_*) should be kept.
-      // These variables are dynamically added in execute() and should not be 
-      // overridden by environment variables in the configuration file
-      if (proc.running()) {
-        const boost::process::v1::environment &current_env = proc.get_env();
-        boost::process::v1::environment new_env = proc_opt->get_env();
-        
-        // Copy the 'SUNSHINE_*' from the current environment into the new environment.
-        for (const auto &entry : current_env) {
-          const std::string &var_name = entry.get_name();
-          if (var_name.find("SUNSHINE_") == 0) {
-            new_env[var_name] = entry.to_string();
-          }
-        }
-        
-        proc.set_env(std::move(new_env));
-      }
-      else {
-        // Not a running state, which can safely replace environment variables
-        proc.set_env(proc_opt->get_env());
-      }
-      proc.set_apps(proc_opt->get_apps());
+    if (!proc_opt) {
+      return;
     }
+    // If it is running, the environment variable (SUNSHINE_*) should be kept.
+    // These variables are dynamically added in execute() and should not be 
+    // overridden by environment variables in the configuration file
+    if (proc.running()) {
+      const boost::process::v1::environment &current_env = proc.get_env();
+      boost::process::v1::environment new_env = proc_opt->get_env();
+      
+      // Copy the 'SUNSHINE_*' from the current environment into the new environment.
+      for (const auto &entry : current_env) {
+        const std::string &var_name = entry.get_name();
+        if (var_name.find("SUNSHINE_") == 0) {
+          new_env[var_name] = entry.to_string();
+        }
+      }
+      
+      proc.set_env(std::move(new_env));
+    }
+    else {
+      // Not a running state, which can safely replace environment variables
+      proc.set_env(proc_opt->get_env());
+    }
+    proc.set_apps(proc_opt->get_apps());
   }
 }  // namespace proc
