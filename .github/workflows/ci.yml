@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
 
       - name: Release Setup
         id: release-setup
@@ -193,18 +193,18 @@ jobs:
 
       - name: Checkout
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
 
       - name: Download coverage artifact
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: coverage-${{ matrix.name }}
           path: _coverage
 
       - name: Upload test results
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: codecov/test-results-action@v1
+        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3  # v1.2.1
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -217,7 +217,7 @@ jobs:
         if: |
           steps.should_run.outputs.SHOULD_RUN == 'true'  &&
           matrix.coverage != false
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5.5.2
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -243,7 +243,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           path: artifacts
           pattern: build-*
@@ -276,7 +276,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download homebrew artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131  # v7.0.0
         with:
           name: beta-Homebrew
           path: homebrew

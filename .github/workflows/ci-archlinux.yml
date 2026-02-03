@@ -65,7 +65,7 @@ jobs:
           pacman -Scc --noconfirm
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
 
       - name: Fix workspace permissions
         shell: bash
@@ -153,7 +153,7 @@ jobs:
         if: >-
           always() &&
           (steps.build.outcome == 'success' || steps.build.outcome == 'failure')
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: coverage-Archlinux
           path: |
@@ -175,7 +175,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: build-Archlinux
           path: artifacts/
