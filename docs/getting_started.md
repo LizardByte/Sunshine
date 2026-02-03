@@ -274,14 +274,9 @@ flatpak install --user ./sunshine_{arch}.flatpak
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
 
-##### Run with NVFBC capture (X11 Only)
+##### Run with NVFBC capture (X11 Only) or XDG Portal (Wayland Only)
 ```bash
 flatpak run dev.lizardbyte.app.Sunshine
-```
-
-##### Run with KMS capture (Wayland & X11)
-```bash
-sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run dev.lizardbyte.app.Sunshine
 ```
 
 ##### Uninstall
@@ -405,37 +400,21 @@ After adding yourself to the group, log out and log back in for the changes to t
 
 ### Linux
 
-#### KMS Capture
-
-> [!WARNING]
-> Capture of most Wayland-based desktop environments will fail unless this step is performed.
+#### Services
 
 > [!NOTE]
-> `cap_sys_admin` may as well be root, except you don't need to be root to run the program. This is necessary to
-> allow Sunshine to use KMS capture.
-
-##### Enable
-```bash
-sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
-```
-
-#### X11 Capture
-For X11 capture to work, you may need to disable the capabilities that were set for KMS capture.
-
-```bash
-sudo setcap -r $(readlink -f $(which sunshine))
-```
-
-#### Service
+> Two service unit files are available. Pick "sunshine" for unprivileged XDG Portal or X11 capture, otherwise
+> pick "sunshine-kms" for privileged KMS capture.
 
 **Start once**
 ```bash
 systemctl --user start sunshine
 ```
 
-**Start on boot**
+**Start on boot (unprivileged; swap logic for KMS)**
 ```bash
-systemctl --user enable sunshine
+systemctl --user --now disable sunshine-kms
+systemctl --user --now enable sunshine
 ```
 
 ### macOS

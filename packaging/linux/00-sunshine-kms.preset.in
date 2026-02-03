@@ -1,0 +1,4 @@
+# @PROJECT_DESCRIPTION@
+# KMS service should preset to disabled
+
+disable sunshine-kms.service

@@ -75,6 +75,8 @@ PFNEGLWAITNATIVEPROC glad_eglWaitNative = NULL;
 PFNEGLWAITSYNCPROC glad_eglWaitSync = NULL;
 PFNEGLCREATEIMAGEKHRPROC glad_eglCreateImageKHR = NULL;
 PFNEGLDESTROYIMAGEKHRPROC glad_eglDestroyImageKHR = NULL;
+PFNEGLQUERYDMABUFFORMATSEXTPROC glad_eglQueryDmaBufFormatsEXT = NULL;
+PFNEGLQUERYDMABUFMODIFIERSEXTPROC glad_eglQueryDmaBufModifiersEXT = NULL;
 
 
 static void glad_egl_load_EGL_VERSION_1_0( GLADuserptrloadfunc load, void* userptr) {
@@ -138,7 +140,10 @@ static void glad_egl_load_EGL_VERSION_1_5( GLADuserptrloadfunc load, void* userp
     glad_eglGetSyncAttrib = (PFNEGLGETSYNCATTRIBPROC) load(userptr, "eglGetSyncAttrib");
     glad_eglWaitSync = (PFNEGLWAITSYNCPROC) load(userptr, "eglWaitSync");
 }
-
+static void glad_egl_load_EGL_EXT_image_dma_buf_import_modifiers( GLADuserptrloadfunc load, void* userptr) {
+    glad_eglQueryDmaBufFormatsEXT = (PFNEGLQUERYDMABUFFORMATSEXTPROC) load(userptr, "eglQueryDmaBufFormatsEXT");
+    glad_eglQueryDmaBufModifiersEXT = (PFNEGLQUERYDMABUFMODIFIERSEXTPROC) load(userptr, "eglQueryDmaBufModifiersEXT");
+}
 
 
 static int glad_egl_get_extensions(EGLDisplay display, const char **extensions) {
@@ -236,6 +241,7 @@ int gladLoadEGLUserPtr(EGLDisplay display, GLADuserptrloadfunc load, void* userp
     glad_egl_load_EGL_VERSION_1_2(load, userptr);
     glad_egl_load_EGL_VERSION_1_4(load, userptr);
     glad_egl_load_EGL_VERSION_1_5(load, userptr);
+    glad_egl_load_EGL_EXT_image_dma_buf_import_modifiers(load, userptr);
 
     if (!glad_egl_find_extensions_egl(display)) return 0;
 
@@ -246,7 +252,7 @@ int gladLoadEGL(EGLDisplay display, GLADloadfunc load) {
     return gladLoadEGLUserPtr(display, glad_egl_get_proc_from_userptr, GLAD_GNUC_EXTENSION (void*) load);
 }
 
- 
+
 
 #ifdef GLAD_EGL
 

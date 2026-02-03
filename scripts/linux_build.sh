@@ -234,6 +234,7 @@ function add_debian_based_deps() {
     "libnotify-dev"
     "libnuma-dev"
     "libopus-dev"
+    "libpipewire-0.3-dev"
     "libpulse-dev"
     "libssl-dev"
     "libsystemd-dev"
@@ -322,6 +323,7 @@ function add_fedora_deps() {
     "numactl-devel"
     "openssl-devel"
     "opus-devel"
+    "pipewire-devel"
     "pulseaudio-libs-devel"
     "rpm-build"  # if you want to build an RPM binary package
     "wget"  # necessary for cuda install with `run` file
@@ -545,9 +547,10 @@ function run_step_cmake() {
     "-DCMAKE_INSTALL_PREFIX=/usr"
     "-DSUNSHINE_ASSETS_DIR=share/sunshine"
     "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine"
+    "-DSUNSHINE_ENABLE_DRM=ON"
+    "-DSUNSHINE_ENABLE_PORTAL=ON"
     "-DSUNSHINE_ENABLE_WAYLAND=ON"
     "-DSUNSHINE_ENABLE_X11=ON"
-    "-DSUNSHINE_ENABLE_DRM=ON"
   )
 
   if [[ "$appimage_build" == 1 ]]; then
