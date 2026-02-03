@@ -1,2 +1,2 @@
-Babel==2.17.0
+Babel==2.18.0
 clang-format==20.*
