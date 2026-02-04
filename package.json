@@ -23,9 +23,9 @@
     "serve": "14.2.5",
     "vite": "6.3.6",
     "vite-plugin-ejs": "1.7.0",
-    "@rollup/wasm-node": "^4.57.1"
+    "@rollup/wasm-node": "4.57.1"
   },
   "overrides": {
-    "rollup": "npm:@rollup/wasm-node@^4.57.1"
+    "rollup": "npm:@rollup/wasm-node@4.57.1"
   }
 }
