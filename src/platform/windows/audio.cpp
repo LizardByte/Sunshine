@@ -32,8 +32,6 @@ DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
   #define STEAM_DRIVER_SUBDIR L"x64"
-#else
-  #warning No known Steam audio driver for this architecture
 #endif
 
 namespace {
