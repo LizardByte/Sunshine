@@ -919,16 +919,25 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
+
+    // Compute the monitor's logical dimensions from touch port fields
+    float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
+      (int) monitor_logical_w,
+      (int) monitor_logical_h
     };
 
-    // Renormalize the coordinates
-    coords->first /= abs_port.width;
-    coords->second /= abs_port.height;
+    // Convert from desktop-absolute to monitor-relative
+    coords->first -= touch_port.offset_x;
+    coords->second -= touch_port.offset_y;
+
+    // Normalize to [0, 1] within the monitor
+    coords->first /= monitor_logical_w;
+    coords->second /= monitor_logical_h;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -975,16 +984,25 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
+
+    // Compute the monitor's logical dimensions from touch port fields
+    float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
+      (int) monitor_logical_w,
+      (int) monitor_logical_h
     };
 
-    // Renormalize the coordinates
-    coords->first /= abs_port.width;
-    coords->second /= abs_port.height;
+    // Convert from desktop-absolute to monitor-relative
+    coords->first -= touch_port.offset_x;
+    coords->second -= touch_port.offset_y;
+
+    // Normalize to [0, 1] within the monitor
+    coords->first /= monitor_logical_w;
+    coords->second /= monitor_logical_h;
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);

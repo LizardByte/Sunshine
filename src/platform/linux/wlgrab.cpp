@@ -18,6 +18,8 @@ using namespace std::literals;
 namespace wl {
   static int env_width;
   static int env_height;
+  static int env_logical_width;
+  static int env_logical_height;
 
   struct img_t: public platf::img_t {
     ~img_t() override {
@@ -74,10 +76,17 @@ namespace wl {
       this->env_width = ::wl::env_width;
       this->env_height = ::wl::env_height;
 
+      this->logical_width = monitor->viewport.logical_width;
+      this->logical_height = monitor->viewport.logical_height;
+      this->env_logical_width = ::wl::env_logical_width;
+      this->env_logical_height = ::wl::env_logical_height;
+
       BOOST_LOG(info) << "Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "Offset: "sv << offset_x << 'x' << offset_y;
       BOOST_LOG(debug) << "Resolution: "sv << width << 'x' << height;
+      BOOST_LOG(debug) << "Logical Resolution: "sv << logical_width << 'x' << logical_height;
       BOOST_LOG(debug) << "Desktop Resolution: "sv << env_width << 'x' << env_height;
+      BOOST_LOG(debug) << "Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
 
       return 0;
     }
@@ -414,6 +423,8 @@ namespace platf {
 
     wl::env_width = 0;
     wl::env_height = 0;
+    wl::env_logical_width = 0;
+    wl::env_logical_height = 0;
 
     for (auto &monitor : interface.monitors) {
       monitor->listen(interface.output_manager);
@@ -428,6 +439,8 @@ namespace platf {
 
       wl::env_width = std::max(wl::env_width, (int) (monitor->viewport.offset_x + monitor->viewport.width));
       wl::env_height = std::max(wl::env_height, (int) (monitor->viewport.offset_y + monitor->viewport.height));
+      wl::env_logical_width = std::max(wl::env_logical_width, (int) (monitor->viewport.offset_x + monitor->viewport.logical_width));
+      wl::env_logical_height = std::max(wl::env_logical_height, (int) (monitor->viewport.offset_y + monitor->viewport.logical_height));
 
       BOOST_LOG(info) << "Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 
