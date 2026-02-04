@@ -76,9 +76,10 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-toolchain"
           )
 
-          if [[ ${MSYSTEM} == "ucrt64" ]]; then
+          if [[ "${MSYSTEM}" == "ucrt64" ]]; then
             dependencies+=(
               "mingw-w64-${TOOLCHAIN}-MinHook"
+              "mingw-w64-${TOOLCHAIN}-nsis"
             )
           fi
 
@@ -183,18 +184,25 @@ jobs:
           echo "::remove-matcher owner=gcc::"
 
       - name: Package Windows
+        env:
+          # if MSYSTEM is used, it interferes with environment and cpack cannot be found
+          MATRIX_MSYSTEM: ${{ matrix.msystem }}
         shell: msys2 {0}
         run: |
           mkdir -p artifacts
           cd build
 
-          # package and move
-          if [[ "${RUNNER_ARCH}" == "X64" ]]; then
+          # nsis installer
+          if [[ "${MATRIX_MSYSTEM}" == "ucrt64" ]]; then
             cpack -G NSIS
             mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
           fi
+
+          # wix installer
           cpack -G WIX
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
+
+          # portable version
           cpack -G ZIP
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
 
