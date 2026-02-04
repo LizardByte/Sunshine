@@ -14,4 +14,4 @@ RestartSec=5s
 NoNewPrivileges=true
 
 [Install]
-WantedBy=xdg-desktop-autostart.target
+WantedBy=graphical-session.target
