@@ -10,10 +10,10 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static")
 list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-misleading-indentation)
 
 # Disable warnings for Windows ARM64
-# This is needed due to boost having some issues compiling for ARM64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "ARM64")
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-dll-attribute-on-redeclaration)
-    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-unused-variable)
+    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-dll-attribute-on-redeclaration)  # Boost
+    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-unknown-warning-option)  # ViGEmClient
+    list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-unused-variable)  # Boost
 endif()
 
 # see gcc bug 98723
