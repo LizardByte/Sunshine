@@ -907,6 +907,25 @@ namespace input {
    * @param input The input context pointer.
    * @param packet The touch packet.
    */
+  std::optional<platf::touch_port_t> monitor_touch_port(const input::touch_port_t &touch_port, std::pair<float, float> &coords) {
+    const float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    if (monitor_logical_w <= 0.0f || monitor_logical_h <= 0.0f) {
+      BOOST_LOG(warning) << "Ignoring touch/pen input due to invalid logical touch dimensions"sv;
+      return std::nullopt;
+    }
+
+    coords.first = (coords.first - touch_port.offset_x) / monitor_logical_w;
+    coords.second = (coords.second - touch_port.offset_y) / monitor_logical_h;
+
+    return platf::touch_port_t {
+      touch_port.offset_x,
+      touch_port.offset_y,
+      static_cast<int>(monitor_logical_w),
+      static_cast<int>(monitor_logical_h)
+    };
+  }
+
   void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
     if (!config::input.mouse) {
       return;
@@ -920,24 +939,10 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    // Compute the monitor's logical dimensions from touch port fields
-    float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-    float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      (int) monitor_logical_w,
-      (int) monitor_logical_h
-    };
-
-    // Convert from desktop-absolute to monitor-relative
-    coords->first -= touch_port.offset_x;
-    coords->second -= touch_port.offset_y;
-
-    // Normalize to [0, 1] within the monitor
-    coords->first /= monitor_logical_w;
-    coords->second /= monitor_logical_h;
+    auto abs_port = monitor_touch_port(touch_port, *coords);
+    if (!abs_port) {
+      return;
+    }
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -950,7 +955,7 @@ namespace input {
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port.width / 65535.f, abs_port.height / 65535.f}
+      {abs_port->width / 65535.f, abs_port->height / 65535.f}
     );
 
     platf::touch_input_t touch {
@@ -964,7 +969,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::touch_update(input->client_context.get(), abs_port, touch);
+    platf::touch_update(input->client_context.get(), *abs_port, touch);
   }
 
   /**
@@ -985,24 +990,10 @@ namespace input {
 
     auto &touch_port = input->touch_port;
 
-    // Compute the monitor's logical dimensions from touch port fields
-    float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-    float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
-
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      (int) monitor_logical_w,
-      (int) monitor_logical_h
-    };
-
-    // Convert from desktop-absolute to monitor-relative
-    coords->first -= touch_port.offset_x;
-    coords->second -= touch_port.offset_y;
-
-    // Normalize to [0, 1] within the monitor
-    coords->first /= monitor_logical_w;
-    coords->second /= monitor_logical_h;
+    auto abs_port = monitor_touch_port(touch_port, *coords);
+    if (!abs_port) {
+      return;
+    }
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -1015,7 +1006,7 @@ namespace input {
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port.width / 65535.f, abs_port.height / 65535.f}
+      {abs_port->width / 65535.f, abs_port->height / 65535.f}
     );
 
     platf::pen_input_t pen {
@@ -1031,7 +1022,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::pen_update(input->client_context.get(), abs_port, pen);
+    platf::pen_update(input->client_context.get(), *abs_port, pen);
   }
 
   /**

@@ -18,8 +18,6 @@ using namespace std::literals;
 namespace wl {
   static int env_width;
   static int env_height;
-  static int env_logical_width;
-  static int env_logical_height;
 
   struct img_t: public platf::img_t {
     ~img_t() override {
@@ -78,8 +76,17 @@ namespace wl {
 
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
-      this->env_logical_width = ::wl::env_logical_width;
-      this->env_logical_height = ::wl::env_logical_height;
+
+      int env_logical_width = 0;
+      int env_logical_height = 0;
+      for (auto &output : interface.monitors) {
+        auto output_monitor = output.get();
+        env_logical_width = std::max(env_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
+        env_logical_height = std::max(env_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
+      }
+
+      this->env_logical_width = env_logical_width;
+      this->env_logical_height = env_logical_height;
 
       BOOST_LOG(info) << "Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "Offset: "sv << offset_x << 'x' << offset_y;
@@ -423,8 +430,6 @@ namespace platf {
 
     wl::env_width = 0;
     wl::env_height = 0;
-    wl::env_logical_width = 0;
-    wl::env_logical_height = 0;
 
     for (auto &monitor : interface.monitors) {
       monitor->listen(interface.output_manager);
@@ -439,8 +444,6 @@ namespace platf {
 
       wl::env_width = std::max(wl::env_width, (int) (monitor->viewport.offset_x + monitor->viewport.width));
       wl::env_height = std::max(wl::env_height, (int) (monitor->viewport.offset_y + monitor->viewport.height));
-      wl::env_logical_width = std::max(wl::env_logical_width, (int) (monitor->viewport.offset_x + monitor->viewport.logical_width));
-      wl::env_logical_height = std::max(wl::env_logical_height, (int) (monitor->viewport.offset_y + monitor->viewport.logical_height));
 
       BOOST_LOG(info) << "Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 
