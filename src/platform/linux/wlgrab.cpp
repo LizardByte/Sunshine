@@ -77,16 +77,16 @@ namespace wl {
       this->logical_width = monitor->viewport.logical_width;
       this->logical_height = monitor->viewport.logical_height;
 
-      int env_logical_width = 0;
-      int env_logical_height = 0;
-      for (auto &output : interface.monitors) {
-        auto output_monitor = output.get();
-        env_logical_width = std::max(env_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
-        env_logical_height = std::max(env_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
+      int desktop_logical_width = 0;
+      int desktop_logical_height = 0;
+      for (auto &monitor_entry : interface.monitors) {
+        auto output_monitor = monitor_entry.get();
+        desktop_logical_width = std::max(desktop_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
+        desktop_logical_height = std::max(desktop_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
       }
 
-      this->env_logical_width = env_logical_width;
-      this->env_logical_height = env_logical_height;
+      this->env_logical_width = desktop_logical_width;
+      this->env_logical_height = desktop_logical_height;
 
       BOOST_LOG(info) << "Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "Offset: "sv << offset_x << 'x' << offset_y;
