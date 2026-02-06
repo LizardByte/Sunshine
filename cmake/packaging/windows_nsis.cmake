@@ -4,35 +4,36 @@
 set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
 
 # Extra install commands
-# Restores permissions on the install directory
-# Migrates config files from the root into the new config folder
-# Install service
+# Runs the main setup script which handles all installation tasks
 SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-        IfSilent +2 0
-        ExecShell 'open' 'https://docs.lizardbyte.dev/projects/sunshine'
-        nsExec::ExecToLog 'icacls \\\"$INSTDIR\\\" /reset'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" add'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\migrate-config.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\add-firewall-rule.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\install-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\autostart-service.bat\\\"'
-        NoController:
+        ; Enable detailed logging
+        LogSet on
+        IfSilent +3 0
+        nsExec::ExecToLog \
+          'powershell -ExecutionPolicy Bypass \
+          -File \\\"$INSTDIR\\\\scripts\\\\sunshine-setup.ps1\\\" -Action install'
+        Goto +2
+        nsExec::ExecToLog \
+          'powershell -ExecutionPolicy Bypass \
+          -File \\\"$INSTDIR\\\\scripts\\\\sunshine-setup.ps1\\\" -Action install -Silent'
+        install_done:
         ")
 
 # Extra uninstall commands
-# Uninstall service
+# Runs the main setup script which handles all uninstallation tasks
 set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\delete-firewall-rule.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\uninstall-service.bat\\\"'
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\${CMAKE_PROJECT_NAME}.exe\\\" --restore-nvprefs-undo'
+        ; Enable detailed logging
+        LogSet on
+        nsExec::ExecToLog \
+          'powershell -ExecutionPolicy Bypass \
+          -File \\\"$INSTDIR\\\\scripts\\\\sunshine-setup.ps1\\\" -Action uninstall'
         MessageBox MB_YESNO|MB_ICONQUESTION \
-            'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
-            /SD IDNO IDNO NoDelete
-            RMDir /r \\\"$INSTDIR\\\"; skipped if no
-        nsExec::ExecToLog '\\\"$INSTDIR\\\\scripts\\\\update-path.bat\\\" remove'
-        NoDelete:
+          'Do you want to remove $INSTDIR (this includes the configuration, cover images, and settings)?' \
+          /SD IDNO IDNO no_delete
+          RMDir /r \\\"$INSTDIR\\\"; skipped if no
+        no_delete:
         ")
 
 # Adding an option for the start menu
