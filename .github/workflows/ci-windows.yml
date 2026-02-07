@@ -201,6 +201,11 @@ jobs:
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
 
+      - name: Debug nsis
+        if: always()
+        shell: msys2 {0}
+        run: cat ./build/cpack_artifacts/_CPack_Packages/win64/NSIS/NSISOutput.log || true
+
       - name: Debug wix
         if: always()
         shell: msys2 {0}
