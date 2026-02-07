@@ -3,12 +3,18 @@
 
 set(CPACK_NSIS_INSTALLED_ICON_NAME "${PROJECT__DIR}\\\\${PROJECT_EXE}")
 
+# Enable detailed logging only on AMD64
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64")
+    set(NSIS_LOGSET_COMMAND "LogSet on")
+else()
+    set(NSIS_LOGSET_COMMAND "")
+endif()
+
 # Extra install commands
 # Runs the main setup script which handles all installation tasks
 SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_INSTALL_COMMANDS}
-        ; Enable detailed logging
-        LogSet on
+        ${NSIS_LOGSET_COMMAND}
         IfSilent +3 0
         nsExec::ExecToLog \
           'powershell -ExecutionPolicy Bypass \
@@ -24,8 +30,7 @@ SET(CPACK_NSIS_EXTRA_INSTALL_COMMANDS
 # Runs the main setup script which handles all uninstallation tasks
 set(CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS
         "${CPACK_NSIS_EXTRA_UNINSTALL_COMMANDS}
-        ; Enable detailed logging
-        LogSet on
+        ${NSIS_LOGSET_COMMAND}
         nsExec::ExecToLog \
           'powershell -ExecutionPolicy Bypass \
           -File \\\"$INSTDIR\\\\scripts\\\\sunshine-setup.ps1\\\" -Action uninstall'

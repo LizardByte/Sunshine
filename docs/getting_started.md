@@ -352,7 +352,7 @@ brew uninstall sunshine
 > Installer logs can be found in the following locations.<br>
 > | File | log paths |
 > | ---- | --------- |
-> | .exe | `%%PROGRAMFILES%/Sunshine/install.log`<br>`%%TEMP%/Sunshine/logs/install/` |
+> | .exe | `%%PROGRAMFILES%/Sunshine/install.log` (AMD64 only)<br>`%%TEMP%/Sunshine/logs/install/` |
 > | .msi | `%%TEMP%/Sunshine/logs/install/` |
 
 > [!CAUTION]
