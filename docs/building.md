@@ -156,6 +156,8 @@ dependencies=(
 pacman -S "${dependencies[@]}"
 ```
 
+To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
+
 ### Clone
 Ensure [git](https://git-scm.com) is installed on your system, then clone the repository using the following command:
 
@@ -198,8 +200,11 @@ ninja -C build
       ```}
   }}
   @tab{Windows | @tabs{
-    @tab{Installer | ```bash
+    @tab{NSIS Installer | ```bash
       cpack -G NSIS --config ./build/CPackConfig.cmake
+      ```}
+    @tab{WiX Installer | ```bash
+      cpack -G WIX --config ./build/CPackConfig.cmake
       ```}
     @tab{Portable | ```bash
       cpack -G ZIP --config ./build/CPackConfig.cmake

@@ -331,7 +331,12 @@ brew uninstall sunshine
 
 #### Installer (recommended)
 
+> [!CAUTION]
+> The msi installer is preferred moving forward. Before using a different type of installer, you should manually
+> uninstall the previous installation.
+
 1. Download and install
+   [Sunshine-Windows-AMD64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.msi)
    [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe)
 
 > [!TIP]
@@ -339,6 +344,7 @@ brew uninstall sunshine
 > | File | log paths |
 > | ---- | --------- |
 > | .exe | `%%PROGRAMFILES%/Sunshine/install.log`<br>`%%TEMP%/Sunshine/logs/install/` |
+> | .msi | `%%TEMP%/Sunshine/logs/install/` |
 
 > [!CAUTION]
 > You should carefully select or unselect the options you want to install. Do not blindly install or
