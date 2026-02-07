@@ -127,7 +127,8 @@ sudo port install "${dependencies[@]}"
 
 #### Windows
 
-@warning{Cross-compilation is not supported on Windows. You must build on the target architecture.}
+> [!WARNING]
+> Cross-compilation is not supported on Windows. You must build on the target architecture.
 
 First, you need to install [MSYS2](https://www.msys2.org).
 
