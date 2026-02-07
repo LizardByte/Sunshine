@@ -334,6 +334,12 @@ brew uninstall sunshine
 1. Download and install
    [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe)
 
+> [!TIP]
+> Installer logs can be found in the following locations.<br>
+> | File | log paths |
+> | ---- | --------- |
+> | .exe | `%%PROGRAMFILES%/Sunshine/install.log`<br>`%%TEMP%/Sunshine/logs/install/` |
+
 > [!CAUTION]
 > You should carefully select or unselect the options you want to install. Do not blindly install or
 > enable features.
