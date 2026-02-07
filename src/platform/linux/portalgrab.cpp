@@ -736,8 +736,9 @@ namespace portal {
         struct spa_buffer *buf;
         buf = stream_data.current_buffer->buffer;
         if (buf->datas[0].chunk->size != 0) {
+          const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+          img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
           if (buf->datas[0].type == SPA_DATA_DmaBuf) {
-            const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
             img_descriptor->sd.width = stream_data.format.info.raw.size.width;
             img_descriptor->sd.height = stream_data.format.info.raw.size.height;
             img_descriptor->sd.modifier = stream_data.format.info.raw.modifier;
