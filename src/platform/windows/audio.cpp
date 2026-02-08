@@ -32,14 +32,14 @@ DEFINE_PROPERTYKEY(PKEY_DeviceInterface_FriendlyName, 0x026e516e, 0xb814, 0x414b
 
 #if defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(__amd64__) || defined(_M_AMD64)
   #define STEAM_DRIVER_SUBDIR L"x64"
-#else
-  #warning No known Steam audio driver for this architecture
 #endif
 
 namespace {
 
   constexpr auto SAMPLE_RATE = 48000;
+#ifdef STEAM_DRIVER_SUBDIR
   constexpr auto STEAM_AUDIO_DRIVER_PATH = L"%CommonProgramFiles(x86)%\\Steam\\drivers\\Windows10\\" STEAM_DRIVER_SUBDIR L"\\SteamStreamingSpeakers.inf";
+#endif
 
   constexpr auto waveformat_mask_stereo = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
 

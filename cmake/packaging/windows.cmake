@@ -4,6 +4,11 @@ install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
+# ARM64: include minhook-detours DLL (shared library for ARM64)
+if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
+    install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
+endif()
+
 # ViGEmBus installer
 set(VIGEMBUS_INSTALLER "${CMAKE_BINARY_DIR}/scripts/vigembus_installer.exe")
 set(VIGEMBUS_DOWNLOAD_URL_1 "https://github.com/nefarius/ViGEmBus/releases/download")

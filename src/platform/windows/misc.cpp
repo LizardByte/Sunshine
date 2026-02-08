@@ -9,6 +9,7 @@
 #include <iterator>
 #include <set>
 #include <sstream>
+#include <vector>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -1383,7 +1384,7 @@ namespace platf {
 
     auto const max_bufs_per_msg = send_info.payload_buffers.size() + (send_info.headers ? 1 : 0);
 
-    WSABUF bufs[(send_info.headers ? send_info.block_count : 1) * max_bufs_per_msg];
+    std::vector<WSABUF> bufs((send_info.headers ? send_info.block_count : 1) * max_bufs_per_msg);
     DWORD bufcount = 0;
     if (send_info.headers) {
       // Interleave buffers for headers and payloads
@@ -1409,7 +1410,7 @@ namespace platf {
       }
     }
 
-    msg.lpBuffers = bufs;
+    msg.lpBuffers = bufs.data();
     msg.dwBufferCount = bufcount;
     msg.dwFlags = 0;
 

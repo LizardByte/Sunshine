@@ -23,6 +23,10 @@ jobs:
       - name: Install npm dependencies
         run: npm install --ignore-scripts
 
+      - name: Debug install
+        if: always()
+        run: cat "${HOME}/.npm/_logs/*-debug-0.log" || true
+
       - name: Build
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
