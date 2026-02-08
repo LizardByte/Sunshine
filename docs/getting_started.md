@@ -217,7 +217,8 @@ sudo dnf remove sunshine
 
 > [!IMPORTANT]
 > Stable builds are only available if the Sunshine release was made after the Fedora version release.
-> Because of this, it is often recommended to use the beta copr.
+> Because of this, it is often recommended to use the beta copr; however, you do not need to regularly update.
+> This could lead to annoyances in rare cases where there may be a breaking change.
 
 1. Enable copr repository.
    ```bash
