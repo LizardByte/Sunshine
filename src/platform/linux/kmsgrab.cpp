@@ -1661,9 +1661,14 @@ namespace platf {
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
           BOOST_LOG((config::video.capture == "kms") ? fatal : error)
-            << "If you installed from AppImage or Flatpak, KMS capture is not supported.\n"sv
+#if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
+            << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
+#else
+            << "You must use the 'sunshine-kms' service instead of the 'sunshine' service for KMS capture.\n"sv
             << "Please refer to the official documentation:\n"sv
-            << "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux"sv;
+            << "  stable: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux-1"sv
+            << "  beta: https://docs.lizardbyte.dev/projects/sunshine/master/md_docs_2getting__started.html#linux-1"sv;
+#endif
           break;
         }
 
