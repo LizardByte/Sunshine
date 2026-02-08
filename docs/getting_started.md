@@ -100,22 +100,10 @@ CUDA is used for NVFBC capture.
 
 > [!CAUTION]
 > Use distro-specific packages instead of the AppImage if they are available.
+> AppImage does not support KMS capture.
 
-According to AppImageLint the supported distro matrix of the AppImage is below.
-
-- ✖ Debian bullseye
-- ✔ Debian bookworm
-- ✔ Debian trixie
-- ✔ Debian sid
-- ✔ Ubuntu plucky
-- ✔ Ubuntu noble
-- ✔ Ubuntu jammy
-- ✖ Ubuntu focal
-- ✖ Ubuntu bionic
-- ✖ Ubuntu xenial
-- ✖ Ubuntu trusty
-- ✖ Rocky Linux 8
-- ✖ Rocky Linux 9
+> [!NOTE]
+> The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
 
 ##### Install
 1. Download [sunshine.AppImage](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage)
@@ -214,6 +202,12 @@ sudo dnf remove sunshine
 ```
 
 ##### Install (Copr)
+
+> [!IMPORTANT]
+> Stable builds are only available if the Sunshine release was made after the Fedora version release.
+> Because of this, it is often recommended to use the beta copr; however, you do not need to regularly update.
+> This could lead to annoyances in rare cases where there may be a breaking change.
+
 1. Enable copr repository.
    ```bash
    sudo dnf copr enable lizardbyte/stable
@@ -238,6 +232,7 @@ sudo dnf remove Sunshine
 
 > [!CAUTION]
 > Use distro-specific packages instead of the Flatpak if they are available.
+> Flatpak does not support KMS capture.
 
 Using this package requires that you have [Flatpak](https://flatpak.org/setup) installed.
 
@@ -305,6 +300,9 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
+> [!TIP]
+> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
+
 ### macOS
 
 > [!IMPORTANT]
@@ -315,6 +313,8 @@ This package requires that you have [Homebrew](https://docs.brew.sh/Installation
 
 ##### Install
 ```bash
+brew update
+brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
 ```
@@ -461,6 +461,8 @@ In order for virtual gamepads to work, you must install ViGEmBus. You can do thi
 in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
 recommended to restart your computer.
 
+![ViGEmBus Installation](images/vigembus-installer.png)
+
 ## Usage
 
 ### Basic usage
@@ -481,9 +483,8 @@ sunshine <directory of conf file>/sunshine.conf
 ```
 
 > [!NOTE]
-> You do not need to specify a config file. If no config file is entered, the default location will be used.
-
-> [!TIP]
+> This step is optional, you do not need to specify a config file.
+> If no config file is entered, the default location will be used.
 > The configuration file specified will be created if it doesn't exist.
 
 ### Start Sunshine over SSH (Linux/X11)
@@ -519,15 +520,26 @@ by default. You may replace *localhost* with your internal ip address.
 > [!CAUTION]
 > If running for the first time, make sure to note the username and password that you created.
 
-1. Add games and applications.
-2. Adjust any configuration settings as needed.
-3. In Moonlight, you may need to add the PC manually.
-4. When Moonlight requests for you insert the pin:
+1. Change the web-ui to your desired theme, using the dropdown menu in the navbar.
+   ![Theme Selection](images/split-themes.png)
+2. Add games and applications.
+   ![Applications](images/applications.png)
+3. Adjust any configuration settings as needed. You can search for options in the search bar.
+   ![Configuration](images/configuration-search.png)
+4. Find Moonlight clients and other tools for Sunshine in the `Featured Apps` tab.
+   ![Featured Apps](images/featured-apps.png)
+5. In Moonlight, you may need to add the PC manually.
+6. When Moonlight requests for you insert the pin:
 
-   - Login to the web ui
+   - Login to the web-ui
    - Go to "PIN" in the Navbar
-   - Type in your PIN and press Enter, you should get a Success Message
+   - Type in your PIN and press `Enter`, and enter a name of your choosing for the device.
+     You should get a Success Message!
    - In Moonlight, select one of the Applications listed
+
+7. If you run into issues, logs are available in the `Troubleshooting` tab.
+   You can navigate through each warning/error message for clues to the issue.
+   ![Logs](images/troubleshooting-logs.png)
 
 ### Arguments
 To get a list of available arguments, run the following command.
