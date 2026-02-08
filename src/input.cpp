@@ -903,9 +903,10 @@ namespace input {
   }
 
   /**
-   * @brief Called to pass a touch message to the platform backend.
-   * @param input The input context pointer.
-   * @param packet The touch packet.
+   * @brief Normalizes coordinates to monitor-local logical touch dimensions.
+   * @param touch_port The current touch port metadata.
+   * @param coords The in/out coordinate pair to normalize.
+   * @return The monitor-local touch port, or std::nullopt if dimensions are invalid.
    */
   std::optional<platf::touch_port_t> monitor_touch_port(const input::touch_port_t &touch_port, std::pair<float, float> &coords) {
     const float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
