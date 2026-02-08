@@ -32,7 +32,9 @@ body:
     id: description
     attributes:
       label: Describe the Bug
-      description: A clear and concise description of the bug, list the reproduction steps.
+      description: |
+        A clear and concise description of the bug, list the reproduction steps.
+        :warning: Errors in log messages are NOT bugs. Read the message and fix what it's telling you. :warning:
     validations:
       required: true
   - type: textarea
@@ -52,6 +54,7 @@ body:
       description: What version operating system are you running the software on?
       options:
         - Docker
+        - FreeBSD
         - Linux
         - macOS
         - Windows
@@ -75,15 +78,6 @@ body:
         - other, n/a
     validations:
       required: true
-  - type: input
-    id: version
-    attributes:
-      label: Sunshine commit or version
-      description: |
-        Use `sunshine --verison` to get the version, or get the version from web UI.
-        Please don't just copy the latest commit from our repo, if that's not the commit you're actually using.
-    validations:
-      required: true
   - type: dropdown
     id: package_type
     attributes:
@@ -103,10 +97,10 @@ body:
         - Linux - solus (Third Party)
         - Linux - Unraid (Third Party)
         - macOS - Homebrew
-        - macOS - Portfile
         - Windows - Chocolatey (Third Party)
-        - Windows - installer (recommended)
-        - Windows - portable (not recommended)
+        - Windows - exe installer
+        - Windows - msi installer (recommended)
+        - Windows - portable (NOT recommended)
         - Windows - Scoop (Third Party)
         - Windows - Winget
         - other (not listed)
@@ -154,17 +148,9 @@ body:
         - NvFBC (Linux)
         - wlroots (Linux)
         - X11 (Linux)
+        - XDG Portal Grab (Linux)
         - Desktop Duplication API (Windows)
         - Windows.Graphics.Capture (Windows)
-    validations:
-      required: false
-  - type: textarea
-    id: config
-    attributes:
-      label: Config
-      description: |
-        Please copy and paste your config (`sunshine.conf`) file.
-      render: Shell
     validations:
       required: false
   - type: textarea
@@ -179,10 +165,20 @@ body:
   - type: textarea
     id: logs
     attributes:
-      label: Relevant log output
+      label: Log output
       description: |
-        Please copy and paste any relevant log output. This will be automatically formatted into code,
-        so no need for backticks.
+        Copy and paste logs from web-ui troubleshooting page.
+        This will be automatically formatted into code, so no need for backticks.
+        :warning: If full logs are not provided, the issue will be closed! :warning:
       render: shell
     validations:
-      required: true
+      required: false
+  - type: input
+    id: logs_link
+    attributes:
+      label: Online logs
+      description: |
+        If logs are too long to include in the field above,
+        create a [gist](https://gist.github.com/) of the logs and paste the link here.
+    validations:
+      required: false
