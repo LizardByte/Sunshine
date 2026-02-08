@@ -111,6 +111,8 @@ jobs:
               devel/pkgconf \
               ftp/curl \
               graphics/libdrm \
+              graphics/vulkan-headers \
+              graphics/vulkan-loader \
               graphics/wayland \
               lang/python312 \
               multimedia/libva \
