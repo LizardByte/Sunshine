@@ -253,8 +253,11 @@ class Sunshine < Formula
 
     if OS.mac?
       opoo <<~EOS
-        Sunshine can only access microphones on macOS due to system limitations.
-        To stream system audio use "Soundflower" or "BlackHole".
+        Sunshine now supports system audio capture natively on macOS 14.0 (Sonoma) and later,
+        using the built-in Core Audio Tap API.
+
+        On macOS 13 or earlier, or if you prefer a virtual loopback device,
+        you can still use "Soundflower" or "BlackHole" for system audio capture.
 
         Gamepads are not currently supported on macOS.
       EOS

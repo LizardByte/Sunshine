@@ -90,6 +90,12 @@ endif()
 file(GLOB_RECURSE TEST_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_SOURCE_DIR}/tests/*.h
         ${CMAKE_SOURCE_DIR}/tests/*.cpp)
+# Add macOS-specific test files only when building tests for macOS
+if (APPLE)
+    file(GLOB_RECURSE MACOS_TEST_SOURCES CONFIGURE_DEPENDS
+            ${CMAKE_SOURCE_DIR}/tests/*.mm)
+    list(APPEND TEST_SOURCES ${MACOS_TEST_SOURCES})
+endif ()
 
 set(SUNSHINE_SOURCES
         ${SUNSHINE_TARGET_FILES})
