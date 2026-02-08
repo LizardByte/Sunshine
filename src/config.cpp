@@ -5,6 +5,7 @@
 // standard includes
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -725,6 +726,27 @@ namespace config {
     }
   }
 
+  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+    std::string temp;
+    string_f(vars, name, temp);
+
+    if (temp.empty()) {
+      return;
+    }
+
+    input.clear();
+    std::stringstream ss(temp);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+      // Trim whitespace
+      item.erase(0, item.find_first_not_of(" \t\r\n"));
+      item.erase(item.find_last_not_of(" \t\r\n") + 1);
+      if (!item.empty()) {
+        input.push_back(item);
+      }
+    }
+  }
+
   void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
     // appdata needs to be retrieved once only
     static auto appdata = platf::appdata();
@@ -1165,6 +1187,24 @@ namespace config {
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
 
+    // Parse CSRF allowed origins - always include defaults, then append user-configured origins
+    std::vector<std::string> user_csrf_origins;
+    string_list_f(vars, "csrf_allowed_origins", user_csrf_origins);
+
+    // Start with default localhost variants
+    sunshine.csrf_allowed_origins = {
+      "https://localhost",
+      "https://127.0.0.1",
+      "https://[::1]"
+    };
+
+    // Append user-configured origins
+    sunshine.csrf_allowed_origins.insert(
+      sunshine.csrf_allowed_origins.end(),
+      user_csrf_origins.begin(),
+      user_csrf_origins.end()
+    );
+
     int to = -1;
     int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
     if (to != -1) {
@@ -1241,6 +1281,13 @@ namespace config {
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
     sunshine.port = (std::uint16_t) port;
+
+    // Now that we have the port, add web UI port-specific origins to CSRF allowed list
+    // Web UI runs on port + 1 (PORT_HTTPS offset is 1 for confighttp)
+    const unsigned short web_ui_port = sunshine.port + 1;
+    sunshine.csrf_allowed_origins.push_back(std::format("https://localhost:{}", web_ui_port));
+    sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", web_ui_port));
+    sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", web_ui_port));
 
     string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
     string_f(vars, "bind_address", sunshine.bind_address);

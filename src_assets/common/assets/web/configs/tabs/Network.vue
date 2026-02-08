@@ -123,6 +123,16 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       <div class="form-text">{{ $t('config.origin_web_ui_allowed_desc') }}</div>
     </div>
 
+    <!-- CSRF Allowed Origins -->
+    <div class="mb-3">
+      <label for="csrf_allowed_origins" class="form-label">{{ $t('config.csrf_allowed_origins') }}</label>
+      <input type="text"
+             class="form-control"
+             id="csrf_allowed_origins"
+             v-model="config.csrf_allowed_origins" />
+      <div class="form-text">{{ $t('config.csrf_allowed_origins_desc') }}</div>
+    </div>
+
     <!-- External IP -->
     <div class="mb-3">
       <label for="external_ip" class="form-label">{{ $t('config.external_ip') }}</label>
