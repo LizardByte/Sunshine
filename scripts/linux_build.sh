@@ -695,7 +695,7 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   cuda_version="12.9.1"
   cuda_build="575.57.08"
   gcc_version="13"
-  nvm_node=1
+  nvm_node=0
 elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   distro="debian"
   version="13"
@@ -704,7 +704,7 @@ elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   cuda_version="12.9.1"
   cuda_build="575.57.08"
   gcc_version="14"
-  nvm_node=1
+  nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
   distro="fedora"
   version="41"
