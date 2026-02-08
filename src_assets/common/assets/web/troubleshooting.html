@@ -237,6 +237,7 @@
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
+          logOffset: 0,
           restartPressed: false,
           showApplyMessage: false,
           platform: "",
@@ -386,22 +387,63 @@
             }
           });
 
-        this.logInterval = setInterval(() => {
-          this.refreshLogs();
-        }, 5000);
         this.refreshLogs();
+        this.startLogRefresh();
         this.refreshClients();
+
+        const handleVisibilityChange = () => {
+          if (document.hidden) {
+            this.stopLogRefresh();
+          } else {
+            this.refreshLogs();
+            this.startLogRefresh();
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        this._visibilityCleanup = () => document.removeEventListener('visibilitychange', handleVisibilityChange);
       },
       beforeDestroy() {
-        clearInterval(this.logInterval);
+        this.stopLogRefresh();
+        if (this._visibilityCleanup) this._visibilityCleanup();
       },
       methods: {
-        refreshLogs() {
-          fetch("./api/logs",)
-            .then((r) => r.text())
-            .then((r) => {
-              this.logs = r;
-            });
+        startLogRefresh() {
+          this.stopLogRefresh();
+          this.logInterval = setInterval(() => this.refreshLogs(), 5000);
+        },
+        stopLogRefresh() {
+          if (this.logInterval != null) {
+            clearInterval(this.logInterval);
+            this.logInterval = null;
+          }
+        },
+        async refreshLogs() {
+          try {
+            const headers = this.logOffset > 0 ? { 'X-Log-Offset': String(this.logOffset) } : {};
+            const response = await fetch('./api/logs', { headers });
+
+            if (response.status === 304) {
+              return;
+            }
+
+            if (!response.ok) {
+              console.error('Failed to refresh logs: HTTP', response.status);
+              return;
+            }
+
+            const newSize = parseInt(response.headers.get('X-Log-Size') || '0', 10);
+            const text = await response.text();
+
+            if (!this.logOffset || newSize < this.logOffset) {
+              this.logs = text;
+            } else if (text.length > 0) {
+              this.logs += text;
+            }
+
+            this.logOffset = newSize;
+          } catch (e) {
+            console.error('Failed to refresh logs:', e);
+          }
         },
         closeApp() {
           this.closeAppPressed = true;

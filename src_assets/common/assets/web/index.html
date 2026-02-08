@@ -205,9 +205,14 @@
         console.error(e);
       }
       try {
-        this.logs = (await fetch("./api/logs").then(r => r.text()))
+        const response = await fetch("./api/logs");
+        if (!response.ok) {
+          console.error('Failed to fetch logs: HTTP', response.status);
+        } else {
+          this.logs = await response.text();
+        }
       } catch (e) {
-        console.error(e);
+        console.error('Failed to fetch logs:', e);
       }
       this.loading = false;
     },

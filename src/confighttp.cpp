@@ -11,6 +11,7 @@
 #include <format>
 #include <fstream>
 #include <set>
+#include <atomic>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -1107,12 +1108,72 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
+    // Log caching: avoid reading disk unnecessarily when file hasn't changed
+    // Use std::atomic<shared_ptr> to ensure thread-safe access (no locks)
+    static std::atomic<std::shared_ptr<const std::string>> cached_log;
+    static std::atomic<std::uintmax_t> cached_log_size { 0 };
+    static std::atomic<std::intmax_t> cached_log_mtime_ns { 0 };
+
+    const auto &log_path = config::sunshine.log_file;
+
+    // Check file status
+    std::error_code ec;
+    auto current_size = std::filesystem::file_size(log_path, ec);
+    if (ec) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Failed to read log file");
+      return;
+    }
+    auto current_mtime = std::filesystem::last_write_time(log_path, ec);
+    auto current_mtime_ns = current_mtime.time_since_epoch().count();
+
+    // Read file again if it has changed
+    if (current_size != cached_log_size.load() || current_mtime_ns != cached_log_mtime_ns.load()) {
+      auto new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.c_str()));
+      cached_log.store(new_content);
+      cached_log_size.store(current_size);
+      cached_log_mtime_ns.store(current_mtime_ns);
+    }
+
+    // Atomic load shared_ptr, subsequent operations based on this snapshot
+    auto content = cached_log.load();
+    if (!content) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Log not available");
+      return;
+    }
+
+    // Read client's offset from request header
+    std::uintmax_t client_offset = 0;
+    auto it = request->header.find("X-Log-Offset");
+    if (it != request->header.end()) {
+      try {
+        client_offset = std::stoull(it->second);
+      }
+      catch (...) {
+        client_offset = 0;
+      }
+    }
+
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
+    headers.emplace("X-Log-Size", std::to_string(content->size()));
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+
+    // offset equals current size: no change in logs, return 304
+    if (client_offset > 0 && client_offset == content->size()) {
+      response->write(SimpleWeb::StatusCode::redirection_not_modified, headers);
+      return;
+    }
+
+    // Valid offset and within range: return increment
+    if (client_offset > 0 && client_offset < content->size()) {
+      auto delta = content->substr(client_offset);
+      response->write(SimpleWeb::StatusCode::success_ok, delta, headers);
+    }
+    else {
+      // Invalid offset (file rotation/first request): return full content
+      response->write(SimpleWeb::StatusCode::success_ok, *content, headers);
+    }
   }
 
   /**
