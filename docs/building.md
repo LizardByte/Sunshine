@@ -161,7 +161,6 @@ dependencies=(
   "mingw-w64-${TOOLCHAIN}-doxygen"  # Optional, for docs... better to install official Doxygen
   "mingw-w64-${TOOLCHAIN}-graphviz"  # Optional, for docs
   "mingw-w64-${TOOLCHAIN}-miniupnpc"
-  "mingw-w64-${TOOLCHAIN}-nodejs"
   "mingw-w64-${TOOLCHAIN}-onevpl"
   "mingw-w64-${TOOLCHAIN}-openssl"
   "mingw-w64-${TOOLCHAIN}-opus"
@@ -170,6 +169,7 @@ dependencies=(
 if [[ "${MSYSTEM}" == "UCRT64" ]]; then
   dependencies+=(
     "mingw-w64-${TOOLCHAIN}-MinHook"
+    "mingw-w64-${TOOLCHAIN}-nodejs"
     "mingw-w64-${TOOLCHAIN}-nsis"
   )
 fi
@@ -177,6 +177,8 @@ pacman -S "${dependencies[@]}"
 ```
 
 To create a WiX installer, you also need to install [.NET](https://dotnet.microsoft.com/download).
+
+For ARM64: To build frontend, you also need to install [Node.JS](https://nodejs.org/en/download)
 
 ### Clone
 Ensure [git](https://git-scm.com) is installed on your system, then clone the repository using the following command:
