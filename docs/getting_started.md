@@ -100,22 +100,10 @@ CUDA is used for NVFBC capture.
 
 > [!CAUTION]
 > Use distro-specific packages instead of the AppImage if they are available.
+> AppImage does not support KMS capture.
 
-According to AppImageLint the supported distro matrix of the AppImage is below.
-
-- ✖ Debian bullseye
-- ✔ Debian bookworm
-- ✔ Debian trixie
-- ✔ Debian sid
-- ✔ Ubuntu plucky
-- ✔ Ubuntu noble
-- ✔ Ubuntu jammy
-- ✖ Ubuntu focal
-- ✖ Ubuntu bionic
-- ✖ Ubuntu xenial
-- ✖ Ubuntu trusty
-- ✖ Rocky Linux 8
-- ✖ Rocky Linux 9
+> [!NOTE]
+> The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
 
 ##### Install
 1. Download [sunshine.AppImage](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage)
@@ -244,6 +232,7 @@ sudo dnf remove Sunshine
 
 > [!CAUTION]
 > Use distro-specific packages instead of the Flatpak if they are available.
+> Flatpak does not support KMS capture.
 
 Using this package requires that you have [Flatpak](https://flatpak.org/setup) installed.
 
