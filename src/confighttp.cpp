@@ -1111,7 +1111,7 @@ namespace confighttp {
     if (!in || !in.seekg(static_cast<std::streamoff>(prev_size))) {
       return nullptr;
     }
-    const auto tail_len = static_cast<std::size_t>(current_size - prev_size);
+    const auto tail_len = current_size - prev_size;
     std::string tail(tail_len, '\0');
     if (!in.read(tail.data(), static_cast<std::streamsize>(tail_len))) {
       return nullptr;
