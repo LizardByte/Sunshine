@@ -1114,7 +1114,7 @@ namespace confighttp {
     static std::atomic<std::uintmax_t> cached_log_size { 0 };
     static std::atomic<std::intmax_t> cached_log_mtime_ns { 0 };
 
-    const auto &log_path = config::sunshine.log_file;
+    const std::filesystem::path log_path(config::sunshine.log_file);
 
     // Check file status
     std::error_code ec;
@@ -1128,7 +1128,7 @@ namespace confighttp {
 
     // Read file again if it has changed
     if (current_size != cached_log_size.load() || current_mtime_ns != cached_log_mtime_ns.load()) {
-      auto new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.c_str()));
+      auto new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.string().c_str()));
       cached_log.store(new_content);
       cached_log_size.store(current_size);
       cached_log_mtime_ns.store(current_mtime_ns);
@@ -1148,7 +1148,7 @@ namespace confighttp {
       try {
         client_offset = std::stoull(it->second);
       }
-      catch (...) {
+      catch (const std::exception &) {
         client_offset = 0;
       }
     }

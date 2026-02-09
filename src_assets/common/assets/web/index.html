@@ -206,10 +206,10 @@
       }
       try {
         const response = await fetch("./api/logs");
-        if (!response.ok) {
-          console.error('Failed to fetch logs: HTTP', response.status);
-        } else {
+        if (response.ok) {
           this.logs = await response.text();
+        } else {
+          console.error('Failed to fetch logs: HTTP', response.status);
         }
       } catch (e) {
         console.error('Failed to fetch logs:', e);

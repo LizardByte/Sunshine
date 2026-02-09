@@ -431,7 +431,7 @@
               return;
             }
 
-            const newSize = parseInt(response.headers.get('X-Log-Size') || '0', 10);
+            const newSize = Number.parseInt(response.headers.get('X-Log-Size') || '0', 10);
             const text = await response.text();
 
             if (!this.logOffset || newSize < this.logOffset) {
