@@ -181,6 +181,9 @@ jobs:
           - name: Windows-AMD64
             coverage: true
             pr: true
+          - name: Windows-ARM64
+            coverage: true
+            pr: true
     steps:
       - name: Should run
         id: should_run
@@ -202,18 +205,7 @@ jobs:
           name: coverage-${{ matrix.name }}
           path: _coverage
 
-      - name: Upload test results
-        if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: codecov/test-results-action@0fa95f0e1eeaafde2c782583b36b28ad0d8c77d3  # v1.2.1
-        with:
-          disable_search: true
-          fail_ci_if_error: true
-          files: ./_coverage/tests/test_results.xml
-          flags: ${{ matrix.name }}
-          token: ${{ secrets.CODECOV_TOKEN }}
-          verbose: true
-
-      - name: Upload coverage
+      - name: Upload test coverage
         if: |
           steps.should_run.outputs.SHOULD_RUN == 'true'  &&
           matrix.coverage != false
@@ -222,6 +214,19 @@ jobs:
           disable_search: true
           fail_ci_if_error: true
           files: ./_coverage/coverage.xml
+          report_type: coverage
+          flags: ${{ matrix.name }}
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+      - name: Upload test results
+        if: steps.should_run.outputs.SHOULD_RUN == 'true'
+        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5.5.2
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ./_coverage/tests/test_results.xml
+          report_type: test_results
           flags: ${{ matrix.name }}
           token: ${{ secrets.CODECOV_TOKEN }}
           verbose: true
