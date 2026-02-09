@@ -1179,12 +1179,16 @@ namespace confighttp {
       return;
     }
 
-    // Read client's offset from request header
+    // Read client's offset from request header (trim whitespace; invalid values => 0, then full response)
     std::uintmax_t client_offset = 0;
     auto it = request->header.find("X-Log-Offset");
     if (it != request->header.end()) {
       try {
-        client_offset = std::stoull(it->second);
+        std::string offset_str(it->second);
+        boost::algorithm::trim(offset_str);
+        if (!offset_str.empty()) {
+          client_offset = std::stoull(offset_str);
+        }
       }
       catch (const std::invalid_argument &) {
         client_offset = 0;
@@ -1202,17 +1206,20 @@ namespace confighttp {
 
     // offset equals current size: no change in logs, return 304
     if (client_offset > 0 && client_offset == content->size()) {
+      headers.emplace("X-Log-Range", "unchanged");
       response->write(SimpleWeb::StatusCode::redirection_not_modified, headers);
       return;
     }
 
     // Valid offset and within range: return increment
     if (client_offset > 0 && client_offset < content->size()) {
+      headers.emplace("X-Log-Range", "incremental");
       auto delta = content->substr(client_offset);
       response->write(SimpleWeb::StatusCode::success_ok, delta, headers);
     }
     else {
       // Invalid offset (file rotation/first request): return full content
+      headers.emplace("X-Log-Range", "full");
       response->write(SimpleWeb::StatusCode::success_ok, *content, headers);
     }
   }

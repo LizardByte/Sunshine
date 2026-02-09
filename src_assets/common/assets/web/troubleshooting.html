@@ -419,10 +419,14 @@
         },
         async refreshLogs() {
           try {
-            const headers = this.logOffset > 0 ? { 'X-Log-Offset': String(this.logOffset) } : {};
+            const offset = Number(this.logOffset);
+            const headers = (!Number.isNaN(offset) && offset > 0) ? { 'X-Log-Offset': String(offset) } : {};
             const response = await fetch('./api/logs', { headers });
 
             if (response.status === 304) {
+              const sizeHeader = response.headers.get('X-Log-Size');
+              const size = Number.parseInt(sizeHeader || '0', 10);
+              this.logOffset = Number.isNaN(size) || size < 0 ? 0 : size;
               return;
             }
 
@@ -431,13 +435,15 @@
               return;
             }
 
-            const newSize = Number.parseInt(response.headers.get('X-Log-Size') || '0', 10);
+            const rawSize = Number.parseInt(response.headers.get('X-Log-Size') || '0', 10);
+            const newSize = Number.isNaN(rawSize) || rawSize < 0 ? 0 : rawSize;
+            const logRange = (response.headers.get('X-Log-Range') || '').trim().toLowerCase();
             const text = await response.text();
 
-            if (!this.logOffset || newSize < this.logOffset) {
-              this.logs = text;
-            } else if (text.length > 0) {
+            if (logRange === 'incremental' && text.length > 0) {
               this.logs += text;
+            } else {
+              this.logs = text;
             }
 
             this.logOffset = newSize;
