@@ -12,6 +12,7 @@
 #include <fstream>
 #include <set>
 #include <atomic>
+#include <stdexcept>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -1095,6 +1096,30 @@ namespace confighttp {
   }
 
   /**
+   * @brief Try to read only the new tail of the log file and append to existing content.
+   * @return New content on success, nullptr on any failure (caller should fall back to full read).
+   */
+  static std::shared_ptr<const std::string> try_incremental_log_read(
+    const std::filesystem::path &log_path,
+    std::uintmax_t prev_size,
+    std::uintmax_t current_size,
+    const std::shared_ptr<const std::string> &old_content) {
+    if (current_size <= prev_size || prev_size == 0 || !old_content) {
+      return nullptr;
+    }
+    std::ifstream in(log_path.string(), std::ios::binary);
+    if (!in || !in.seekg(static_cast<std::streamoff>(prev_size))) {
+      return nullptr;
+    }
+    const auto tail_len = static_cast<std::size_t>(current_size - prev_size);
+    std::string tail(tail_len, '\0');
+    if (!in.read(tail.data(), static_cast<std::streamsize>(tail_len))) {
+      return nullptr;
+    }
+    return std::make_shared<const std::string>(*old_content + tail);
+  }
+
+  /**
    * @brief Get the logs from the log file.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1124,11 +1149,24 @@ namespace confighttp {
       return;
     }
     auto current_mtime = std::filesystem::last_write_time(log_path, ec);
+    if (ec) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Failed to read log file");
+      return;
+    }
     auto current_mtime_ns = current_mtime.time_since_epoch().count();
 
-    // Read file again if it has changed
-    if (current_size != cached_log_size.load() || current_mtime_ns != cached_log_mtime_ns.load()) {
-      auto new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.string().c_str()));
+    const auto prev_size = cached_log_size.load();
+    const bool cache_stale = (current_size != prev_size || current_mtime_ns != cached_log_mtime_ns.load());
+    if (cache_stale) {
+      auto new_content = try_incremental_log_read(log_path, prev_size, current_size, cached_log.load());
+      if (!new_content) {
+        new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.string().c_str()));
+      }
+      // If read returned empty, ensure file still exists (e.g. not deleted during read)
+      if (new_content->empty() && !std::filesystem::exists(log_path, ec)) {
+        response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Log file not available");
+        return;
+      }
       cached_log.store(new_content);
       cached_log_size.store(current_size);
       cached_log_mtime_ns.store(current_mtime_ns);
@@ -1148,7 +1186,10 @@ namespace confighttp {
       try {
         client_offset = std::stoull(it->second);
       }
-      catch (const std::exception &) {
+      catch (const std::invalid_argument &) {
+        client_offset = 0;
+      }
+      catch (const std::out_of_range &) {
         client_offset = 0;
       }
     }
