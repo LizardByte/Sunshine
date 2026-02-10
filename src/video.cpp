@@ -833,6 +833,7 @@ namespace video {
       // Common options for AV1 - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
@@ -847,6 +848,7 @@ namespace video {
       // Common options for HEVC - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
@@ -861,6 +863,7 @@ namespace video {
       // Common options for H.264 - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
