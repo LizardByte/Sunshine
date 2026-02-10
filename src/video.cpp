@@ -1012,6 +1012,34 @@ namespace video {
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
+  
+  constinit const encoder_t ffmpeg_rkmpp {
+    .name = "FFmpeg (rkmpp)",
+    .flags = flag_e::PARALLEL_ENCODING | flag_e::ASYNC_TEARDOWN,
+    .init = avcodec_init,
+    .destroy = avcodec_destroy,
+    .get_av_encoder =
+      [] {
+        return util::arr_t<encoder_codec_t> {
+          encoder_codec_t {
+            .name = "h264_rkmpp",
+            .codec = AV_CODEC_ID_H264,
+          },
+          encoder_codec_t {
+            .name = "hevc_rkmpp",
+            .codec = AV_CODEC_ID_HEVC,
+          },
+        };
+      },
+    .get_av_hw_device_type = [] { return AV_HWDEVICE_TYPE_DRM; },
+    .get_vaapi_supported_rt_formats =
+      [] {
+        return util::arr_t<int> {
+          VA_RT_FORMAT_YUV420,
+          VA_RT_FORMAT_YUV420_10,
+        };
+      },
+  };
 #endif
 
 #ifdef __APPLE__
@@ -1093,6 +1121,7 @@ namespace video {
 #endif
 #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
     &vaapi,
+    &ffmpeg_rkmpp,
 #endif
 #ifdef __APPLE__
     &videotoolbox,
