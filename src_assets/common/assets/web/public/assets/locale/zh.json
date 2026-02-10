@@ -375,7 +375,7 @@
     "vaapi_strict_rc_buffer_desc": "启用此选项可以在场景更改时避免在网络上放置帧，但在移动时可能会降低视频质量。",
     "virtual_sink": "虚拟音频输出设备",
     "virtual_sink_desc": "手动指定要使用的虚拟音频设备。如果未设置，则会自动选择设备。我们强烈建议将此字段留空，以便使用自动设备选择！",
-    "virtual_sink_placeholder": "Steam Streaming Speakers",
+    "virtual_sink_placeholder": "Steam 串流扬声器",
     "vt_coder": "VideoToolbox 编码器",
     "vt_realtime": "VideoToolbox 实时编码",
     "vt_software": "VideoToolbox 软件编码",
@@ -456,7 +456,7 @@
   },
   "troubleshooting": {
     "dd_reset": "重置持久显示设备设置",
-    "dd_reset_desc": "如果Sunshine 被卡住试图恢复更改的显示设备设置，您可以重置设置并手动恢复显示状态。",
+    "dd_reset_desc": "如果Sunshine 在试图恢复被更改的显示设备设置时卡住，您可以重置设置并手动恢复显示状态。",
     "dd_reset_error": "重置持久性时发生错误！",
     "dd_reset_success": "成功重置持久性！",
     "force_close": "强制结束运行",
@@ -494,19 +494,19 @@
       "client": "客户端",
       "tool": "工具"
     },
-    "description": "发现可以增强您的 Sunshine 串流体验的客户端、工具和集成。",
+    "description": "发现可以增强您 Sunshine 串流体验的客户端、工具和集成。",
     "docs": "文档",
-    "documentation": "文件",
+    "documentation": "文档",
     "get": "获取",
-    "github": "GitHub Repository",
+    "github": "GitHub 代码仓库",
     "github_forks": "Forks",
     "github_issues": "打开问题",
-    "github_stars": "星星",
+    "github_stars": "Stars",
     "last_updated": "最后更新",
     "no_apps": "未找到此类别中的应用。",
-    "official": "官方的",
+    "official": "官方",
     "title": "精选应用",
-    "website": "网址"
+    "website": "官网"
   },
   "welcome": {
     "confirm_password": "确认密码",
