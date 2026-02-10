@@ -84,7 +84,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@f674f993e17ee7a71c14726b5d96599e59cda724  # v1.4.0
+        uses: vmactions/freebsd-vm@80bcb19d617fe71c9db00e6297b16fb184dac498  # v1.4.1
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
