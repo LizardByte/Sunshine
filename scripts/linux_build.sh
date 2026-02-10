@@ -776,7 +776,7 @@ else
   exit 1
 fi
 
-architecture=$(uname -m)
+architecture=$AARCH64
 
 echo "Detected Distro: $distro"
 echo "Detected Version: $version"
