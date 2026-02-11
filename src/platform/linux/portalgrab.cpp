@@ -124,12 +124,19 @@ namespace portal {
     guint subscription_id;
   };
 
+  struct shared_state_t {
+    std::atomic<int> negotiated_width {0};
+    std::atomic<int> negotiated_height {0};
+    std::atomic<bool> stream_dead {false};
+  };
+
   struct stream_data_t {
     struct pw_stream *stream;
     struct spa_hook stream_listener;
     struct spa_video_info format;
     struct pw_buffer *current_buffer;
     uint64_t drm_format;
+    std::shared_ptr<shared_state_t> shared;
   };
 
   struct dmabuf_format_info_t {
@@ -683,9 +690,10 @@ namespace portal {
       pw_thread_loop_destroy(loop);
     }
 
-    void init(int stream_fd, int stream_node) {
+    void init(int stream_fd, int stream_node, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
+      stream_data.shared = std::move(shared_state);
 
       pw_thread_loop_lock(loop);
 
@@ -698,6 +706,17 @@ namespace portal {
       }
 
       pw_thread_loop_unlock(loop);
+    }
+
+    void cleanup_stream() {
+      if (loop && stream_data.stream) {
+        pw_thread_loop_lock(loop);
+        pw_stream_disconnect(stream_data.stream);
+        pw_stream_destroy(stream_data.stream);
+        stream_data.stream = nullptr;
+        pw_thread_loop_unlock(loop);
+      }
+      session_cache_t::instance().invalidate();
     }
 
     void ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
@@ -834,6 +853,31 @@ namespace portal {
       .error = on_core_error_cb,
     };
 
+    static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
+      auto *d = static_cast<stream_data_t *>(user_data);
+
+      switch (state) {
+        case PW_STREAM_STATE_ERROR:
+        case PW_STREAM_STATE_UNCONNECTED:
+          // If we hit an actual error or unconnected, it's always dead.
+          if (d->shared) {
+            d->shared->stream_dead.store(true, std::memory_order_relaxed);
+          }
+          break;
+        case PW_STREAM_STATE_PAUSED:
+          // Trigger a reinit to identify if changes occurred
+          if (d->shared && old == PW_STREAM_STATE_STREAMING) {
+            d->shared->stream_dead.store(true, std::memory_order_relaxed);
+          }
+          break;
+        case PW_STREAM_STATE_CONNECTING:
+        case PW_STREAM_STATE_STREAMING:
+        default:
+          break;
+      }
+      return;
+    }
+
     static void on_process(void *user_data) {
       const auto d = static_cast<struct stream_data_t *>(user_data);
       struct pw_buffer *b = nullptr;
@@ -887,6 +931,19 @@ namespace portal {
         BOOST_LOG(info) << "Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
+      int physical_w = d->format.info.raw.size.width;
+      int physical_h = d->format.info.raw.size.height;
+
+      if (d->shared) {
+        int old_w = d->shared->negotiated_width.load(std::memory_order_relaxed);
+        int old_h = d->shared->negotiated_height.load(std::memory_order_relaxed);
+
+        if (physical_w != old_w || physical_h != old_h) {
+          d->shared->negotiated_width.store(physical_w, std::memory_order_relaxed);
+          d->shared->negotiated_height.store(physical_h, std::memory_order_relaxed);
+        }
+      }
+
       uint64_t drm_format = 0;
       for (const auto &fmt : format_map) {
         if (fmt.fourcc == 0) {
@@ -920,6 +977,7 @@ namespace portal {
 
     constexpr static const struct pw_stream_events stream_events = {
       .version = PW_VERSION_STREAM_EVENTS,
+      .state_changed = on_stream_state_changed,
       .param_changed = on_param_changed,
       .process = on_process,
     };
@@ -945,7 +1003,46 @@ namespace portal {
 
       framerate = config.framerate;
 
-      pipewire.init(pipewire_fd, pipewire_node);
+      shared_state = std::make_shared<shared_state_t>();
+
+      pipewire.init(pipewire_fd, pipewire_node, shared_state);
+
+      // Start PipeWire now so format negotiation can proceed before capture start
+      pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
+
+      int timeout_ms = 1500;
+      int negotiated_w = 0;
+      int negotiated_h = 0;
+
+      while (timeout_ms > 0) {
+        negotiated_w = shared_state->negotiated_width.load();
+        negotiated_h = shared_state->negotiated_height.load();
+        if (negotiated_w > 0 && negotiated_h > 0) {
+          break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        timeout_ms -= 10;
+      }
+
+      // Check previous logical dimensions
+      if (previous_width.load() == width &&
+          previous_height.load() == height) {
+        if (capture_running.load()) {
+          stream_stopped.store(true);
+        }
+      } else {
+        previous_width.store(width);
+        previous_height.store(height);
+      }
+
+      if (negotiated_w > 0 && negotiated_h > 0 &&
+          (negotiated_w != width || negotiated_h != height)) {
+        BOOST_LOG(info) << "Using negotiated resolution "sv
+                        << negotiated_w << "x" << negotiated_h;
+
+        width = negotiated_w;
+        height = negotiated_h;
+      }
 
       return 0;
     }
@@ -992,8 +1089,30 @@ namespace portal {
 
       pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
       sleep_overshoot_logger.reset();
+      capture_running.store(true);
 
       while (true) {
+        // Check if PipeWire signaled a state change or error
+        if (stream_stopped.load() || shared_state->stream_dead.exchange(false)) {
+          pipewire.cleanup_stream();
+
+          // Add a small delay before reinit to let WirePlumber see state change
+          std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+          // If stream is marked as stopped, clear state and send interrupted status
+          if (stream_stopped.load()) {
+            BOOST_LOG(warning) << "PipeWire stream stopped by user."sv;
+            capture_running.store(false);
+            stream_stopped.store(false);
+            previous_height.store(0);
+            previous_width.store(0);
+            return platf::capture_e::interrupted;
+          } else {
+            BOOST_LOG(warning) << "PipeWire stream disconnected. Forcing session reset."sv;
+            return platf::capture_e::reinit;
+          }
+        }
+
         auto now = std::chrono::steady_clock::now();
 
         if (next_frame > now) {
@@ -1012,6 +1131,7 @@ namespace portal {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
           case platf::capture_e::interrupted:
+            capture_running.store(false);
             return status;
           case platf::capture_e::timeout:
             push_captured_image_cb(std::move(img_out), false);
@@ -1163,6 +1283,11 @@ namespace portal {
     std::chrono::nanoseconds delay;
     std::uint64_t sequence {};
     uint32_t framerate;
+    static inline std::atomic<uint32_t> previous_height {0};
+    static inline std::atomic<uint32_t> previous_width {0};
+    static inline std::atomic<bool> stream_stopped {false};
+    static inline std::atomic<bool> capture_running {false};
+    std::shared_ptr<shared_state_t> shared_state;
   };
 }  // namespace portal
 
