@@ -46,6 +46,9 @@ modules:
   # Caching is configured until here, not including CUDA, since it is too large for GitHub cache
   - "modules/cuda.json"
 
+  # FFmpeg prebuilt binaries
+  - "modules/ffmpeg.json"
+
   - name: sunshine
     builddir: true
     build-options:
@@ -66,6 +69,7 @@ modules:
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
+      - -DFFMPEG_PREPARED_BINARIES=/app/ffmpeg
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_BUILD_FLATPAK=ON
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
