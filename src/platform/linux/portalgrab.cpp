@@ -659,18 +659,24 @@ namespace portal {
     }
 
     ~pipewire_t() {
-      pw_thread_loop_stop(loop);
+      pw_thread_loop_lock(loop);
+
       if (stream_data.stream) {
-        pw_stream_set_active(stream_data.stream, false);
-        pw_stream_disconnect(stream_data.stream);
         pw_stream_destroy(stream_data.stream);
+        stream_data.stream = nullptr;
       }
       if (core) {
         pw_core_disconnect(core);
+        core = nullptr;
       }
       if (context) {
         pw_context_destroy(context);
+        context = nullptr;
       }
+
+      pw_thread_loop_unlock(loop);
+
+      pw_thread_loop_stop(loop);
       if (fd >= 0) {
         close(fd);
       }
@@ -681,9 +687,17 @@ namespace portal {
       fd = stream_fd;
       node = stream_node;
 
+      pw_thread_loop_lock(loop);
+
       context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
-      core = pw_context_connect_fd(context, dup(fd), nullptr, 0);
-      pw_core_add_listener(core, &core_listener, &core_events, nullptr);
+      if (context) {
+        core = pw_context_connect_fd(context, dup(fd), nullptr, 0);
+        if (core) {
+          pw_core_add_listener(core, &core_listener, &core_events, nullptr);
+        }
+      }
+
+      pw_thread_loop_unlock(loop);
     }
 
     void ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
