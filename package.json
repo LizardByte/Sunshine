@@ -12,7 +12,7 @@
     "@lizardbyte/shared-web": "2026.125.235713",
     "date-fns": "4.1.0",
     "lucide-vue-next": "0.563.0",
-    "marked": "17.0.1",
+    "marked": "17.0.2",
     "vue": "3.5.28",
     "vue-i18n": "11.2.8",
     "vue3-simple-icons": "15.6.0"
