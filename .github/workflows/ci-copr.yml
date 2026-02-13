@@ -1,7 +1,6 @@
 ---
 name: CI-Copr
-permissions:
-  contents: read
+permissions: {}
 
 on:
   release:
@@ -27,6 +26,8 @@ concurrency:
 
 jobs:
   call-copr-ci:
+    permissions:
+      contents: read
     uses: LizardByte/copr-ci/.github/workflows/copr-ci.yml@master
     with:
       copr_pr_webhook_token: "05fc9b07-a19b-4f83-89b2-ae1e7e0b5282"

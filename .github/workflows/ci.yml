@@ -1,7 +1,6 @@
 ---
 name: CI
-permissions:
-  contents: read
+permissions: {}
 
 on:
   pull_request:
@@ -17,6 +16,8 @@ concurrency:
 jobs:
   github-env:
     name: GitHub Env Debug
+    permissions:
+      contents: read
     uses: LizardByte/.github/.github/workflows/__call-github-env.yml@master
 
   release-setup:
@@ -65,6 +66,8 @@ jobs:
   build-freebsd:
     name: FreeBSD
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-freebsd.yml
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
@@ -73,6 +76,8 @@ jobs:
   build-homebrew:
     name: Homebrew
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-homebrew.yml
     with:
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
@@ -87,6 +92,8 @@ jobs:
   build-linux:
     name: Linux
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-linux.yml
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
@@ -95,6 +102,8 @@ jobs:
   build-archlinux:
     name: Archlinux
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-archlinux.yml
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
@@ -115,6 +124,8 @@ jobs:
   build-linux-flatpak:
     name: Linux Flatpak
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-flatpak.yml
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
@@ -123,6 +134,8 @@ jobs:
   build-windows:
     name: Windows
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-windows.yml
     with:
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
@@ -131,6 +144,8 @@ jobs:
   bundle-analysis:
     name: Bundle Analysis
     needs: release-setup
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci-bundle.yml
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
@@ -148,6 +163,8 @@ jobs:
       - build-linux-flatpak
       - build-homebrew
       - build-windows
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -244,6 +261,8 @@ jobs:
       - build-linux
       - build-linux-flatpak
       - build-windows
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifacts
@@ -277,6 +296,8 @@ jobs:
       - release-setup
       - build-homebrew
       - release
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Download homebrew artifacts

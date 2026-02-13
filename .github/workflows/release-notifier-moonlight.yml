@@ -11,6 +11,7 @@ jobs:
   discord:
     if: github.repository_owner == 'LizardByte'
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Check if latest GitHub release
         id: check-release

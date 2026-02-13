@@ -1,7 +1,6 @@
 ---
 name: CI-FreeBSD
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -25,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    permissions: {}
     steps:
       - name: Generate Matrix
         id: generate-matrix
@@ -66,6 +66,8 @@ jobs:
     name: ${{ matrix.cmake_processor }}-${{ matrix.bsd_release }}
     runs-on: ubuntu-latest
     needs: setup-matrix
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
