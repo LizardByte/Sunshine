@@ -1,7 +1,6 @@
 ---
 name: CI-Windows
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -20,6 +19,8 @@ jobs:
     defaults:
       run:
         shell: msys2 {0}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

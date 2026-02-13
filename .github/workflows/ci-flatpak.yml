@@ -1,7 +1,6 @@
 ---
 name: CI-Flatpak
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -21,6 +20,8 @@ jobs:
       MATRIX_ARCH: ${{ matrix.arch }}
       NODE_VERSION: "20"
       PLATFORM_VERSION: "24.08"
+    permissions:
+      contents: read
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false

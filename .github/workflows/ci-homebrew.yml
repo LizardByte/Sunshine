@@ -1,7 +1,6 @@
 ---
 name: CI-Homebrew
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -29,6 +28,8 @@ on:
 jobs:
   build_homebrew:
     name: ${{ matrix.os_name }}-${{ matrix.os_version }}${{ matrix.release == true && ' (Release)' || '' }}
+    permissions:
+      contents: read
     runs-on: ${{ matrix.os_name }}-${{ matrix.os_version }}
     strategy:
       fail-fast: false

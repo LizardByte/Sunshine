@@ -1,7 +1,6 @@
 ---
 name: CI-Linux
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -19,6 +18,8 @@ jobs:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       VERSION: ${{ inputs.release_version }}
+    permissions:
+      contents: read
     runs-on: ubuntu-${{ matrix.dist }}
     strategy:
       fail-fast: false
