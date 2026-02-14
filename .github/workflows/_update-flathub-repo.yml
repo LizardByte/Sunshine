@@ -8,8 +8,7 @@
 # Update Flathub on release events.
 
 name: Update Flathub repo
-permissions:
-  contents: read
+permissions: {}
 
 on:
   release:
@@ -25,7 +24,10 @@ jobs:
     name: Update Flathub Repo
     uses: LizardByte/.github/.github/workflows/__call-update-flathub-repo.yml@master
     if: github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+    with:
+      gh_name: ${{ vars.GH_BOT_NAME }}
     secrets:
       GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_NAME: ${{ secrets.GH_BOT_NAME }}
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
