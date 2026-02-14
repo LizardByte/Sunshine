@@ -5,6 +5,9 @@ permissions: {}
 on:
   workflow_call:
     inputs:
+      git_username:
+        required: true
+        type: string
       publish_release:
         required: true
         type: string
@@ -21,8 +24,6 @@ on:
       GH_TOKEN:
         required: true
       GIT_EMAIL:
-        required: true
-      GIT_USERNAME:
         required: true
 
 jobs:
@@ -148,7 +149,7 @@ jobs:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
           git_email: ${{ secrets.GIT_EMAIL }}
-          git_username: ${{ secrets.GIT_USERNAME }}
+          git_username: ${{ inputs.git_username }}
           publish: false
           token: ${{ secrets.GH_TOKEN }}
           validate: true

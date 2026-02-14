@@ -35,5 +35,5 @@ jobs:
           nodetail: true
           nofail: false
           title: ${{ github.event.repository.name }} ${{ github.ref_name }} Released
-          username: ${{ secrets.DISCORD_USERNAME }}
+          username: ${{ vars.DISCORD_USERNAME }}
           webhook: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MOONLIGHT }}

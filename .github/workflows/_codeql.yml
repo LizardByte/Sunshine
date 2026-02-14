@@ -4,16 +4,13 @@
 # the above-mentioned repo.
 
 name: CodeQL
-permissions:
-  actions: read
-  contents: read
-  security-events: write
+permissions: {}
 
 on:
+  pull_request:
   push:
     branches:
       - master
-  pull_request:
   schedule:
     - cron: '00 12 * * 0'  # every Sunday at 12:00 UTC
 
@@ -26,3 +23,7 @@ jobs:
     name: CodeQL
     uses: LizardByte/.github/.github/workflows/__call-codeql.yml@master
     if: ${{ github.repository != 'LizardByte/.github' }}
+    permissions:
+      actions: read
+      contents: read
+      security-events: write

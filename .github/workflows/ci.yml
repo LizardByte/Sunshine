@@ -50,16 +50,16 @@ jobs:
       packages: write
     uses: LizardByte/.github/.github/workflows/__call-docker.yml@master
     with:
+      docker_hub_username: ${{ vars.DOCKER_HUB_USERNAME }}
+      gh_bot_name: ${{ vars.GH_BOT_NAME }}
       maximize_build_space: true
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
     secrets:
-      DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
       DOCKER_HUB_PASSWORD: ${{ secrets.DOCKER_HUB_PASSWORD }}
       DOCKER_HUB_ACCESS_TOKEN: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-      GH_BOT_NAME: ${{ secrets.GH_BOT_NAME }}
       GH_BOT_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -80,6 +80,7 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-homebrew.yml
     with:
+      git_username: ${{ vars.GH_BOT_NAME }}
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_tag: ${{ needs.release-setup.outputs.release_tag }}
@@ -87,7 +88,6 @@ jobs:
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GIT_USERNAME: ${{ secrets.GH_BOT_NAME }}
 
   build-linux:
     name: Linux
@@ -312,7 +312,7 @@ jobs:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
-          git_username: ${{ secrets.GH_BOT_NAME }}
+          git_username: ${{ vars.GH_BOT_NAME }}
           publish: true
           token: ${{ secrets.GH_BOT_TOKEN }}
           validate: false
