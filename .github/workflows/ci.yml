@@ -38,7 +38,7 @@ jobs:
 
       - name: Release Setup
         id: release-setup
-        uses: LizardByte/actions/actions/release_setup@9bf3ef783775e17fe6b8dde3585d94ec570b93c2  # v2026.212.22356
+        uses: LizardByte/actions/actions/release_setup@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -276,7 +276,7 @@ jobs:
         run: ls -l artifacts
 
       - name: Create/Update GitHub Release
-        uses: LizardByte/actions/actions/release_create@9bf3ef783775e17fe6b8dde3585d94ec570b93c2  # v2026.212.22356
+        uses: LizardByte/actions/actions/release_create@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
         with:
           allowUpdates: false
           body: ${{ needs.release-setup.outputs.release_body }}
@@ -307,8 +307,9 @@ jobs:
           path: homebrew
 
       - name: Upload Homebrew Beta Formula
-        uses: LizardByte/actions/actions/release_homebrew@9bf3ef783775e17fe6b8dde3585d94ec570b93c2  # v2026.212.22356
+        uses: LizardByte/actions/actions/release_homebrew@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
         with:
+          actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb
           git_email: ${{ secrets.GH_BOT_EMAIL }}
           git_username: ${{ secrets.GH_BOT_NAME }}
