@@ -892,6 +892,9 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
       PORTAL,  ///< XDG PORTAL
 #endif
+#ifdef SUNSHINE_BUILD_KWIN
+      KWIN,  ///< KWin ScreenCast
+#endif
       MAX_FLAGS  ///< The maximum number of flags
     };
   }  // namespace source
@@ -943,6 +946,15 @@ namespace platf {
   }
 #endif
 
+#ifdef SUNSHINE_BUILD_KWIN
+  std::vector<std::string> kwin_display_names();
+  std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
+
+  bool verify_kwin() {
+    return window_system == window_system_e::WAYLAND && !kwin_display_names().empty();
+  }
+#endif
+
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
 #ifdef SUNSHINE_BUILD_CUDA
     // display using NvFBC only supports mem_type_e::cuda
@@ -968,6 +980,11 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
     if (sources[source::PORTAL]) {
       return portal_display_names();
+    }
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+    if (sources[source::KWIN]) {
+      return kwin_display_names();
     }
 #endif
     return {};
@@ -1011,6 +1028,12 @@ namespace platf {
     if (sources[source::PORTAL]) {
       BOOST_LOG(info) << "Screencasting with XDG portal"sv;
       return portal_display(hwdevice_type, display_name, config);
+    }
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+    if (sources[source::KWIN]) {
+      BOOST_LOG(info) << "Screencasting with KWin ScreenCast"sv;
+      return kwin_display(hwdevice_type, display_name, config);
     }
 #endif
 
@@ -1066,6 +1089,11 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_PORTAL
     if ((config::video.capture.empty() || config::video.capture == "portal") && verify_portal()) {
       sources[source::PORTAL] = true;
+    }
+#endif
+#ifdef SUNSHINE_BUILD_KWIN
+    if (((config::video.capture.empty() && sources.none()) || config::video.capture == "kwin") && verify_kwin()) {
+      sources[source::KWIN] = true;
     }
 #endif
 
