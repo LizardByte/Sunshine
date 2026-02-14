@@ -1,7 +1,6 @@
 ---
 name: CI-Bundle
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -11,6 +10,8 @@ on:
 
 jobs:
   bundle_analysis:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

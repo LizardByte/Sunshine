@@ -3,6 +3,7 @@ Description=@PROJECT_DESCRIPTION@
 StartLimitIntervalSec=500
 StartLimitBurst=5
 Conflicts=sunshine-kms.service
+After=graphical-session.target xdg-desktop-autostart.target xdg-desktop-portal.service
 
 [Service]
 # Avoid starting Sunshine before the desktop is fully initialized.
@@ -14,4 +15,4 @@ RestartSec=5s
 NoNewPrivileges=true
 
 [Install]
-WantedBy=xdg-desktop-autostart.target
+WantedBy=graphical-session.target

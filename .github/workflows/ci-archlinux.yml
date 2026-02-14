@@ -1,7 +1,6 @@
 ---
 name: CI-Archlinux
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -24,6 +23,8 @@ jobs:
       BUILD_VERSION: ${{ inputs.release_version }}
       CLONE_URL: ${{ github.event.repository.clone_url }}
       COMMIT: ${{ inputs.release_commit }}
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     container:
       image: archlinux/archlinux:base-devel
