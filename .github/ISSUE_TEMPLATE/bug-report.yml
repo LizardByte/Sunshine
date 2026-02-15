@@ -119,6 +119,7 @@ body:
         - Apple Silicon
         - Intel
         - NVIDIA
+        - Qualcomm (mediafoundation)
         - none (software encoding)
         - n/a
     validations:
