@@ -53,11 +53,26 @@ namespace confighttp {
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+  using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
   enum class op_e {
     ADD,  ///< Add client
     REMOVE  ///< Remove client
   };
+
+  // CSRF token management
+  struct csrf_token_t {
+    std::string token;
+    std::chrono::steady_clock::time_point expiration;
+  };
+
+  // Store CSRF tokens with thread safety
+  std::map<std::string, csrf_token_t> csrf_tokens;
+  std::mutex csrf_tokens_mutex;
+
+  // CSRF token configuration
+  constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
+  constexpr auto CSRF_TOKEN_LIFETIME = std::chrono::hours(1);  // Tokens valid for 1 hour
 
   /**
    * @brief Log the request details.
@@ -85,7 +100,7 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param output_tree The JSON tree to send.
    */
-  void send_response(resp_https_t response, const nlohmann::json &output_tree) {
+  void send_response(const resp_https_t &response, const nlohmann::json &output_tree) {
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
     headers.emplace("X-Frame-Options", "DENY");
@@ -98,11 +113,11 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void send_unauthorized(resp_https_t response, req_https_t request) {
+  void send_unauthorized(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
 
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_unauthorized;
+    constexpr auto code = SimpleWeb::StatusCode::client_error_unauthorized;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -125,7 +140,7 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param path The path to redirect to.
    */
-  void send_redirect(resp_https_t response, req_https_t request, const char *path) {
+  void send_redirect(const resp_https_t &response, const req_https_t &request, const char *path) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
     BOOST_LOG(info) << "Web UI: ["sv << address << "] -- not authorized"sv;
     const SimpleWeb::CaseInsensitiveMultimap headers {
@@ -142,11 +157,10 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @return True if the user is authenticated, false otherwise.
    */
-  bool authenticate(resp_https_t response, req_https_t request) {
+  bool authenticate(const resp_https_t &response, const req_https_t &request) {
     auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
-    auto ip_type = net::from_address(address);
 
-    if (ip_type > http::origin_web_ui_allowed) {
+    if (const auto ip_type = net::from_address(address); ip_type > http::origin_web_ui_allowed) {
       BOOST_LOG(info) << "Web UI: ["sv << address << "] -- denied"sv;
       response->write(SimpleWeb::StatusCode::client_error_forbidden);
       return false;
@@ -162,24 +176,23 @@ namespace confighttp {
       send_unauthorized(response, request);
     });
 
-    auto auth = request->header.find("authorization");
+    const auto auth = request->header.find("authorization");
     if (auth == request->header.end()) {
       return false;
     }
 
-    auto &rawAuth = auth->second;
+    const auto &rawAuth = auth->second;
     auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
 
-    auto index = (int) authData.find(':');
+    const auto index = static_cast<int>(authData.find(':'));
     if (index >= authData.size() - 1) {
       return false;
     }
 
-    auto username = authData.substr(0, index);
-    auto password = authData.substr(index + 1);
-    auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string();
+    const auto username = authData.substr(0, index);
+    const auto password = authData.substr(index + 1);
 
-    if (!boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
+    if (const auto hash = util::hex(crypto::hash(password + config::sunshine.salt)).to_string(); !boost::iequals(username, config::sunshine.username) || hash != config::sunshine.password) {
       return false;
     }
 
@@ -193,8 +206,8 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Not Found") {
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
+  void not_found(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message) {
+    constexpr auto code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -214,8 +227,8 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param error_message The error message to include in the response.
    */
-  void bad_request(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Bad Request") {
-    constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_bad_request;
+  void bad_request(const resp_https_t &response, [[maybe_unused]] const req_https_t &request, const std::string &error_message) {
+    constexpr auto code = SimpleWeb::StatusCode::client_error_bad_request;
 
     nlohmann::json tree;
     tree["status_code"] = code;
@@ -236,16 +249,15 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param contentType The expected content type
    */
-  bool check_content_type(resp_https_t response, req_https_t request, const std::string_view &contentType) {
-    auto requestContentType = request->header.find("content-type");
+  bool check_content_type(const resp_https_t &response, const req_https_t &request, const std::string_view &contentType) {
+    const auto requestContentType = request->header.find("content-type");
     if (requestContentType == request->header.end()) {
       bad_request(response, request, "Content type not provided");
       return false;
     }
     // Extract the media type part before any parameters (e.g., charset)
     std::string actualContentType = requestContentType->second;
-    size_t semicolonPos = actualContentType.find(';');
-    if (semicolonPos != std::string::npos) {
+    if (const size_t semicolonPos = actualContentType.find(';'); semicolonPos != std::string::npos) {
       actualContentType = actualContentType.substr(0, semicolonPos);
     }
 
@@ -264,12 +276,178 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get a unique client identifier for CSRF token management.
+   * @param request The HTTP request object.
+   * @return A unique identifier based on username or IP address.
+   */
+  std::string get_client_id(const req_https_t &request) {
+    // Try to use authenticated username as client ID
+    if (!config::sunshine.username.empty()) {
+      const auto auth = request->header.find("authorization");
+      if (auth != request->header.end()) {
+        const auto &rawAuth = auth->second;
+        if (rawAuth.rfind("Basic "sv, 0) == 0) {
+          auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+          const auto index = static_cast<int>(authData.find(':'));
+          if (index < authData.size() - 1) {
+            return authData.substr(0, index);  // Return username
+          }
+        }
+      }
+    }
+
+    // Fall back to IP address if no username
+    return net::addr_to_normalized_string(request->remote_endpoint().address());
+  }
+
+  /**
+   * @brief Generate a new CSRF token for a client.
+   * @param client_id A unique identifier for the client (e.g., session ID or username).
+   * @return The generated CSRF token.
+   */
+  std::string generate_csrf_token(const std::string &client_id) {
+    // Generate a cryptographically secure random token
+    std::string token = crypto::rand_alphabet(CSRF_TOKEN_SIZE);
+
+    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+
+    // Clean up expired tokens first
+    auto now = std::chrono::steady_clock::now();
+    for (auto it = csrf_tokens.begin(); it != csrf_tokens.end();) {
+      if (it->second.expiration < now) {
+        it = csrf_tokens.erase(it);
+      } else {
+        ++it;
+      }
+    }
+
+    // Store the token with expiration
+    csrf_tokens[client_id] = csrf_token_t {
+      token,
+      now + CSRF_TOKEN_LIFETIME
+    };
+
+    return token;
+  }
+
+  /**
+   * @brief Validate a CSRF token from a request.
+   *
+   * This function implements a hybrid CSRF protection approach:
+   * 1. Same-origin requests (detected via Origin or Referer headers matching configured allowed origins) are allowed without tokens
+   * 2. Cross-origin requests must provide a valid CSRF token
+   *
+   * This allows the existing web UI to work without modifications while still protecting
+   * against CSRF attacks from malicious external sites.
+   *
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param client_id A unique identifier for the client (e.g., session ID or username).
+   * @return True if the CSRF token is valid or request is same-origin, false otherwise.
+   */
+  bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
+    // Helper function to check if a URL starts with any allowed origin
+    auto is_allowed_origin = [](const std::string &url) -> bool {
+      for (const auto &allowed_origin : config::sunshine.csrf_allowed_origins) {
+        // Ensure exact prefix match (with : or / after to prevent malicious.com matching allowed.com)
+        if (url.rfind(allowed_origin, 0) == 0) {  // rfind with pos=0 checks if url starts with allowed_origin
+          // Check that it's followed by : (port) or / (path) or is exact match
+          size_t len = allowed_origin.length();
+          if (url.length() == len || url[len] == ':' || url[len] == '/') {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // Check if request is from same origin (Origin or Referer header matches configured allowed origins)
+    auto origin_it = request->header.find("Origin");
+    if (origin_it != request->header.end()) {
+      if (is_allowed_origin(origin_it->second)) {
+        // Same origin request - allow without CSRF token
+        return true;
+      }
+    }
+
+    // If we have a Referer header, check if it's same-origin
+    auto referer_it = request->header.find("Referer");
+    if (referer_it != request->header.end()) {
+      if (is_allowed_origin(referer_it->second)) {
+        // Same origin request - allow without CSRF token
+        return true;
+      }
+    }
+
+    // Not a same-origin request, require CSRF token
+    // Extract token from X-CSRF-Token header
+    auto header_it = request->header.find("X-CSRF-Token");
+    if (header_it == request->header.end()) {
+      // Also check query parameters as fallback
+      auto query_params = request->parse_query_string();
+      auto query_it = query_params.find("csrf_token");
+      if (query_it == query_params.end()) {
+        bad_request(response, request, "Missing CSRF token");
+        return false;
+      }
+
+      // Validate token from query parameter
+      std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+      auto token_it = csrf_tokens.find(client_id);
+
+      if (token_it == csrf_tokens.end()) {
+        bad_request(response, request, "Invalid CSRF token");
+        return false;
+      }
+
+      auto now = std::chrono::steady_clock::now();
+      if (token_it->second.expiration < now) {
+        csrf_tokens.erase(token_it);
+        bad_request(response, request, "CSRF token expired");
+        return false;
+      }
+
+      if (token_it->second.token != query_it->second) {
+        bad_request(response, request, "Invalid CSRF token");
+        return false;
+      }
+
+      return true;
+    }
+
+    // Validate token from header
+    const std::string &provided_token = header_it->second;
+
+    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+    auto token_it = csrf_tokens.find(client_id);
+
+    if (token_it == csrf_tokens.end()) {
+      bad_request(response, request, "Invalid CSRF token");
+      return false;
+    }
+
+    auto now = std::chrono::steady_clock::now();
+    if (token_it->second.expiration < now) {
+      csrf_tokens.erase(token_it);
+      bad_request(response, request, "CSRF token expired");
+      return false;
+    }
+
+    if (token_it->second.token != provided_token) {
+      bad_request(response, request, "Invalid CSRF token");
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * @brief Validates the application index and sends error response if invalid.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param index The application index/id.
    */
-  bool check_app_index(resp_https_t response, req_https_t request, int index) {
+  bool check_app_index(const resp_https_t &response, const req_https_t &request, int index) {
     std::string file = file_handler::read_file(config::stream.file_apps.c_str());
     nlohmann::json file_tree = nlohmann::json::parse(file);
     if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
@@ -279,190 +457,41 @@ namespace confighttp {
       } else {
         error = std::format("'index' {} out of range, max index is {}", index, max_index);
       }
-      bad_request(std::move(response), std::move(request), error);
+      bad_request(response, request, error);
       return false;
     }
     return true;
   }
 
   /**
-   * @brief Get the index page.
+   * @brief Get an HTML page.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @todo combine these functions into a single function that accepts the page, i.e "index", "pin", "apps"
+   * @param html_file The HTML file to serve (relative to WEB_DIR).
+   * @param require_auth Whether to require authentication (default: true).
+   * @param redirect_if_username If true, redirect to "/" when username is set (for welcome page).
    */
-  void getIndexPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "index.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the PIN page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getPinPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "pin.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the apps page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getAppsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "apps.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    headers.emplace("Access-Control-Allow-Origin", "https://images.igdb.com/");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the clients page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getClientsPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "clients.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the configuration page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getConfigPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "config.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the featured apps page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getFeaturedPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "featured.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the password page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getPasswordPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
-      return;
-    }
-
-    print_req(request);
-
-    std::string content = file_handler::read_file(WEB_DIR "password.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
-
-  /**
-   * @brief Get the welcome page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getWelcomePage(resp_https_t response, req_https_t request) {
-    print_req(request);
-    if (!config::sunshine.username.empty()) {
+  void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth, const bool redirect_if_username) {
+    // Special handling for welcome page: redirect if username is already set
+    if (redirect_if_username && !config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
       return;
     }
-    std::string content = file_handler::read_file(WEB_DIR "welcome.html");
-    SimpleWeb::CaseInsensitiveMultimap headers;
-    headers.emplace("Content-Type", "text/html; charset=utf-8");
-    headers.emplace("X-Frame-Options", "DENY");
-    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(content, headers);
-  }
 
-  /**
-   * @brief Get the troubleshooting page.
-   * @param response The HTTP response object.
-   * @param request The HTTP request object.
-   */
-  void getTroubleshootingPage(resp_https_t response, req_https_t request) {
-    if (!authenticate(response, request)) {
+    if (require_auth && !authenticate(response, request)) {
       return;
     }
 
     print_req(request);
 
-    std::string content = file_handler::read_file(WEB_DIR "troubleshooting.html");
+    const std::string content = file_handler::read_file((std::string(WEB_DIR) + html_file).c_str());
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
+
+    // prevent click jacking
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+
     response->write(content, headers);
   }
 
@@ -473,7 +502,7 @@ namespace confighttp {
    * @todo combine function with getSunshineLogoImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getFaviconImage(resp_https_t response, req_https_t request) {
+  void getFaviconImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/sunshine.ico", std::ios::binary);
@@ -491,7 +520,7 @@ namespace confighttp {
    * @todo combine function with getFaviconImage and possibly getNodeModules
    * @todo use mime_types map
    */
-  void getSunshineLogoImage(resp_https_t response, req_https_t request) {
+  void getSunshineLogoImage(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
 
     std::ifstream in(WEB_DIR "images/logo-sunshine-45.png", std::ios::binary);
@@ -514,11 +543,11 @@ namespace confighttp {
   }
 
   /**
-   * @brief Get an asset from the node_modules directory.
+   * @brief Get an asset.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    */
-  void getNodeModules(resp_https_t response, req_https_t request) {
+  void getAsset(const resp_https_t &response, const req_https_t &request) {
     print_req(request);
     fs::path webDirPath(WEB_DIR);
     fs::path nodeModulesPath(webDirPath / "assets");
@@ -557,13 +586,35 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get a CSRF token for the authenticated user.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/csrf-token| GET| null}
+   */
+  void getCSRFToken(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string client_id = get_client_id(request);
+    std::string token = generate_csrf_token(client_id);
+
+    nlohmann::json output_tree;
+    output_tree["csrf_token"] = token;
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Get the list of available applications.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    *
    * @api_examples{/api/apps| GET| null}
    */
-  void getApps(resp_https_t response, req_https_t request) {
+  void getApps(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -576,7 +627,7 @@ namespace confighttp {
 
       // Legacy versions of Sunshine used strings for boolean and integers, let's convert them
       // List of keys to convert to boolean
-      std::vector<std::string> boolean_keys = {
+      const std::vector<std::string> boolean_keys = {
         "exclude-global-prep-cmd",
         "elevated",
         "auto-detach",
@@ -648,11 +699,16 @@ namespace confighttp {
    *
    * @api_examples{/api/apps| POST| {"name":"Hello, World!","index":-1}}
    */
-  void saveApp(resp_https_t response, req_https_t request) {
+  void saveApp(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -718,11 +774,13 @@ namespace confighttp {
    *
    * @api_examples{/api/apps/close| POST| null}
    */
-  void closeApp(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
+  void closeApp(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -742,10 +800,13 @@ namespace confighttp {
    *
    * @api_examples{/api/apps/9999| DELETE| null}
    */
-  void deleteApp(resp_https_t response, req_https_t request) {
-    // Skip check_content_type() for this endpoint since the request body is not used.
-
+  void deleteApp(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -790,7 +851,7 @@ namespace confighttp {
    *
    * @api_examples{/api/clients/list| GET| null}
    */
-  void getClients(resp_https_t response, req_https_t request) {
+  void getClients(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -818,11 +879,16 @@ namespace confighttp {
    *
    * @api_examples{/api/unpair| POST| {"uuid":"1234"}}
    */
-  void unpair(resp_https_t response, req_https_t request) {
+  void unpair(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -851,11 +917,13 @@ namespace confighttp {
    *
    * @api_examples{/api/clients/unpair-all| POST| null}
    */
-  void unpairAll(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
+  void unpairAll(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -876,7 +944,7 @@ namespace confighttp {
    *
    * @api_examples{/api/config| GET| null}
    */
-  void getConfig(resp_https_t response, req_https_t request) {
+  void getConfig(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -904,7 +972,7 @@ namespace confighttp {
    *
    * @api_examples{/api/configLocale| GET| null}
    */
-  void getLocale(resp_https_t response, req_https_t request) {
+  void getLocale(const resp_https_t &response, const req_https_t &request) {
     // we need to return the locale whether authenticated or not
 
     print_req(request);
@@ -930,11 +998,16 @@ namespace confighttp {
    *
    * @api_examples{/api/config| POST| {"key":"value"}}
    */
-  void saveConfig(resp_https_t response, req_https_t request) {
+  void saveConfig(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -974,7 +1047,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/9999 | GET| null}
    */
-  void getCover(resp_https_t response, req_https_t request) {
+  void getCover(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1044,7 +1117,7 @@ namespace confighttp {
    *
    * @api_examples{/api/covers/upload| POST| {"key":"igdb_1234","url":"https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"}}
    */
-  void uploadCover(resp_https_t response, req_https_t request) {
+  void uploadCover(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1100,7 +1173,7 @@ namespace confighttp {
    *
    * @api_examples{/api/logs| GET| null}
    */
-  void getLogs(resp_https_t response, req_https_t request) {
+  void getLogs(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1132,11 +1205,16 @@ namespace confighttp {
    *
    * @api_examples{/api/password| POST| {"currentUsername":"admin","currentPassword":"admin","newUsername":"admin","newPassword":"admin","confirmNewPassword":"admin"}}
    */
-  void savePassword(resp_https_t response, req_https_t request) {
+  void savePassword(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
     if (!config::sunshine.username.empty() && !authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1205,11 +1283,16 @@ namespace confighttp {
    *
    * @api_examples{/api/pin| POST| {"pin":"1234","name":"My PC"}}
    */
-  void savePin(resp_https_t response, req_https_t request) {
+  void savePin(const resp_https_t &response, const req_https_t &request) {
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
     if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1244,11 +1327,13 @@ namespace confighttp {
    *
    * @api_examples{/api/reset-display-device-persistence| POST| null}
    */
-  void resetDisplayDevicePersistence(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
+  void resetDisplayDevicePersistence(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1266,11 +1351,13 @@ namespace confighttp {
    *
    * @api_examples{/api/restart| POST| null}
    */
-  void restart(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
+  void restart(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1287,7 +1374,7 @@ namespace confighttp {
    *
    * @api_examples{/api/vigembus/status| GET| null}
    */
-  void getViGEmBusStatus(resp_https_t response, req_https_t request) {
+  void getViGEmBusStatus(const resp_https_t &response, const req_https_t &request) {
     if (!authenticate(response, request)) {
       return;
     }
@@ -1345,11 +1432,13 @@ namespace confighttp {
    *
    * @api_examples{/api/vigembus/install| POST| null}
    */
-  void installViGEmBus(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json")) {
+  void installViGEmBus(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
       return;
     }
-    if (!authenticate(response, request)) {
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
@@ -1408,58 +1497,73 @@ namespace confighttp {
 
   void start() {
     platf::set_thread_name("confighttp");
-    auto shutdown_event = mail::man->event<bool>(mail::shutdown);
+    const auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
-    auto port_https = net::map_port(PORT_HTTPS);
-    auto address_family = net::af_from_enum_string(config::sunshine.address_family);
+    const auto port_https = net::map_port(PORT_HTTPS);
+    const auto address_family = net::af_from_enum_string(config::sunshine.address_family);
 
     https_server_t server {config::nvhttp.cert, config::nvhttp.pkey};
-    server.default_resource["DELETE"] = [](resp_https_t response, req_https_t request) {
+
+    // Helper to create page handler lambdas without repeating the signature
+    auto page_handler = [](const char *file, bool require_auth = true, bool redirect_if_username = false) {
+      return [file, require_auth, redirect_if_username](const resp_https_t &response, const req_https_t &request) {
+        getPage(response, request, file, require_auth, redirect_if_username);
+      };
+    };
+
+    // Default resource handlers
+    const https_handler_t bad_request_handler = [](const resp_https_t &response, const req_https_t &request) {
       bad_request(response, request);
     };
-    server.default_resource["PATCH"] = [](resp_https_t response, req_https_t request) {
-      bad_request(response, request);
-    };
-    server.default_resource["POST"] = [](resp_https_t response, req_https_t request) {
-      bad_request(response, request);
-    };
-    server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
-      bad_request(response, request);
-    };
-    server.default_resource["GET"] = [](resp_https_t response, req_https_t request) {
+    const https_handler_t not_found_handler = [](const resp_https_t &response, const req_https_t &request) {
       not_found(response, request);
     };
-    server.resource["^/$"]["GET"] = getIndexPage;
-    server.resource["^/pin/?$"]["GET"] = getPinPage;
-    server.resource["^/apps/?$"]["GET"] = getAppsPage;
-    server.resource["^/clients/?$"]["GET"] = getClientsPage;
-    server.resource["^/config/?$"]["GET"] = getConfigPage;
-    server.resource["^/featured/?$"]["GET"] = getFeaturedPage;
-    server.resource["^/password/?$"]["GET"] = getPasswordPage;
-    server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
-    server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
-    server.resource["^/api/pin$"]["POST"] = savePin;
+
+    // error by default
+    server.default_resource["DELETE"] = bad_request_handler;
+    server.default_resource["PATCH"] = bad_request_handler;
+    server.default_resource["POST"] = bad_request_handler;
+    server.default_resource["PUT"] = bad_request_handler;
+    server.default_resource["GET"] = not_found_handler;
+
+    // web pages
+    server.resource["^/$"]["GET"] = page_handler("index.html");
+    server.resource["^/apps/?$"]["GET"] = page_handler("apps.html");
+    server.resource["^/clients/?$"]["GET"] = page_handler("clients.html");
+    server.resource["^/config/?$"]["GET"] = page_handler("config.html");
+    server.resource["^/featured/?$"]["GET"] = page_handler("featured.html");
+    server.resource["^/password/?$"]["GET"] = page_handler("password.html");
+    server.resource["^/pin/?$"]["GET"] = page_handler("pin.html");
+    server.resource["^/troubleshooting/?$"]["GET"] = page_handler("troubleshooting.html");
+    server.resource["^/welcome/?$"]["GET"] = page_handler("welcome.html", false, true);
+
+    // rest api
     server.resource["^/api/apps$"]["GET"] = getApps;
-    server.resource["^/api/logs$"]["GET"] = getLogs;
     server.resource["^/api/apps$"]["POST"] = saveApp;
+    server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
+    server.resource["^/api/apps/close$"]["POST"] = closeApp;
+    server.resource["^/api/clients/list$"]["GET"] = getClients;
+    server.resource["^/api/clients/unpair$"]["POST"] = unpair;
+    server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
     server.resource["^/api/config$"]["GET"] = getConfig;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
-    server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
+    server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/csrf-token$"]["GET"] = getCSRFToken;
+    server.resource["^/api/password$"]["POST"] = savePassword;
+    server.resource["^/api/pin$"]["POST"] = savePin;
+    server.resource["^/api/logs$"]["GET"] = getLogs;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
+    server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
-    server.resource["^/api/password$"]["POST"] = savePassword;
-    server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
-    server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
-    server.resource["^/api/clients/list$"]["GET"] = getClients;
-    server.resource["^/api/clients/unpair$"]["POST"] = unpair;
-    server.resource["^/api/apps/close$"]["POST"] = closeApp;
-    server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
+
+    // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
-    server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
+    server.resource["^/assets\\/.+$"]["GET"] = getAsset;
+
     server.config.reuse_address = true;
     server.config.address = net::get_bind_address(address_family);
     server.config.port = port_https;
@@ -1467,7 +1571,7 @@ namespace confighttp {
     auto accept_and_run = [&](auto *server) {
       try {
         platf::set_thread_name("confighttp::tcp");
-        server->start([](unsigned short port) {
+        server->start([](const unsigned short port) {
           BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
         });
       } catch (boost::system::system_error &err) {

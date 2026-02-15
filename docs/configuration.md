@@ -1606,6 +1606,35 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### csrf_allowed_origins
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Comma-separated list of additional allowed origins for CSRF protection. These origins will be
+            appended to the default allowed origins (localhost variants and the configured web UI port).
+            Requests from allowed origins can access state-changing API endpoints without CSRF tokens.
+            <br><br>
+            @attention{Only add origins you trust. Each origin must be a complete URL prefix
+            including protocol and host (e.g., https://example.com). Port numbers are optional.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty - uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
+            with configured UI port variants)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            csrf_allowed_origins = https://myapp.local,https://custom.domain.com
+            @endcode</td>
+    </tr>
+</table>
+
 ### external_ip
 
 <table>
