@@ -237,6 +237,7 @@
           logs: 'Loading...',
           logFilter: null,
           logInterval: null,
+          logOffset: 0,
           restartPressed: false,
           showApplyMessage: false,
           platform: "",
@@ -386,22 +387,69 @@
             }
           });
 
-        this.logInterval = setInterval(() => {
-          this.refreshLogs();
-        }, 5000);
         this.refreshLogs();
+        this.startLogRefresh();
         this.refreshClients();
+
+        const handleVisibilityChange = () => {
+          if (document.hidden) {
+            this.stopLogRefresh();
+          } else {
+            this.refreshLogs();
+            this.startLogRefresh();
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        this._visibilityCleanup = () => document.removeEventListener('visibilitychange', handleVisibilityChange);
       },
       beforeDestroy() {
-        clearInterval(this.logInterval);
+        this.stopLogRefresh();
+        if (this._visibilityCleanup) this._visibilityCleanup();
       },
       methods: {
-        refreshLogs() {
-          fetch("./api/logs",)
-            .then((r) => r.text())
-            .then((r) => {
-              this.logs = r;
-            });
+        startLogRefresh() {
+          this.stopLogRefresh();
+          this.logInterval = setInterval(() => this.refreshLogs(), 5000);
+        },
+        stopLogRefresh() {
+          if (this.logInterval != null) {
+            clearInterval(this.logInterval);
+            this.logInterval = null;
+          }
+        },
+        async refreshLogs() {
+          try {
+            const offset = Number(this.logOffset);
+            const headers = (!Number.isNaN(offset) && offset > 0) ? { 'X-Log-Offset': String(offset) } : {};
+            const response = await fetch('./api/logs', { headers });
+
+            if (response.status === 304) {
+              const sizeHeader = response.headers.get('X-Log-Size');
+              const size = Number.parseInt(sizeHeader || '0', 10);
+              this.logOffset = Number.isNaN(size) || size < 0 ? 0 : size;
+              return;
+            }
+
+            if (!response.ok) {
+              console.error('Failed to refresh logs: HTTP', response.status);
+              return;
+            }
+
+            const rawSize = Number.parseInt(response.headers.get('X-Log-Size') || '0', 10);
+            const newSize = Number.isNaN(rawSize) || rawSize < 0 ? 0 : rawSize;
+            const logRange = (response.headers.get('X-Log-Range') || '').trim().toLowerCase();
+            const text = await response.text();
+
+            if (logRange === 'incremental' && text.length > 0) {
+              this.logs += text;
+            } else {
+              this.logs = text;
+            }
+
+            this.logOffset = newSize;
+          } catch (e) {
+            console.error('Failed to refresh logs:', e);
+          }
         },
         closeApp() {
           this.closeAppPressed = true;
