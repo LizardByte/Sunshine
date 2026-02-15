@@ -120,6 +120,21 @@ if(LIBVA_FOUND)
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vaapi.cpp")
 endif()
 
+# vulkan video encoding (via FFmpeg)
+if(${SUNSHINE_ENABLE_VULKAN})
+    find_package(Vulkan REQUIRED)
+else()
+    set(Vulkan_FOUND OFF)
+endif()
+if(Vulkan_FOUND)
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_VULKAN=1)
+    include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
+    list(APPEND PLATFORM_LIBRARIES ${Vulkan_LIBRARIES})
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.h"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.cpp")
+endif()
+
 # wayland
 if(${SUNSHINE_ENABLE_WAYLAND})
     find_package(Wayland REQUIRED)

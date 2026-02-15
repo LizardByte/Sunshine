@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import PlatformLayout from '../../PlatformLayout.vue'
+import Checkbox from '../../Checkbox.vue'
 
 const props = defineProps([
   'platform',
@@ -97,10 +98,12 @@ const config = ref(props.config)
             <option value="amdvce">AMD AMF/VCE</option>
           </template>
           <template #freebsd>
+            <option value="vulkan">Vulkan</option>
             <option value="vaapi">VA-API</option>
           </template>
           <template #linux>
             <option value="nvenc">NVIDIA NVENC</option>
+            <option value="vulkan">Vulkan</option>
             <option value="vaapi">VA-API</option>
           </template>
           <template #macos>
@@ -111,6 +114,18 @@ const config = ref(props.config)
       </select>
       <div class="form-text">{{ $t('config.encoder_desc') }}</div>
     </div>
+
+    <!-- KMS VBlank (Linux only) -->
+    <PlatformLayout :platform="platform">
+      <template #linux>
+        <Checkbox class="mb-3"
+                  id="kms_vblank"
+                  locale-prefix="config"
+                  v-model="config.kms_vblank"
+                  default="true"
+        ></Checkbox>
+      </template>
+    </PlatformLayout>
 
   </div>
 </template>
