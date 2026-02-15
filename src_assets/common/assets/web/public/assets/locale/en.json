@@ -133,7 +133,7 @@
     "apply_note": "Click 'Apply' to restart Sunshine and apply changes. This will terminate any running sessions.",
     "audio_sink": "Audio Sink",
     "audio_sink_desc_linux": "The name of the audio sink used for Audio Loopback. If you do not specify this variable, pulseaudio will select the default monitor device. You can find the name of the audio sink using either command:",
-    "audio_sink_desc_macos": "The name of the audio sink used for Audio Loopback. Sunshine can only access microphones on macOS due to system limitations. To stream system audio using Soundflower or BlackHole.",
+    "audio_sink_desc_macos": "The name of the audio sink used for Audio Loopback. Leave this blank to use the built-in system audio capture (requires macOS 14.0 or later, using the Core Audio Tap API). Alternatively, specify a virtual device such as Soundflower or BlackHole if you prefer or are running an older version of macOS.",
     "audio_sink_desc_windows": "Manually specify a specific audio device to capture. If unset, the device is chosen automatically. We strongly recommend leaving this field blank to use automatic device selection! If you have multiple audio devices with identical names, you can get the Device ID using the following command:",
     "audio_sink_placeholder_macos": "BlackHole 2ch",
     "audio_sink_placeholder_windows": "Speakers (High Definition Audio Device)",
