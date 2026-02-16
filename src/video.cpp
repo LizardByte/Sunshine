@@ -517,24 +517,14 @@ namespace video {
   encoder_t nvenc {
     "nvenc"sv,
     std::make_unique<encoder_platform_formats_avcodec>(
-  #ifdef _WIN32
-      AV_HWDEVICE_TYPE_D3D11VA,
-      AV_HWDEVICE_TYPE_NONE,
-      AV_PIX_FMT_D3D11,
-  #else
       AV_HWDEVICE_TYPE_CUDA,
       AV_HWDEVICE_TYPE_NONE,
       AV_PIX_FMT_CUDA,
-  #endif
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
       AV_PIX_FMT_NONE,
       AV_PIX_FMT_NONE,
-  #ifdef _WIN32
-      dxgi_init_avcodec_hardware_input_buffer
-  #else
       cuda_init_avcodec_hardware_input_buffer
-  #endif
     ),
     {
       // Common options
@@ -843,6 +833,7 @@ namespace video {
       // Common options for AV1 - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
@@ -857,6 +848,7 @@ namespace video {
       // Common options for HEVC - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
@@ -871,6 +863,7 @@ namespace video {
       // Common options for H.264 - Qualcomm MF encoder
       {
         {"hw_encoding"s, 1},
+        {"low_latency"s, 1},
         {"rate_control"s, "cbr"s},
         {"scenario"s, "display_remoting"s},
       },
