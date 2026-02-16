@@ -137,6 +137,8 @@ namespace portal {
     struct pw_buffer *current_buffer;
     uint64_t drm_format;
     std::shared_ptr<shared_state_t> shared;
+    std::mutex frame_mutex;
+    std::condition_variable frame_cv;
   };
 
   struct dmabuf_format_info_t {
@@ -690,6 +692,14 @@ namespace portal {
       pw_thread_loop_destroy(loop);
     }
 
+    std::mutex &frame_mutex() {
+      return stream_data.frame_mutex;
+    }
+
+    std::condition_variable &frame_cv() {
+      return stream_data.frame_cv;
+    }
+
     void init(int stream_fd, int stream_node, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
@@ -768,9 +778,21 @@ namespace portal {
       if (stream_data.current_buffer) {
         struct spa_buffer *buf;
         buf = stream_data.current_buffer->buffer;
+        struct spa_meta_header *h;
+        h = static_cast<struct spa_meta_header *>(
+          spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
+        );
+
         if (buf->datas[0].chunk->size != 0) {
           const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
           img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
+
+          // Passthrough PipeWire metadata
+          if (h) {
+            img_descriptor->seq = h->seq;
+            img_descriptor->pts = h->pts;
+          }
+
           if (buf->datas[0].type == SPA_DATA_DmaBuf) {
             img_descriptor->sd.width = stream_data.format.info.raw.size.width;
             img_descriptor->sd.height = stream_data.format.info.raw.size.height;
@@ -898,10 +920,17 @@ namespace portal {
         return;
       }
 
-      if (d->current_buffer) {
-        pw_stream_queue_buffer(d->stream, d->current_buffer);
+      // Update current_buffer atomically
+      {
+        std::scoped_lock lock(d->frame_mutex);
+
+        if (d->current_buffer) {
+          pw_stream_queue_buffer(d->stream, d->current_buffer);
+        }
+
+        d->current_buffer = b;
       }
-      d->current_buffer = b;
+      d->frame_cv.notify_one();
     }
 
     static void on_param_changed(void *user_data, uint32_t id, const struct spa_pod *param) {
@@ -964,14 +993,18 @@ namespace portal {
         buffer_types |= 1 << SPA_DATA_MemPtr;
       }
 
-      // Ack the buffer type
+      // Ack the buffer type and metadata
       std::array<uint8_t, SPA_POD_BUFFER_SIZE> buffer;
-      std::array<const struct spa_pod *, 1> params;
+      std::array<const struct spa_pod *, 2> params;
       int n_params = 0;
       struct spa_pod_builder pod_builder = SPA_POD_BUILDER_INIT(buffer.data(), buffer.size());
       auto buffer_param = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamBuffers, SPA_PARAM_Buffers, SPA_PARAM_BUFFERS_dataType, SPA_POD_Int(buffer_types)));
       params[n_params] = buffer_param;
       n_params++;
+      auto meta_param = static_cast<const struct spa_pod *>(spa_pod_builder_add_object(&pod_builder, SPA_TYPE_OBJECT_ParamMeta, SPA_PARAM_Meta, SPA_PARAM_META_type, SPA_POD_Id(SPA_META_Header), SPA_PARAM_META_size, SPA_POD_Int(sizeof(struct spa_meta_header))));
+      params[n_params] = meta_param;
+      n_params++;
+
       pw_stream_update_params(d->stream, params.data(), n_params);
     }
 
@@ -1049,23 +1082,48 @@ namespace portal {
 
     platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool show_cursor) {
       // FIXME: show_cursor is ignored
-      if (!pull_free_image_cb(img_out)) {
-        return platf::capture_e::interrupted;
+      auto start_time = std::chrono::steady_clock::now();
+
+      while (true) {
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+
+        const auto img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
+        img_egl->reset();
+        pipewire.fill_img(img_egl);
+
+        // Check if we got valid data (either DMA-BUF fd or memory pointer)
+        bool is_valid_data = (img_egl->sd.fds[0] >= 0 || img_egl->data != nullptr);
+
+        // Duplicate detection: PipeWire seq increments on each new frame,
+        // pts advances with each buffer update. Both must advance to accept frame.
+        bool is_duplicate = (img_egl->seq.has_value() && img_egl->pts.has_value() && last_pts.has_value() && last_seq.has_value() && img_egl->pts.value() == last_pts.value() && img_egl->seq.value() == last_seq.value());
+
+        if (is_valid_data && !is_duplicate) {
+          // Frame found; check deadline
+          auto end_time = std::chrono::steady_clock::now();
+          if (end_time - start_time > timeout) {
+            return platf::capture_e::timeout;
+          }
+
+          if (img_egl->seq.has_value() && img_egl->pts.has_value()) {
+            last_seq = img_egl->seq.value();
+            last_pts = img_egl->pts.value();
+          }
+          img_egl->sequence = ++sequence;
+          return platf::capture_e::ok;
+        }
+
+        // No valid frame yet, or it was a duplicate
+        auto now = std::chrono::steady_clock::now();
+        if (now - start_time >= timeout) {
+          return platf::capture_e::timeout;
+        }
+
+        std::unique_lock lock(pipewire.frame_mutex());
+        pipewire.frame_cv().wait_until(lock, start_time + timeout);
       }
-
-      const auto img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
-      img_egl->reset();
-      pipewire.fill_img(img_egl);
-
-      // Check if we got valid data (either DMA-BUF fd or memory pointer)
-      if (img_egl->sd.fds[0] < 0 && img_egl->data == nullptr) {
-        // No buffer available yet from pipewire
-        return platf::capture_e::timeout;
-      }
-
-      img_egl->sequence = ++sequence;
-
-      return platf::capture_e::ok;
     }
 
     std::shared_ptr<platf::img_t> alloc_img() override {
@@ -1113,17 +1171,16 @@ namespace portal {
           }
         }
 
+        // Advance to (or catch up with) next delay interval
         auto now = std::chrono::steady_clock::now();
-
-        if (next_frame > now) {
-          std::this_thread::sleep_for(next_frame - now);
-          sleep_overshoot_logger.first_point(next_frame);
-          sleep_overshoot_logger.second_point_now_and_log();
+        while (next_frame < now) {
+          next_frame += delay;
         }
 
-        next_frame += delay;
-        if (next_frame < now) {  // some major slowdown happened; we couldn't keep up
-          next_frame = now + delay;
+        if (next_frame > now) {
+          std::this_thread::sleep_until(next_frame);
+          sleep_overshoot_logger.first_point(next_frame);
+          sleep_overshoot_logger.second_point_now_and_log();
         }
 
         std::shared_ptr<platf::img_t> img_out;
@@ -1281,6 +1338,8 @@ namespace portal {
     int n_dmabuf_infos;
     bool display_is_nvidia = false;  // Track if display GPU is NVIDIA
     std::chrono::nanoseconds delay;
+    std::optional<std::uint64_t> last_pts {};
+    std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};
     uint32_t framerate;
     static inline std::atomic<uint32_t> previous_height {0};
