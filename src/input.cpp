@@ -927,6 +927,11 @@ namespace input {
     };
   }
 
+  /**
+   * @brief Called to pass a touch message to the platform backend.
+   * @param input The input context pointer.
+   * @param packet The touch packet.
+   */
   void passthrough(std::shared_ptr<input_t> &input, PSS_TOUCH_PACKET packet) {
     if (!config::input.mouse) {
       return;
