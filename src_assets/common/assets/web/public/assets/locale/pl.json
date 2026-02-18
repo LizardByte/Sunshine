@@ -45,7 +45,7 @@
     "cmd_prep_desc": "Lista poleceń do uruchomienia przed/po tej aplikacji. Jeśli którekolwiek z poleceń wstępnych nie powiedzie się, uruchomienie aplikacji zostanie przerwane.",
     "cmd_prep_name": "Polecenia przygotowujące",
     "covers_found": "Znalezione okładki",
-    "cover_search_hint": "Nazwy wyszukiwań powinny odpowiadać umowom o nazwach IGDB.",
+    "cover_search_hint": "Nazwy wyszukiwań powinny być zgodne z konwencjami nazewnictwa IGDB.",
     "delete": "Usuń",
     "detached_cmds": "Polecenia odłączone",
     "detached_cmds_add": "Dodaj odłączone polecenie",
@@ -397,9 +397,9 @@
     "startup_errors": "<b>Uwaga!</b> Sunshine wykrył te błędy podczas uruchamiania. <b>ZDECYDOWANIE ZALECAMY</b> ich naprawienie przed rozpoczęciem streamowania.",
     "version_dirty": "Dziękujemy za pomoc w ulepszaniu oprogramowania Sunshine!",
     "version_latest": "Korzystasz z najnowszej wersji Sunshine",
-    "vigembus_not_installed_desc": "Wirtualna obsługa gamepad nie będzie działać bez sterownika ViGEmBus. Kliknij poniższy przycisk, aby go zainstalować.",
-    "vigembus_not_installed_title": "Kierowca ViGEmBus nie jest zainstalowany",
-    "vigembus_outdated_desc": "Używasz przestarzałej wersji ViGEmBus (v{version}). Wersja 1. Dla prawidłowego wsparcia gamepada wymagane jest 7 lub więcej. Kliknij poniższy przycisk, aby zaktualizować.",
+    "vigembus_not_installed_desc": "Obsługa wirtualnego gamepad nie będzie działać bez sterownika ViGEmBus. Kliknij poniższy przycisk, aby go zainstalować.",
+    "vigembus_not_installed_title": "Sterownik ViGEmBus nie jest zainstalowany",
+    "vigembus_outdated_desc": "Używasz przestarzałej wersji ViGEmBus (v{version}). Wersja 1.17 lub nowsza jest wymagana dla prawidłowego wsparcia gamepada. Kliknij poniższy przycisk, aby zaktualizować.",
     "vigembus_outdated_title": "Sterownik ViGEmBus nieaktualny",
     "welcome": "Witaj, Sunshine!"
   },
@@ -485,8 +485,8 @@
     "vigembus_install": "Sterownik ViGEmBus",
     "vigembus_install_button": "Zainstaluj ViGEmBus v{version}",
     "vigembus_install_error": "Nie udało się zainstalować sterownika ViGEmBus.",
-    "vigembus_install_success": "Sterownik ViGEmBus zainstalowany pomyślnie! Może być konieczne ponowne uruchomienie komputera.",
-    "vigembus_force_reinstall_button": "Wymuś ponowną instalację ViGEmBus /{version}",
+    "vigembus_install_success": "Sterownik ViGEmBus został zainstalowany pomyślnie! Może być konieczne ponowne uruchomienie komputera.",
+    "vigembus_force_reinstall_button": "Wymuś ponowną instalację ViGEmBus v{version}",
     "vigembus_not_installed": "ViGEmBus nie jest zainstalowany."
   },
   "featured": {
