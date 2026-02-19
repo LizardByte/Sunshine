@@ -1,0 +1,167 @@
+---
+- name: "Android"
+  type: "official"
+  github: "https://github.com/moonlight-stream/moonlight-android"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg"
+      alt: "Android"
+      invert: true
+  downloads:
+    - label: "Get it on Google Play"
+      url: "https://play.google.com/store/apps/details?id=com.limelight"
+      img_src: "https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+      img_height: 60
+    - label: "Available at Amazon Appstore"
+      url: "https://www.amazon.com/gp/product/B00JK4MFN2"
+      img_src: "https://images-na.ssl-images-amazon.com/images/G/01/mobile-apps/devportal2/res/images/amazon-appstore-badge-english-black.png"  # yamllint disable rule:line-length
+      img_height: 60
+      img_style: "padding: 10px;"
+    - label: "Get it on F-Droid"
+      url: "https://f-droid.org/packages/com.limelight"
+      img_src: "https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
+      img_height: 60
+
+- name: "iOS"
+  type: "official"
+  github: "https://github.com/moonlight-stream/moonlight-ios"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg"
+      alt: "iOS"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg"
+      alt: "Apple TV"
+      invert: true
+  downloads:
+    - label: "Download on the App Store"
+      url: "https://apps.apple.com/us/app/moonlight-game-streaming/id1000551566"
+      img_src: "https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+      img_height: 40
+    - label: "Download on Apple TV"
+      url: "https://apps.apple.com/us/app/moonlight-game-streaming/id1000551566"
+      img_src: "https://developer.apple.com/app-store/marketing/guidelines/images/badge-download-on-apple-tv.svg"
+      img_height: 40
+
+- name: "QT"
+  type: "official"
+  github: "https://github.com/moonlight-stream/moonlight-qt"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/linux.svg"
+      alt: "Linux"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg"
+      alt: "macOS"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/windows.svg"
+      alt: "Windows"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/steam.svg"
+      alt: "Steam"
+      invert: true
+  downloads:
+    - label: "Download on GitHub"
+      url: "https://github.com/moonlight-stream/moonlight-qt/releases"
+      icon_fa: "fab fa-github"
+      btn_class: "btn btn-info"
+
+- name: "Embedded"
+  type: "official"
+  github: "https://github.com/moonlight-stream/moonlight-embedded"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/raspberrypi.svg"
+      alt: "Raspberry Pi"
+      invert: true
+  downloads:
+    - label: "Download"
+      url: "https://github.com/irtimmer/moonlight-embedded/wiki/Packages"
+      icon_fa: "fas fa-download"
+      btn_class: "btn btn-info"
+
+- name: "Xbox One/Series"
+  type: "community"
+  github: "https://github.com/TheElixZammuto/moonlight-xbox"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/xbox.svg"
+      alt: "Xbox"
+      invert: true
+  downloads:
+    - label: "Get it from Microsoft"
+      url: "https://apps.microsoft.com/store/detail/moonlight-uwp/9MW1BS08ZBTH"
+      img_src: "https://get.microsoft.com/images/en-us%20dark.svg"
+      img_height: 40
+
+- name: "PS Vita"
+  type: "community"
+  github: "https://github.com/xyzz/vita-moonlight"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/playstationvita.svg"
+      alt: "PlayStation Vita"
+      invert: true
+  downloads:
+    - label: "Download on GitHub"
+      url: "https://github.com/xyzz/vita-moonlight/releases"
+      icon_fa: "fab fa-github"
+      btn_class: "btn btn-info"
+
+- name: "Moonlight Switch"
+  type: "community"
+  github: "https://github.com/XITRIX/Moonlight-Switch"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/nintendo-switch.svg"
+      alt: "Nintendo Switch"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg"
+      alt: "Android"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg"
+      alt: "Apple TV"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg"
+      alt: "iOS"
+      invert: true
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg"
+      alt: "macOS"
+      invert: true
+  downloads:
+    - label: "Download on GitHub"
+      url: "https://github.com/XITRIX/Moonlight-Switch/releases"
+      icon_fa: "fab fa-github"
+      btn_class: "btn btn-info"
+
+- name: "Nintendo Wii U"
+  type: "community"
+  github: "https://github.com/GaryOderNichts/moonlight-wiiu"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/wiiu.svg"
+      alt: "Wii U"
+      invert: true
+  downloads:
+    - label: "Download"
+      url: "https://github.com/GaryOderNichts/moonlight-wiiu#quick-start"
+      icon_fa: "fas fa-download"
+      btn_class: "btn btn-info"
+
+- name: "New Nintendo 3DS"
+  type: "community"
+  github: "https://github.com/zoeyjodon/moonlight-N3DS"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/nintendo3ds.svg"
+      alt: "3DS"
+      invert: true
+  downloads:
+    - label: "Download"
+      url: "https://github.com/zoeyjodon/moonlight-N3DS"
+      icon_fa: "fas fa-download"
+      btn_class: "btn btn-info"
+
+- name: "LG webOS TV"
+  type: "community"
+  github: "https://github.com/mariotaku/moonlight-tv"
+  icons:
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/lg.svg"
+      alt: "LG webOS TV"
+      invert: true
+  downloads:
+    - label: "Download"
+      url: "https://github.com/mariotaku/moonlight-tv#download"
+      icon_fa: "fas fa-download"
+      btn_class: "btn btn-info"
