@@ -325,6 +325,14 @@
             },
           },
           {
+            id: "vulkan",
+            name: "Vulkan Encoder",
+            options: {
+              "vk_tune": 2,
+              "vk_rc_mode": 3,
+            },
+          },
+          {
             id: "vaapi",
             name: "VA-API Encoder",
             options: {
@@ -382,7 +390,7 @@
           var app = document.getElementById("app");
           if (this.platform === "windows") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "vt" && el.id !== "vaapi";
+              return el.id !== "vt" && el.id !== "vaapi" && el.id !== "vulkan";
             });
           }
           if (this.platform === "freebsd" || this.platform === "linux") {
@@ -392,7 +400,7 @@
           }
           if (this.platform === "macos") {
             this.tabs = this.tabs.filter((el) => {
-              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "vaapi";
+              return el.id !== "amd" && el.id !== "nv" && el.id !== "qsv" && el.id !== "vaapi" && el.id !== "vulkan";
             });
           }
 
@@ -435,6 +443,7 @@
           'amd': 'Gpu',
           'qsv': 'Gpu',
           'vaapi': 'Gpu',
+          'vulkan': 'Gpu',
           'vt': 'Gpu',
           'sw': 'Cpu',
         };
