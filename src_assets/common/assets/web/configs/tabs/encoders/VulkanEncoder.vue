@@ -30,7 +30,7 @@ const config = ref(props.config)
         <option value="0">Auto</option>
         <option value="1">CQP (Constant QP)</option>
         <option value="2">CBR (Constant Bitrate)</option>
-        <option value="3">VBR (Variable Bitrate)</option>
+        <option value="4">VBR (Variable Bitrate)</option>
       </select>
       <div class="form-text">{{ $t('config.vk_rc_mode_desc') }}</div>
     </div>
