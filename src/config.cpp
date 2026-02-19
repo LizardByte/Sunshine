@@ -492,7 +492,7 @@ namespace config {
     {},  // output_name
     {
       2,  // vk.tune (default: ll - low latency)
-      3,  // vk.rc_mode (default: vbr)
+      4,  // vk.rc_mode (default: vbr)
     },
 
     {
