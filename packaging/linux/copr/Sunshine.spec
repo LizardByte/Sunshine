@@ -44,6 +44,8 @@ BuildRequires: openssl-devel
 BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
+BuildRequires: vulkan-headers
+BuildRequires: vulkan-loader-devel
 BuildRequires: wget
 BuildRequires: which
 
@@ -157,6 +159,7 @@ Requires: libX11 >= 1.7.3.1
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
+Requires: vulkan-loader
 %endif
 
 %if 0%{?suse_version}
@@ -173,6 +176,7 @@ Requires: libX11-6
 Requires: libnuma1
 Requires: libopenssl3
 Requires: libpulse0
+Requires: vulkan-loader
 %endif
 
 %description

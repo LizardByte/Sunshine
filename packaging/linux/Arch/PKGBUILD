@@ -50,6 +50,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'vulkan-icd-loader'
   'which'
 )
 

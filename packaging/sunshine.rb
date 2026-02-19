@@ -97,6 +97,8 @@ class Sunshine < Formula
     depends_on "pipewire"
     depends_on "pulseaudio"
     depends_on "systemd"
+    depends_on "vulkan-headers"
+    depends_on "vulkan-loader"
     depends_on "wayland"
 
     # Jinja2 is required at build time by the glad OpenGL/EGL loader generator (Linux only).
