@@ -1077,8 +1077,18 @@ namespace portal {
   class portal_t: public platf::display_t {
   public:
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+      // calculate frame interval we should capture at
       framerate = config.framerate;
-      delay = std::chrono::nanoseconds {1s} / framerate;
+      if (config.framerateX100 > 0) {
+        AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
+        delay = std::chrono::nanoseconds(
+          (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
+        );
+        BOOST_LOG(info) << "Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
+      } else {
+        delay = std::chrono::nanoseconds {1s} / framerate;
+        BOOST_LOG(info) << "Requested frame rate [" << framerate << "fps]";
+      }
       mem_type = hwdevice_type;
 
       if (get_dmabuf_modifiers() < 0) {
