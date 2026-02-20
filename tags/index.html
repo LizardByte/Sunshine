@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <!-- Beautiful Jekyll 6.0.1 | Copyright Dean Attali 2023 -->
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  
+  <!-- Load theme initialization script early to prevent flash of wrong theme -->
+  <script src="/assets/js/theme-init.js"></script>
+  
 
   
 
@@ -86,7 +91,7 @@
 
   
     
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin-bootstrap-css.css">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.219.33142/dist/crowdin-bootstrap-css.css">
     
       <link rel="stylesheet" href="/assets/css/styles.css">
     
@@ -188,7 +193,7 @@
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Downloads</a>
               <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                    <a class="dropdown-item" href="/packages">Packages</a>
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/packages">Packages</a>
                     <a class="dropdown-item" href="https://github.com/LizardByte/homebrew-homebrew">Homebrew</a>
                     <a class="dropdown-item" href="https://github.com/LizardByte/pacman-repo">Pacman</a>
               </div>
@@ -204,9 +209,18 @@
               </div>
             </li>
           
+          
+          
+            <li class="nav-item">
+              <button class="nav-link" id="theme-toggle" type="button" title="Toggle theme (currently: auto)">
+                <span id="theme-icon-button" class="fas fa-fw fa-circle-half-stroke"></span>
+                <span class="d-xl-none ms-1">Theme</span>
+              </button>
+            </li>
+          
           <li class="nav-item">
             <a class="nav-link" id="nav-search-link" href="#" title="Search">
-              <span id="nav-search-icon" class="fa fa-search"></span>
+              <span id="nav-search-icon" class="fa fa-fw fa-search"></span>
               <span id="nav-search-text">Search</span>
             </a>
           </li></ul>
@@ -506,7 +520,7 @@
 
 
   
-    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.219.33142/dist/crowdin.js"></script>
   
     <script src="/assets/js/crowdin-init.js"></script>
   

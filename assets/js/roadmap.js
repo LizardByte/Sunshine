@@ -42,7 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 const cardBody = document.createElement('div');
-                cardBody.className = 'card-body text-white p-4 rounded-0';
+                cardBody.className = 'card-body p-4 rounded-0';
 
                 // Issue title
                 const titleEl = document.createElement('h5');

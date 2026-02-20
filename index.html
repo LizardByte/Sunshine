@@ -1,9 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="light">
 <!-- Beautiful Jekyll 6.0.1 | Copyright Dean Attali 2023 -->
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+  
+  <!-- Load theme initialization script early to prevent flash of wrong theme -->
+  <script src="/assets/js/theme-init.js"></script>
+  
 
   
 
@@ -86,7 +91,7 @@
 
   
     
-      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin-bootstrap-css.css">
+      <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.219.33142/dist/crowdin-bootstrap-css.css">
     
       <link rel="stylesheet" href="/assets/css/styles.css">
     
@@ -180,7 +185,7 @@
             <li class="nav-item dropdown">
               <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">Downloads</a>
               <div class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
-                    <a class="dropdown-item" href="/packages">Packages</a>
+                    <a class="dropdown-item" href="https://app.lizardbyte.dev/packages">Packages</a>
                     <a class="dropdown-item" href="https://github.com/LizardByte/homebrew-homebrew">Homebrew</a>
                     <a class="dropdown-item" href="https://github.com/LizardByte/pacman-repo">Pacman</a>
               </div>
@@ -196,9 +201,18 @@
               </div>
             </li>
           
+          
+          
+            <li class="nav-item">
+              <button class="nav-link" id="theme-toggle" type="button" title="Toggle theme (currently: auto)">
+                <span id="theme-icon-button" class="fas fa-fw fa-circle-half-stroke"></span>
+                <span class="d-xl-none ms-1">Theme</span>
+              </button>
+            </li>
+          
           <li class="nav-item">
             <a class="nav-link" id="nav-search-link" href="#" title="Search">
-              <span id="nav-search-icon" class="fa fa-search"></span>
+              <span id="nav-search-icon" class="fa fa-fw fa-search"></span>
               <span id="nav-search-text">Search</span>
             </a>
           </li></ul>
@@ -307,7 +321,7 @@
       <!-- About section-->
 <section class="py-5" id="About">
     <div class="container px-auto">
-        <p class="lead text-center text-white mx-auto mt-0 mb-5">
+        <p class="lead text-center mx-auto mt-0 mb-5">
             Sunshine is a self-hosted game stream host for Moonlight. Offering low latency, cloud gaming
             server capabilities with support for AMD, Intel, and Nvidia GPUs for hardware encoding. Software
             encoding is also available. You can connect to Sunshine from any Moonlight client on a variety
@@ -320,122 +334,123 @@
 <!-- Features section-->
 <section class="py-5" id="Features">
     <div class="container px-auto">
-        <h2 class="text-center text-white fw-bolder my-5">Features</h2>
-        <!-- Create a card for each feature -->
+        <h2 class="text-center fw-bolder my-5">Features</h2>
         <div class="row gx-5">
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <i class="fa-fw fa-2x fas fa-server"></i>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Self-hosted</h5>
-                                <p class="mb-0">
-                                    Run Sunshine on your own hardware. No need to pay monthly fees to a
-                                    cloud gaming provider.
-                                </p>
+                                <p class="mb-0">Run Sunshine on your own hardware. No need to pay monthly fees to a cloud gaming provider.
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
-                                <img class="icon" src="https://moonlight-stream.org/images/moonlight.svg" alt="Moonlight"/>
+                            <div class="icon">
+                                
+                                <img  src="https://moonlight-stream.org/images/moonlight.svg" alt="Moonlight"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Moonlight Support</h5>
-                                <p class="mb-0">
-                                    Connect to Sunshine from any Moonlight client. Moonlight is available
-                                    for Windows, macOS, Linux, Android, iOS, Xbox, and more. See
-                                    <a class="text-white" href="#Clients">clients</a> for more information.
-                                </p>
+                                <p class="mb-0">Connect to Sunshine from any Moonlight client. Moonlight is available for Windows, macOS, Linux, Android, iOS, Xbox, and more. See <a href="#Clients">clients</a> for more information.
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <i class="fa-fw fa-2x fas fa-microchip"></i>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Hardware Encoding</h5>
-                                <p class="mb-0">
-                                    Sunshine supports AMD, Intel, and Nvidia GPUs for hardware encoding.
-                                    Software encoding is also available.
-                                </p>
+                                <p class="mb-0">Sunshine supports AMD, Intel, and Nvidia GPUs for hardware encoding. Software encoding is also available.
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
-                <div class="card bg-dark text-white rounded-0">
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <i class="fa-fw fa-2x fas fa-globe"></i>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Low Latency</h5>
-                                <p class="mb-0">
-                                    Sunshine is designed to provide the lowest latency possible to achieve optimal gaming performance.
-                                </p>
+                                <p class="mb-0">Sunshine is designed to provide the lowest latency possible to achieve optimal gaming performance.
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
-                <div class="card bg-dark text-white rounded-0">
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <i class="fa-fw fa-2x fas fa-gamepad"></i>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Control</h5>
-                                <p class="mb-0">
-                                    Sunshine emulates an Xbox, PlayStation, or Nintendo Switch controller.
-                                    Use nearly any controller on your Moonlight client!<br>
-                                    <small>
-                                      <ul>
-                                        <li>Nintendo Switch emulation is only available on Linux.</li>
-                                        <li>Gamepad emulation is not currently supported on macOS.</li>
-                                      </ul>
-                                    </small>
-                                </p>
+                                <p class="mb-0">Sunshine emulates an Xbox, PlayStation, or Nintendo Switch controller. Use nearly any controller on your Moonlight client! <br><small><ul> <li>Nintendo Switch emulation is only available on Linux.</li> <li>Gamepad emulation is not currently supported on macOS.</li> </ul></small>
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-md-6 col-lg-4 mb-5 mb-lg-0">
-                <div class="card bg-dark text-white rounded-0">
+            
+            <div class="col-md-6 col-lg-4 mb-5">
+                <div class="card-custom h-100 shadow border-0 rounded-0">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <i class="fa-fw fa-2x fas fa-gear"></i>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">Configurable</h5>
-                                <p class="mb-0">
-                                    Sunshine offers many configuration options to customize your experience.
-                                </p>
+                                <p class="mb-0">Sunshine offers many configuration options to customize your experience.
+</p>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+            
         </div>
     </div>
 </section>
@@ -443,379 +458,464 @@
 <!-- Clients section-->
 <section class="py-5" id="Clients">
     <div class="container px-auto">
-        <h2 class="text-center text-white fw-bolder my-5">Clients</h2>
-        <!-- Create a card for each client -->
+        <h2 class="text-center fw-bolder my-5">Clients</h2>
         <div class="row gx-5">
-
-            <!-- Android -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg" alt="Android"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/moonlight-stream/moonlight-android" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/moonlight-stream/moonlight-android" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         Android
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-info rounded-pill">Official</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div>
+                        
+                        <div class="pb-3">
+                            
                             <a href="https://play.google.com/store/apps/details?id=com.limelight" target="_blank">
                                 <img alt="Get it on Google Play"
-                                    src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
-                                    height="60"/>
+                                     src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
+                                     height="60"
+                                     />
                             </a>
+                            
                         </div>
-                        <div>
+                        
+                        <div class="pb-3">
+                            
                             <a href="https://www.amazon.com/gp/product/B00JK4MFN2" target="_blank">
                                 <img alt="Available at Amazon Appstore"
                                      src="https://images-na.ssl-images-amazon.com/images/G/01/mobile-apps/devportal2/res/images/amazon-appstore-badge-english-black.png"
                                      height="60"
                                      style="padding: 10px;"/>
                             </a>
+                            
                         </div>
-                        <div>
+                        
+                        <div class="">
+                            
                             <a href="https://f-droid.org/packages/com.limelight" target="_blank">
                                 <img alt="Get it on F-Droid"
                                      src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png"
-                                     height="60"/>
+                                     height="60"
+                                     />
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- ChromeOS -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
-                                <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/chromewebstore.svg" alt="Chrome Web Store"/>
+                            <div class="icon">
+                                
+                                <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg" alt="iOS"/>
+                                
+                                <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg" alt="Apple TV"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/moonlight-stream/moonlight-chrome" target="_blank" class="text-white text-decoration-none">
-                                        ChromeOS
-                                    </a>
-                                </h5>
-                            </div>
-                            <div class="ms-auto">
-                                <span class="badge text-bg-info rounded-pill">Official</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
-                            <a href="https://chrome.google.com/webstore/detail/moonlight-game-streaming/gemamigbbenahjlfnmlfdjhdnkpbkfjj" target="_blank" class="btn btn-outline-light">
-                                <img alt="Available in the Chrome Web Store"
-                                    src="https://developer.chrome.com/static/docs/webstore/branding/image/206x58-chrome-web-043497a3d766e.png"
-                                    height="30"/>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- iOS -->
-            <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
-                    <div class="card-body p-4">
-                        <div class="d-flex align-items-center">
-                            <div class="icon text-white">
-                              <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg" alt="iOS"/>
-                              <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg" alt="Apple TV"/>
-                            </div>
-                            <div class="ms-3">
-                                <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/moonlight-stream/moonlight-ios" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/moonlight-stream/moonlight-ios" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         iOS
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-info rounded-pill">Official</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
+                        
                         <div class="pb-3">
+                            
                             <a href="https://apps.apple.com/us/app/moonlight-game-streaming/id1000551566" target="_blank">
                                 <img alt="Download on the App Store"
-                                    src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
-                                    height="40"/>
+                                     src="https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg"
+                                     height="40"
+                                     />
                             </a>
+                            
                         </div>
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://apps.apple.com/us/app/moonlight-game-streaming/id1000551566" target="_blank">
                                 <img alt="Download on Apple TV"
-                                    src="https://developer.apple.com/app-store/marketing/guidelines/images/badge-download-on-apple-tv.svg"
-                                    height="40"/>
+                                     src="https://developer.apple.com/app-store/marketing/guidelines/images/badge-download-on-apple-tv.svg"
+                                     height="40"
+                                     />
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- Moonlight-QT -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/linux.svg" alt="Linux"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg" alt="macOS"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/windows.svg" alt="Windows"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/steam.svg" alt="Steam"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/moonlight-stream/moonlight-qt" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/moonlight-stream/moonlight-qt" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         QT
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-info rounded-pill">Official</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/moonlight-stream/moonlight-qt/releases" target="_blank" class="btn btn-info">
-                                <i class="fab fa-github"></i> Download on GitHub
+                                <i class="fab fa-github"></i>
+                                Download on GitHub
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- Embedded -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/raspberrypi.svg" alt="Raspberry Pi"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/moonlight-stream/moonlight-embedded" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/moonlight-stream/moonlight-embedded" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         Embedded
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-info rounded-pill">Official</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/irtimmer/moonlight-embedded/wiki/Packages" target="_blank" class="btn btn-info">
-                                <i class="fas fa-download"></i> Download
+                                <i class="fas fa-download"></i>
+                                Download
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- Xbox One/Series -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/xbox.svg" alt="Xbox"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/TheElixZammuto/moonlight-xbox" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/TheElixZammuto/moonlight-xbox" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         Xbox One/Series
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://apps.microsoft.com/store/detail/moonlight-uwp/9MW1BS08ZBTH" target="_blank">
                                 <img alt="Get it from Microsoft"
                                      src="https://get.microsoft.com/images/en-us%20dark.svg"
-                                     height="40"/>
+                                     height="40"
+                                     />
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- PS Vita -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/playstationvita.svg" alt="PlayStation Vita"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/xyzz/vita-moonlight" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/xyzz/vita-moonlight" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         PS Vita
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/xyzz/vita-moonlight/releases" target="_blank" class="btn btn-info">
-                                <i class="fab fa-github"></i> Download on GitHub
+                                <i class="fab fa-github"></i>
+                                Download on GitHub
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- Nintendo Switch -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/nintendo-switch.svg" alt="Nintendo Switch"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg" alt="Android"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg" alt="Apple TV"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg" alt="iOS"/>
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg" alt="macOS"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/XITRIX/Moonlight-Switch" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/XITRIX/Moonlight-Switch" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         Moonlight Switch
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/XITRIX/Moonlight-Switch/releases" target="_blank" class="btn btn-info">
-                                <i class="fab fa-github"></i> Download on GitHub
+                                <i class="fab fa-github"></i>
+                                Download on GitHub
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- Nintendo Wii U -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/wiiu.svg" alt="Wii U"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/GaryOderNichts/moonlight-wiiu" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/GaryOderNichts/moonlight-wiiu" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         Nintendo Wii U
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/GaryOderNichts/moonlight-wiiu#quick-start" target="_blank" class="btn btn-info">
-                                <i class="fas fa-download"></i> Download
+                                <i class="fas fa-download"></i>
+                                Download
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- New Nintendo 3DS -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/nintendo3ds.svg" alt="3DS"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/zoeyjodon/moonlight-N3DS" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/zoeyjodon/moonlight-N3DS" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         New Nintendo 3DS
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/zoeyjodon/moonlight-N3DS" target="_blank" class="btn btn-info">
-                                <i class="fas fa-download"></i> Download
+                                <i class="fas fa-download"></i>
+                                Download
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-            <!-- LG webOS TV -->
+            
             <div class="col-md-6 col-lg-4 mb-5">
-                <div class="card bg-dark text-white rounded-0">
+                <div class="card-custom h-100 shadow border-0 rounded-0 d-flex flex-column">
                     <div class="card-body p-4">
                         <div class="d-flex align-items-center">
-                            <div class="icon text-white">
+                            <div class="icon">
+                                
                                 <img class="invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/lg.svg" alt="LG webOS TV"/>
+                                
                             </div>
                             <div class="ms-3">
                                 <h5 class="fw-bolder mb-0">
-                                    <a href="https://github.com/mariotaku/moonlight-tv" target="_blank" class="text-white text-decoration-none">
+                                    <a href="https://github.com/mariotaku/moonlight-tv" target="_blank" class="text-decoration-none project-card-link crowdin-ignore">
                                         LG webOS TV
                                     </a>
                                 </h5>
                             </div>
                             <div class="ms-auto">
+                                
                                 <span class="badge text-bg-warning rounded-pill">Community</span>
+                                
                             </div>
                         </div>
                     </div>
+                    
                     <div class="card-footer p-3 px-4">
-                        <div class="pb-3">
+                        
+                        <div class="">
+                            
                             <a href="https://github.com/mariotaku/moonlight-tv#download" target="_blank" class="btn btn-info">
-                                <i class="fas fa-download"></i> Download
+                                <i class="fas fa-download"></i>
+                                Download
                             </a>
+                            
                         </div>
+                        
                     </div>
+                    
                 </div>
             </div>
-
-
+            
         </div>
     </div>
 </section>
@@ -825,7 +925,7 @@
     <div class="container col-md-10">
         <!-- Docs section -->
         <section class="py-4" id="Docs">
-            <div class="card bg-dark text-white rounded-0">
+            <div class="card-custom shadow border-0 rounded-0">
                 <div class="card-body p-4">
                     <div class="d-flex align-items-center">
                         <i class="fa-fw fa-2x fas fa-book"></i>
@@ -838,7 +938,7 @@
                     </div>
                 </div>
                 <div class="card-footer p-3 px-4">
-                    <a class="btn btn-outline-light me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://docs.lizardbyte.dev/projects/sunshine" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/readthedocs.svg" alt="ReadTheDocs"/>
                         Read the Docs
                     </a>
@@ -848,7 +948,7 @@
 
         <!-- Download section -->
         <section class="py-4" id="Download">
-            <div class="card bg-dark text-white rounded-0">
+            <div class="card-custom shadow border-0 rounded-0">
                 <div class="card-body p-4">
                     <div class="d-flex align-items-center">
                         <i class="fa-fw fa-2x fas fa-download"></i>
@@ -861,7 +961,7 @@
                     </div>
                 </div>
                 <div class="card-footer p-3 px-4">
-                    <a class="latest-button btn btn-outline-light me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
+                    <a class="latest-button btn btn-outline-theme me-3 mb-3 d-none" href="https://github.com/LizardByte/Sunshine/releases/latest" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/github.svg" alt="GitHub"/>
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/windows.svg" alt="Windows"/>
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/debian.svg" alt="Debian"/>
@@ -870,7 +970,7 @@
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/linux.svg" alt="AppImage"/>
                             Latest: <span id="latest-version" class="crowdin-ignore"></span>
                     </a>
-                    <a class="beta-button btn btn-outline-light me-3 mb-3 d-none" href="#" target="_blank">
+                    <a class="beta-button btn btn-outline-theme me-3 mb-3 d-none" href="#" target="_blank">
                         <i class="fa-fw fa-lg fas fa-flask"></i>
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/windows.svg" alt="Windows"/>
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/debian.svg" alt="Debian"/>
@@ -879,19 +979,19 @@
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/linux.svg" alt="AppImage"/>
                             Beta: <span id="beta-version" class="crowdin-ignore"></span>
                     </a>
-                    <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/pacman-repo" target="_blank">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/pacman-repo" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/archlinux.svg" alt="Arch Linux"/>
                             Arch Linux
                     </a>
-                    <a class="btn btn-outline-light me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://hub.docker.com/r/lizardbyte/sunshine" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/docker.svg" alt="Docker"/>
                             Docker
                     </a>
-                    <a class="btn btn-outline-light me-3 mb-3" href="https://flathub.org/apps/dev.lizardbyte.app.Sunshine" target="_blank">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://flathub.org/apps/dev.lizardbyte.app.Sunshine" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/flathub.svg" alt="Flathub"/>
                             Flathub
                     </a>
-                    <a class="btn btn-outline-light me-3 mb-3" href="https://github.com/LizardByte/homebrew-homebrew" target="_blank">
+                    <a class="btn btn-outline-theme me-3 mb-3" href="https://github.com/LizardByte/homebrew-homebrew" target="_blank">
                         <img class="icon-sm invert" src="https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/homebrew.svg" alt="Homebrew"/>
                             Homebrew
                     </a>
@@ -1006,7 +1106,7 @@
             <!-- Support -->
 <section class="p-5" id="Support">
     <div class="mx-auto mb-5">
-        <div class="container shadow border-0 bg-primary rounded-0">
+        <div class="container shadow border-0 bg-primary text-white rounded-0">
             <div class="d-table-row g-0">
                 <div class="d-table-cell px-4 align-middle text-center">
                     <h3 class="fw-bolder">Support Center</h3>
@@ -1204,7 +1304,7 @@
 
 
   
-    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2025.326.11214/dist/crowdin.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@lizardbyte/shared-web@2026.219.33142/dist/crowdin.js"></script>
   
     <script src="/assets/js/crowdin-init.js"></script>
   

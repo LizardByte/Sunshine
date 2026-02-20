@@ -17,6 +17,24 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
+    // Watch for theme changes to update button images
+    const themeObserver = new MutationObserver(function(mutations) {
+        mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
+                // Theme changed, reinitialize buttons with new color scheme
+                if (activeGamepadIndex !== null) {
+                    initGamepadButtons();
+                }
+            }
+        });
+    });
+
+    // Start observing theme changes on the document element
+    themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-bs-theme']
+    });
+
     // Setup gamepad event listeners
     window.addEventListener("gamepadconnected", function(e) {
         gamepads[e.gamepad.index] = e.gamepad;
@@ -105,10 +123,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Mark active gamepad card
                 if (isActive) {
                     card.classList.add('border-primary');
-                    card.style.backgroundColor = 'rgba(13, 110, 253, 0.15)';
                 } else {
                     card.classList.add('border-secondary');
-                    card.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
                 }
 
                 const cardBody = document.createElement('div');
@@ -120,12 +136,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 cardBody.innerHTML = `
                     <div class="d-flex align-items-center">
                         <div class="me-2">
-                            <i class="fas fa-gamepad fa-2x ${isActive ? 'text-primary' : 'text-light'}"></i>
+                            <i class="fas fa-gamepad fa-2x ${isActive ? 'text-primary' : ''}"></i>
                         </div>
                         <div class="flex-grow-1">
-                            <div class="fw-bold small text-truncate text-white">${typeInfo.name}</div>
-                            <div class="text-light opacity-75" style="font-size: 0.75rem;">Index: ${index}</div>
-                            <div class="text-light opacity-75" style="font-size: 0.7rem;">${gamepadInfo.buttons.length} buttons, ${gamepadInfo.axes.length} axes</div>
+                            <div class="fw-bold small text-truncate">${typeInfo.name}</div>
+                            <div class="opacity-75" style="font-size: 0.75rem;">Index: ${index}</div>
+                            <div class="opacity-75" style="font-size: 0.7rem;">${gamepadInfo.buttons.length} buttons, ${gamepadInfo.axes.length} axes</div>
                         </div>
                         <div class="ms-2" style="min-width: 50px; text-align: right;">
                             ${isActive ? '<span class="badge bg-primary">Active</span>' : ''}
@@ -160,12 +176,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const controllerType = gamepadHelper.detectControllerType(gamepad.id);
 
+        // Detect current theme - use Black icons for light theme, White icons for dark theme
+        const isDarkTheme = document.documentElement.dataset.bsTheme === 'dark';
+        const colorScheme = isDarkTheme ? 'White' : 'Black';
+
         for (let i = 0; i < gamepad.buttons.length; i++) {
             const buttonName = gamepadHelper.getButtonName(controllerType, i);
             const buttonImagePath = gamepadHelper.getButtonImagePath(
                 controllerType,
                 i,
                 `https://cdn.jsdelivr.net/npm/@lizardbyte/gamepad-helper@${gamepadHelperVersion}/assets/img/gamepads/`,
+                colorScheme
             );
 
             const buttonDiv = document.createElement('div');

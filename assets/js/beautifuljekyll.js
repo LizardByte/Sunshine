@@ -6,6 +6,9 @@ let BeautifulJekyllJS = {
   numImgs: null,
 
   init: function() {
+    // Initialize theme switcher before other components
+    BeautifulJekyllJS.initTheme();
+
     setTimeout(BeautifulJekyllJS.initNavbar, 10);
 
     let navbar = document.querySelector(".navbar");
@@ -31,6 +34,129 @@ let BeautifulJekyllJS = {
     BeautifulJekyllJS.initImgs();
 
     BeautifulJekyllJS.initSearch();
+  },
+
+  initTheme: function() {
+    // Check if theme switcher is enabled (either dropdown or toggle button should exist)
+    const themeDropdown = document.getElementById('themeDropdown');
+    const themeToggle = document.getElementById('theme-toggle');
+    const isDropdownMode = !!themeDropdown;
+    const isButtonMode = !!themeToggle;
+
+    if (!isDropdownMode && !isButtonMode) {
+      // Theme switcher not enabled, skip initialization
+      return;
+    }
+
+    // Get stored theme preference or default to 'auto'
+    const getStoredTheme = () => localStorage.getItem('theme');
+    const setStoredTheme = theme => localStorage.setItem('theme', theme);
+
+    // Get the preferred theme based on user's selection or system preference
+    const getPreferredTheme = () => {
+      const storedTheme = getStoredTheme();
+      if (storedTheme) {
+        return storedTheme;
+      }
+      return 'auto';
+    };
+
+    // Get the actual theme to apply (light or dark), resolving 'auto' to system preference
+    const getThemeToApply = (theme) => {
+      if (theme === 'auto') {
+        return globalThis.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      return theme;
+    };
+
+    // Get the next theme in cycle for button mode (auto -> light -> dark -> auto)
+    const getNextTheme = (currentTheme) => {
+      if (currentTheme === 'auto') return 'light';
+      if (currentTheme === 'light') return 'dark';
+      return 'auto';
+    };
+
+    // Update the title attribute with current theme
+    const updateTitle = (theme) => {
+      if (themeToggle) {
+        const themeNames = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+        themeToggle.setAttribute('title', `Toggle theme (currently: ${themeNames[theme]})`);
+      }
+    };
+
+    // Set the theme on the document
+    const setTheme = (theme) => {
+      const themeToApply = getThemeToApply(theme);
+      document.documentElement.dataset.bsTheme = themeToApply;
+
+      // Update navbar classes after theme change
+      setTimeout(BeautifulJekyllJS.initNavbar, 10);
+
+      // Update active state of theme dropdown items (dropdown mode only)
+      if (isDropdownMode) {
+        const themeDropdownItems = document.querySelectorAll('[data-bs-theme-value]');
+        themeDropdownItems.forEach(item => {
+          const itemTheme = item.dataset.bsThemeValue;
+          if (itemTheme === theme) {
+            item.classList.add('active');
+          } else {
+            item.classList.remove('active');
+          }
+        });
+      }
+
+      // Update the theme icon in the navbar
+      const themeIcon = document.getElementById('theme-icon-dropdown') || document.getElementById('theme-icon-button');
+      if (themeIcon) {
+        themeIcon.classList.remove('fa-sun', 'fa-moon', 'fa-circle-half-stroke');
+        if (theme === 'light') {
+          themeIcon.classList.add('fa-sun');
+        } else if (theme === 'dark') {
+          themeIcon.classList.add('fa-moon');
+        } else {
+          themeIcon.classList.add('fa-circle-half-stroke');
+        }
+      }
+
+      // Update title for button mode
+      if (isButtonMode) {
+        updateTitle(theme);
+      }
+    };
+
+    // Initialize theme
+    setTheme(getPreferredTheme());
+
+    // Listen for system theme changes when in auto mode
+    globalThis.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      const storedTheme = getStoredTheme();
+      if (storedTheme === 'auto' || !storedTheme) {
+        setTheme('auto');
+      }
+    });
+
+    // Add event listeners based on mode
+    if (isDropdownMode) {
+      // Dropdown mode: add click listeners to each dropdown item
+      const themeDropdownItems = document.querySelectorAll('[data-bs-theme-value]');
+      themeDropdownItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          const theme = item.dataset.bsThemeValue;
+          setStoredTheme(theme);
+          setTheme(theme);
+        });
+      });
+    } else if (isButtonMode) {
+      // Button mode: cycle through themes on click
+      themeToggle.addEventListener('click', (e) => {
+        e.preventDefault();
+        const currentTheme = getPreferredTheme();
+        const nextTheme = getNextTheme(currentTheme);
+        setStoredTheme(nextTheme);
+        setTheme(nextTheme);
+      });
+    }
   },
 
   initNavbar: function() {
