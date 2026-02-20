@@ -139,6 +139,19 @@ namespace portal {
     std::shared_ptr<shared_state_t> shared;
     std::mutex frame_mutex;
     std::condition_variable frame_cv;
+    size_t local_stride = 0;
+    bool frame_ready = false;
+    // Two distinct memory pools
+    std::vector<uint8_t> buffer_a;
+    std::vector<uint8_t> buffer_b;
+    // Points to the buffer currently owned by fill_img
+    std::vector<uint8_t> *front_buffer;
+    // Points to the buffer currently being written by on_process
+    std::vector<uint8_t> *back_buffer;
+
+    stream_data_t():
+        front_buffer(&buffer_a),
+        back_buffer(&buffer_b) {}
   };
 
   struct dmabuf_format_info_t {
@@ -721,9 +734,18 @@ namespace portal {
     void cleanup_stream() {
       if (loop && stream_data.stream) {
         pw_thread_loop_lock(loop);
+
+        // 1. Lock the frame mutex to stop fill_img
+        {
+          std::scoped_lock lock(stream_data.frame_mutex);
+          stream_data.frame_ready = false;
+          stream_data.current_buffer = nullptr;
+        }
+
         pw_stream_disconnect(stream_data.stream);
         pw_stream_destroy(stream_data.stream);
         stream_data.stream = nullptr;
+
         pw_thread_loop_unlock(loop);
       }
       session_cache_t::instance().invalidate();
@@ -775,19 +797,28 @@ namespace portal {
     void fill_img(platf::img_t *img) {
       pw_thread_loop_lock(loop);
 
-      if (stream_data.current_buffer) {
-        struct spa_buffer *buf;
-        buf = stream_data.current_buffer->buffer;
-        struct spa_meta_header *h;
-        h = static_cast<struct spa_meta_header *>(
-          spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
-        );
+      // 1. Lock the frame mutex immediately to protect against on_process reallocations
+      std::scoped_lock lock(stream_data.frame_mutex);
+
+      // Check if the stream is marked dead by modesetting logic
+      if (stream_data.shared && stream_data.shared->stream_dead.load()) {
+        img->data = nullptr;
+        pw_thread_loop_unlock(loop);
+        return;
+      }
+
+      // 2. Validate we have a buffer and a signal that it's "new"
+      if (stream_data.current_buffer && stream_data.frame_ready) {
+        struct spa_buffer *buf = stream_data.current_buffer->buffer;
 
         if (buf->datas[0].chunk->size != 0) {
           const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
           img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
 
           // Passthrough PipeWire metadata
+          struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
+            spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
+          );
           if (h) {
             img_descriptor->seq = h->seq;
             img_descriptor->pts = h->pts;
@@ -805,10 +836,18 @@ namespace portal {
               img_descriptor->sd.offsets[i] = buf->datas[i].chunk->offset;
             }
           } else {
-            img->data = static_cast<std::uint8_t *>(buf->datas[0].data);
-            img->row_pitch = buf->datas[0].chunk->stride;
+            // Point the encoder to the front buffer
+            img->data = stream_data.front_buffer->data();
+            img->row_pitch = stream_data.local_stride;
+
+            // Reset flags
+            stream_data.frame_ready = false;
+            stream_data.current_buffer = nullptr;
           }
         }
+      } else {
+        // No new frame ready, or buffer was cleared during reinit
+        img->data = nullptr;
       }
 
       pw_thread_loop_unlock(loop);
@@ -889,47 +928,66 @@ namespace portal {
         case PW_STREAM_STATE_PAUSED:
           // Trigger a reinit to identify if changes occurred
           if (d->shared && old == PW_STREAM_STATE_STREAMING) {
+            std::scoped_lock lock(d->frame_mutex);
+            d->frame_ready = false;
+            d->current_buffer = nullptr;
             d->shared->stream_dead.store(true, std::memory_order_relaxed);
           }
           break;
-        case PW_STREAM_STATE_CONNECTING:
-        case PW_STREAM_STATE_STREAMING:
         default:
           break;
       }
-      return;
     }
 
     static void on_process(void *user_data) {
       const auto d = static_cast<struct stream_data_t *>(user_data);
       struct pw_buffer *b = nullptr;
 
-      while (true) {
-        struct pw_buffer *aux = pw_stream_dequeue_buffer(d->stream);
-        if (!aux) {
-          break;
-        }
+      // 1. Drain the queue: Always grab the most recent buffer
+      while (struct pw_buffer *aux = pw_stream_dequeue_buffer(d->stream)) {
         if (b) {
-          pw_stream_queue_buffer(d->stream, b);
+          pw_stream_queue_buffer(d->stream, b);  // Return the older, unused buffer
         }
         b = aux;
       }
 
-      if (b == nullptr) {
-        BOOST_LOG(warning) << "out of pipewire buffers"sv;
+      if (!b) {
         return;
       }
 
-      // Update current_buffer atomically
-      {
+      // 2. Fast Path: DMA-BUF
+      if (b->buffer->datas[0].type == SPA_DATA_DmaBuf) {
         std::scoped_lock lock(d->frame_mutex);
-
         if (d->current_buffer) {
           pw_stream_queue_buffer(d->stream, d->current_buffer);
         }
-
         d->current_buffer = b;
+        d->frame_ready = true;
       }
+      // 3. Optimized Path: Software/MemPtr
+      else if (b->buffer->datas[0].data != nullptr) {
+        size_t size = b->buffer->datas[0].chunk->size;
+
+        // Perform the copy to the BACK buffer while NOT holding the lock
+        if (d->back_buffer->size() < size) {
+          d->back_buffer->resize(size);
+        }
+        std::memcpy(d->back_buffer->data(), b->buffer->datas[0].data, size);
+
+        {
+          // Lock only for the pointer swap and state update
+          std::scoped_lock lock(d->frame_mutex);
+          std::swap(d->front_buffer, d->back_buffer);
+
+          d->local_stride = b->buffer->datas[0].chunk->stride;
+          d->frame_ready = true;
+          d->current_buffer = b;
+        }
+
+        // Release the PW buffer immediately after copy
+        pw_stream_queue_buffer(d->stream, b);
+      }
+
       d->frame_cv.notify_one();
     }
 
