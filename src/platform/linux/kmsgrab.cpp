@@ -60,7 +60,8 @@ namespace platf {
 
     class wrapper_fb {
     public:
-      wrapper_fb(drmModeFB *fb):
+      wrapper_fb(uint32_t card_fd, drmModeFB *fb):
+          card_fd {card_fd},
           fb {fb},
           fb_id {fb->fb_id},
           width {fb->width},
@@ -74,7 +75,8 @@ namespace platf {
         pitches[0] = fb->pitch;
       }
 
-      wrapper_fb(drmModeFB2 *fb2):
+      wrapper_fb(uint32_t card_fd, drmModeFB2 *fb2):
+          card_fd {card_fd},
           fb2 {fb2},
           fb_id {fb2->fb_id},
           width {fb2->width},
@@ -88,6 +90,15 @@ namespace platf {
       }
 
       ~wrapper_fb() {
+        std::ranges::for_each(handles, [&](auto &handle) {
+          if (handle) {
+            struct drm_gem_close close_args = {};
+            close_args.handle = handle;
+
+            drmIoctl(card_fd, DRM_IOCTL_GEM_CLOSE, &close_args);
+          }
+        });
+
         if (fb) {
           drmModeFreeFB(fb);
         } else if (fb2) {
@@ -95,6 +106,7 @@ namespace platf {
         }
       }
 
+      uint32_t card_fd;
       drmModeFB *fb = nullptr;
       drmModeFB2 *fb2 = nullptr;
       uint32_t fb_id;
@@ -359,12 +371,12 @@ namespace platf {
 
         auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
         if (fb2) {
-          return std::make_unique<wrapper_fb>(fb2);
+          return std::make_unique<wrapper_fb>(fd.el, fb2);
         }
 
         auto fb = drmModeGetFB(fd.el, plane->fb_id);
         if (fb) {
-          return std::make_unique<wrapper_fb>(fb);
+          return std::make_unique<wrapper_fb>(fd.el, fb);
         }
 
         return nullptr;
