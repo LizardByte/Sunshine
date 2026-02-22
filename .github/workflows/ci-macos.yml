@@ -1,0 +1,187 @@
+---
+name: CI-macOS
+permissions: {}
+
+on:
+  workflow_call:
+    inputs:
+      release_commit:
+        required: true
+        type: string
+      release_version:
+        required: true
+        type: string
+    secrets:
+      # email address
+      APPLE_ID:
+        required: false
+      # 10-character Team ID
+      APPLE_TEAM_ID:
+        required: false
+      # app-specific password in APPLE_ID's account that must be named "notarytool"
+      # https://support.apple.com/en-us/102654
+      APPLE_NOTARYTOOL_PASSWORD:
+        required: false
+      # Developer ID Application: Full Name (TEAMIDHERE)
+      CODESIGN_IDENTITY:
+        required: false
+      # pkcs12 export from Xcode in base64
+      DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64:
+        required: false
+      # pkcs12 password added by Xcode export
+      DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD:
+        required: false
+
+env:
+  BRANCH: ${{ github.head_ref || github.ref_name }}
+  BUILD_VERSION: ${{ inputs.release_version }}
+  COMMIT: ${{ inputs.release_commit }}
+
+jobs:
+  build_dmg:
+    name: ${{ matrix.name }}
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "macos-14"
+            name: "macOS-arm64"
+          - os: "macos-15-intel"
+            name: "macOS-x86_64"
+    steps:
+      - name: Install Apple certificate
+        uses: apple-actions/import-codesign-certs@b610f78488812c1e56b20e6df63ec42d833f2d14  # v6.0.0
+        if: github.event_name == 'push'
+        with:
+          p12-file-base64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          submodules: recursive
+
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: |
+          brew install --force \
+            cmake \
+            node \
+            pkgconf \
+            icu4c@78 \
+            miniupnpc \
+            openssl@3 \
+            opus
+
+          # install gcvor
+          python -m pip install gcovr
+
+      - name: Configure
+        env:
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        run: |
+          mkdir -p build
+          cmake \
+            -B build \
+            -S . \
+            -DBUILD_DOCS=OFF \
+            -DBUILD_TESTS=ON \
+            -DBUILD_WERROR=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
+            -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
+            -DSUNSHINE_BUILD_HOMEBREW=OFF \
+            -DSUNSHINE_ENABLE_TRAY=ON \
+            -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
+            -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
+            -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
+            -DCODESIGN_IDENTITY="${CODESIGN_IDENTITY}"
+
+      - name: Build
+        run: cmake --build build -j "$(sysctl -n hw.ncpu)"
+
+      - name: Package DMG
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+        run: |
+          SHOULD_SIGN=0
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            SHOULD_SIGN=1
+          fi
+          export SHOULD_SIGN
+
+          # build DMG and sign everything (see cmake/packaging/macos.cmake)
+          # cpack can rarely fail with "hdiutil: create failed - Resource busy"
+          # so let's allow 1 retry
+          if ! cpack -G DragNDrop --config build/CPackConfig.cmake; then
+            echo "cpack failed, retrying once with verbose..."
+            if ! cpack -G DragNDrop --config build/CPackConfig.cmake --verbose; then
+              echo "cpack failed again. Aborting."
+              exit 1
+            fi
+          fi
+
+          # Notarize
+          if [[ $SHOULD_SIGN == 1 && -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
+            # Notarizing allows the signed .app to run on any Mac with no prompts.
+            # If you don't notarize, users must jump through the "Open Anyway" hoop as well as run
+            # `xattr -cr /Applications/Sunshine.app` to remove quarantine.
+            if [[ -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
+              xcrun notarytool submit build/cpack_artifacts/Sunshine.dmg \
+                --apple-id "${APPLE_ID}" \
+                --team-id "${APPLE_TEAM_ID}" \
+                --password "${APPLE_NOTARYTOOL_PASSWORD}" \
+                --wait
+              xcrun stapler staple -v build/cpack_artifacts/Sunshine.dmg
+            fi
+          fi
+
+          mkdir -p artifacts
+          mv build/cpack_artifacts/Sunshine.dmg \
+            artifacts/Sunshine-${{ matrix.name }}.dmg
+
+      - name: Test
+        id: test
+        working-directory: build/tests
+        run: ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      - name: Generate gcov report
+        id: test_report
+        # any except canceled or skipped
+        if: >-
+          always() &&
+          (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
+        working-directory: build
+        run: |
+          python -m gcovr . -r ../src \
+            --exclude-noncode-lines \
+            --exclude-throw-branches \
+            --exclude-unreachable-branches \
+            --xml-pretty \
+            -j "$(sysctl -n hw.ncpu)" \
+            -o coverage.xml
+
+      - name: Upload coverage artifact
+        if: >-
+          always() &&
+          (steps.test_report.outcome == 'success')
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: coverage-${{ matrix.name }}
+          path: |
+            build/coverage.xml
+            build/tests/test_results.xml
+          if-no-files-found: error
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: build-${{ matrix.name }}
+          path: artifacts/
+          if-no-files-found: error

@@ -89,6 +89,24 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
 
+  build-macos:
+    name: macOS
+    needs: release-setup
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-macos.yml
+    with:
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+      CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+      DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+      DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD: >-
+        ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
+
   build-linux:
     name: Linux
     needs: release-setup
@@ -161,6 +179,7 @@ jobs:
       - build-linux
       - build-archlinux
       - build-linux-flatpak
+      - build-macos
       - build-homebrew
       - build-windows
     permissions:
@@ -180,6 +199,12 @@ jobs:
             coverage: true
             pr: true
           - name: Archlinux
+            coverage: true
+            pr: true
+          - name: macOS-arm64
+            coverage: true
+            pr: true
+          - name: macOS-x86_64
             coverage: true
             pr: true
           - name: Homebrew-macos-14

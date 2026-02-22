@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Note: This script is not used by CI, and is only for manually building/signing the .app.
+# Changes made to this script should also be made in ci-macos.yml.
 set -euo pipefail
 
 # Default value for arguments
@@ -7,16 +9,18 @@ publisher_name="LizardByte"
 publisher_website="https://app.lizardbyte.dev"
 publisher_issue_url="https://app.lizardbyte.dev/support"
 step="all"
-build_docs="ON"
+build_docs="OFF"
+build_tests="ON"
 build_type="Release"
-build_system="Unix Makefiles"
+sign_app="true"
 
 # environment variables
-BUILD_VER=""
+# BUILD_VERSION should be empty or cmake will assume a CI build
+BUILD_VERSION=""
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 COMMIT=$(git rev-parse --short HEAD)
 
-export BUILD_VER
+export BUILD_VERSION
 export BRANCH
 export COMMIT
 
@@ -38,9 +42,14 @@ function _usage() {
   local exit_code=$1
 
   cat <<EOF
-This script installs the dependencies and builds the project.
-The script is intended to be run on an Apple Silicon Mac,
-but may work on Intel as well.
+This script builds a macOS .app bundle packaged inside a .dmg.
+
+If the environment variable CODESIGN_IDENTITY is set, the app will be signed.
+This must be a "Developer ID" identity.
+
+For others to be able to open the .dmg, it must be notarized. Create a keychain profile named
+"notarytool-password" based on the instructions at
+https://developer.apple.com/documentation/security/customizing-the-notarization-workflow?language=objc
 
 Usage:
   $0 [options]
@@ -52,14 +61,17 @@ Options:
   --publisher-website      The URL of the publisher's website.
   --publisher-issue-url    The URL of the publisher's support site or issue tracker.
                            If you provide a modified version of Sunshine, we kindly request that you use your own url.
-  --step                   Which step(s) to run: deps, cmake, build, or all (default: all)
+  --step=STEP              Which step(s) to run: deps, cmake, build, dmg, or all (default: all)
   --debug                  Build in debug mode.
-  --skip-docs              Don't build docs.
+  --build-docs             Build docs.
+  --skip-tests             Don't build the test suite.
+  --skip-codesign          Don't sign/notarize the bundle.
 
 Steps:
   deps                     Install dependencies only
   cmake                    Run cmake configure only
   build                    Build the project only
+  dmg                      Create a DMG package
   all                      Run all steps (default)
 EOF
 
@@ -79,18 +91,25 @@ function run_step_cmake() {
   # prepare CMAKE args
   cmake_args=(
     "-B=build"
-    "-G=${build_system}"
     "-S=."
-    "-DCMAKE_BUILD_TYPE=${build_type}"
-    "-DBUILD_WERROR=ON"
-    "-DHOMEBREW_ALLOW_FETCHCONTENT=ON"
-    "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
-    "-DSUNSHINE_ASSETS_DIR=sunshine/assets"
-    "-DSUNSHINE_BUILD_HOMEBREW=ON"
-    "-DSUNSHINE_ENABLE_TRAY=ON"
     "-DBUILD_DOCS=${build_docs}"
-    "-DBOOST_USE_STATIC=OFF"
+    "-DBUILD_TESTS=${build_tests}"
+    "-DBUILD_WERROR=ON"
+    "-DCMAKE_BUILD_TYPE=${build_type}"
+    "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
+    "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
+    "-DSUNSHINE_BUILD_HOMEBREW=OFF"
+    "-DSUNSHINE_ENABLE_TRAY=ON"
   )
+
+  if [[ -n "${sign_app}" ]]; then
+    if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
+      cmake_args+=("-DCODESIGN_IDENTITY='${CODESIGN_IDENTITY}'")
+    else
+      echo "Please set the CODESIGN_IDENTITY environment variable or use --skip-codesign"
+      exit 1
+    fi
+  fi
 
   # Publisher metadata
   if [[ -n "$publisher_name" ]]; then
@@ -113,12 +132,26 @@ function run_step_cmake() {
 
 function run_step_build() {
   echo "Running step: Build"
-  make -C "${build_dir}" -j "${num_processors}"
+  cmake --build "${build_dir}" -j "${num_processors}"
+  return 0
+}
 
-  echo "*** To complete installation, run:"
-  echo
-  echo "  sudo make -C \"${build_dir}\" install"
-  echo "  /usr/local/bin/sunshine"
+function run_step_dmg() {
+  echo "Running step: Creating DMG package"
+
+  # This variable is needed by cmake/packaging/macos.cmake
+  SHOULD_SIGN=0
+  if [[ -n "${sign_app}" ]]; then
+    SHOULD_SIGN=1
+  fi
+  export SHOULD_SIGN
+
+  cpack -G DragNDrop --config "${build_dir}/CPackConfig.cmake" --verbose
+
+  if [[ -n "${sign_app}" ]]; then
+    xcrun notarytool submit "${build_dir}/cpack_artifacts/Sunshine.dmg" --keychain-profile "notarytool-password" --wait
+    xcrun stapler staple -v "${build_dir}/cpack_artifacts/Sunshine.dmg"
+  fi
   return 0
 }
 
@@ -133,14 +166,17 @@ function run_install() {
     build)
       run_step_build
       ;;
+    dmg)
+      run_step_dmg
+      ;;
     all)
-      run_step_deps
       run_step_cmake
       run_step_build
+      run_step_dmg
       ;;
     *)
       echo "Invalid step: $step"
-      echo "Valid steps are: deps, cmake, build, all"
+      echo "Valid steps are: deps, cmake, build, dmg, all"
       exit 1
       ;;
   esac
@@ -172,8 +208,14 @@ while getopts ":h-:" opt; do
         debug)
           build_type="Debug"
           ;;
-        skip-docs)
-          build_docs="OFF"
+        build-docs)
+          build_docs="ON"
+          ;;
+        skip-tests)
+          build_tests="OFF"
+          ;;
+        skip-codesign)
+         sign_app=""
           ;;
         *)
           echo "Invalid option: --${OPTARG}" 1>&2

@@ -1,8 +1,8 @@
 # unix specific packaging
 # put anything here that applies to both linux and macos
 
-# return here if building a macos package
-if(SUNSHINE_PACKAGE_MACOS)
+# return here if building a macos .app
+if(APPLE AND NOT SUNSHINE_BUILD_HOMEBREW)
     return()
 endif()
 
