@@ -1171,6 +1171,14 @@ namespace video {
           return;
         }
       }
+
+      // If output_name is a connector name (e.g. "DP-2") rather than a numeric
+      // index, it won't match the numeric display_names list. Add it directly
+      // so display_t::init() can resolve the connector name.
+      if (!output_name.empty()) {
+        display_names.emplace_back(output_name);
+        current_display_index = display_names.size() - 1;
+      }
     }
   }
 

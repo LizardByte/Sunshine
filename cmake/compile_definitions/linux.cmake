@@ -136,8 +136,11 @@ if(WAYLAND_FOUND)
         pkg_check_modules(WAYLAND_PROTOCOLS wayland-protocols REQUIRED)
     endif()
 
+    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "stable/linux-dmabuf" linux-dmabuf-v1)
+    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "staging/ext-image-copy-capture" ext-image-copy-capture-v1)
+    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "staging/ext-image-capture-source" ext-image-capture-source-v1)
+    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "staging/ext-foreign-toplevel-list" ext-foreign-toplevel-list-v1)
     GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "unstable/xdg-output" xdg-output-unstable-v1)
-    GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "unstable/linux-dmabuf" linux-dmabuf-unstable-v1)
     GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/wlr-protocols" "unstable" wlr-screencopy-unstable-v1)
 
     include_directories(

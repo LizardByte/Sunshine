@@ -65,13 +65,13 @@ const config = ref(props.config)
         <option value="">{{ $t('_common.autodetect') }}</option>
         <PlatformLayout :platform="platform">
           <template #freebsd>
-            <option value="wlr">wlroots</option>
+            <option value="wlr">Wayland</option>
             <option value="x11">X11</option>
             <option value="portal">XDG Portal</option>
           </template>
           <template #linux>
             <option value="nvfbc">NvFBC</option>
-            <option value="wlr">wlroots</option>
+            <option value="wlr">Wayland</option>
             <option value="kms">KMS</option>
             <option value="x11">X11</option>
             <option value="portal">XDG Portal</option>
