@@ -1,16 +1,40 @@
 {
-  "name": "boost",
+  "name": "boost-prebuilt",
   "buildsystem": "simple",
   "build-commands": [
-    "cd tools/build && bison -y -d -o src/engine/jamgram.cpp src/engine/jamgram.y",
-    "./bootstrap.sh --prefix=$FLATPAK_DEST --with-libraries=filesystem,locale,log,program_options",
-    "./b2 install variant=release link=shared runtime-link=shared cxxflags=\"$CXXFLAGS\""
+    "mkdir -p /app/boost",
+    "tar -xzf boost.tar.gz -C /app/boost --strip-components=1"
   ],
   "sources": [
     {
-      "type": "archive",
-      "url": "https://github.com/boostorg/boost/releases/download/boost-1.89.0/boost-1.89.0-cmake.tar.xz",
-      "sha256": "67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74"
+      "type": "file",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.215.1920/Linux-x86_64-boost.tar.gz",
+      "sha256": "5a29814c96bf181d0edcfd9963993f8d025c414ade66389c619a306c05161254",
+      "dest-filename": "boost.tar.gz",
+      "only-arches": [
+        "x86_64"
+      ],
+      "x-checker-data": {
+        "type": "json",
+        "url": "https://api.github.com/repos/LizardByte/build-deps/releases/latest",
+        "version-query": ".tag_name",
+        "url-query": ".assets[] | select(.name==\"Linux-x86_64-boost.tar.gz\") | .browser_download_url"
+      }
+    },
+    {
+      "type": "file",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.215.1920/Linux-aarch64-boost.tar.gz",
+      "sha256": "f90b3d41508622835477c95bc2873379094b7143a36f5538a6d9a791ddff22f4",
+      "dest-filename": "boost.tar.gz",
+      "only-arches": [
+        "aarch64"
+      ],
+      "x-checker-data": {
+        "type": "json",
+        "url": "https://api.github.com/repos/LizardByte/build-deps/releases/latest",
+        "version-query": ".tag_name",
+        "url-query": ".assets[] | select(.name==\"Linux-aarch64-boost.tar.gz\") | .browser_download_url"
+      }
     }
   ]
 }

@@ -39,7 +39,6 @@ modules:
   # Runtime dependencies
   - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
   - "modules/avahi.json"
-  - "modules/boost.json"
   - "modules/libevdev.json"
   - "modules/miniupnpc.json"
   - "modules/numactl.json"
@@ -47,7 +46,8 @@ modules:
   # Caching is configured until here, not including CUDA, since it is too large for GitHub cache
   - "modules/cuda.json"
 
-  # FFmpeg prebuilt binaries
+  # LizardByte prebuilt binaries
+  - "modules/boost.json"
   - "modules/ffmpeg.json"
 
   - name: sunshine
@@ -65,6 +65,7 @@ modules:
         NPM_CONFIG_LOGLEVEL: info
     buildsystem: cmake-ninja
     config-opts:
+      - -DBOOST_PREPARED_BINARIES=/app/boost
       - -DBOOST_USE_STATIC=OFF
       - -DBUILD_DOCS=OFF
       - -DBUILD_WERROR=ON
