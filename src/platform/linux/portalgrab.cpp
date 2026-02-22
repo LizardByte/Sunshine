@@ -162,7 +162,37 @@ namespace portal {
 
   class dbus_t {
   public:
-    ~dbus_t() {
+    ~dbus_t() noexcept {
+      try {
+        if (conn && !session_handle.empty()) {
+          g_autoptr(GError) err = nullptr;
+          // This is a blocking C call; it won't throw, but we wrap for safety
+          g_dbus_connection_call_sync(
+            conn,
+            "org.freedesktop.portal.Desktop",
+            session_handle.c_str(),
+            "org.freedesktop.portal.Session",
+            "Close",
+            nullptr,
+            nullptr,
+            G_DBUS_CALL_FLAGS_NONE,
+            -1,
+            nullptr,
+            &err
+          );
+
+          if (err) {
+            BOOST_LOG(warning) << "Failed to explicitly close portal session: "sv << err->message;
+          } else {
+            BOOST_LOG(debug) << "Explicitly closed portal session: "sv << session_handle;
+          }
+        }
+      } catch (const std::exception &e) {
+        BOOST_LOG(error) << "Standard exception caught in ~dbus_t: "sv << e.what();
+      } catch (...) {
+        BOOST_LOG(error) << "Unknown exception caught in ~dbus_t"sv;
+      }
+
       if (screencast_proxy) {
         g_object_unref(screencast_proxy);
       }
@@ -264,6 +294,7 @@ namespace portal {
     GDBusConnection *conn;
     GDBusProxy *screencast_proxy;
     GDBusProxy *remote_desktop_proxy;
+    std::string session_handle;
 
     int create_portal_session(GMainLoop *loop, gchar **session_path_out, const gchar *session_token, bool use_screencast) {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
@@ -326,6 +357,8 @@ namespace portal {
       }
 
       BOOST_LOG(debug) << session_type << " CreateSession: got session handle: "sv << *session_path_out;
+      // Save it for the destructor to use during cleanup
+      this->session_handle = *session_path_out;
       return 0;
     }
 
@@ -632,16 +665,24 @@ namespace portal {
      *
      * Call this when the session becomes invalid (e.g., on error).
      */
-    void invalidate() {
-      std::scoped_lock lock(mutex_);
-      if (valid_) {
-        BOOST_LOG(debug) << "Invalidating cached portal session"sv;
-        if (pipewire_fd_ >= 0) {
-          close(pipewire_fd_);
-          pipewire_fd_ = -1;
+    void invalidate() noexcept {
+      try {
+        std::scoped_lock lock(mutex_);
+        if (valid_) {
+          BOOST_LOG(debug) << "Invalidating cached portal session"sv;
+          if (pipewire_fd_ >= 0) {
+            close(pipewire_fd_);
+            pipewire_fd_ = -1;
+          }
+
+          dbus_.reset();
+
+          valid_ = false;
         }
-        dbus_.reset();
-        valid_ = false;
+      } catch (const std::exception &e) {
+        BOOST_LOG(error) << "Exception during session invalidation: "sv << e.what();
+      } catch (...) {
+        BOOST_LOG(error) << "Unknown error during session invalidation"sv;
       }
     }
 
@@ -681,27 +722,7 @@ namespace portal {
     }
 
     ~pipewire_t() {
-      pw_thread_loop_lock(loop);
-
-      if (stream_data.stream) {
-        pw_stream_destroy(stream_data.stream);
-        stream_data.stream = nullptr;
-      }
-      if (core) {
-        pw_core_disconnect(core);
-        core = nullptr;
-      }
-      if (context) {
-        pw_context_destroy(context);
-        context = nullptr;
-      }
-
-      pw_thread_loop_unlock(loop);
-
-      pw_thread_loop_stop(loop);
-      if (fd >= 0) {
-        close(fd);
-      }
+      cleanup_stream();
       pw_thread_loop_destroy(loop);
     }
 
@@ -742,11 +763,25 @@ namespace portal {
           stream_data.current_buffer = nullptr;
         }
 
-        pw_stream_disconnect(stream_data.stream);
-        pw_stream_destroy(stream_data.stream);
-        stream_data.stream = nullptr;
+        if (stream_data.stream) {
+          pw_stream_destroy(stream_data.stream);
+          stream_data.stream = nullptr;
+        }
+        if (core) {
+          pw_core_disconnect(core);
+          core = nullptr;
+        }
+        if (context) {
+          pw_context_destroy(context);
+          context = nullptr;
+        }
 
         pw_thread_loop_unlock(loop);
+
+        pw_thread_loop_stop(loop);
+        if (fd >= 0) {
+          close(fd);
+        }
       }
       session_cache_t::instance().invalidate();
     }
