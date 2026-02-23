@@ -1,7 +1,4 @@
-// Dean Attali / Beautiful Jekyll 2023
-
 let BeautifulJekyllJS = {
-
   bigImgEl: null,
   numImgs: null,
 
@@ -86,8 +83,7 @@ let BeautifulJekyllJS = {
 
     // Set the theme on the document
     const setTheme = (theme) => {
-      const themeToApply = getThemeToApply(theme);
-      document.documentElement.dataset.bsTheme = themeToApply;
+      document.documentElement.dataset.bsTheme = getThemeToApply(theme);
 
       // Update navbar classes after theme change
       setTimeout(BeautifulJekyllJS.initNavbar, 10);
@@ -161,11 +157,11 @@ let BeautifulJekyllJS = {
 
   initNavbar: function() {
     // Set the navbar-dark/light class based on its background color
-    const rgb = getComputedStyle(document.querySelector('.navbar')).backgroundColor.replace(/[^\d,]/g, '').split(",");
+    const rgb = getComputedStyle(document.querySelector('.navbar')).backgroundColor.replaceAll(/[^\d,]/g, '').split(",");
     const brightness = Math.round(( // http://www.w3.org/TR/AERT#color-contrast
-      parseInt(rgb[0]) * 299 +
-      parseInt(rgb[1]) * 587 +
-      parseInt(rgb[2]) * 114
+        Number.parseInt(rgb[0]) * 299 +
+        Number.parseInt(rgb[1]) * 587 +
+        Number.parseInt(rgb[2]) * 114
     ) / 1000);
 
     let navbar = document.querySelector(".navbar");
@@ -182,7 +178,7 @@ let BeautifulJekyllJS = {
     // If the page has large images to randomly select from, choose an image
     if (document.getElementById("header-big-imgs")) {
       BeautifulJekyllJS.bigImgEl = document.getElementById("header-big-imgs");
-      BeautifulJekyllJS.numImgs = BeautifulJekyllJS.bigImgEl.getAttribute("data-num-img");
+      BeautifulJekyllJS.numImgs = BeautifulJekyllJS.bigImgEl.dataset.numImg;
 
       // 2fc73a3a967e97599c9763d05e564189
       // set an initial image
@@ -273,7 +269,5 @@ let BeautifulJekyllJS = {
     });
   }
 };
-
-// 2fc73a3a967e97599c9763d05e564189
 
 document.addEventListener('DOMContentLoaded', BeautifulJekyllJS.init);
