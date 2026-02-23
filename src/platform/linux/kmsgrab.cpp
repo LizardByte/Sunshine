@@ -34,6 +34,9 @@ namespace fs = std::filesystem;
 
 namespace platf {
 
+  // Forward declaration: refresh card_descriptors for connector name resolution
+  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type);
+
   namespace kms {
 
     class cap_sys_admin {
@@ -642,14 +645,24 @@ namespace platf {
         return -1;
       }
 
-      // Search card_descriptors (populated by kms_display_names() before init() runs)
-      for (auto &cd : card_descriptors) {
-        for (auto &[crtc_id, mon] : cd.crtc_to_monitor) {
-          if (mon.type == type && mon.index == index) {
-            BOOST_LOG(info) << "Resolved connector name '"sv << display_name
-                            << "' to monitor index "sv << mon.monitor_index;
-            return mon.monitor_index;
+      // Search card_descriptors, refreshing once if the connector is not found.
+      // This handles the case where pre_probe_cmd just enabled a virtual display
+      // that wasn't present when card_descriptors was initially populated.
+      for (int attempt = 0; attempt < 2; ++attempt) {
+        for (auto &cd : card_descriptors) {
+          for (auto &[crtc_id, mon] : cd.crtc_to_monitor) {
+            if (mon.type == type && mon.index == index) {
+              BOOST_LOG(info) << "Resolved connector name '"sv << display_name
+                              << "' to monitor index "sv << mon.monitor_index;
+              return mon.monitor_index;
+            }
           }
+        }
+
+        if (attempt == 0) {
+          BOOST_LOG(info) << "Connector '"sv << display_name
+                          << "' not found in cached descriptors, refreshing display list..."sv;
+          kms_display_names(mem_type_e::unknown);
         }
       }
 
