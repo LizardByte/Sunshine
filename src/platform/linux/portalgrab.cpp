@@ -723,6 +723,24 @@ namespace portal {
 
     ~pipewire_t() {
       cleanup_stream();
+
+      pw_thread_loop_lock(loop);
+
+      if (core) {
+        pw_core_disconnect(core);
+        core = nullptr;
+      }
+      if (context) {
+        pw_context_destroy(context);
+        context = nullptr;
+      }
+
+      pw_thread_loop_unlock(loop);
+
+      pw_thread_loop_stop(loop);
+      if (fd >= 0) {
+        close(fd);
+      }
       pw_thread_loop_destroy(loop);
     }
 
@@ -775,21 +793,8 @@ namespace portal {
           pw_stream_destroy(stream_data.stream);
           stream_data.stream = nullptr;
         }
-        if (core) {
-          pw_core_disconnect(core);
-          core = nullptr;
-        }
-        if (context) {
-          pw_context_destroy(context);
-          context = nullptr;
-        }
 
         pw_thread_loop_unlock(loop);
-
-        pw_thread_loop_stop(loop);
-        if (fd >= 0) {
-          close(fd);
-        }
       }
       session_cache_t::instance().invalidate();
     }
@@ -1299,6 +1304,8 @@ namespace portal {
             stream_stopped.store(false);
             previous_height.store(0);
             previous_width.store(0);
+            // Delay interrupt signal to give Portal time to detect change
+            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
             return platf::capture_e::interrupted;
           } else {
             BOOST_LOG(warning) << "PipeWire stream disconnected. Forcing session reset."sv;
