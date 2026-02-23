@@ -26,6 +26,7 @@ extern "C" {
 #include "input.h"
 #include "logging.h"
 #include "network.h"
+#include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
 #include "stream.h"
@@ -1950,6 +1951,9 @@ namespace stream {
           // We have no app running and also no clients anymore.
           revert_display_config = true;
         }
+
+        // Undo pre-probe commands (e.g. disable virtual display).
+        nvhttp::undo_pre_probe_cmds();
 
         if (revert_display_config) {
           display_device::revert_configuration();

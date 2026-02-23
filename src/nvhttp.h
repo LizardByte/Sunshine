@@ -53,6 +53,11 @@ namespace nvhttp {
   void start();
 
   /**
+   * @brief Run the undo commands of all pre_probe_cmds.
+   */
+  void undo_pre_probe_cmds();
+
+  /**
    * @brief Setup the nvhttp server.
    * @param pkey
    * @param cert
