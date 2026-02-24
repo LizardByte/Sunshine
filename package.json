@@ -9,7 +9,7 @@
   },
   "type": "module",
   "dependencies": {
-    "@lizardbyte/shared-web": "2026.125.235713",
+    "bootstrap": "5.3.8",
     "date-fns": "4.1.0",
     "lucide-vue-next": "0.575.0",
     "marked": "17.0.3",

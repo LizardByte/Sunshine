@@ -1,5 +1,9 @@
 <script setup>
 import { computed, ref } from 'vue'
+import {
+  Info,
+  TriangleAlert,
+} from 'lucide-vue-next'
 import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
@@ -48,11 +52,11 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       <div class="form-text">{{ $t('config.port_desc') }}</div>
       <!-- Add warning if any port is less than 1024 -->
       <div class="alert alert-danger" v-if="(+effectivePort - 5) < 1024">
-        <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_1') }}
+        <TriangleAlert :size="20" /> {{ $t('config.port_alert_1') }}
       </div>
       <!-- Add warning if any port is above 65535 -->
       <div class="alert alert-danger" v-if="(+effectivePort + 21) > 65535">
-        <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_alert_2') }}
+        <TriangleAlert :size="20" /> {{ $t('config.port_alert_2') }}
       </div>
       <!-- Create a port table for the various ports needed by Sunshine -->
       <table class="table">
@@ -76,7 +80,7 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
           <td>{{+effectivePort}}</td>
           <td>
             <div class="alert alert-primary" role="alert" v-if="+effectivePort !== defaultMoonlightPort">
-              <i class="fa-solid fa-xl fa-circle-info"></i> {{ $t('config.port_http_port_note') }}
+              <Info :size="20" /> {{ $t('config.port_http_port_note') }}
             </div>
           </td>
         </tr>
@@ -108,7 +112,7 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       </table>
       <!-- add warning about exposing web ui to the internet -->
       <div class="alert alert-warning" v-if="config.origin_web_ui_allowed === 'wan'">
-        <i class="fa-solid fa-xl fa-triangle-exclamation"></i> {{ $t('config.port_warning') }}
+        <TriangleAlert :size="20" /> {{ $t('config.port_warning') }}
       </div>
     </div>
 
