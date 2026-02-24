@@ -173,7 +173,7 @@ jobs:
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Python Path
         id: python-path
@@ -258,7 +258,7 @@ jobs:
         shell: msys2 {0}
         working-directory: build
         run: |
-          ${{ steps.python-path.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python-path.outputs.python-path }} -m pip install "../scripts[test]"
           ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \

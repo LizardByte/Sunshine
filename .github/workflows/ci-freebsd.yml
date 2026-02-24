@@ -114,7 +114,7 @@ jobs:
               ftp/curl \
               graphics/libdrm \
               graphics/wayland \
-              lang/python312 \
+              lang/python314 \
               multimedia/libva \
               multimedia/pipewire \
               net/miniupnpc \
@@ -133,13 +133,13 @@ jobs:
             ln -s /usr/local/bin/bash /bin/bash
 
             # setup python
-            ln -s /usr/local/bin/python3.12 /usr/local/bin/python
+            ln -s /usr/local/bin/python3.14 /usr/local/bin/python
             python -m ensurepip
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
             # install gcvor
-            python -m pip install gcovr
+            python -m pip install "./scripts[test]"
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"

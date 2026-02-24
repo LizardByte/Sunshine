@@ -62,7 +62,7 @@ jobs:
         id: python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Build latest libva
         env:
@@ -181,7 +181,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          ${{ steps.python.outputs.python-path }} -m pip install gcovr
+          ${{ steps.python.outputs.python-path }} -m pip install "../scripts[test]"
           ${{ steps.python.outputs.python-path }} -m gcovr --gcov-executable "gcov-${GCC_VERSION}" . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \

@@ -127,9 +127,15 @@ any of the following paths are modified.
 - 'src/**'
 ```
 
-When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
-[xgettext](https://www.gnu.org/software/gettext) must be installed.
+When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python is
+required for this, along with the python dependencies in the `./scripts/pyproject.toml` file. You can install this with
+the following command.
+
+```bash
+python -m pip install "./scripts[locale]"
+```
+
+Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash
