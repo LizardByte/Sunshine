@@ -185,6 +185,14 @@ namespace nvhttp {
   bool unpair_client(std::string_view uuid);
 
   /**
+   * @brief Enable or disable a client.
+   * @param uuid The UUID of the client.
+   * @param enabled Whether the client should be enabled.
+   * @return true if the client was found and updated.
+   */
+  bool set_client_enabled(std::string_view uuid, bool enabled);
+
+  /**
    * @brief Get all paired clients.
    * @return The list of all paired clients.
    * @examples

@@ -135,8 +135,16 @@
       </div>
       <ul class="list-group list-group-flush" v-if="clients && clients.length > 0">
         <li v-for="client in clients" :key="client.uuid" class="list-group-item d-flex align-items-center">
-          <div class="flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
-          <button class="btn btn-danger ms-auto" @click="unpairSingle(client.uuid)">
+          <div class="flex-grow-1">
+            {{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}
+            <span class="badge ms-2" :class="client.enabled ? 'bg-success' : 'bg-secondary'">
+              {{ client.enabled ? 'Enabled' : 'Disabled' }}
+            </span>
+          </div>
+          <button class="btn btn-sm ms-2" :class="client.enabled ? 'btn-warning' : 'btn-success'" @click="toggleClient(client.uuid, !client.enabled)">
+            {{ client.enabled ? 'Disable' : 'Enable' }}
+          </button>
+          <button class="btn btn-danger btn-sm ms-2" @click="unpairSingle(client.uuid)">
             <trash-2 :size="18" class="icon"></trash-2>
           </button>
         </li>
@@ -446,6 +454,17 @@
             body: JSON.stringify({ uuid })
           }).then(() => {
             this.showApplyMessage = true;
+            this.refreshClients();
+          });
+        },
+        toggleClient(uuid, enabled) {
+          fetch("./api/clients/update", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid, enabled })
+          }).then(() => {
             this.refreshClients();
           });
         },
