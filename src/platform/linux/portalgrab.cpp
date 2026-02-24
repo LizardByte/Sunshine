@@ -1225,45 +1225,30 @@ namespace portal {
       auto deadline = std::chrono::steady_clock::now() + timeout;
       int retries = 0;
 
-      while (true) {
+      while (std::chrono::steady_clock::now() < deadline) {
         if (!wait_for_frame(deadline)) {
-          if (stream_stopped.load()) {
-            return platf::capture_e::interrupted;
-          }
-          return platf::capture_e::timeout;
+          return stream_stopped.load() ? platf::capture_e::interrupted : platf::capture_e::timeout;
         }
 
         if (!pull_free_image_cb(img_out)) {
           return platf::capture_e::interrupted;
         }
 
-        const auto img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
+        auto *img_egl = static_cast<egl::img_descriptor_t *>(img_out.get());
         img_egl->reset();
         pipewire.fill_img(img_egl);
 
-        // Check if we got valid data (either DMA-BUF fd or memory pointer)
-        bool is_valid = (img_egl->sd.fds[0] >= 0 || img_egl->data != nullptr);
-        // Check for duplicates
-        bool is_dup = last_pts.has_value() && is_buffer_redundant(img_egl, last_pts);
-
-        // Valid & non-duplicate frame
-        if (is_valid && !is_dup) {
-          // Check deadline
-          if (std::chrono::steady_clock::now() >= deadline) {
-            return platf::capture_e::timeout;
-          }
-
+        // Check if we got valid data (either DMA-BUF fd or memory pointer), then filter duplicates
+        if ((img_egl->sd.fds[0] >= 0 || img_egl->data != nullptr) && !is_buffer_redundant(img_egl)) {
           // Update frame metadata
-          update_frame_metadata(img_egl, retries);
+          update_metadata(img_egl, retries);
           return platf::capture_e::ok;
         }
 
         // No valid frame yet, or it was a duplicate
         retries++;
-        if (std::chrono::steady_clock::now() >= deadline) {
-          return platf::capture_e::timeout;
-        }
       }
+      return platf::capture_e::timeout;
     }
 
     std::shared_ptr<platf::img_t> alloc_img() override {
@@ -1381,41 +1366,24 @@ namespace portal {
     }
 
   private:
-    static bool is_buffer_redundant(const egl::img_descriptor_t *img, const std::optional<uint64_t> &last_pts) {
+    bool is_buffer_redundant(const egl::img_descriptor_t *img) {
       // Check for corrupted frame
-      if (img->pw_flags.has_value()) {
-        if (img->pw_flags.value() & SPA_CHUNK_FLAG_CORRUPTED) {
-          return true;
-        }
+      if (img->pw_flags.has_value() && (img->pw_flags.value() & SPA_CHUNK_FLAG_CORRUPTED)) {
+        return true;
       }
 
-      // Damage & PTS checks
-      if (img->pts.has_value() && last_pts.has_value()) {
-        int64_t delta = (int64_t) img->pts.value() - (int64_t) last_pts.value();
-
-        // PTS hasn't advanced:
-        if (delta <= 0) {
-          // Case A: Compositor says "No Damage"
-          if (img->pw_damage.has_value() && !img->pw_damage.value()) {
-            BOOST_LOG(debug) << "Dropping frame: PTS delta 0 and Damage metadata confirms NO pixels changed."sv;
-            return true;
-          }
-          // Case B: No damage metadata available, but delta is 0
-          if (!img->pw_damage.has_value()) {
-            return true;
-          }
-        }
+      // If PTS is identical, only drop if damage metadata confirms no change
+      if (img->pts.has_value() && last_pts.has_value() && img->pts.value() == last_pts.value()) {
+        return img->pw_damage.has_value() && !img->pw_damage.value();
       }
 
       return false;
     }
 
-    void update_frame_metadata(egl::img_descriptor_t *img_egl, int retries) {
-      if (img_egl->seq.has_value() && img_egl->pts.has_value()) {
-        last_seq = img_egl->seq.value();
-        last_pts = img_egl->pts.value();
-      }
-      img_egl->sequence = ++sequence;
+    void update_metadata(egl::img_descriptor_t *img, int retries) {
+      last_seq = img->seq;
+      last_pts = img->pts;
+      img->sequence = ++sequence;
 
       if (retries > 0) {
         BOOST_LOG(debug) << "Processed frame after " << retries << " redundant events."sv;
