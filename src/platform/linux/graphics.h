@@ -299,6 +299,8 @@ namespace egl {
     // PipeWire metadata
     std::optional<uint64_t> pts;
     std::optional<uint64_t> seq;
+    std::optional<bool> pw_damage;
+    std::optional<uint32_t> pw_flags;
   };
 
   class sws_t {
