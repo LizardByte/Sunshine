@@ -429,17 +429,17 @@ After adding yourself to the group, log out and log back in for the changes to t
 #### Services
 
 > [!NOTE]
-> Two service unit files are available. Pick "sunshine" for unprivileged XDG Portal or X11 capture, otherwise
-> pick "sunshine-kms" for privileged KMS capture.
+> Two service unit files are available. Pick "app-dev.lizardbyte.app.Sunshine" for unprivileged XDG Portal
+> or X11 capture, otherwise pick "sunshine" for privileged KMS capture.
 
 **Start once**
 ```bash
 systemctl --user start sunshine
 ```
 
-**Start on boot (unprivileged; swap logic for KMS)**
+**Start on boot (privileged; swap names for unprivileged XDG capture)**
 ```bash
-systemctl --user --now disable sunshine-kms
+systemctl --user --now disable app-dev.lizardbyte.app.Sunshine
 systemctl --user --now enable sunshine
 ```
 

@@ -369,9 +369,8 @@ fi
 %caps(cap_sys_admin+p) %{_bindir}/sunshine-*
 
 # Systemd unit/preset files for user services
-%{_userunitdir}/sunshine.service
-%{_userunitdir}/sunshine-kms.service
-%{_userpresetdir}/00-sunshine-kms.preset
+%{_userunitdir}/*.service
+%{_userpresetdir}/*.preset
 
 # Udev rules
 %{_udevrulesdir}/*-sunshine.rules
@@ -383,8 +382,8 @@ fi
 %{_datadir}/applications/*.desktop
 
 # Icons
-%{_datadir}/icons/hicolor/scalable/apps/sunshine.svg
-%{_datadir}/icons/hicolor/scalable/status/sunshine*.svg
+%{_datadir}/icons/hicolor/scalable/apps/*.Sunshine.svg
+%{_datadir}/icons/hicolor/scalable/status/*.Sunshine-*.svg
 
 # Metainfo
 %{_datadir}/metainfo/*.metainfo.xml
