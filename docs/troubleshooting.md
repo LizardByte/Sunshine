@@ -160,12 +160,12 @@ sudo usermod -aG input $USER
 ```
 
 ### KMS Streaming fails
-If screencasting fails with KMS, you may be using the unprivileged sunshine service unit. Switch to the privileged
-sunshine-kms service:
+If screencasting fails with KMS, you may be using the unprivileged app-dev.lizardbyte.app.Sunshine service unit.
+Switch to the privileged sunshine service:
 
 ```bash
-systemctl --user --now disable sunshine
-systemctl --user --now enable sunshine-kms
+systemctl --user --now disable app-dev.lizardbyte.app.Sunshine
+systemctl --user --now enable sunshine
 ```
 
 > [!NOTE]

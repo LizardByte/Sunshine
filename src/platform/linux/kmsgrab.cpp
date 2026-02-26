@@ -1685,7 +1685,7 @@ namespace platf {
 #if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
             << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
 #else
-            << "You must use the 'sunshine-kms' service instead of the 'sunshine' service for KMS capture.\n"sv
+            << "You must use the 'sunshine' service instead of the 'app-" << PROJECT_FQDN << "' service for KMS capture.\n"sv
             << "Please refer to the official documentation:\n"sv
             << "  stable: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux-1"sv
             << "  beta: https://docs.lizardbyte.dev/projects/sunshine/master/md_docs_2getting__started.html#linux-1"sv;
