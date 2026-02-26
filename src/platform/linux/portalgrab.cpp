@@ -752,6 +752,10 @@ namespace portal {
       return stream_data.frame_cv;
     }
 
+    uint64_t stream_get_nsec() {
+      return pw_stream_get_nsec(stream_data.stream);
+    }
+
     bool is_frame_ready() const {
       return stream_data.frame_ready;
     }
@@ -861,7 +865,6 @@ namespace portal {
 
         if (buf->datas[0].chunk->size != 0) {
           const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
-          img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
 
           // PipeWire header metadata
           struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
@@ -1407,7 +1410,38 @@ namespace portal {
       if (img_egl->seq.has_value() && img_egl->pts.has_value()) {
         last_seq = img_egl->seq.value();
         last_pts = img_egl->pts.value();
+
+        // Snapshot both clock domains simultaneously
+        const uint64_t pw_now_ns = pipewire.stream_get_nsec();
+        const auto steady_now = std::chrono::steady_clock::now();
+
+        // Calculate age (positive = past, negative = future)
+        const int64_t age_ns = static_cast<int64_t>(pw_now_ns) - static_cast<int64_t>(last_pts.value());
+
+        // Sanity check: max age is (largest of) 5 frames or 100ms
+        const int64_t max_age_ns = std::max<int64_t>(
+          std::chrono::nanoseconds {100ms}.count(),
+          std::chrono::duration_cast<std::chrono::nanoseconds>(delay * 5).count()
+        );
+        // Adaptive future tolerance: half of the target frame interval
+        const int64_t future_tolerance_ns = -std::chrono::duration_cast<std::chrono::nanoseconds>(delay / 2).count();
+
+        // Anchor the timestamp
+        if (age_ns >= future_tolerance_ns && age_ns < max_age_ns) {
+          // FRESH FRAME: Apply hardware-measured age to the steady_clock anchor
+          img_egl->frame_timestamp = steady_now - std::chrono::nanoseconds(age_ns);
+        } else {
+          // STALE/FUTURE: Fallback to current time
+          img_egl->frame_timestamp = steady_now;
+
+          if (age_ns < future_tolerance_ns) {
+            BOOST_LOG(debug) << "Frame age was future dated: " << (age_ns / 1000) << "us";
+          } else if (age_ns > max_age_ns && age_ns < 1'000'000'000) {
+            BOOST_LOG(debug) << "Frame age exceeded threshold: " << (age_ns / 1000) << "us";
+          }
+        }
       }
+
       img_egl->sequence = ++sequence;
 
       if (retries > 0) {
