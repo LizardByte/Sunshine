@@ -54,17 +54,17 @@ namespace wl {
     }
 
     if (!display_name) {
-      BOOST_LOG(error) << "Environment variable WAYLAND_DISPLAY has not been defined"sv;
+      BOOST_LOG(error) << "[wayland] Environment variable WAYLAND_DISPLAY has not been defined"sv;
       return -1;
     }
 
     display_internal.reset(wl_display_connect(display_name));
     if (!display_internal) {
-      BOOST_LOG(error) << "Couldn't connect to Wayland display: "sv << display_name;
+      BOOST_LOG(error) << "[wayland] Couldn't connect to Wayland display: "sv << display_name;
       return -1;
     }
 
-    BOOST_LOG(info) << "Found display ["sv << display_name << ']';
+    BOOST_LOG(info) << "[wayland] Found display ["sv << display_name << ']';
 
     return 0;
   }
@@ -127,26 +127,26 @@ namespace wl {
   inline void monitor_t::xdg_name(zxdg_output_v1 *, const char *name) {
     this->name = name;
 
-    BOOST_LOG(info) << "Name: "sv << this->name;
+    BOOST_LOG(info) << "[wayland] Name: "sv << this->name;
   }
 
   void monitor_t::xdg_description(zxdg_output_v1 *, const char *description) {
     this->description = description;
 
-    BOOST_LOG(info) << "Found monitor: "sv << this->description;
+    BOOST_LOG(info) << "[wayland] Found monitor: "sv << this->description;
   }
 
   void monitor_t::xdg_position(zxdg_output_v1 *, std::int32_t x, std::int32_t y) {
     viewport.offset_x = x;
     viewport.offset_y = y;
 
-    BOOST_LOG(info) << "Offset: "sv << x << 'x' << y;
+    BOOST_LOG(info) << "[wayland] Offset: "sv << x << 'x' << y;
   }
 
   void monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
     viewport.logical_width = width;
     viewport.logical_height = height;
-    BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
+    BOOST_LOG(info) << "[wayland] Logical size: "sv << width << 'x' << height;
   }
 
   void monitor_t::wl_mode(
@@ -159,7 +159,7 @@ namespace wl {
     viewport.width = width;
     viewport.height = height;
 
-    BOOST_LOG(info) << "Resolution: "sv << width << 'x' << height;
+    BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
@@ -189,27 +189,27 @@ namespace wl {
     const char *interface,
     std::uint32_t version
   ) {
-    BOOST_LOG(debug) << "Available interface: "sv << interface << '(' << id << ") version "sv << version;
+    BOOST_LOG(debug) << "[wayland] Available interface: "sv << interface << '(' << id << ") version "sv << version;
 
     if (!std::strcmp(interface, wl_output_interface.name)) {
-      BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
       monitors.emplace_back(
         std::make_unique<monitor_t>(
           (wl_output *) wl_registry_bind(registry, id, &wl_output_interface, 2)
         )
       );
     } else if (!std::strcmp(interface, zxdg_output_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
       output_manager = (zxdg_output_manager_v1 *) wl_registry_bind(registry, id, &zxdg_output_manager_v1_interface, version);
 
       this->interface[XDG_OUTPUT] = true;
     } else if (!std::strcmp(interface, zwlr_screencopy_manager_v1_interface.name)) {
-      BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
       screencopy_manager = (zwlr_screencopy_manager_v1 *) wl_registry_bind(registry, id, &zwlr_screencopy_manager_v1_interface, version);
 
       this->interface[WLR_EXPORT_DMABUF] = true;
     } else if (!std::strcmp(interface, zwp_linux_dmabuf_v1_interface.name)) {
-      BOOST_LOG(info) << "Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
       dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, version);
 
       this->interface[LINUX_DMABUF] = true;
@@ -217,7 +217,7 @@ namespace wl {
   }
 
   void interface_t::del_interface(wl_registry *registry, uint32_t id) {
-    BOOST_LOG(info) << "Delete: "sv << id;
+    BOOST_LOG(info) << "[wayland] Delete: "sv << id;
   }
 
   // Initialize GBM
@@ -230,7 +230,7 @@ namespace wl {
     drmDevice *devices[16];
     int n = drmGetDevices2(0, devices, 16);
     if (n <= 0) {
-      BOOST_LOG(error) << "No DRM devices found"sv;
+      BOOST_LOG(error) << "[wayland] No DRM devices found"sv;
       return false;
     }
 
@@ -246,14 +246,14 @@ namespace wl {
     drmFreeDevices(devices, n);
 
     if (drm_fd < 0) {
-      BOOST_LOG(error) << "Failed to open DRM render node"sv;
+      BOOST_LOG(error) << "[wayland] Failed to open DRM render node"sv;
       return false;
     }
 
     gbm_device = gbm_create_device(drm_fd);
     if (!gbm_device) {
       close(drm_fd);
-      BOOST_LOG(error) << "Failed to create GBM device"sv;
+      BOOST_LOG(error) << "[wayland] Failed to create GBM device"sv;
       return false;
     }
 
@@ -343,8 +343,6 @@ namespace wl {
     shm_info.width = width;
     shm_info.height = height;
     shm_info.stride = stride;
-
-    BOOST_LOG(debug) << "Screencopy supports SHM format: "sv << format;
   }
 
   // DMA-BUF format callback
@@ -358,14 +356,12 @@ namespace wl {
     dmabuf_info.format = format;
     dmabuf_info.width = width;
     dmabuf_info.height = height;
-
-    BOOST_LOG(debug) << "Screencopy supports DMA-BUF format: "sv << format;
   }
 
   // Flags callback
   void dmabuf_t::flags(zwlr_screencopy_frame_v1 *frame, std::uint32_t flags) {
     y_invert = flags & ZWLR_SCREENCOPY_FRAME_V1_FLAGS_Y_INVERT;
-    BOOST_LOG(debug) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
+    BOOST_LOG(verbose) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
   }
 
   // DMA-BUF creation helper
@@ -433,11 +429,11 @@ namespace wl {
       create_and_copy_dmabuf(frame);
     } else if (shm_info.supported) {
       // SHM fallback would go here
-      BOOST_LOG(warning) << "SHM capture not implemented"sv;
+      BOOST_LOG(warning) << "[wayland] SHM capture not implemented"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
     } else {
-      BOOST_LOG(error) << "No supported buffer types"sv;
+      BOOST_LOG(error) << "[wayland] No supported buffer types"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
     }
@@ -468,7 +464,7 @@ namespace wl {
     auto frame = static_cast<zwlr_screencopy_frame_v1 *>(data);
     auto self = static_cast<dmabuf_t *>(zwlr_screencopy_frame_v1_get_user_data(frame));
 
-    BOOST_LOG(error) << "Failed to create buffer from params"sv;
+    BOOST_LOG(error) << "[wayland] Failed to create buffer from params"sv;
     self->cleanup_gbm();
 
     zwp_linux_buffer_params_v1_destroy(params);
@@ -483,11 +479,15 @@ namespace wl {
     std::uint32_t tv_sec_lo,
     std::uint32_t tv_nsec
   ) {
-    BOOST_LOG(debug) << "Frame ready"sv;
-
     // Frame is ready for use, GBM buffer now contains screen content
     current_frame->destroy();
     current_frame = get_next_frame();
+
+    std::uint64_t sec = (std::uint64_t(tv_sec_hi) << 32) | tv_sec_lo;
+    auto ready_ts = std::chrono::seconds(sec) + std::chrono::nanoseconds(tv_nsec);
+    current_frame->frame_timestamp = std::chrono::steady_clock::time_point{
+      std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
+    };
 
     // Keep the GBM buffer alive but destroy the Wayland objects
     if (current_wl_buffer) {
@@ -503,7 +503,7 @@ namespace wl {
 
   // Failed callback
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
-    BOOST_LOG(error) << "Frame capture failed"sv;
+    BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
 
     // Clean up resources
     cleanup_gbm();
@@ -514,6 +514,7 @@ namespace wl {
     status = REINIT;
   }
 
+  // Only called if using zwlr_screencopy_frame_v1_copy_with_damage()
   void dmabuf_t::damage(
     zwlr_screencopy_frame_v1 *frame,
     std::uint32_t x,
@@ -550,7 +551,7 @@ namespace wl {
     display.roundtrip();
 
     if (!interface[interface_t::XDG_OUTPUT]) {
-      BOOST_LOG(error) << "Missing Wayland wire XDG_OUTPUT"sv;
+      BOOST_LOG(error) << "[wayland] Missing Wayland wire XDG_OUTPUT"sv;
       return {};
     }
 
