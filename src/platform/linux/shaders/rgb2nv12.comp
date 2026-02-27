@@ -1,0 +1,54 @@
+#version 450
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(set = 0, binding = 0) uniform sampler2D rgb_in;
+layout(set = 0, binding = 1, r8) uniform writeonly image2D y_out;
+layout(set = 0, binding = 2, rg8) uniform writeonly image2D uv_out;
+
+layout(push_constant) uniform PushConstants {
+  vec4 color_vec_y;
+  vec4 color_vec_u;
+  vec4 color_vec_v;
+  vec2 range_y;
+  vec2 range_uv;
+  ivec2 src_offset;
+  ivec2 src_size;
+  ivec2 dst_size;
+} pc;
+
+void main() {
+  ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+  if (pos.x >= pc.dst_size.x || pos.y >= pc.dst_size.y)
+    return;
+
+  // Precompute scaling factors
+  vec2 inv_tex = 1.0 / vec2(textureSize(rgb_in, 0));
+  vec2 scale = vec2(pc.src_size) / vec2(pc.dst_size);
+
+  // Map output pixel to input texture coordinate
+  vec2 uv = (vec2(pc.src_offset) + (vec2(pos) + 0.5) * scale) * inv_tex;
+  vec3 rgb = texture(rgb_in, uv).rgb;
+
+  // Y plane
+  float y = dot(pc.color_vec_y.xyz, rgb) + pc.color_vec_y.w;
+  imageStore(y_out, pos, vec4(y * pc.range_y.x + pc.range_y.y, 0, 0, 0));
+
+  // UV plane (half resolution, one thread per 2x2 block)
+  if ((pos.x & 1) == 0 && (pos.y & 1) == 0) {
+    vec2 step = scale * inv_tex;
+
+    // Average 2x2 block for chroma subsampling (reuse rgb as c00)
+    vec3 avg = rgb
+             + texture(rgb_in, uv + vec2(step.x, 0)).rgb
+             + texture(rgb_in, uv + vec2(0, step.y)).rgb
+             + texture(rgb_in, uv + step).rgb;
+    avg *= 0.25;
+
+    float cb = dot(pc.color_vec_u.xyz, avg) + pc.color_vec_u.w;
+    float cr = dot(pc.color_vec_v.xyz, avg) + pc.color_vec_v.w;
+
+    imageStore(uv_out, pos >> 1, vec4(cb * pc.range_uv.x + pc.range_uv.y,
+                                      cr * pc.range_uv.x + pc.range_uv.y, 0, 0));
+  }
+}

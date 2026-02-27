@@ -1080,7 +1080,7 @@ namespace video {
       {},  // Fallback options
       "h264_vulkan"s,
     },
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
 #endif  // SUNSHINE_BUILD_VULKAN
 #endif  // linux
