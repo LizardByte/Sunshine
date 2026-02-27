@@ -486,14 +486,15 @@ namespace config {
       false,  // strict_rc_buffer
     },  // vaapi
 
-    {},  // capture
-    {},  // encoder
-    {},  // adapter_name
-    {},  // output_name
     {
       2,  // vk.tune (default: ll - low latency)
       4,  // vk.rc_mode (default: vbr)
     },
+
+    {},  // capture
+    {},  // encoder
+    {},  // adapter_name
+    {},  // output_name
 
     {
       video_t::dd_t::config_option_e::disabled,  // configuration_option
@@ -1141,12 +1142,13 @@ namespace config {
 
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
 
+    int_f(vars, "vk_tune", video.vk.tune);
+    int_f(vars, "vk_rc_mode", video.vk.rc_mode);
+
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);
     string_f(vars, "adapter_name", video.adapter_name);
     string_f(vars, "output_name", video.output_name);
-    int_f(vars, "vk_tune", video.vk.tune);
-    int_f(vars, "vk_rc_mode", video.vk.rc_mode);
 
     generic_f(vars, "dd_configuration_option", video.dd.configuration_option, dd::config_option_from_view);
     generic_f(vars, "dd_resolution_option", video.dd.resolution_option, dd::resolution_option_from_view);

@@ -80,14 +80,15 @@ namespace config {
       bool strict_rc_buffer;
     } vaapi;
 
-    std::string capture;
-    std::string encoder;
-    std::string adapter_name;
-    std::string output_name;
     struct {
       int tune;     // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
       int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
     } vk;
+
+    std::string capture;
+    std::string encoder;
+    std::string adapter_name;
+    std::string output_name;
 
     struct dd_t {
       struct workarounds_t {
