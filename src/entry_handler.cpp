@@ -223,7 +223,7 @@ namespace service_ctrl {
     } while (sc.query_service_status(status) && status.dwCurrentState == SERVICE_START_PENDING);
 
     if (status.dwCurrentState != SERVICE_RUNNING) {
-      BOOST_LOG(error) << SERVICE_NAME " failed to start: "sv << status.dwWin32ExitCode;
+      BOOST_LOG(error) << std::format("{} failed to start: {}"sv, platf::SERVICE_NAME, status.dwWin32ExitCode);
       return false;
     }
 

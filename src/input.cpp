@@ -30,7 +30,7 @@ extern "C" {
 
 // Win32 WHEEL_DELTA constant
 #ifndef WHEEL_DELTA
-  #define WHEEL_DELTA 120
+constexpr int WHEEL_DELTA = 120;
 #endif
 
 using namespace std::literals;

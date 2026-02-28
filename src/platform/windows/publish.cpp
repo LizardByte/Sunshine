@@ -37,9 +37,8 @@ extern "C" {
   constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 #endif
 
-#define SERVICE_DOMAIN "local"
-
-  constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
+  constexpr auto SERVICE_DOMAIN = "local";
+  const auto SERVICE_TYPE_DOMAIN = std::format("{}.{}"sv, platf::SERVICE_TYPE, SERVICE_DOMAIN);
 
 #ifndef __MINGW32__
   typedef struct _DNS_SERVICE_INSTANCE {
@@ -107,7 +106,7 @@ namespace platf::publish {
   static int service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
-    std::wstring domain {SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size()};
+    std::wstring domain = utf_utils::from_utf8(SERVICE_TYPE_DOMAIN);
 
     auto hostname = platf::get_host_name();
     auto name = utf_utils::from_utf8(net::mdns_instance_name(hostname) + '.') + domain;

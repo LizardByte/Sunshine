@@ -834,8 +834,8 @@ namespace platf {
    */
   platform_caps::caps_t get_capabilities();
 
-#define SERVICE_NAME "Sunshine"
-#define SERVICE_TYPE "_nvstream._tcp"
+  constexpr auto SERVICE_NAME = "Sunshine";
+  constexpr auto SERVICE_TYPE = "_nvstream._tcp";
 
   namespace publish {
     [[nodiscard]] std::unique_ptr<deinit_t> start();
