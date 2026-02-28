@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const gamepadHelper = new GamepadHelper()
-    const gamepadHelperVersion = window.gamepadHelperVersion;
+    const gamepadHelperVersion = globalThis.gamepadHelperVersion;
     let gamepads = {};
     let activeGamepadIndex = null;
     let animationFrameId = null;
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const themeObserver = new MutationObserver(function(mutations) {
         mutations.forEach(function(mutation) {
             if (mutation.type === 'attributes' && mutation.attributeName === 'data-bs-theme') {
-                // Theme changed, reinitialize buttons with new color scheme
+                // Theme changed, reinitialize buttons with a new color scheme
                 if (activeGamepadIndex !== null) {
                     initGamepadButtons();
                 }
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Setup gamepad event listeners
-    window.addEventListener("gamepadconnected", function(e) {
+    globalThis.addEventListener("gamepadconnected", function(e) {
         gamepads[e.gamepad.index] = e.gamepad;
 
         // Always activate the newly connected gamepad
@@ -51,7 +51,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    window.addEventListener("gamepaddisconnected", function(e) {
+    globalThis.addEventListener("gamepaddisconnected", function(e) {
         delete gamepads[e.gamepad.index];
         updateGamepadSelector();
 
@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const card = e.target.closest('.gamepad-selector-card');
         if (card) {
             activeGamepadIndex = Number.parseInt(card.dataset.index);
-            updateGamepadSelector(); // Re-render to update active state
+            updateGamepadSelector(); // Re-render to update the active state
             initGamepadButtons();
             initGamepadAxes();
         }
@@ -176,7 +176,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const controllerType = gamepadHelper.detectControllerType(gamepad.id);
 
-        // Detect current theme - use Black icons for light theme, White icons for dark theme
+        // Detect the current theme - use Black icons for the light theme, White icons for the dark theme
         const isDarkTheme = document.documentElement.dataset.bsTheme === 'dark';
         const colorScheme = isDarkTheme ? 'White' : 'Black';
 
@@ -206,7 +206,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const buttonContent = document.createElement('div');
             buttonContent.className = 'button-content';
 
-            // Add either image with fallback text, or just text
+            // Add either image with fallback text or just text
             if (buttonImagePath) {
                 buttonContent.innerHTML = `
                 <div class="button-image-container">
@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function() {
         vibrationStatus.innerHTML = `<span class="badge bg-success">Supported</span> Actuator type: <span class="badge bg-secondary">${vibrationCapabilities.type}</span>`;
         vibrationButtons.classList.remove('d-none');
 
-        // Show appropriate controls based on actuator type
+        // Show appropriate controls based on an actuator type
         if (vibrationCapabilities.type === 'dual-rumble') {
             dualRumbleControls.classList.remove('d-none');
         } else {
@@ -357,12 +357,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     // Only the right side rotates for the first half
                     progressBarRightElement.style.transform = `rotate(${degrees}deg)`;
                 } else {
-                    // Right side is at full rotation, left side rotates for the remainder
+                    // The right side is at full rotation, the left side rotates for the remainder
                     progressBarRightElement.style.transform = 'rotate(180deg)';
                     progressBarLeftElement.style.transform = `rotate(${degrees - 180}deg)`;
                 }
 
-                // Add/remove active class based on button state
+                // Add/remove the active class based on the button state
                 if (isPressed) {
                     buttonElement.classList.add('active');
                 } else {
@@ -388,7 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const progressWidth = ((axisValue + 1) / 2) * 100;
                 axisProgressElement.style.width = `${progressWidth}%`;
 
-                // Change color based on direction
+                // Change color based on the direction
                 if (axisValue > 0.1) {
                     axisProgressElement.classList.remove('bg-info', 'bg-danger');
                     axisProgressElement.classList.add('bg-success');
@@ -506,7 +506,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function startGamepadLoop() {
         if (animationFrameId) return;
 
-        // Make sure UI elements are initialized when starting loop
+        // Make sure UI elements are initialized when starting the loop
         if (activeGamepadIndex !== null) {
             initGamepadButtons();
             initGamepadAxes();

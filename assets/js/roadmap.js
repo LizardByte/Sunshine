@@ -1,3 +1,12 @@
+function applyLabelStyle(labelEl, color) {
+    labelEl.style.backgroundColor = `#${color}`;
+    const r = Number.parseInt(color.substring(0, 2), 16);
+    const g = Number.parseInt(color.substring(2, 4), 16);
+    const b = Number.parseInt(color.substring(4, 6), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    labelEl.style.color = brightness > 125 ? '#000' : '#fff';
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     const issuesList = document.getElementById('issues-container');
     const issueModal = new bootstrap.Modal(document.getElementById('issueModal'));
@@ -83,14 +92,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const labelEl = document.createElement('span');
                     labelEl.className = 'badge crowdin-ignore';
                     labelEl.textContent = label.name;
-                    labelEl.style.backgroundColor = `#${label.color}`;
-
-                    // Determine if label text should be dark or light based on background
-                    const r = Number.parseInt(label.color.substring(0, 2), 16);
-                    const g = Number.parseInt(label.color.substring(2, 4), 16);
-                    const b = Number.parseInt(label.color.substring(4, 6), 16);
-                    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                    labelEl.style.color = brightness > 125 ? '#000' : '#fff';
+                    applyLabelStyle(labelEl, label.color);
 
                     labelsEl.appendChild(labelEl);
                 });
@@ -170,14 +172,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const labelEl = document.createElement('span');
                 labelEl.className = 'badge crowdin-ignore';
                 labelEl.textContent = label.name;
-                labelEl.style.backgroundColor = `#${label.color}`;
-
-                // Determine if label text should be dark or light based on background
-                const r = Number.parseInt(label.color.substring(0, 2), 16);
-                const g = Number.parseInt(label.color.substring(2, 4), 16);
-                const b = Number.parseInt(label.color.substring(4, 6), 16);
-                const brightness = (r * 299 + g * 587 + b * 114) / 1000;
-                labelEl.style.color = brightness > 125 ? '#000' : '#fff';
+                applyLabelStyle(labelEl, label.color);
 
                 labelsEl.appendChild(labelEl);
             });

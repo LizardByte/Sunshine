@@ -1,1 +1,1 @@
-window.initCrowdIn('LizardByte', null);
+globalThis.initCrowdIn('LizardByte', null);

@@ -400,9 +400,7 @@ comments:
     <div class="container mb-5 shadow border-0 card-custom rounded-0">
         <div class="d-table-row g-0">
             <div class="d-table-cell px-3 align-middle text-center">
-                <h1>
-                    <i class="fa-fw fas fa-coins"></i>
-                </h1>
+                <i class="fa-fw fa-2xl fas fa-coins"></i>
             </div>
             <div class="col-sm-auto border-white my-3 px-3 py-2 border-start">
                 <div class="container">
@@ -543,9 +541,9 @@ comments:
     {
         if (!document.getElementsByTagName) return false;
         let links = document.getElementsByTagName("a");
-        for (let eleLink=0; eleLink < links.length; eleLink ++) {
-            if ((links[eleLink].href.indexOf('.pdf') !== -1)||(links[eleLink].href.indexOf('.doc') !== -1)||(links[eleLink].href.indexOf('.docx') !== -1)) {
-                links[eleLink].onclick =
+        for (const element of links) {
+            if (element.href.includes('.pdf') || element.href.includes('.doc') || element.href.includes('.docx')) {
+                element.onclick =
                 function() {
                     window.open(this.href);
                     return false;
