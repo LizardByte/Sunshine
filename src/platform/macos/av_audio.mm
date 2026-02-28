@@ -11,6 +11,7 @@
  */
 #import "av_audio.h"
 
+#include "coreaudio_helpers.h"
 #include "src/logging.h"
 #include "src/utility.h"
 
@@ -184,7 +185,7 @@ namespace platf {
     // a different method.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wunguarded-availability-new"
-    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeBuiltInMicrophone, AVCaptureDeviceTypeExternalUnknown]
+    AVCaptureDeviceDiscoverySession *discoverySession = [AVCaptureDeviceDiscoverySession discoverySessionWithDeviceTypes:@[AVCaptureDeviceTypeMicrophone, AVCaptureDeviceTypeExternal]
                                                                                                                mediaType:AVMediaTypeAudio
                                                                                                                 position:AVCaptureDevicePositionUnspecified];
     NSArray *devices = discoverySession.devices;
@@ -279,7 +280,7 @@ namespace platf {
   }];
   BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int) channels << " channels, 32-bit float"sv;
 
-  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
 
   [audioOutput setSampleBufferDelegate:self queue:recordingQueue];
@@ -296,15 +297,15 @@ namespace platf {
 
   self.audioConnection = [audioOutput connectionWithMediaType:AVMediaTypeAudio];
 
+  // Initialize buffer and signal
+  [self initializeAudioBuffer:channels];
+  BOOST_LOG(debug) << "Audio buffer initialized for microphone capture"sv;
+
   [self.audioCaptureSession startRunning];
   BOOST_LOG(info) << "Audio capture session started successfully"sv;
 
   [audioInput release];
   [audioOutput release];
-
-  // Initialize buffer and signal
-  [self initializeAudioBuffer:channels];
-  BOOST_LOG(debug) << "Audio buffer initialized for microphone capture"sv;
 
   return 0;
 }
@@ -367,19 +368,19 @@ namespace platf {
     return -1;
   }
 
-  // 5. Create and start IOProc
+  // 5. Initialize buffer and signal
+  [self initializeAudioBuffer:channels];
+
+  // 6. Create and start IOProc
   OSStatus ioProcStatus = [self createAndStartAggregateDeviceIOProc:tapDescription];
   if (ioProcStatus != noErr) {
     [self cleanupSystemTapContext:tapDescription];
     return -1;
   }
 
-  // 6. Initialize buffer and signal
-  [self initializeAudioBuffer:channels];
-
   [tapDescription release];
 
-  BOOST_LOG(info) << "System tap setup completed successfully!"sv;
+  BOOST_LOG(debug) << "System tap setup completed successfully!"sv;
   return 0;
 }
 
@@ -480,8 +481,11 @@ namespace platf {
   // Cleanup any existing circular buffer first
   TPCircularBufferCleanup(&self->audioSampleBuffer);
 
+  // Size the buffer to hold 30ms of audio (6 packets of 240 32-bit samples per channel)
+  int ringBufferSize = 6 * 240 * channels * sizeof(float);
+
   // Initialize the circular buffer with proper size for the channel count
-  TPCircularBufferInit(&self->audioSampleBuffer, kBufferLength * channels);
+  TPCircularBufferInit(&self->audioSampleBuffer, ringBufferSize);
 
   // Initialize real-time safe semaphore for synchronization (cleanup any existing one first)
   if (self->audioSemaphore) {
@@ -489,7 +493,7 @@ namespace platf {
   }
   self->audioSemaphore = dispatch_semaphore_create(0);
 
-  BOOST_LOG(info) << "Audio buffer initialized successfully with size: "sv << (kBufferLength * channels) << " bytes"sv;
+  BOOST_LOG(debug) << "Audio buffer initialized successfully with size: "sv << ringBufferSize << " bytes"sv;
 }
 
 - (void)cleanupAudioBuffer {
@@ -506,7 +510,7 @@ namespace platf {
   // Cleanup the circular buffer
   TPCircularBufferCleanup(&self->audioSampleBuffer);
 
-  BOOST_LOG(info) << "Audio buffer cleanup completed"sv;
+  BOOST_LOG(debug) << "Audio buffer cleanup completed"sv;
 }
 
 /**
@@ -589,7 +593,13 @@ namespace platf {
 
   tapDescription.name = uniqueName;
   tapDescription.UUID = uniqueUUID;
-  [tapDescription setPrivate:YES];
+
+  if (std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP")) {
+    // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect
+    [tapDescription setPrivate:NO];
+  } else {
+    [tapDescription setPrivate:YES];
+  }
 
   // Set mute behavior based on the hostAudioEnabled property
   if (self.hostAudioEnabled) {
@@ -604,13 +614,12 @@ namespace platf {
   BOOST_LOG(debug) << "Creating process tap with name: "sv << [uniqueName UTF8String];
 
   // Use direct API call like the reference implementation
-  OSStatus status = AudioHardwareCreateProcessTap((CATapDescription *) tapDescription, &self->tapObjectID);
-  BOOST_LOG(debug) << "AudioHardwareCreateProcessTap returned status: "sv << status;
+  OSStatus status = AudioHardwareCreateProcessTap(tapDescription, &self->tapObjectID);
 
   [uniqueUUID release];
 
   if (status != noErr) {
-    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed with status: "sv << status << " (tapDescription: "sv << [[tapDescription description] UTF8String] << ")"sv;
+    BOOST_LOG(error) << "AudioHardwareCreateProcessTap failed: "sv << ca::Status(status);
     [tapDescription release];
     return nil;
   }
@@ -638,25 +647,28 @@ namespace platf {
     @kAudioSubTapDriftCompensationKey: @YES,
   };
 
-  NSDictionary *aggregateProperties = @{
+  NSMutableDictionary *aggregateProperties = [@{
     @kAudioAggregateDeviceNameKey: [NSString stringWithFormat:@"SunshineAggregate-%p", (void *) self],
     @kAudioAggregateDeviceUIDKey: [NSString stringWithFormat:@"com.lizardbyte.sunshine.aggregate-%p", (void *) self],
     @kAudioAggregateDeviceTapListKey: @[subTapDictionary],
     @kAudioAggregateDeviceTapAutoStartKey: @NO,
     @kAudioAggregateDeviceIsPrivateKey: @YES,
-    // Add clock domain configuration for better timing
-    @kAudioAggregateDeviceIsStackedKey: @NO,
-  };
+  } mutableCopy];
+
+  if (std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP")) {
+    // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect
+    aggregateProperties[@kAudioAggregateDeviceIsPrivateKey] = @NO;
+  }
 
   BOOST_LOG(debug) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
-  OSStatus status = AudioHardwareCreateAggregateDevice((__bridge CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
-  BOOST_LOG(debug) << "AudioHardwareCreateAggregateDevice returned status: "sv << status;
+  OSStatus status = AudioHardwareCreateAggregateDevice((CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
+  [aggregateProperties release];
   if (status != noErr && status != 'ExtA') {
-    BOOST_LOG(error) << "Failed to create aggregate device with status: "sv << status;
+    BOOST_LOG(error) << "AudioHardwareCreateAggregateDevice failed: " << ca::Status(status);
     return status;
   }
 
-  BOOST_LOG(info) << "Aggregate device created with ID: "sv << self->aggregateDeviceID;
+  BOOST_LOG(debug) << "Aggregate device created with ID: "sv << self->aggregateDeviceID;
 
   // Configure the aggregate device
   if (self->aggregateDeviceID != kAudioObjectUnknown) {
@@ -691,7 +703,7 @@ namespace platf {
     }
   }
 
-  BOOST_LOG(info) << "Aggregate device created and configured successfully"sv;
+  BOOST_LOG(debug) << "Aggregate device created and configured successfully"sv;
   return noErr;
 }
 
@@ -700,21 +712,22 @@ namespace platf {
   using namespace std::literals;
 
   // Query actual device properties to determine if conversion is needed
-  Float64 aggregateDeviceSampleRate = 48000.0;  // Default fallback
+  UInt32 aggregateDeviceSampleRate = 48000;  // Default fallback
   UInt32 aggregateDeviceChannels = 2;  // Default fallback
 
   // Get actual sample rate from the aggregate device
+  // XXX Do we need this, won't it always be 48000? We set it above in createAggregateDeviceWithTapDescription.
   UInt32 sampleRateQuerySize = sizeof(Float64);
+  Float64 var = 0.0;
   OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
                                              selector:kAudioDevicePropertyNominalSampleRate
                                                 scope:kAudioObjectPropertyScopeGlobal
                                               element:kAudioObjectPropertyElementMain
                                                  size:&sampleRateQuerySize
-                                                 data:&aggregateDeviceSampleRate];
+                                                 data:&var];
 
   if (sampleRateStatus != noErr) {
-    BOOST_LOG(warning) << "Failed to get device sample rate, using default 48kHz: "sv << sampleRateStatus;
-    aggregateDeviceSampleRate = 48000.0;
+    BOOST_LOG(error) << "Failed to get device sample rate, using default 48kHz: " << ca::Status(sampleRateStatus);
   }
 
   // Get actual channel count from the device's input stream configuration
@@ -746,14 +759,14 @@ namespace platf {
   BOOST_LOG(debug) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
 
   // Create AudioConverter based on actual device properties vs client requirements
-  BOOL needsConversion = ((UInt32) aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
+  BOOL needsConversion = (aggregateDeviceSampleRate != clientSampleRate) || (aggregateDeviceChannels != clientChannels);
   BOOST_LOG(debug) << "needsConversion: "sv << (needsConversion ? "YES" : "NO")
                    << " (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch"
                    << " -> client: "sv << clientSampleRate << "Hz/" << (int) clientChannels << "ch)"sv;
 
   if (needsConversion) {
     AudioStreamBasicDescription sourceFormat = {0};
-    sourceFormat.mSampleRate = aggregateDeviceSampleRate;
+    sourceFormat.mSampleRate = (Float64) aggregateDeviceSampleRate;
     sourceFormat.mFormatID = kAudioFormatLinearPCM;
     sourceFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
     sourceFormat.mBytesPerPacket = sizeof(float) * aggregateDeviceChannels;
@@ -763,7 +776,7 @@ namespace platf {
     sourceFormat.mBitsPerChannel = 32;
 
     AudioStreamBasicDescription targetFormat = {0};
-    targetFormat.mSampleRate = clientSampleRate;
+    targetFormat.mSampleRate = (Float64) clientSampleRate;
     targetFormat.mFormatID = kAudioFormatLinearPCM;
     targetFormat.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
     targetFormat.mBytesPerPacket = sizeof(float) * clientChannels;
@@ -774,12 +787,12 @@ namespace platf {
 
     OSStatus converterStatus = AudioConverterNew(&sourceFormat, &targetFormat, &self->ioProcData->audioConverter);
     if (converterStatus != noErr) {
-      BOOST_LOG(error) << "Failed to create audio converter: "sv << converterStatus;
+      BOOST_LOG(error) << "AudioConverterNew failed: " << ca::Status(converterStatus);
       return converterStatus;
     }
-    BOOST_LOG(info) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int) clientChannels << "ch"sv;
+    BOOST_LOG(debug) << "AudioConverter created successfully for "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch -> " << clientSampleRate << "Hz/" << (int) clientChannels << "ch"sv;
   } else {
-    BOOST_LOG(info) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
+    BOOST_LOG(debug) << "No conversion needed - formats match (device: "sv << aggregateDeviceSampleRate << "Hz/" << aggregateDeviceChannels << "ch)"sv;
   }
 
   // Pre-allocate conversion buffer for real-time use (eliminates malloc in audio callback)
@@ -799,10 +812,10 @@ namespace platf {
   BOOST_LOG(debug) << "Pre-allocated conversion buffer: "sv << self->ioProcData->conversionBufferSize << " bytes ("sv << maxFrames << " frames)"sv;
 
   // Store the actual device format for use in the IOProc
-  self->ioProcData->aggregateDeviceSampleRate = (UInt32) aggregateDeviceSampleRate;
+  self->ioProcData->aggregateDeviceSampleRate = aggregateDeviceSampleRate;
   self->ioProcData->aggregateDeviceChannels = aggregateDeviceChannels;
 
-  BOOST_LOG(info) << "Device properties and converter configuration completed"sv;
+  BOOST_LOG(debug) << "Device properties and converter configuration completed"sv;
   return noErr;
 }
 
@@ -812,23 +825,21 @@ namespace platf {
   // Create IOProc
   BOOST_LOG(debug) << "Creating IOProc for aggregate device ID: "sv << self->aggregateDeviceID;
   OSStatus status = AudioDeviceCreateIOProcID(self->aggregateDeviceID, platf::systemAudioIOProc, self->ioProcData, &self->ioProcID);
-  BOOST_LOG(debug) << "AudioDeviceCreateIOProcID returned status: "sv << status;
-  if (status != noErr) {
-    BOOST_LOG(error) << "Failed to create IOProc with status: "sv << status;
+  if (status != kAudioHardwareNoError) {
+    BOOST_LOG(error) << "AudioDeviceCreateIOProcID failed: " << ca::Status(status);
     return status;
   }
 
   // Start the IOProc
   BOOST_LOG(debug) << "Starting IOProc for aggregate device";
   status = AudioDeviceStart(self->aggregateDeviceID, self->ioProcID);
-  BOOST_LOG(debug) << "AudioDeviceStart returned status: "sv << status;
-  if (status != noErr) {
-    BOOST_LOG(error) << "Failed to start IOProc with status: "sv << status;
+  if (status != kAudioHardwareNoError) {
+    BOOST_LOG(error) << "AudioDeviceStart failed: " << ca::Status(status);
     AudioDeviceDestroyIOProcID(self->aggregateDeviceID, self->ioProcID);
     return status;
   }
 
-  BOOST_LOG(info) << "System tap IO proc created and started successfully"sv;
+  BOOST_LOG(debug) << "System tap IO proc created and started successfully"sv;
   return noErr;
 }
 

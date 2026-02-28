@@ -19,31 +19,36 @@ namespace platf {
     }
 
     capture_e sample(std::vector<float> &sample_in) override {
-      auto sample_size = sample_in.size();
+      const uint32_t neededBytes = static_cast<uint32_t>(sample_in.size() * sizeof(float));
+      uint8_t *dst = reinterpret_cast<uint8_t *>(sample_in.data());
 
-      uint32_t length = 0;
-      void *byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
+      uint32_t remaining = neededBytes;
 
-      while (length < sample_size * sizeof(float)) {
-        // Using 5 second timeout to prevent indefinite hanging
-        dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC);
-        if (dispatch_semaphore_wait(av_audio_capture->audioSemaphore, timeout) != 0) {
-          BOOST_LOG(warning) << "Audio sample timeout - no audio data received within 5 seconds"sv;
+      while (remaining > 0) {
+        uint32_t avail = 0;
+        void *tail = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &avail);
 
-          // Fill with silence and return to prevent hanging
-          std::fill(sample_in.begin(), sample_in.end(), 0.0f);
-          return capture_e::timeout;
+        if (avail == 0) {
+          // Using 5 second timeout to prevent indefinite hanging
+          dispatch_time_t timeout = dispatch_time(DISPATCH_TIME_NOW, 5LL * NSEC_PER_SEC);
+          if (dispatch_semaphore_wait(av_audio_capture->audioSemaphore, timeout) != 0) {
+            BOOST_LOG(warning) << "Audio sample timeout - no audio data received within 5 seconds"sv;
+
+            // Fill with silence and return to prevent hanging
+            std::fill(sample_in.begin(), sample_in.end(), 0.0f);
+            return capture_e::timeout;
+          }
+          continue;
         }
 
-        byteSampleBuffer = TPCircularBufferTail(&av_audio_capture->audioSampleBuffer, &length);
+        const uint32_t toCopy = (avail < remaining) ? avail : remaining;
+        std::memcpy(dst, tail, toCopy);
+
+        TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, toCopy);
+
+        dst += toCopy;
+        remaining -= toCopy;
       }
-
-      const float *sampleBuffer = (float *) byteSampleBuffer;
-      std::vector<float> vectorBuffer(sampleBuffer, sampleBuffer + sample_size);
-
-      std::copy_n(std::begin(vectorBuffer), sample_size, std::begin(sample_in));
-
-      TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, sample_size * sizeof(float));
 
       return capture_e::ok;
     }
@@ -75,11 +80,10 @@ namespace platf {
           BOOST_LOG(error) << "Failed to setup system audio tap."sv;
           return nullptr;
         }
-
-        BOOST_LOG(info) << "macOS system audio tap capturing."sv;
       } else {
         // Use specified macOS audio sink
         const char *audio_sink = config::audio.sink.c_str();
+        BOOST_LOG(info) << "Using configured audio sink "sv << audio_sink << " for capture."sv;
 
         if ((audio_capture_device = [AVAudio findMicrophone:[NSString stringWithUTF8String:audio_sink]]) == nullptr) {
           BOOST_LOG(error) << "opening microphone '"sv << audio_sink << "' failed. Please set a valid input source in the Sunshine config."sv;

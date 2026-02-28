@@ -102,18 +102,25 @@ TEST_F(AVAudioTest, MultipleObjectsCoexist) {
  */
 TEST_F(AVAudioTest, InitializeAudioBuffer) {
   AVAudio *avAudio = [[AVAudio alloc] init];
+  uint32_t avail = 0;
 
   // Test with various channel counts
   [avAudio initializeAudioBuffer:1];  // Mono
   EXPECT_NE(avAudio->audioSemaphore, nullptr);
+  TPCircularBufferHead(&avAudio->audioSampleBuffer, &avail);
+  EXPECT_GE(avail, 5760);
   [avAudio cleanupAudioBuffer];
 
   [avAudio initializeAudioBuffer:2];  // Stereo
   EXPECT_NE(avAudio->audioSemaphore, nullptr);
+  TPCircularBufferHead(&avAudio->audioSampleBuffer, &avail);
+  EXPECT_GE(avail, 11520);
   [avAudio cleanupAudioBuffer];
 
   [avAudio initializeAudioBuffer:8];  // 7.1 Surround
   EXPECT_NE(avAudio->audioSemaphore, nullptr);
+  TPCircularBufferHead(&avAudio->audioSampleBuffer, &avail);
+  EXPECT_GE(avail, 46080);
   [avAudio cleanupAudioBuffer];
 
   [avAudio release];
