@@ -122,7 +122,7 @@ jobs:
 
       - name: Upload Artifacts
         if: matrix.release
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-Homebrew
           path: homebrew/
@@ -160,7 +160,7 @@ jobs:
           always() &&
           matrix.release != true &&
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: coverage-Homebrew-${{ matrix.os_name }}-${{ matrix.os_version }}
           path: |
@@ -204,7 +204,7 @@ jobs:
 
       - name: Upload Artifacts (Beta)
         if: matrix.release
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: beta-Homebrew
           path: homebrew/
