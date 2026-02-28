@@ -56,6 +56,3 @@ package-lock.json
 # Python
 *.pyc
 venv/
-
-# Caches
-.cache/

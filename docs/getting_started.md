@@ -458,7 +458,7 @@ The first time you start Sunshine, you will be asked to grant access to screen r
 Sunshine supports native system audio capture on macOS 14.0 (Sonoma) and newer via Apple’s Audio Tap API.
 To use it, simply leave the **Audio Sink** setting blank.
 
-If you are running macOS 13 (Ventura) or earlier—or if you prefer to manage your own loopback device—you can still use [Soundflower](https://github.com/mattingalls/Soundflower) or [BlackHole](https://github.com/ExistentialAudio/BlackHole) and enter its device name in the **Audio Sink** field.
+If you prefer to manage your own loopback device, you can still use [Soundflower](https://github.com/mattingalls/Soundflower) or [BlackHole](https://github.com/ExistentialAudio/BlackHole) and enter its device name in the **Audio Sink** field.
 
 > [!NOTE]
 > Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
