@@ -74,10 +74,26 @@ namespace wl {
       this->env_width = ::wl::env_width;
       this->env_height = ::wl::env_height;
 
+      this->logical_width = monitor->viewport.logical_width;
+      this->logical_height = monitor->viewport.logical_height;
+
+      int desktop_logical_width = 0;
+      int desktop_logical_height = 0;
+      for (auto &monitor_entry : interface.monitors) {
+        auto output_monitor = monitor_entry.get();
+        desktop_logical_width = std::max(desktop_logical_width, output_monitor->viewport.offset_x + output_monitor->viewport.logical_width);
+        desktop_logical_height = std::max(desktop_logical_height, output_monitor->viewport.offset_y + output_monitor->viewport.logical_height);
+      }
+
+      this->env_logical_width = desktop_logical_width;
+      this->env_logical_height = desktop_logical_height;
+
       BOOST_LOG(info) << "Selected monitor ["sv << monitor->description << "] for streaming"sv;
       BOOST_LOG(debug) << "Offset: "sv << offset_x << 'x' << offset_y;
       BOOST_LOG(debug) << "Resolution: "sv << width << 'x' << height;
+      BOOST_LOG(debug) << "Logical Resolution: "sv << logical_width << 'x' << logical_height;
       BOOST_LOG(debug) << "Desktop Resolution: "sv << env_width << 'x' << env_height;
+      BOOST_LOG(debug) << "Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
 
       return 0;
     }

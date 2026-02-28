@@ -423,6 +423,8 @@ namespace platf::publish {
       return nullptr;
     }
 
+    platf::set_thread_name("publish::avahi");
+
     int avhi_error;
 
     poll.reset(avahi::simple_poll_new());

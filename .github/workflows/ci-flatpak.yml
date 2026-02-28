@@ -1,7 +1,6 @@
 ---
 name: CI-Flatpak
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -21,6 +20,8 @@ jobs:
       MATRIX_ARCH: ${{ matrix.arch }}
       NODE_VERSION: "20"
       PLATFORM_VERSION: "24.08"
+    permissions:
+      contents: read
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -33,33 +34,33 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@c2e99809a28d738261f986b884cad52fe3a91d5b  # v2025.1227.191137
+        uses: LizardByte/actions/actions/more_space@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
         with:
           analyze-space-savings: true
           clean-all: true
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: recursive
 
       - name: Setup node
         id: node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Install npm dependencies
-        run: npm install --package-lock-only
+        run: npm install --ignore-scripts --package-lock-only
 
       - name: Debug package-lock.json
         run: cat package-lock.json
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.12'
+          python-version: '3.14'
 
       - name: Setup Dependencies Linux Flatpak
         run: |
@@ -91,7 +92,7 @@ jobs:
         run: cat generated-sources.json
 
       - name: Cache Flatpak build
-        uses: actions/cache@v5
+        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306  # v5.0.3
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}
@@ -206,7 +207,7 @@ jobs:
           tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-Linux-Flatpak-${{ matrix.arch }}
           path: artifacts/

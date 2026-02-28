@@ -4,8 +4,7 @@
 # the above-mentioned repo.
 
 name: Update changelog
-permissions:
-  contents: read
+permissions: {}
 
 on:
   release:
@@ -27,5 +26,7 @@ jobs:
       github.repository_owner == 'LizardByte' &&
       (github.event_name == 'workflow_dispatch' ||
       (!github.event.release.prerelease && !github.event.release.draft))
+    permissions:
+      contents: read
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

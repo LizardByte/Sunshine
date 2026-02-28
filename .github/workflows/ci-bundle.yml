@@ -1,7 +1,6 @@
 ---
 name: CI-Bundle
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -11,17 +10,23 @@ on:
 
 jobs:
   bundle_analysis:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Setup node
         id: node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
 
       - name: Install npm dependencies
-        run: npm install
+        run: npm install --ignore-scripts
+
+      - name: Debug install
+        if: always()
+        run: cat "${HOME}/.npm/_logs/*-debug-0.log" || true
 
       - name: Build
         env:

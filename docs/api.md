@@ -39,6 +39,9 @@ basic authentication with the admin username and password.
 ## POST /api/config
 @copydoc confighttp::saveConfig()
 
+## GET /api/covers/{index}
+@copydoc confighttp::getCover()
+
 ## POST /api/covers/upload
 @copydoc confighttp::uploadCover()
 
@@ -56,6 +59,12 @@ basic authentication with the admin username and password.
 
 ## POST /api/restart
 @copydoc confighttp::restart()
+
+## GET /api/vigembus/status
+@copydoc confighttp::getViGEmBusStatus()
+
+## POST /api/vigembus/install
+@copydoc confighttp::installViGEmBus()
 
 <div class="section_buttons">
 

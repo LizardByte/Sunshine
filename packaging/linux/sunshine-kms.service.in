@@ -1,0 +1,17 @@
+[Unit]
+Description=@PROJECT_DESCRIPTION@
+StartLimitIntervalSec=500
+StartLimitBurst=5
+Conflicts=sunshine.service
+After=graphical-session.target xdg-desktop-autostart.target
+
+[Service]
+# Avoid starting Sunshine before the desktop is fully initialized.
+ExecStartPre=/bin/sleep 5
+@SUNSHINE_SERVICE_START_COMMAND@
+@SUNSHINE_SERVICE_STOP_COMMAND@
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=graphical-session.target

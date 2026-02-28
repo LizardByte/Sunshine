@@ -9,15 +9,19 @@
   },
   "type": "module",
   "dependencies": {
-    "@lizardbyte/shared-web": "2025.922.181114",
-    "vue": "3.5.26",
-    "vue-i18n": "11.2.7"
+    "bootstrap": "5.3.8",
+    "date-fns": "4.1.0",
+    "lucide-vue-next": "0.575.0",
+    "marked": "17.0.3",
+    "vue": "3.5.29",
+    "vue-i18n": "11.2.8",
+    "vue3-simple-icons": "15.6.0"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "1.9.1",
     "@vitejs/plugin-vue": "6.0.1",
     "serve": "14.2.5",
-    "vite": "6.3.6",
+    "vite": "6.4.1",
     "vite-plugin-ejs": "1.7.0"
   }
 }

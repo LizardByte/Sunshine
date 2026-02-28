@@ -3,29 +3,50 @@
 
 <head>
   <%- header %>
-    <style>
-      .config-page {
-        padding: 1em;
-        border: 1px solid #dee2e6;
-        border-top: none;
-      }
-
-      .buttons {
-        padding: 1em 0;
-      }
-    </style>
 </head>
 
 <body id="app" v-cloak>
   <Navbar></Navbar>
   <div class="container">
     <h1 class="my-4">{{ $t('config.configuration') }}</h1>
+
+    <!-- Search Bar with Autocomplete -->
+    <div class="mb-3">
+      <div class="input-group">
+        <span class="input-group-text">
+          <search :size="18" class="icon"></search>
+        </span>
+        <input
+          type="text"
+          class="form-control"
+          v-model="searchQuery"
+          :placeholder="$t('config.search_options')"
+          @input="handleSearch"
+          list="config-options"
+        />
+      </div>
+      <datalist id="config-options">
+        <option v-for="option in allConfigOptions" :key="option.key" :value="option.label">
+          {{ option.tab }} - {{ option.label }}
+        </option>
+      </datalist>
+      <div v-if="searchQuery && searchResults.length === 0" class="text-muted small mt-1">
+        No results found for "{{ searchQuery }}"
+      </div>
+      <div v-else-if="searchQuery" class="text-muted small mt-1">
+        Found {{ searchResults.length }} result(s)
+      </div>
+    </div>
+
     <div class="form" v-if="config">
       <!-- Header -->
       <ul class="nav nav-tabs">
         <li class="nav-item" v-for="tab in tabs" :key="tab.id">
           <a class="nav-link" :class="{'active': tab.id === currentTab}" href="#"
-            @click="currentTab = tab.id">{{tab.name}}</a>
+            @click="currentTab = tab.id">
+            <component :is="getTabIcon(tab.id)" :size="18" class="icon"></component>
+            {{tab.name}}
+          </a>
         </li>
       </ul>
 
@@ -86,9 +107,15 @@
     <div class="alert alert-success my-4" v-if="restarted">
       <b>{{ $t('_common.success') }}</b> {{ $t('config.restart_note') }}
     </div>
-    <div class="mb-3 buttons">
-      <button class="btn btn-primary mr-3" @click="save">{{ $t('_common.save') }}</button>
-      <button class="btn btn-success" @click="apply" v-if="saved && !restarted">{{ $t('_common.apply') }}</button>
+    <div class="mb-3 d-flex gap-2 mt-4">
+      <button class="btn btn-primary" @click="save">
+        <save :size="18" class="icon"></save>
+        {{ $t('_common.save') }}
+      </button>
+      <button class="btn btn-success" @click="apply" v-if="saved && !restarted">
+        <check :size="18" class="icon"></check>
+        {{ $t('_common.apply') }}
+      </button>
     </div>
   </div>
 </body>
@@ -106,6 +133,19 @@
   import AudioVideo from './configs/tabs/AudioVideo.vue'
   import ContainerEncoders from './configs/tabs/ContainerEncoders.vue'
   import {$tp, usePlatformI18n} from './platform-i18n'
+  import {
+    Check,
+    Cpu,
+    FileCog,
+    Gamepad2,
+    Gpu,
+    Network as NetworkIcon,
+    Save,
+    Search,
+    Settings,
+    Sliders,
+    Volume2,
+  } from 'lucide-vue-next'
 
   const app = createApp({
     components: {
@@ -118,6 +158,18 @@
       // They will be accessible via audio-video, container-encoders only.
       AudioVideo,
       ContainerEncoders,
+      // icons
+      Cpu,
+      Check,
+      FileCog,
+      Gamepad2,
+      Gpu,
+      NetworkIcon,
+      Save,
+      Search,
+      Settings,
+      Sliders,
+      Volume2,
     },
     data() {
       return {
@@ -126,6 +178,7 @@
         restarted: false,
         config: null,
         currentTab: "general",
+        searchQuery: "",
         tabs: [ // TODO: Move the options to each Component instead, encapsulate.
           {
             id: "general",
@@ -290,8 +343,33 @@
     },
     provide() {
        return {
-         platform: computed(() => this.platform)
+         platform: computed(() => this.platform),
+         searchQuery: computed(() => this.searchQuery),
        }
+    },
+    computed: {
+      allConfigOptions() {
+        const options = [];
+        this.tabs.forEach(tab => {
+          Object.keys(tab.options).forEach(key => {
+            options.push({
+              key: key,
+              label: key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase()),
+              tab: tab.name,
+              tabId: tab.id
+            });
+          });
+        });
+        return options;
+      },
+      searchResults() {
+        if (!this.searchQuery) return [];
+        const query = this.searchQuery.toLowerCase();
+        return this.allConfigOptions.filter(option =>
+          option.key.toLowerCase().includes(query) ||
+          option.label.toLowerCase().includes(query)
+        );
+      }
     },
     created() {
       fetch("./api/config")
@@ -344,6 +422,23 @@
         });
     },
     methods: {
+      getTabIcon(tabId) {
+        const iconMap = {
+          'general': 'Settings',
+          'input': 'Gamepad2',
+          'av': 'Volume2',
+          'network': 'NetworkIcon',
+          'files': 'FileCog',
+          'advanced': 'Sliders',
+          'nv': 'Gpu',
+          'amd': 'Gpu',
+          'qsv': 'Gpu',
+          'vaapi': 'Gpu',
+          'vt': 'Gpu',
+          'sw': 'Cpu',
+        };
+        return iconMap[tabId] || 'Settings';
+      },
       forceUpdate() {
         this.$forceUpdate()
       },
@@ -405,6 +500,67 @@
                 "Content-Type": "application/json"
               }
             });
+          }
+        });
+      },
+      handleSearch() {
+        // Clear all highlighting
+        document.querySelectorAll('.config-search-highlight').forEach(el => {
+          el.classList.remove('config-search-highlight');
+        });
+
+        if (!this.searchQuery) {
+          // Show all form groups when search is cleared
+          document.querySelectorAll('.mb-3').forEach(el => {
+            el.style.display = '';
+          });
+          return;
+        }
+
+        const results = this.searchResults;
+
+        if (results.length === 0) {
+          return;
+        }
+
+        // Switch to the tab of the first result
+        if (results.length > 0 && results[0].tabId !== this.currentTab) {
+          this.currentTab = results[0].tabId;
+        }
+
+        // Wait for tab content to render
+        this.$nextTick(() => {
+          // Hide all form groups first
+          document.querySelectorAll('.config-page .mb-3').forEach(el => {
+            el.style.display = 'none';
+          });
+
+          // Show only matching elements
+          results.forEach(result => {
+            const element = document.getElementById(result.key);
+
+            if (element) {
+              // Show the element's container
+              const container = element.closest('.mb-3');
+              if (container) {
+                container.style.display = '';
+              }
+            }
+          });
+
+          // Scroll to and highlight the first result
+          if (results.length > 0) {
+            const firstElement = document.getElementById(results[0].key);
+            if (firstElement) {
+              const container = firstElement.closest('.mb-3');
+              if (container) {
+                container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                container.classList.add('config-search-highlight');
+                setTimeout(() => {
+                  container.classList.remove('config-search-highlight');
+                }, 3000);
+              }
+            }
           }
         });
       },

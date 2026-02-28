@@ -8,8 +8,7 @@
 # Update Homebrew on release events.
 
 name: Update Homebrew repo
-permissions:
-  contents: read
+permissions: {}
 
 on:
   release:
@@ -25,7 +24,10 @@ jobs:
     name: Update Homebrew repo
     uses: LizardByte/.github/.github/workflows/__call-update-homebrew-repo.yml@master
     if: github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+    with:
+      gh_username: ${{ vars.GH_BOT_NAME }}
     secrets:
       GH_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
-      GH_USERNAME: ${{ secrets.GH_BOT_NAME }}
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

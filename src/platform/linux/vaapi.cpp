@@ -24,6 +24,18 @@ extern "C" {
     return VA_STATUS_ERROR_UNIMPLEMENTED;
   }
 #endif
+#if !VA_CHECK_VERSION(1, 21, 0)
+  // vaMapBuffer2 stub allows Sunshine built against libva <2.21.0 to link against ffmpeg on libva 2.21.0 or later
+  VAStatus
+    vaMapBuffer2(
+      VADisplay dpy,
+      VABufferID buf_id,
+      void **pbuf,
+      uint32_t flags
+    ) {
+    return vaMapBuffer(dpy, buf_id, pbuf);
+  }
+#endif
 }
 
 // local includes

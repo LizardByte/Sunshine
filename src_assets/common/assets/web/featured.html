@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+      <%- header %>
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div class="container">
+    <div class="my-4">
+      <h1>{{ $t('featured.title') }}</h1>
+      <p>{{ $t('featured.description') }}</p>
+    </div>
+
+    <!-- Category Filter -->
+    <div class="mb-4">
+      <div class="btn-group" role="group" aria-label="Category filter">
+        <button
+          type="button"
+          class="btn btn-outline-primary"
+          :class="{ active: selectedCategory === null }"
+          @click="selectedCategory = null">
+          {{ $t('_common.all') }}
+        </button>
+        <button
+          v-for="category in categories"
+          :key="category.id"
+          type="button"
+          class="btn btn-outline-primary"
+          :class="{ active: selectedCategory === category.id }"
+          @click="selectedCategory = category.id">
+          {{ $t(`featured.categories.${category.originalId}`) }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div v-if="loading" class="text-center py-5">
+      <div class="spinner-border" role="status">
+        <span class="visually-hidden">{{ $t('_common.loading') }}</span>
+      </div>
+    </div>
+
+    <!-- Error State -->
+    <div v-else-if="error" class="alert alert-danger" role="alert">
+      <h4 class="alert-heading">{{ $t('_common.error') }}</h4>
+      <p>{{ error }}</p>
+    </div>
+
+    <!-- Apps Grid -->
+    <div v-else class="row g-4">
+      <div
+        v-for="app in filteredApps"
+        :key="app.id"
+        class="col-12 col-md-6 col-lg-4">
+        <div class="card h-100 featured-app-card">
+          <div class="card-body">
+            <div class="d-flex align-items-start mb-3">
+              <div class="featured-app-icon me-3">
+                <img
+                  v-if="app.icon"
+                  :src="app.icon + '?size=64'"
+                  :alt="app.name"
+                  class="rounded"
+                  @error="handleIconError($event)"
+                />
+                <div v-else class="featured-app-icon-placeholder">
+                  <box :size="32" class="icon"></box>
+                </div>
+              </div>
+              <div class="flex-grow-1 min-w-0">
+                <h5 class="card-title mb-1">{{ app.name }}</h5>
+                <p class="text-muted small mb-0" v-if="app.tagline">{{ app.tagline }}</p>
+              </div>
+              <span v-if="app.official" class="badge bg-primary flex-shrink-0 ms-2">{{ $t('featured.official') }}</span>
+            </div>
+
+            <p class="card-text text-muted small mb-3">{{ app.description }}</p>
+
+            <!-- GitHub Metadata -->
+            <div v-if="app.github" class="github-stats mb-3 d-flex gap-3 text-muted small">
+              <span v-if="app.github.stars !== undefined" :title="$t('featured.github_stars')">
+                <star :size="14" class="icon" fill="currentColor"></star>
+                {{ formatNumber(app.github.stars) }}
+              </span>
+              <span v-if="app.github.forks !== undefined" :title="$t('featured.github_forks')">
+                <git-fork :size="14" class="icon"></git-fork>
+                {{ formatNumber(app.github.forks) }}
+              </span>
+              <span v-if="app.github.openIssues !== undefined" :title="$t('featured.github_issues')">
+                <circle-dot :size="14" class="icon"></circle-dot>
+                {{ formatNumber(app.github.openIssues) }}
+              </span>
+            </div>
+
+            <!-- Last Updated -->
+            <div v-if="app.github && app.github.lastUpdated" class="text-muted small mb-3">
+              <span :title="formatDate(app.github.lastUpdated).absolute">
+                {{ $t('featured.last_updated') }}: {{ formatDate(app.github.lastUpdated).relative }}
+              </span>
+            </div>
+
+            <!-- Screenshots Section -->
+            <div v-if="app.screenshots && app.screenshots.length > 0" class="screenshots-container mb-3">
+              <div class="screenshots-scroll">
+                <img
+                  v-for="(screenshot, index) in app.screenshots"
+                  :key="index"
+                  :src="screenshot"
+                  :alt="app.name + ' screenshot ' + (index + 1)"
+                  class="screenshot-thumbnail"
+                  @click="openScreenshot(screenshot, app.screenshots)"
+                  @error="handleScreenshotError"
+                />
+              </div>
+            </div>
+
+            <!-- Platform Icons -->
+            <div class="mb-3">
+              <span class="badge bg-secondary me-1" v-for="platform in app.platforms" :key="platform">
+                <monitor v-if="platform === 'windows'" :size="14" class="icon"></monitor>
+                <monitor v-else-if="platform === 'macos'" :size="14" class="icon"></monitor>
+                <monitor v-else-if="platform === 'linux'" :size="14" class="icon"></monitor>
+                <smartphone v-else-if="platform === 'android'" :size="14" class="icon"></smartphone>
+                <smartphone v-else-if="platform === 'ios'" :size="14" class="icon"></smartphone>
+                <globe v-else-if="platform === 'web'" :size="14" class="icon"></globe>
+                {{ platformName(platform) }}
+              </span>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 flex-wrap">
+              <a
+                v-if="app.links && app.links.download"
+                :href="app.links.download"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-primary btn-sm flex-fill">
+                <arrow-down-circle :size="16" class="icon"></arrow-down-circle>
+                {{ $t('featured.get') }}
+              </a>
+              <a
+                v-if="app.links && app.links.documentation"
+                :href="app.links.documentation"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline-primary btn-sm"
+                :title="$t('featured.documentation')">
+                <external-link :size="16" class="icon"></external-link>
+                {{ $t('featured.docs') }}
+              </a>
+              <a
+                v-if="app.links && app.links.website"
+                :href="app.links.website"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline-secondary btn-sm"
+                :title="$t('featured.website')">
+                <external-link :size="16" class="icon"></external-link>
+              </a>
+              <a
+                v-if="app.links && app.links.github"
+                :href="app.links.github"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline-secondary btn-sm"
+                :title="$t('featured.github')">
+                <simple-icon icon="GitHub" :size="16" class="icon"></simple-icon>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-if="!loading && !error && filteredApps.length === 0" class="text-center py-5">
+      <p class="text-muted">{{ $t('featured.no_apps') }}</p>
+    </div>
+
+    <!-- Screenshot Modal -->
+    <div
+      v-if="selectedScreenshot"
+      class="screenshot-modal"
+      @click="closeScreenshot"
+      @touchstart="handleTouchStart"
+      @touchend="handleTouchEnd">
+      <div class="screenshot-modal-content">
+        <button
+          type="button"
+          class="btn-close btn-close-white screenshot-close"
+          @click="closeScreenshot"
+          aria-label="Close"></button>
+
+        <!-- Previous Button -->
+        <button
+          v-if="currentAppScreenshots.length > 1"
+          type="button"
+          class="screenshot-nav screenshot-nav-prev"
+          @click.stop="prevScreenshot"
+          aria-label="Previous screenshot">
+          <chevron-left :size="32"></chevron-left>
+        </button>
+
+        <!-- Next Button -->
+        <button
+          v-if="currentAppScreenshots.length > 1"
+          type="button"
+          class="screenshot-nav screenshot-nav-next"
+          @click.stop="nextScreenshot"
+          aria-label="Next screenshot">
+          <chevron-right :size="32"></chevron-right>
+        </button>
+
+        <!-- Screenshot Counter -->
+        <div v-if="currentAppScreenshots.length > 1" class="screenshot-counter">
+          {{ selectedScreenshotIndex + 1 }} / {{ currentAppScreenshots.length }}
+        </div>
+
+        <img :src="selectedScreenshot" alt="Screenshot" @click.stop />
+      </div>
+    </div>
+  </div>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import { initApp } from './init'
+  import Navbar from './Navbar.vue'
+  import SimpleIcon from './SimpleIcon.vue'
+  import { formatDistanceToNow, format } from 'date-fns'
+  import {
+    ArrowDownCircle,
+    Box,
+    ChevronLeft,
+    ChevronRight,
+    CircleDot,
+    ExternalLink,
+    GitFork,
+    Globe,
+    Monitor,
+    Smartphone,
+    Star,
+  } from 'lucide-vue-next'
+
+  const app = createApp({
+    components: {
+      Navbar,
+      SimpleIcon,
+      ArrowDownCircle,
+      Box,
+      ChevronLeft,
+      ChevronRight,
+      CircleDot,
+      ExternalLink,
+      GitFork,
+      Globe,
+      Monitor,
+      Smartphone,
+      Star,
+    },
+    data() {
+      return {
+        apps: [],
+        categories: [],
+        selectedCategory: null,
+        loading: true,
+        error: null,
+        selectedScreenshot: null,
+        selectedScreenshotIndex: -1,
+        currentAppScreenshots: [],
+        touchStartX: 0,
+        touchEndX: 0,
+      };
+    },
+    computed: {
+      filteredApps() {
+        let filtered = this.selectedCategory
+          ? this.apps.filter(app => app.category === this.selectedCategory)
+          : this.apps;
+
+        // Sort by official status first, then by GitHub stars
+        return filtered.slice().sort((a, b) => {
+          // Official apps first
+          if (a.official && !b.official) return -1;
+          if (!a.official && b.official) return 1;
+
+          // Then sort by GitHub stars (descending)
+          const aStars = a.github?.stars || 0;
+          const bStars = b.github?.stars || 0;
+          return bStars - aStars;
+        });
+      }
+    },
+    created() {
+      this.loadFeaturedApps();
+    },
+    mounted() {
+      window.addEventListener('keydown', this.handleKeydown);
+    },
+    beforeUnmount() {
+      window.removeEventListener('keydown', this.handleKeydown);
+    },
+    methods: {
+      async loadFeaturedApps() {
+        try {
+          this.loading = true;
+          this.error = null;
+
+          // Fetch the app directory for Sunshine
+          const indexUrl = 'https://app.lizardbyte.dev/app-directory/sunshine.json';
+
+          const response = await fetch(indexUrl);
+          if (!response.ok) {
+            throw new Error('Failed to load featured apps');
+          }
+
+          const data = await response.json();
+          this.apps = data.apps || [];
+          this.categories = data.categories || [];
+        } catch (err) {
+          console.error('Error loading featured apps:', err);
+          this.error = err.message;
+        } finally {
+          this.loading = false;
+        }
+      },
+      platformName(platform) {
+        const names = {
+          'windows': 'Windows',
+          'macos': 'macOS',
+          'linux': 'Linux',
+          'android': 'Android',
+          'ios': 'iOS',
+          'web': 'Web'
+        };
+        return names[platform] || platform;
+      },
+      handleIconError(event) {
+        // Hide broken icon and show placeholder
+        event.target.style.display = 'none';
+      },
+      openScreenshot(url, screenshots) {
+        this.currentAppScreenshots = screenshots || [];
+        this.selectedScreenshotIndex = this.currentAppScreenshots.indexOf(url);
+        this.selectedScreenshot = url;
+      },
+      closeScreenshot() {
+        this.selectedScreenshot = null;
+        this.selectedScreenshotIndex = -1;
+        this.currentAppScreenshots = [];
+      },
+      nextScreenshot() {
+        if (this.currentAppScreenshots.length === 0) return;
+        this.selectedScreenshotIndex = (this.selectedScreenshotIndex + 1) % this.currentAppScreenshots.length;
+        this.selectedScreenshot = this.currentAppScreenshots[this.selectedScreenshotIndex];
+      },
+      prevScreenshot() {
+        if (this.currentAppScreenshots.length === 0) return;
+        this.selectedScreenshotIndex = (this.selectedScreenshotIndex - 1 + this.currentAppScreenshots.length) % this.currentAppScreenshots.length;
+        this.selectedScreenshot = this.currentAppScreenshots[this.selectedScreenshotIndex];
+      },
+      handleKeydown(event) {
+        if (!this.selectedScreenshot) return;
+
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          this.nextScreenshot();
+        } else if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          this.prevScreenshot();
+        } else if (event.key === 'Escape') {
+          event.preventDefault();
+          this.closeScreenshot();
+        }
+      },
+      handleTouchStart(event) {
+        this.touchStartX = event.changedTouches[0].screenX;
+      },
+      handleTouchEnd(event) {
+        this.touchEndX = event.changedTouches[0].screenX;
+        this.handleSwipe();
+      },
+      handleSwipe() {
+        const swipeThreshold = 50;
+        const diff = this.touchStartX - this.touchEndX;
+
+        if (Math.abs(diff) > swipeThreshold) {
+          if (diff > 0) {
+            // Swiped left, show next
+            this.nextScreenshot();
+          } else {
+            // Swiped right, show previous
+            this.prevScreenshot();
+          }
+        }
+      },
+      handleScreenshotError(event) {
+        event.target.style.display = 'none';
+      },
+      formatNumber(num) {
+        if (num === undefined || num === null) return '0';
+
+        const absNum = Math.abs(num);
+
+        if (absNum >= 1000000000) {
+          return (num / 1000000000).toFixed(1) + 'B';
+        } else if (absNum >= 1000000) {
+          return (num / 1000000).toFixed(1) + 'M';
+        } else if (absNum >= 1000) {
+          return (num / 1000).toFixed(1) + 'k';
+        }
+
+        return num.toString();
+      },
+      formatDate(dateString) {
+        if (!dateString) return { relative: '', absolute: '' };
+
+        const date = new Date(dateString);
+
+        // Format absolute date like GitHub: "Jan 28, 2026, 1:52 PM UTC"
+        const absolute = format(date, 'MMM d, yyyy, h:mm a zzz');
+
+        // Use date-fns to get relative time like "2 days ago"
+        const relative = formatDistanceToNow(date, { addSuffix: true });
+
+        return { relative, absolute };
+      }
+    },
+  });
+
+  initApp(app);
+</script>
+
+</html>

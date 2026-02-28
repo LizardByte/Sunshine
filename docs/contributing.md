@@ -4,7 +4,7 @@ Read our contribution guide in our organization level
 
 ## Recommended Tools
 
-| Tool                                                                                                                                                                           | Description                                                                                                                                                                           |
+| Tool                                                                                                                                                                           | Description                                                             |
 |--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------|
 | <a href="https://www.jetbrains.com/clion/"><img src="https://resources.jetbrains.com/storage/products/company/brand/logos/CLion_icon.svg" width="30" height="30"></a><br>CLion | Recommended IDE for C and C++ development. Free for non-commercial use. |
 
@@ -16,6 +16,7 @@ Read our contribution guide in our organization level
 * [EJS](https://www.npmjs.com/package/vite-plugin-ejs) is used as a templating system for the pages
   (check `template_header.html` and `template_header_main.html`).
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).
+* Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
 * The JS framework used by the more interactive pages is [Vus.js](https://vuejs.org).
 
 #### Building
@@ -126,9 +127,15 @@ any of the following paths are modified.
 - 'src/**'
 ```
 
-When testing locally it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the python dependencies in the `./scripts/requirements.txt` file. Additionally,
-[xgettext](https://www.gnu.org/software/gettext) must be installed.
+When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python is
+required for this, along with the python dependencies in the `./scripts/pyproject.toml` file. You can install this with
+the following command.
+
+```bash
+python -m pip install "./scripts[locale]"
+```
+
+Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash

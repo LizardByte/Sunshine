@@ -40,8 +40,8 @@ BuildRequires: libXi-devel
 BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
-BuildRequires: npm
 BuildRequires: openssl-devel
+BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
 BuildRequires: wget
@@ -52,11 +52,18 @@ BuildRequires: which
 BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
 BuildRequires: libappstream-glib
+%if 0%{fedora} > 43
+# needed for npm from nvm
+BuildRequires: libatomic
+%endif
 BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libgudev
 BuildRequires: mesa-libGL-devel
 BuildRequires: mesa-libgbm-devel
 BuildRequires: miniupnpc-devel
+%if 0%{?fedora} < 44
+BuildRequires: nodejs-npm
+%endif
 BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
@@ -78,6 +85,7 @@ BuildRequires: libminiupnpc-devel
 BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
+BuildRequires: npm
 BuildRequires: udev
 # for unit tests
 BuildRequires: xvfb-run
@@ -187,9 +195,10 @@ cmake_args=(
   "-DCMAKE_INSTALL_PREFIX=%{_prefix}"
   "-DSUNSHINE_ASSETS_DIR=%{_datadir}/sunshine"
   "-DSUNSHINE_EXECUTABLE_PATH=%{_bindir}/sunshine"
+  "-DSUNSHINE_ENABLE_DRM=ON"
+  "-DSUNSHINE_ENABLE_PORTAL=ON"
   "-DSUNSHINE_ENABLE_WAYLAND=ON"
   "-DSUNSHINE_ENABLE_X11=ON"
-  "-DSUNSHINE_ENABLE_DRM=ON"
   "-DSUNSHINE_PUBLISHER_NAME=LizardByte"
   "-DSUNSHINE_PUBLISHER_WEBSITE=https://app.lizardbyte.dev"
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
@@ -254,6 +263,39 @@ else
   cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
 fi
 
+# Install and setup NVM for Fedora 44+
+%if 0%{?fedora} > 43
+echo "Installing NVM for Fedora 44+..."
+export HOME=${HOME:-/builddir}
+export NVM_DIR="$HOME/.nvm"
+
+# Install NVM
+if [ ! -d "$NVM_DIR" ]; then
+  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+fi
+
+# Load NVM
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+# Install and use Node.js
+nvm install node
+nvm use node
+
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+echo "npm location: $(which npm)"
+echo "node location: $(which node)"
+
+# Add npm and node path to cmake args
+NPM_PATH=$(which npm)
+NODE_PATH=$(which node)
+cmake_args+=("-DNPM=${NPM_PATH}")
+
+# Add node bin directory to PATH for make
+export PATH="$(dirname ${NODE_PATH}):${PATH}"
+%endif
+
 # setup the version
 export BRANCH=%{branch}
 export BUILD_VERSION=v%{build_version}
@@ -277,6 +319,21 @@ cd %{_builddir}/Sunshine/build
 xvfb-run ./tests/test_sunshine
 
 %install
+# Load NVM for Fedora 44+ so npm is available during make install
+%if 0%{?fedora} > 43
+export HOME=${HOME:-/builddir}
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm use node
+
+# Add node bin directory to PATH for make install
+NODE_PATH=$(which node)
+export PATH="$(dirname ${NODE_PATH}):${PATH}"
+
+echo "Node.js version: $(node --version)"
+echo "npm version: $(npm --version)"
+%endif
+
 cd %{_builddir}/Sunshine/build
 %make_install
 
@@ -311,8 +368,10 @@ fi
 %caps(cap_sys_admin+p) %{_bindir}/sunshine
 %caps(cap_sys_admin+p) %{_bindir}/sunshine-*
 
-# Systemd unit file for user services
+# Systemd unit/preset files for user services
 %{_userunitdir}/sunshine.service
+%{_userunitdir}/sunshine-kms.service
+%{_userpresetdir}/00-sunshine-kms.preset
 
 # Udev rules
 %{_udevrulesdir}/*-sunshine.rules

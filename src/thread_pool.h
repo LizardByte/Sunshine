@@ -8,6 +8,7 @@
 #include <thread>
 
 // local includes
+#include "platform/common.h"
 #include "task_pool.h"
 
 namespace thread_pool_util {
@@ -98,6 +99,7 @@ namespace thread_pool_util {
 
   public:
     void _main() {
+      platf::set_thread_name("TaskPool::worker");
       while (_continue) {
         if (auto task = this->pop()) {
           (*task)->run();

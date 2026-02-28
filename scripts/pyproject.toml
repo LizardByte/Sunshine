@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Sunshine"
+dynamic = ["version"]
+description = "Helper scripts for Sunshine"
+requires-python = ">=3.14"
+license = {text = "GPL-3.0-only"}
+authors = [
+    {name = "LizardByte", email = "lizardbyte@users.noreply.github.com"}
+]
+
+dependencies = []
+
+[project.optional-dependencies]
+lint = [
+    "clang-format==20.*",
+    "flake8==7.3.0",
+]
+
+locale = [
+    "Babel==2.18.0",
+]
+
+test = [
+    "gcovr==8.6",
+]
+
+[project.urls]
+Homepage = "https://app.lizardbyte.dev/Sunshine"
+Repository = "https://github.com/LizardByte/Sunshine"
+Issues = "https://github.com/LizardByte/Sunshine/issues"

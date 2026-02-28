@@ -236,6 +236,7 @@ namespace platf {
         worker = std::thread {
           [](loop_t::pointer loop) {
             int retval;
+            platf::set_thread_name("audio::pulseaudio");
             auto status = pa_mainloop_run(loop, &retval);
 
             if (status < 0) {

@@ -1,7 +1,6 @@
 ---
 name: CI-FreeBSD
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -25,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.generate-matrix.outputs.matrix }}
+    permissions: {}
     steps:
       - name: Generate Matrix
         id: generate-matrix
@@ -66,12 +66,14 @@ jobs:
     name: ${{ matrix.cmake_processor }}-${{ matrix.bsd_release }}
     runs-on: ubuntu-latest
     needs: setup-matrix
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: recursive
 
@@ -84,7 +86,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@670398e4236735b8b65805c3da44b7a511fb8b27  # v1.3.0
+        uses: vmactions/freebsd-vm@c9f815bc7aa0d34c9fdd0619b034a32d6ca7b57e  # v1.4.2
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
@@ -112,8 +114,9 @@ jobs:
               ftp/curl \
               graphics/libdrm \
               graphics/wayland \
-              lang/python312 \
+              lang/python314 \
               multimedia/libva \
+              multimedia/pipewire \
               net/miniupnpc \
               ports-mgmt/pkg \
               security/openssl \
@@ -130,13 +133,13 @@ jobs:
             ln -s /usr/local/bin/bash /bin/bash
 
             # setup python
-            ln -s /usr/local/bin/python3.12 /usr/local/bin/python
+            ln -s /usr/local/bin/python3.14 /usr/local/bin/python
             python -m ensurepip
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
             # install gcvor
-            python -m pip install gcovr
+            python -m pip install "./scripts[test]"
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"
@@ -167,6 +170,7 @@ jobs:
             -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
             -DSUNSHINE_ENABLE_CUDA=OFF \
             -DSUNSHINE_ENABLE_DRM=OFF \
+            -DSUNSHINE_ENABLE_PORTAL=ON \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
@@ -256,7 +260,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: coverage-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: |
@@ -265,7 +269,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: artifacts/

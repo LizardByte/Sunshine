@@ -8,8 +8,7 @@
 # Update Winget on release events.
 
 name: Update Winget repo
-permissions:
-  contents: read
+permissions: {}
 
 on:
   release:
@@ -25,5 +24,9 @@ jobs:
     name: Update Winget repo
     uses: LizardByte/.github/.github/workflows/__call-update-winget-repo.yml@master
     if: github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+    with:
+      gh_name: ${{ vars.GH_BOT_NAME }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}

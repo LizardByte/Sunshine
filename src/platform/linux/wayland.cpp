@@ -144,6 +144,8 @@ namespace wl {
   }
 
   void monitor_t::xdg_size(zxdg_output_v1 *, std::int32_t width, std::int32_t height) {
+    viewport.logical_width = width;
+    viewport.logical_height = height;
     BOOST_LOG(info) << "Logical size: "sv << width << 'x' << height;
   }
 
@@ -454,6 +456,7 @@ namespace wl {
     self->current_wl_buffer = buffer;
 
     // Start the actual copy
+    zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_copy(frame, buffer);
   }
 
@@ -468,6 +471,7 @@ namespace wl {
     BOOST_LOG(error) << "Failed to create buffer from params"sv;
     self->cleanup_gbm();
 
+    zwp_linux_buffer_params_v1_destroy(params);
     zwlr_screencopy_frame_v1_destroy(frame);
     self->status = REINIT;
   }

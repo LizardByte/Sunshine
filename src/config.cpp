@@ -187,7 +187,7 @@ namespace config {
     };
 
     template<class T>
-    std::optional<int> quality_from_view(const std::string_view &quality_type, const std::optional<int>(&original)) {
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (quality_type == #x##sv) \
   return (int) T::x
@@ -199,7 +199,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> rc_from_view(const std::string_view &rc, const std::optional<int>(&original)) {
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (rc == #x##sv) \
   return (int) T::x
@@ -212,7 +212,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> usage_from_view(const std::string_view &usage, const std::optional<int>(&original)) {
+    ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (usage == #x##sv) \
   return (int) T::x
@@ -225,7 +225,7 @@ namespace config {
       return original;
     }
 
-    int coder_from_view(const std::string_view &coder) {
+    int coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
       }
@@ -775,7 +775,7 @@ namespace config {
     if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
       input = util::from_hex<int>(val.substr(2));
     } else {
-      input = util::from_view(val);
+      input = (int) util::from_view(val);
     }
 
     vars.erase(it);
@@ -979,7 +979,7 @@ namespace config {
       if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
         tmp = util::from_hex<int>(val.substr(2));
       } else {
-        tmp = util::from_view(val);
+        tmp = (int) util::from_view(val);
       }
       input.emplace_back(tmp);
     }
@@ -1042,18 +1042,6 @@ namespace config {
   }
 
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
-#ifndef __ANDROID__
-    // TODO: Android can possibly support this
-    if (!fs::exists(stream.file_apps.c_str())) {
-      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
-      fs::permissions(
-        stream.file_apps,
-        fs::perms::owner_read | fs::perms::owner_write,
-        fs::perm_options::add
-      );
-    }
-#endif
-
     for (auto &[name, val] : vars) {
       BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
       modified_config_settings[name] = val;
@@ -1187,6 +1175,18 @@ namespace config {
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
 
     path_f(vars, "file_apps", stream.file_apps);
+#ifndef __ANDROID__
+    // TODO: Android can possibly support this
+    if (!fs::exists(stream.file_apps.c_str())) {
+      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
+      fs::permissions(
+        stream.file_apps,
+        fs::perms::owner_read | fs::perms::owner_write,
+        fs::perm_options::add
+      );
+    }
+#endif
+
     int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);

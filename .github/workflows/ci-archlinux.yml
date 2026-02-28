@@ -1,7 +1,6 @@
 ---
 name: CI-Archlinux
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -24,6 +23,8 @@ jobs:
       BUILD_VERSION: ${{ inputs.release_version }}
       CLONE_URL: ${{ github.event.repository.clone_url }}
       COMMIT: ${{ inputs.release_commit }}
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     container:
       image: archlinux/archlinux:base-devel
@@ -65,7 +66,7 @@ jobs:
           pacman -Scc --noconfirm
 
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
       - name: Fix workspace permissions
         shell: bash
@@ -153,7 +154,7 @@ jobs:
         if: >-
           always() &&
           (steps.build.outcome == 'success' || steps.build.outcome == 'failure')
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: coverage-Archlinux
           path: |
@@ -175,7 +176,7 @@ jobs:
           ls -la artifacts/
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-Archlinux
           path: artifacts/

@@ -12,6 +12,7 @@ finish-args:
   - --env=PULSE_PROP_media.category=Manager  # allow sunshine to manage audio sinks
   - --env=SUNSHINE_MIGRATE_CONFIG=1  # migrate config files to the new location
   - --filesystem=home  # need to save files in user's home directory
+  - --filesystem=xdg-run/pipewire-0  # required for XDG portal grab audio
   - --share=ipc  # required for X11 shared memory extension
   - --share=network  # access network
   - --socket=pulseaudio  # play sounds using pulseaudio
@@ -40,12 +41,14 @@ modules:
   - "modules/avahi.json"
   - "modules/boost.json"
   - "modules/libevdev.json"
-  - "modules/libnotify.json"
   - "modules/miniupnpc.json"
   - "modules/numactl.json"
 
   # Caching is configured until here, not including CUDA, since it is too large for GitHub cache
   - "modules/cuda.json"
+
+  # FFmpeg prebuilt binaries
+  - "modules/ffmpeg.json"
 
   - name: sunshine
     builddir: true
@@ -67,13 +70,15 @@ modules:
       - -DBUILD_WERROR=ON
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
+      - -DFFMPEG_PREPARED_BINARIES=/app/ffmpeg
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_BUILD_FLATPAK=ON
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
+      - -DSUNSHINE_ENABLE_CUDA=ON
+      - -DSUNSHINE_ENABLE_DRM=ON
+      - -DSUNSHINE_ENABLE_PORTAL=ON
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
-      - -DSUNSHINE_ENABLE_DRM=ON
-      - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_PUBLISHER_NAME='LizardByte'
       - -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       - -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'

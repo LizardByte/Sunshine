@@ -20,6 +20,13 @@
 #include <Simple-Web-Server/crypto.hpp>
 #include <Simple-Web-Server/server_https.hpp>
 
+#ifdef _WIN32
+  #include "platform/windows/misc.h"
+
+  #include <vector>
+  #include <Windows.h>
+#endif
+
 // local includes
 #include "config.h"
 #include "confighttp.h"
@@ -163,7 +170,7 @@ namespace confighttp {
     auto &rawAuth = auth->second;
     auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
 
-    int index = authData.find(':');
+    auto index = (int) authData.find(':');
     if (index >= authData.size() - 1) {
       return false;
     }
@@ -184,13 +191,14 @@ namespace confighttp {
    * @brief Send a 404 Not Found response.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
+   * @param error_message The error message to include in the response.
    */
-  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request) {
+  void not_found(resp_https_t response, [[maybe_unused]] req_https_t request, const std::string &error_message = "Not Found") {
     constexpr SimpleWeb::StatusCode code = SimpleWeb::StatusCode::client_error_not_found;
 
     nlohmann::json tree;
     tree["status_code"] = code;
-    tree["error"] = "Not Found";
+    tree["error"] = error_message;
 
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "application/json");
@@ -250,6 +258,28 @@ namespace confighttp {
 
     if (actualContentType != expectedContentType) {
       bad_request(response, request, "Content type mismatch");
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * @brief Validates the application index and sends error response if invalid.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * @param index The application index/id.
+   */
+  bool check_app_index(resp_https_t response, req_https_t request, int index) {
+    std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+    nlohmann::json file_tree = nlohmann::json::parse(file);
+    if (const auto &apps = file_tree["apps"]; index < 0 || index >= static_cast<int>(apps.size())) {
+      std::string error;
+      if (const int max_index = static_cast<int>(apps.size()) - 1; max_index < 0) {
+        error = "No applications found";
+      } else {
+        error = std::format("'index' {} out of range, max index is {}", index, max_index);
+      }
+      bad_request(std::move(response), std::move(request), error);
       return false;
     }
     return true;
@@ -350,6 +380,26 @@ namespace confighttp {
     print_req(request);
 
     std::string content = file_handler::read_file(WEB_DIR "config.html");
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/html; charset=utf-8");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+    response->write(content, headers);
+  }
+
+  /**
+   * @brief Get the featured apps page.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   */
+  void getFeaturedPage(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string content = file_handler::read_file(WEB_DIR "featured.html");
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/html; charset=utf-8");
     headers.emplace("X-Frame-Options", "DENY");
@@ -704,25 +754,19 @@ namespace confighttp {
     try {
       nlohmann::json output_tree;
       nlohmann::json new_apps = nlohmann::json::array();
-      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
-      nlohmann::json file_tree = nlohmann::json::parse(file);
-      auto &apps_node = file_tree["apps"];
       const int index = std::stoi(request->path_match[1]);
 
-      if (index < 0 || index >= static_cast<int>(apps_node.size())) {
-        std::string error;
-        if (const int max_index = static_cast<int>(apps_node.size()) - 1; max_index < 0) {
-          error = "No applications to delete";
-        } else {
-          error = std::format("'index' {} out of range, max index is {}", index, max_index);
-        }
-        bad_request(response, request, error);
+      if (!check_app_index(response, request, index)) {
         return;
       }
 
-      for (size_t i = 0; i < apps_node.size(); ++i) {
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      for (size_t i = 0; i < apps.size(); ++i) {
         if (i != index) {
-          new_apps.push_back(apps_node[i]);
+          new_apps.push_back(apps[i]);
         }
       }
       file_tree["apps"] = new_apps;
@@ -917,6 +961,71 @@ namespace confighttp {
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "SaveConfig: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
+   * @brief Get an application's image.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @note{The index in the url path is the application index.}
+   *
+   * @api_examples{/api/covers/9999 | GET| null}
+   */
+  void getCover(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    try {
+      const int index = std::stoi(request->path_match[1]);
+      if (!check_app_index(response, request, index)) {
+        return;
+      }
+
+      std::string file = file_handler::read_file(config::stream.file_apps.c_str());
+      nlohmann::json file_tree = nlohmann::json::parse(file);
+      auto &apps = file_tree["apps"];
+
+      auto &app = apps[index];
+
+      // Get the image path from the app configuration
+      std::string app_image_path;
+      if (app.contains("image-path") && !app["image-path"].is_null()) {
+        app_image_path = app["image-path"];
+      }
+
+      // Use validate_app_image_path to resolve and validate the path
+      // This handles extension validation, PNG signature validation, and path resolution
+      std::string validated_path = proc::validate_app_image_path(app_image_path);
+
+      // Check if we got the default image path (means validation failed or no image configured)
+      if (validated_path == DEFAULT_APP_IMAGE_PATH) {
+        BOOST_LOG(debug) << "Application at index " << index << " does not have a valid cover image";
+        not_found(response, request, "Cover image not found");
+        return;
+      }
+
+      // Open and stream the validated file
+      std::ifstream in(validated_path, std::ios::binary);
+      if (!in) {
+        BOOST_LOG(warning) << "Unable to read cover image file: " << validated_path;
+        bad_request(response, request, "Unable to read cover image file");
+        return;
+      }
+
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "image/png");
+      headers.emplace("X-Frame-Options", "DENY");
+      headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
+
+      response->write(SimpleWeb::StatusCode::success_ok, in, headers);
+    } catch (std::exception &e) {
+      BOOST_LOG(warning) << "GetCover: "sv << e.what();
       bad_request(response, request, e.what());
     }
   }
@@ -1171,7 +1280,134 @@ namespace confighttp {
     platf::restart();
   }
 
+  /**
+   * @brief Get ViGEmBus driver version and installation status.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vigembus/status| GET| null}
+   */
+  void getViGEmBusStatus(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+
+#ifdef _WIN32
+    std::string version_str;
+    bool installed = false;
+    bool version_compatible = false;
+
+    // Check if ViGEmBus driver exists
+    std::filesystem::path driver_path = std::filesystem::path(std::getenv("SystemRoot") ? std::getenv("SystemRoot") : "C:\\Windows") / "System32" / "drivers" / "ViGEmBus.sys";
+
+    if (std::filesystem::exists(driver_path)) {
+      installed = platf::getFileVersionInfo(driver_path, version_str);
+      if (installed) {
+        // Parse version string to check compatibility (>= 1.17.0.0)
+        std::vector<std::string> version_parts;
+        std::stringstream ss(version_str);
+        std::string part;
+        while (std::getline(ss, part, '.')) {
+          version_parts.push_back(part);
+        }
+
+        if (version_parts.size() >= 2) {
+          int major = std::stoi(version_parts[0]);
+          int minor = std::stoi(version_parts[1]);
+          version_compatible = (major > 1) || (major == 1 && minor >= 17);
+        }
+      }
+    }
+
+    output_tree["installed"] = installed;
+    output_tree["version"] = version_str;
+    output_tree["version_compatible"] = version_compatible;
+    output_tree["packaged_version"] = VIGEMBUS_PACKAGED_VERSION;
+#else
+    output_tree["error"] = "ViGEmBus is only available on Windows";
+    output_tree["installed"] = false;
+    output_tree["version"] = "";
+    output_tree["version_compatible"] = false;
+    output_tree["packaged_version"] = "";
+#endif
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Install ViGEmBus driver with elevated permissions.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vigembus/install| POST| null}
+   */
+  void installViGEmBus(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+
+#ifdef _WIN32
+    // Get the path to the vigembus installer
+    const std::filesystem::path installer_path = platf::appdata().parent_path() / "scripts" / "vigembus_installer.exe";
+
+    if (!std::filesystem::exists(installer_path)) {
+      output_tree["status"] = false;
+      output_tree["error"] = "ViGEmBus installer not found";
+      send_response(response, output_tree);
+      return;
+    }
+
+    // Run the installer with elevated permissions
+    std::error_code ec;
+    boost::filesystem::path working_dir = boost::filesystem::path(installer_path.string()).parent_path();
+    boost::process::v1::environment env = boost::this_process::environment();
+
+    // Run with elevated permissions, non-interactive
+    const std::string install_cmd = std::format("{} /quiet", installer_path.string());
+    auto child = platf::run_command(true, false, install_cmd, working_dir, env, nullptr, ec, nullptr);
+
+    if (ec) {
+      output_tree["status"] = false;
+      output_tree["error"] = "Failed to start installer: " + ec.message();
+      send_response(response, output_tree);
+      return;
+    }
+
+    // Wait for the installer to complete
+    child.wait(ec);
+
+    if (ec) {
+      output_tree["status"] = false;
+      output_tree["error"] = "Installer failed: " + ec.message();
+    } else {
+      int exit_code = child.exit_code();
+      output_tree["status"] = (exit_code == 0);
+      output_tree["exit_code"] = exit_code;
+      if (exit_code != 0) {
+        output_tree["error"] = std::format("Installer exited with code {}", exit_code);
+      }
+    }
+#else
+    output_tree["status"] = false;
+    output_tree["error"] = "ViGEmBus installation is only available on Windows";
+#endif
+
+    send_response(response, output_tree);
+  }
+
   void start() {
+    platf::set_thread_name("confighttp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
 
     auto port_https = net::map_port(PORT_HTTPS);
@@ -1190,12 +1426,15 @@ namespace confighttp {
     server.default_resource["PUT"] = [](resp_https_t response, req_https_t request) {
       bad_request(response, request);
     };
-    server.default_resource["GET"] = not_found;
+    server.default_resource["GET"] = [](resp_https_t response, req_https_t request) {
+      not_found(response, request);
+    };
     server.resource["^/$"]["GET"] = getIndexPage;
     server.resource["^/pin/?$"]["GET"] = getPinPage;
     server.resource["^/apps/?$"]["GET"] = getAppsPage;
     server.resource["^/clients/?$"]["GET"] = getClientsPage;
     server.resource["^/config/?$"]["GET"] = getConfigPage;
+    server.resource["^/featured/?$"]["GET"] = getFeaturedPage;
     server.resource["^/password/?$"]["GET"] = getPasswordPage;
     server.resource["^/welcome/?$"]["GET"] = getWelcomePage;
     server.resource["^/troubleshooting/?$"]["GET"] = getTroubleshootingPage;
@@ -1208,6 +1447,8 @@ namespace confighttp {
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
+    server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
+    server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
     server.resource["^/api/password$"]["POST"] = savePassword;
     server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
@@ -1215,6 +1456,7 @@ namespace confighttp {
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/apps/close$"]["POST"] = closeApp;
     server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
+    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
     server.resource["^/images/logo-sunshine-45.png$"]["GET"] = getSunshineLogoImage;
     server.resource["^/assets\\/.+$"]["GET"] = getNodeModules;
@@ -1224,6 +1466,7 @@ namespace confighttp {
 
     auto accept_and_run = [&](auto *server) {
       try {
+        platf::set_thread_name("confighttp::tcp");
         server->start([](unsigned short port) {
           BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
         });
