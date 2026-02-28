@@ -10,7 +10,6 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <set>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -51,8 +50,8 @@ namespace confighttp {
   using https_server_t = SimpleWeb::Server<SimpleWeb::HTTPS>;
 
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
-  using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
-  using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
+  using resp_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response>;
+  using req_https_t = std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request>;
   using https_handler_t = std::function<void(resp_https_t, req_https_t)>;
 
   enum class op_e {
@@ -244,7 +243,7 @@ namespace confighttp {
   }
 
   /**
-   * @brief Validate the request content type and send bad request when mismatch.
+   * @brief Validate the request content type and send a bad request when mismatched.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param contentType The expected content type
@@ -281,15 +280,12 @@ namespace confighttp {
    * @return A unique identifier based on username or IP address.
    */
   std::string get_client_id(const req_https_t &request) {
-    // Try to use authenticated username as client ID
+    // Try to use the authenticated username as client ID
     if (!config::sunshine.username.empty()) {
-      const auto auth = request->header.find("authorization");
-      if (auth != request->header.end()) {
-        const auto &rawAuth = auth->second;
-        if (rawAuth.rfind("Basic "sv, 0) == 0) {
+      if (const auto auth = request->header.find("authorization"); auth != request->header.end()) {
+        if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
           auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
-          const auto index = static_cast<int>(authData.find(':'));
-          if (index < authData.size() - 1) {
+          if (const auto index = static_cast<int>(authData.find(':')); index < authData.size() - 1) {
             return authData.substr(0, index);  // Return username
           }
         }
@@ -312,7 +308,7 @@ namespace confighttp {
     std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
 
     // Clean up expired tokens first
-    auto now = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
     for (auto it = csrf_tokens.begin(); it != csrf_tokens.end();) {
       if (it->second.expiration < now) {
         it = csrf_tokens.erase(it);
@@ -343,17 +339,16 @@ namespace confighttp {
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param client_id A unique identifier for the client (e.g., session ID or username).
-   * @return True if the CSRF token is valid or request is same-origin, false otherwise.
+   * @return True if the CSRF token is valid or the request is same-origin, false otherwise.
    */
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
     auto is_allowed_origin = [](const std::string &url) -> bool {
       for (const auto &allowed_origin : config::sunshine.csrf_allowed_origins) {
-        // Ensure exact prefix match (with : or / after to prevent malicious.com matching allowed.com)
-        if (url.rfind(allowed_origin, 0) == 0) {  // rfind with pos=0 checks if url starts with allowed_origin
-          // Check that it's followed by : (port) or / (path) or is exact match
-          size_t len = allowed_origin.length();
-          if (url.length() == len || url[len] == ':' || url[len] == '/') {
+        // Ensure the exact prefix match (with ":" or "/" after to prevent malicious.com matching allowed.com)
+        if (url.rfind(allowed_origin, 0) == 0) {  // rfind with pos=0 checks if the url starts with allowed_origin
+          // Check that it's followed by ":" (port) or "/" (path) or is an exact match
+          if (const size_t len = allowed_origin.length(); url.length() == len || url[len] == ':' || url[len] == '/') {
             return true;
           }
         }
@@ -361,9 +356,8 @@ namespace confighttp {
       return false;
     };
 
-    // Check if request is from same origin (Origin or Referer header matches configured allowed origins)
-    auto origin_it = request->header.find("Origin");
-    if (origin_it != request->header.end()) {
+    // Check if the request is from the same origin (Origin or Referer header matches configured allowed origins)
+    if (const auto origin_it = request->header.find("Origin"); origin_it != request->header.end()) {
       if (is_allowed_origin(origin_it->second)) {
         // Same origin request - allow without CSRF token
         return true;
@@ -371,8 +365,7 @@ namespace confighttp {
     }
 
     // If we have a Referer header, check if it's same-origin
-    auto referer_it = request->header.find("Referer");
-    if (referer_it != request->header.end()) {
+    if (const auto referer_it = request->header.find("Referer"); referer_it != request->header.end()) {
       if (is_allowed_origin(referer_it->second)) {
         // Same origin request - allow without CSRF token
         return true;
@@ -381,11 +374,11 @@ namespace confighttp {
 
     // Not a same-origin request, require CSRF token
     // Extract token from X-CSRF-Token header
-    auto header_it = request->header.find("X-CSRF-Token");
+    const auto header_it = request->header.find("X-CSRF-Token");
     if (header_it == request->header.end()) {
       // Also check query parameters as fallback
       auto query_params = request->parse_query_string();
-      auto query_it = query_params.find("csrf_token");
+      const auto query_it = query_params.find("csrf_token");
       if (query_it == query_params.end()) {
         bad_request(response, request, "Missing CSRF token");
         return false;
@@ -393,7 +386,7 @@ namespace confighttp {
 
       // Validate token from query parameter
       std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
-      auto token_it = csrf_tokens.find(client_id);
+      const auto token_it = csrf_tokens.find(client_id);
 
       if (token_it == csrf_tokens.end()) {
         bad_request(response, request, "Invalid CSRF token");
@@ -442,7 +435,7 @@ namespace confighttp {
   }
 
   /**
-   * @brief Validates the application index and sends error response if invalid.
+   * @brief Validates the application index and sends an error response if invalid.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * @param index The application index/id.
@@ -469,10 +462,10 @@ namespace confighttp {
    * @param request The HTTP request object.
    * @param html_file The HTML file to serve (relative to WEB_DIR).
    * @param require_auth Whether to require authentication (default: true).
-   * @param redirect_if_username If true, redirect to "/" when username is set (for welcome page).
+   * @param redirect_if_username If true, redirect to "/" when the username is set (for welcome page).
    */
   void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, const bool require_auth, const bool redirect_if_username) {
-    // Special handling for welcome page: redirect if username is already set
+    // Special handling for welcome page: redirect if the username is already set
     if (redirect_if_username && !config::sunshine.username.empty()) {
       send_redirect(response, request, "/");
       return;
@@ -555,7 +548,7 @@ namespace confighttp {
     // .relative_path is needed to shed any leading slash that might exist in the request path
     auto filePath = fs::weakly_canonical(webDirPath / fs::path(request->path).relative_path());
 
-    // Don't do anything if file does not exist or is outside the assets directory
+    // Don't do anything if the file does not exist or is outside the assets directory
     if (!isChildPath(filePath, nodeModulesPath)) {
       BOOST_LOG(warning) << "Someone requested a path " << filePath << " that is outside the assets folder";
       bad_request(response, request);
@@ -668,7 +661,7 @@ namespace confighttp {
   }
 
   /**
-   * @brief Save an application. To save a new application the index must be `-1`. To update an existing application, you must provide the current index of the application.
+   * @brief Save an application. To save a new application, the index must be `-1`. To update an existing application, you must provide the current index of the application.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
    * The body for the post request should be JSON serialized in the following format:
@@ -733,7 +726,7 @@ namespace confighttp {
       }
 
       auto &apps_node = file_tree["apps"];
-      int index = input_tree["index"].get<int>();  // this will intentionally cause exception if the provided value is the wrong type
+      int index = input_tree["index"].get<int>();  // this will intentionally cause an exception if the provided value is the wrong type
 
       input_tree.erase("index");
 
@@ -870,7 +863,7 @@ namespace confighttp {
    * @brief Unpair a client.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * The body for the post request should be JSON serialized in the following format:
+   * The body for the POST request should be JSON serialized in the following format:
    * @code{.json}
    * {
    *  "uuid": "<uuid>"
@@ -987,7 +980,7 @@ namespace confighttp {
    * @brief Save the configuration settings.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * The body for the post request should be JSON serialized in the following format:
+   * The body for the POST request should be JSON serialized in the following format:
    * @code{.json}
    * {
    *   "key": "value"
@@ -1025,8 +1018,8 @@ namespace confighttp {
           continue;
         }
 
-        // v.dump() will dump valid json, which we do not want for strings in the config right now
-        // we should migrate the config file to straight json and get rid of all this nonsense
+        // v.dump() will dump valid json, which we do not want for strings in the config, right now
+        // we should migrate the config file to straight JSON and get rid of all this nonsense
         config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
