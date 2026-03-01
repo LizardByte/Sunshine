@@ -596,8 +596,10 @@ namespace platf {
 
   if (std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP")) {
     // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect
+    BOOST_LOG(debug) << "Setting tap as public (visible in Audio MIDI Setup and HALLab)"sv;
     [tapDescription setPrivate:NO];
   } else {
+    BOOST_LOG(debug) << "Setting tap as private (hidden from Audio MIDI Setup and HALLab)"sv;
     [tapDescription setPrivate:YES];
   }
 
@@ -647,22 +649,17 @@ namespace platf {
     @kAudioSubTapDriftCompensationKey: @YES,
   };
 
-  NSMutableDictionary *aggregateProperties = [@{
+  NSDictionary *aggregateProperties = @{
     @kAudioAggregateDeviceNameKey: [NSString stringWithFormat:@"SunshineAggregate-%p", (void *) self],
     @kAudioAggregateDeviceUIDKey: [NSString stringWithFormat:@"com.lizardbyte.sunshine.aggregate-%p", (void *) self],
     @kAudioAggregateDeviceTapListKey: @[subTapDictionary],
     @kAudioAggregateDeviceTapAutoStartKey: @NO,
-    @kAudioAggregateDeviceIsPrivateKey: @YES,
-  } mutableCopy];
-
-  if (std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP")) {
-    // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect
-    aggregateProperties[@kAudioAggregateDeviceIsPrivateKey] = @NO;
-  }
+  // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect when set
+    @kAudioAggregateDeviceIsPrivateKey: std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP") ? @NO : @YES,
+  };
 
   BOOST_LOG(debug) << "Creating aggregate device with tap UID: "sv << [tapUIDString UTF8String];
   OSStatus status = AudioHardwareCreateAggregateDevice((CFDictionaryRef) aggregateProperties, &self->aggregateDeviceID);
-  [aggregateProperties release];
   if (status != noErr && status != 'ExtA') {
     BOOST_LOG(error) << "AudioHardwareCreateAggregateDevice failed: " << ca::Status(status);
     return status;
