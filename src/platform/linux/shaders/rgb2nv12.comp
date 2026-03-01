@@ -38,12 +38,8 @@ void main() {
   if ((pos.x & 1) == 0 && (pos.y & 1) == 0) {
     vec2 step = scale * inv_tex;
 
-    // Average 2x2 block for chroma subsampling (reuse rgb as c00)
-    vec3 avg = rgb
-             + texture(rgb_in, uv + vec2(step.x, 0)).rgb
-             + texture(rgb_in, uv + vec2(0, step.y)).rgb
-             + texture(rgb_in, uv + step).rgb;
-    avg *= 0.25;
+    // Average 2x1 horizontal pair for chroma subsampling
+    vec3 avg = (rgb + texture(rgb_in, uv + vec2(step.x, 0)).rgb) * 0.5;
 
     float cb = dot(pc.color_vec_u.xyz, avg) + pc.color_vec_u.w;
     float cr = dot(pc.color_vec_v.xyz, avg) + pc.color_vec_v.w;
