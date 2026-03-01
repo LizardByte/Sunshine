@@ -111,6 +111,7 @@ jobs:
               devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
               devel/ninja \
               devel/pkgconf \
+              devel/py-Jinja2 \
               ftp/curl \
               graphics/libdrm \
               graphics/wayland \
@@ -139,7 +140,7 @@ jobs:
           run: |
             set -e
             # install gcvor
-            python -m pip install "./scripts[test]"
+            python -m pip install ".[test]"
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"

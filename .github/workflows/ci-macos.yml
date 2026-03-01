@@ -165,7 +165,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          python -m pip install "../scripts[test]"
+          python -m pip install "..[test]"
           python -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \

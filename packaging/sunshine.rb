@@ -1,6 +1,8 @@
 require "language/node"
 
 class Sunshine < Formula
+  include Language::Python::Virtualenv
+
   CUDA_VERSION = "13.1".freeze
   CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
   GCC_VERSION = "14".freeze
@@ -61,6 +63,7 @@ class Sunshine < Formula
   on_linux do
     depends_on GCC_FORMULA => [:build, :test]
     depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
+    depends_on "python3" => :build
     depends_on "at-spi2-core"
     depends_on "avahi"
     depends_on "ayatana-ido"
@@ -95,9 +98,22 @@ class Sunshine < Formula
     depends_on "pulseaudio"
     depends_on "systemd"
     depends_on "wayland"
+
+    # Jinja2 is required at build time by the glad OpenGL/EGL loader generator (Linux only).
+    # Declared as resources per https://docs.brew.sh/Formula-Cookbook#python-dependencies
+    resource "markupsafe" do
+      url "https://files.pythonhosted.org/packages/7e/99/7690b6d4034fffd95959cbe0c02de8deb3098cc577c67bb6a24fe5d7caa7/markupsafe-3.0.3.tar.gz"
+      sha256 "722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698"
+    end
+
+    resource "jinja2" do
+      url "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz"
+      sha256 "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"
+    end
   end
 
   conflicts_with "sunshine-beta", because: "sunshine and sunshine-beta cannot be installed at the same time"
+
   fails_with :clang do
     build 1400
     cause "Requires C++23 support"
@@ -114,6 +130,17 @@ class Sunshine < Formula
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
 
     setup_linux_gcc_environment if OS.linux?
+
+    return unless OS.linux?
+
+    # Install jinja2 (required by the glad OpenGL/EGL loader generator) into a
+    # temporary virtualenv. We pass its Python path to cmake via Python_EXECUTABLE
+    # so glad uses the venv Python that has jinja2, and set GLAD_SKIP_PIP_INSTALL=ON
+    # to prevent cmake from trying to pip-install again.
+    # Follows https://docs.brew.sh/Formula-Cookbook#python-dependencies
+    venv = virtualenv_create(buildpath/"venv", "python3")
+    venv.pip_install resources
+    @glad_python = (buildpath/"venv/bin/python3").to_s
   end
 
   def setup_linux_gcc_environment
@@ -124,10 +151,11 @@ class Sunshine < Formula
   end
 
   def base_cmake_args
-    %W[
+    args = %W[
       -DBUILD_WERROR=ON
       -DCMAKE_CXX_STANDARD=23
       -DCMAKE_INSTALL_PREFIX=#{prefix}
+      -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
       -DOPENSSL_ROOT_DIR=#{Formula["openssl"].opt_prefix}
       -DSUNSHINE_ASSETS_DIR=sunshine/assets
@@ -136,6 +164,9 @@ class Sunshine < Formula
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+    # Point cmake at the venv Python that has jinja2 installed (set up in setup_build_environment)
+    args << "-DPython_EXECUTABLE=#{@glad_python}" if @glad_python
+    args
   end
 
   def add_test_args(args)

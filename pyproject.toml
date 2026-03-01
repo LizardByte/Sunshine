@@ -15,6 +15,17 @@ authors = [
 dependencies = []
 
 [project.optional-dependencies]
+# glad2 declares Jinja2>=2.7,<4.0 as a dependency, so installing it pulls in jinja2 transitively.
+# The platform marker limits this to Linux where the glad generator is actually used.
+glad = [
+    "glad2 @ file:./third-party/glad",
+]
+
+flatpak = [
+    "flatpak_node_generator @ file:./packaging/linux/flatpak/deps/flatpak-builder-tools/node",
+    "flatpak_pip_generator @ file:./packaging/linux/flatpak/deps/flatpak-builder-tools/pip",
+]
+
 lint = [
     "clang-format==20.*",
     "flake8==7.3.0",
