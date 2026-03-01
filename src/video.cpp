@@ -2063,7 +2063,7 @@ namespace video {
     float scalar_tpcoords = 1.0f;
     int display_env_logical_width = 0;
     int display_env_logical_height = 0;
-    if (display->logical_width && display->logical_height && display->env_logical_width && display->env_logical_height) {
+    if (display->logical_width > 0 && display->logical_height > 0 && display->env_logical_width > 0 && display->env_logical_height > 0) {
       float lwd = display->logical_width;
       float lhd = display->logical_height;
       scalar_tpcoords = std::fminf(wd / lwd, hd / lhd);
