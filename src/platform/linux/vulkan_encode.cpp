@@ -201,6 +201,7 @@ namespace vk {
           BOOST_LOG(error) << "Failed to import DMA-BUF"sv;
           return -1;
         }
+        descriptors_dirty = true;
       }
 
       if (src.image == VK_NULL_HANDLE) return -1;
@@ -209,10 +210,14 @@ namespace vk {
       if (!target_views_created) {
         if (!create_target_views()) return -1;
         target_views_created = true;
+        descriptors_dirty = true;
       }
 
-      // Update descriptor set with current source + target
-      update_descriptors();
+      // Update descriptor set only when source or target changed
+      if (descriptors_dirty) {
+        update_descriptors();
+        descriptors_dirty = false;
+      }
 
       // Fill push constants
       push.src_offset[0] = offset_x;
@@ -301,8 +306,8 @@ namespace vk {
       VkCommandBufferAllocateInfo alloc_ci = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
       alloc_ci.commandPool = cmd_pool;
       alloc_ci.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-      alloc_ci.commandBufferCount = 1;
-      VK_CHECK_BOOL(vkAllocateCommandBuffers(dev, &alloc_ci, &cmd_buf));
+      alloc_ci.commandBufferCount = CMD_RING_SIZE;
+      VK_CHECK_BOOL(vkAllocateCommandBuffers(dev, &alloc_ci, cmd_ring));
 
       return true;
     }
@@ -473,6 +478,13 @@ namespace vk {
       int num_imgs = 0;
       for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) num_imgs++;
 
+      // Rotate to next command buffer. With CMD_RING_SIZE slots, the buffer
+      // we're about to reuse was submitted CMD_RING_SIZE frames ago.
+      // At 60fps that's ~50ms for a <1ms compute dispatch — always complete.
+      // No fences, no semaphore waits, no CPU blocking.
+      auto cmd_buf = cmd_ring[cmd_ring_idx];
+      cmd_ring_idx = (cmd_ring_idx + 1) % CMD_RING_SIZE;
+
       VkCommandBufferBeginInfo begin_ci = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
       begin_ci.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
       VK_CHECK(vkBeginCommandBuffer(cmd_buf, &begin_ci));
@@ -497,9 +509,9 @@ namespace vk {
       int num_dst_barriers = (num_imgs == 1) ? 1 : 2;
       for (int i = 0; i < num_dst_barriers; i++) {
         dst_barriers[i] = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-        dst_barriers[i].srcAccessMask = 0;
+        dst_barriers[i].srcAccessMask = target_initialized ? VK_ACCESS_SHADER_READ_BIT : 0;
         dst_barriers[i].dstAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        dst_barriers[i].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        dst_barriers[i].oldLayout = target_initialized ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_UNDEFINED;
         dst_barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
         dst_barriers[i].image = vk_frame->img[num_imgs == 1 ? 0 : i];
         dst_barriers[i].subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
@@ -522,49 +534,40 @@ namespace vk {
       uint32_t gy = (frame->height + 15) / 16;
       vkCmdDispatch(cmd_buf, gx, gy, 1);
 
-      // Transition target back to layout expected by encoder
-      for (int i = 0; i < num_dst_barriers; i++) {
-        dst_barriers[i].srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
-        dst_barriers[i].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        dst_barriers[i].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-        dst_barriers[i].newLayout = VK_IMAGE_LAYOUT_GENERAL;
-      }
-      vkCmdPipelineBarrier(cmd_buf,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        0, 0, nullptr, 0, nullptr, num_dst_barriers, dst_barriers);
-
       VK_CHECK(vkEndCommandBuffer(cmd_buf));
 
       // Submit with timeline semaphore signaling for FFmpeg
       VkTimelineSemaphoreSubmitInfo timeline_info = {VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO};
-      std::vector<VkSemaphore> wait_sems, signal_sems;
-      std::vector<uint64_t> wait_vals, signal_vals;
-      std::vector<VkPipelineStageFlags> wait_stages;
+      VkSemaphore wait_sems[AV_NUM_DATA_POINTERS], signal_sems[AV_NUM_DATA_POINTERS];
+      uint64_t wait_vals[AV_NUM_DATA_POINTERS], signal_vals[AV_NUM_DATA_POINTERS];
+      VkPipelineStageFlags wait_stages[AV_NUM_DATA_POINTERS];
+      int sem_count = 0;
 
       for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->sem[i]; i++) {
-        wait_sems.push_back(vk_frame->sem[i]);
-        wait_vals.push_back(vk_frame->sem_value[i]);
-        wait_stages.push_back(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        wait_sems[sem_count] = vk_frame->sem[i];
+        wait_vals[sem_count] = vk_frame->sem_value[i];
+        wait_stages[sem_count] = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 
-        signal_sems.push_back(vk_frame->sem[i]);
-        signal_vals.push_back(vk_frame->sem_value[i] + 1);
+        signal_sems[sem_count] = vk_frame->sem[i];
+        signal_vals[sem_count] = vk_frame->sem_value[i] + 1;
         vk_frame->sem_value[i]++;
+        sem_count++;
       }
 
-      timeline_info.waitSemaphoreValueCount = wait_vals.size();
-      timeline_info.pWaitSemaphoreValues = wait_vals.data();
-      timeline_info.signalSemaphoreValueCount = signal_vals.size();
-      timeline_info.pSignalSemaphoreValues = signal_vals.data();
+      timeline_info.waitSemaphoreValueCount = sem_count;
+      timeline_info.pWaitSemaphoreValues = wait_vals;
+      timeline_info.signalSemaphoreValueCount = sem_count;
+      timeline_info.pSignalSemaphoreValues = signal_vals;
 
       VkSubmitInfo submit = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
       submit.pNext = &timeline_info;
-      submit.waitSemaphoreCount = wait_sems.size();
-      submit.pWaitSemaphores = wait_sems.data();
-      submit.pWaitDstStageMask = wait_stages.data();
+      submit.waitSemaphoreCount = sem_count;
+      submit.pWaitSemaphores = wait_sems;
+      submit.pWaitDstStageMask = wait_stages;
       submit.commandBufferCount = 1;
       submit.pCommandBuffers = &cmd_buf;
-      submit.signalSemaphoreCount = signal_sems.size();
-      submit.pSignalSemaphores = signal_sems.data();
+      submit.signalSemaphoreCount = sem_count;
+      submit.pSignalSemaphores = signal_sems;
 
       // Lock the queue (FFmpeg requires this)
       vk_dev_ctx->lock_queue(
@@ -585,6 +588,8 @@ namespace vk {
         vk_frame->layout[i] = VK_IMAGE_LAYOUT_GENERAL;
         vk_frame->access[i] = (VkAccessFlagBits)VK_ACCESS_SHADER_WRITE_BIT;
       }
+
+      target_initialized = true;
 
       return 0;
     }
@@ -666,9 +671,12 @@ namespace vk {
     VkDescriptorSet desc_set = VK_NULL_HANDLE;
     VkSampler sampler = VK_NULL_HANDLE;
 
-    // Command submission
+    // Command submission — ring of buffers to avoid reuse while in-flight.
+    // No CPU waits: by the time we wrap around, the old submission is long done.
+    static constexpr int CMD_RING_SIZE = 3;
     VkCommandPool cmd_pool = VK_NULL_HANDLE;
-    VkCommandBuffer cmd_buf = VK_NULL_HANDLE;
+    VkCommandBuffer cmd_ring[CMD_RING_SIZE] = {};
+    int cmd_ring_idx = 0;
 
     // Source DMA-BUF image with deferred destruction
     struct src_image_t {
@@ -685,6 +693,8 @@ namespace vk {
     VkImageView y_view = VK_NULL_HANDLE;
     VkImageView uv_view = VK_NULL_HANDLE;
     bool target_views_created = false;
+    bool target_initialized = false;
+    bool descriptors_dirty = false;
 
     // Push constants (color matrix)
     PushConstants push = {};
