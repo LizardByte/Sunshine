@@ -5,6 +5,7 @@ layout(local_size_x = 16, local_size_y = 16) in;
 layout(set = 0, binding = 0) uniform sampler2D rgb_in;
 layout(set = 0, binding = 1, r8) uniform writeonly image2D y_out;
 layout(set = 0, binding = 2, rg8) uniform writeonly image2D uv_out;
+layout(set = 0, binding = 3) uniform sampler2D cursor_in;
 
 layout(push_constant) uniform PushConstants {
   vec4 color_vec_y;
@@ -15,20 +16,32 @@ layout(push_constant) uniform PushConstants {
   ivec2 src_offset;
   ivec2 src_size;
   ivec2 dst_size;
+  ivec2 cursor_pos;
+  ivec2 cursor_size;  // w=0 means no cursor
 } pc;
+
+vec3 blend_cursor(vec3 rgb, ivec2 pos) {
+  ivec2 cp = pos - pc.cursor_pos;
+  if (cp.x >= 0 && cp.y >= 0 && cp.x < pc.cursor_size.x && cp.y < pc.cursor_size.y) {
+    vec4 c = texture(cursor_in, (vec2(cp) + 0.5) / vec2(pc.cursor_size));
+    rgb = mix(rgb, c.bgr, c.a);
+  }
+  return rgb;
+}
 
 void main() {
   ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
   if (pos.x >= pc.dst_size.x || pos.y >= pc.dst_size.y)
     return;
 
-  // Precompute scaling factors
   vec2 inv_tex = 1.0 / vec2(textureSize(rgb_in, 0));
   vec2 scale = vec2(pc.src_size) / vec2(pc.dst_size);
 
-  // Map output pixel to input texture coordinate
   vec2 uv = (vec2(pc.src_offset) + (vec2(pos) + 0.5) * scale) * inv_tex;
   vec3 rgb = texture(rgb_in, uv).rgb;
+
+  if (pc.cursor_size.x > 0)
+    rgb = blend_cursor(rgb, pos);
 
   // Y plane
   float y = dot(pc.color_vec_y.xyz, rgb) + pc.color_vec_y.w;
@@ -38,8 +51,11 @@ void main() {
   if ((pos.x & 1) == 0 && (pos.y & 1) == 0) {
     vec2 step = scale * inv_tex;
 
-    // Average 2x1 horizontal pair for chroma subsampling
-    vec3 avg = (rgb + texture(rgb_in, uv + vec2(step.x, 0)).rgb) * 0.5;
+    vec3 rgb_r = texture(rgb_in, uv + vec2(step.x, 0)).rgb;
+    if (pc.cursor_size.x > 0)
+      rgb_r = blend_cursor(rgb_r, pos + ivec2(1, 0));
+
+    vec3 avg = (rgb + rgb_r) * 0.5;
 
     float cb = dot(pc.color_vec_u.xyz, avg) + pc.color_vec_u.w;
     float cr = dot(pc.color_vec_v.xyz, avg) + pc.color_vec_v.w;

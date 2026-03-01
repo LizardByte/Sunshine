@@ -92,6 +92,8 @@ namespace vk {
     int32_t src_offset[2];
     int32_t src_size[2];
     int32_t dst_size[2];
+    int32_t cursor_pos[2];
+    int32_t cursor_size[2];
   };
 
   // Helper to check VkResult
@@ -219,6 +221,14 @@ namespace vk {
         descriptors_dirty = false;
       }
 
+      if (descriptor.data && descriptor.serial != cursor_serial) {
+        cursor_serial = descriptor.serial;
+        if (!create_cursor_image(descriptor.src_w, descriptor.src_h, descriptor.data))
+          return -1;
+        update_descriptors();
+        descriptors_dirty = false;
+      }
+
       // Fill push constants
       push.src_offset[0] = offset_x;
       push.src_offset[1] = offset_y;
@@ -226,6 +236,17 @@ namespace vk {
       push.src_size[1] = height;
       push.dst_size[0] = frame->width;
       push.dst_size[1] = frame->height;
+
+      if (descriptor.data) {
+        float scale_x = (float)frame->width / width;
+        float scale_y = (float)frame->height / height;
+        push.cursor_pos[0] = (int32_t)((descriptor.x - offset_x) * scale_x);
+        push.cursor_pos[1] = (int32_t)((descriptor.y - offset_y) * scale_y);
+        push.cursor_size[0] = (int32_t)(descriptor.width * scale_x);
+        push.cursor_size[1] = (int32_t)(descriptor.height * scale_y);
+      } else {
+        push.cursor_size[0] = 0;
+      }
 
       // Record and submit compute dispatch
       return dispatch_compute();
@@ -239,14 +260,15 @@ namespace vk {
       shader_ci.pCode = rgb2nv12_comp_spv;
       VK_CHECK_BOOL(vkCreateShaderModule(dev, &shader_ci, nullptr, &shader_module));
 
-      // Descriptor set layout: binding 0=sampler, 1=Y storage, 2=UV storage
-      VkDescriptorSetLayoutBinding bindings[3] = {};
+      // Descriptor set layout: binding 0=sampler, 1=Y storage, 2=UV storage, 3=cursor sampler
+      VkDescriptorSetLayoutBinding bindings[4] = {};
       bindings[0] = {0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
       bindings[1] = {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
       bindings[2] = {2, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
+      bindings[3] = {3, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1, VK_SHADER_STAGE_COMPUTE_BIT, nullptr};
 
       VkDescriptorSetLayoutCreateInfo ds_layout_ci = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-      ds_layout_ci.bindingCount = 3;
+      ds_layout_ci.bindingCount = 4;
       ds_layout_ci.pBindings = bindings;
       VK_CHECK_BOOL(vkCreateDescriptorSetLayout(dev, &ds_layout_ci, nullptr, &ds_layout));
 
@@ -271,7 +293,7 @@ namespace vk {
 
       // Descriptor pool
       VkDescriptorPoolSize pool_sizes[] = {
-        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1},
+        {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 2},
         {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 2},
       };
       VkDescriptorPoolCreateInfo pool_ci = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
@@ -293,6 +315,8 @@ namespace vk {
       sampler_ci.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
       sampler_ci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
       VK_CHECK_BOOL(vkCreateSampler(dev, &sampler_ci, nullptr, &sampler));
+
+      if (!create_cursor_image(1, 1, nullptr)) return false;
 
       return true;
     }
@@ -318,6 +342,10 @@ namespace vk {
         case DRM_FORMAT_ARGB8888: return VK_FORMAT_B8G8R8A8_UNORM;
         case DRM_FORMAT_XBGR8888:
         case DRM_FORMAT_ABGR8888: return VK_FORMAT_R8G8B8A8_UNORM;
+        case DRM_FORMAT_XRGB2101010:
+        case DRM_FORMAT_ARGB2101010: return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+        case DRM_FORMAT_XBGR2101010:
+        case DRM_FORMAT_ABGR2101010: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         default:
           BOOST_LOG(warning) << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
           return VK_FORMAT_B8G8R8A8_UNORM;
@@ -418,6 +446,59 @@ namespace vk {
       return true;
     }
 
+    bool create_cursor_image(int w, int h, const uint8_t *pixels) {
+      destroy_cursor_image();
+
+      VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+      img_ci.imageType = VK_IMAGE_TYPE_2D;
+      img_ci.format = VK_FORMAT_B8G8R8A8_UNORM;
+      img_ci.extent = {(uint32_t)w, (uint32_t)h, 1};
+      img_ci.mipLevels = 1;
+      img_ci.arrayLayers = 1;
+      img_ci.samples = VK_SAMPLE_COUNT_1_BIT;
+      img_ci.tiling = VK_IMAGE_TILING_LINEAR;
+      img_ci.usage = VK_IMAGE_USAGE_SAMPLED_BIT;
+      img_ci.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+      VK_CHECK_BOOL(vkCreateImage(dev, &img_ci, nullptr, &cursor.image));
+
+      VkMemoryRequirements mem_req;
+      vkGetImageMemoryRequirements(dev, cursor.image, &mem_req);
+      VkMemoryAllocateInfo alloc = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+      alloc.allocationSize = mem_req.size;
+      alloc.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+      VK_CHECK_BOOL(vkAllocateMemory(dev, &alloc, nullptr, &cursor.mem));
+      VK_CHECK_BOOL(vkBindImageMemory(dev, cursor.image, cursor.mem, 0));
+
+      if (pixels) {
+        void *mapped;
+        VK_CHECK_BOOL(vkMapMemory(dev, cursor.mem, 0, VK_WHOLE_SIZE, 0, &mapped));
+        VkImageSubresource subres = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
+        VkSubresourceLayout layout;
+        vkGetImageSubresourceLayout(dev, cursor.image, &subres, &layout);
+        for (int y = 0; y < h; y++)
+          memcpy((uint8_t *)mapped + layout.offset + y * layout.rowPitch, pixels + y * w * 4, w * 4);
+        vkUnmapMemory(dev, cursor.mem);
+      }
+
+      VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
+      view_ci.image = cursor.image;
+      view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
+      view_ci.format = VK_FORMAT_B8G8R8A8_UNORM;
+      view_ci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+      VK_CHECK_BOOL(vkCreateImageView(dev, &view_ci, nullptr, &cursor.view));
+
+      cursor.needs_transition = true;
+      descriptors_dirty = true;
+      return true;
+    }
+
+    void destroy_cursor_image() {
+      if (cursor.view) { vkDestroyImageView(dev, cursor.view, nullptr); cursor.view = VK_NULL_HANDLE; }
+      if (cursor.image) { vkDestroyImage(dev, cursor.image, nullptr); cursor.image = VK_NULL_HANDLE; }
+      if (cursor.mem) { vkFreeMemory(dev, cursor.mem, nullptr); cursor.mem = VK_NULL_HANDLE; }
+    }
+
     bool create_target_views() {
       AVVkFrame *vk_frame = (AVVkFrame *) frame->data[0];
       if (!vk_frame) return false;
@@ -462,15 +543,18 @@ namespace vk {
       VkDescriptorImageInfo src_info = {sampler, src.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
       VkDescriptorImageInfo y_info = {VK_NULL_HANDLE, y_view, VK_IMAGE_LAYOUT_GENERAL};
       VkDescriptorImageInfo uv_info = {VK_NULL_HANDLE, uv_view, VK_IMAGE_LAYOUT_GENERAL};
+      VkDescriptorImageInfo cursor_info = {sampler, cursor.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
-      VkWriteDescriptorSet writes[3] = {};
+      VkWriteDescriptorSet writes[4] = {};
       writes[0] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, desc_set, 0, 0, 1,
                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &src_info, nullptr, nullptr};
       writes[1] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, desc_set, 1, 0, 1,
                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &y_info, nullptr, nullptr};
       writes[2] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, desc_set, 2, 0, 1,
                    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &uv_info, nullptr, nullptr};
-      vkUpdateDescriptorSets(dev, 3, writes, 0, nullptr);
+      writes[3] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, desc_set, 3, 0, 1,
+                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &cursor_info, nullptr, nullptr};
+      vkUpdateDescriptorSets(dev, 4, writes, 0, nullptr);
     }
 
     int dispatch_compute() {
@@ -503,6 +587,23 @@ namespace vk {
       vkCmdPipelineBarrier(cmd_buf,
         VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         0, 0, nullptr, 0, nullptr, 1, &src_barrier);
+
+      // Transition cursor image if needed
+      if (cursor.needs_transition) {
+        VkImageMemoryBarrier cursor_barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        cursor_barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+        cursor_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+        cursor_barrier.oldLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+        cursor_barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        cursor_barrier.image = cursor.image;
+        cursor_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+        cursor_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        cursor_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        vkCmdPipelineBarrier(cmd_buf,
+          VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+          0, 0, nullptr, 0, nullptr, 1, &cursor_barrier);
+        cursor.needs_transition = false;
+      }
 
       // Transition target planes to GENERAL for storage writes
       VkImageMemoryBarrier dst_barriers[2] = {};
@@ -635,6 +736,7 @@ namespace vk {
       }
       if (y_view) vkDestroyImageView(dev, y_view, nullptr);
       if (uv_view) vkDestroyImageView(dev, uv_view, nullptr);
+      destroy_cursor_image();
       if (cmd_pool) vkDestroyCommandPool(dev, cmd_pool, nullptr);
       if (sampler) vkDestroySampler(dev, sampler, nullptr);
       if (desc_pool) vkDestroyDescriptorPool(dev, desc_pool, nullptr);
@@ -695,6 +797,15 @@ namespace vk {
     bool target_views_created = false;
     bool target_initialized = false;
     bool descriptors_dirty = false;
+
+    // Cursor image
+    struct {
+      VkImage image = VK_NULL_HANDLE;
+      VkDeviceMemory mem = VK_NULL_HANDLE;
+      VkImageView view = VK_NULL_HANDLE;
+      bool needs_transition = false;
+    } cursor = {};
+    unsigned long cursor_serial = 0;
 
     // Push constants (color matrix)
     PushConstants push = {};
