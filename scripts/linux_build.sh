@@ -192,6 +192,7 @@ function add_arch_deps() {
     'numactl'
     'openssl'
     'opus'
+    'python-jinja'  # glad OpenGL/EGL loader generator
     'udev'
     'wayland'
   )
@@ -249,6 +250,7 @@ function add_debian_based_deps() {
     "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
+    "python3-jinja2"  # glad OpenGL/EGL loader generator
     "systemd"
     "udev"
     "wget"  # necessary for cuda install with `run` file
@@ -325,6 +327,7 @@ function add_fedora_deps() {
     "opus-devel"
     "pipewire-devel"
     "pulseaudio-libs-devel"
+    "python3-jinja2"  # glad OpenGL/EGL loader generator
     "rpm-build"  # if you want to build an RPM binary package
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file

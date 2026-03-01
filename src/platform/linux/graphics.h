@@ -19,6 +19,11 @@
 #include "src/utility.h"
 #include "src/video_colorspace.h"
 
+// GL_OES_EGL_image is a GLES-only extension that glad cannot generate for desktop GL.
+// We load glEGLImageTargetTexture2DOES manually at runtime via eglGetProcAddress.
+// EGLImage (from glad/egl.h) and GLeglImageOES are both void* — the same underlying type.
+using PFNGLEGLIMAGETARGETTEXTURE2DOESPROC = void(GLAD_API_PTR *)(GLenum target, EGLImage image);
+
 #define SUNSHINE_STRINGIFY_HELPER(x) #x
 #define SUNSHINE_STRINGIFY(x) SUNSHINE_STRINGIFY_HELPER(x)
 #define gl_drain_errors_helper(x) gl::drain_errors(x)
@@ -36,6 +41,7 @@ using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace gl {
   extern GladGLContext ctx;
+  extern PFNGLEGLIMAGETARGETTEXTURE2DOESPROC EGLImageTargetTexture2DOES;
   void drain_errors(const std::string_view &prefix);
 
   class tex_t: public util::buffer_t<GLuint> {

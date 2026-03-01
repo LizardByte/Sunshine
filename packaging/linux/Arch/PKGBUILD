@@ -63,6 +63,7 @@ makedepends=(
   'make'
   'nodejs'
   'npm'
+  'python-jinja'  # required by the glad OpenGL/EGL loader generator
 )
 
 checkdepends=(

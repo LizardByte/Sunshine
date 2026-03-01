@@ -128,11 +128,11 @@ any of the following paths are modified.
 ```
 
 When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the python dependencies in the `./scripts/pyproject.toml` file. You can install this with
+required for this, along with the python dependencies in the `./pyproject.toml` file. You can install this with
 the following command.
 
 ```bash
-python -m pip install "./scripts[locale]"
+python -m pip install ".[locale]"
 ```
 
 Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.

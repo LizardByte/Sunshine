@@ -67,6 +67,7 @@ BuildRequires: nodejs-npm
 BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
+BuildRequires: python3-jinja2
 BuildRequires: systemd-udev
 %{?sysusers_requires_compat}
 # for unit tests
@@ -86,6 +87,8 @@ BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
 BuildRequires: npm
+BuildRequires: python311
+BuildRequires: python311-Jinja2
 BuildRequires: udev
 # for unit tests
 BuildRequires: xvfb-run

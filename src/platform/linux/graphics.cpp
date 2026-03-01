@@ -31,6 +31,7 @@ using namespace std::literals;
 
 namespace gl {
   GladGLContext ctx;
+  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC EGLImageTargetTexture2DOES = nullptr;
 
   void drain_errors(const std::string_view &prefix) {
     GLenum err;
@@ -297,28 +298,6 @@ namespace gbm {
 }  // namespace gbm
 
 namespace egl {
-  constexpr auto EGL_LINUX_DMA_BUF_EXT = 0x3270;
-  constexpr auto EGL_LINUX_DRM_FOURCC_EXT = 0x3271;
-  constexpr auto EGL_DMA_BUF_PLANE0_FD_EXT = 0x3272;
-  constexpr auto EGL_DMA_BUF_PLANE0_OFFSET_EXT = 0x3273;
-  constexpr auto EGL_DMA_BUF_PLANE0_PITCH_EXT = 0x3274;
-  constexpr auto EGL_DMA_BUF_PLANE1_FD_EXT = 0x3275;
-  constexpr auto EGL_DMA_BUF_PLANE1_OFFSET_EXT = 0x3276;
-  constexpr auto EGL_DMA_BUF_PLANE1_PITCH_EXT = 0x3277;
-  constexpr auto EGL_DMA_BUF_PLANE2_FD_EXT = 0x3278;
-  constexpr auto EGL_DMA_BUF_PLANE2_OFFSET_EXT = 0x3279;
-  constexpr auto EGL_DMA_BUF_PLANE2_PITCH_EXT = 0x327A;
-  constexpr auto EGL_DMA_BUF_PLANE3_FD_EXT = 0x3440;
-  constexpr auto EGL_DMA_BUF_PLANE3_OFFSET_EXT = 0x3441;
-  constexpr auto EGL_DMA_BUF_PLANE3_PITCH_EXT = 0x3442;
-  constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT = 0x3443;
-  constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT = 0x3444;
-  constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT = 0x3445;
-  constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT = 0x3446;
-  constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT = 0x3447;
-  constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT = 0x3448;
-  constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT = 0x3449;
-  constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT = 0x344A;
 
   bool fail() {
     return eglGetError() != EGL_SUCCESS;
@@ -435,10 +414,30 @@ namespace egl {
       return std::nullopt;
     }
 
-    BOOST_LOG(debug) << "GL: vendor: "sv << gl::ctx.GetString(GL_VENDOR);
-    BOOST_LOG(debug) << "GL: renderer: "sv << gl::ctx.GetString(GL_RENDERER);
-    BOOST_LOG(debug) << "GL: version: "sv << gl::ctx.GetString(GL_VERSION);
-    BOOST_LOG(debug) << "GL: shader: "sv << gl::ctx.GetString(GL_SHADING_LANGUAGE_VERSION);
+    // GL_OES_EGL_image is GLES-only so glad cannot generate it for desktop GL.
+    // Load the function pointer manually at runtime.
+    gl::EGLImageTargetTexture2DOES =
+      (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+    if (!gl::EGLImageTargetTexture2DOES) {
+      BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available"sv;
+    }
+
+    // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
+    auto gl_string = [](const GLubyte *s) {
+      std::string result;
+      while (s && *s) {
+        result += static_cast<char>(*s++);
+      }
+      return result;
+    };
+    const auto gl_vendor = gl_string(gl::ctx.GetString(GL_VENDOR));
+    const auto gl_renderer = gl_string(gl::ctx.GetString(GL_RENDERER));
+    const auto gl_version = gl_string(gl::ctx.GetString(GL_VERSION));
+    const auto gl_shader = gl_string(gl::ctx.GetString(GL_SHADING_LANGUAGE_VERSION));
+    BOOST_LOG(debug) << "GL: vendor: "sv << gl_vendor;
+    BOOST_LOG(debug) << "GL: renderer: "sv << gl_renderer;
+    BOOST_LOG(debug) << "GL: version: "sv << gl_version;
+    BOOST_LOG(debug) << "GL: shader: "sv << gl_shader;
 
     gl::ctx.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -500,6 +499,9 @@ namespace egl {
    */
   std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
     std::vector<EGLAttrib> attribs;
+    // Reserve worst-case capacity up front: 6 fixed + 4 planes * (6 base + 4 modifier) attrs + 1 EGL_NONE.
+    // This avoids reallocation, which works around a GCC 13 false-positive -Warray-bounds with long int vectors.
+    attribs.reserve(6 + 4 * 10 + 1);
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -551,7 +553,7 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, rgb->xrgb8);
+    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, rgb->xrgb8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
@@ -609,10 +611,10 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->r8);
+    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->r8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->bg88);
+    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->bg88);
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 

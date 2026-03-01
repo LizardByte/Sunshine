@@ -14,6 +14,9 @@
 	path = third-party/doxyconfig
 	url = https://github.com/LizardByte/doxyconfig.git
 	branch = master
+[submodule "third-party/glad"]
+	path = third-party/glad
+	url = https://github.com/Dav1dde/glad.git
 [submodule "third-party/googletest"]
 	path = third-party/googletest
 	url = https://github.com/google/googletest.git
