@@ -123,7 +123,8 @@ namespace video {
   const color_t *color_vectors_from_colorspace(const sunshine_colorspace_t &colorspace, bool unorm_output) {
     constexpr auto generate_color_vectors = [](const sunshine_colorspace_t &colorspace, bool unorm_output) -> color_t {
       // "Table 4 – Interpretation of matrix coefficients (MatrixCoefficients) value" section of ITU-T H.273
-      double Kr, Kb;
+      double Kb;
+      double Kr;
       switch (colorspace.colorspace) {
         case colorspace_e::rec601:
           Kr = 0.299;
@@ -142,8 +143,10 @@ namespace video {
       }
       double Kg = 1.0 - Kr - Kb;
 
-      double y_mult, y_add;
-      double uv_mult, uv_add;
+      double uv_add;
+      double uv_mult;
+      double y_add;
+      double y_mult;
 
       // "8.3 Matrix coefficients" section of ITU-T H.273
       if (colorspace.full_range) {

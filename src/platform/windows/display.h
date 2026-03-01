@@ -77,7 +77,8 @@ namespace platf::dxgi {
     std::vector<std::uint8_t> img_data;
 
     DXGI_OUTDUPL_POINTER_SHAPE_INFO shape_info;
-    int x, y;
+    int x;
+    int y;
     bool visible;
   };
 
@@ -346,7 +347,8 @@ namespace platf::dxgi {
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem item {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool frame_pool {nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession capture_session {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame {nullptr}, consumed_frame {nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame consumed_frame {nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame {nullptr};
     SRWLOCK frame_lock = SRWLOCK_INIT;
     CONDITION_VARIABLE frame_present_cv;
 

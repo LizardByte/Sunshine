@@ -118,7 +118,8 @@ namespace upnp {
       }
 
       if (data.IPv6FC.controlurl[0] != 0) {
-        int firewallEnabled, pinholeAllowed;
+        int firewallEnabled;
+        int pinholeAllowed;
 
         // Check if this firewall supports IPv6 pinholes
         err = UPNP_GetFirewallStatus(urls->controlURL_6FC, data.IPv6FC.servicetype, &firewallEnabled, &pinholeAllowed);

@@ -61,8 +61,10 @@ namespace video {
   struct encoder_platform_formats_t {
     virtual ~encoder_platform_formats_t() = default;
     platf::mem_type_e dev_type;
-    platf::pix_fmt_e pix_fmt_8bit, pix_fmt_10bit;
-    platf::pix_fmt_e pix_fmt_yuv444_8bit, pix_fmt_yuv444_10bit;
+    platf::pix_fmt_e pix_fmt_8bit;
+    platf::pix_fmt_e pix_fmt_10bit;
+    platf::pix_fmt_e pix_fmt_yuv444_8bit;
+    platf::pix_fmt_e pix_fmt_yuv444_10bit;
   };
 
   struct encoder_platform_formats_avcodec: encoder_platform_formats_t {
@@ -93,10 +95,13 @@ namespace video {
       pix_fmt_yuv444_10bit = map_pix_fmt(avcodec_pix_fmt_yuv444_10bit);
     }
 
-    AVHWDeviceType avcodec_base_dev_type, avcodec_derived_dev_type;
+    AVHWDeviceType avcodec_base_dev_type;
+    AVHWDeviceType avcodec_derived_dev_type;
     AVPixelFormat avcodec_dev_pix_fmt;
-    AVPixelFormat avcodec_pix_fmt_8bit, avcodec_pix_fmt_10bit;
-    AVPixelFormat avcodec_pix_fmt_yuv444_8bit, avcodec_pix_fmt_yuv444_10bit;
+    AVPixelFormat avcodec_pix_fmt_8bit;
+    AVPixelFormat avcodec_pix_fmt_10bit;
+    AVPixelFormat avcodec_pix_fmt_yuv444_8bit;
+    AVPixelFormat avcodec_pix_fmt_yuv444_10bit;
 
     init_buffer_function_t init_avcodec_hardware_input_buffer;
   };
@@ -179,7 +184,11 @@ namespace video {
       std::bitset<MAX_FLAGS>::reference operator[](flag_e flag) {
         return capabilities[(std::size_t) flag];
       }
-    } av1, hevc, h264;
+    };
+
+    codec_t av1;
+    codec_t hevc;
+    codec_t h264;
 
     const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {

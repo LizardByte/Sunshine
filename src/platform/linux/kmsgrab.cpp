@@ -296,14 +296,20 @@ namespace platf {
     struct cursor_t {
       // Public properties used during blending
       bool visible = false;
-      std::int32_t x, y;
-      std::uint32_t dst_w, dst_h;
-      std::uint32_t src_w, src_h;
+      std::uint32_t dst_h;
+      std::uint32_t dst_w;
+      std::uint32_t src_h;
+      std::uint32_t src_w;
+      std::int32_t x;
+      std::int32_t y;
       std::vector<std::uint8_t> pixels;
       unsigned long serial;
 
       // Private properties used for tracking cursor changes
-      std::uint64_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
+      std::uint64_t prop_src_x;
+      std::uint64_t prop_src_y;
+      std::uint64_t prop_src_h;
+      std::uint64_t prop_src_w;
       std::uint32_t fb_id;
     };
 
@@ -1133,8 +1139,10 @@ namespace platf {
 
       std::chrono::nanoseconds delay;
 
-      int img_width, img_height;
-      int img_offset_x, img_offset_y;
+      int img_height;
+      int img_width;
+      int img_offset_x;
+      int img_offset_y;
 
       int plane_id;
       int crtc_id;
@@ -1317,7 +1325,8 @@ namespace platf {
         gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
 
         // Don't remove these lines, see https://github.com/LizardByte/Sunshine/issues/453
-        int w, h;
+        int h;
+        int w;
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
         BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;

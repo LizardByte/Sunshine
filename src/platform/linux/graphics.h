@@ -266,8 +266,10 @@ namespace egl {
 
   class cursor_t: public platf::img_t {
   public:
-    int x, y;
-    int src_w, src_h;
+    int src_h;
+    int src_w;
+    int x;
+    int y;
 
     unsigned long serial;
 
@@ -329,9 +331,12 @@ namespace egl {
     gl::program_t program[3];
     gl::buffer_t color_matrix;
 
-    int out_width, out_height;
-    int in_width, in_height;
-    int offsetX, offsetY;
+    int out_height;
+    int out_width;
+    int in_height;
+    int in_width;
+    int offsetX;
+    int offsetY;
 
     // Pointer to the texture to be converted to nv12
     int loaded_texture;

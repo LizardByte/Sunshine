@@ -74,18 +74,20 @@ namespace {
   std::atomic<bool> used_nt_set_timer_resolution = false;
 
   bool nt_set_timer_resolution_max() {
-    ULONG minimum, maximum, current;
-    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
-        !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
+    ULONG maximum;
+    ULONG minimum;
+    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+                       !NT_SUCCESS(NtSetTimerResolution(maximum, TRUE, &current))) {
       return false;
     }
     return true;
   }
 
   bool nt_set_timer_resolution_min() {
-    ULONG minimum, maximum, current;
-    if (!NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
-        !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
+    ULONG maximum;
+    ULONG minimum;
+    if (ULONG current; !NT_SUCCESS(NtQueryTimerResolution(&minimum, &maximum, &current)) ||
+                       !NT_SUCCESS(NtSetTimerResolution(minimum, TRUE, &current))) {
       return false;
     }
     return true;

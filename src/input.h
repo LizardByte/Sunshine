@@ -25,14 +25,18 @@ namespace input {
   std::shared_ptr<input_t> alloc(safe::mail_t mail);
 
   struct touch_port_t: public platf::touch_port_t {
-    int env_width, env_height;
+    int env_height;
+    int env_width;
 
     // Offset x and y coordinates of the client
-    float client_offsetX, client_offsetY;
+    float client_offsetX;
+    float client_offsetY;
 
-    float scalar_inv, scalar_tpcoords;
+    float scalar_inv;
+    float scalar_tpcoords;
 
-    int env_logical_width, env_logical_height;
+    int env_logical_height;
+    int env_logical_width;
 
     explicit operator bool() const {
       return width != 0 && height != 0 && env_width != 0 && env_height != 0;
