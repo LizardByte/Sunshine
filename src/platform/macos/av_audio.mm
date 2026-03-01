@@ -708,23 +708,30 @@ namespace platf {
                                    clientChannels:(UInt8)clientChannels {
   using namespace std::literals;
 
-  // Query actual device properties to determine if conversion is needed
-  UInt32 aggregateDeviceSampleRate = 48000;  // Default fallback
-  UInt32 aggregateDeviceChannels = 2;  // Default fallback
+  // Query actual device properties to determine if conversion is needed.
+  // Default to the client's own values: if a query fails we assume the device matches
+  // what was requested, so no conversion is attempted rather than using a wrong guess.
+  Float64 aggregateDeviceSampleRate = (Float64) clientSampleRate;
+  UInt32 aggregateDeviceChannels = clientChannels;
 
   // Get actual sample rate from the aggregate device
-  // XXX Do we need this, won't it always be 48000? We set it above in createAggregateDeviceWithTapDescription.
   UInt32 sampleRateQuerySize = sizeof(Float64);
-  Float64 var = 0.0;
   OSStatus sampleRateStatus = [self getDeviceProperty:self->aggregateDeviceID
                                              selector:kAudioDevicePropertyNominalSampleRate
                                                 scope:kAudioObjectPropertyScopeGlobal
                                               element:kAudioObjectPropertyElementMain
                                                  size:&sampleRateQuerySize
-                                                 data:&var];
+                                                 data:&aggregateDeviceSampleRate];
 
   if (sampleRateStatus != noErr) {
-    BOOST_LOG(error) << "Failed to get device sample rate, using default 48kHz: " << ca::Status(sampleRateStatus);
+    BOOST_LOG(error) << "Failed to get device sample rate, falling back to client rate (" << clientSampleRate << "Hz): " << ca::Status(sampleRateStatus);
+    aggregateDeviceSampleRate = (Float64) clientSampleRate;
+  } else if (aggregateDeviceSampleRate <= 0.0) {
+    // API returned noErr but the value is invalid (e.g. 0 from a UInt32→Float64 casting issue).
+    // Treat it as a failure rather than silently proceeding with an invalid rate.
+    BOOST_LOG(error) << "getDeviceProperty returned noErr but got invalid sample rate: "sv
+                     << aggregateDeviceSampleRate << "Hz - falling back to client rate (" << clientSampleRate << "Hz)"sv;
+    aggregateDeviceSampleRate = (Float64) clientSampleRate;
   }
 
   // Get actual channel count from the device's input stream configuration
@@ -745,12 +752,12 @@ namespace platf {
         aggregateDeviceChannels = streamConfig->mBuffers[0].mNumberChannels;
         BOOST_LOG(debug) << "Device reports "sv << aggregateDeviceChannels << " input channels"sv;
       } else {
-        BOOST_LOG(warning) << "Failed to get stream configuration, using default 2 channels: "sv << streamConfigStatus;
+        BOOST_LOG(error) << "Failed to get stream configuration, falling back to client channels (" << (int) clientChannels << "): "sv << streamConfigStatus;
       }
       free(streamConfig);
     }
   } else {
-    BOOST_LOG(warning) << "Failed to get stream configuration size, using default 2 channels: "sv << streamConfigSizeStatus;
+    BOOST_LOG(error) << "Failed to get stream configuration size, falling back to client channels (" << (int) clientChannels << "): "sv << streamConfigSizeStatus;
   }
 
   BOOST_LOG(debug) << "Device properties - Sample Rate: "sv << aggregateDeviceSampleRate << "Hz, Channels: "sv << aggregateDeviceChannels;
