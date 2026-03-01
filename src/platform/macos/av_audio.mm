@@ -209,7 +209,7 @@ namespace platf {
 + (NSArray<NSString *> *)microphoneNames {
   using namespace std::literals;
   BOOST_LOG(debug) << "Retrieving microphone names"sv;
-  NSMutableArray *result = [[NSMutableArray alloc] init];
+  NSMutableArray *result = [NSMutableArray array];
 
   for (AVCaptureDevice *device in [AVAudio microphones]) {
     [result addObject:[device localizedName]];
