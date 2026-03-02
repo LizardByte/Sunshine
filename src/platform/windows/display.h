@@ -347,8 +347,8 @@ namespace platf::dxgi {
     winrt::Windows::Graphics::Capture::GraphicsCaptureItem item {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFramePool frame_pool {nullptr};
     winrt::Windows::Graphics::Capture::GraphicsCaptureSession capture_session {nullptr};
-    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame consumed_frame {nullptr};
     winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame produced_frame {nullptr};
+    winrt::Windows::Graphics::Capture::Direct3D11CaptureFrame consumed_frame {nullptr};
     SRWLOCK frame_lock = SRWLOCK_INIT;
     CONDITION_VARIABLE frame_present_cv;
 

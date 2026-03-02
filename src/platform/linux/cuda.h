@@ -69,9 +69,8 @@ namespace cuda {
   stream_t make_stream(int flags = 0);
 
   struct viewport_t {
-    int height;
     int width;
-
+    int height;
     int offsetX;
     int offsetY;
   };
