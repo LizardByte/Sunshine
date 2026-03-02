@@ -398,8 +398,8 @@ namespace va {
     egl::sws_t sws;
     egl::nv12_t nv12;
 
-    int height;
     int width;
+    int height;
   };
 
   class va_ram_t: public va_t {

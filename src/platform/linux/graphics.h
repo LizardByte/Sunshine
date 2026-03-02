@@ -266,10 +266,10 @@ namespace egl {
 
   class cursor_t: public platf::img_t {
   public:
-    int src_h;
-    int src_w;
     int x;
     int y;
+    int src_w;
+    int src_h;
 
     unsigned long serial;
 
@@ -331,10 +331,10 @@ namespace egl {
     gl::program_t program[3];
     gl::buffer_t color_matrix;
 
-    int out_height;
     int out_width;
-    int in_height;
+    int out_height;
     int in_width;
+    int in_height;
     int offsetX;
     int offsetY;
 

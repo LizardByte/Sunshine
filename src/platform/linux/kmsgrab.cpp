@@ -296,20 +296,20 @@ namespace platf {
     struct cursor_t {
       // Public properties used during blending
       bool visible = false;
-      std::uint32_t dst_h;
-      std::uint32_t dst_w;
-      std::uint32_t src_h;
-      std::uint32_t src_w;
       std::int32_t x;
       std::int32_t y;
+      std::uint32_t dst_w;
+      std::uint32_t dst_h;
+      std::uint32_t src_w;
+      std::uint32_t src_h;
       std::vector<std::uint8_t> pixels;
       unsigned long serial;
 
       // Private properties used for tracking cursor changes
       std::uint64_t prop_src_x;
       std::uint64_t prop_src_y;
-      std::uint64_t prop_src_h;
       std::uint64_t prop_src_w;
+      std::uint64_t prop_src_h;
       std::uint32_t fb_id;
     };
 
@@ -1139,8 +1139,8 @@ namespace platf {
 
       std::chrono::nanoseconds delay;
 
-      int img_height;
       int img_width;
+      int img_height;
       int img_offset_x;
       int img_offset_y;
 
