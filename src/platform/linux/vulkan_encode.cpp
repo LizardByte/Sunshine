@@ -368,17 +368,21 @@ namespace vk {
       VkExternalMemoryImageCreateInfo ext_ci = {VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO};
       ext_ci.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
-      VkSubresourceLayout drm_layout = {};
+      VkSubresourceLayout drm_layouts[4] = {};
       VkImageDrmFormatModifierExplicitCreateInfoEXT drm_ci = {
         VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT};
       VkImageTiling tiling;
 
       if (sd.modifier != DRM_FORMAT_MOD_INVALID) {
-        drm_layout.offset = sd.offsets[0];
-        drm_layout.rowPitch = sd.pitches[0];
+        int plane_count = 0;
+        for (int i = 0; i < 4 && sd.fds[i] >= 0; ++i) {
+          drm_layouts[i].offset = sd.offsets[i];
+          drm_layouts[i].rowPitch = sd.pitches[i];
+          plane_count++;
+        }
         drm_ci.drmFormatModifier = sd.modifier;
-        drm_ci.drmFormatModifierPlaneCount = 1;
-        drm_ci.pPlaneLayouts = &drm_layout;
+        drm_ci.drmFormatModifierPlaneCount = plane_count;
+        drm_ci.pPlaneLayouts = drm_layouts;
         ext_ci.pNext = &drm_ci;
         tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
       } else {
