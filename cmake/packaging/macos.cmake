@@ -7,7 +7,7 @@ if (SUNSHINE_BUILD_HOMEBREW)
          DESTINATION "${CMAKE_BINARY_DIR}/assets")
 else()
     # .app build
-    set(CODESIGN_IDENTITY "" CACHE STRING "Codesign identity, e.g. 'Developer ID Application: Name (TEAMID)'")
+    set(APPLE_CODESIGN_IDENTITY "" CACHE STRING "Codesign identity, e.g. 'Developer ID Application: Name (TEAMID)'")
 
     # Build an .app
     set(CMAKE_MACOSX_BUNDLE YES)
@@ -57,8 +57,8 @@ else()
             message(FATAL_ERROR \"codesign failed to remove existing signatures\")
         endif()
 
-        # SHOULD_SIGN is set only when github.event_name == push or when manually building
-        if(\$ENV{SHOULD_SIGN} EQUAL 1)
+        # SHOULD_SIGN is set only when publish_release is true or when manually building
+        if(\$ENV{SHOULD_SIGN} STREQUAL \"true\")
           # Sign anything inside Contents/Frameworks
           set(_fw_dir \"\${_app}/Contents/Frameworks\")
           if(EXISTS \"\${_fw_dir}\")
@@ -69,7 +69,7 @@ else()
 
               foreach(item IN LISTS _sign_items)
                   execute_process(COMMAND /usr/bin/codesign --verbose=2
-                      --sign \"${CODESIGN_IDENTITY}\" \"\${item}\"
+                      --sign \"${APPLE_CODESIGN_IDENTITY}\" \"\${item}\"
                       --force --timestamp --options=runtime
                       RESULT_VARIABLE rc2
                   )
@@ -81,7 +81,7 @@ else()
 
           # Sign the app last
           execute_process(COMMAND /usr/bin/codesign --verbose=2
-              --sign \"${CODESIGN_IDENTITY}\" \"\${_app}\"
+              --sign \"${APPLE_CODESIGN_IDENTITY}\" \"\${_app}\"
               --force --timestamp --options=runtime
               RESULT_VARIABLE rc3
           )

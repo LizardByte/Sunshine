@@ -44,7 +44,7 @@ function _usage() {
   cat <<EOF
 This script builds a macOS .app bundle packaged inside a .dmg.
 
-If the environment variable CODESIGN_IDENTITY is set, the app will be signed.
+If the environment variable APPLE_CODESIGN_IDENTITY is set, the app will be signed.
 This must be a "Developer ID" identity.
 
 For others to be able to open the .dmg, it must be notarized. Create a keychain profile named
@@ -98,15 +98,14 @@ function run_step_cmake() {
     "-DCMAKE_BUILD_TYPE=${build_type}"
     "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
     "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
-    "-DSUNSHINE_BUILD_HOMEBREW=OFF"
     "-DSUNSHINE_ENABLE_TRAY=ON"
   )
 
   if [[ -n "${sign_app}" ]]; then
-    if [[ -n "${CODESIGN_IDENTITY:-}" ]]; then
-      cmake_args+=("-DCODESIGN_IDENTITY='${CODESIGN_IDENTITY}'")
+    if [[ -n "${APPLE_CODESIGN_IDENTITY:-}" ]]; then
+      cmake_args+=("-DAPPLE_CODESIGN_IDENTITY='${APPLE_CODESIGN_IDENTITY}'")
     else
-      echo "Please set the CODESIGN_IDENTITY environment variable or use --skip-codesign"
+      echo "Please set the APPLE_CODESIGN_IDENTITY environment variable or use --skip-codesign"
       exit 1
     fi
   fi
@@ -140,9 +139,9 @@ function run_step_dmg() {
   echo "Running step: Creating DMG package"
 
   # This variable is needed by cmake/packaging/macos.cmake
-  SHOULD_SIGN=0
+  SHOULD_SIGN=false
   if [[ -n "${sign_app}" ]]; then
-    SHOULD_SIGN=1
+    SHOULD_SIGN=true
   fi
   export SHOULD_SIGN
 

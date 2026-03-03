@@ -5,6 +5,9 @@ permissions: {}
 on:
   workflow_call:
     inputs:
+      publish_release:
+        required: true
+        type: string
       release_commit:
         required: true
         type: string
@@ -23,13 +26,13 @@ on:
       APPLE_NOTARYTOOL_PASSWORD:
         required: false
       # Developer ID Application: Full Name (TEAMIDHERE)
-      CODESIGN_IDENTITY:
+      APPLE_CODESIGN_IDENTITY:
         required: false
       # pkcs12 export from Xcode in base64
-      DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64:
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64:
         required: false
       # pkcs12 password added by Xcode export
-      DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD:
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD:
         required: false
 
 env:
@@ -54,10 +57,10 @@ jobs:
     steps:
       - name: Install Apple certificate
         uses: apple-actions/import-codesign-certs@b610f78488812c1e56b20e6df63ec42d833f2d14  # v6.0.0
-        if: github.event_name == 'push'
+        if: inputs.publish_release == 'true'
         with:
-          p12-file-base64: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
-          p12-password: ${{ secrets.DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
+          p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
 
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -81,7 +84,7 @@ jobs:
 
       - name: Configure
         env:
-          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
         run: |
           mkdir -p build
           cmake \
@@ -93,12 +96,11 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
-            -DSUNSHINE_BUILD_HOMEBREW=OFF \
             -DSUNSHINE_ENABLE_TRAY=ON \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
-            -DCODESIGN_IDENTITY="${CODESIGN_IDENTITY}"
+            -DAPPLE_CODESIGN_IDENTITY="${APPLE_CODESIGN_IDENTITY}"
 
       - name: Build
         run: cmake --build build -j "$(sysctl -n hw.ncpu)"
@@ -108,14 +110,9 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
-          CODESIGN_IDENTITY: ${{ secrets.CODESIGN_IDENTITY }}
+          APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+          SHOULD_SIGN: ${{ inputs.publish_release }}
         run: |
-          SHOULD_SIGN=0
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            SHOULD_SIGN=1
-          fi
-          export SHOULD_SIGN
-
           # build DMG and sign everything (see cmake/packaging/macos.cmake)
           # cpack can rarely fail with "hdiutil: create failed - Resource busy"
           # so let's allow 1 retry
@@ -128,7 +125,7 @@ jobs:
           fi
 
           # Notarize
-          if [[ $SHOULD_SIGN == 1 && -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
+          if [[ "${SHOULD_SIGN}" == "true" && -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
             # Notarizing allows the signed .app to run on any Mac with no prompts.
             # If you don't notarize, users must jump through the "Open Anyway" hoop as well as run
             # `xattr -cr /Applications/Sunshine.app` to remove quarantine.
