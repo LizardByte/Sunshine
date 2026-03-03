@@ -51,11 +51,16 @@ void main() {
   if ((pos.x & 1) == 0 && (pos.y & 1) == 0) {
     vec2 step = scale * inv_tex;
 
-    vec3 rgb_r = texture(rgb_in, uv + vec2(step.x, 0)).rgb;
-    if (pc.cursor_size.x > 0)
-      rgb_r = blend_cursor(rgb_r, pos + ivec2(1, 0));
+    vec3 rgb_r  = texture(rgb_in, uv + vec2(step.x, 0)).rgb;
+    vec3 rgb_b  = texture(rgb_in, uv + vec2(0, step.y)).rgb;
+    vec3 rgb_br = texture(rgb_in, uv + vec2(step.x, step.y)).rgb;
+    if (pc.cursor_size.x > 0) {
+      rgb_r  = blend_cursor(rgb_r,  pos + ivec2(1, 0));
+      rgb_b  = blend_cursor(rgb_b,  pos + ivec2(0, 1));
+      rgb_br = blend_cursor(rgb_br, pos + ivec2(1, 1));
+    }
 
-    vec3 avg = (rgb + rgb_r) * 0.5;
+    vec3 avg = (rgb + rgb_r + rgb_b + rgb_br) * 0.25;
 
     float cb = dot(pc.color_vec_u.xyz, avg) + pc.color_vec_u.w;
     float cr = dot(pc.color_vec_v.xyz, avg) + pc.color_vec_v.w;

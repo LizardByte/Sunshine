@@ -1034,7 +1034,6 @@ namespace video {
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
         {"units"s, 0},
-        {"quality"s, 1},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
@@ -1053,7 +1052,6 @@ namespace video {
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
         {"units"s, 0},
-        {"quality"s, 1},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
@@ -1072,7 +1070,6 @@ namespace video {
         {"tune"s, &config::video.vk.tune},
         {"rc_mode"s, &config::video.vk.rc_mode},
         {"units"s, 0},
-        {"quality"s, 1},
         {"usage"s, "stream"s},
         {"content"s, "rendered"s},
         {"async_depth"s, 1},
@@ -1084,7 +1081,7 @@ namespace video {
       {},  // Fallback options
       "h264_vulkan"s,
     },
-    LIMITED_GOP_SIZE | PARALLEL_ENCODING
+    LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
 #endif  // SUNSHINE_BUILD_VULKAN
 #endif  // linux
