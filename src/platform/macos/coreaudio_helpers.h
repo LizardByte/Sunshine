@@ -11,19 +11,19 @@ namespace ca {
   // Usage: BOOST_LOG(error) << ca::Status(err);
 
   // Some CoreAudio error examples:
-  // kAudioHardwareNoError                   = 0,
-  // kAudioHardwareNotRunningError           = 'stop',
-  // kAudioHardwareUnspecifiedError          = 'what',
-  // kAudioHardwareUnknownPropertyError      = 'who?',
-  // kAudioHardwareBadPropertySizeError      = '!siz',
-  // kAudioHardwareIllegalOperationError     = 'nope',
-  // kAudioHardwareBadObjectError            = '!obj',
-  // kAudioHardwareBadDeviceError            = '!dev',
-  // kAudioHardwareBadStreamError            = '!str',
+  // kAudioHardwareNoError = 0,
+  // kAudioHardwareNotRunningError = 'stop',
+  // kAudioHardwareUnspecifiedError = 'what',
+  // kAudioHardwareUnknownPropertyError = 'who?',
+  // kAudioHardwareBadPropertySizeError = '!siz',
+  // kAudioHardwareIllegalOperationError = 'nope',
+  // kAudioHardwareBadObjectError = '!obj',
+  // kAudioHardwareBadDeviceError = '!dev',
+  // kAudioHardwareBadStreamError = '!str',
   // kAudioHardwareUnsupportedOperationError = 'unop',
-  // kAudioHardwareNotReadyError             = 'nrdy',
-  // kAudioDeviceUnsupportedFormatError      = '!dat',
-  // kAudioDevicePermissionsError            = '!hog'
+  // kAudioHardwareNotReadyError = 'nrdy',
+  // kAudioDeviceUnsupportedFormatError = '!dat',
+  // kAudioDevicePermissionsError = '!hog'
 
   inline std::string OSStatusToString(OSStatus error) {
     uint32_t be = CFSwapInt32HostToBig(static_cast<uint32_t>(error));
