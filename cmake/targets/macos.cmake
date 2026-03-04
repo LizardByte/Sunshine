@@ -1,3 +1,5 @@
+# macos specific target definitions
+
 if (SUNSHINE_BUILD_HOMEBREW)
     target_link_options(sunshine PRIVATE LINKER:-sectcreate,__TEXT,__info_plist,${APPLE_PLIST_FILE})
 else()

@@ -1,3 +1,5 @@
+# macos specific packaging
+
 if (SUNSHINE_BUILD_HOMEBREW)
     install(DIRECTORY "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/assets/"
             DESTINATION "${SUNSHINE_ASSETS_DIR}")

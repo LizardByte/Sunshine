@@ -72,15 +72,14 @@ jobs:
         run: |
           brew install --force \
             cmake \
+            doxygen \
+            graphviz \
             node \
             pkgconf \
             icu4c@78 \
             miniupnpc \
             openssl@3 \
             opus
-
-          # install gcvor
-          python -m pip install gcovr
 
       - name: Configure
         env:
@@ -90,13 +89,10 @@ jobs:
           cmake \
             -B build \
             -S . \
-            -DBUILD_DOCS=OFF \
-            -DBUILD_TESTS=ON \
             -DBUILD_WERROR=ON \
             -DCMAKE_BUILD_TYPE=Release \
             -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3 2>/dev/null)" \
             -DOpus_ROOT_DIR="$(brew --prefix opus 2>/dev/null)" \
-            -DSUNSHINE_ENABLE_TRAY=ON \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \
             -DSUNSHINE_PUBLISHER_WEBSITE="https://app.lizardbyte.dev" \
             -DSUNSHINE_PUBLISHER_ISSUE_URL="https://app.lizardbyte.dev/support" \
@@ -156,6 +152,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
+          python -m pip install "../scripts[test]"
           python -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
