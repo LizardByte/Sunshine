@@ -1432,7 +1432,7 @@ namespace portal {
 #endif
 
 #ifdef SUNSHINE_BUILD_VULKAN
-      if (mem_type == platf::mem_type_e::vulkan) {
+      if (mem_type == platf::mem_type_e::vulkan && n_dmabuf_infos > 0) {
         return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
       }
 #endif
