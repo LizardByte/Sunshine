@@ -1,6 +1,6 @@
 /**
  * @file src/platform/linux/vulkan_encode.cpp
- * @brief Vulkan-native encoder: DMA-BUF → Vulkan compute (RGB→NV12) → Vulkan Video encode.
+ * @brief Vulkan-native encoder: DMA-BUF -> Vulkan compute (RGB->YUV) -> Vulkan Video encode.
  *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
  */
 #include <sys/stat.h>
@@ -21,7 +21,7 @@ extern "C" {
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/video_colorspace.h"
-#include "shaders/rgb2nv12.spv.h"
+#include "shaders/rgb2yuv.spv.h"
 
 using namespace std::literals;
 
@@ -127,6 +127,7 @@ namespace vk {
       vk_dev_ctx = (AVVulkanDeviceContext *) dev_ctx->hwctx;
       dev = vk_dev_ctx->act_dev;
       phys_dev = vk_dev_ctx->phys_dev;
+      is_10bit = (frames_ctx->sw_format == AV_PIX_FMT_P010);
 
       {
         VkPhysicalDeviceProperties p;
@@ -256,8 +257,8 @@ namespace vk {
     bool create_compute_pipeline() {
       // Shader module
       VkShaderModuleCreateInfo shader_ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-      shader_ci.codeSize = rgb2nv12_comp_spv_size;
-      shader_ci.pCode = rgb2nv12_comp_spv;
+      shader_ci.codeSize = rgb2yuv_comp_spv_size;
+      shader_ci.pCode = rgb2yuv_comp_spv;
       VK_CHECK_BOOL(vkCreateShaderModule(dev, &shader_ci, nullptr, &shader_module));
 
       // Descriptor set layout: binding 0=sampler, 1=Y storage, 2=UV storage, 3=cursor sampler
@@ -507,6 +508,9 @@ namespace vk {
       AVVkFrame *vk_frame = (AVVkFrame *) frame->data[0];
       if (!vk_frame) return false;
 
+      auto y_fmt = is_10bit ? VK_FORMAT_R16_UNORM : VK_FORMAT_R8_UNORM;
+      auto uv_fmt = is_10bit ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R8G8_UNORM;
+
       // Detect multiplane vs multi-image layout
       int num_imgs = 0;
       for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) num_imgs++;
@@ -518,12 +522,12 @@ namespace vk {
         view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
 
         // Y plane
-        view_ci.format = VK_FORMAT_R8_UNORM;
+        view_ci.format = y_fmt;
         view_ci.subresourceRange = {VK_IMAGE_ASPECT_PLANE_0_BIT, 0, 1, 0, 1};
         VK_CHECK_BOOL(vkCreateImageView(dev, &view_ci, nullptr, &y_view));
 
         // UV plane
-        view_ci.format = VK_FORMAT_R8G8_UNORM;
+        view_ci.format = uv_fmt;
         view_ci.subresourceRange = {VK_IMAGE_ASPECT_PLANE_1_BIT, 0, 1, 0, 1};
         VK_CHECK_BOOL(vkCreateImageView(dev, &view_ci, nullptr, &uv_view));
       } else {
@@ -533,11 +537,11 @@ namespace vk {
         view_ci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
         view_ci.image = vk_frame->img[0];
-        view_ci.format = VK_FORMAT_R8_UNORM;
+        view_ci.format = y_fmt;
         VK_CHECK_BOOL(vkCreateImageView(dev, &view_ci, nullptr, &y_view));
 
         view_ci.image = vk_frame->img[1];
-        view_ci.format = VK_FORMAT_R8G8_UNORM;
+        view_ci.format = uv_fmt;
         VK_CHECK_BOOL(vkCreateImageView(dev, &view_ci, nullptr, &uv_view));
       }
       return true;
@@ -757,6 +761,7 @@ namespace vk {
     // Dimensions
     int width = 0, height = 0;
     int offset_x = 0, offset_y = 0;
+    bool is_10bit = false;
     AVBufferRef *hw_frames_ctx = nullptr;
     frame_t hwframe;
     std::uint64_t sequence = 0;
