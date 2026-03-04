@@ -3,8 +3,8 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(set = 0, binding = 0) uniform sampler2D rgb_in;
-layout(set = 0, binding = 1, r8) uniform writeonly image2D y_out;
-layout(set = 0, binding = 2, rg8) uniform writeonly image2D uv_out;
+layout(set = 0, binding = 1) uniform writeonly image2D y_out;
+layout(set = 0, binding = 2) uniform writeonly image2D uv_out;
 layout(set = 0, binding = 3) uniform sampler2D cursor_in;
 
 layout(push_constant) uniform PushConstants {
