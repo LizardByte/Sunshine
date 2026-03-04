@@ -950,8 +950,10 @@ namespace platf::dxgi {
     ps_t convert_UV_ps;
     ps_t convert_UV_fp16_ps;
 
-    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports, out_Y_or_YUV_viewports_for_clear;
-    D3D11_VIEWPORT out_UV_viewport, out_UV_viewport_for_clear;
+    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports;
+    std::array<D3D11_VIEWPORT, 3> out_Y_or_YUV_viewports_for_clear;
+    D3D11_VIEWPORT out_UV_viewport;
+    D3D11_VIEWPORT out_UV_viewport_for_clear;
 
     DXGI_FORMAT format;
 

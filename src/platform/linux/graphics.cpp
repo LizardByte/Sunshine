@@ -361,7 +361,8 @@ namespace egl {
       return nullptr;
     }
 
-    int major, minor;
+    int major;
+    int minor;
     if (!eglInitialize(display.get(), &major, &minor)) {
       BOOST_LOG(error) << "Couldn't initialize EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
       return nullptr;

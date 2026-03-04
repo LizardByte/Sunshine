@@ -188,7 +188,8 @@ namespace cuda {
     stream_t stream;
     frame_t hwframe;
 
-    int width, height;
+    int height;
+    int width;
 
     // When height and width don't change, it's not necessary to use linear interpolation
     bool linear_interpolation;
@@ -447,7 +448,8 @@ namespace cuda {
     egl::nv12_t nv12;
     AVPixelFormat sw_format;
 
-    int width, height;
+    int height;
+    int width;
 
     std::uint64_t sequence;
     egl::rgb_t rgb;
@@ -455,7 +457,8 @@ namespace cuda {
     registered_resource_t y_res;
     registered_resource_t uv_res;
 
-    int offset_x, offset_y;
+    int offset_x;
+    int offset_y;
   };
 
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, bool vram) {

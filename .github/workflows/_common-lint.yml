@@ -20,3 +20,4 @@ jobs:
     if: ${{ github.repository != 'LizardByte/.github' }}
     permissions:
       contents: read
+      pull-requests: read

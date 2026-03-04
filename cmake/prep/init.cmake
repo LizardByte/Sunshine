@@ -1,5 +1,10 @@
 if (WIN32)
 elseif (APPLE)
+    if (NOT SUNSHINE_BUILD_HOMEBREW)
+        set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
+        set(CMAKE_INSTALL_RPATH "")
+        set(CMAKE_INSTALL_RPATH_USE_LINK_PATH FALSE)
+    endif()
 elseif (UNIX)
     include(GNUInstallDirs)
 

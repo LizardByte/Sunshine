@@ -30,7 +30,7 @@ extern "C" {
 
 // Win32 WHEEL_DELTA constant
 #ifndef WHEEL_DELTA
-  #define WHEEL_DELTA 120
+constexpr int WHEEL_DELTA = 120;
 #endif
 
 using namespace std::literals;
@@ -1254,7 +1254,8 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
-    short deltaX, deltaY;
+    short deltaX;
+    short deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
     if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {

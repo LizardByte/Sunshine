@@ -10,7 +10,7 @@
 // lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
-#define kBufferLength 4096
+static const int kBufferLength = 4096;
 
 @interface AVAudio: NSObject <AVCaptureAudioDataOutputSampleBufferDelegate> {
 @public
