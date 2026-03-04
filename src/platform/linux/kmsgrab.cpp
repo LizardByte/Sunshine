@@ -1247,12 +1247,6 @@ namespace platf {
         }
 #endif
 
-#ifdef SUNSHINE_BUILD_VULKAN
-        if (mem_type == mem_type_e::vulkan) {
-          return vk::make_avcodec_encode_device_ram(width, height);
-        }
-#endif
-
 #ifdef SUNSHINE_BUILD_CUDA
         if (mem_type == mem_type_e::cuda) {
           return cuda::make_avcodec_encode_device(width, height, false);
