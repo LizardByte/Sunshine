@@ -1,7 +1,11 @@
 # common target definitions
 # this file will also load platform specific macros
 
-add_executable(sunshine ${SUNSHINE_TARGET_FILES})
+if(APPLE AND NOT SUNSHINE_BUILD_HOMEBREW)
+    add_executable(sunshine MACOSX_BUNDLE ${SUNSHINE_TARGET_FILES})
+else()
+    add_executable(sunshine ${SUNSHINE_TARGET_FILES})
+endif()
 foreach(dep ${SUNSHINE_TARGET_DEPENDENCIES})
     add_dependencies(sunshine ${dep})  # compile these before sunshine
 endforeach()
@@ -27,9 +31,15 @@ endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
-        VERSION ${PROJECT_VERSION}
-        SOVERSION ${PROJECT_VERSION_MAJOR})
+if(APPLE AND NOT SUNSHINE_BUILD_HOMEBREW)
+    # codesign on Mac won't sign an .app that uses a symlink
+    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23)
+else()
+    # symlink sunshine -> sunshine-PROJECT_VERSION
+    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
+            VERSION ${PROJECT_VERSION}
+            SOVERSION ${PROJECT_VERSION_MAJOR})
+endif()
 
 # CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
 if(CUDA_INHERIT_COMPILE_OPTIONS)
