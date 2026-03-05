@@ -161,7 +161,8 @@ namespace crypto {
 
       plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), (int) cipher.size()) != 1) {
         return -1;
@@ -195,7 +196,8 @@ namespace crypto {
         return -1;
       }
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
       if (EVP_EncryptUpdate(encrypt_ctx.get(), ciphertext, &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {
@@ -232,7 +234,8 @@ namespace crypto {
       EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), padding);
       plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), (int) cipher.size()) != 1) {
         return -1;
@@ -259,7 +262,8 @@ namespace crypto {
       EVP_CIPHER_CTX_set_padding(encrypt_ctx.get(), padding);
       cipher.resize(round_to_pkcs7_padded(plaintext.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
       if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {
@@ -290,7 +294,8 @@ namespace crypto {
         return false;
       }
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
       if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {

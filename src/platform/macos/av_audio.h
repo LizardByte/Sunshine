@@ -20,8 +20,7 @@
 // lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
-// Buffer length for audio processing
-#define kBufferLength 4096
+static const int kBufferLength = 4096;
 
 NS_ASSUME_NONNULL_BEGIN
 

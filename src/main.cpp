@@ -5,8 +5,13 @@
 // standard includes
 #include <codecvt>
 #include <csignal>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+
+#ifdef __APPLE__
+  #include <mach-o/dyld.h>
+#endif
 
 // local includes
 #include "confighttp.h"
@@ -116,6 +121,25 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 }
 
 int main(int argc, char *argv[]) {
+#ifdef __APPLE__
+  // Bundle assets are referenced relative to the executable
+  // (e.g. ../Resources/assets), so anchor cwd to Contents/MacOS.
+  {
+    char executable[2048];
+    uint32_t size = sizeof(executable);
+    if (_NSGetExecutablePath(executable, &size) == 0) {
+      std::error_code ec;
+      auto exec_dir = std::filesystem::weakly_canonical(std::filesystem::path {executable}, ec).parent_path();
+      if (!ec) {
+        std::filesystem::current_path(exec_dir, ec);
+      }
+      if (ec) {
+        std::cerr << "Failed to set working directory to executable path: " << ec.message() << '\n';
+      }
+    }
+  }
+#endif
+
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;

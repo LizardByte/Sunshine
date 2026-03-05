@@ -38,7 +38,7 @@ jobs:
 
       - name: Release Setup
         id: release-setup
-        uses: LizardByte/actions/actions/release_setup@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
+        uses: LizardByte/actions/actions/release_setup@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -88,6 +88,26 @@ jobs:
     secrets:
       GH_TOKEN: ${{ secrets.GH_BOT_TOKEN }}
       GIT_EMAIL: ${{ secrets.GH_BOT_EMAIL }}
+
+  build-macos:
+    name: macOS
+    needs: release-setup
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-macos.yml
+    with:
+      publish_release: ${{ needs.release-setup.outputs.publish_release }}
+      release_commit: ${{ needs.release-setup.outputs.release_commit }}
+      release_version: ${{ needs.release-setup.outputs.release_version }}
+    secrets:
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+      APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64: >-
+        ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD: >-
+        ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
 
   build-linux:
     name: Linux
@@ -161,6 +181,7 @@ jobs:
       - build-linux
       - build-archlinux
       - build-linux-flatpak
+      - build-macos
       - build-homebrew
       - build-windows
     permissions:
@@ -180,6 +201,12 @@ jobs:
             coverage: true
             pr: true
           - name: Archlinux
+            coverage: true
+            pr: true
+          - name: macOS-arm64
+            coverage: true
+            pr: true
+          - name: macOS-x86_64
             coverage: true
             pr: true
           - name: Homebrew-macos-14
@@ -276,7 +303,7 @@ jobs:
         run: ls -l artifacts
 
       - name: Create/Update GitHub Release
-        uses: LizardByte/actions/actions/release_create@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
+        uses: LizardByte/actions/actions/release_create@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
         with:
           allowUpdates: false
           body: ${{ needs.release-setup.outputs.release_body }}
@@ -307,7 +334,7 @@ jobs:
           path: homebrew
 
       - name: Upload Homebrew Beta Formula
-        uses: LizardByte/actions/actions/release_homebrew@6be4ea62064b64957aa880252fe353cd65bcdef7  # v2026.214.14019
+        uses: LizardByte/actions/actions/release_homebrew@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine-beta.rb

@@ -34,21 +34,21 @@ extern "C" {
 #include "thread_safe.h"
 #include "utility.h"
 
-#define IDX_START_A 0
-#define IDX_START_B 1
-#define IDX_INVALIDATE_REF_FRAMES 2
-#define IDX_LOSS_STATS 3
-#define IDX_INPUT_DATA 5
-#define IDX_RUMBLE_DATA 6
-#define IDX_TERMINATION 7
-#define IDX_PERIODIC_PING 8
-#define IDX_REQUEST_IDR_FRAME 9
-#define IDX_ENCRYPTED 10
-#define IDX_HDR_MODE 11
-#define IDX_RUMBLE_TRIGGER_DATA 12
-#define IDX_SET_MOTION_EVENT 13
-#define IDX_SET_RGB_LED 14
-#define IDX_SET_ADAPTIVE_TRIGGERS 15
+constexpr int IDX_START_A = 0;
+constexpr int IDX_START_B = 1;
+constexpr int IDX_INVALIDATE_REF_FRAMES = 2;
+constexpr int IDX_LOSS_STATS = 3;
+constexpr int IDX_INPUT_DATA = 5;
+constexpr int IDX_RUMBLE_DATA = 6;
+constexpr int IDX_TERMINATION = 7;
+constexpr int IDX_PERIODIC_PING = 8;
+constexpr int IDX_REQUEST_IDR_FRAME = 9;
+constexpr int IDX_ENCRYPTED = 10;
+constexpr int IDX_HDR_MODE = 11;
+constexpr int IDX_RUMBLE_TRIGGER_DATA = 12;
+constexpr int IDX_SET_MOTION_EVENT = 13;
+constexpr int IDX_SET_RGB_LED = 14;
+constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -1377,9 +1377,8 @@ namespace stream {
       }
 
       std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
-      decltype(fec_blocks)::iterator
-        fec_blocks_begin = std::begin(fec_blocks),
-        fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
+      auto fec_blocks_begin = std::begin(fec_blocks);
+      auto fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
 
       BOOST_LOG(verbose) << "Generating "sv << fec_blocks_needed << " FEC blocks"sv;
 

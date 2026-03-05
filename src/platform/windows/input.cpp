@@ -138,7 +138,9 @@ namespace platf {
     auto &report = gamepad.report.ds4.Report;
 
     // Use int32 to process this data, so we can clamp if needed.
-    int32_t intX, intY, intZ;
+    int32_t intX;
+    int32_t intY;
+    int32_t intZ;
 
     switch (motion_type) {
       case LI_MOTION_TYPE_ACCEL:
