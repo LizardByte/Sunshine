@@ -20,8 +20,6 @@
 // lib includes
 #include "third-party/TPCircularBuffer/TPCircularBuffer.h"
 
-static const int kBufferLength = 4096;
-
 NS_ASSUME_NONNULL_BEGIN
 
 // Forward declarations
