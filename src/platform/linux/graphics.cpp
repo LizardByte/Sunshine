@@ -31,7 +31,12 @@ using namespace std::literals;
 
 namespace gl {
   GladGLContext ctx;
-  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC EGLImageTargetTexture2DOES = nullptr;
+
+  static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d_fn = nullptr;
+
+  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d() {
+    return egl_image_target_texture_2d_fn;
+  }
 
   void drain_errors(const std::string_view &prefix) {
     GLenum err;
@@ -414,12 +419,10 @@ namespace egl {
       return std::nullopt;
     }
 
-    // GL_OES_EGL_image is GLES-only so glad cannot generate it for desktop GL.
-    // Load the function pointer manually at runtime.
-    gl::EGLImageTargetTexture2DOES =
-      (PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) eglGetProcAddress("glEGLImageTargetTexture2DOES");
-    if (!gl::EGLImageTargetTexture2DOES) {
-      BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available"sv;
+    gl::egl_image_target_texture_2d_fn =
+      (gl::PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) (GLADapiproc) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+    if (!gl::egl_image_target_texture_2d_fn) {
+      BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv;
     }
 
     // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
@@ -499,9 +502,6 @@ namespace egl {
    */
   std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
     std::vector<EGLAttrib> attribs;
-    // Reserve worst-case capacity up front: 6 fixed + 4 planes * (6 base + 4 modifier) attrs + 1 EGL_NONE.
-    // This avoids reallocation, which works around a GCC 13 false-positive -Warray-bounds with long int vectors.
-    attribs.reserve(6 + 4 * 10 + 1);
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -553,7 +553,11 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, rgb->xrgb8);
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      return std::nullopt;
+    }
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
@@ -611,10 +615,14 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
-    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->r8);
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv;
+      return std::nullopt;
+    }
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, nv12->r8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
-    gl::EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->bg88);
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, nv12->bg88);
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
