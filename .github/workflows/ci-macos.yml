@@ -130,7 +130,8 @@ jobs:
                 --apple-id "${APPLE_ID}" \
                 --team-id "${APPLE_TEAM_ID}" \
                 --password "${APPLE_NOTARYTOOL_PASSWORD}" \
-                --wait
+                --wait \
+                --timeout 15m
               xcrun stapler staple -v build/cpack_artifacts/Sunshine.dmg
             fi
           fi

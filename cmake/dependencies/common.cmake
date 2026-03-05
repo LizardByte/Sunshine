@@ -33,6 +33,7 @@ include_directories(SYSTEM ${MINIUPNP_INCLUDE_DIRS})
 include("${CMAKE_MODULE_PATH}/dependencies/ffmpeg.cmake")
 
 # Opus
+set(OPUS_USE_STATIC ON CACHE BOOL "Static linking for libopus")
 include("${CMAKE_MODULE_PATH}/dependencies/FindOpus.cmake")
 
 # platform specific dependencies
