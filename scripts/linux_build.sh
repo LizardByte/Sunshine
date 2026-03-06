@@ -470,7 +470,7 @@ function run_step_deps() {
     add_ubuntu_deps
   elif [[ "$distro" == "fedora" ]]; then
     add_fedora_deps
-    ${sudo_cmd} dnf group install "$dev_tools_group" -y
+    ${sudo_cmd} dnf group install "development-tools" -y
   fi
 
   # Install the dependencies
@@ -732,7 +732,6 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
   distro="fedora"
   version="43"
@@ -742,7 +741,6 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-release; then
   distro="fedora"
   version="44"
@@ -752,7 +750,6 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-release; then
   distro="fedora"
   version="45"
@@ -762,7 +759,6 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-
   cuda_build="590.48.01"
   gcc_version="15"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
