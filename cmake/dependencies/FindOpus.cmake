@@ -36,6 +36,8 @@ set(Opus_ROOT_DIR  # cmake-lint: disable=C0103
     "${Opus_ROOT_DIR}"
     CACHE PATH "Root to search for opus")
 
+option(OPUS_USE_STATIC "Prefer linking against a static Opus library" OFF)
+
 # Todo: handle in-tree/fetch-content builds?
 
 if(NOT OPUS_FOUND)
@@ -62,6 +64,17 @@ if(NOT ANDROID)
     endif()
 endif()
 
+set(_opus_library_names opus)
+if(OPUS_USE_STATIC)
+    set(_opus_library_names libopus opus)
+endif()
+
+# Temporarily prefer static suffixes when requested.
+set(_old_find_suffixes "${CMAKE_FIND_LIBRARY_SUFFIXES}")
+if(OPUS_USE_STATIC)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ${_old_find_suffixes})
+endif()
+
 find_path(
     Opus_INCLUDE_DIR
     NAMES opus/opus.h
@@ -70,10 +83,12 @@ find_path(
     PATH_SUFFIXES include)
 find_library(
     Opus_LIBRARY
-    NAMES opus
+    NAMES ${_opus_library_names}
     PATHS ${Opus_ROOT_DIR}
     HINTS ${PC_opus_LIBRARY_DIRS}
     PATH_SUFFIXES lib)
+
+set(CMAKE_FIND_LIBRARY_SUFFIXES "${_old_find_suffixes}")
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Opus REQUIRED_VARS Opus_LIBRARY
@@ -85,7 +100,11 @@ if(Opus_FOUND)
             add_library(Opus::opus ALIAS ${Opus_LIBRARY})
         else()
             # we want an imported target
-            add_library(Opus::opus UNKNOWN IMPORTED)
+            if(OPUS_USE_STATIC)
+                add_library(Opus::opus STATIC IMPORTED)
+            else()
+                add_library(Opus::opus UNKNOWN IMPORTED)
+            endif()
 
             set_target_properties(
                 Opus::opus
