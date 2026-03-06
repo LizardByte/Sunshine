@@ -388,17 +388,35 @@ function install_cuda() {
   if [[ "$cuda_patches" == 1 ]]; then
     echo "Applying CUDA patches"
     local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
-    if [[ -d "$patch_dir" ]]; then
-      for patch in "$patch_dir"/*.patch; do
-        echo "Applying patch: $patch"
+    local patch_file=""
+
+    # Select the patch based on the CUDA major version, not the distro version.
+    # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
+    local cuda_major="${cuda_version%%.*}"
+    if [[ "${cuda_major}" -eq 12 ]]; then
+      # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
+      patch_file="${patch_dir}/cuda-12-math_functions.patch"
+    elif [[ "${cuda_major}" -eq 13 ]]; then
+      # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
+      # macro invocations at the bottom still lack it, causing a redeclaration conflict.
+      patch_file="${patch_dir}/cuda-13-math_functions.patch"
+    else
+      echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
+    fi
+
+    if [[ -n "$patch_file" ]]; then
+      if [[ -f "$patch_file" ]]; then
+        echo "Applying patch: $patch_file"
         patch -p2 \
           --backup \
           --directory="${build_dir}/cuda" \
           --verbose \
-          < "$patch"
-      done
+          < "$patch_file"
+      else
+        echo "Patch file not found: $patch_file"
+      fi
     else
-      echo "No patches found for architecture: $architecture"
+      echo "No CUDA patch required for ${distro} ${version}"
     fi
   fi
   return 0
@@ -452,7 +470,7 @@ function run_step_deps() {
     add_ubuntu_deps
   elif [[ "$distro" == "fedora" ]]; then
     add_fedora_deps
-    ${sudo_cmd} dnf group install "$dev_tools_group" -y
+    ${sudo_cmd} dnf group install "development-tools" -y
   fi
 
   # Install the dependencies
@@ -705,16 +723,6 @@ elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
-  distro="fedora"
-  version="41"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
-  gcc_version="13"
-  nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   distro="fedora"
   version="42"
@@ -724,7 +732,6 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
   distro="fedora"
   version="43"
@@ -734,7 +741,24 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-
   cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-release; then
+  distro="fedora"
+  version="44"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-release; then
+  distro="fedora"
+  version="45"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="13.1.1"
+  cuda_build="590.48.01"
+  gcc_version="15"
+  nvm_node=0
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
