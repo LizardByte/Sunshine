@@ -20,6 +20,8 @@
   <string>sunshine.icns</string>
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.utilities</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>@CMAKE_PROJECT_NAME@ requires access to your microphone to stream audio.</string>
   <key>NSBonjourServices</key>
