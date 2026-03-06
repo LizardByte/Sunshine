@@ -1180,6 +1180,13 @@ namespace portal {
         height = negotiated_h;
       }
 
+      // Set env dimensions to match the captured display.
+      // Portal captures a single display, so the environment size equals the capture size.
+      // Without this, touch input is silently dropped because touch_port_t::operator bool()
+      // checks env_width and env_height are non-zero.
+      env_width = width;
+      env_height = height;
+
       return 0;
     }
 
