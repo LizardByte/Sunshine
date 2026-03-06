@@ -99,12 +99,18 @@ BuildRequires: gcc13-c++
 %global gcc_version 13
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
-%elif %{?fedora} >= 42
+%elif 0%{?fedora} >= 42 && 0%{?fedora} <= 44
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
 %global gcc_version 14
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
+%elif 0%{?fedora} >= 45
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
+%global gcc_version 15
+%global cuda_version 13.1.1
+%global cuda_build 590.48.01
 %endif
 %endif
 
@@ -241,16 +247,40 @@ function install_cuda() {
 
   # we need to patch math_functions.h on fedora 42+
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
-  if [ "%{?fedora}" -ge 42 ]; then
-    echo "Original math_functions.h:"
-    find "%{cuda_dir}" -name math_functions.h -exec cat {} \;
-
-    # Apply the patch
-    patch -p2 \
-      --backup \
-      --directory="%{cuda_dir}" \
-      --verbose \
-      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/01-math_functions.patch"
+  if [ "%{?fedora}" -ge 42 ] && [ "%{?fedora}" -le 44 ]; then
+    # glibc 2.41 added noexcept(true) to rsqrt/rsqrtf/sinpi/sinpif/cospi/cospif,
+    # so we must add noexcept(true) to the matching CUDA declarations to avoid conflicts.
+    find "%{cuda_dir}" -name math_functions.h | xargs sed -i \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+rsqrt(double x)\);/\1 noexcept (true);/' \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+rsqrtf(float x)\);/\1 noexcept (true);/' \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+sinpi(double x)\);/\1 noexcept (true);/' \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+sinpif(float x)\);/\1 noexcept (true);/' \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+cospi(double x)\);/\1 noexcept (true);/' \
+      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+cospif(float x)\);/\1 noexcept (true);/' \
+      -e 's/\(__func__(double rsqrt(double a)\));/\1 noexcept (true));/' \
+      -e 's/\(__func__(double sinpi(double a)\));/\1 noexcept (true));/' \
+      -e 's/\(__func__(double cospi(double a)\));/\1 noexcept (true));/' \
+      -e 's/\(__func__(float rsqrtf(float a)\));/\1 noexcept (true));/' \
+      -e 's/\(__func__(float sinpif(float a)\));/\1 noexcept (true));/' \
+      -e 's/\(__func__(float cospif(float a)\));/\1 noexcept (true));/'
+  elif [ "%{?fedora}" -ge 45 ]; then
+    # glibc 2.41+ on Fedora 45+ already declares rsqrt/rsqrtf/sinpi/sinpif/cospi/cospif
+    # with noexcept(true) in bits/mathcalls.h. The CUDA header re-declares them without
+    # noexcept, causing an incompatible redeclaration error with cudafe++. Remove the
+    # conflicting CUDA extern declarations entirely so glibc's declarations take precedence.
+    find "%{cuda_dir}" -name math_functions.h | xargs sed -i \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+rsqrt(double x)/d' \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+rsqrtf(float x)/d' \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+sinpi(double x)/d' \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+sinpif(float x)/d' \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+cospi(double x)/d' \
+      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+cospif(float x)/d' \
+      -e '/__func__(double rsqrt(double a))/d' \
+      -e '/__func__(double sinpi(double a))/d' \
+      -e '/__func__(double cospi(double a))/d' \
+      -e '/__func__(float rsqrtf(float a))/d' \
+      -e '/__func__(float sinpif(float a))/d' \
+      -e '/__func__(float cospif(float a))/d'
   fi
 }
 
