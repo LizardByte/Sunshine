@@ -308,6 +308,25 @@ brew uninstall sunshine
 > [!IMPORTANT]
 > Sunshine on macOS is experimental. Gamepads do not work.
 
+#### DMG
+
+##### Install
+
+1. Download and install based on your architecture:
+
+   | Architecture          | Package                                                                                                                |
+   |-----------------------|------------------------------------------------------------------------------------------------------------------------|
+   | arm64 (Apple Silicon) | [Sunshine-macOS-arm64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-arm64.dmg)   |
+   | x86_64 (Intel)        | [Sunshine-macOS-x86_64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-x86_64.dmg) |
+
+2. Open the downloaded `.dmg` file.
+3. Drag `Sunshine.app` into the `Applications` folder.
+4. Eject the disk image.
+
+##### Uninstall
+1. Quit Sunshine if it is running.
+2. Open `Finder`, navigate to `Applications`, and drag `Sunshine.app` to the Trash.
+
 #### Homebrew
 This package requires that you have [Homebrew](https://docs.brew.sh/Installation) installed.
 
