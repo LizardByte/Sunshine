@@ -245,42 +245,29 @@ function install_cuda() {
     --toolkitpath="%{cuda_dir}"
   rm "%{_builddir}/cuda.run"
 
-  # we need to patch math_functions.h on fedora 42+
+  # we need to patch math_functions.h depending on the CUDA major version
   # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
-  if [ "%{?fedora}" -ge 42 ] && [ "%{?fedora}" -le 44 ]; then
-    # glibc 2.41 added noexcept(true) to rsqrt/rsqrtf/sinpi/sinpif/cospi/cospif,
-    # so we must add noexcept(true) to the matching CUDA declarations to avoid conflicts.
-    find "%{cuda_dir}" -name math_functions.h | xargs sed -i \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+rsqrt(double x)\);/\1 noexcept (true);/' \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+rsqrtf(float x)\);/\1 noexcept (true);/' \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+sinpi(double x)\);/\1 noexcept (true);/' \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+sinpif(float x)\);/\1 noexcept (true);/' \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+cospi(double x)\);/\1 noexcept (true);/' \
-      -e 's/\(extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+cospif(float x)\);/\1 noexcept (true);/' \
-      -e 's/\(__func__(double rsqrt(double a)\));/\1 noexcept (true));/' \
-      -e 's/\(__func__(double sinpi(double a)\));/\1 noexcept (true));/' \
-      -e 's/\(__func__(double cospi(double a)\));/\1 noexcept (true));/' \
-      -e 's/\(__func__(float rsqrtf(float a)\));/\1 noexcept (true));/' \
-      -e 's/\(__func__(float sinpif(float a)\));/\1 noexcept (true));/' \
-      -e 's/\(__func__(float cospif(float a)\));/\1 noexcept (true));/'
-  elif [ "%{?fedora}" -ge 45 ]; then
-    # glibc 2.41+ on Fedora 45+ already declares rsqrt/rsqrtf/sinpi/sinpif/cospi/cospif
-    # with noexcept(true) in bits/mathcalls.h. The CUDA header re-declares them without
-    # noexcept, causing an incompatible redeclaration error with cudafe++. Remove the
-    # conflicting CUDA extern declarations entirely so glibc's declarations take precedence.
-    find "%{cuda_dir}" -name math_functions.h | xargs sed -i \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+rsqrt(double x)/d' \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+rsqrtf(float x)/d' \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+sinpi(double x)/d' \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+sinpif(float x)/d' \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ double\s\+cospi(double x)/d' \
-      -e '/extern __DEVICE_FUNCTIONS_DECL__ __device_builtin__ float\s\+cospif(float x)/d' \
-      -e '/__func__(double rsqrt(double a))/d' \
-      -e '/__func__(double sinpi(double a))/d' \
-      -e '/__func__(double cospi(double a))/d' \
-      -e '/__func__(float rsqrtf(float a))/d' \
-      -e '/__func__(float sinpif(float a))/d' \
-      -e '/__func__(float cospif(float a))/d'
+  local cuda_major
+  cuda_major=$(echo "%{cuda_version}" | cut -d. -f1)
+  local patch_file=""
+  if [ "${cuda_major}" -eq 12 ]; then
+    # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
+    patch_file="cuda-12-math_functions.patch"
+  elif [ "${cuda_major}" -eq 13 ]; then
+    # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
+    # macro invocations at the bottom still lack it, causing a redeclaration conflict.
+    patch_file="cuda-13-math_functions.patch"
+  else
+    echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
+  fi
+
+  if [ -n "${patch_file}" ]; then
+    echo "Applying CUDA patch: ${patch_file}"
+    patch -p2 \
+      --backup \
+      --directory="%{cuda_dir}" \
+      --verbose \
+      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/${patch_file}"
   fi
 }
 
