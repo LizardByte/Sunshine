@@ -188,7 +188,7 @@ namespace wl {
             }
             break;
           default:
-            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -321,7 +321,7 @@ namespace wl {
             }
             break;
           default:
-            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << (int) status << ']';
+            BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -457,8 +457,8 @@ namespace platf {
     for (int x = 0; x < interface.monitors.size(); ++x) {
       auto monitor = interface.monitors[x].get();
 
-      wl::env_width = std::max(wl::env_width, (int) (monitor->viewport.offset_x + monitor->viewport.width));
-      wl::env_height = std::max(wl::env_height, (int) (monitor->viewport.offset_y + monitor->viewport.height));
+      wl::env_width = std::max(wl::env_width, monitor->viewport.offset_x + monitor->viewport.width);
+      wl::env_height = std::max(wl::env_height, monitor->viewport.offset_y + monitor->viewport.height);
 
       BOOST_LOG(info) << "[wlgrab] Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 
