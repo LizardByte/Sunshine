@@ -485,7 +485,7 @@ namespace wl {
 
     std::uint64_t sec = (std::uint64_t(tv_sec_hi) << 32) | tv_sec_lo;
     auto ready_ts = std::chrono::seconds(sec) + std::chrono::nanoseconds(tv_nsec);
-    current_frame->frame_timestamp = std::chrono::steady_clock::time_point{
+    current_frame->frame_timestamp = std::chrono::steady_clock::time_point {
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
     };
 
