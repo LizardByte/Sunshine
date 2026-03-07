@@ -46,14 +46,19 @@ jobs:
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
+    outputs:
+      notarytool_submission_id_arm64: ${{ steps.notarize_submit.outputs.submission_id_arm64 }}
+      notarytool_submission_id_x86_64: ${{ steps.notarize_submit.outputs.submission_id_x86_64 }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: "macos-14"
             name: "macOS-arm64"
+            arch: "arm64"
           - os: "macos-15-intel"
             name: "macOS-x86_64"
+            arch: "x86_64"
     steps:
       - name: Install Apple certificate
         uses: apple-actions/import-codesign-certs@b610f78488812c1e56b20e6df63ec42d833f2d14  # v6.0.0
@@ -99,14 +104,15 @@ jobs:
             -DAPPLE_CODESIGN_IDENTITY="${APPLE_CODESIGN_IDENTITY}"
 
       - name: Build
-        run: cmake --build build -j "$(sysctl -n hw.ncpu)"
+        run: |
+          echo "::add-matcher::.github/matchers/gcc.json"
+          cmake --build build -j "$(sysctl -n hw.ncpu)"
+          echo "::remove-matcher owner=gcc::"
 
       - name: Package DMG
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
           APPLE_CODESIGN_IDENTITY: ${{ secrets.APPLE_CODESIGN_IDENTITY }}
+          MATRIX_NAME: ${{ matrix.name }}
           SHOULD_SIGN: ${{ inputs.publish_release }}
         run: |
           # build DMG and sign everything (see cmake/packaging/macos.cmake)
@@ -120,25 +126,31 @@ jobs:
             fi
           fi
 
-          # Notarize
-          if [[ "${SHOULD_SIGN}" == "true" && -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
-            # Notarizing allows the signed .app to run on any Mac with no prompts.
-            # If you don't notarize, users must jump through the "Open Anyway" hoop as well as run
-            # `xattr -cr /Applications/Sunshine.app` to remove quarantine.
-            if [[ -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
-              xcrun notarytool submit build/cpack_artifacts/Sunshine.dmg \
-                --apple-id "${APPLE_ID}" \
-                --team-id "${APPLE_TEAM_ID}" \
-                --password "${APPLE_NOTARYTOOL_PASSWORD}" \
-                --wait \
-                --timeout 15m
-              xcrun stapler staple -v build/cpack_artifacts/Sunshine.dmg
-            fi
-          fi
-
           mkdir -p artifacts
-          mv build/cpack_artifacts/Sunshine.dmg \
-            artifacts/Sunshine-${{ matrix.name }}.dmg
+          cp "build/cpack_artifacts/Sunshine.dmg" "artifacts/Sunshine-${MATRIX_NAME}.dmg"
+
+      - name: Submit for notarization
+        id: notarize_submit
+        if: inputs.publish_release == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+          MATRIX_ARCH: ${{ matrix.arch }}
+        run: |
+          # Notarizing allows the signed .app to run on any Mac with no prompts.
+          # If you don't notarize, users must jump through the "Open Anyway" hoop as well as run
+          # `xattr -cr /Applications/Sunshine.app` to remove quarantine.
+          if [[ -n "${APPLE_NOTARYTOOL_PASSWORD}" ]]; then
+            submission_id=$(xcrun notarytool submit build/cpack_artifacts/Sunshine.dmg \
+              --apple-id "${APPLE_ID}" \
+              --team-id "${APPLE_TEAM_ID}" \
+              --password "${APPLE_NOTARYTOOL_PASSWORD}" \
+              --output-format json \
+              | jq -r '.id')
+            echo "Submission ID: ${submission_id}"
+            echo "submission_id_${MATRIX_ARCH}=${submission_id}" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Test
         id: test
@@ -174,7 +186,97 @@ jobs:
             build/tests/test_results.xml
           if-no-files-found: error
 
+      - name: Set artifact prefix
+        id: artifact_prefix
+        env:
+          INPUTS_PUBLISH_RELEASE: ${{ inputs.publish_release }}
+        run: |
+          if [[ "${INPUTS_PUBLISH_RELEASE}" == "true" ]]; then
+            echo "prefix=unsigned" >> "${GITHUB_OUTPUT}"
+          else
+            echo "prefix=build" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Upload Artifacts
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        with:
+          name: ${{ steps.artifact_prefix.outputs.prefix }}-${{ matrix.name }}
+          path: artifacts/
+          if-no-files-found: error
+
+  notarize_dmg:
+    name: Notarize ${{ matrix.name }}
+    needs: build_dmg
+    if: inputs.publish_release == 'true'
+    permissions:
+      contents: read
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: "macos-14"
+            name: "macOS-arm64"
+            arch: "arm64"
+          - os: "macos-15-intel"
+            name: "macOS-x86_64"
+            arch: "x86_64"
+    steps:
+      - name: Install Apple certificate
+        uses: apple-actions/import-codesign-certs@b610f78488812c1e56b20e6df63ec42d833f2d14  # v6.0.0
+        with:
+          p12-file-base64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+          p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
+
+      - name: Download DMG artifact
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3  # v8.0.0
+        with:
+          name: unsigned-${{ matrix.name }}
+          path: artifacts
+
+      - name: Wait for notarization and staple
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_NOTARYTOOL_PASSWORD: ${{ secrets.APPLE_NOTARYTOOL_PASSWORD }}
+          MATRIX_NAME: ${{ matrix.name }}
+          SUBMISSION_ID: ${{ matrix.arch == 'arm64'
+            && needs.build_dmg.outputs.notarytool_submission_id_arm64
+            || needs.build_dmg.outputs.notarytool_submission_id_x86_64 }}
+        run: |
+          if [[ -z "${SUBMISSION_ID}" ]]; then
+            echo "No submission ID found; skipping notarization wait."
+            exit 0
+          fi
+
+          echo "Polling notarization status for submission: ${SUBMISSION_ID}"
+          while true; do
+            status=$(xcrun notarytool info "${SUBMISSION_ID}" \
+              --apple-id "${APPLE_ID}" \
+              --team-id "${APPLE_TEAM_ID}" \
+              --password "${APPLE_NOTARYTOOL_PASSWORD}" \
+              --output-format json \
+              | jq -r '.status')
+            echo "Current status: ${status}"
+            if [[ "${status}" == "Accepted" ]]; then
+              echo "Notarization accepted."
+              break
+            elif [[ "${status}" == "Invalid" || "${status}" == "Rejected" ]]; then
+              echo "Notarization failed with status: ${status}"
+              # Print the full log for debugging
+              xcrun notarytool log "${SUBMISSION_ID}" \
+                --apple-id "${APPLE_ID}" \
+                --team-id "${APPLE_TEAM_ID}" \
+                --password "${APPLE_NOTARYTOOL_PASSWORD}"
+              exit 1
+            fi
+            echo "Status is '${status}', waiting 30 seconds before retrying..."
+            sleep 30
+          done
+
+          xcrun stapler staple -v "artifacts/Sunshine-${MATRIX_NAME}.dmg"
+
+      - name: Upload stapled artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-${{ matrix.name }}

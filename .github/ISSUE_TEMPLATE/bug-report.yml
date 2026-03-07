@@ -96,6 +96,7 @@ body:
         - Linux - pkg.tar.zst
         - Linux - solus (Third Party)
         - Linux - Unraid (Third Party)
+        - macOS - dmg
         - macOS - Homebrew
         - Windows - Chocolatey (Third Party)
         - Windows - exe installer
