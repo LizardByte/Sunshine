@@ -1,0 +1,4 @@
+# @PROJECT_DESCRIPTION@
+# The unprivileged service should preset to disabled
+
+disable app-@PROJECT_FQDN@.service

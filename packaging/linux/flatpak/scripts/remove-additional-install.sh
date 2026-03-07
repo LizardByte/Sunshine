@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # User Service
-systemctl --user stop sunshine
-rm "$HOME/.config/systemd/user/sunshine.service"
+systemctl --user stop app-dev.lizardbyte.app.Sunshine
+rm "$HOME/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service"
 systemctl --user daemon-reload
 echo "Sunshine User Service has been removed."
 
