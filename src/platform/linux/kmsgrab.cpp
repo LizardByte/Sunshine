@@ -1681,14 +1681,20 @@ namespace platf {
 
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
-          BOOST_LOG((config::video.capture == "kms") ? fatal : error)
 #if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
+          BOOST_LOG((config::video.capture == "kms") ? fatal : error)
             << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
 #else
-            << "You must use the 'sunshine' service instead of the 'app-" << PROJECT_FQDN << "' service for KMS capture.\n"sv
-            << "Please refer to the official documentation:\n"sv
-            << "  stable: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux-1"sv
-            << "  beta: https://docs.lizardbyte.dev/projects/sunshine/master/md_docs_2getting__started.html#linux-1"sv;
+          {
+            const std::string kms_msg =
+              "You must use the 'sunshine' service instead of the 'app-" +
+              std::string(PROJECT_FQDN) +
+              "' service for KMS capture.\n"
+              "Please refer to the official documentation:\n"
+              "  stable: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux-1\n"
+              "  beta: https://docs.lizardbyte.dev/projects/sunshine/master/md_docs_2getting__started.html#linux-1";
+            BOOST_LOG((config::video.capture == "kms") ? fatal : error) << kms_msg;
+          }
 #endif
           break;
         }
