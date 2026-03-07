@@ -8,7 +8,9 @@
 #include <bitset>
 
 #ifdef SUNSHINE_BUILD_WAYLAND
-  #include <linux-dmabuf-unstable-v1.h>
+  #include <ext-image-capture-source-v1.h>
+  #include <ext-image-copy-capture-v1.h>
+  #include <linux-dmabuf-v1.h>
   #include <wlr-screencopy-unstable-v1.h>
   #include <xdg-output-unstable-v1.h>
 #endif
@@ -49,9 +51,18 @@ namespace wl {
     dmabuf_t &operator=(const dmabuf_t &) = delete;
     dmabuf_t &operator=(dmabuf_t &&) = delete;
 
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output, bool blend_cursor = false);
-    static void buffer_params_created(void *data, struct zwp_linux_buffer_params_v1 *params, struct wl_buffer *wl_buffer);
-    static void buffer_params_failed(void *data, struct zwp_linux_buffer_params_v1 *params);
+    // wlr-screencopy based capture
+    void screencopy_create(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output);
+    void screencopy_capture(bool blend_cursor = false);
+    void buffer_params_created(zwp_linux_buffer_params_v1 *params, struct wl_buffer *wl_buffer);
+    void buffer_params_failed(zwp_linux_buffer_params_v1 *params);
+    void buffer_feedback_done(zwp_linux_dmabuf_feedback_v1 *feedback);
+    void buffer_feedback_format_table(zwp_linux_dmabuf_feedback_v1 *feedback, int fd, int size);
+    void buffer_feedback_main_device(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *device);
+    void buffer_feedback_tranche_done(zwp_linux_dmabuf_feedback_v1 *feedback);
+    void buffer_feedback_tranche_target_device(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *device);
+    void buffer_feedback_tranche_formats(zwp_linux_dmabuf_feedback_v1 *feedback, struct wl_array *formats);
+    void buffer_feedback_tranche_flags(zwp_linux_dmabuf_feedback_v1 *feedback, int flags);
     void buffer(zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height, std::uint32_t stride);
     void linux_dmabuf(zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height);
     void buffer_done(zwlr_screencopy_frame_v1 *frame);
@@ -59,6 +70,24 @@ namespace wl {
     void damage(zwlr_screencopy_frame_v1 *frame, std::uint32_t x, std::uint32_t y, std::uint32_t width, std::uint32_t height);
     void ready(zwlr_screencopy_frame_v1 *frame, std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec);
     void failed(zwlr_screencopy_frame_v1 *frame);
+
+    // ext-image-copy-capture based capture
+    void icc_create(ext_image_copy_capture_manager_v1 *manager, ext_output_image_capture_source_manager_v1 *source_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output, bool blend_cursor = false);
+    void icc_capture(bool blend_cursor = false);
+    void icc_cleanup();
+    void icc_buffer_params_created(zwp_linux_buffer_params_v1 *params, struct wl_buffer *buffer);
+    void icc_buffer_params_failed(zwp_linux_buffer_params_v1 *params);
+    void icc_session_buffer_size(ext_image_copy_capture_session_v1 *session, std::uint32_t width, std::uint32_t height);
+    void icc_session_shm_format(ext_image_copy_capture_session_v1 *session, std::uint32_t format);
+    void icc_session_dmabuf_device(ext_image_copy_capture_session_v1 *session, struct wl_array *device);
+    void icc_session_dmabuf_format(ext_image_copy_capture_session_v1 *session, std::uint32_t format, struct wl_array *modifiers);
+    void icc_session_done(ext_image_copy_capture_session_v1 *session);
+    void icc_session_stopped(ext_image_copy_capture_session_v1 *session);
+    void icc_frame_transform(ext_image_copy_capture_frame_v1 *frame, std::uint32_t transform);
+    void icc_frame_damage(ext_image_copy_capture_frame_v1 *frame, std::int32_t x, std::int32_t y, std::int32_t width, std::int32_t height);
+    void icc_frame_presentation_time(ext_image_copy_capture_frame_v1 *frame, std::uint32_t tv_sec_hi, std::uint32_t tv_sec_lo, std::uint32_t tv_nsec);
+    void icc_frame_ready(ext_image_copy_capture_frame_v1 *frame);
+    void icc_frame_failed(ext_image_copy_capture_frame_v1 *frame, std::uint32_t reason);
 
     frame_t *get_next_frame() {
       return current_frame == &frames[0] ? &frames[1] : &frames[0];
@@ -73,6 +102,7 @@ namespace wl {
     bool init_gbm();
     void cleanup_gbm();
     void create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    void icc_create_and_copy_dmabuf(ext_image_copy_capture_frame_v1 *frame);
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
 
@@ -90,6 +120,28 @@ namespace wl {
       std::uint32_t width;
       std::uint32_t height;
     } dmabuf_info;
+
+    struct {
+      zwlr_screencopy_manager_v1 *manager {nullptr};
+      zwlr_screencopy_frame_v1 *frame {nullptr};
+      wl_output *output {nullptr};
+      bool done {false};
+    } screencopy_session;
+
+    struct {
+      ext_image_copy_capture_session_v1 *session {nullptr};
+      ext_image_copy_capture_frame_v1 *frame {nullptr};
+      std::uint32_t width {0};
+      std::uint32_t height {0};
+      std::uint32_t format {0};
+      std::uint64_t modifier {0};
+      std::uint64_t num_modifiers {0};
+      std::uint64_t *modifiers;
+      bool dmabuf_supported {false};
+      bool cursor {false};
+      bool done {false};
+      std::uint32_t fail_count;
+    } icc_session;
 
     struct gbm_device *gbm_device {nullptr};
     struct gbm_bo *current_bo {nullptr};
@@ -139,8 +191,10 @@ namespace wl {
   public:
     enum interface_e {
       XDG_OUTPUT,  ///< xdg-output
-      WLR_EXPORT_DMABUF,  ///< screencopy manager
+      WLR_SCREENCOPY,  ///< wlr-screencopy manager
       LINUX_DMABUF,  ///< linux-dmabuf protocol
+      EXT_IMAGE_COPY_CAPTURE,  ///< ext-image-copy-capture manager
+      EXT_IMAGE_CAPTURE_SOURCE,  ///< ext-image-capture-source manager
       MAX_INTERFACES,  ///< Maximum number of interfaces
     };
 
@@ -161,6 +215,8 @@ namespace wl {
     zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     zxdg_output_manager_v1 *output_manager {nullptr};
+    ext_image_copy_capture_manager_v1 *icc_manager {nullptr};
+    ext_output_image_capture_source_manager_v1 *icc_source_manager {nullptr};
 
   private:
     void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);

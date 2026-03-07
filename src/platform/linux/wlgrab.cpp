@@ -45,18 +45,34 @@ namespace wl {
         return -1;
       }
 
-      if (!interface[wl::interface_t::WLR_EXPORT_DMABUF]) {
-        BOOST_LOG(error) << "Missing Wayland wire for wlr-export-dmabuf"sv;
+      if (!interface[wl::interface_t::WLR_SCREENCOPY] && !interface[wl::interface_t::EXT_IMAGE_COPY_CAPTURE]) {
+        BOOST_LOG(warning) << "Missing Wayland wire for wlr-screencopy AND ext-image-copy-capture"sv;
         return -1;
       }
+
+      // find all wayland outputs again if a new one was just created
+      for (auto &monitor : interface.monitors) {
+        monitor->listen(interface.output_manager);
+      }
+
+      display.roundtrip();
 
       auto monitor = interface.monitors[0].get();
 
       if (!display_name.empty()) {
-        auto streamedMonitor = util::from_view(display_name);
-
-        if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
-          monitor = interface.monitors[streamedMonitor].get();
+        // support both display index and connector name
+        if (std::all_of(display_name.begin(), display_name.end(), ::isdigit)) {
+          auto streamedMonitor = util::from_view(display_name);
+          if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
+            monitor = interface.monitors[streamedMonitor].get();
+          }
+        } else {
+          auto it = std::find_if(interface.monitors.begin(), interface.monitors.end(), [&display_name](std::unique_ptr<monitor_t> &m) {
+            return m.get()->name == display_name;
+          });
+          if (it != interface.monitors.end()) {
+            monitor = (*it).get();
+          }
         }
       }
 
@@ -105,8 +121,20 @@ namespace wl {
     inline platf::capture_e snapshot(const pull_free_image_cb_t &pull_free_image_cb, std::shared_ptr<platf::img_t> &img_out, std::chrono::milliseconds timeout, bool cursor) {
       auto to = std::chrono::steady_clock::now() + timeout;
 
-      // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, output, cursor);
+      // Prefer ext-image-copy-capture over wlr-screencopy
+      if (interface.icc_manager && interface.icc_source_manager) {
+        if (dmabuf.status == dmabuf_t::REINIT) {
+          BOOST_LOG(info) << "Creating ext-image-copy-capture session";
+          dmabuf.icc_create(interface.icc_manager, interface.icc_source_manager, interface.dmabuf_interface, output, cursor);
+        }
+        dmabuf.icc_capture(cursor);
+      } else {
+        if (dmabuf.status == dmabuf_t::REINIT) {
+          BOOST_LOG(info) << "Creating wlr-screencopy session";
+          dmabuf.screencopy_create(interface.screencopy_manager, interface.dmabuf_interface, output);
+        }
+        dmabuf.screencopy_capture(cursor);
+      }
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -424,8 +452,8 @@ namespace platf {
       return {};
     }
 
-    if (!interface[wl::interface_t::WLR_EXPORT_DMABUF]) {
-      BOOST_LOG(warning) << "Missing Wayland wire for wlr-export-dmabuf"sv;
+    if (!interface[wl::interface_t::WLR_SCREENCOPY] && !interface[wl::interface_t::EXT_IMAGE_COPY_CAPTURE]) {
+      BOOST_LOG(warning) << "Missing Wayland wire for wlr-screencopy AND ext-image-copy-capture"sv;
       return {};
     }
 
