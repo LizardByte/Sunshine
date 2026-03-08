@@ -368,18 +368,28 @@ namespace confighttp {
     };
 
     // Check if the request is from the same origin (Origin or Referer header matches configured allowed origins)
-    if (const auto origin_it = request->header.find("Origin"); origin_it != request->header.end() && is_allowed_origin(origin_it->second)) {
+    const auto origin_it = request->header.find("Origin");
+    if (origin_it != request->header.end() && is_allowed_origin(origin_it->second)) {
       // Same origin request - allow without CSRF token
       return true;
     }
 
     // If we have a Referer header, check if it's same-origin
-    if (const auto referer_it = request->header.find("Referer"); referer_it != request->header.end() && is_allowed_origin(referer_it->second)) {
+    const auto referer_it = request->header.find("Referer");
+    if (referer_it != request->header.end() && is_allowed_origin(referer_it->second)) {
       // Same origin request - allow without CSRF token
       return true;
     }
 
-    // Not a same-origin request, require CSRF token
+    // If neither Origin nor Referer is present, this cannot be a browser-initiated CSRF attack.
+    // Non-browser clients (e.g. curl, scripts) never send these headers, and a malicious web page
+    // cannot cause a non-browser client to make requests on a user's behalf.
+    if (origin_it == request->header.end() && referer_it == request->header.end()) {
+      return true;
+    }
+
+    // A browser-like request arrived with an Origin/Referer that doesn't match an allowed origin.
+    // Require a CSRF token.
     // Extract token from X-CSRF-Token header
     const auto header_it = request->header.find("X-CSRF-Token");
     if (header_it == request->header.end()) {

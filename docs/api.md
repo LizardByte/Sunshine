@@ -14,15 +14,15 @@ State-changing API endpoints (POST, DELETE) are protected against Cross-Site Req
 - Cross-origin requests require a CSRF token
 
 **For Non-Browser Applications:**
-- Applications making requests from the same origin configured in `csrf_allowed_origins` do NOT need CSRF tokens
-- The `Origin` or `Referer` header is automatically checked
-- If your application is making requests from a different origin, you need to:
-  1. Get a CSRF token from `GET /api/csrf-token`
-  2. Include it in requests via `X-CSRF-Token` header or `csrf_token` query parameter
+- Non-browser clients (e.g. `curl`, scripts, custom apps) are **exempt** from CSRF protection
+- CSRF attacks require a browser to silently attach credentials to a cross-origin request — this threat
+  does not apply to non-browser clients that explicitly provide credentials with every request
+- Requests with no `Origin` or `Referer` header (as is typical for non-browser clients) are automatically
+  allowed without a CSRF token
 
-**Example:**
+**Example (browser-equivalent cross-origin request):**
 ```bash
-# Get CSRF token (if needed)
+# Get CSRF token
 curl -u user:pass https://localhost:47990/api/csrf-token
 
 # Use token in request
