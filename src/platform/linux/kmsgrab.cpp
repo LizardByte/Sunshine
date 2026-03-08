@@ -34,6 +34,9 @@ namespace fs = std::filesystem;
 
 namespace platf {
 
+  // Forward declaration: refresh card_descriptors for connector name resolution
+  std::vector<std::string> kms_display_names(mem_type_e hwdevice_type);
+
   namespace kms {
 
     class cap_sys_admin {
@@ -600,6 +603,78 @@ namespace platf {
       BOOST_LOG(debug) << ss.str();
     }
 
+    /**
+     * @brief Resolve a display name to a numeric monitor index.
+     *
+     * Accepts either a plain numeric index ("0", "1", ...) or a DRM connector
+     * name in the form "{type}-{index}" (e.g. "DP-2", "HDMI-A-1").
+     * Connector names are matched against the card_descriptors populated by
+     * kms_display_names(), reusing the same parsing logic as correlate_to_wayland().
+     *
+     * @param display_name The user-provided output_name value.
+     * @return The resolved monitor index, or -1 on failure.
+     */
+    static int resolve_display_name(const std::string &display_name) {
+      // If the name is purely numeric, use it directly as a monitor index
+      bool all_digits = !display_name.empty();
+      for (auto c : display_name) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+          all_digits = false;
+          break;
+        }
+      }
+
+      if (all_digits) {
+        return util::from_view(display_name);
+      }
+
+      // Try to parse as connector name: "{type}-{index}" (e.g. "DP-2", "HDMI-A-1")
+      auto dash_pos = display_name.find_last_of('-');
+      if (dash_pos == std::string::npos || dash_pos == 0 || dash_pos == display_name.size() - 1) {
+        return -1;
+      }
+
+      auto type_str = std::string_view(display_name).substr(0, dash_pos);
+      auto index_str = std::string_view(display_name).substr(dash_pos + 1);
+
+      // Verify the suffix is numeric before calling util::from_view()
+      for (auto c : index_str) {
+        if (!std::isdigit(static_cast<unsigned char>(c))) {
+          return -1;
+        }
+      }
+
+      auto type = kms::from_view(type_str);
+      auto index = std::max<std::int64_t>(1, util::from_view(index_str));
+
+      if (type == DRM_MODE_CONNECTOR_Unknown) {
+        return -1;
+      }
+
+      // Search card_descriptors, refreshing once if the connector is not found.
+      // This handles the case where pre_probe_cmd just enabled a virtual display
+      // that wasn't present when card_descriptors was initially populated.
+      for (int attempt = 0; attempt < 2; ++attempt) {
+        for (auto &cd : card_descriptors) {
+          for (auto &[crtc_id, mon] : cd.crtc_to_monitor) {
+            if (mon.type == type && mon.index == index) {
+              BOOST_LOG(info) << "Resolved connector name '"sv << display_name
+                              << "' to monitor index "sv << mon.monitor_index;
+              return mon.monitor_index;
+            }
+          }
+        }
+
+        if (attempt == 0) {
+          BOOST_LOG(info) << "Connector '"sv << display_name
+                          << "' not found in cached descriptors, refreshing display list..."sv;
+          kms_display_names(mem_type_e::unknown);
+        }
+      }
+
+      return -1;
+    }
+
     class display_t: public platf::display_t {
     public:
       display_t(mem_type_e mem_type):
@@ -610,7 +685,12 @@ namespace platf {
       int init(const std::string &display_name, const ::video::config_t &config) {
         delay = std::chrono::nanoseconds {1s} / config.framerate;
 
-        int monitor_index = util::from_view(display_name);
+        int monitor_index = resolve_display_name(display_name);
+        if (monitor_index < 0) {
+          BOOST_LOG(error) << "Could not resolve output name '"sv << display_name
+                           << "'. Use a numeric index (0, 1, 2, ...) or a connector name (DP-1, HDMI-A-1, ...)"sv;
+          return -1;
+        }
         int monitor = 0;
 
         fs::path card_dir {"/dev/dri"sv};

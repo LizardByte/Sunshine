@@ -810,6 +810,39 @@ namespace nvhttp {
     }
   }
 
+  /**
+   * @brief Execute pre-probe commands before encoder probing.
+   * @param launch_session The session to extract client parameters from (may be null for undo-only).
+   * @param execute_do If true, run "do" commands; if false, run "undo" commands.
+   */
+  static void run_pre_probe_cmds(
+      const std::shared_ptr<rtsp_stream::launch_session_t> &launch_session,
+      bool execute_do) {
+    for (auto &cmd : config::sunshine.pre_probe_cmds) {
+      auto &cmd_str = execute_do ? cmd.do_cmd : cmd.undo_cmd;
+      if (cmd_str.empty()) continue;
+
+      boost::process::v1::environment env = boost::this_process::environment();
+      if (launch_session) {
+        env["SUNSHINE_CLIENT_WIDTH"] = std::to_string(launch_session->width);
+        env["SUNSHINE_CLIENT_HEIGHT"] = std::to_string(launch_session->height);
+        env["SUNSHINE_CLIENT_FPS"] = std::to_string(launch_session->fps);
+        env["SUNSHINE_CLIENT_HDR"] = launch_session->enable_hdr ? "true" : "false";
+      }
+
+      std::error_code ec;
+      boost::filesystem::path working_dir(".");
+      BOOST_LOG(info) << "Executing pre-probe cmd: ["sv << cmd_str << ']';
+      auto child = platf::run_command(cmd.elevated, true, cmd_str, working_dir, env, nullptr, ec, nullptr);
+      if (ec) {
+        BOOST_LOG(warning) << "Pre-probe cmd failed: "sv << ec.message();
+      }
+      else {
+        child.wait();
+      }
+    }
+  }
+
   void launch(bool &host_audio, resp_https_t response, req_https_t request) {
     print_req<SunshineHTTPS>(request);
 
@@ -863,6 +896,10 @@ namespace nvhttp {
       // The display should be restored in case something fails as there are no other sessions.
       revert_display_configuration = true;
 
+      // Run pre-probe commands (e.g. enable virtual display) before anything
+      // that depends on a connected monitor.
+      run_pre_probe_cmds(launch_session, true);
+
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
       // change the active displays.
@@ -877,6 +914,7 @@ namespace nvhttp {
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
         tree.put("root.gamesession", 0);
 
+        run_pre_probe_cmds(launch_session, false);
         return;
       }
     }
@@ -968,6 +1006,10 @@ namespace nvhttp {
     const auto launch_session = make_launch_session(host_audio, args);
 
     if (no_active_sessions) {
+      // Run pre-probe commands (e.g. enable virtual display) before anything
+      // that depends on a connected monitor.
+      run_pre_probe_cmds(launch_session, true);
+
       // We want to prepare display only if there are no active sessions at
       // the moment. This should be done before probing encoders as it could
       // change the active displays.
@@ -982,6 +1024,7 @@ namespace nvhttp {
         tree.put("root.<xmlattr>.status_code", 503);
         tree.put("root.<xmlattr>.status_message", "Failed to initialize video capture/encoding. Is a display connected and turned on?");
 
+        run_pre_probe_cmds(launch_session, false);
         return;
       }
     }
@@ -1033,8 +1076,15 @@ namespace nvhttp {
       proc::proc.terminate();
     }
 
+    // Undo pre-probe commands (e.g. disable virtual display).
+    run_pre_probe_cmds(nullptr, false);
+
     // The config needs to be reverted regardless of whether "proc::proc.terminate()" was called or not.
     display_device::revert_configuration();
+  }
+
+  void undo_pre_probe_cmds() {
+    run_pre_probe_cmds(nullptr, false);
   }
 
   void appasset(resp_https_t response, req_https_t request) {
