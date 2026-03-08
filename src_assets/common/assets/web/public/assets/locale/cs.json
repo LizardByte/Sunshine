@@ -161,6 +161,8 @@
     "controller_desc": "Umožňuje hostům ovládat hostitelský systém pomocí gamepadu/ovladače",
     "credentials_file": "Soubor pověření",
     "credentials_file_desc": "Uživatelské jméno/heslo ukládejte odděleně od souboru stavu Sunshine.",
+    "csrf_allowed_origins": "CSRF Povolený původ",
+    "csrf_allowed_origins_desc": "Čárkou oddělený seznam dalších povolených původů pro ochranu CSRF (připojen k výchozím nastavením: localhost varianty a web UI port). Přidejte pouze původ, kterému důvěřujete. Každý původ musí obsahovat protokol a hostitele (např. https://example.com).",
     "dd_config_ensure_active": "Automaticky aktivovat displej",
     "dd_config_ensure_only_display": "Deaktivovat další displeje a aktivovat pouze zadaný displej",
     "dd_config_ensure_primary": "Automaticky aktivovat displej a učinit jej primárním displejem",
