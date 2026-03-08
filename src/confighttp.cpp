@@ -11,6 +11,8 @@
 #include <format>
 #include <fstream>
 #include <set>
+#include <atomic>
+#include <stdexcept>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -1094,6 +1096,30 @@ namespace confighttp {
   }
 
   /**
+   * @brief Try to read only the new tail of the log file and append to existing content.
+   * @return New content on success, nullptr on any failure (caller should fall back to full read).
+   */
+  static std::shared_ptr<const std::string> try_incremental_log_read(
+    const std::filesystem::path &log_path,
+    std::uintmax_t prev_size,
+    std::uintmax_t current_size,
+    const std::shared_ptr<const std::string> &old_content) {
+    if (current_size <= prev_size || prev_size == 0 || !old_content) {
+      return nullptr;
+    }
+    std::ifstream in(log_path.string(), std::ios::binary);
+    if (!in || !in.seekg(static_cast<std::streamoff>(prev_size))) {
+      return nullptr;
+    }
+    const auto tail_len = current_size - prev_size;
+    std::string tail(tail_len, '\0');
+    if (!in.read(tail.data(), static_cast<std::streamsize>(tail_len))) {
+      return nullptr;
+    }
+    return std::make_shared<const std::string>(*old_content + tail);
+  }
+
+  /**
    * @brief Get the logs from the log file.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -1107,12 +1133,95 @@ namespace confighttp {
 
     print_req(request);
 
-    std::string content = file_handler::read_file(config::sunshine.log_file.c_str());
+    // Log caching: avoid reading disk unnecessarily when file hasn't changed
+    // Use std::atomic<shared_ptr> to ensure thread-safe access (no locks)
+    static std::atomic<std::shared_ptr<const std::string>> cached_log;
+    static std::atomic<std::uintmax_t> cached_log_size { 0 };
+    static std::atomic<std::intmax_t> cached_log_mtime_ns { 0 };
+
+    const std::filesystem::path log_path(config::sunshine.log_file);
+
+    // Check file status
+    std::error_code ec;
+    auto current_size = std::filesystem::file_size(log_path, ec);
+    if (ec) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Failed to read log file");
+      return;
+    }
+    auto current_mtime = std::filesystem::last_write_time(log_path, ec);
+    if (ec) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Failed to read log file");
+      return;
+    }
+    auto current_mtime_ns = current_mtime.time_since_epoch().count();
+
+    const auto prev_size = cached_log_size.load();
+    const bool cache_stale = (current_size != prev_size || current_mtime_ns != cached_log_mtime_ns.load());
+    if (cache_stale) {
+      auto new_content = try_incremental_log_read(log_path, prev_size, current_size, cached_log.load());
+      if (!new_content) {
+        new_content = std::make_shared<const std::string>(file_handler::read_file(log_path.string().c_str()));
+      }
+      // If read returned empty, ensure file still exists (e.g. not deleted during read)
+      if (new_content->empty() && !std::filesystem::exists(log_path, ec)) {
+        response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Log file not available");
+        return;
+      }
+      cached_log.store(new_content);
+      cached_log_size.store(current_size);
+      cached_log_mtime_ns.store(current_mtime_ns);
+    }
+
+    // Atomic load shared_ptr, subsequent operations based on this snapshot
+    auto content = cached_log.load();
+    if (!content) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error, "Log not available");
+      return;
+    }
+
+    // Read client's offset from request header (trim whitespace; invalid values => 0, then full response)
+    std::uintmax_t client_offset = 0;
+    auto it = request->header.find("X-Log-Offset");
+    if (it != request->header.end()) {
+      try {
+        std::string offset_str(it->second);
+        boost::algorithm::trim(offset_str);
+        if (!offset_str.empty()) {
+          client_offset = std::stoull(offset_str);
+        }
+      }
+      catch (const std::invalid_argument &) {
+        client_offset = 0;
+      }
+      catch (const std::out_of_range &) {
+        client_offset = 0;
+      }
+    }
+
     SimpleWeb::CaseInsensitiveMultimap headers;
     headers.emplace("Content-Type", "text/plain");
+    headers.emplace("X-Log-Size", std::to_string(content->size()));
     headers.emplace("X-Frame-Options", "DENY");
     headers.emplace("Content-Security-Policy", "frame-ancestors 'none';");
-    response->write(SimpleWeb::StatusCode::success_ok, content, headers);
+
+    // offset equals current size: no change in logs, return 304
+    if (client_offset > 0 && client_offset == content->size()) {
+      headers.emplace("X-Log-Range", "unchanged");
+      response->write(SimpleWeb::StatusCode::redirection_not_modified, headers);
+      return;
+    }
+
+    // Valid offset and within range: return increment
+    if (client_offset > 0 && client_offset < content->size()) {
+      headers.emplace("X-Log-Range", "incremental");
+      auto delta = content->substr(client_offset);
+      response->write(SimpleWeb::StatusCode::success_ok, delta, headers);
+    }
+    else {
+      // Invalid offset (file rotation/first request): return full content
+      headers.emplace("X-Log-Range", "full");
+      response->write(SimpleWeb::StatusCode::success_ok, *content, headers);
+    }
   }
 
   /**
