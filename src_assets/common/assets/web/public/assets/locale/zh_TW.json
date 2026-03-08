@@ -161,6 +161,8 @@
     "controller_desc": "允許訪客使用遊戲手把或遊戲控制器操作主機系統。",
     "credentials_file": "憑證檔案",
     "credentials_file_desc": "將用戶名稱/密碼儲存在與 Sunshine 狀態檔案不同的位置。",
+    "csrf_allowed_origins": "CSRF 允許的來源",
+    "csrf_allowed_origins_desc": "以逗號分隔的 CSRF 保護額外允許的來源清單 (附加到預設值：localhost 變數和 Web UI 連接埠)。僅新增您信任的來源。每個來源必須包含通訊協定和主機 (例如：https://example.com)。",
     "dd_config_ensure_active": "自動啟用顯示器",
     "dd_config_ensure_only_display": "停用其他顯示器，並只啟用指定的顯示器",
     "dd_config_ensure_primary": "自動啟用顯示器並設定為主要顯示器",
