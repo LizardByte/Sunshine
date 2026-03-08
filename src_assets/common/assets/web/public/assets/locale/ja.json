@@ -161,6 +161,8 @@
     "controller_desc": "ゲストがゲームパッド/コントローラーでホストシステムを制御できるようにします",
     "credentials_file": "資格情報ファイル",
     "credentials_file_desc": "ユーザー名/パスワードは、サンシャインのステートファイルとは別に保管してください。",
+    "csrf_allowed_origins": "CSRF が許容する起源",
+    "csrf_allowed_origins_desc": "CSRF保護のために許可されている追加の起源のカンマ区切りのリスト(デフォルトに追加されます:localhostバリアントとWebUIポート)。 信頼できるオリジンのみを追加します。各オリジンにはプロトコルとホストが含まれている必要があります（例：https://example.com）。",
     "dd_config_ensure_active": "ディスプレイを自動的に有効にする",
     "dd_config_ensure_only_display": "他のディスプレイを無効にして指定したディスプレイのみ有効にする",
     "dd_config_ensure_primary": "自動的にディスプレイを有効にし、プライマリディスプレイにする",
