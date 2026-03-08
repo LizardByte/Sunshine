@@ -5,12 +5,28 @@ permissions: {}
 on:
   workflow_call:
     inputs:
+      publish_release:
+        required: true
+        type: string
       release_commit:
         required: true
         type: string
       release_version:
         required: true
         type: string
+    secrets:
+      # SSL.com account username (email)
+      SSLCOM_USERNAME:
+        required: false
+      # SSL.com account password
+      SSLCOM_PASSWORD:
+        required: false
+      # Certificate credential ID on SSL.com
+      SSLCOM_CREDENTIAL_ID:
+        required: false
+      # TOTP secret for 2FA (from SSL.com account)
+      SSLCOM_TOTP_SECRET:
+        required: false
 
 jobs:
   build_windows:
@@ -186,6 +202,17 @@ jobs:
           echo "python-path=${python_path}"
           echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
 
+      - name: Install SSL.com CodeSignTool
+        if: inputs.publish_release == 'true'
+        shell: msys2 {0}
+        run: |
+          wget --no-verbose -O /tmp/CodeSignTool.zip \
+            "https://www.ssl.com/download/codesigntool-for-windows/"
+          unzip -q /tmp/CodeSignTool.zip -d /c/CodeSignTool
+          rm /tmp/CodeSignTool.zip
+
+          echo "C:\\CodeSignTool" >> "${GITHUB_PATH}"
+
       - name: Build Windows
         shell: msys2 {0}
         env:
@@ -217,6 +244,42 @@ jobs:
           ninja -C build
           echo "::remove-matcher owner=gcc::"
 
+      - name: Sign Windows executables
+        if: inputs.publish_release == 'true'
+        shell: msys2 {0}
+        env:
+          SSLCOM_USERNAME: ${{ secrets.SSLCOM_USERNAME }}
+          SSLCOM_PASSWORD: ${{ secrets.SSLCOM_PASSWORD }}
+          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+          SSLCOM_TOTP_SECRET: ${{ secrets.SSLCOM_TOTP_SECRET }}
+        run: |
+          # Stage files into a single temp dir for batch signing:
+          #   - exe files from build root and tools/ (excludes third-party scripts/vigembus)
+          #   - all PowerShell scripts from source assets
+          staging=$(mktemp -d)
+          signed="${staging}-signed"  # must not exist; CodeSignTool creates it
+          find build -maxdepth 1 -name "*.exe" -exec cp {} "${staging}/" \;
+          find build/tools -maxdepth 1 -name "*.exe" -exec cp {} "${staging}/" \;
+          find src_assets/windows -name "*.ps1" -exec cp {} "${staging}/" \;
+
+          CodeSignTool.bat batch_sign \
+            -username="${SSLCOM_USERNAME}" \
+            -password="${SSLCOM_PASSWORD}" \
+            -credential_id="${SSLCOM_CREDENTIAL_ID}" \
+            -totp_secret="${SSLCOM_TOTP_SECRET}" \
+            -input_dir_path="$(cygpath -w "${staging}")" \
+            -output_dir_path="$(cygpath -w "${signed}")"
+
+          # Copy signed files back to their original locations
+          find build -maxdepth 1 -name "*.exe" -exec bash -c \
+            'cp "${signed}/$(basename "$1")" "$1"' _ {} \;
+          find build/tools -maxdepth 1 -name "*.exe" -exec bash -c \
+            'cp "${signed}/$(basename "$1")" "$1"' _ {} \;
+          find src_assets/windows -name "*.ps1" -exec bash -c \
+            'cp "${signed}/$(basename "$1")" "$1"' _ {} \;
+
+          rm -rf "${staging}" "${signed}"
+
       - name: Package Windows
         shell: msys2 {0}
         run: |
@@ -232,6 +295,35 @@ jobs:
           mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
+
+      - name: Sign Windows installers
+        if: inputs.publish_release == 'true'
+        shell: msys2 {0}
+        env:
+          SSLCOM_USERNAME: ${{ secrets.SSLCOM_USERNAME }}
+          SSLCOM_PASSWORD: ${{ secrets.SSLCOM_PASSWORD }}
+          SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
+          SSLCOM_TOTP_SECRET: ${{ secrets.SSLCOM_TOTP_SECRET }}
+        run: |
+          # Stage only the installers (not the portable zip) for batch signing
+          staging=$(mktemp -d)
+          signed="${staging}-signed"  # must not exist; CodeSignTool creates it
+          find artifacts -maxdepth 1 \( -name "*-installer.exe" -o -name "*-installer.msi" \) \
+            -exec cp {} "${staging}/" \;
+
+          CodeSignTool.bat batch_sign \
+            -username="${SSLCOM_USERNAME}" \
+            -password="${SSLCOM_PASSWORD}" \
+            -credential_id="${SSLCOM_CREDENTIAL_ID}" \
+            -totp_secret="${SSLCOM_TOTP_SECRET}" \
+            -input_dir_path="$(cygpath -w "${staging}")" \
+            -output_dir_path="$(cygpath -w "${signed}")"
+
+          # Copy signed installers back
+          find artifacts -maxdepth 1 \( -name "*-installer.exe" -o -name "*-installer.msi" \) \
+            -exec bash -c 'cp "${signed}/$(basename "$1")" "$1"' _ {} \;
+
+          rm -rf "${staging}" "${signed}"
 
       - name: Debug nsis
         if: always()
