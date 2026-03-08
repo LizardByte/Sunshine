@@ -161,6 +161,8 @@
     "controller_desc": "允许客户端使用游戏手柄控制主机系统",
     "credentials_file": "凭据文件",
     "credentials_file_desc": "将用户名/密码与 Sunshine 的状态文件分开保存。",
+    "csrf_allowed_origins": "CSRF Allowed Origins",
+    "csrf_allowed_origins_desc": "Comma-separated list of additional allowed origins for CSRF protection (appended to defaults: localhost variants and web UI port). Only add origins you trust. Each origin must include protocol and host (e.g., https://example.com).",
     "dd_config_ensure_active": "自动激活显示",
     "dd_config_ensure_only_display": "停用其他显示器并仅激活指定的显示",
     "dd_config_ensure_primary": "自动激活显示并将其作为主要显示",
