@@ -161,6 +161,8 @@
     "controller_desc": "Konukların ana sistemi bir gamepad / kontrol cihazı ile kontrol etmesine olanak tanır",
     "credentials_file": "Kimlik Bilgileri Dosyası",
     "credentials_file_desc": "Kullanıcı Adı/Şifre'yi Sunshine'ın durum dosyasından ayrı olarak saklayın.",
+    "csrf_allowed_origins": "CSRF İzin Verilen Kökenler",
+    "csrf_allowed_origins_desc": "CSRF koruması için izin verilen ek kaynakların virgülle ayrılmış listesi (varsayılanlara eklenir: localhost varyantları ve web UI bağlantı noktası). Yalnızca güvendiğiniz orijinleri ekleyin. Her kaynak protokol ve ana bilgisayar içermelidir (örn. https://example.com).",
     "dd_config_ensure_active": "Ekranı otomatik olarak etkinleştirin",
     "dd_config_ensure_only_display": "Diğer ekranları devre dışı bırakın ve yalnızca belirtilen ekranı etkinleştirin",
     "dd_config_ensure_primary": "Ekranı otomatik olarak etkinleştirin ve birincil ekran haline getirin",
