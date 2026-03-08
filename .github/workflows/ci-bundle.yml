@@ -1,0 +1,34 @@
+---
+name: CI-Bundle
+permissions: {}
+
+on:
+  workflow_call:
+    secrets:
+      CODECOV_TOKEN:
+        required: false
+
+jobs:
+  bundle_analysis:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Setup node
+        id: node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+
+      - name: Install npm dependencies
+        run: npm install --ignore-scripts
+
+      - name: Debug install
+        if: always()
+        run: cat "${HOME}/.npm/_logs/*-debug-0.log" || true
+
+      - name: Build
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: npm run build

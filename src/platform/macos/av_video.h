@@ -13,9 +13,9 @@ struct CaptureSession {
   NSCondition *captureStopped;
 };
 
-@interface AVVideo: NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+static const int kMaxDisplays = 32;
 
-#define kMaxDisplays 32
+@interface AVVideo: NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
 
 @property (nonatomic, assign) CGDirectDisplayID displayID;
 @property (nonatomic, assign) CMTime minFrameDuration;

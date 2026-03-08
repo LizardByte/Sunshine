@@ -43,6 +43,7 @@ namespace platf::publish {
       deinit_t(DNSServiceRef serviceRef):
           unique_ptr(serviceRef) {
         _thread = std::thread {[serviceRef, &_stopRequested = std::as_const(_stopRequested)]() {
+          platf::set_thread_name("publish::mdns");
           const auto socket = DNSServiceRefSockFD(serviceRef);
           while (!_stopRequested) {
             auto fdset = fd_set {};
@@ -107,7 +108,7 @@ namespace platf::publish {
       0,  // flags
       0,  // interfaceIndex
       nullptr,  // name
-      SERVICE_TYPE,
+      platf::SERVICE_TYPE,
       nullptr,  // domain
       nullptr,  // host
       htons(net::map_port(nvhttp::PORT_HTTP)),

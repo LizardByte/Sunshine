@@ -1,18 +1,18 @@
 # Set build variables if env variables are defined
 # These are used in configured files such as manifests for different packages
-if(DEFINED ENV{BRANCH})  # cmake-lint: disable=W0106
+if(DEFINED ENV{BRANCH})
     set(GITHUB_BRANCH $ENV{BRANCH})
 endif()
 if(DEFINED ENV{BUILD_VERSION})  # cmake-lint: disable=W0106
     set(BUILD_VERSION $ENV{BUILD_VERSION})
 endif()
-if(DEFINED ENV{CLONE_URL})  # cmake-lint: disable=W0106
+if(DEFINED ENV{CLONE_URL})
     set(GITHUB_CLONE_URL $ENV{CLONE_URL})
 endif()
-if(DEFINED ENV{COMMIT})  # cmake-lint: disable=W0106
+if(DEFINED ENV{COMMIT})
     set(GITHUB_COMMIT $ENV{COMMIT})
 endif()
-if(DEFINED ENV{TAG})  # cmake-lint: disable=W0106
+if(DEFINED ENV{TAG})
     set(GITHUB_TAG $ENV{TAG})
 endif()
 
@@ -56,11 +56,11 @@ else()
         if(NOT GIT_DESCRIBE_ERROR_CODE)
             MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
             if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
-                set(PROJECT_VERSION ${PROJECT_VERSION}.${GIT_DESCRIBE_VERSION})
+                set(PROJECT_VERSION ${PROJECT_VERSION}-${GIT_DESCRIBE_VERSION})
                 MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
             endif()
             if(GIT_IS_DIRTY)
-                set(PROJECT_VERSION ${PROJECT_VERSION}.dirty)
+                set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
                 MESSAGE("Git tree is dirty!")
             endif()
         else()
@@ -120,6 +120,14 @@ if(PROJECT_VERSION MATCHES "([0-9]+)\\.([0-9]+)\\.([0-9]+)")
     set(CMAKE_PROJECT_VERSION_PATCH "${CMAKE_MATCH_3}")
 endif()
 
+# Split PROJECT_VERSION_PATCH for RC file (Windows VERSIONINFO requires values <= 65535)
+# PROJECT_VERSION_PATCH can be 0-245959, so we split it into two parts:
+# - Last 2 digits for RC_VERSION_REVISION
+# - Leading digits for RC_VERSION_BUILD (0 if original is <= 99)
+math(EXPR RC_VERSION_BUILD "${PROJECT_VERSION_PATCH} / 100")
+math(EXPR RC_VERSION_REVISION "${PROJECT_VERSION_PATCH} % 100")
+
+message("PROJECT_FQDN: ${PROJECT_FQDN}")
 message("PROJECT_NAME: ${PROJECT_NAME}")
 message("PROJECT_VERSION: ${PROJECT_VERSION}")
 message("PROJECT_VERSION_MAJOR: ${PROJECT_VERSION_MAJOR}")
@@ -129,10 +137,13 @@ message("CMAKE_PROJECT_VERSION: ${CMAKE_PROJECT_VERSION}")
 message("CMAKE_PROJECT_VERSION_MAJOR: ${CMAKE_PROJECT_VERSION_MAJOR}")
 message("CMAKE_PROJECT_VERSION_MINOR: ${CMAKE_PROJECT_VERSION_MINOR}")
 message("CMAKE_PROJECT_VERSION_PATCH: ${CMAKE_PROJECT_VERSION_PATCH}")
+message("RC_VERSION_BUILD: ${RC_VERSION_BUILD}")
+message("RC_VERSION_REVISION: ${RC_VERSION_REVISION}")
 message("PROJECT_YEAR: ${PROJECT_YEAR}")
 message("PROJECT_MONTH: ${PROJECT_MONTH}")
 message("PROJECT_DAY: ${PROJECT_DAY}")
 
+list(APPEND SUNSHINE_DEFINITIONS PROJECT_FQDN="${PROJECT_FQDN}")
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_NAME="${PROJECT_NAME}")
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION="${PROJECT_VERSION}")
 list(APPEND SUNSHINE_DEFINITIONS PROJECT_VERSION_MAJOR="${PROJECT_VERSION_MAJOR}")

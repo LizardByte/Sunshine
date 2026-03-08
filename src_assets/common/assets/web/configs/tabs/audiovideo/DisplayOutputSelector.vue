@@ -14,7 +14,7 @@ const outputNamePlaceholder = (props.platform === 'windows') ? '{de9bb7e2-186e-5
 
 <template>
   <div class="mb-3">
-    <label for="output_name" class="form-label">{{ $tp('config.output_name') }}</label>
+    <label for="output_name" class="form-label">{{ $t('config.output_name') }}</label>
     <input type="text" class="form-control" id="output_name" :placeholder="outputNamePlaceholder"
            v-model="config.output_name"/>
     <div class="form-text">
@@ -28,6 +28,16 @@ const outputNamePlaceholder = (props.platform === 'windows') ? '{de9bb7e2-186e-5
             <b>&nbsp;&nbsp;&nbsp;&nbsp;"friendly_name": "ROG PG279Q"</b>
             <b>&nbsp;&nbsp;&nbsp;&nbsp;...</b>
             <b>&nbsp;&nbsp;}</b>
+          </pre>
+        </template>
+        <template #freebsd>
+          <pre style="white-space: pre-line;">
+            Info: Detecting displays
+            Info: Detected display: DVI-D-0 (id: 0) connected: false
+            Info: Detected display: HDMI-0 (id: 1) connected: true
+            Info: Detected display: DP-0 (id: 2) connected: true
+            Info: Detected display: DP-1 (id: 3) connected: false
+            Info: Detected display: DVI-D-1 (id: 4) connected: false
           </pre>
         </template>
         <template #linux>

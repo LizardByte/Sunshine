@@ -56,9 +56,9 @@ namespace upnp {
    */
   int UPNP_GetValidIGDStatus(device_t &device, urls_t *urls, IGDdatas *data, std::array<char, INET6_ADDRESS_STRLEN> &lan_addr) {
 #if (MINIUPNPC_API_VERSION >= 18)
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), lan_addr.size(), nullptr, 0);
+    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size(), nullptr, 0);
 #else
-    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), lan_addr.size());
+    return UPNP_GetValidIGD(device.get(), &urls->el, data, lan_addr.data(), (int) lan_addr.size());
 #endif
   }
 
@@ -118,7 +118,8 @@ namespace upnp {
       }
 
       if (data.IPv6FC.controlurl[0] != 0) {
-        int firewallEnabled, pinholeAllowed;
+        int firewallEnabled;
+        int pinholeAllowed;
 
         // Check if this firewall supports IPv6 pinholes
         err = UPNP_GetFirewallStatus(urls->controlURL_6FC, data.IPv6FC.servicetype, &firewallEnabled, &pinholeAllowed);
@@ -299,6 +300,7 @@ namespace upnp {
      * @brief Maintains UPnP port forwarding rules
      */
     void upnp_thread_proc() {
+      platf::set_thread_name("upnp");
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
       bool mapped = false;
       IGDdatas data;

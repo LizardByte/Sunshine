@@ -15,7 +15,7 @@
 namespace {
 
   std::map<const char *, void *> interfaces;
-  HMODULE dll = NULL;
+  HMODULE dll = nullptr;
 
   template<typename Func, typename... Args>
   NvAPI_Status call_interface(const char *name, Args... args) {
@@ -47,7 +47,7 @@ NvAPI_Initialize() {
   auto dll_name = "nvapi.dll";
 #endif
 
-  if ((dll = LoadLibraryEx(dll_name, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
+  if ((dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
     if (auto query_interface = (decltype(nvapi_QueryInterface) *) GetProcAddress(dll, "nvapi_QueryInterface")) {
       for (const auto &item : nvapi_interface_table) {
         interfaces[item.func] = query_interface(item.id);
@@ -64,7 +64,7 @@ NVAPI_INTERFACE NvAPI_Unload() {
   if (dll) {
     interfaces.clear();
     FreeLibrary(dll);
-    dll = NULL;
+    dll = nullptr;
   }
   return NVAPI_OK;
 }

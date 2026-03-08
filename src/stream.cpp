@@ -34,21 +34,21 @@ extern "C" {
 #include "thread_safe.h"
 #include "utility.h"
 
-#define IDX_START_A 0
-#define IDX_START_B 1
-#define IDX_INVALIDATE_REF_FRAMES 2
-#define IDX_LOSS_STATS 3
-#define IDX_INPUT_DATA 5
-#define IDX_RUMBLE_DATA 6
-#define IDX_TERMINATION 7
-#define IDX_PERIODIC_PING 8
-#define IDX_REQUEST_IDR_FRAME 9
-#define IDX_ENCRYPTED 10
-#define IDX_HDR_MODE 11
-#define IDX_RUMBLE_TRIGGER_DATA 12
-#define IDX_SET_MOTION_EVENT 13
-#define IDX_SET_RGB_LED 14
-#define IDX_SET_ADAPTIVE_TRIGGERS 15
+constexpr int IDX_START_A = 0;
+constexpr int IDX_START_B = 1;
+constexpr int IDX_INVALIDATE_REF_FRAMES = 2;
+constexpr int IDX_LOSS_STATS = 3;
+constexpr int IDX_INPUT_DATA = 5;
+constexpr int IDX_RUMBLE_DATA = 6;
+constexpr int IDX_TERMINATION = 7;
+constexpr int IDX_PERIODIC_PING = 8;
+constexpr int IDX_REQUEST_IDR_FRAME = 9;
+constexpr int IDX_ENCRYPTED = 10;
+constexpr int IDX_HDR_MODE = 11;
+constexpr int IDX_RUMBLE_TRIGGER_DATA = 12;
+constexpr int IDX_SET_MOTION_EVENT = 13;
+constexpr int IDX_SET_RGB_LED = 14;
+constexpr int IDX_SET_ADAPTIVE_TRIGGERS = 15;
 
 static const short packetTypes[] = {
   0x0305,  // Start A
@@ -251,7 +251,7 @@ namespace stream {
     // If encryption isn't enabled
     if (!encrypted) {
       std::copy(std::begin(plaintext), std::end(plaintext), destination);
-      return plaintext.size();
+      return (int) plaintext.size();
     }
 
     return cbc.encrypt(std::string_view {(char *) std::begin(plaintext), plaintext.size()}, destination, &iv);
@@ -520,7 +520,12 @@ namespace stream {
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
-      session_p->localAddress = boost::asio::ip::make_address(local_address);
+      try {
+        session_p->localAddress = boost::asio::ip::make_address(local_address);
+      } catch (const boost::system::system_error &e) {
+        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
+        throw;
+      }
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
@@ -562,7 +567,7 @@ namespace stream {
 
   void control_server_t::iterate(std::chrono::milliseconds timeout) {
     ENetEvent event;
-    auto res = enet_host_service(_host.get(), &event, timeout.count());
+    auto res = enet_host_service(_host.get(), &event, (enet_uint32) timeout.count());
 
     if (res > 0) {
       auto session = get_session(event.peer, event.data);
@@ -693,9 +698,9 @@ namespace stream {
         }
 
         // packets = parity_shards + data_shards
-        rs_t rs {reed_solomon_new(data_shards, parity_shards)};
+        rs_t rs {reed_solomon_new((int) data_shards, (int) parity_shards)};
 
-        reed_solomon_encode(rs.get(), shards_p.begin(), nr_shards, blocksize);
+        reed_solomon_encode(rs.get(), shards_p.begin(), (int) nr_shards, (int) blocksize);
       }
 
       return {
@@ -1055,6 +1060,7 @@ namespace stream {
     });
 
     // This thread handles latency-sensitive control messages
+    platf::set_thread_name("stream::controlBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::critical);
 
     // Check for both the full shutdown event and the shutdown event for this
@@ -1184,6 +1190,8 @@ namespace stream {
     std::array<char, 2048> buf[2];
     std::function<void(const boost::system::error_code, size_t)> recv_func[2];
 
+    platf::set_thread_name("stream::recv");
+
     auto populate_peer_to_session = [&]() {
       while (message_queue_queue->peek()) {
         auto message_queue_opt = message_queue_queue->pop();
@@ -1266,6 +1274,7 @@ namespace stream {
     auto video_epoch = std::chrono::steady_clock::now();
 
     // Video traffic is sent on this thread
+    platf::set_thread_name("stream::videoBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     logging::min_max_avg_periodic_logger<double> frame_processing_latency_logger(debug, "Frame processing latency", "ms");
@@ -1368,9 +1377,8 @@ namespace stream {
       }
 
       std::array<std::string_view, MAX_FEC_BLOCKS> fec_blocks;
-      decltype(fec_blocks)::iterator
-        fec_blocks_begin = std::begin(fec_blocks),
-        fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
+      auto fec_blocks_begin = std::begin(fec_blocks);
+      auto fec_blocks_end = std::begin(fec_blocks) + fec_blocks_needed;
 
       BOOST_LOG(verbose) << "Generating "sv << fec_blocks_needed << " FEC blocks"sv;
 
@@ -1422,7 +1430,7 @@ namespace stream {
           for (int x = 0; x < packets; ++x) {
             auto *inspect = (video_packet_raw_t *) &current_payload[x * blocksize];
 
-            inspect->packet.frameIndex = packet->frame_index();
+            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
             inspect->packet.streamPacketIndex = ((uint32_t) lowseq + x) << 8;
 
             // Match multiFecFlags with Moonlight
@@ -1474,16 +1482,16 @@ namespace stream {
             auto *inspect = (video_packet_raw_t *) shards.data(x);
 
             inspect->packet.fecInfo =
-              (x << 12 |
-               shards.data_shards << 22 |
-               shards.percentage << 4);
+              (uint32_t) (x << 12 |
+                          shards.data_shards << 22 |
+                          shards.percentage << 4);
 
             inspect->rtp.header = 0x80 | FLAG_EXTENSION;
             inspect->rtp.sequenceNumber = util::endian::big<uint16_t>(lowseq + x);
             inspect->rtp.timestamp = util::endian::big<uint32_t>(timestamp);
 
             inspect->packet.multiFecBlocks = (blockIndex << 4) | ((fec_blocks_needed - 1) << 6);
-            inspect->packet.frameIndex = packet->frame_index();
+            inspect->packet.frameIndex = (uint32_t) packet->frame_index();
 
             // Encrypt this shard if video encryption is enabled
             if (session->video.cipher) {
@@ -1501,7 +1509,7 @@ namespace stream {
 
               // Encrypt the target buffer in place
               auto *prefix = (video_packet_enc_prefix_t *) shards.prefix(x);
-              prefix->frameNumber = packet->frame_index();
+              prefix->frameNumber = (std::uint32_t) packet->frame_index();
               std::copy(std::begin(iv), std::end(iv), prefix->iv);
               session->video.cipher->encrypt(std::string_view {(char *) inspect, (size_t) blocksize}, prefix->tag, (uint8_t *) inspect, &iv);
             }
@@ -1605,6 +1613,7 @@ namespace stream {
     audio_packet.rtp.ssrc = 0;
 
     // Audio traffic is sent on this thread
+    platf::set_thread_name("stream::audioBroadcast");
     platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     while (auto packet = packets->pop()) {
@@ -1716,7 +1725,14 @@ namespace stream {
       BOOST_LOG(error) << "Failed to set video socket send buffer size (SO_SENDBUF)";
     }
 
-    ctx.video_sock.bind(udp::endpoint(protocol, video_port), ec);
+    auto bind_addr_str = net::get_bind_address(address_family);
+    const auto bind_addr = boost::asio::ip::make_address(bind_addr_str, ec);
+    if (ec) {
+      BOOST_LOG(fatal) << "Invalid bind address: "sv << bind_addr_str << " - " << ec.message();
+      return -1;
+    }
+
+    ctx.video_sock.bind(udp::endpoint(bind_addr, video_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
@@ -1730,7 +1746,7 @@ namespace stream {
       return -1;
     }
 
-    ctx.audio_sock.bind(udp::endpoint(protocol, audio_port), ec);
+    ctx.audio_sock.bind(udp::endpoint(bind_addr, audio_port), ec);
     if (ec) {
       BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 
@@ -1836,6 +1852,7 @@ namespace stream {
   }
 
   void videoThread(session_t *session) {
+    platf::set_thread_name("session::video");
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });
@@ -1857,6 +1874,7 @@ namespace stream {
   }
 
   void audioThread(session_t *session) {
+    platf::set_thread_name("session::audio");
     auto fg = util::fail_guard([&]() {
       session::stop(*session);
     });

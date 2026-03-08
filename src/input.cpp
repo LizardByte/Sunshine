@@ -30,7 +30,7 @@ extern "C" {
 
 // Win32 WHEEL_DELTA constant
 #ifndef WHEEL_DELTA
-  #define WHEEL_DELTA 120
+constexpr int WHEEL_DELTA = 120;
 #endif
 
 using namespace std::literals;
@@ -170,7 +170,7 @@ namespace input {
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
         mouse_left_button_timeout {},
-        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f},
+        touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
         accumulated_hscroll_delta {} {
     }
@@ -480,7 +480,29 @@ namespace input {
     x = std::clamp(x, offsetX, (size.first * scalarX) - offsetX);
     y = std::clamp(y, offsetY, (size.second * scalarY) - offsetY);
 
-    return std::pair {(x - offsetX) * touch_port.scalar_inv, (y - offsetY) * touch_port.scalar_inv};
+    /*
+    x and y here below have the coordinates of the surface of the streaming resolution,
+    and are dependent on how that comes configured from the client (scalar_inv is calculated
+    from the proportion of that and the device's **physical** size).
+    */
+    x = (x - offsetX) * touch_port.scalar_inv;
+    y = (y - offsetY) * touch_port.scalar_inv;
+
+    /*
+    This final operation is a bit weird and has been brought about with lots of trial and error. A better
+    way to do this may exist.
+
+    Basically, this is what makes the touchscreen map to the coordinates inputtino expects properly.
+    Since inputtino's dimensions are now logical (because scaling breaks everything otherwise), using the previous
+    x and y coordinates would be incorrect when screens are scaled, because the touch port is smaller (or larger)
+    by a factor (that factor is touch_port.scalar_tpcoords), and that factor must be used to account for that difference
+    when moving the cursor. Otherwise, it will move either slower or faster than your finger proportionally to
+    scalar_tpcoords, and be offset *inversely* proportionally to scalar_tpcoords. So you must account for both differences
+    by multiplying and dividing.
+    */
+    float final_x = (x + touch_port.offset_x * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    float final_y = (y + touch_port.offset_y * touch_port.scalar_tpcoords) / touch_port.scalar_tpcoords;
+    return std::pair {final_x, final_y};
   }
 
   /**
@@ -545,11 +567,22 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
+
+    int touch_port_dim_x;
+    int touch_port_dim_y;
+    if (touch_port.env_logical_width != 0 && touch_port.env_logical_height != 0) {
+      touch_port_dim_x = touch_port.env_logical_width;
+      touch_port_dim_y = touch_port.env_logical_height;
+    } else {
+      touch_port_dim_x = touch_port.env_width;
+      touch_port_dim_y = touch_port.env_height;
+    }
+
     platf::touch_port_t abs_port {
       touch_port.offset_x,
       touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
+      touch_port_dim_x,
+      touch_port_dim_y
     };
 
     platf::abs_mouse(platf_input, abs_port, tpcoords->first, tpcoords->second);
@@ -825,7 +858,7 @@ namespace input {
       return;
     }
 
-    auto size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
+    int size = util::endian::big(packet->header.size) - sizeof(packet->header.magic);
     platf::unicode(platf_input, packet->text, size);
   }
 
@@ -870,6 +903,31 @@ namespace input {
   }
 
   /**
+   * @brief Normalizes coordinates to monitor-local logical touch dimensions.
+   * @param touch_port The current touch port metadata.
+   * @param coords The in/out coordinate pair to normalize.
+   * @return The monitor-local touch port, or std::nullopt if dimensions are invalid.
+   */
+  std::optional<platf::touch_port_t> monitor_touch_port(const input::touch_port_t &touch_port, std::pair<float, float> &coords) {
+    const float monitor_logical_w = (touch_port.width * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    const float monitor_logical_h = (touch_port.height * touch_port.scalar_inv) / touch_port.scalar_tpcoords;
+    if (monitor_logical_w <= 0.0f || monitor_logical_h <= 0.0f) {
+      BOOST_LOG(warning) << "Ignoring touch/pen input due to invalid logical touch dimensions"sv;
+      return std::nullopt;
+    }
+
+    coords.first = (coords.first - touch_port.offset_x) / monitor_logical_w;
+    coords.second = (coords.second - touch_port.offset_y) / monitor_logical_h;
+
+    return platf::touch_port_t {
+      touch_port.offset_x,
+      touch_port.offset_y,
+      static_cast<int>(monitor_logical_w),
+      static_cast<int>(monitor_logical_h)
+    };
+  }
+
+  /**
    * @brief Called to pass a touch message to the platform backend.
    * @param input The input context pointer.
    * @param packet The touch packet.
@@ -886,16 +944,11 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
-    };
 
-    // Renormalize the coordinates
-    coords->first /= abs_port.width;
-    coords->second /= abs_port.height;
+    auto abs_port = monitor_touch_port(touch_port, *coords);
+    if (!abs_port) {
+      return;
+    }
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -908,7 +961,7 @@ namespace input {
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port.width / 65535.f, abs_port.height / 65535.f}
+      {abs_port->width / 65535.f, abs_port->height / 65535.f}
     );
 
     platf::touch_input_t touch {
@@ -922,7 +975,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::touch_update(input->client_context.get(), abs_port, touch);
+    platf::touch_update(input->client_context.get(), *abs_port, touch);
   }
 
   /**
@@ -942,16 +995,11 @@ namespace input {
     }
 
     auto &touch_port = input->touch_port;
-    platf::touch_port_t abs_port {
-      touch_port.offset_x,
-      touch_port.offset_y,
-      touch_port.env_width,
-      touch_port.env_height
-    };
 
-    // Renormalize the coordinates
-    coords->first /= abs_port.width;
-    coords->second /= abs_port.height;
+    auto abs_port = monitor_touch_port(touch_port, *coords);
+    if (!abs_port) {
+      return;
+    }
 
     // Normalize rotation value to 0-359 degree range
     auto rotation = util::endian::little(packet->rotation);
@@ -964,7 +1012,7 @@ namespace input {
       {from_clamped_netfloat(packet->contactAreaMajor, 0.0f, 1.0f) * 65535.f,
        from_clamped_netfloat(packet->contactAreaMinor, 0.0f, 1.0f) * 65535.f},
       rotation,
-      {abs_port.width / 65535.f, abs_port.height / 65535.f}
+      {abs_port->width / 65535.f, abs_port->height / 65535.f}
     );
 
     platf::pen_input_t pen {
@@ -980,7 +1028,7 @@ namespace input {
       contact_area.second,
     };
 
-    platf::pen_update(input->client_context.get(), abs_port, pen);
+    platf::pen_update(input->client_context.get(), *abs_port, pen);
   }
 
   /**
@@ -1206,7 +1254,8 @@ namespace input {
    * @return The status of the batching operation.
    */
   batch_result_e batch(PNV_REL_MOUSE_MOVE_PACKET dest, PNV_REL_MOUSE_MOVE_PACKET src) {
-    short deltaX, deltaY;
+    short deltaX;
+    short deltaY;
 
     // Batching is safe as long as the result doesn't overflow a 16-bit integer
     if (!__builtin_add_overflow(util::endian::big(dest->deltaX), util::endian::big(src->deltaX), &deltaX)) {

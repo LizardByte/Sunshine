@@ -14,6 +14,9 @@
 #include <boost/process/v1.hpp>
 #include <MinHook.h>
 
+// local includes
+#include "utf_utils.h"
+
 // We have to include boost/process/v1.hpp before display.h due to WinSock.h,
 // but that prevents the definition of NTSTATUS so we must define it ourself.
 typedef long NTSTATUS;
@@ -41,7 +44,7 @@ namespace platf {
 }
 
 namespace platf::dxgi {
-  namespace bp = boost::process;
+  namespace bp = boost::process::v1;
 
   /**
    * DDAPI-specific initialization goes here.
@@ -121,7 +124,13 @@ namespace platf::dxgi {
     display->display_refresh_rate = dup_desc.ModeDesc.RefreshRate;
     double display_refresh_rate_decimal = (double) display->display_refresh_rate.Numerator / display->display_refresh_rate.Denominator;
     BOOST_LOG(info) << "Display refresh rate [" << display_refresh_rate_decimal << "Hz]";
-    BOOST_LOG(info) << "Requested frame rate [" << display->client_frame_rate << "fps]";
+    if (display->client_frame_rate_strict.Numerator > 0) {
+      int num = display->client_frame_rate_strict.Numerator;
+      int den = display->client_frame_rate_strict.Denominator;
+      BOOST_LOG(info) << "Requested frame rate [" << num << "/" << den << " exactly " << av_q2d(AVRational {num, den}) << " fps]";
+    } else {
+      BOOST_LOG(info) << "Requested frame rate [" << display->client_frame_rate << "fps]";
+    }
     display->display_refresh_rate_rounded = lround(display_refresh_rate_decimal);
     return 0;
   }
@@ -196,6 +205,10 @@ namespace platf::dxgi {
 
   capture_e display_base_t::capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) {
     auto adjust_client_frame_rate = [&]() -> DXGI_RATIONAL {
+      // Use exactly the requested rate if the client sent an X100 value
+      if (client_frame_rate_strict.Numerator > 0) {
+        return client_frame_rate_strict;
+      }
       // Adjust capture frame interval when display refresh rate is not integral but very close to requested fps.
       if (display_refresh_rate.Denominator > 1) {
         DXGI_RATIONAL candidate = display_refresh_rate;
@@ -464,8 +477,8 @@ namespace platf::dxgi {
       return -1;
     }
 
-    auto adapter_name = from_utf8(config::video.adapter_name);
-    auto output_name = from_utf8(display_name);
+    auto adapter_name = utf_utils::from_utf8(config::video.adapter_name);
+    auto output_name = utf_utils::from_utf8(display_name);
 
     adapter_t::pointer adapter_p;
     for (int tries = 0; tries < 2; ++tries) {
@@ -579,7 +592,7 @@ namespace platf::dxgi {
     DXGI_ADAPTER_DESC adapter_desc;
     adapter->GetDesc(&adapter_desc);
 
-    auto description = to_utf8(adapter_desc.Description);
+    auto description = utf_utils::to_utf8(adapter_desc.Description);
     BOOST_LOG(info)
       << std::endl
       << "Device Description : " << description << std::endl
@@ -601,12 +614,12 @@ namespace platf::dxgi {
       LUID val;
 
       if (OpenProcessToken(GetCurrentProcess(), flags, &token) &&
-          !!LookupPrivilegeValue(NULL, SE_INC_BASE_PRIORITY_NAME, &val)) {
+          !!LookupPrivilegeValue(nullptr, SE_INC_BASE_PRIORITY_NAME, &val)) {
         tp.PrivilegeCount = 1;
         tp.Privileges[0].Luid = val;
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
-        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), NULL, NULL)) {
+        if (!AdjustTokenPrivileges(token, false, &tp, sizeof(tp), nullptr, nullptr)) {
           BOOST_LOG(warning) << "Could not set privilege to increase GPU priority";
         }
       }
@@ -705,6 +718,12 @@ namespace platf::dxgi {
     }
 
     client_frame_rate = config.framerate;
+    client_frame_rate_strict = {0, 0};
+    if (config.framerateX100 > 0) {
+      AVRational fps = ::video::framerateX100_to_rational(config.framerateX100);
+      client_frame_rate_strict = DXGI_RATIONAL {static_cast<UINT>(fps.num), static_cast<UINT>(fps.den)};
+    }
+
     dxgi::output6_t output6 {};
     status = output->QueryInterface(IID_IDXGIOutput6, (void **) &output6);
     if (SUCCEEDED(status)) {
@@ -918,20 +937,20 @@ namespace platf::dxgi {
     "DXGI_FORMAT_A8P8",
     "DXGI_FORMAT_B4G4R4A4_UNORM",
 
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
-    NULL,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
+    nullptr,
 
     "DXGI_FORMAT_P208",
     "DXGI_FORMAT_V208",
@@ -1043,15 +1062,16 @@ namespace platf {
       return {};
     }
 
-    dxgi::adapter_t adapter;
-    for (int x = 0; factory->EnumAdapters1(x, &adapter) != DXGI_ERROR_NOT_FOUND; ++x) {
+    dxgi::adapter_t::pointer adapter_p;
+    for (int x = 0; factory->EnumAdapters1(x, &adapter_p) != DXGI_ERROR_NOT_FOUND; ++x) {
+      dxgi::adapter_t adapter {adapter_p};
       DXGI_ADAPTER_DESC1 adapter_desc;
       adapter->GetDesc1(&adapter_desc);
 
       BOOST_LOG(debug)
         << std::endl
         << "====== ADAPTER ====="sv << std::endl
-        << "Device Name      : "sv << to_utf8(adapter_desc.Description) << std::endl
+        << "Device Name      : "sv << utf_utils::to_utf8(adapter_desc.Description) << std::endl
         << "Device Vendor ID : 0x"sv << util::hex(adapter_desc.VendorId).to_string_view() << std::endl
         << "Device Device ID : 0x"sv << util::hex(adapter_desc.DeviceId).to_string_view() << std::endl
         << "Device Video Mem : "sv << adapter_desc.DedicatedVideoMemory / 1048576 << " MiB"sv << std::endl
@@ -1067,7 +1087,7 @@ namespace platf {
         DXGI_OUTPUT_DESC desc;
         output->GetDesc(&desc);
 
-        auto device_name = to_utf8(desc.DeviceName);
+        auto device_name = utf_utils::to_utf8(desc.DeviceName);
 
         auto width = desc.DesktopCoordinates.right - desc.DesktopCoordinates.left;
         auto height = desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top;

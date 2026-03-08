@@ -16,7 +16,7 @@ option(BUILD_WERROR "Enable -Werror flag." OFF)
 # if this option is set, the build will exit after configuring special package configuration files
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
-option(SUNSHINE_ENABLE_TRAY "Enable system tray icon. This option will be ignored on macOS." ON)
+option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
@@ -41,8 +41,6 @@ endif()
 if(APPLE)
     option(SUNSHINE_CONFIGURE_PORTFILE
             "Configure macOS Portfile. Recommended to use with SUNSHINE_CONFIGURE_ONLY" OFF)
-    option(SUNSHINE_PACKAGE_MACOS
-            "Should only be used when creating a macOS package/dmg." OFF)
 elseif(UNIX)  # Linux
     option(SUNSHINE_BUILD_APPIMAGE
             "Enable an AppImage build." OFF)
@@ -64,4 +62,6 @@ elseif(UNIX)  # Linux
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11
             "Enable X11 grab if available." ON)
+    option(SUNSHINE_ENABLE_PORTAL
+            "Enable XDG portal grab if available" ON)
 endif()

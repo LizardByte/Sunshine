@@ -6,10 +6,12 @@
 
 // standard includes
 #include <chrono>
+#include <filesystem>
+#include <string>
 #include <string_view>
 
 // platform includes
-#include <windows.h>
+#include <Windows.h>
 #include <winnt.h>
 
 namespace platf {
@@ -21,16 +23,10 @@ namespace platf {
   std::chrono::nanoseconds qpc_time_difference(int64_t performance_counter1, int64_t performance_counter2);
 
   /**
-   * @brief Convert a UTF-8 string into a UTF-16 wide string.
-   * @param string The UTF-8 string.
-   * @return The converted UTF-16 wide string.
+   * @brief Get file version information from a Windows executable or driver file.
+   * @param file_path Path to the file to query.
+   * @param version_str Output parameter for version string in format "major.minor.build.revision".
+   * @return true if version info was successfully extracted, false otherwise.
    */
-  std::wstring from_utf8(const std::string &string);
-
-  /**
-   * @brief Convert a UTF-16 wide string into a UTF-8 string.
-   * @param string The UTF-16 wide string.
-   * @return The converted UTF-8 string.
-   */
-  std::string to_utf8(const std::wstring &string);
+  bool getFileVersionInfo(const std::filesystem::path &file_path, std::string &version_str);
 }  // namespace platf

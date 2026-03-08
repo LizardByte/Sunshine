@@ -47,6 +47,8 @@ function install() {
   # user input rules
   # shellcheck disable=SC2002
   cat "$SUNSHINE_SHARE_HERE/udev/rules.d/60-sunshine.rules" | sudo tee /etc/udev/rules.d/60-sunshine.rules
+  cat "$SUNSHINE_SHARE_HERE/modules-load.d/60-sunshine.conf" | sudo tee /etc/modules-load.d/60-sunshine.conf
+  sudo modprobe uhid
   sudo udevadm control --reload-rules
   sudo udevadm trigger --property-match=DEVNAME=/dev/uinput
   sudo udevadm trigger --property-match=DEVNAME=/dev/uhid
@@ -55,7 +57,7 @@ function install() {
   mkdir -p ~/.config/systemd/user
   cp -r "$SUNSHINE_SHARE_HERE/systemd/user/" ~/.config/systemd/
   # patch service executable path
-  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sunshine.service
+  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service
 
   # setcap
   sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
@@ -65,8 +67,11 @@ function remove() {
   # remove input rules
   sudo rm -f /etc/udev/rules.d/60-sunshine.rules
 
+  # remove uhid module loading config
+  sudo rm -f /etc/modules-load.d/60-sunshine.conf
+
   # remove service
-  sudo rm -f ~/.config/systemd/user/sunshine.service
+  sudo rm -f ~/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service
 }
 
 # process arguments

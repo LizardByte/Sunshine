@@ -31,6 +31,7 @@ namespace wl {
     void destroy();
 
     egl::surface_descriptor_t sd;
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
   };
 
   class dmabuf_t {

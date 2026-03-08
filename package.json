@@ -7,16 +7,21 @@
     "dev": "vite build --watch",
     "serve": "serve ./tests/fixtures/http --no-port-switching"
   },
+  "type": "module",
   "dependencies": {
-    "@lizardbyte/shared-web": "2025.626.181239",
-    "vue": "3.5.18",
-    "vue-i18n": "11.1.11"
+    "bootstrap": "5.3.8",
+    "date-fns": "4.1.0",
+    "lucide-vue-next": "0.577.0",
+    "marked": "17.0.4",
+    "vue": "3.5.29",
+    "vue-i18n": "11.2.8",
+    "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
     "@codecov/vite-plugin": "1.9.1",
-    "@vitejs/plugin-vue": "4.6.2",
-    "serve": "14.2.4",
-    "vite": "4.5.14",
-    "vite-plugin-ejs": "1.6.4"
+    "@vitejs/plugin-vue": "6.0.1",
+    "serve": "14.2.6",
+    "vite": "6.4.1",
+    "vite-plugin-ejs": "1.7.0"
   }
 }

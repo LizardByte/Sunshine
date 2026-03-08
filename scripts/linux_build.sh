@@ -1,8 +1,16 @@
 #!/bin/bash
 set -e
 
+# Version requirements - centralized for easy maintenance
+cmake_min="3.25.0"
+target_cmake_version="3.30.1"
+doxygen_min="1.10.0"
+_doxygen_min="${doxygen_min//\./_}"  # Convert dots to underscores for URL
+doxygen_max="1.12.0"
+
 # Default value for arguments
 appimage_build=0
+cuda_patches=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
 publisher_website=""
@@ -13,6 +21,51 @@ skip_libva=0
 skip_package=0
 sudo_cmd="sudo"
 ubuntu_test_repo=0
+step="all"
+
+# constants
+AARCH64="aarch64"
+DOXYGEN="doxygen"
+
+# Reusable function to detect nvcc path
+function detect_nvcc_path() {
+  local nvcc_path=""
+
+  # First check for system-installed CUDA
+  nvcc_path=$(command -v nvcc 2>/dev/null) || true
+  if [[ -n "$nvcc_path" ]]; then
+    echo "$nvcc_path"
+    return 0
+  fi
+
+  # Then check for locally installed CUDA in build directory
+  if [[ -f "${build_dir}/cuda/bin/nvcc" ]]; then
+    echo "${build_dir}/cuda/bin/nvcc"
+    return 0
+  fi
+
+  # No CUDA found
+  return 1
+}
+
+# Reusable function to setup NVM environment
+function setup_nvm_environment() {
+  # Only setup NVM if it should be used for this distro
+  if [[ "$nvm_node" == 1 ]]; then
+    # Check if NVM is installed and source it
+    if [[ -f "$HOME/.nvm/nvm.sh" ]]; then
+      # shellcheck source=/dev/null
+      source "$HOME/.nvm/nvm.sh"
+      # Use the default node version installed by NVM
+      nvm use default 2>/dev/null || nvm use node 2>/dev/null || true
+      echo "Using NVM Node.js version: $(node --version 2>/dev/null || echo 'not available')"
+      echo "Using NVM npm version: $(npm --version 2>/dev/null || echo 'not available')"
+    else
+      echo "NVM not found, using system Node.js if available"
+    fi
+  fi
+  return 0
+}
 
 function _usage() {
   local exit_code=$1
@@ -28,6 +81,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
+  --cuda-patches           Apply cuda patches.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
@@ -38,6 +92,16 @@ Options:
   --skip-libva             Skip libva installation. This will automatically be enabled if passing --appimage-build.
   --skip-package           Skip creating DEB, or RPM package.
   --ubuntu-test-repo       Install ppa:ubuntu-toolchain-r/test repo on Ubuntu.
+  --step                   Which step(s) to run: deps, cmake, validation, build, package, cleanup, or all (default: all)
+
+Steps:
+  deps                     Install dependencies only
+  cmake                    Run cmake configure only
+  validation               Run validation commands only
+  build                    Build the project only
+  package                  Create packages only
+  cleanup                  Cleanup alternatives and backups only
+  all                      Run all steps (default)
 EOF
 
   exit "$exit_code"
@@ -54,6 +118,9 @@ while getopts ":hs-:" opt; do
         appimage-build)
           appimage_build=1
           skip_libva=1
+          ;;
+        cuda-patches)
+          cuda_patches=1
           ;;
         num-processors=*)
           num_processors="${OPTARG#*=}"
@@ -73,6 +140,9 @@ while getopts ":hs-:" opt; do
         skip-package) skip_package=1 ;;
         sudo-off) sudo_cmd="" ;;
         ubuntu-test-repo) ubuntu_test_repo=1 ;;
+        step=*)
+          step="${OPTARG#*=}"
+          ;;
         *)
           echo "Invalid option: --${OPTARG}" 1>&2
           _usage 1
@@ -92,6 +162,7 @@ dependencies=()
 
 function add_arch_deps() {
   dependencies+=(
+    'appstream-glib'
     'avahi'
     'base-devel'
     'cmake'
@@ -125,17 +196,18 @@ function add_arch_deps() {
     'wayland'
   )
 
-  if [ "$skip_libva" == 0 ]; then
+  if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
       "libva"  # VA-API
     )
   fi
 
-  if [ "$skip_cuda" == 0 ]; then
+  if [[ "$skip_cuda" == 0 ]]; then
     dependencies+=(
       "cuda"  # VA-API
     )
   fi
+  return 0
 }
 
 function add_debian_based_deps() {
@@ -146,7 +218,8 @@ function add_debian_based_deps() {
     "build-essential"
     "cmake"
     "desktop-file-utils"
-    "doxygen"
+    "${DOXYGEN}"
+    "file"
     "flex"  # required if we need to compile doxygen
     "gcc-${gcc_version}"
     "g++-${gcc_version}"
@@ -161,8 +234,11 @@ function add_debian_based_deps() {
     "libnotify-dev"
     "libnuma-dev"
     "libopus-dev"
+    "libpipewire-0.3-dev"
     "libpulse-dev"
     "libssl-dev"
+    "libsystemd-dev"
+    "libudev-dev"
     "libwayland-dev"  # Wayland
     "libx11-dev"  # X11
     "libxcb-shm0-dev"  # X11
@@ -173,35 +249,45 @@ function add_debian_based_deps() {
     "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
+    "systemd"
     "udev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
   )
 
-  if [ "$skip_libva" == 0 ]; then
+  if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
       "libva-dev"  # VA-API
     )
   fi
+  return 0
+}
+
+function add_test_ppa() {
+  if [[ "$ubuntu_test_repo" == 1 ]]; then
+    $package_install_command "software-properties-common"
+    ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
+  fi
+  return 0
 }
 
 function add_debian_deps() {
+  add_test_ppa
   add_debian_based_deps
   dependencies+=(
     "libayatana-appindicator3-dev"
+    "systemd-dev"
   )
+  return 0
 }
 
 function add_ubuntu_deps() {
-  if [ "$ubuntu_test_repo" == 1 ]; then
-    # allow newer gcc
-    ${sudo_cmd} add-apt-repository ppa:ubuntu-toolchain-r/test -y
-  fi
-
+  add_test_ppa
   add_debian_based_deps
   dependencies+=(
     "libappindicator3-dev"
   )
+  return 0
 }
 
 function add_fedora_deps() {
@@ -209,7 +295,7 @@ function add_fedora_deps() {
     "appstream"
     "cmake"
     "desktop-file-utils"
-    "doxygen"
+    "${DOXYGEN}"
     "gcc${gcc_version}"
     "gcc${gcc_version}-c++"
     "git"
@@ -237,6 +323,7 @@ function add_fedora_deps() {
     "numactl-devel"
     "openssl-devel"
     "opus-devel"
+    "pipewire-devel"
     "pulseaudio-libs-devel"
     "rpm-build"  # if you want to build an RPM binary package
     "wget"  # necessary for cuda install with `run` file
@@ -244,43 +331,42 @@ function add_fedora_deps() {
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing
   )
 
-  if [ "$skip_libva" == 0 ]; then
+  if [[ "$skip_libva" == 0 ]]; then
     dependencies+=(
       "libva-devel"  # VA-API
     )
   fi
+  return 0
 }
 
 function install_cuda() {
-  nvcc_path=$(command -v nvcc 2>/dev/null) || true
-  if [ -n "$nvcc_path" ]; then
-    echo "found system cuda"
+  # Check if CUDA is already available
+  if detect_nvcc_path > /dev/null 2>&1; then
     return
   fi
-  # check if we need to install cuda
-  if [ -f "${build_dir}/cuda/bin/nvcc" ]; then
-    nvcc_path="${build_dir}/cuda/bin/nvcc"
-    echo "found local cuda"
-    return
+
+  local cuda_override_arg=""
+  if [[ "$distro" == "fedora" ]]; then
+    cuda_override_arg="--override"
   fi
 
   local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
   local cuda_suffix=""
-  if [ "$architecture" == "aarch64" ]; then
+  if [[ "$architecture" == "${AARCH64}" ]]; then
     local cuda_suffix="_sbsa"
   fi
 
-  if [ "$architecture" == "aarch64" ]; then
+  if [[ "$architecture" == "${AARCH64}" ]]; then
     # we need to patch the math-vector.h file for aarch64 fedora
     # back up /usr/include/bits/math-vector.h
     math_vector_file=""
-    if [ "$distro" == "ubuntu" ] || [ "$version" == "24.04" ]; then
+    if [[ "$distro" == "ubuntu" ]] || [[ "$version" == "24.04" ]]; then
       math_vector_file="/usr/include/aarch64-linux-gnu/bits/math-vector.h"
-    elif [ "$distro" == "fedora" ]; then
+    elif [[ "$distro" == "fedora" ]]; then
       math_vector_file="/usr/include/bits/math-vector.h"
     fi
 
-    if [ -n "$math_vector_file" ]; then
+    if [[ -n "$math_vector_file" ]]; then
       # patch headers https://bugs.launchpad.net/ubuntu/+source/mumax3/+bug/2032624
       ${sudo_cmd} cp "$math_vector_file" "$math_vector_file.bak"
       ${sudo_cmd} sed -i 's/__Float32x4_t/int/g' "$math_vector_file"
@@ -295,9 +381,45 @@ function install_cuda() {
   echo "cuda url: ${url}"
   wget "$url" --progress=bar:force:noscroll -q --show-progress -O "${build_dir}/cuda.run"
   chmod a+x "${build_dir}/cuda.run"
-  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm
+  "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
   rm "${build_dir}/cuda.run"
-  nvcc_path="${build_dir}/cuda/bin/nvcc"
+
+  # run cuda patches
+  if [[ "$cuda_patches" == 1 ]]; then
+    echo "Applying CUDA patches"
+    local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
+    local patch_file=""
+
+    # Select the patch based on the CUDA major version, not the distro version.
+    # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
+    local cuda_major="${cuda_version%%.*}"
+    if [[ "${cuda_major}" -eq 12 ]]; then
+      # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
+      patch_file="${patch_dir}/cuda-12-math_functions.patch"
+    elif [[ "${cuda_major}" -eq 13 ]]; then
+      # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
+      # macro invocations at the bottom still lack it, causing a redeclaration conflict.
+      patch_file="${patch_dir}/cuda-13-math_functions.patch"
+    else
+      echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
+    fi
+
+    if [[ -n "$patch_file" ]]; then
+      if [[ -f "$patch_file" ]]; then
+        echo "Applying patch: $patch_file"
+        patch -p2 \
+          --backup \
+          --directory="${build_dir}/cuda" \
+          --verbose \
+          < "$patch_file"
+      else
+        echo "Patch file not found: $patch_file"
+      fi
+    else
+      echo "No CUDA patch required for ${distro} ${version}"
+    fi
+  fi
+  return 0
 }
 
 function check_version() {
@@ -308,18 +430,18 @@ function check_version() {
 
   echo "Checking if $package_name is installed and at least version $min_version"
 
-  if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+  if [[ "$distro" == "debian" ]] || [[ "$distro" == "ubuntu" ]]; then
     installed_version=$(dpkg -s "$package_name" 2>/dev/null | grep '^Version:' | awk '{print $2}')
-  elif [ "$distro" == "fedora" ]; then
+  elif [[ "$distro" == "fedora" ]]; then
     installed_version=$(rpm -q --queryformat '%{VERSION}' "$package_name" 2>/dev/null)
-  elif [ "$distro" == "arch" ]; then
+  elif [[ "$distro" == "arch" ]]; then
     installed_version=$(pacman -Q "$package_name" | awk '{print $2}' )
   else
     echo "Unsupported Distro"
     return 1
   fi
 
-  if [ -z "$installed_version" ]; then
+  if [[ -z "$installed_version" ]]; then
     echo "Package not installed"
     return 1
   fi
@@ -334,49 +456,21 @@ if [[ "$(printf '%s\n' "$installed_version" "$min_version" | sort -V | head -n1)
   fi
 }
 
-function run_install() {
-  # prepare CMAKE args
-  cmake_args=(
-    "-B=build"
-    "-G=Ninja"
-    "-S=."
-    "-DBUILD_WERROR=ON"
-    "-DCMAKE_BUILD_TYPE=Release"
-    "-DCMAKE_INSTALL_PREFIX=/usr"
-    "-DSUNSHINE_ASSETS_DIR=share/sunshine"
-    "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine"
-    "-DSUNSHINE_ENABLE_WAYLAND=ON"
-    "-DSUNSHINE_ENABLE_X11=ON"
-    "-DSUNSHINE_ENABLE_DRM=ON"
-  )
-
-  if [ "$appimage_build" == 1 ]; then
-    cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
-  fi
-
-  # Publisher metadata
-  if [ -n "$publisher_name" ]; then
-    cmake_args+=("-DSUNSHINE_PUBLISHER_NAME='${publisher_name}'")
-  fi
-  if [ -n "$publisher_website" ]; then
-    cmake_args+=("-DSUNSHINE_PUBLISHER_WEBSITE='${publisher_website}'")
-  fi
-  if [ -n "$publisher_issue_url" ]; then
-    cmake_args+=("-DSUNSHINE_PUBLISHER_ISSUE_URL='${publisher_issue_url}'")
-  fi
+function run_step_deps() {
+  echo "Running step: Install dependencies"
 
   # Update the package list
   $package_update_command
 
-  if [ "$distro" == "arch" ]; then
+  if [[ "$distro" == "arch" ]]; then
     add_arch_deps
-  elif [ "$distro" == "debian" ]; then
+  elif [[ "$distro" == "debian" ]]; then
     add_debian_deps
-  elif [ "$distro" == "ubuntu" ]; then
+  elif [[ "$distro" == "ubuntu" ]]; then
     add_ubuntu_deps
-  elif [ "$distro" == "fedora" ]; then
+  elif [[ "$distro" == "fedora" ]]; then
     add_fedora_deps
-    ${sudo_cmd} dnf group install "$dev_tools_group" -y
+    ${sudo_cmd} dnf group install "development-tools" -y
   fi
 
   # Install the dependencies
@@ -386,43 +480,17 @@ function run_install() {
   # shellcheck source=/dev/null
   source ~/.bashrc
 
-  gcc_alternative_files=(
-    "gcc"
-    "g++"
-    "gcov"
-    "gcc-ar"
-    "gcc-ranlib"
-  )
-
   #set gcc version based on distros
-  if [ "$distro" == "arch" ]; then
-    export CC=gcc-14
-    export CXX=g++-14
-  elif [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-    for file in "${gcc_alternative_files[@]}"; do
-      file_path="/etc/alternatives/$file"
-      if [ -e "$file_path" ]; then
-        ${sudo_cmd} mv "$file_path" "$file_path.bak"
-      fi
-    done
-
-    ${sudo_cmd} update-alternatives --install \
-      /usr/bin/gcc gcc /usr/bin/gcc-${gcc_version} 100 \
-      --slave /usr/bin/g++ g++ /usr/bin/g++-${gcc_version} \
-      --slave /usr/bin/gcov gcov /usr/bin/gcov-${gcc_version} \
-      --slave /usr/bin/gcc-ar gcc-ar /usr/bin/gcc-ar-${gcc_version} \
-      --slave /usr/bin/gcc-ranlib gcc-ranlib /usr/bin/gcc-ranlib-${gcc_version}
-  fi
+  export CC=gcc-${gcc_version}
+  export CXX=g++-${gcc_version}
 
   # compile cmake if the version is too low
-  cmake_min="3.25.0"
-  target_cmake_version="3.30.1"
   if ! check_version "cmake" "$cmake_min" "inf"; then
     cmake_prefix="https://github.com/Kitware/CMake/releases/download/v"
-    if [ "$architecture" == "x86_64" ]; then
+    if [[ "$architecture" == "x86_64" ]]; then
       cmake_arch="x86_64"
-    elif [ "$architecture" == "aarch64" ]; then
-      cmake_arch="aarch64"
+    elif [[ "$architecture" == "${AARCH64}" ]]; then
+      cmake_arch="${AARCH64}"
     fi
     url="${cmake_prefix}${target_cmake_version}/cmake-${target_cmake_version}-linux-${cmake_arch}.sh"
     echo "cmake url: ${url}"
@@ -433,43 +501,103 @@ function run_install() {
   fi
 
   # compile doxygen if version is too low
-  doxygen_min="1.10.0"
-  _doxygen_min="1_10_0"
-  doxygen_max="1.12.0"
-  if ! check_version "doxygen" "$doxygen_min" "$doxygen_max"; then
-    if [ "${SUNSHINE_COMPILE_DOXYGEN}" == "true" ]; then
+  if ! check_version "${DOXYGEN}" "$doxygen_min" "$doxygen_max"; then
+    if [[ "${SUNSHINE_COMPILE_DOXYGEN}" == "true" ]]; then
       echo "Compiling doxygen"
-      doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/doxygen-${doxygen_min}.src.tar.gz"
-      echo "doxygen url: ${doxygen_url}"
+      doxygen_url="https://github.com/doxygen/doxygen/releases/download/Release_${_doxygen_min}/${DOXYGEN}-${doxygen_min}.src.tar.gz"
+      echo "${DOXYGEN} url: ${doxygen_url}"
       pushd "${build_dir}"
-        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "doxygen.tar.gz"
-        tar -xzf "doxygen.tar.gz"
-        cd "doxygen-${doxygen_min}"
+        wget "$doxygen_url" --progress=bar:force:noscroll -q --show-progress -O "${DOXYGEN}.tar.gz"
+        tar -xzf "${DOXYGEN}.tar.gz"
+        cd "${DOXYGEN}-${doxygen_min}"
         cmake -DCMAKE_BUILD_TYPE=Release -G="Ninja" -B="build" -S="."
         ninja -C "build" -j"${num_processors}"
         ${sudo_cmd} ninja -C "build" install
       popd
     else
-      echo "Doxygen version not in range, skipping docs"
-      cmake_args+=("-DBUILD_DOCS=OFF")
+      echo "${DOXYGEN} version not in range, skipping docs"
+      # Note: cmake_args will be set in cmake step
     fi
   fi
 
   # install node from nvm
-  if [ "$nvm_node" == 1 ]; then
+  if [[ "$nvm_node" == 1 ]]; then
     nvm_url="https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh"
     echo "nvm url: ${nvm_url}"
     wget -qO- ${nvm_url} | bash
+
+    # shellcheck source=/dev/null  # we don't care that shellcheck cannot find nvm.sh
     source "$HOME/.nvm/nvm.sh"
     nvm install node
     nvm use node
   fi
 
   # run the cuda install
-  if [ "$skip_cuda" == 0 ]; then
+  if [[ "$skip_cuda" == 0 ]]; then
     install_cuda
+  fi
+  return 0
+}
+
+function run_step_cmake() {
+  echo "Running step: CMake configure"
+
+  # Setup NVM environment if needed (for web UI builds)
+  setup_nvm_environment
+
+  # Detect CUDA path using the reusable function
+  nvcc_path=""
+  if [[ "$skip_cuda" == 0 ]]; then
+    nvcc_path=$(detect_nvcc_path)
+  fi
+
+  #set gcc version based on distros
+  export CC=gcc-${gcc_version}
+  export CXX=g++-${gcc_version}
+
+  # prepare CMAKE args
+  cmake_args=(
+    "-B=build"
+    "-G=Ninja"
+    "-S=."
+    "-DBUILD_WERROR=ON"
+    "-DCMAKE_BUILD_TYPE=Release"
+    "-DCMAKE_INSTALL_PREFIX=/usr"
+    "-DSUNSHINE_ASSETS_DIR=share/sunshine"
+    "-DSUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine"
+    "-DSUNSHINE_ENABLE_DRM=ON"
+    "-DSUNSHINE_ENABLE_PORTAL=ON"
+    "-DSUNSHINE_ENABLE_WAYLAND=ON"
+    "-DSUNSHINE_ENABLE_X11=ON"
+  )
+
+  if [[ "$appimage_build" == 1 ]]; then
+    cmake_args+=("-DSUNSHINE_BUILD_APPIMAGE=ON")
+  fi
+
+  # Publisher metadata
+  if [[ -n "$publisher_name" ]]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_NAME='${publisher_name}'")
+  fi
+  if [[ -n "$publisher_website" ]]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_WEBSITE='${publisher_website}'")
+  fi
+  if [[ -n "$publisher_issue_url" ]]; then
+    cmake_args+=("-DSUNSHINE_PUBLISHER_ISSUE_URL='${publisher_issue_url}'")
+  fi
+
+  # Handle doxygen docs flag
+  if ! check_version "${DOXYGEN}" "$doxygen_min" "$doxygen_max" && [[ "${SUNSHINE_COMPILE_DOXYGEN}" != "true" ]]; then
+    cmake_args+=("-DBUILD_DOCS=OFF")
+  fi
+
+  # Handle CUDA
+  if [[ "$skip_cuda" == 0 ]]; then
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-    cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
+    if [[ -n "$nvcc_path" ]]; then
+      cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=$nvcc_path")
+      cmake_args+=("-DCMAKE_CUDA_HOST_COMPILER=gcc-${gcc_version}")
+    fi
   else
     cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
   fi
@@ -479,44 +607,92 @@ function run_install() {
   echo "cmake args:"
   echo "${cmake_args[@]}"
   cmake "${cmake_args[@]}"
+  return 0
+}
+
+function run_step_validation() {
+  echo "Running step: Validation"
 
   # Run appstream validation, etc.
   appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
   appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
   desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
-  if [ "$appimage_build" == 0 ]; then
+  if [[ "$appimage_build" == 0 ]]; then
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
   fi
+  return 0
+}
+
+function run_step_build() {
+  echo "Running step: Build"
+
+  # Setup NVM environment if needed (for web UI builds)
+  setup_nvm_environment
 
   # Build the project
   ninja -C "build"
+  return 0
+}
+
+function run_step_package() {
+  echo "Running step: Package"
 
   # Create the package
-  if [ "$skip_package" == 0 ]; then
-    if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
+  if [[ "$skip_package" == 0 ]]; then
+    if [[ "$distro" == "debian" ]] || [[ "$distro" == "ubuntu" ]]; then
       cpack -G DEB --config ./build/CPackConfig.cmake
-    elif [ "$distro" == "fedora" ]; then
+    elif [[ "$distro" == "fedora" ]]; then
       cpack -G RPM --config ./build/CPackConfig.cmake
     fi
   fi
+  return 0
+}
 
-  if [ "$skip_cleanup" == 0 ]; then
-    # Restore the original gcc alternatives
-    if [ "$distro" == "debian" ] || [ "$distro" == "ubuntu" ]; then
-      for file in "${gcc_alternative_files[@]}"; do
-        if [ -e "/etc/alternatives/$file.bak" ]; then
-          ${sudo_cmd} mv "/etc/alternatives/$file.bak" "/etc/alternatives/$file"
-        else
-          ${sudo_cmd} rm "/etc/alternatives/$file"
-        fi
-      done
-    fi
+function run_step_cleanup() {
+  echo "Running step: Cleanup"
 
-    # restore the math-vector.h file
-    if [ "$architecture" == "aarch64" ] && [ -n "$math_vector_file" ]; then
-      ${sudo_cmd} mv -f "$math_vector_file.bak" "$math_vector_file"
-    fi
+  # restore the math-vector.h file
+  if [[ "$skip_cleanup" == 0 ]] && [[ "$architecture" == "${AARCH64}" ]] && [[ -n "$math_vector_file" ]]; then
+    ${sudo_cmd} mv -f "$math_vector_file.bak" "$math_vector_file"
   fi
+  return 0
+}
+
+function run_install() {
+  case "$step" in
+    deps)
+      run_step_deps
+      ;;
+    cmake)
+      run_step_cmake
+      ;;
+    validation)
+      run_step_validation
+      ;;
+    build)
+      run_step_build
+      ;;
+    package)
+      run_step_package
+      ;;
+    cleanup)
+      run_step_cleanup
+      ;;
+    all)
+      run_step_deps
+      run_step_cmake
+      run_step_validation
+      run_step_build
+      run_step_package
+      run_step_cleanup
+      ;;
+    *)
+      echo "Invalid step: $step"
+      echo "Valid steps are: deps, cmake, validation, build, package, cleanup, all"
+      exit 1
+      ;;
+  esac
+  return 0
 }
 
 # Determine the OS and call the appropriate function
@@ -534,66 +710,90 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.0.0"
-  cuda_build="525.60.13"
-  gcc_version="12"
-  nvm_node=0
-elif grep -q "PLATFORM_ID=\"platform:f40\"" /etc/os-release; then
-  distro="fedora"
-  version="40"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.6.3
-  cuda_build=560.35.05
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
   gcc_version="13"
   nvm_node=0
-  dev_tools_group="Development Tools"
-elif grep -q "PLATFORM_ID=\"platform:f41\"" /etc/os-release; then
-  distro="fedora"
-  version="41"
-  package_update_command="${sudo_cmd} dnf update -y"
-  package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.6.3
-  cuda_build=560.35.05
-  gcc_version="13"
+elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
+  distro="debian"
+  version="13"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
 elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   distro="fedora"
   version="42"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version=12.8.1
-  cuda_build=570.124.06
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
-  dev_tools_group="development-tools"
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
+  distro="fedora"
+  version="43"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-release; then
+  distro="fedora"
+  version="44"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-release; then
+  distro="fedora"
+  version="45"
+  package_update_command="${sudo_cmd} dnf update -y"
+  package_install_command="${sudo_cmd} dnf install -y"
+  cuda_version="13.1.1"
+  cuda_build="590.48.01"
+  gcc_version="15"
+  nvm_node=0
 elif grep -q "Ubuntu 22.04" /etc/os-release; then
   distro="ubuntu"
   version="22.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="13"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"
   version="24.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
-  nvm_node=0
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=1
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
   distro="ubuntu"
   version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="11.8.0"
-  cuda_build="520.61.05"
-  gcc_version="11"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q "Ubuntu 25.10" /etc/os-release; then
+  distro="ubuntu"
+  version="25.10"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
   nvm_node=0
 else
   echo "Unsupported Distro or Version"
@@ -606,14 +806,23 @@ echo "Detected Distro: $distro"
 echo "Detected Version: $version"
 echo "Detected Architecture: $architecture"
 
-if [ "$architecture" != "x86_64" ] && [ "$architecture" != "aarch64" ]; then
+if [[ "$architecture" != "x86_64" ]] && [[ "$architecture" != "${AARCH64}" ]]; then
   echo "Unsupported Architecture"
   exit 1
 fi
 
+# export variables for github actions ci
+if [[ -f "$GITHUB_ENV" ]]; then
+  {
+    echo "CC=gcc-${gcc_version}"
+    echo "CXX=g++-${gcc_version}"
+    echo "GCC_VERSION=${gcc_version}"
+  } >> "$GITHUB_ENV"
+fi
+
 # get directory of this script
 script_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-build_dir="$script_dir/../build"
+build_dir=$(readlink -f "$script_dir/../build")
 echo "Script Directory: $script_dir"
 echo "Build Directory: $build_dir"
 mkdir -p "$build_dir"

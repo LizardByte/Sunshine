@@ -24,6 +24,7 @@ namespace video {
     int width;  // Video width in pixels
     int height;  // Video height in pixels
     int framerate;  // Requested framerate, used in individual frame bitrate budget calculation
+    int framerateX100;  // Optional field for streaming at NTSC or similar rates e.g. 59.94 = 5994
     int bitrate;  // Video bitrate in kilobits (1000 bits) for requested framerate
     int slicesPerFrame;  // Number of slices per frame
     int numRefFrames;  // Max number of reference frames
@@ -60,8 +61,10 @@ namespace video {
   struct encoder_platform_formats_t {
     virtual ~encoder_platform_formats_t() = default;
     platf::mem_type_e dev_type;
-    platf::pix_fmt_e pix_fmt_8bit, pix_fmt_10bit;
-    platf::pix_fmt_e pix_fmt_yuv444_8bit, pix_fmt_yuv444_10bit;
+    platf::pix_fmt_e pix_fmt_8bit;
+    platf::pix_fmt_e pix_fmt_10bit;
+    platf::pix_fmt_e pix_fmt_yuv444_8bit;
+    platf::pix_fmt_e pix_fmt_yuv444_10bit;
   };
 
   struct encoder_platform_formats_avcodec: encoder_platform_formats_t {
@@ -92,10 +95,13 @@ namespace video {
       pix_fmt_yuv444_10bit = map_pix_fmt(avcodec_pix_fmt_yuv444_10bit);
     }
 
-    AVHWDeviceType avcodec_base_dev_type, avcodec_derived_dev_type;
+    AVHWDeviceType avcodec_base_dev_type;
+    AVHWDeviceType avcodec_derived_dev_type;
     AVPixelFormat avcodec_dev_pix_fmt;
-    AVPixelFormat avcodec_pix_fmt_8bit, avcodec_pix_fmt_10bit;
-    AVPixelFormat avcodec_pix_fmt_yuv444_8bit, avcodec_pix_fmt_yuv444_10bit;
+    AVPixelFormat avcodec_pix_fmt_8bit;
+    AVPixelFormat avcodec_pix_fmt_10bit;
+    AVPixelFormat avcodec_pix_fmt_yuv444_8bit;
+    AVPixelFormat avcodec_pix_fmt_yuv444_10bit;
 
     init_buffer_function_t init_avcodec_hardware_input_buffer;
   };
@@ -178,7 +184,11 @@ namespace video {
       std::bitset<MAX_FLAGS>::reference operator[](flag_e flag) {
         return capabilities[(std::size_t) flag];
       }
-    } av1, hevc, h264;
+    };
+
+    codec_t av1;
+    codec_t hevc;
+    codec_t h264;
 
     const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {
@@ -219,9 +229,10 @@ namespace video {
 #ifdef _WIN32
   extern encoder_t amdvce;
   extern encoder_t quicksync;
+  extern encoder_t mediafoundation;
 #endif
 
-#ifdef __linux__
+#if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
   extern encoder_t vaapi;
 #endif
 
@@ -352,4 +363,25 @@ namespace video {
    * @warning This is only safe to call when there is no client actively streaming.
    */
   int probe_encoders();
+
+  // Several NTSC standard refresh rates are hardcoded here, because their
+  // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could
+  // reduce 29.97 to 2997/100 but this would be slightly wrong. We also include
+  // support for 23.976 film in case someone wants to stream a film at the perfect
+  // framerate.
+  inline AVRational framerateX100_to_rational(const int framerateX100) {
+    if (framerateX100 % 2997 == 0) {
+      // Multiples of NTSC 29.97 e.g. 59.94, 119.88
+      return AVRational {(framerateX100 / 2997) * 30000, 1001};
+    }
+    switch (framerateX100) {
+      case 2397:  // the other weird NTSC framerate, assume these want 23.976 film
+      case 2398:
+        return AVRational {24000, 1001};
+      default:
+        // any other fractional rate can be reduced by ffmpeg. Max is set to 1 << 26 based on docs:
+        // "rational numbers with |num| <= 1<<26 && |den| <= 1<<26 can be recovered exactly from their double representation"
+        return av_d2q((double) framerateX100 / 100.0f, 1 << 26);
+    }
+  }
 }  // namespace video

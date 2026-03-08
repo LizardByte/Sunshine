@@ -4,17 +4,10 @@
 # the above-mentioned repo.
 
 name: common lint
-permissions:
-  contents: read
+permissions: {}
 
 on:
   pull_request:
-    branches:
-      - master
-    types:
-      - opened
-      - synchronize
-      - reopened
 
 concurrency:
   group: "${{ github.workflow }}-${{ github.ref }}"
@@ -25,3 +18,6 @@ jobs:
     name: Common Lint
     uses: LizardByte/.github/.github/workflows/__call-common-lint.yml@master
     if: ${{ github.repository != 'LizardByte/.github' }}
+    permissions:
+      contents: read
+      pull-requests: read

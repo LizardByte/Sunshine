@@ -1,6 +1,13 @@
 # Edit on github: https://github.com/LizardByte/Sunshine/blob/master/packaging/linux/Arch/PKGBUILD
 # Reference: https://wiki.archlinux.org/title/PKGBUILD
 
+## options
+: "${_run_unit_tests:=false}"  # if set to true; unit tests will be executed post build; useful in CI
+: "${_support_headless_testing:=false}"
+: "${_use_cuda:=detect}" # nvenc
+
+: "${_commit:=@GITHUB_COMMIT@}"
+
 pkgname='sunshine'
 pkgver=@PROJECT_VERSION@@SUNSHINE_SUB_VERSION@
 pkgrel=1
@@ -10,7 +17,16 @@ url=@PROJECT_HOMEPAGE_URL@
 license=('GPL-3.0-only')
 install=sunshine.install
 
-_gcc_version=14
+# this variable remains for future cases where we need an older version of gcc for cuda compatibility
+_gcc_version=15
+_versioned_gcc=false  # set to true if we need a versioned gcc, e.g. gcc14
+
+_gcc_dep_suffix=""
+_gcc_env_suffix=""
+if [ "${_versioned_gcc}" == true ]; then
+  _gcc_dep_suffix="${_gcc_version}"
+  _gcc_env_suffix="-${_gcc_version}"
+fi
 
 depends=(
   'avahi'
@@ -21,6 +37,7 @@ depends=(
   'libevdev'
   'libmfx'
   'libnotify'
+  'libpipewire'
   'libpulse'
   'libva'
   'libx11'
@@ -33,6 +50,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'which'
 )
 
 makedepends=(
@@ -40,25 +58,56 @@ makedepends=(
   'appstream-glib'
   'cmake'
   'desktop-file-utils'
-  'cuda'
-  "gcc${_gcc_version}"
+  "gcc${_gcc_dep_suffix}"
   'git'
   'make'
   'nodejs'
   'npm'
 )
 
+checkdepends=(
+  'gcovr'
+)
+
 optdepends=(
-  'cuda: Nvidia GPU encoding support'
   'libva-mesa-driver: AMD GPU encoding support'
-  'xorg-server-xvfb: Virtual X server for headless testing'
 )
 
 provides=()
 conflicts=()
 
-source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=@GITHUB_COMMIT@")
+source=("$pkgname::git+@GITHUB_CLONE_URL@#commit=${_commit}")
 sha256sums=('SKIP')
+
+# Options Handling
+if [[ "${_use_cuda::1}" == "d" ]] && pacman -Qi cuda &> /dev/null; then
+  _use_cuda=true
+fi
+
+if [[ "${_use_cuda::1}" == "t" ]]; then
+  optdepends+=(
+    'cuda: Nvidia GPU encoding support'
+  )
+fi
+
+if [[ "${_support_headless_testing::1}" == "t" ]]; then
+  optdepends+=(
+    'xorg-server-xvfb: Virtual X server for headless testing'
+  )
+fi
+
+# Ensure makedepends, checkdepends, optdepends are sorted
+if [ -n "${makedepends+x}" ]; then
+  mapfile -t tmp_array < <(printf '%s\n' "${makedepends[@]}" | sort)
+  makedepends=("${tmp_array[@]}")
+  unset tmp_array
+fi
+
+if [ -n "${optdepends+x}" ]; then
+  mapfile -t tmp_array < <(printf '%s\n' "${optdepends[@]}" | sort)
+  optdepends=("${tmp_array[@]}")
+  unset tmp_array
+fi
 
 prepare() {
     cd "$pkgname"
@@ -68,43 +117,106 @@ prepare() {
 build() {
     export BRANCH="@GITHUB_BRANCH@"
     export BUILD_VERSION="@BUILD_VERSION@"
-    export COMMIT="@GITHUB_COMMIT@"
+    export COMMIT="${_commit}"
 
-    export CC="gcc-${_gcc_version}"
-    export CXX="g++-${_gcc_version}"
+    export CC="gcc${_gcc_env_suffix}"
+    export CXX="g++${_gcc_env_suffix}"
 
     export CFLAGS="${CFLAGS/-Werror=format-security/}"
     export CXXFLAGS="${CXXFLAGS/-Werror=format-security/}"
 
-    cmake \
-        -S "$pkgname" \
-        -B build \
-        -Wno-dev \
-        -D BUILD_DOCS=OFF \
-        -D BUILD_WERROR=ON \
-        -D CMAKE_INSTALL_PREFIX=/usr \
-        -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine \
-        -D SUNSHINE_ASSETS_DIR="share/sunshine" \
-        -D SUNSHINE_PUBLISHER_NAME='LizardByte' \
-        -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev' \
-        -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+    export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
+
+    local _cmake_options=(
+      -S "$pkgname"
+      -B build
+      -Wno-dev
+      -D BUILD_DOCS=OFF
+      -D BUILD_WERROR=ON
+      -D CMAKE_INSTALL_PREFIX=/usr
+      -D SUNSHINE_EXECUTABLE_PATH=/usr/bin/sunshine
+      -D SUNSHINE_ASSETS_DIR="share/sunshine"
+      -D SUNSHINE_PUBLISHER_NAME='LizardByte'
+      -D SUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
+      -D SUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
+    )
+
+    if [[ "${_use_cuda::1}" != "t" ]]; then
+      _cmake_options+=(-DSUNSHINE_ENABLE_CUDA=OFF -DCUDA_FAIL_ON_MISSING=OFF)
+    else
+      # If cuda has just been installed, its variables will not be available in the environment
+      # therefore, set them manually to the expected values on Arch Linux
+      if [ -z "${CUDA_PATH:-}" ] && pacman -Qi cuda &> /dev/null; then
+        local _cuda_gcc_version
+        _cuda_gcc_version="$(LC_ALL=C pacman -Si cuda | grep -Pom1 '^Depends On\s*:.*\bgcc\K[0-9]+\b' || true)"
+
+        export CUDA_PATH=/opt/cuda
+        if [ -n "$_cuda_gcc_version" ]; then
+          export NVCC_CCBIN="/usr/bin/g++-${_cuda_gcc_version}"
+        else
+          export NVCC_CCBIN="/usr/bin/g++"
+        fi
+      fi
+    fi
+
+    if [[ "${_run_unit_tests::1}" != "t" ]]; then
+      _cmake_options+=(-DBUILD_TESTS=OFF)
+    fi
+
+    cmake "${_cmake_options[@]}"
 
     appstreamcli validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     appstream-util validate "build/dev.lizardbyte.app.Sunshine.metainfo.xml"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.desktop"
     desktop-file-validate "build/dev.lizardbyte.app.Sunshine.terminal.desktop"
 
-    make -C build
+    cmake --build build
 }
 
 check() {
-    export CC="gcc-${_gcc_version}"
-    export CXX="g++-${_gcc_version}"
+    if [[ "${_run_unit_tests::1}" == "t" ]]; then
+      export CC="gcc${_gcc_env_suffix}"
+      export CXX="g++${_gcc_env_suffix}"
 
-    cd "${srcdir}/build/tests"
-    ./test_sunshine --gtest_color=yes
+      cd "${srcdir}/build/tests"
+      ./test_sunshine --gtest_color=yes --gtest_output=xml:test_results.xml
+
+      # Generate coverage report
+      # Run gcovr from the build directory (where all .gcda/.gcno files are)
+      # This matches the pattern used in ci-linux.yml
+      cd "${srcdir}/build"
+
+      # Dynamically find the gcov executable from gcc's library directory
+      # This ensures we use the same gcov version as the compiler
+      local gcov_path
+      gcov_path=$(find /usr/lib/gcc/x86_64-pc-linux-gnu/${_gcc_version}.*/ -name gcov -type f 2>/dev/null | head -n 1)
+
+      if [ -z "$gcov_path" ]; then
+        # Fallback to standard gcov if not found
+        gcov_path="gcov"
+      fi
+
+      echo "Using gcov at: $gcov_path"
+
+      # Use the actual relative path to the source directory
+      # From ${srcdir}/build, the source is at ../${pkgname}/src
+      gcovr --gcov-executable "$gcov_path" . -r "../${pkgname}/src" \
+        --exclude-noncode-lines \
+        --exclude-throw-branches \
+        --exclude-unreachable-branches \
+        --verbose \
+        --xml-pretty \
+        -o coverage.xml
+
+      # Post-process the coverage XML to strip the absolute path and show only 'src'
+      sed -i "s|${srcdir}/${pkgname}/src|src|g" coverage.xml
+    fi
+
+    cd "${srcdir}/build"
+    ./sunshine --version
 }
 
 package() {
-    make -C build install DESTDIR="$pkgdir"
+    export MAKEFLAGS="${MAKEFLAGS:--j$(nproc)}"
+    DESTDIR="$pkgdir" cmake --install build
 }

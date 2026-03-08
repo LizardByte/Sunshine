@@ -39,7 +39,7 @@ namespace nvenc {
     bool wait_for_async_event(uint32_t timeout_ms) override;
 
   private:
-    HMODULE dll = NULL;
+    HMODULE dll = nullptr;
   };
 
 }  // namespace nvenc

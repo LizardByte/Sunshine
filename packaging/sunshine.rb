@@ -1,7 +1,12 @@
 require "language/node"
 
-class @PROJECT_NAME@ < Formula
-  # conflicts_with "sunshine", because: "sunshine and sunshine-beta cannot be installed at the same time"
+class Sunshine < Formula
+  CUDA_VERSION = "13.1".freeze
+  CUDA_FORMULA = "cuda@#{CUDA_VERSION}".freeze
+  GCC_VERSION = "14".freeze
+  GCC_FORMULA = "gcc@#{GCC_VERSION}".freeze
+  IS_UPSTREAM_REPO = ENV.fetch("GITHUB_REPOSITORY", "") == "LizardByte/Sunshine"
+
   desc "@PROJECT_DESCRIPTION@"
   homepage "@PROJECT_HOMEPAGE_URL@"
   url "@GITHUB_CLONE_URL@",
@@ -22,49 +27,62 @@ class @PROJECT_NAME@ < Formula
     end
   end
 
-  option "with-docs", "Enable docs"
+  bottle do
+    root_url "https://ghcr.io/v2/lizardbyte/homebrew"
+    sha256 arm64_tahoe:   "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_sequoia: "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_sonoma:  "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 arm64_linux:   "0000000000000000000000000000000000000000000000000000000000000000"
+    sha256 x86_64_linux:  "0000000000000000000000000000000000000000000000000000000000000000"
+  end
+
+  option "with-cuda", "Enable CUDA support (Linux only)"
+  option "with-docs", "Enable docs build"
   option "with-static-boost", "Enable static link of Boost libraries"
   option "without-static-boost", "Disable static link of Boost libraries" # default option
 
   depends_on "cmake" => :build
-  depends_on "doxygen" => :build
-  depends_on "graphviz" => :build
-  depends_on "ninja" => :build
+  depends_on "doxygen" => :build if build.with? "docs"
+  depends_on "graphviz" => :build if build.with? "docs"
   depends_on "node" => :build
-  depends_on "pkg-config" => :build
+  depends_on "pkgconf" => :build
+  depends_on "gcovr" => :test
+  depends_on "boost"
   depends_on "curl"
+  depends_on "icu4c@78"
   depends_on "miniupnpc"
-  depends_on "openssl"
+  depends_on "openssl@3"
   depends_on "opus"
-  depends_on "icu4c" => :recommended
+
+  on_macos do
+    depends_on "llvm" => [:build, :test]
+  end
 
   on_linux do
-    # the "build" dependencies are for libayatana-appindicator
-    depends_on "at-spi2-core" => :build
-    depends_on "cairo" => :build
-    depends_on "fontconfig" => :build
-    depends_on "freetype" => :build
-    depends_on "fribidi" => :build
-    depends_on "gettext" => :build
-    depends_on "gobject-introspection" => :build
-    depends_on "graphite2" => :build
-    depends_on "gtk+3" => :build
-    depends_on "harfbuzz" => :build
-    depends_on "intltool" => :build
-    depends_on "libepoxy" => :build
-    depends_on "libxdamage" => :build
-    depends_on "libxkbcommon" => :build
-    depends_on "pango" => :build
-    depends_on "perl" => :build
-    depends_on "pixman" => :build
+    depends_on GCC_FORMULA => [:build, :test]
+    depends_on "lizardbyte/homebrew/#{CUDA_FORMULA}" => :build if build.with? "cuda"
+    depends_on "at-spi2-core"
     depends_on "avahi"
+    depends_on "ayatana-ido"
+    depends_on "cairo"
+    depends_on "gdk-pixbuf"
+    depends_on "glib"
+    depends_on "gnu-which"
+    depends_on "gtk+3"
+    depends_on "harfbuzz"
+    depends_on "libayatana-appindicator"
+    depends_on "libayatana-indicator"
     depends_on "libcap"
+    depends_on "libdbusmenu"
     depends_on "libdrm"
+    depends_on "libice"
     depends_on "libnotify"
+    depends_on "libsm"
     depends_on "libva"
     depends_on "libx11"
     depends_on "libxcb"
     depends_on "libxcursor"
+    depends_on "libxext"
     depends_on "libxfixes"
     depends_on "libxi"
     depends_on "libxinerama"
@@ -72,139 +90,41 @@ class @PROJECT_NAME@ < Formula
     depends_on "libxtst"
     depends_on "mesa"
     depends_on "numactl"
+    depends_on "pango"
+    depends_on "pipewire"
     depends_on "pulseaudio"
     depends_on "systemd"
     depends_on "wayland"
-
-    # resources that do not have brew packages
-    resource "libayatana-appindicator" do
-      url "https://github.com/AyatanaIndicators/libayatana-appindicator/archive/refs/tags/0.5.94.tar.gz"
-      sha256 "884a6bc77994c0b58c961613ca4c4b974dc91aa0f804e70e92f38a542d0d0f90"
-    end
-
-    resource "libdbusmenu" do
-      url "https://launchpad.net/libdbusmenu/16.04/16.04.0/+download/libdbusmenu-16.04.0.tar.gz"
-      sha256 "b9cc4a2acd74509435892823607d966d424bd9ad5d0b00938f27240a1bfa878a"
-
-      patch 'From 729546c51806a1b3ea6cb6efb7a115b1baa811f1 Mon Sep 17 00:00:00 2001
-From: =?UTF-8?q?Stefan=20Br=C3=BCns?= <stefan.bruens@rwth-aachen.de>
-Date: Mon, 18 Nov 2019 19:58:53 +0100
-Subject: [PATCH 1/1] Fix HAVE_VALGRIND AM_CONDITIONAL
-
-The AM_CONDITIONAL should also be run with --disable-tests, otherwise
-HAVE_VALGRIND is undefined.
----
- configure    | 4 ++--
- configure.ac | 2 +-
- 2 files changed, 3 insertions(+), 3 deletions(-)
-
-diff --git a/configure b/configure
-index 831a3bb..8913b9b 100644
---- a/configure
-+++ b/configure
-@@ -14801,6 +14801,8 @@ else
-         { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
- $as_echo "yes" >&6; }
- 	have_valgrind=yes
-+fi
-+
- fi
-  if test "x$have_valgrind" = "xyes"; then
-   HAVE_VALGRIND_TRUE=
-@@ -14811,8 +14813,6 @@ else
- fi
-
-
--fi
--
-
-
-
-diff --git a/configure.ac b/configure.ac
-index ace54d1..cbd38a6 100644
---- a/configure.ac
-+++ b/configure.ac
-@@ -120,8 +120,8 @@ PKG_CHECK_MODULES(DBUSMENUTESTS,  json-glib-1.0 >= $JSON_GLIB_REQUIRED_VERSION
-                                   [have_tests=yes]
- )
- PKG_CHECK_MODULES(DBUSMENUTESTSVALGRIND, valgrind, have_valgrind=yes, have_valgrind=no)
--AM_CONDITIONAL([HAVE_VALGRIND], [test "x$have_valgrind" = "xyes"])
- ])
-+AM_CONDITIONAL([HAVE_VALGRIND], [test "x$have_valgrind" = "xyes"])
-
- AC_SUBST(DBUSMENUTESTS_CFLAGS)
- AC_SUBST(DBUSMENUTESTS_LIBS)
---
-2.46.2
-
-
-'
-    end
-
-    resource "ayatana-ido" do
-      url "https://github.com/AyatanaIndicators/ayatana-ido/archive/refs/tags/0.10.4.tar.gz"
-      sha256 "bd59abd5f1314e411d0d55ce3643e91cef633271f58126be529de5fb71c5ab38"
-
-      patch 'From 8a09e6ad33c58c017c0c8fd756da036fc39428ea Mon Sep 17 00:00:00 2001
-From: Alexander Koskovich <akoskovich@pm.me>
-Date: Sun, 29 Sep 2024 13:47:54 -0400
-Subject: [PATCH 1/1] Make introspection configurable
-
----
- CMakeLists.txt     | 1 +
- src/CMakeLists.txt | 4 ++++
- 2 files changed, 5 insertions(+)
-
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 0e13fcd..f3e9ec0 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -12,6 +12,7 @@ endif(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
- option(ENABLE_TESTS "Enable all tests and checks" OFF)
- option(ENABLE_COVERAGE "Enable coverage reports (includes enabling all tests and checks)" OFF)
- option(ENABLE_WERROR "Treat all build warnings as errors" OFF)
-+option(ENABLE_INTROSPECTION "Enable introspection" ON)
-
- if(ENABLE_COVERAGE)
-     set(ENABLE_TESTS ON)
-diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
-index 5b3638d..aca9481 100644
---- a/src/CMakeLists.txt
-+++ b/src/CMakeLists.txt
-@@ -108,6 +108,8 @@ install(TARGETS "ayatana-ido3-0.4" LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIB
-
- # AyatanaIdo3-0.4.gir
-
-+if (ENABLE_INTROSPECTION)
-+
- find_package(GObjectIntrospection REQUIRED QUIET)
-
- if (INTROSPECTION_FOUND)
-@@ -183,3 +185,5 @@ if (INTROSPECTION_FOUND)
-     endif ()
-
- endif ()
-+
-+endif ()
---
-2.46.2
-
-
-'
-    end
-
-    resource "libayatana-indicator" do
-      url "https://github.com/AyatanaIndicators/libayatana-indicator/archive/refs/tags/0.9.4.tar.gz"
-      sha256 "a18d3c682e29afd77db24366f8475b26bda22b0e16ff569a2ec71cd6eb4eac95"
-    end
   end
 
-  def install
+  conflicts_with "sunshine-beta", because: "sunshine and sunshine-beta cannot be installed at the same time"
+  fails_with :clang do
+    build 1400
+    cause "Requires C++23 support"
+  end
+
+  fails_with :gcc do
+    version "12" # fails with GCC 12.x and earlier
+    cause "Requires C++23 support"
+  end
+
+  def setup_build_environment
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
 
-    args = %W[
+    setup_linux_gcc_environment if OS.linux?
+  end
+
+  def setup_linux_gcc_environment
+    # Use GCC because gcov from llvm cannot handle our paths
+    gcc_path = Formula[GCC_FORMULA]
+    ENV["CC"] = "#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+    ENV["CXX"] = "#{gcc_path.opt_bin}/g++-#{GCC_VERSION}"
+  end
+
+  def base_cmake_args
+    %W[
       -DBUILD_WERROR=ON
       -DCMAKE_CXX_STANDARD=23
       -DCMAKE_INSTALL_PREFIX=#{prefix}
@@ -216,7 +136,19 @@ index 5b3638d..aca9481 100644
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+  end
 
+  def add_test_args(args)
+    if IS_UPSTREAM_REPO
+      args << "-DBUILD_TESTS=ON"
+      ohai "Building tests: enabled"
+    else
+      args << "-DBUILD_TESTS=OFF"
+      ohai "Building tests: disabled"
+    end
+  end
+
+  def add_docs_args(args)
     if build.with? "docs"
       ohai "Building docs: enabled"
       args << "-DBUILD_DOCS=ON"
@@ -224,95 +156,87 @@ index 5b3638d..aca9481 100644
       ohai "Building docs: disabled"
       args << "-DBUILD_DOCS=OFF"
     end
+  end
 
+  def add_boost_args(args)
     if build.without? "static-boost"
       args << "-DBOOST_USE_STATIC=OFF"
       ohai "Disabled statically linking Boost libraries"
     else
-      args << "-DBOOST_USE_STATIC=ON"
-      ohai "Enabled statically linking Boost libraries"
-
-      unless Formula["icu4c"].any_version_installed?
-        odie <<~EOS
-          icu4c must be installed to link against static Boost libraries,
-          either install icu4c or use brew install sunshine --with-static-boost instead
-        EOS
-      end
-      ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-      icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
-      ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
-      ENV["LIBRARY_PATH"] = icu4c_lib_path
-      ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
+      configure_static_boost(args)
     end
+  end
 
-    args << "-DCUDA_FAIL_ON_MISSING=OFF" if OS.linux?
-    args << "-DSUNSHINE_ENABLE_TRAY=OFF" if OS.mac?
+  def configure_static_boost(args)
+    args << "-DBOOST_USE_STATIC=ON"
+    ohai "Enabled statically linking Boost libraries"
 
-    # Handle system tray on Linux
-    if OS.linux?
-      # Build and install libayatana components
-
-      # Build libdbusmenu
-      resource("libdbusmenu").stage do
-        system "./configure",
-               "--prefix=#{prefix}",
-               "--with-gtk=3",
-               "--disable-dumper",
-               "--disable-static",
-               "--disable-tests",
-               "--disable-gtk-doc",
-               "--enable-introspection=no",
-               "--disable-vala"
-        system "make", "install"
-      end
-
-      # Build ayatana-ido
-      resource("ayatana-ido").stage do
-        system "cmake", "-S", ".", "-B", "build", "-G", "Ninja",
-               "-DCMAKE_INSTALL_PREFIX=#{prefix}",
-               "-DENABLE_INTROSPECTION=OFF",
-               *std_cmake_args
-        system "ninja", "-C", "build"
-        system "ninja", "-C", "build", "install"
-      end
-
-      # Build libayatana-indicator
-      resource("libayatana-indicator").stage do
-        ENV.append_path "PKG_CONFIG_PATH", "#{lib}/pkgconfig"
-        ENV.append "LDFLAGS", "-L#{lib}"
-
-        system "cmake", "-S", ".", "-B", "build", "-G", "Ninja",
-               "-DCMAKE_INSTALL_PREFIX=#{prefix}",
-               *std_cmake_args
-        system "ninja", "-C", "build"
-        system "ninja", "-C", "build", "install"
-      end
-
-      # Build libayatana-appindicator
-      resource("libayatana-appindicator").stage do
-        system "cmake", "-S", ".", "-B", "build", "-G", "Ninja",
-               "-DCMAKE_INSTALL_PREFIX=#{prefix}",
-               "-DENABLE_BINDINGS_MONO=OFF",
-               "-DENABLE_BINDINGS_VALA=OFF",
-               "-DENABLE_GTKDOC=OFF",
-               *std_cmake_args
-        system "ninja", "-C", "build"
-        system "ninja", "-C", "build", "install"
-      end
+    unless Formula["icu4c"].any_version_installed?
+      odie <<~EOS
+        icu4c must be installed to link against static Boost libraries,
+        either install icu4c or use brew install sunshine --with-static-boost instead
+      EOS
     end
+    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
+    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
+    ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
+    ENV["LIBRARY_PATH"] = icu4c_lib_path
+    ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
+  end
 
+  def add_cuda_args(args)
+    return unless OS.linux?
+
+    if build.with?(CUDA_FORMULA)
+      configure_cuda(args)
+    else
+      args << "-DSUNSHINE_ENABLE_CUDA=OFF"
+      ohai "CUDA disabled"
+    end
+  end
+
+  def configure_cuda(args)
+    cuda_path = Formula["lizardbyte/homebrew/#{CUDA_FORMULA}"]
+    nvcc_path = "#{cuda_path.opt_bin}/nvcc"
+    gcc_path = Formula[GCC_FORMULA]
+
+    args << "-DSUNSHINE_ENABLE_CUDA=ON"
+    args << "-DCMAKE_CUDA_COMPILER:PATH=#{nvcc_path}"
+    args << "-DCMAKE_CUDA_HOST_COMPILER=#{gcc_path.opt_bin}/gcc-#{GCC_VERSION}"
+    ohai "CUDA enabled with nvcc at: #{nvcc_path}"
+  end
+
+  def build_cmake_args
+    args = base_cmake_args
+    add_test_args(args)
+    add_docs_args(args)
+    add_boost_args(args)
+    add_cuda_args(args)
+    args
+  end
+
+  def build_and_install_project
     system "cmake", "-S", ".", "-B", "build", "-G", "Unix Makefiles",
             *std_cmake_args,
-            *args
+            *build_cmake_args
 
     system "make", "-C", "build"
     system "make", "-C", "build", "install"
-    bin.install "build/tests/test_sunshine"
+  end
+
+  def install_platform_specific_files
+    bin.install "build/tests/test_sunshine" if IS_UPSTREAM_REPO
 
     # codesign the binary on intel macs
     system "codesign", "-s", "-", "--force", "--deep", bin/"sunshine" if OS.mac? && Hardware::CPU.intel?
 
     bin.install "src_assets/linux/misc/postinst" if OS.linux?
+  end
+
+  def install
+    setup_build_environment
+    build_and_install_project
+    install_platform_specific_files
   end
 
   service do
@@ -350,8 +274,34 @@ index 5b3638d..aca9481 100644
     # test that the binary runs at all
     system bin/"sunshine", "--version"
 
-    # run the test suite
-    system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:test_results.xml"
-    assert_path_exists testpath/"test_results.xml"
+    if IS_UPSTREAM_REPO && ENV.fetch("HOMEBREW_BOTTLE_BUILD", "false") != "true"
+      # run the test suite
+      system bin/"test_sunshine", "--gtest_color=yes", "--gtest_output=xml:tests/test_results.xml"
+      assert_path_exists File.join(testpath, "tests", "test_results.xml")
+
+      # create gcovr report
+      buildpath = ENV.fetch("HOMEBREW_BUILDPATH", "")
+      unless buildpath.empty?
+        # Change to the source directory for gcovr to work properly
+        cd "#{buildpath}/build" do
+          # Use GCC version to match what was used during compilation
+          if OS.linux?
+            gcc_path = Formula[GCC_FORMULA]
+            gcov_executable = "#{gcc_path.opt_bin}/gcov-#{GCC_VERSION}"
+
+            system "gcovr", ".",
+              "-r", "../src",
+              "--gcov-executable", gcov_executable,
+              "--exclude-noncode-lines",
+              "--exclude-throw-branches",
+              "--exclude-unreachable-branches",
+              "--xml-pretty",
+              "-o=#{testpath}/coverage.xml"
+
+            assert_path_exists File.join(testpath, "coverage.xml")
+          end
+        end
+      end
+    end
   end
 end

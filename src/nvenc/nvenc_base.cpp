@@ -5,6 +5,9 @@
 // this include
 #include "nvenc_base.h"
 
+// standard includes
+#include <format>
+
 // local includes
 #include "src/config.h"
 #include "src/logging.h"
@@ -131,7 +134,7 @@ namespace nvenc {
     };
 
     std::vector<GUID> encode_guids(encode_guid_count);
-    if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(encoder, encode_guids.data(), encode_guids.size(), &encode_guid_count))) {
+    if (nvenc_failed(nvenc->nvEncGetEncodeGUIDs(encoder, encode_guids.data(), (uint32_t) encode_guids.size(), &encode_guid_count))) {
       BOOST_LOG(error) << "NvEnc: NvEncGetEncodeGUIDs() failed: " << last_nvenc_error_string;
       return false;
     }
@@ -222,6 +225,11 @@ namespace nvenc {
     init_params.darHeight = encoder_params.height;
     init_params.frameRateNum = client_config.framerate;
     init_params.frameRateDen = 1;
+    if (client_config.framerateX100 > 0) {
+      AVRational fps = video::framerateX100_to_rational(client_config.framerateX100);
+      init_params.frameRateNum = fps.num;
+      init_params.frameRateDen = fps.den;
+    }
 
     NV_ENC_PRESET_CONFIG preset_config = {min_struct_version(NV_ENC_PRESET_CONFIG_VER), {min_struct_version(NV_ENC_CONFIG_VER, 7, 8)}};
     if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
@@ -296,6 +304,9 @@ namespace nvenc {
       vui_config.chromaSampleLocationFlag = buffer_is_yuv444() ? 0 : 1;
       vui_config.chromaSampleLocationTop = 0;
       vui_config.chromaSampleLocationBot = 0;
+
+      // This is critical for low decoding latency on certain devices
+      vui_config.bitstreamRestrictionFlag = 1;
     };
 
     switch (client_config.videoFormat) {
@@ -427,7 +438,7 @@ namespace nvenc {
         extra += " two-pass";
       }
       if (config.vbv_percentage_increase > 0 && get_encoder_cap(NV_ENC_CAPS_SUPPORT_CUSTOM_VBV_BUF_SIZE)) {
-        extra += " vbv+" + std::to_string(config.vbv_percentage_increase);
+        extra += std::format(" vbv+{}", config.vbv_percentage_increase);
       }
       if (encoder_params.rfi) {
         extra += " rfi";
@@ -439,7 +450,7 @@ namespace nvenc {
         extra += " spatial-aq";
       }
       if (enc_config.rcParams.enableMinQP) {
-        extra += " qpmin=" + std::to_string(enc_config.rcParams.minQP.qpInterP);
+        extra += std::format(" qpmin={}", enc_config.rcParams.minQP.qpInterP);
       }
       if (config.insert_filler_data) {
         extra += " filler-data";

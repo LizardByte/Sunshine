@@ -8,31 +8,56 @@ and release artifacts may be missing when merging changes on a faster cadence.
 
 ## Binaries
 
-Binaries of Sunshine are created for each release. They are available for Linux, macOS, and Windows.
+Binaries of Sunshine are created for each release. They are available for FreeBSD, Linux, macOS, and Windows.
 Binaries can be found in the [latest release][latest-release].
 
-@tip{Some third party packages also exist.
-See [Third Party Packages](third_party_packages.md) for more information.
-No support will be provided for third party packages!}
+> [!NOTE]
+> Some third party packages also exist.
+> See [Third Party Packages](third_party_packages.md) for more information.
+> No support will be provided for third party packages!
 
 ## Install
 
 ### Docker
-@warning{The Docker images are not recommended for most users.}
+
+> [!WARNING]
+> The Docker images are not recommended for most users.
 
 Docker images are available on [Dockerhub.io](https://hub.docker.com/repository/docker/lizardbyte/sunshine)
 and [ghcr.io](https://github.com/orgs/LizardByte/packages?repo_name=sunshine).
 
 See [Docker](../DOCKER_README.md) for more information.
 
+### FreeBSD
+
+#### Install
+1. Download the appropriate package for your architecture
+
+   | Architecture  | Package                                                                                                                                |
+   |---------------|----------------------------------------------------------------------------------------------------------------------------------------|
+   | amd64/x86_64  | [Sunshine-FreeBSD-14.3-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
+   | arm64/aarch64 | [Sunshine-FreeBSD-14.3-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
+
+2. Open terminal and run the following command.
+   ```sh
+   sudo pkg install ./Sunshine-FreeBSD-14.3-{arch}.pkg
+   ```
+
+#### Uninstall
+```sh
+sudo pkg delete Sunshine
+```
+
 ### Linux
+
 **CUDA Compatibility**
 
 CUDA is used for NVFBC capture.
 
-@tip{See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
-The table below applies to packages provided by LizardByte. If you use an official LizardByte package then you do not
-need to install CUDA.}
+> [!NOTE]
+> See [CUDA GPUS](https://developer.nvidia.com/cuda-gpus) to cross-reference Compute Capability to your GPU.
+> The table below applies to packages provided by LizardByte. If you use an official LizardByte package, then you do not
+> need to install CUDA.
 
 <table>
     <caption>CUDA Compatibility</caption>
@@ -43,9 +68,9 @@ need to install CUDA.}
         <th>Package</th>
     </tr>
     <tr>
-        <td rowspan="3">11.8.0</td>
-        <td rowspan="3">450.80.02</td>
-        <td rowspan="3">35;50;52;60;61;62;70;72;75;80;86;87;89;90</td>
+        <td rowspan="8">12.9.1</td>
+        <td rowspan="8">575.57.08</td>
+        <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
         <td>sunshine.AppImage</td>
     </tr>
     <tr>
@@ -55,47 +80,30 @@ need to install CUDA.}
         <td>sunshine-ubuntu-24.04-{arch}.deb</td>
     </tr>
     <tr>
-        <td rowspan="1">12.0.0</td>
-        <td rowspan="1">525.60.13</td>
-        <td rowspan="5">50;52;60;61;62;70;72;75;80;86;87;89;90</td>
-        <td>sunshine-debian-bookworm-{arch}.deb</td>
+        <td>sunshine-debian-trixie-{arch}.deb</td>
     </tr>
     <tr>
-        <td rowspan="2">12.6.2</td>
-        <td rowspan="2">560.35.03</td>
         <td>sunshine_{arch}.flatpak</td>
     </tr>
     <tr>
-        <td>Sunshine (copr - Fedora 41)</td>
+        <td>Sunshine (copr - Fedora)</td>
     </tr>
     <tr>
-        <td rowspan="1">12.8.1</td>
-        <td rowspan="1">570.124.06</td>
-        <td>Sunshine (copr - Fedora 42)</td>
+        <td>Sunshine (copr - OpenSUSE)</td>
     </tr>
     <tr>
-        <td rowspan="1">12.9.1</td>
-        <td rowspan="1">575.57.08</td>
         <td>sunshine.pkg.tar.zst</td>
     </tr>
 </table>
 
 #### AppImage
-@caution{Use distro-specific packages instead of the AppImage if they are available.}
 
-According to AppImageLint the supported distro matrix of the AppImage is below.
+> [!CAUTION]
+> Use distro-specific packages instead of the AppImage if they are available.
+> AppImage does not support KMS capture.
 
-- ✖ Debian bullseye
-- ✔ Debian bookworm
-- ✔ Debian trixie
-- ✔ Debian sid
-- ✔ Ubuntu noble
-- ✔ Ubuntu jammy
-- ✖ Ubuntu focal
-- ✖ Ubuntu bionic
-- ✖ Ubuntu xenial
-- ✖ Ubuntu trusty
-- ✖ CentOS 7
+> [!NOTE]
+> The AppImage is built on Ubuntu 22.04, which requires `glibc 2.35` or newer and `libstdc++ 3.4.11` or newer.
 
 ##### Install
 1. Download [sunshine.AppImage](https://github.com/LizardByte/Sunshine/releases/latest/download/sunshine.AppImage)
@@ -120,7 +128,9 @@ According to AppImageLint the supported distro matrix of the AppImage is below.
 ```
 
 #### ArchLinux
-@warning{We do not provide support for any AUR packages.}
+
+> [!CAUTION]
+> Use AUR packages at your own risk.
 
 ##### Install Prebuilt Packages
 Follow the instructions at LizardByte's [pacman-repo](https://github.com/LizardByte/pacman-repo) to add
@@ -149,26 +159,55 @@ pacman -R sunshine
 ```
 
 #### Debian/Ubuntu
+
 ##### Install
 Download `sunshine-{distro}-{distro-version}-{arch}.deb` and run the following command.
 ```bash
 sudo dpkg -i ./sunshine-{distro}-{distro-version}-{arch}.deb
 ```
 
-@note{The `{distro-version}` is the version of the distro we built the package on. The `{arch}` is the
-architecture of your operating system.}
+> [!NOTE]
+> The `{distro-version}` is the version of the distro we built the package on. The `{arch}` is the
+> architecture of your operating system.
 
-@tip{You can double-click the deb file to see details about the package and begin installation.}
+> [!TIP]
+> You can double-click the deb file to see details about the package and begin installation.
 
 ##### Uninstall
 ```bash
 sudo apt remove sunshine
 ```
 
-#### Fedora
-@tip{The package name is case-sensitive.}
+#### Fedora/OpenSUSE
 
-##### Install
+> [!TIP]
+> The package name is case-sensitive.
+
+##### Install (GitHub releases)
+Download `Sunshine-{version}.{distro+version}.{arch}.rpm` and run the following command.
+```bash
+sudo dnf install ./Sunshine-{version}.{distro}.{arch}.rpm
+```
+
+> [!NOTE]
+> The `{distro+version}` is the distro and distro version of the distro we built the package on. The `{arch}` is the
+> architecture of your operating system.
+
+> [!TIP]
+> You can double-click the rpm file to see details about the package and begin installation.
+
+##### Uninstall
+```bash
+sudo dnf remove sunshine
+```
+
+##### Install (Copr)
+
+> [!IMPORTANT]
+> Stable builds are only available if the Sunshine release was made after the Fedora version release.
+> Because of this, it is often recommended to use the beta copr; however, you do not need to regularly update.
+> This could lead to annoyances in rare cases where there may be a breaking change.
+
 1. Enable copr repository.
    ```bash
    sudo dnf copr enable lizardbyte/stable
@@ -190,13 +229,18 @@ sudo dnf remove Sunshine
 ```
 
 #### Flatpak
-@caution{Use distro-specific packages instead of the Flatpak if they are available.}
+
+> [!CAUTION]
+> Use distro-specific packages instead of the Flatpak if they are available.
+> Flatpak does not support KMS capture.
 
 Using this package requires that you have [Flatpak](https://flatpak.org/setup) installed.
 
 ##### Download (local option)
 1. Download `sunshine_{arch}.flatpak` and run the following command.
-   @note{Replace `{arch}` with your system architecture.}
+
+   > [!NOTE]
+   > Replace `{arch}` with your system architecture.
 
 ##### Install (system level)
 **Flathub**
@@ -225,14 +269,9 @@ flatpak install --user ./sunshine_{arch}.flatpak
 flatpak run --command=additional-install.sh dev.lizardbyte.app.Sunshine
 ```
 
-##### Run with NVFBC capture (X11 Only)
+##### Run with NVFBC capture (X11 Only) or XDG Portal (Wayland Only)
 ```bash
 flatpak run dev.lizardbyte.app.Sunshine
-```
-
-##### Run with KMS capture (Wayland & X11)
-```bash
-sudo -i PULSE_SERVER=unix:/run/user/$(id -u $whoami)/pulse/native flatpak run dev.lizardbyte.app.Sunshine
 ```
 
 ##### Uninstall
@@ -242,7 +281,9 @@ flatpak uninstall --delete-data dev.lizardbyte.app.Sunshine
 ```
 
 #### Homebrew
-@important{The Homebrew package is experimental on Linux.}
+
+> [!IMPORTANT]
+> The Homebrew package is experimental on Linux.
 
 This package requires that you have [Homebrew](https://docs.brew.sh/Installation) installed.
 
@@ -259,15 +300,40 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
+> [!TIP]
+> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
+
 ### macOS
 
-@important{Sunshine on macOS is experimental. Gamepads do not work.}
+> [!IMPORTANT]
+> Sunshine on macOS is experimental. Gamepads do not work.
+
+#### DMG
+
+##### Install
+
+1. Download and install based on your architecture:
+
+   | Architecture          | Package                                                                                                                |
+   |-----------------------|------------------------------------------------------------------------------------------------------------------------|
+   | arm64 (Apple Silicon) | [Sunshine-macOS-arm64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-arm64.dmg)   |
+   | x86_64 (Intel)        | [Sunshine-macOS-x86_64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-x86_64.dmg) |
+
+2. Open the downloaded `.dmg` file.
+3. Drag `Sunshine.app` into the `Applications` folder.
+4. Eject the disk image.
+
+##### Uninstall
+1. Quit Sunshine if it is running.
+2. Open `Finder`, navigate to `Applications`, and drag `Sunshine.app` to the Trash.
 
 #### Homebrew
 This package requires that you have [Homebrew](https://docs.brew.sh/Installation) installed.
 
 ##### Install
 ```bash
+brew update
+brew upgrade
 brew tap LizardByte/homebrew
 brew install sunshine
 ```
@@ -277,28 +343,57 @@ brew install sunshine
 brew uninstall sunshine
 ```
 
-@tip{For beta you can replace `sunshine` with `sunshine-beta` in the above commands.}
+> [!TIP]
+> For beta you can replace `sunshine` with `sunshine-beta` in the above commands.
 
 ### Windows
 
+> [!NOTE]
+> Sunshine supports ARM64 on Windows; however, this should be considered experimental. This version does not properly
+> support GPU scheduling and any hardware acceleration.
+
 #### Installer (recommended)
 
-1. Download and install
-   [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe)
+> [!CAUTION]
+> The msi installer is preferred moving forward. Before using a different type of installer, you should manually
+> uninstall the previous installation.
 
-@attention{You should carefully select or unselect the options you want to install. Do not blindly install or
-enable features.}
+1. Download and install based on your architecture:
+
+   | Architecture          | Installer                                                                                                                                    |
+   |-----------------------|----------------------------------------------------------------------------------------------------------------------------------------------|
+   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.msi) |
+   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-installer.exe) |
+   | ARM64                 | [Sunshine-Windows-ARM64-installer.msi](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.msi) |
+   | ARM64                 | [Sunshine-Windows-ARM64-installer.exe](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-installer.exe) |
+
+> [!TIP]
+> Installer logs can be found in the following locations.<br>
+> | File | log paths |
+> | ---- | --------- |
+> | .exe | `%%PROGRAMFILES%/Sunshine/install.log` (AMD64 only)<br>`%%TEMP%/Sunshine/logs/install/` |
+> | .msi | `%%TEMP%/Sunshine/logs/install/` |
+
+> [!CAUTION]
+> You should carefully select or unselect the options you want to install. Do not blindly install or
+> enable features.
 
 To uninstall, find Sunshine in the list <a href="ms-settings:installed-apps">here</a> and select "Uninstall" from the
 overflow menu. Different versions of Windows may provide slightly different steps for uninstall.
 
 #### Standalone (lite version)
 
-@warning{By using this package instead of the installer, performance will be reduced. This package is not
-recommended for most users. No support will be provided!}
+> [!WARNING]
+> By using this package instead of the installer, performance will be reduced. This package is not
+> recommended for most users. No support will be provided!
 
-1. Download and extract
-   [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip)
+1. Download and extract based on your architecture:
+
+   | Architecture          | Installer                                                                                                                                  |
+   |-----------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+   | AMD64/x64 (Intel/AMD) | [Sunshine-Windows-AMD64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-AMD64-portable.zip) |
+   | ARM64                 | [Sunshine-Windows-ARM64-portable.zip](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-Windows-ARM64-portable.zip) |
+
 2. Open command prompt as administrator
 3. Firewall rules
 
@@ -314,21 +409,7 @@ recommended for most users. No support will be provided!}
    scripts/delete-firewall-rule.bat
    ```
 
-4. Virtual Gamepad Support
-
-   Install:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/install-gamepad.bat
-   ```
-
-   Uninstall:
-   ```bash
-   cd /d {path to extracted directory}
-   scripts/uninstall-gamepad.bat
-   ```
-
-5. Windows service
+4. Windows service
 
    Install:
    ```bash
@@ -346,35 +427,39 @@ recommended for most users. No support will be provided!}
 ## Initial Setup
 After installation, some initial setup is required.
 
+### FreeBSD
+
+#### Virtual Input Devices
+
+> [!IMPORTANT]
+> To use virtual input devices (keyboard, mouse, gamepads), you must add your user to the `input` group.
+
+The installation process creates the `input` group and configures permissions for `/dev/uinput`.
+To allow your user to create virtual input devices, run:
+
+```bash
+pw groupmod input -m $USER
+```
+
+After adding yourself to the group, log out and log back in for the changes to take effect.
+
 ### Linux
 
-#### KMS Capture
-@warning{Capture of most Wayland-based desktop environments will fail unless this step is performed.}
-@note{`cap_sys_admin` may as well be root, except you don't need to be root to run the program. This is necessary to
-allow Sunshine to use KMS capture.}
+#### Services
 
-##### Enable
-```bash
-sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))
-```
-
-#### X11 Capture
-For X11 capture to work, you may need to disable the capabilities that were set for KMS capture.
-
-```bash
-sudo setcap -r $(readlink -f $(which sunshine))
-```
-
-#### Service
+> [!NOTE]
+> Two service unit files are available. Pick "app-dev.lizardbyte.app.Sunshine" for unprivileged XDG Portal
+> or X11 capture, otherwise pick "sunshine" for privileged KMS capture.
 
 **Start once**
 ```bash
 systemctl --user start sunshine
 ```
 
-**Start on boot**
+**Start on boot (privileged; swap names for unprivileged XDG capture)**
 ```bash
-systemctl --user enable sunshine
+systemctl --user --now disable app-dev.lizardbyte.app.Sunshine
+systemctl --user --now enable sunshine
 ```
 
 ### macOS
@@ -384,8 +469,18 @@ Sunshine can only access microphones on macOS due to system limitations. To stre
 [Soundflower](https://github.com/mattingalls/Soundflower) or
 [BlackHole](https://github.com/ExistentialAudio/BlackHole).
 
-@note{Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.}
-@caution{Gamepads are not currently supported.}
+> [!NOTE]
+> Command Keys are not forwarded by Moonlight. Right Option-Key is mapped to CMD-Key.
+
+> [!CAUTION]
+> Gamepads are not currently supported.
+
+### Windows
+In order for virtual gamepads to work, you must install ViGEmBus. You can do this from the troubleshooting tab
+in the web UI, as long as you are running Sunshine as a service or as an administrator. After installation, it is
+recommended to restart your computer.
+
+![ViGEmBus Installation](images/vigembus-installer.png)
 
 ## Usage
 
@@ -393,8 +488,9 @@ Sunshine can only access microphones on macOS due to system limitations. To stre
 If Sunshine is not installed/running as a service, then start Sunshine with the following command, unless a start
 command is listed in the specified package [install](#install) instructions above.
 
-@note{A service is a process that runs in the background. This is the default when installing Sunshine from the
-Windows installer. Running multiple instances of Sunshine is not advised.}
+> [!NOTE]
+> A service is a process that runs in the background. This is the default when installing Sunshine from the
+> Windows installer. Running multiple instances of Sunshine is not advised.
 
 ```bash
 sunshine
@@ -405,9 +501,10 @@ sunshine
 sunshine <directory of conf file>/sunshine.conf
 ```
 
-@note{You do not need to specify a config file. If no config file is entered the default location will be used.}
-
-@attention{The configuration file specified will be created if it doesn't exist.}
+> [!NOTE]
+> This step is optional, you do not need to specify a config file.
+> If no config file is entered, the default location will be used.
+> The configuration file specified will be created if it doesn't exist.
 
 ### Start Sunshine over SSH (Linux/X11)
 Assuming you are already logged into the host, you can use this command
@@ -424,9 +521,10 @@ be ready.
 ssh <user>@<ip_address> 'startx &; export DISPLAY=:0; sunshine'
 ```
 
-@tip{You could also utilize the `~/.bash_profile` or `~/.bashrc` files to set up the `DISPLAY` variable.}
+> [!TIP]
+> You could also use the `~/.bash_profile` or `~/.bashrc` files to set up the `DISPLAY` variable.
 
-@seealso{ See [Remote SSH Headless Setup](https://app.lizardbyte.dev/2023-09-14-remote-ssh-headless-sunshine-setup)
+@seealso{See [Remote SSH Headless Setup](https://app.lizardbyte.dev/2023-09-14-remote-ssh-headless-sunshine-setup)
 on how to set up a headless streaming server without autologin and dummy plugs (X11 + NVidia GPUs)}
 
 ### Configuration
@@ -434,34 +532,47 @@ on how to set up a headless streaming server without autologin and dummy plugs (
 Sunshine is configured via the web ui, which is available on [https://localhost:47990](https://localhost:47990)
 by default. You may replace *localhost* with your internal ip address.
 
-@attention{Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
-being self-signed.}
+> [!NOTE]
+> Ignore any warning given by your browser about "insecure website". This is due to the SSL certificate
+> being self-signed.
 
-@caution{If running for the first time, make sure to note the username and password that you created.}
+> [!CAUTION]
+> If running for the first time, make sure to note the username and password that you created.
 
-1. Add games and applications.
-2. Adjust any configuration settings as needed.
-3. In Moonlight, you may need to add the PC manually.
-4. When Moonlight requests for you insert the pin:
+1. Change the web-ui to your desired theme, using the dropdown menu in the navbar.
+   ![Theme Selection](images/split-themes.png)
+2. Add games and applications.
+   ![Applications](images/applications.png)
+3. Adjust any configuration settings as needed. You can search for options in the search bar.
+   ![Configuration](images/configuration-search.png)
+4. Find Moonlight clients and other tools for Sunshine in the `Featured Apps` tab.
+   ![Featured Apps](images/featured-apps.png)
+5. In Moonlight, you may need to add the PC manually.
+6. When Moonlight requests for you insert the pin:
 
-   - Login to the web ui
+   - Login to the web-ui
    - Go to "PIN" in the Navbar
-   - Type in your PIN and press Enter, you should get a Success Message
+   - Type in your PIN and press `Enter`, and enter a name of your choosing for the device.
+     You should get a Success Message!
    - In Moonlight, select one of the Applications listed
+
+7. If you run into issues, logs are available in the `Troubleshooting` tab.
+   You can navigate through each warning/error message for clues to the issue.
+   ![Logs](images/troubleshooting-logs.png)
 
 ### Arguments
 To get a list of available arguments, run the following command.
 
 @tabs{
-   @tab{ General | @code{.bash}
+   @tab{ General | ```bash
       sunshine --help
-      @endcode }
-   @tab{ AppImage | @code{.bash}
+      ```}
+   @tab{ AppImage | ```bash
       ./sunshine.AppImage --help
-      @endcode }
-   @tab{ Flatpak | @code{.bash}
+      ```}
+   @tab{ Flatpak | ```bash
       flatpak run --command=sunshine dev.lizardbyte.app.Sunshine --help
-      @endcode }
+      ```}
 }
 
 ### Shortcuts
@@ -495,7 +606,16 @@ All shortcuts start with `Ctrl+Alt+Shift`, just like Moonlight.
   instead it simply starts a stream. If you removed it and would like to get it back, just add a new application with
   the name "Desktop" and "desktop.png" as the image path.
 * For the Linux flatpak you must prepend commands with `flatpak-spawn --host`.
-* If inputs (mouse, keyboard, gamepads...) aren't working after connecting, add the user running sunshine to the `input` group.
+* If inputs (mouse, keyboard, gamepads...) aren't working after connecting:
+
+  * On FreeBSD/Linux, add the user running sunshine to the `input` group.
+
+* The FreeBSD version of Sunshine is missing some features that are present on Linux.
+  The following are known limitations.
+
+  * Only X11 and Wayland capture are supported
+  * DualSense/DS5 emulation is not available due to missing uhid features
+
 
 ### HDR Support
 Streaming HDR content is officially supported on Windows hosts and experimentally supported for Linux hosts.
@@ -513,24 +633,24 @@ Streaming HDR content is officially supported on Windows hosts and experimentall
   * Some GPUs video encoders can produce lower image quality or encoding performance when streaming in HDR compared
     to SDR.
 
-* Additional information:
+Additional information:
 
-  @tabs{
-    @tab{ Windows |
-    - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
-    - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
-    - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
-    }
-
-    @tab{ Linux |
-    - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
-    - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
-    - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
-
-    @seealso{[Arch wiki on HDR Support for Linux](https://wiki.archlinux.org/title/HDR_monitor_support) and
-    [Reddit Guide for HDR Support for AMD GPUs](https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux)}
-    }
+@tabs{
+  @tab{ Windows |
+  - HDR streaming is supported for Intel, AMD, and NVIDIA GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles.
+  - We recommend calibrating the display by streaming the Windows HDR Calibration app to your client device and saving an HDR calibration profile to use while streaming.
+  - Older games that use NVIDIA-specific NVAPI HDR rather than native Windows HDR support may not display properly in HDR.
   }
+
+@tab{ Linux |
+  - HDR streaming is supported for Intel and AMD GPUs that support encoding HEVC Main 10 or AV1 10-bit profiles using VAAPI.
+  - The KMS capture backend is required for HDR capture. Other capture methods, like NvFBC or X11, do not support HDR.
+  - You will need a desktop environment with a compositor that supports HDR rendering, such as Gamescope or KDE Plasma 6.
+
+  @seealso{[Arch wiki on HDR Support for Linux](https://wiki.archlinux.org/title/HDR_monitor_support) and
+  [Reddit Guide for HDR Support for AMD GPUs](https://www.reddit.com/r/linux_gaming/comments/10m2gyx/guide_alpha_test_hdr_on_linux)}
+  }
+}
 
 ### Tutorials and Guides
 Tutorial videos are available [here](https://www.youtube.com/playlist?list=PLMYr5_xSeuXAbhxYHz86hA1eCDugoxXY0).

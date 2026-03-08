@@ -1,7 +1,6 @@
 ---
 name: CI-Linux
-permissions:
-  contents: read
+permissions: {}
 
 on:
   workflow_call:
@@ -18,6 +17,9 @@ jobs:
     name: ${{ matrix.name }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      VERSION: ${{ inputs.release_version }}
+    permissions:
+      contents: read
     runs-on: ubuntu-${{ matrix.dist }}
     strategy:
       fail-fast: false
@@ -27,18 +29,14 @@ jobs:
             EXTRA_ARGS: '--appimage-build'
             dist: 22.04
     steps:
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@v10
+      - name: More space
+        uses: LizardByte/actions/actions/more_space@70bb8d394d1c92f6113aeec6ae9cc959a5763d15  # v2026.227.200013
         with:
-          root-reserve-mb: 30720
-          remove-dotnet: 'true'
-          remove-android: 'true'
-          remove-haskell: 'true'
-          remove-codeql: 'true'
-          remove-docker-images: 'true'
+          analyze-space-savings: true
+          clean-all: true
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: recursive
 
@@ -62,9 +60,9 @@ jobs:
 
       - name: Setup python
         id: python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Build latest libva
         env:
@@ -79,8 +77,8 @@ jobs:
             --enable-x11 \
             --enable-glx \
             --enable-wayland \
-            --without-legacy  # emgd, nvctrl, fglrx
-          make -j $(nproc)
+            --without-legacy
+          make -j "$(nproc)"
           sudo make install
           cd .. && rm -rf libva-*
 
@@ -91,19 +89,15 @@ jobs:
           COMMIT: ${{ inputs.release_commit }}
         run: |
           chmod +x ./scripts/linux_build.sh
+          echo "::add-matcher::.github/matchers/gcc.json"
           ./scripts/linux_build.sh \
-            --publisher-name='${{ github.repository_owner }}' \
-            --publisher-website='https://app.lizardbyte.dev' \
-            --publisher-issue-url='https://app.lizardbyte.dev/support' \
+            --publisher-name="${GITHUB_REPOSITORY_OWNER}" \
+            --publisher-website="https://app.lizardbyte.dev" \
+            --publisher-issue-url="https://app.lizardbyte.dev/support" \
             --skip-cleanup \
             --skip-package \
             --ubuntu-test-repo ${{ matrix.EXTRA_ARGS }}
-
-      - name: Set AppImage Version
-        if: matrix.name == 'AppImage'
-        run: |
-          version=${{ inputs.release_version }}
-          echo "VERSION=${version}" >> $GITHUB_ENV
+          echo "::remove-matcher owner=gcc::"
 
       - name: Package Linux - AppImage
         if: matrix.name == 'AppImage'
@@ -187,8 +181,8 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          ${{ steps.python.outputs.python-path }} -m pip install gcovr
-          ${{ steps.python.outputs.python-path }} -m gcovr . -r ../src \
+          ${{ steps.python.outputs.python-path }} -m pip install "../scripts[test]"
+          ${{ steps.python.outputs.python-path }} -m gcovr --gcov-executable "gcov-${GCC_VERSION}" . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
@@ -200,7 +194,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: coverage-Linux-${{ matrix.name }}
           path: |
@@ -209,7 +203,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
         with:
           name: build-Linux-${{ matrix.name }}
           path: artifacts/

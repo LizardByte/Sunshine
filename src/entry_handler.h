@@ -14,19 +14,13 @@
 
 /**
  * @brief Launch the Web UI.
+ * @param path Optional path to append to the base URL.
  * @examples
  * launch_ui();
+ * launch_ui("/pin");
  * @examples_end
  */
-void launch_ui();
-
-/**
- * @brief Launch the Web UI at a specific endpoint.
- * @examples
- * launch_ui_with_path("/pin");
- * @examples_end
- */
-void launch_ui_with_path(std::string path);
+void launch_ui(const std::optional<std::string> &path = std::nullopt);
 
 /**
  * @brief Functions for handling command line arguments.

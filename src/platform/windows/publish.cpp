@@ -3,12 +3,12 @@
  * @brief Definitions for Windows mDNS service registration.
  */
 // platform includes
-// winsock2.h must be included before windows.h
+// WinSock2.h must be included before Windows.h
 // clang-format off
-#include <winsock2.h>
-#include <windows.h>
+#include <WinSock2.h>
+#include <Windows.h>
 // clang-format on
-#include <windns.h>
+#include <WinDNS.h>
 #include <winerror.h>
 
 // local includes
@@ -19,6 +19,7 @@
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
 #include "src/thread_safe.h"
+#include "utf_utils.h"
 
 #define _FN(x, ret, args) \
   typedef ret(*x##_fn) args; \
@@ -36,9 +37,8 @@ extern "C" {
   constexpr auto DNS_QUERY_RESULTS_VERSION1 = 0x1;
 #endif
 
-#define SERVICE_DOMAIN "local"
-
-  constexpr auto SERVICE_TYPE_DOMAIN = SV(SERVICE_TYPE "." SERVICE_DOMAIN);
+  constexpr auto SERVICE_DOMAIN = "local";
+  const auto SERVICE_TYPE_DOMAIN = std::format("{}.{}"sv, platf::SERVICE_TYPE, SERVICE_DOMAIN);
 
 #ifndef __MINGW32__
   typedef struct _DNS_SERVICE_INSTANCE {
@@ -106,11 +106,11 @@ namespace platf::publish {
   static int service(bool enable, PDNS_SERVICE_INSTANCE &existing_instance) {
     auto alarm = safe::make_alarm<PDNS_SERVICE_INSTANCE>();
 
-    std::wstring domain {SERVICE_TYPE_DOMAIN.data(), SERVICE_TYPE_DOMAIN.size()};
+    std::wstring domain = utf_utils::from_utf8(SERVICE_TYPE_DOMAIN);
 
     auto hostname = platf::get_host_name();
-    auto name = from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
-    auto host = from_utf8(hostname + ".local");
+    auto name = utf_utils::from_utf8(net::mdns_instance_name(hostname) + '.') + domain;
+    auto host = utf_utils::from_utf8(hostname + ".local");
 
     DNS_SERVICE_INSTANCE instance {};
     instance.pszInstanceName = name.data();

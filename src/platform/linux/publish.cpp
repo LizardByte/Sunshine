@@ -345,7 +345,7 @@ namespace platf::publish {
         avahi::PROTO_UNSPEC,
         avahi::PublishFlags(0),
         name.get(),
-        SERVICE_TYPE,
+        platf::SERVICE_TYPE,
         nullptr,
         nullptr,
         net::map_port(nvhttp::PORT_HTTP),
@@ -366,7 +366,7 @@ namespace platf::publish {
           return;
         }
 
-        BOOST_LOG(error) << "Failed to add "sv << SERVICE_TYPE << " service: "sv << avahi::strerror(ret);
+        BOOST_LOG(error) << "Failed to add "sv << platf::SERVICE_TYPE << " service: "sv << avahi::strerror(ret);
         return;
       }
 
@@ -422,6 +422,8 @@ namespace platf::publish {
     if (avahi::init_client()) {
       return nullptr;
     }
+
+    platf::set_thread_name("publish::avahi");
 
     int avhi_error;
 

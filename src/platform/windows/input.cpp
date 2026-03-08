@@ -5,11 +5,12 @@
 #define WINVER 0x0A00
 
 // platform includes
-#include <windows.h>
+#include <Windows.h>
 
 // standard includes
 #include <cmath>
 #include <thread>
+#include <vector>
 
 // lib includes
 #include <ViGEm/Client.h>
@@ -21,13 +22,6 @@
 #include "src/globals.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-
-#ifdef __MINGW32__
-DECLARE_HANDLE(HSYNTHETICPOINTERDEVICE);
-WINUSERAPI HSYNTHETICPOINTERDEVICE WINAPI CreateSyntheticPointerDevice(POINTER_INPUT_TYPE pointerType, ULONG maxCount, POINTER_FEEDBACK_MODE mode);
-WINUSERAPI BOOL WINAPI InjectSyntheticPointerInput(HSYNTHETICPOINTERDEVICE device, CONST POINTER_TYPE_INFO *pointerInfo, UINT32 count);
-WINUSERAPI VOID WINAPI DestroySyntheticPointerDevice(HSYNTHETICPOINTERDEVICE device);
-#endif
 
 namespace platf {
   using namespace std::literals;
@@ -144,7 +138,9 @@ namespace platf {
     auto &report = gamepad.report.ds4.Report;
 
     // Use int32 to process this data, so we can clamp if needed.
-    int32_t intX, intY, intZ;
+    int32_t intX;
+    int32_t intY;
+    int32_t intZ;
 
     switch (motion_type) {
       case LI_MOTION_TYPE_ACCEL:
@@ -293,7 +289,7 @@ namespace platf {
 
       if (gamepad.repeat_task) {
         task_pool.cancel(gamepad.repeat_task);
-        gamepad.repeat_task = 0;
+        gamepad.repeat_task = nullptr;
       }
 
       if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
@@ -1141,9 +1137,9 @@ namespace platf {
 
   void unicode(input_t &input, char *utf8, int size) {
     // We can do no worse than one UTF-16 character per byte of UTF-8
-    WCHAR wide[size];
+    std::vector<WCHAR> wide(size);
 
-    int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, size, wide, size);
+    int chars = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, utf8, size, wide.data(), size);
     if (chars <= 0) {
       return;
     }
@@ -1452,7 +1448,7 @@ namespace platf {
     // Cancel any pending updates. We will requeue one here when we're finished.
     if (gamepad.repeat_task) {
       task_pool.cancel(gamepad.repeat_task);
-      gamepad.repeat_task = 0;
+      gamepad.repeat_task = nullptr;
     }
 
     if (gamepad.gp && vigem_target_is_attached(gamepad.gp.get())) {
@@ -1598,8 +1594,8 @@ namespace platf {
     uint16_t y = touch.y * 943;
     uint8_t touchData[] = {
       (uint8_t) (x & 0xFF),  // Low 8 bits of X
-      (uint8_t) (((x >> 8) & 0x0F) | ((y & 0x0F) << 4)),  // High 4 bits of X and low 4 bits of Y
-      (uint8_t) (((y >> 4) & 0xFF))  // High 8 bits of Y
+      (uint8_t) ((x >> 8 & 0x0F) | (y & 0x0F) << 4),  // High 4 bits of X and low 4 bits of Y
+      (uint8_t) (y >> 4 & 0xFF)  // High 8 bits of Y
     };
 
     report.sCurrentTouch.bPacketCounter++;

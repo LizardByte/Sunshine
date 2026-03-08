@@ -7,8 +7,8 @@
 // platform includes
 // disable clang-format header reordering
 // clang-format off
-#include <windows.h>
-#include <aclapi.h>
+#include <Windows.h>
+#include <AclAPI.h>
 // clang-format on
 
 // local includes
@@ -21,7 +21,7 @@ namespace nvprefs {
 
     explicit operator bool() const {
       auto handle = get();
-      return handle != NULL && handle != INVALID_HANDLE_VALUE;
+      return handle != nullptr && handle != INVALID_HANDLE_VALUE;
     }
   };
 

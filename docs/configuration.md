@@ -26,6 +26,7 @@ location by modifying the configuration file.
 | OS      | Location                                        |
 |---------|-------------------------------------------------|
 | Docker  | @code{}/config@endcode                          |
+| FreeBSD | @code{}~/.config/sunshine@endcode               |
 | Linux   | @code{}~/.config/sunshine@endcode               |
 | macOS   | @code{}~/.config/sunshine@endcode               |
 | Windows | @code{}%ProgramFiles%\\Sunshine\\config@endcode |
@@ -261,6 +262,29 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### system_tray
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Show icon in system tray and display desktop notifications
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            system_tray = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ## Input
 
 ### controller
@@ -316,12 +340,12 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>ds5</td>
         <td>DualShock 5 controller (PS5)
-            @note{This option applies to Linux only.}</td>
+            @note{This option applies to FreeBSD and Linux only.}</td>
     </tr>
     <tr>
         <td>switch</td>
         <td>Switch Pro controller
-            @note{This option applies to Linux only.}</td>
+            @note{This option applies to FreeBSD and Linux only.}</td>
     </tr>
     <tr>
         <td>x360</td>
@@ -331,7 +355,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>xone</td>
         <td>Xbox One controller
-            @note{This option applies to Linux only.}</td>
+            @note{This option applies to FreeBSD and Linux only.}</td>
     </tr>
 </table>
 
@@ -412,6 +436,30 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Example</td>
         <td colspan="2">@code{}
             touchpad_as_ds4 = enabled
+            @endcode</td>
+    </tr>
+</table>
+
+### ds5_inputtino_randomize_mac
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Randomize the MAC-Address for the generated virtual controller.
+            @hint{Only applies on linux for gamepads created as PS5-style controllers}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            enabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            ds5_inputtino_randomize_mac = enabled
             @endcode</td>
     </tr>
 </table>
@@ -688,14 +736,14 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the name of the audio sink follow these instructions.
             <br>
             <br>
-            **Linux + pulseaudio:**
+            **FreeBSD/Linux + pulseaudio:**
             <br>
             @code{}
             pacmd list-sinks | grep "name:"
             @endcode
             <br>
             <br>
-            **Linux + pipewire:**
+            **FreeBSD/Linux + pipewire:**
             <br>
             @code{}
             pactl info | grep Source
@@ -729,7 +777,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">Sunshine will select the default audio device.</td>
     </tr>
     <tr>
-        <td>Example (Linux)</td>
+        <td>Example (FreeBSD/Linux)</td>
         <td colspan="2">@code{}
             audio_sink = alsa_output.pci-0000_09_00.3.analog-stereo
             @endcode</td>
@@ -836,7 +884,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the appropriate values follow these instructions.
             <br>
             <br>
-            **Linux + VA-API:**
+            **FreeBSD/Linux + VA-API:**
             <br>
             Unlike with *amdvce* and *nvenc*, it doesn't matter if video encoding is done on a different GPU.
             @code{}
@@ -866,7 +914,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">Sunshine will select the default video card.</td>
     </tr>
     <tr>
-        <td>Example (Linux)</td>
+        <td>Example (FreeBSD/Linux)</td>
         <td colspan="2">@code{}
             adapter_name = /dev/dri/renderD128
             @endcode</td>
@@ -889,7 +937,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @tip{To find the appropriate values follow these instructions.
             <br>
             <br>
-            **Linux:**
+            **FreeBSD/Linux:**
             <br>
             During Sunshine startup, you should see the list of detected displays:
             @code{}
@@ -974,7 +1022,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">Sunshine will select the default display.</td>
     </tr>
     <tr>
-        <td>Example (Linux)</td>
+        <td>Example (FreeBSD/Linux)</td>
         <td colspan="2">@code{}
             output_name = 0
             @endcode</td>
@@ -1270,7 +1318,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">
             Remap the requested resolution and FPS to another display mode.<br>
             Depending on the [dd_resolution_option](#dd_resolution_option) and
-            [dd_refresh_rate_option](#dd_refresh_rate_option) values, the following mapping 
+            [dd_refresh_rate_option](#dd_refresh_rate_option) values, the following mapping
             groups are available:
             <ul>
                 <li>`mixed` - both options are set to `auto`.</li>
@@ -1281,7 +1329,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
                   `refresh_rate_only` - only [dd_refresh_rate_option](#dd_refresh_rate_option) is set to `auto`.
                 </li>
             </ul>
-            For each of those groups, a list of fields can be configured to perform remapping:  
+            For each of those groups, a list of fields can be configured to perform remapping:
             <ul>
                 <li>
                   `requested_resolution` - resolution that needs to be matched in order to use this remapping entry.
@@ -1291,10 +1339,10 @@ editing the `conf` file in a text editor. Use the examples as reference.
                 <li>`final_refresh_rate` - refresh rate value to be used if the entry was matched.</li>
             </ul>
             If `requested_*` field is left empty, it will match <b>everything</b>.<br>
-            If `final_*` field is left empty, the original value will not be remapped and either a requested, manual 
-            or current value is used. However, at least one `final_*` must be set, otherwise the entry is considered 
+            If `final_*` field is left empty, the original value will not be remapped and either a requested, manual
+            or current value is used. However, at least one `final_*` must be set, otherwise the entry is considered
             invalid.<br>
-            @note{"Optimize game settings" must be enabled on client side for ANY entry with `resolution` 
+            @note{"Optimize game settings" must be enabled on client side for ANY entry with `resolution`
             field to be considered.}
             @note{First entry to be matched in the list is the one that will be used.}
             @tip{`requested_resolution` and `final_resolution` can be omitted for `refresh_rate_only` group.}
@@ -1371,6 +1419,32 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### minimum_fps_target
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Sunshine tries to save bandwidth when content on screen is static or a low framerate. Because many clients expect a constant stream of video frames, a certain amount of duplicate frames are sent when this happens. This setting controls the lowest effective framerate a stream can reach.
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>0</td>
+        <td>Use half the stream's FPS as the minimum target.</td>
+    </tr>
+    <tr>
+        <td>1-1000</td>
+        <td>Specify your own value. The real minimum may differ from this value.</td>
+    </tr>
+</table>
+
 ## Network
 
 ### upnp
@@ -1425,6 +1499,46 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>both</td>
         <td>IPv4+IPv6</td>
+    </tr>
+</table>
+
+### bind_address
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Set the IP address to bind Sunshine to. This is useful when you have multiple network interfaces
+            and want to restrict Sunshine to a specific one. If not set, Sunshine will bind to all available
+            interfaces (0.0.0.0 for IPv4 or :: for IPv6).
+            <br><br>
+            <strong>Note:</strong> The address must be valid for the system and must match the address family
+            being used. When using IPv6, you can specify an IPv6 address even with address_family set to "both".
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty - bind to all interfaces)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (IPv4)</td>
+        <td colspan="2">@code{}
+            bind_address = 192.168.1.100
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (IPv6)</td>
+        <td colspan="2">@code{}
+            bind_address = 2001:db8::1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example (Loopback)</td>
+        <td colspan="2">@code{}
+            bind_address = 127.0.0.1
+            @endcode</td>
     </tr>
 </table>
 
@@ -1489,6 +1603,35 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>wan</td>
         <td>Anyone may access the web ui</td>
+    </tr>
+</table>
+
+### csrf_allowed_origins
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Comma-separated list of additional allowed origins for CSRF protection. These origins will be
+            appended to the default allowed origins (localhost variants and the configured web UI port).
+            Requests from allowed origins can access state-changing API endpoints without CSRF tokens.
+            <br><br>
+            @attention{Only add origins you trust. Each origin must be a complete URL prefix
+            including protocol and host (e.g., https://example.com). Port numbers are optional.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty - uses built-in defaults: https://localhost, https://127.0.0.1, https://[::1],
+            with configured UI port variants)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            csrf_allowed_origins = https://myapp.local,https://custom.domain.com
+            @endcode</td>
     </tr>
 </table>
 
@@ -1961,7 +2104,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>x11</td>
         <td>Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
-            @note{Applies to Linux only.}</td>
+            @note{Applies to FreeBSD and Linux only.}</td>
     </tr>
     <tr>
         <td>ddx</td>
@@ -2010,7 +2153,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
     <tr>
         <td>vaapi</td>
-        <td>Use Linux VA-API (AMD, Intel)</td>
+        <td>Use VA-API (AMD, Intel)</td>
     </tr>
     <tr>
         <td>software</td>

@@ -330,7 +330,7 @@ namespace cuda {
   }
 
   void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
-    auto color_p = video::color_vectors_from_colorspace(colorspace);
+    auto color_p = video::color_vectors_from_colorspace(colorspace, true);
     CU_CHECK_IGNORE(cudaMemcpy(color_matrix.get(), color_p, sizeof(video::color_t), cudaMemcpyHostToDevice), "Couldn't copy color matrix to cuda");
   }
 

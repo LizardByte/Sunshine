@@ -8,6 +8,8 @@
 // standard includes
 #include <stdint.h>
 
+#define DATA_SHARDS_MAX 255
+
 typedef struct _reed_solomon reed_solomon;
 
 typedef reed_solomon *(*reed_solomon_new_t)(int data_shards, int parity_shards);

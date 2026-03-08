@@ -1,0 +1,64 @@
+#!/bin/sh
+
+# FreeBSD post-install script for Sunshine
+# This script sets up the necessary permissions for virtual input devices
+
+echo "Configuring permissions for virtual input devices..."
+
+# Create the 'input' group if it doesn't exist
+if ! pw groupshow input >/dev/null 2>&1; then
+  echo "Creating 'input' group..."
+  pw groupadd input
+  if [ $? -eq 0 ]; then
+    echo "Successfully created 'input' group."
+  else
+    echo "Warning: Failed to create 'input' group. You may need to create it manually."
+  fi
+else
+  echo "'input' group already exists."
+fi
+
+# Set permissions on /dev/uinput if it exists
+if [ -e /dev/uinput ]; then
+  echo "Setting permissions on /dev/uinput..."
+  chown root:input /dev/uinput
+  chmod 660 /dev/uinput
+  echo "Permissions set on /dev/uinput."
+else
+  echo "Note: /dev/uinput does not exist. It will be created when needed."
+fi
+
+# Create devfs rules for persistent permissions
+echo "Creating devfs rules for persistent permissions..."
+DEVFS_RULESET_FILE="/etc/devfs.rules"
+RULESET_NUM=47989
+
+# Check if our rules already exist
+if ! grep -q "\[sunshine=$RULESET_NUM\]" "$DEVFS_RULESET_FILE" 2>/dev/null; then
+  cat >> "$DEVFS_RULESET_FILE" << EOF
+
+[sunshine=$RULESET_NUM]
+add path 'uinput' mode 0660 group input
+EOF
+  echo "Devfs rules added to $DEVFS_RULESET_FILE"
+else
+  echo "Devfs rules already exist in $DEVFS_RULESET_FILE"
+fi
+
+# Apply the devfs ruleset immediately (without waiting for reboot)
+echo "Applying devfs ruleset to current system..."
+if [ -e /dev/uinput ]; then
+  devfs -m /dev rule -s $RULESET_NUM apply
+fi
+
+echo ""
+echo "Post-installation configuration complete!"
+echo ""
+echo "IMPORTANT: To use virtual input devices (keyboard, mouse, gamepads),"
+echo "you must add your user to the 'input' group:"
+echo ""
+echo "    pw groupmod input -m \$USER"
+echo ""
+echo "After adding yourself to the group, log out and log back in for the"
+echo "changes to take effect."
+echo ""

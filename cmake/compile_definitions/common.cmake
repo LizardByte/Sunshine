@@ -20,6 +20,11 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
             list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-restrict)
         endif()
     endif()
+
+    # GCC 15 will complain about uninitialized variables in some cases (Simple-Web-Server)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15)
+        list(APPEND SUNSHINE_COMPILE_OPTIONS -Wno-uninitialized)
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     # Clang specific compile options
 
@@ -137,6 +142,8 @@ include_directories(
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
+        ${OPENSSL_INCLUDE_DIR}
+        ${Opus_INCLUDE_DIR}
         ${FFMPEG_INCLUDE_DIRS}
         ${Boost_INCLUDE_DIRS}  # has to be the last, or we get runtime error on macOS ffmpeg encoder
 )
@@ -147,7 +154,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         enet
         libdisplaydevice::display_device
         nlohmann_json::nlohmann_json
-        opus
+        ${Opus_LIBRARY}
         ${FFMPEG_LIBRARIES}
         ${Boost_LIBRARIES}
         ${OPENSSL_LIBRARIES}

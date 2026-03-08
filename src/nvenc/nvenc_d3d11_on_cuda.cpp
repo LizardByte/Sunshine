@@ -63,7 +63,7 @@ namespace nvenc {
 
     constexpr auto dll_name = "nvcuda.dll";
 
-    if ((cuda_functions.dll = LoadLibraryEx(dll_name, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
+    if ((cuda_functions.dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
       auto load_function = [&]<typename T>(T &location, auto symbol) -> bool {
         location = (T) GetProcAddress(cuda_functions.dll, symbol);
         return location != nullptr;

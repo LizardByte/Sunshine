@@ -34,7 +34,7 @@ namespace platf {
 
       std::copy_n(std::begin(vectorBuffer), sample_size, std::begin(sample_in));
 
-      TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, sample_size * sizeof(float));
+      TPCircularBufferConsume(&av_audio_capture->audioSampleBuffer, (uint32_t) sample_size * sizeof(float));
 
       return capture_e::ok;
     }
@@ -49,7 +49,7 @@ namespace platf {
       return 0;
     }
 
-    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size) override {
+    std::unique_ptr<mic_t> microphone(const std::uint8_t *mapping, int channels, std::uint32_t sample_rate, std::uint32_t frame_size, bool continuous_audio) override {
       auto mic = std::make_unique<av_mic_t>();
       const char *audio_sink = "";
 

@@ -100,7 +100,7 @@ namespace crypto {
         return -1;
       }
 
-      if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv->size(), nullptr) != 1) {
+      if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, (int) iv->size(), nullptr) != 1) {
         return -1;
       }
 
@@ -120,7 +120,7 @@ namespace crypto {
         return -1;
       }
 
-      if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, iv->size(), nullptr) != 1) {
+      if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, (int) iv->size(), nullptr) != 1) {
         return -1;
       }
 
@@ -161,13 +161,14 @@ namespace crypto {
 
       plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
-      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
+      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), (int) cipher.size()) != 1) {
         return -1;
       }
 
-      if (EVP_CIPHER_CTX_ctrl(decrypt_ctx.get(), EVP_CTRL_GCM_SET_TAG, tag.size(), const_cast<char *>(tag.data())) != 1) {
+      if (EVP_CIPHER_CTX_ctrl(decrypt_ctx.get(), EVP_CTRL_GCM_SET_TAG, (int) tag.size(), const_cast<char *>(tag.data())) != 1) {
         return -1;
       }
 
@@ -195,10 +196,11 @@ namespace crypto {
         return -1;
       }
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), ciphertext, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), ciphertext, &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {
         return -1;
       }
 
@@ -232,9 +234,10 @@ namespace crypto {
       EVP_CIPHER_CTX_set_padding(decrypt_ctx.get(), padding);
       plaintext.resize(round_to_pkcs7_padded(cipher.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
-      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), cipher.size()) != 1) {
+      if (EVP_DecryptUpdate(decrypt_ctx.get(), plaintext.data(), &update_outlen, (const std::uint8_t *) cipher.data(), (int) cipher.size()) != 1) {
         return -1;
       }
 
@@ -259,10 +262,11 @@ namespace crypto {
       EVP_CIPHER_CTX_set_padding(encrypt_ctx.get(), padding);
       cipher.resize(round_to_pkcs7_padded(plaintext.size()));
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher.data(), &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {
         return -1;
       }
 
@@ -290,10 +294,11 @@ namespace crypto {
         return false;
       }
 
-      int update_outlen, final_outlen;
+      int final_outlen;
+      int update_outlen;
 
       // Encrypt into the caller's buffer
-      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), plaintext.size()) != 1) {
+      if (EVP_EncryptUpdate(encrypt_ctx.get(), cipher, &update_outlen, (const std::uint8_t *) plaintext.data(), (int) plaintext.size()) != 1) {
         return -1;
       }
 
@@ -343,7 +348,7 @@ namespace crypto {
   x509_t x509(const std::string_view &x) {
     bio_t io {BIO_new(BIO_s_mem())};
 
-    BIO_write(io.get(), x.data(), x.size());
+    BIO_write(io.get(), x.data(), (int) x.size());
 
     x509_t p;
     PEM_read_bio_X509(io.get(), &p, nullptr, nullptr);
@@ -354,7 +359,7 @@ namespace crypto {
   pkey_t pkey(const std::string_view &k) {
     bio_t io {BIO_new(BIO_s_mem())};
 
-    BIO_write(io.get(), k.data(), k.size());
+    BIO_write(io.get(), k.data(), (int) k.size());
 
     pkey_t p = nullptr;
     PEM_read_bio_PrivateKey(io.get(), &p, nullptr, nullptr);
@@ -395,7 +400,7 @@ namespace crypto {
     std::string r;
     r.resize(bytes);
 
-    RAND_bytes((uint8_t *) r.data(), r.size());
+    RAND_bytes((uint8_t *) r.data(), (int) r.size());
 
     return r;
   }
@@ -459,7 +464,7 @@ namespace crypto {
     X509_set_pubkey(x509.get(), pkey.get());
 
     auto name = X509_get_subject_name(x509.get());
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const std::uint8_t *) cn.data(), cn.size(), -1, 0);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const std::uint8_t *) cn.data(), (int) cn.size(), -1, 0);
 
     X509_set_issuer_name(x509.get(), name);
     X509_sign(x509.get(), pkey.get(), EVP_sha256());

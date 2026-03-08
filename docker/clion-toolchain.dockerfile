@@ -3,8 +3,8 @@
 # platforms: linux/amd64
 # platforms_pr: linux/amd64
 # no-cache-filters: toolchain-base,toolchain
-ARG BASE=ubuntu
-ARG TAG=22.04
+ARG BASE=debian
+ARG TAG=trixie-slim
 FROM ${BASE}:${TAG} AS toolchain-base
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -19,18 +19,17 @@ ENV DISPLAY=:0
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # install dependencies
-# hadolint ignore=SC1091
 RUN <<_DEPS
 #!/bin/bash
 set -e
 apt-get update -y
 apt-get install -y --no-install-recommends \
   build-essential \
-  cmake=3.22.* \
+  cmake=3.31.* \
   ca-certificates \
   doxygen \
-  gcc=4:11.2.* \
-  g++=4:11.2.* \
+  gcc=4:14.2.* \
+  g++=4:14.2.* \
   gdb \
   git \
   graphviz \
@@ -39,6 +38,7 @@ apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libdrm-dev \
   libevdev-dev \
+  libgbm-dev \
   libminiupnpc-dev \
   libnotify-dev \
   libnuma-dev \
@@ -54,27 +54,20 @@ apt-get install -y --no-install-recommends \
   libxfixes-dev \
   libxrandr-dev \
   libxtst-dev \
+  npm \
   udev \
   wget \
   x11-xserver-utils \
   xvfb
 apt-get clean
 rm -rf /var/lib/apt/lists/*
-
-# Install Node
-wget --max-redirect=0 -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-source "$HOME/.nvm/nvm.sh"
-nvm install node
-nvm use node
-nvm alias default node
 _DEPS
 
 # install cuda
 WORKDIR /build/cuda
 # versions: https://developer.nvidia.com/cuda-toolkit-archive
-ENV CUDA_VERSION="11.8.0"
-ENV CUDA_BUILD="520.61.05"
-# hadolint ignore=SC3010
+ENV CUDA_VERSION="12.9.1"
+ENV CUDA_BUILD="575.57.08"
 RUN <<_INSTALL_CUDA
 #!/bin/bash
 set -e
@@ -85,18 +78,19 @@ if [[ "${TARGETPLATFORM}" == 'linux/arm64' ]]; then
 fi
 url="${cuda_prefix}${CUDA_VERSION}/local_installers/cuda_${CUDA_VERSION}_${CUDA_BUILD}_linux${cuda_suffix}.run"
 echo "cuda url: ${url}"
-wget "$url" --progress=bar:force:noscroll -q --show-progress -O ./cuda.run
-chmod a+x ./cuda.run
-./cuda.run --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
-rm ./cuda.run
+tmpfile="/tmp/cuda.run"
+wget "$url" --progress=bar:force:noscroll --show-progress -O "$tmpfile"
+chmod a+x "${tmpfile}"
+"${tmpfile}" --silent --toolkit --toolkitpath=/usr/local --no-opengl-libs --no-man-page --no-drm
+rm -f "${tmpfile}"
 _INSTALL_CUDA
 
-WORKDIR /
-# Write a shell script that starts Xvfb and then runs a shell
+WORKDIR /toolchain
+# Create a shell script that starts Xvfb and then runs a shell
 RUN <<_ENTRYPOINT
 #!/bin/bash
 set -e
-cat <<EOF > /entrypoint.sh
+cat <<EOF > entrypoint.sh
 #!/bin/bash
 Xvfb ${DISPLAY} -screen 0 1024x768x24 &
 if [ "\$#" -eq 0 ]; then
@@ -107,11 +101,11 @@ fi
 EOF
 
 # Make the script executable
-chmod +x /entrypoint.sh
+chmod +x entrypoint.sh
 
 # Note about CLion
 echo "ATTENTION: CLion will override the entrypoint, you can disable this in the toolchain settings"
 _ENTRYPOINT
 
 # Use the shell script as the entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/toolchain/entrypoint.sh"]

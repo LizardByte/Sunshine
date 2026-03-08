@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import { Trash2 } from 'lucide-vue-next'
 import PlatformLayout from '../../../PlatformLayout.vue'
 import Checkbox from "../../../Checkbox.vue";
 
@@ -65,7 +66,7 @@ function addRemappingEntry() {
               <!-- Configuration option -->
               <div class="mb-3">
                 <label for="dd_configuration_option" class="form-label">
-                  {{ $t('config.dd_config_label') }}
+                  {{ $t('config.dd_configuration_option') }}
                 </label>
                 <select id="dd_configuration_option" class="form-select" v-model="config.dd_configuration_option">
                   <option value="disabled">{{ $t('_common.disabled_def') }}</option>
@@ -94,7 +95,7 @@ function addRemappingEntry() {
                 <!-- Manual resolution -->
                 <div class="mt-2 ps-4" v-if="config.dd_resolution_option === 'manual'">
                   <div class="form-text">
-                    {{ $t('config.dd_resolution_option_manual_desc') }}
+                    {{ $t('config.dd_manual_resolution') }}
                   </div>
                   <input type="text" class="form-control" id="dd_manual_resolution" placeholder="2560x1440"
                          v-model="config.dd_manual_resolution" />
@@ -115,7 +116,7 @@ function addRemappingEntry() {
                 <!-- Manual refresh rate -->
                 <div class="mt-2 ps-4" v-if="config.dd_refresh_rate_option === 'manual'">
                   <div class="form-text">
-                    {{ $t('config.dd_refresh_rate_option_manual_desc') }}
+                    {{ $t('config.dd_manual_refresh_rate') }}
                   </div>
                   <input type="text" class="form-control" id="dd_manual_refresh_rate" placeholder="59.9558"
                          v-model="config.dd_manual_refresh_rate" />
@@ -226,7 +227,7 @@ function addRemappingEntry() {
                       </td>
                       <td>
                         <button class="btn btn-danger" @click="config.dd_mode_remapping[getRemappingType()].splice(idx, 1)">
-                          <i class="fas fa-trash"></i>
+                          <Trash2 :size="16" />
                         </button>
                       </td>
                     </tr>
@@ -240,6 +241,8 @@ function addRemappingEntry() {
           </div>
         </div>
       </div>
+    </template>
+    <template #freebsd>
     </template>
     <template #linux>
     </template>

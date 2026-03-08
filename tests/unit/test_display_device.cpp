@@ -4,6 +4,7 @@
  */
 #include "../tests_common.h"
 
+#include <format>
 #include <src/config.h>
 #include <src/display_device.h>
 #include <src/rtsp.h>
@@ -473,7 +474,7 @@ namespace {
       } else {
         const auto [manual_res] = std::get<manual_value_t<res_t>>(input_res);
         video_config.dd.resolution_option = manual;
-        video_config.dd.manual_resolution = std::to_string(manual_res.m_width) + "x"s + std::to_string(manual_res.m_height);
+        video_config.dd.manual_resolution = std::format("{}x{}", static_cast<int>(manual_res.m_width), static_cast<int>(manual_res.m_height));
       }
     }
 

@@ -5,8 +5,13 @@
 // standard includes
 #include <codecvt>
 #include <csignal>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+
+#ifdef __APPLE__
+  #include <mach-o/dyld.h>
+#endif
 
 // local includes
 #include "confighttp.h"
@@ -88,7 +93,53 @@ WINAPI BOOL ConsoleCtrlHandler(DWORD type) {
 }
 #endif
 
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+constexpr bool tray_is_enabled = true;
+#else
+constexpr bool tray_is_enabled = false;
+#endif
+
+void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) {
+  bool run_loop = false;
+
+  // Conditions that would require the main thread event loop
+#ifndef _WIN32
+  run_loop = tray_is_enabled && config::sunshine.system_tray;  // On Windows, tray runs in separate thread, so no main loop needed for tray
+#endif
+
+  if (!run_loop) {
+    BOOST_LOG(info) << "No main thread features enabled, skipping event loop"sv;
+    // Wait for shutdown
+    shutdown_event->view();
+    return;
+  }
+
+  // Main thread event loop
+  BOOST_LOG(info) << "Starting main loop"sv;
+  while (system_tray::process_tray_events() == 0);
+  BOOST_LOG(info) << "Main loop has exited"sv;
+}
+
 int main(int argc, char *argv[]) {
+#ifdef __APPLE__
+  // Bundle assets are referenced relative to the executable
+  // (e.g. ../Resources/assets), so anchor cwd to Contents/MacOS.
+  {
+    char executable[2048];
+    uint32_t size = sizeof(executable);
+    if (_NSGetExecutablePath(executable, &size) == 0) {
+      std::error_code ec;
+      auto exec_dir = std::filesystem::weakly_canonical(std::filesystem::path {executable}, ec).parent_path();
+      if (!ec) {
+        std::filesystem::current_path(exec_dir, ec);
+      }
+      if (ec) {
+        std::cerr << "Failed to set working directory to executable path: " << ec.message() << '\n';
+      }
+    }
+  }
+#endif
+
   lifetime::argv = argv;
 
   task_pool_util::TaskPool::task_id_t force_shutdown = nullptr;
@@ -157,7 +208,7 @@ int main(int argc, char *argv[]) {
     BOOST_LOG(error) << "Display device session failed to initialize"sv;
   }
 
-#ifdef WIN32
+#ifdef _WIN32
   // Modify relevant NVIDIA control panel settings if the system has corresponding gpu
   if (nvprefs_instance.load()) {
     // Restore global settings to the undo file left by improper termination of sunshine.exe
@@ -180,13 +231,14 @@ int main(int argc, char *argv[]) {
   auto session_monitor_join_thread_future = session_monitor_join_thread_promise.get_future();
 
   std::thread session_monitor_thread([&]() {
+    platf::set_thread_name("session_monitor");
     session_monitor_join_thread_promise.set_value_at_thread_exit();
 
     WNDCLASSA wnd_class {};
     wnd_class.lpszClassName = "SunshineSessionMonitorClass";
     wnd_class.lpfnWndProc = SessionMonitorWindowProc;
     if (!RegisterClassA(&wnd_class)) {
-      session_monitor_hwnd_promise.set_value(NULL);
+      session_monitor_hwnd_promise.set_value(nullptr);
       BOOST_LOG(error) << "Failed to register session monitor window class"sv << std::endl;
       return;
     }
@@ -246,11 +298,6 @@ int main(int argc, char *argv[]) {
 
   task_pool.start(1);
 
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  // create tray thread and detach it
-  system_tray::run_tray();
-#endif
-
   // Create signal handler after logging has been initialized
   auto shutdown_event = mail::man->event<bool>(mail::shutdown);
   on_signal(SIGINT, [&force_shutdown, &display_device_deinit_guard, shutdown_event]() {
@@ -263,7 +310,10 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
+    // Break out of the main loop
     shutdown_event->raise(true);
+    system_tray::end_tray();
+
     display_device_deinit_guard = nullptr;
   });
 
@@ -277,7 +327,10 @@ int main(int argc, char *argv[]) {
     };
     force_shutdown = task_pool.pushDelayed(task, 10s).task_id;
 
+    // Break out of the main loop
     shutdown_event->raise(true);
+    system_tray::end_tray();
+
     display_device_deinit_guard = nullptr;
   });
 
@@ -350,8 +403,21 @@ int main(int argc, char *argv[]) {
   }
 #endif
 
-  // Wait for shutdown
-  shutdown_event->view();
+  if (tray_is_enabled && config::sunshine.system_tray) {
+    BOOST_LOG(info) << "Starting system tray"sv;
+#ifdef _WIN32
+    // TODO: Windows has a weird bug where when running as a service and on the first Windows boot,
+    // the tray icon would not appear even though Sunshine is running correctly otherwise.
+    // Restarting the service would allow the icon to appear normally.
+    // For now we will keep the Windows tray icon on a separate thread.
+    // Ideally, we would run the system tray on the main thread for all platforms.
+    system_tray::init_tray_threaded();
+#else
+    system_tray::init_tray();
+#endif
+  }
+
+  mainThreadLoop(shutdown_event);
 
   httpThread.join();
   configThread.join();
@@ -360,12 +426,7 @@ int main(int argc, char *argv[]) {
   task_pool.stop();
   task_pool.join();
 
-  // stop system tray
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-  system_tray::end_tray();
-#endif
-
-#ifdef WIN32
+#ifdef _WIN32
   // Restore global NVIDIA control panel settings
   if (nvprefs_instance.owning_undo_file() && nvprefs_instance.load()) {
     nvprefs_instance.restore_global_profile();

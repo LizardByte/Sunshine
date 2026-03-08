@@ -60,7 +60,8 @@ namespace platf {
 
     class wrapper_fb {
     public:
-      wrapper_fb(drmModeFB *fb):
+      wrapper_fb(uint32_t card_fd, drmModeFB *fb):
+          card_fd {card_fd},
           fb {fb},
           fb_id {fb->fb_id},
           width {fb->width},
@@ -74,7 +75,8 @@ namespace platf {
         pitches[0] = fb->pitch;
       }
 
-      wrapper_fb(drmModeFB2 *fb2):
+      wrapper_fb(uint32_t card_fd, drmModeFB2 *fb2):
+          card_fd {card_fd},
           fb2 {fb2},
           fb_id {fb2->fb_id},
           width {fb2->width},
@@ -88,6 +90,15 @@ namespace platf {
       }
 
       ~wrapper_fb() {
+        std::ranges::for_each(handles, [&](auto &handle) {
+          if (handle) {
+            struct drm_gem_close close_args = {};
+            close_args.handle = handle;
+
+            drmIoctl(card_fd, DRM_IOCTL_GEM_CLOSE, &close_args);
+          }
+        });
+
         if (fb) {
           drmModeFreeFB(fb);
         } else if (fb2) {
@@ -95,6 +106,7 @@ namespace platf {
         }
       }
 
+      uint32_t card_fd;
       drmModeFB *fb = nullptr;
       drmModeFB2 *fb2 = nullptr;
       uint32_t fb_id;
@@ -122,6 +134,9 @@ namespace platf {
 
     static int env_width;
     static int env_height;
+
+    static int env_logical_width;
+    static int env_logical_height;
 
     std::string_view plane_type(std::uint64_t val) {
       switch (val) {
@@ -281,14 +296,20 @@ namespace platf {
     struct cursor_t {
       // Public properties used during blending
       bool visible = false;
-      std::int32_t x, y;
-      std::uint32_t dst_w, dst_h;
-      std::uint32_t src_w, src_h;
+      std::int32_t x;
+      std::int32_t y;
+      std::uint32_t dst_w;
+      std::uint32_t dst_h;
+      std::uint32_t src_w;
+      std::uint32_t src_h;
       std::vector<std::uint8_t> pixels;
       unsigned long serial;
 
       // Private properties used for tracking cursor changes
-      std::uint64_t prop_src_x, prop_src_y, prop_src_w, prop_src_h;
+      std::uint64_t prop_src_x;
+      std::uint64_t prop_src_y;
+      std::uint64_t prop_src_w;
+      std::uint64_t prop_src_h;
       std::uint32_t fb_id;
     };
 
@@ -356,12 +377,12 @@ namespace platf {
 
         auto fb2 = drmModeGetFB2(fd.el, plane->fb_id);
         if (fb2) {
-          return std::make_unique<wrapper_fb>(fb2);
+          return std::make_unique<wrapper_fb>(fd.el, fb2);
         }
 
         auto fb = drmModeGetFB(fd.el, plane->fb_id);
         if (fb) {
-          return std::make_unique<wrapper_fb>(fb);
+          return std::make_unique<wrapper_fb>(fd.el, fb);
         }
 
         return nullptr;
@@ -615,6 +636,14 @@ namespace platf {
             }
           }
 
+          // Skip Nvidia cards if we're looking for VAAPI devices
+          // This is important for hybrid GPU laptops where the display
+          // may be connected through NVIDIA but rendering happens on Intel
+          if (mem_type == mem_type_e::vaapi && card.is_nvidia()) {
+            BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+            continue;
+          }
+
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
             // Skip unused planes
@@ -686,12 +715,18 @@ namespace platf {
             this->env_width = ::platf::kms::env_width;
             this->env_height = ::platf::kms::env_height;
 
+            this->env_logical_width = ::platf::kms::env_logical_width;
+            this->env_logical_height = ::platf::kms::env_logical_height;
+
             auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
             if (monitor != std::end(pos->crtc_to_monitor)) {
               auto &viewport = monitor->second.viewport;
 
               width = viewport.width;
               height = viewport.height;
+
+              logical_width = viewport.logical_width;
+              logical_height = viewport.logical_height;
 
               switch (card.get_panel_orientation(plane->plane_id)) {
                 case DRM_MODE_ROTATE_270:
@@ -1104,8 +1139,10 @@ namespace platf {
 
       std::chrono::nanoseconds delay;
 
-      int img_width, img_height;
-      int img_offset_x, img_offset_y;
+      int img_width;
+      int img_height;
+      int img_offset_x;
+      int img_offset_y;
 
       int plane_id;
       int crtc_id;
@@ -1288,7 +1325,8 @@ namespace platf {
         gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
 
         // Don't remove these lines, see https://github.com/LizardByte/Sunshine/issues/453
-        int w, h;
+        int h;
+        int w;
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH, &w);
         gl::ctx.GetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
         BOOST_LOG(debug) << "width and height: w "sv << w << " h "sv << h;
@@ -1542,6 +1580,8 @@ namespace platf {
           if (monitor_descriptor.index == index && monitor_descriptor.type == type) {
             monitor_descriptor.viewport.offset_x = monitor->viewport.offset_x;
             monitor_descriptor.viewport.offset_y = monitor->viewport.offset_y;
+            monitor_descriptor.viewport.logical_width = monitor->viewport.logical_width;
+            monitor_descriptor.viewport.logical_height = monitor->viewport.logical_height;
 
             // A sanity check, it's guesswork after all.
             if (
@@ -1612,6 +1652,14 @@ namespace platf {
         }
       }
 
+      // Skip Nvidia cards if we're looking for VAAPI devices
+      // This is important for hybrid GPU laptops where the display
+      // may be connected through NVIDIA but rendering happens on Intel
+      if (hwdevice_type == mem_type_e::vaapi && card.is_nvidia()) {
+        BOOST_LOG(debug) << file << " is an NVIDIA card, skipping for VAAPI"sv;
+        continue;
+      }
+
       auto crtc_to_monitor = kms::map_crtc_to_monitor(card.monitors(conn_type_count));
 
       auto end = std::end(card);
@@ -1633,10 +1681,21 @@ namespace platf {
 
         if (!fb->handles[0]) {
           BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
-          BOOST_LOG((window_system != window_system_e::X11 || config::video.capture == "kms") ? fatal : error)
-            << "You must run [sudo setcap cap_sys_admin+p $(readlink -f $(which sunshine))] for KMS display capture to work!\n"sv
-            << "If you installed from AppImage or Flatpak, please refer to the official documentation:\n"sv
-            << "https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux"sv;
+#if defined(SUNSHINE_BUILD_FLATPAK) || defined(SUNSHINE_BUILD_APPIMAGE)
+          BOOST_LOG((config::video.capture == "kms") ? fatal : error)
+            << "AppImage and Flatpak do not support KMS capture. Use another capture method."sv;
+#else
+          {
+            const std::string kms_msg =
+              "You must use the 'sunshine' service instead of the 'app-" +
+              std::string(PROJECT_FQDN) +
+              "' service for KMS capture.\n"
+              "Please refer to the official documentation:\n"
+              "  stable: https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2getting__started.html#linux-1\n"
+              "  beta: https://docs.lizardbyte.dev/projects/sunshine/master/md_docs_2getting__started.html#linux-1";
+            BOOST_LOG((config::video.capture == "kms") ? fatal : error) << kms_msg;
+          }
+#endif
           break;
         }
 
@@ -1680,6 +1739,9 @@ namespace platf {
     kms::env_width = 0;
     kms::env_height = 0;
 
+    kms::env_logical_width = 0;
+    kms::env_logical_height = 0;
+
     for (auto &card_descriptor : cds) {
       for (auto &[_, monitor_descriptor] : card_descriptor.crtc_to_monitor) {
         BOOST_LOG(debug) << "Monitor description"sv;
@@ -1688,6 +1750,9 @@ namespace platf {
 
         kms::env_width = std::max(kms::env_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.width));
         kms::env_height = std::max(kms::env_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.height));
+
+        kms::env_logical_height = std::max(kms::env_logical_height, (int) (monitor_descriptor.viewport.offset_y + monitor_descriptor.viewport.logical_height));
+        kms::env_logical_width = std::max(kms::env_logical_width, (int) (monitor_descriptor.viewport.offset_x + monitor_descriptor.viewport.logical_width));
       }
     }
 

@@ -5,6 +5,7 @@
 // standard includes
 #include <algorithm>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iostream>
@@ -40,11 +41,10 @@
 namespace fs = std::filesystem;
 using namespace std::literals;
 
-#define CA_DIR "credentials"
-#define PRIVATE_KEY_FILE CA_DIR "/cakey.pem"
-#define CERTIFICATE_FILE CA_DIR "/cacert.pem"
-
-#define APPS_JSON_PATH platf::appdata().string() + "/apps.json"
+constexpr auto CA_DIR = "credentials";
+const std::string PRIVATE_KEY_FILE = std::string(CA_DIR) + "/cakey.pem";
+const std::string CERTIFICATE_FILE = std::string(CA_DIR) + "/cacert.pem";
+const std::string APPS_JSON_PATH = platf::appdata().string() + "/apps.json";
 
 namespace config {
 
@@ -68,46 +68,46 @@ namespace config {
 
   namespace amd {
 #if !defined(_WIN32) || defined(DOXYGEN)
-  // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
-  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED 100
-  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY 30
-  #define AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED 70
-  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED 10
-  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY 0
-  #define AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED 5
-  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED 1
-  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY 2
-  #define AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED 0
-  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP 0
-  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR 3
-  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
-  #define AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 1
-  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP 0
-  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR 3
-  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
-  #define AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 1
-  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP 0
-  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR 1
-  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR 2
-  #define AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR 3
-  #define AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING 0
-  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY 1
-  #define AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY 2
-  #define AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY 5
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING 0
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY 1
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY 2
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY 5
-  #define AMF_VIDEO_ENCODER_USAGE_TRANSCODING 0
-  #define AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY 1
-  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY 2
-  #define AMF_VIDEO_ENCODER_USAGE_WEBCAM 3
-  #define AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY 5
-  #define AMF_VIDEO_ENCODER_UNDEFINED 0
-  #define AMF_VIDEO_ENCODER_CABAC 1
-  #define AMF_VIDEO_ENCODER_CALV 2
+    // values accurate as of 27/12/2022, but aren't strictly necessary for MacOS build
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_SPEED = 100;
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_QUALITY = 30;
+    constexpr int AMF_VIDEO_ENCODER_AV1_QUALITY_PRESET_BALANCED = 70;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_SPEED = 10;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_QUALITY = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_QUALITY_PRESET_BALANCED = 5;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_SPEED = 1;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY = 2;
+    constexpr int AMF_VIDEO_ENCODER_QUALITY_PRESET_BALANCED = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_CBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_AV1_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_CBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CONSTANT_QP = 0;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_CBR = 1;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_PEAK_CONSTRAINED_VBR = 2;
+    constexpr int AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD_LATENCY_CONSTRAINED_VBR = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_ULTRA_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_AV1_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_ULTRA_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_HEVC_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_TRANSCODING = 0;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_ULTRA_LOW_LATENCY = 1;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY = 2;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_WEBCAM = 3;
+    constexpr int AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY_HIGH_QUALITY = 5;
+    constexpr int AMF_VIDEO_ENCODER_UNDEFINED = 0;
+    constexpr int AMF_VIDEO_ENCODER_CABAC = 1;
+    constexpr int AMF_VIDEO_ENCODER_CALV = 2;
 #else
   #ifdef _GLIBCXX_USE_C99_INTTYPES
     #undef _GLIBCXX_USE_C99_INTTYPES
@@ -187,7 +187,7 @@ namespace config {
     };
 
     template<class T>
-    std::optional<int> quality_from_view(const std::string_view &quality_type, const std::optional<int>(&original)) {
+    ::std::optional<int> quality_from_view(const ::std::string_view &quality_type, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (quality_type == #x##sv) \
   return (int) T::x
@@ -199,7 +199,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> rc_from_view(const std::string_view &rc, const std::optional<int>(&original)) {
+    ::std::optional<int> rc_from_view(const ::std::string_view &rc, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (rc == #x##sv) \
   return (int) T::x
@@ -212,7 +212,7 @@ namespace config {
     }
 
     template<class T>
-    std::optional<int> usage_from_view(const std::string_view &usage, const std::optional<int>(&original)) {
+    ::std::optional<int> usage_from_view(const ::std::string_view &usage, const ::std::optional<int>(&original)) {
 #define _CONVERT_(x) \
   if (usage == #x##sv) \
   return (int) T::x
@@ -225,7 +225,7 @@ namespace config {
       return original;
     }
 
-    int coder_from_view(const std::string_view &coder) {
+    int coder_from_view(const ::std::string_view &coder) {
       if (coder == "auto"sv) {
         return _auto;
       }
@@ -504,7 +504,8 @@ namespace config {
       {}  // wa
     },  // display_device
 
-    0  // max_bitrate
+    0,  // max_bitrate
+    0  // minimum_fps_target (0 = framerate)
   };
 
   audio_t audio {
@@ -553,6 +554,7 @@ namespace config {
     true,  // back as touchpad click enabled (manual DS4 only)
     true,  // client gamepads with motion events are emulated as DS4
     true,  // client gamepads with touchpads are emulated as DS4
+    true,  // ds5_inputtino_randomize_mac
 
     true,  // keyboard enabled
     true,  // mouse enabled
@@ -574,8 +576,10 @@ namespace config {
     {},  // cmd args
     47989,  // Base port number
     "ipv4",  // Address family
+    {},  // Bind address
     platf::appdata().string() + "/sunshine.log",  // log file
     false,  // notify_pre_releases
+    true,  // system_tray
     {},  // prep commands
   };
 
@@ -721,6 +725,27 @@ namespace config {
     }
   }
 
+  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045) - transparent hasher not available for unordered_map in this codebase
+    std::string temp;
+    string_f(vars, name, temp);
+
+    if (temp.empty()) {
+      return;
+    }
+
+    output.clear();
+    std::stringstream ss(temp);
+    std::string item;
+    while (std::getline(ss, item, ',')) {
+      // Trim whitespace
+      item.erase(0, item.find_first_not_of(" \t\r\n"));
+      item.erase(item.find_last_not_of(" \t\r\n") + 1);
+      if (!item.empty()) {
+        output.push_back(item);
+      }
+    }
+  }
+
   void path_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, fs::path &input) {
     // appdata needs to be retrieved once only
     static auto appdata = platf::appdata();
@@ -771,7 +796,7 @@ namespace config {
     if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
       input = util::from_hex<int>(val.substr(2));
     } else {
-      input = util::from_view(val);
+      input = (int) util::from_view(val);
     }
 
     vars.erase(it);
@@ -975,7 +1000,7 @@ namespace config {
       if (val.size() >= 2 && val.substr(0, 2) == "0x"sv) {
         tmp = util::from_hex<int>(val.substr(2));
       } else {
-        tmp = util::from_view(val);
+        tmp = (int) util::from_view(val);
       }
       input.emplace_back(tmp);
     }
@@ -1038,13 +1063,6 @@ namespace config {
   }
 
   void apply_config(std::unordered_map<std::string, std::string> &&vars) {
-#ifndef __ANDROID__
-    // TODO: Android can possibly support this
-    if (!fs::exists(stream.file_apps.c_str())) {
-      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
-    }
-#endif
-
     for (auto &[name, val] : vars) {
       BOOST_LOG(info) << "config: '"sv << name << "' = "sv << val;
       modified_config_settings[name] = val;
@@ -1146,6 +1164,7 @@ namespace config {
     }
 
     int_f(vars, "max_bitrate", video.max_bitrate);
+    double_between_f(vars, "minimum_fps_target", video.minimum_fps_target, {0.0, 1000.0});
 
     path_f(vars, "pkey", nvhttp.pkey);
     path_f(vars, "cert", nvhttp.cert);
@@ -1167,6 +1186,24 @@ namespace config {
 
     string_restricted_f(vars, "origin_web_ui_allowed", nvhttp.origin_web_ui_allowed, {"pc"sv, "lan"sv, "wan"sv});
 
+    // Parse CSRF allowed origins - always include defaults, then append user-configured origins
+    std::vector<std::string> user_csrf_origins;
+    string_list_f(vars, "csrf_allowed_origins", user_csrf_origins);
+
+    // Start with default localhost variants
+    sunshine.csrf_allowed_origins = {
+      "https://localhost",
+      "https://127.0.0.1",
+      "https://[::1]"
+    };
+
+    // Append user-configured origins
+    sunshine.csrf_allowed_origins.insert(
+      sunshine.csrf_allowed_origins.end(),
+      user_csrf_origins.begin(),
+      user_csrf_origins.end()
+    );
+
     int to = -1;
     int_between_f(vars, "ping_timeout", to, {-1, std::numeric_limits<int>::max()});
     if (to != -1) {
@@ -1177,6 +1214,18 @@ namespace config {
     int_between_f(vars, "wan_encryption_mode", stream.wan_encryption_mode, {0, 2});
 
     path_f(vars, "file_apps", stream.file_apps);
+#ifndef __ANDROID__
+    // TODO: Android can possibly support this
+    if (!fs::exists(stream.file_apps.c_str())) {
+      fs::copy_file(SUNSHINE_ASSETS_DIR "/apps.json", stream.file_apps);
+      fs::permissions(
+        stream.file_apps,
+        fs::perms::owner_read | fs::perms::owner_write,
+        fs::perm_options::add
+      );
+    }
+#endif
+
     int_between_f(vars, "fec_percentage", stream.fec_percentage, {1, 255});
 
     map_int_int_f(vars, "keybindings"s, input.keybindings);
@@ -1214,6 +1263,7 @@ namespace config {
     bool_f(vars, "ds4_back_as_touchpad_click", input.ds4_back_as_touchpad_click);
     bool_f(vars, "motion_as_ds4", input.motion_as_ds4);
     bool_f(vars, "touchpad_as_ds4", input.touchpad_as_ds4);
+    bool_f(vars, "ds5_inputtino_randomize_mac", input.ds5_inputtino_randomize_mac);
 
     bool_f(vars, "mouse", input.mouse);
     bool_f(vars, "keyboard", input.keyboard);
@@ -1225,12 +1275,21 @@ namespace config {
     bool_f(vars, "native_pen_touch", input.native_pen_touch);
 
     bool_f(vars, "notify_pre_releases", sunshine.notify_pre_releases);
+    bool_f(vars, "system_tray", sunshine.system_tray);
 
     int port = sunshine.port;
     int_between_f(vars, "port"s, port, {1024 + nvhttp::PORT_HTTPS, 65535 - rtsp_stream::RTSP_SETUP_PORT});
     sunshine.port = (std::uint16_t) port;
 
+    // Now that we have the port, add web UI port-specific origins to CSRF allowed list
+    // Web UI runs on port + 1 (PORT_HTTPS offset is 1 for confighttp)
+    const unsigned short web_ui_port = sunshine.port + 1;
+    sunshine.csrf_allowed_origins.push_back(std::format("https://localhost:{}", web_ui_port));
+    sunshine.csrf_allowed_origins.push_back(std::format("https://127.0.0.1:{}", web_ui_port));
+    sunshine.csrf_allowed_origins.push_back(std::format("https://[::1]:{}", web_ui_port));
+
     string_restricted_f(vars, "address_family", sunshine.address_family, {"ipv4"sv, "both"sv});
+    string_f(vars, "bind_address", sunshine.bind_address);
 
     bool upnp = false;
     bool_f(vars, "upnp"s, upnp);
@@ -1248,6 +1307,7 @@ namespace config {
                                                                    "en_US"sv,  // English (US)
                                                                    "es"sv,  // Spanish
                                                                    "fr"sv,  // French
+                                                                   "hu"sv,  // Hungarian
                                                                    "it"sv,  // Italian
                                                                    "ja"sv,  // Japanese
                                                                    "ko"sv,  // Korean
@@ -1258,6 +1318,7 @@ namespace config {
                                                                    "sv"sv,  // Swedish
                                                                    "tr"sv,  // Turkish
                                                                    "uk"sv,  // Ukrainian
+                                                                   "vi"sv,  // Vietnamese
                                                                    "zh"sv,  // Chinese
                                                                    "zh_TW"sv,  // Chinese (Traditional)
                                                                  });
@@ -1419,7 +1480,7 @@ namespace config {
       if (!service_ctrl::is_service_running()) {
         // If the service isn't running, relaunch ourselves as admin to start it
         WCHAR executable[MAX_PATH];
-        GetModuleFileNameW(NULL, executable, ARRAYSIZE(executable));
+        GetModuleFileNameW(nullptr, executable, ARRAYSIZE(executable));
 
         SHELLEXECUTEINFOW shell_exec_info {};
         shell_exec_info.cbSize = sizeof(shell_exec_info);
