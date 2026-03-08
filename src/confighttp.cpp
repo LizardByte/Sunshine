@@ -355,7 +355,7 @@ namespace confighttp {
 
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
-    auto is_allowed_origin = [](const std::string &url) {
+    auto is_allowed_origin = [](const std::string_view url) {
       return std::ranges::any_of(config::sunshine.csrf_allowed_origins, [&url](const std::string &allowed_origin) {
         // Ensure exact prefix match (with ":" or "/" after to prevent malicious.com matching allowed.com)
         if (url.rfind(allowed_origin, 0) != 0) {  // rfind with pos=0 checks if the url starts with allowed_origin

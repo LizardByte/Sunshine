@@ -361,6 +361,18 @@ protected:
     ASSERT_NE(csp, response->header.end());
     ASSERT_EQ(csp->second, "frame-ancestors 'none';");
   }
+
+  static void assert_json_error_response(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response, const std::string_view &expected_message, const std::string_view &expected_status_code) {
+    const auto content_type = response->header.find("Content-Type");
+    ASSERT_NE(content_type, response->header.end());
+    ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
+
+    assert_security_headers(response);
+
+    const std::string body = response->content.string();
+    ASSERT_TRUE(body.find(expected_message) != std::string::npos);
+    ASSERT_TRUE(body.find(expected_status_code) != std::string::npos);
+  }
 };
 
 // Test: confighttp::authenticate() rejects requests without auth header
@@ -426,38 +438,14 @@ TEST_F(ConfigHttpTest, SendUnauthorizedResponse) {
 TEST_F(ConfigHttpTest, NotFoundResponse) {
   const auto response = client->request("GET", "/notfound-test");
   ASSERT_EQ(response->status_code, "404 Not Found");
-
-  // Check Content-Type
-  const auto content_type = response->header.find("Content-Type");
-  ASSERT_NE(content_type, response->header.end());
-  ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
-
-  // Check security headers
-  assert_security_headers(response);
-
-  // Check JSON response
-  const std::string body = response->content.string();
-  ASSERT_TRUE(body.find("Test not found") != std::string::npos);
-  ASSERT_TRUE(body.find("404") != std::string::npos);
+  assert_json_error_response(response, "Test not found", "404");
 }
 
 // Test: confighttp::bad_request() sends proper 400 response
 TEST_F(ConfigHttpTest, BadRequestResponse) {
   const auto response = client->request("GET", "/badrequest-test");
   ASSERT_EQ(response->status_code, "400 Bad Request");
-
-  // Check Content-Type
-  const auto content_type = response->header.find("Content-Type");
-  ASSERT_NE(content_type, response->header.end());
-  ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
-
-  // Check security headers
-  assert_security_headers(response);
-
-  // Check JSON response
-  const std::string body = response->content.string();
-  ASSERT_TRUE(body.find("Test bad request") != std::string::npos);
-  ASSERT_TRUE(body.find("400") != std::string::npos);
+  assert_json_error_response(response, "Test bad request", "400");
 }
 
 // Test: confighttp::send_response() sends proper JSON response
