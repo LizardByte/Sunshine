@@ -89,11 +89,11 @@ X4wnh1bwdiidqpcgyuKossLOPxbS786WmsesaAWPnpoY6M8aija+ALwNNuWWmyMg
  *
  * This fixture creates a real server to test the actual confighttp functions.
  */
-class ConfigHttpTest: public ::testing::Test {
+class ConfigHttpTest: public ::testing::Test {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
 protected:
   std::unique_ptr<SimpleWeb::Server<SimpleWeb::HTTPS>> server;
   std::unique_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>> client;
-  std::thread server_thread;
+  std::thread server_thread;  // NOSONAR(cpp:S6168) - jthread not available on FreeBSD 14.3 libc++
   unsigned short port = 0;
 
   std::string saved_username;
@@ -266,7 +266,7 @@ protected:
     };
 
     // Add a route to test getPage (requires auth)
-    server->resource["^/page-test$"]["GET"] = [this](
+    server->resource["^/page-test$"]["GET"] = [](
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                 const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                               ) {
@@ -276,7 +276,7 @@ protected:
     };
 
     // Add a route to test getPage without auth requirement
-    server->resource["^/page-noauth-test$"]["GET"] = [this](
+    server->resource["^/page-noauth-test$"]["GET"] = [](
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                        const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                      ) {
@@ -284,7 +284,7 @@ protected:
     };
 
     // Add a route to test getPage with redirect_if_username
-    server->resource["^/page-redirect-test$"]["GET"] = [this](
+    server->resource["^/page-redirect-test$"]["GET"] = [](
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
                                                          const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
                                                        ) {
@@ -301,8 +301,8 @@ protected:
     };
 
     // Start server
-    server_thread = std::thread([this]() {
-      server->start([this](unsigned short assigned_port) {
+    server_thread = std::thread([this]() {  // NOSONAR(cpp:S6168) - jthread not available on FreeBSD 14.3 libc++
+      server->start([this](const unsigned short assigned_port) {
         port = assigned_port;
       });
     });
@@ -350,6 +350,16 @@ protected:
 
   static std::string create_auth_header(const std::string &username, const std::string &password) {
     return "Basic " + SimpleWeb::Crypto::Base64::encode(username + ":" + password);
+  }
+
+  static void assert_security_headers(const std::shared_ptr<SimpleWeb::Client<SimpleWeb::HTTPS>::Response> &response) {
+    const auto x_frame = response->header.find("X-Frame-Options");
+    ASSERT_NE(x_frame, response->header.end());
+    ASSERT_EQ(x_frame->second, "DENY");
+
+    const auto csp = response->header.find("Content-Security-Policy");
+    ASSERT_NE(csp, response->header.end());
+    ASSERT_EQ(csp->second, "frame-ancestors 'none';");
   }
 };
 
@@ -404,13 +414,7 @@ TEST_F(ConfigHttpTest, SendUnauthorizedResponse) {
   ASSERT_TRUE(www_auth->second.find("Basic realm") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 
   // Check JSON response
   const std::string body = response->content.string();
@@ -429,9 +433,7 @@ TEST_F(ConfigHttpTest, NotFoundResponse) {
   ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
+  assert_security_headers(response);
 
   // Check JSON response
   const std::string body = response->content.string();
@@ -450,13 +452,7 @@ TEST_F(ConfigHttpTest, BadRequestResponse) {
   ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 
   // Check JSON response
   const std::string body = response->content.string();
@@ -475,13 +471,7 @@ TEST_F(ConfigHttpTest, SendResponseJson) {
   ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 
   // Check JSON content
   const std::string body = response->content.string();
@@ -501,13 +491,7 @@ TEST_F(ConfigHttpTest, SendRedirectResponse) {
   ASSERT_EQ(location->second, "/redirected-location");
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 }
 
 // Test: confighttp::check_content_type() accepts valid content type
@@ -684,13 +668,7 @@ TEST_F(ConfigHttpTest, GetPageWithAuth) {
   ASSERT_TRUE(content_type->second.find("charset=utf-8") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 
   // Check HTML content
   const std::string body = response->content.string();
@@ -755,13 +733,7 @@ TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
   ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
 
   // Check security headers
-  const auto x_frame = response->header.find("X-Frame-Options");
-  ASSERT_NE(x_frame, response->header.end());
-  ASSERT_EQ(x_frame->second, "DENY");
-
-  const auto csp = response->header.find("Content-Security-Policy");
-  ASSERT_NE(csp, response->header.end());
-  ASSERT_EQ(csp->second, "frame-ancestors 'none';");
+  assert_security_headers(response);
 
   // Check JSON content
   const std::string body = response->content.string();

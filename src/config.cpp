@@ -725,7 +725,7 @@ namespace config {
     }
   }
 
-  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &input) {
+  void string_list_f(std::unordered_map<std::string, std::string> &vars, const std::string &name, std::vector<std::string> &output) {  // NOSONAR(cpp:S6045) - transparent hasher not available for unordered_map in this codebase
     std::string temp;
     string_f(vars, name, temp);
 
@@ -733,7 +733,7 @@ namespace config {
       return;
     }
 
-    input.clear();
+    output.clear();
     std::stringstream ss(temp);
     std::string item;
     while (std::getline(ss, item, ',')) {
@@ -741,7 +741,7 @@ namespace config {
       item.erase(0, item.find_first_not_of(" \t\r\n"));
       item.erase(item.find_last_not_of(" \t\r\n") + 1);
       if (!item.empty()) {
-        input.push_back(item);
+        output.push_back(item);
       }
     }
   }

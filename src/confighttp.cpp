@@ -7,9 +7,11 @@
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
+#include <algorithm>
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <string_view>
 
 // lib includes
 #include <boost/algorithm/string.hpp>
@@ -66,8 +68,8 @@ namespace confighttp {
   };
 
   // Store CSRF tokens with thread safety
-  std::map<std::string, csrf_token_t> csrf_tokens;
-  std::mutex csrf_tokens_mutex;
+  std::map<std::string, csrf_token_t, std::less<>> csrf_tokens;  // NOSONAR(cpp:S5421) - intentionally mutable global
+  std::mutex csrf_tokens_mutex;  // NOSONAR(cpp:S5421) - intentionally mutable global
 
   // CSRF token configuration
   constexpr auto CSRF_TOKEN_SIZE = 32;  // 32 bytes = 256 bits
@@ -281,13 +283,11 @@ namespace confighttp {
    */
   std::string get_client_id(const req_https_t &request) {
     // Try to use the authenticated username as client ID
-    if (!config::sunshine.username.empty()) {
-      if (const auto auth = request->header.find("authorization"); auth != request->header.end()) {
-        if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
-          auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
-          if (const auto index = static_cast<int>(authData.find(':')); index < authData.size() - 1) {
-            return authData.substr(0, index);  // Return username
-          }
+    if (const auto auth = request->header.find("authorization"); !config::sunshine.username.empty() && auth != request->header.end()) {
+      if (const auto &rawAuth = auth->second; rawAuth.rfind("Basic "sv, 0) == 0) {
+        auto authData = SimpleWeb::Crypto::Base64::decode(rawAuth.substr("Basic "sv.length()));
+        if (const auto index = static_cast<int>(authData.find(':')); index < authData.size() - 1) {
+          return authData.substr(0, index);  // Return username
         }
       }
     }
@@ -305,17 +305,13 @@ namespace confighttp {
     // Generate a cryptographically secure random token
     std::string token = crypto::rand_alphabet(CSRF_TOKEN_SIZE);
 
-    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
+    std::scoped_lock lock(csrf_tokens_mutex);
 
     // Clean up expired tokens first
     const auto now = std::chrono::steady_clock::now();
-    for (auto it = csrf_tokens.begin(); it != csrf_tokens.end();) {
-      if (it->second.expiration < now) {
-        it = csrf_tokens.erase(it);
-      } else {
-        ++it;
-      }
-    }
+    std::erase_if(csrf_tokens, [&now](const auto &entry) {
+      return entry.second.expiration < now;
+    });
 
     // Store the token with expiration
     csrf_tokens[client_id] = csrf_token_t {
@@ -327,49 +323,60 @@ namespace confighttp {
   }
 
   /**
-   * @brief Validate a CSRF token from a request.
-   *
-   * This function implements a hybrid CSRF protection approach:
-   * 1. Same-origin requests (detected via Origin or Referer headers matching configured allowed origins) are allowed without tokens
-   * 2. Cross-origin requests must provide a valid CSRF token
-   *
-   * This allows the existing web UI to work without modifications while still protecting
-   * against CSRF attacks from malicious external sites.
-   *
+   * @brief Validate a stored CSRF token for a client against a provided token string.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   * @param client_id A unique identifier for the client (e.g., session ID or username).
-   * @return True if the CSRF token is valid or the request is same-origin, false otherwise.
+   * @param client_id A unique identifier for the client.
+   * @param provided_token The token string to validate.
+   * @return True if the token is valid, false otherwise.
    */
+  bool validate_stored_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string_view client_id, const std::string_view provided_token) {
+    std::scoped_lock lock(csrf_tokens_mutex);
+    const auto token_it = csrf_tokens.find(client_id);
+
+    if (token_it == csrf_tokens.end()) {
+      bad_request(response, request, "Invalid CSRF token");
+      return false;
+    }
+
+    if (const auto now = std::chrono::steady_clock::now(); token_it->second.expiration < now) {
+      csrf_tokens.erase(token_it);
+      bad_request(response, request, "CSRF token expired");
+      return false;
+    }
+
+    if (token_it->second.token != provided_token) {
+      bad_request(response, request, "Invalid CSRF token");
+      return false;
+    }
+
+    return true;
+  }
+
   bool validate_csrf_token(const resp_https_t &response, const req_https_t &request, const std::string &client_id) {
     // Helper function to check if a URL starts with any allowed origin
-    auto is_allowed_origin = [](const std::string &url) -> bool {
-      for (const auto &allowed_origin : config::sunshine.csrf_allowed_origins) {
-        // Ensure the exact prefix match (with ":" or "/" after to prevent malicious.com matching allowed.com)
-        if (url.rfind(allowed_origin, 0) == 0) {  // rfind with pos=0 checks if the url starts with allowed_origin
-          // Check that it's followed by ":" (port) or "/" (path) or is an exact match
-          if (const size_t len = allowed_origin.length(); url.length() == len || url[len] == ':' || url[len] == '/') {
-            return true;
-          }
+    auto is_allowed_origin = [](const std::string &url) {
+      return std::ranges::any_of(config::sunshine.csrf_allowed_origins, [&url](const std::string &allowed_origin) {
+        // Ensure exact prefix match (with ":" or "/" after to prevent malicious.com matching allowed.com)
+        if (url.rfind(allowed_origin, 0) != 0) {  // rfind with pos=0 checks if the url starts with allowed_origin
+          return false;
         }
-      }
-      return false;
+        // Check that it's followed by ":" (port) or "/" (path) or is an exact match
+        const size_t len = allowed_origin.length();
+        return url.length() == len || url[len] == ':' || url[len] == '/';
+      });
     };
 
     // Check if the request is from the same origin (Origin or Referer header matches configured allowed origins)
-    if (const auto origin_it = request->header.find("Origin"); origin_it != request->header.end()) {
-      if (is_allowed_origin(origin_it->second)) {
-        // Same origin request - allow without CSRF token
-        return true;
-      }
+    if (const auto origin_it = request->header.find("Origin"); origin_it != request->header.end() && is_allowed_origin(origin_it->second)) {
+      // Same origin request - allow without CSRF token
+      return true;
     }
 
     // If we have a Referer header, check if it's same-origin
-    if (const auto referer_it = request->header.find("Referer"); referer_it != request->header.end()) {
-      if (is_allowed_origin(referer_it->second)) {
-        // Same origin request - allow without CSRF token
-        return true;
-      }
+    if (const auto referer_it = request->header.find("Referer"); referer_it != request->header.end() && is_allowed_origin(referer_it->second)) {
+      // Same origin request - allow without CSRF token
+      return true;
     }
 
     // Not a same-origin request, require CSRF token
@@ -384,54 +391,11 @@ namespace confighttp {
         return false;
       }
 
-      // Validate token from query parameter
-      std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
-      const auto token_it = csrf_tokens.find(client_id);
-
-      if (token_it == csrf_tokens.end()) {
-        bad_request(response, request, "Invalid CSRF token");
-        return false;
-      }
-
-      auto now = std::chrono::steady_clock::now();
-      if (token_it->second.expiration < now) {
-        csrf_tokens.erase(token_it);
-        bad_request(response, request, "CSRF token expired");
-        return false;
-      }
-
-      if (token_it->second.token != query_it->second) {
-        bad_request(response, request, "Invalid CSRF token");
-        return false;
-      }
-
-      return true;
+      return validate_stored_csrf_token(response, request, client_id, query_it->second);
     }
 
     // Validate token from header
-    const std::string &provided_token = header_it->second;
-
-    std::lock_guard<std::mutex> lock(csrf_tokens_mutex);
-    auto token_it = csrf_tokens.find(client_id);
-
-    if (token_it == csrf_tokens.end()) {
-      bad_request(response, request, "Invalid CSRF token");
-      return false;
-    }
-
-    auto now = std::chrono::steady_clock::now();
-    if (token_it->second.expiration < now) {
-      csrf_tokens.erase(token_it);
-      bad_request(response, request, "CSRF token expired");
-      return false;
-    }
-
-    if (token_it->second.token != provided_token) {
-      bad_request(response, request, "Invalid CSRF token");
-      return false;
-    }
-
-    return true;
+    return validate_stored_csrf_token(response, request, client_id, header_it->second);
   }
 
   /**
