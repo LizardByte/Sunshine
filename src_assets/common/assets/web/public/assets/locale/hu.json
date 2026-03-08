@@ -491,17 +491,17 @@
   },
   "featured": {
     "categories": {
-      "client": "Ügyfelek",
+      "client": "Kliensek",
       "tool": "Eszközök"
     },
     "description": "Fedezze fel a Sunshine streaming élményét fokozó ügyfeleket, eszközöket és integrációkat.",
-    "docs": "Dokumentumok",
+    "docs": "Dokumentáció",
     "documentation": "Dokumentáció",
     "get": "Szerezd meg a  címet.",
     "github": "GitHub tároló",
     "github_forks": "Villák",
     "github_issues": "Nyitott kérdések",
-    "github_stars": "Csillagok",
+    "github_stars": "Csillag",
     "last_updated": "Utolsó frissítés",
     "no_apps": "Ebben a kategóriában nem találtunk alkalmazásokat.",
     "official": "Hivatalos",
