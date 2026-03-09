@@ -259,6 +259,10 @@ namespace config {
     bool notify_pre_releases;
     bool system_tray;
     std::vector<prep_cmd_t> prep_cmds;
+
+    // List of allowed origins for CSRF protection (e.g., "https://example.com,https://app.example.com")
+    // Comma-separated list of additional origins. Default includes localhost variants and web UI port.
+    std::vector<std::string> csrf_allowed_origins;
   };
 
   extern video_t video;

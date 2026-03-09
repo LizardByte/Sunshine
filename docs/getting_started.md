@@ -308,6 +308,25 @@ brew uninstall sunshine
 > [!IMPORTANT]
 > Sunshine on macOS is experimental. Gamepads do not work.
 
+#### DMG
+
+##### Install
+
+1. Download and install based on your architecture:
+
+   | Architecture          | Package                                                                                                                |
+   |-----------------------|------------------------------------------------------------------------------------------------------------------------|
+   | arm64 (Apple Silicon) | [Sunshine-macOS-arm64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-arm64.dmg)   |
+   | x86_64 (Intel)        | [Sunshine-macOS-x86_64.dmg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-macOS-x86_64.dmg) |
+
+2. Open the downloaded `.dmg` file.
+3. Drag `Sunshine.app` into the `Applications` folder.
+4. Eject the disk image.
+
+##### Uninstall
+1. Quit Sunshine if it is running.
+2. Open `Finder`, navigate to `Applications`, and drag `Sunshine.app` to the Trash.
+
 #### Homebrew
 This package requires that you have [Homebrew](https://docs.brew.sh/Installation) installed.
 
@@ -429,17 +448,17 @@ After adding yourself to the group, log out and log back in for the changes to t
 #### Services
 
 > [!NOTE]
-> Two service unit files are available. Pick "sunshine" for unprivileged XDG Portal or X11 capture, otherwise
-> pick "sunshine-kms" for privileged KMS capture.
+> Two service unit files are available. Pick "app-dev.lizardbyte.app.Sunshine" for unprivileged XDG Portal
+> or X11 capture, otherwise pick "sunshine" for privileged KMS capture.
 
 **Start once**
 ```bash
 systemctl --user start sunshine
 ```
 
-**Start on boot (unprivileged; swap logic for KMS)**
+**Start on boot (privileged; swap names for unprivileged XDG capture)**
 ```bash
-systemctl --user --now disable sunshine-kms
+systemctl --user --now disable app-dev.lizardbyte.app.Sunshine
 systemctl --user --now enable sunshine
 ```
 

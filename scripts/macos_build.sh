@@ -13,6 +13,7 @@ build_docs="OFF"
 build_tests="ON"
 build_type="Release"
 sign_app="true"
+notarize="true"
 
 # environment variables
 # BUILD_VERSION should be empty or cmake will assume a CI build
@@ -66,6 +67,7 @@ Options:
   --build-docs             Build docs.
   --skip-tests             Don't build the test suite.
   --skip-codesign          Don't sign/notarize the bundle.
+  --skip-notarize          Don't notarize the dmg.
 
 Steps:
   deps                     Install dependencies only
@@ -147,8 +149,11 @@ function run_step_dmg() {
 
   cpack -G DragNDrop --config "${build_dir}/CPackConfig.cmake" --verbose
 
-  if [[ -n "${sign_app}" ]]; then
-    xcrun notarytool submit "${build_dir}/cpack_artifacts/Sunshine.dmg" --keychain-profile "notarytool-password" --wait
+  if [[ -n "${sign_app}" && -n "${notarize}" ]]; then
+    time xcrun notarytool submit "${build_dir}/cpack_artifacts/Sunshine.dmg" \
+      --keychain-profile "notarytool-password" \
+      --wait \
+      --timeout 15m
     xcrun stapler staple -v "${build_dir}/cpack_artifacts/Sunshine.dmg"
   fi
   return 0
@@ -215,6 +220,9 @@ while getopts ":h-:" opt; do
           ;;
         skip-codesign)
          sign_app=""
+          ;;
+        skip-notarize)
+         notarize=""
           ;;
         *)
           echo "Invalid option: --${OPTARG}" 1>&2

@@ -57,7 +57,7 @@ function install() {
   mkdir -p ~/.config/systemd/user
   cp -r "$SUNSHINE_SHARE_HERE/systemd/user/" ~/.config/systemd/
   # patch service executable path
-  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/sunshine.service
+  sed -i -e "s#$SUNSHINE_PATH#$(readlink -f $ARGV0)#g" ~/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service
 
   # setcap
   sudo setcap cap_sys_admin+p "$(readlink -f "$SUNSHINE_BIN_HERE")"
@@ -71,7 +71,7 @@ function remove() {
   sudo rm -f /etc/modules-load.d/60-sunshine.conf
 
   # remove service
-  sudo rm -f ~/.config/systemd/user/sunshine.service
+  sudo rm -f ~/.config/systemd/user/app-dev.lizardbyte.app.Sunshine.service
 }
 
 # process arguments

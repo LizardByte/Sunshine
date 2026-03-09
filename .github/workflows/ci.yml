@@ -287,6 +287,7 @@ jobs:
       - build-homebrew
       - build-linux
       - build-linux-flatpak
+      - build-macos
       - build-windows
     permissions:
       contents: read

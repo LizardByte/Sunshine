@@ -217,12 +217,7 @@ if(${SUNSHINE_ENABLE_TRAY})
         list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
     endif()
 
-    # flatpak icons must be prefixed with the app id or they will not be included in the flatpak
-    if(${SUNSHINE_BUILD_FLATPAK})
-        set(SUNSHINE_TRAY_PREFIX "${PROJECT_FQDN}")
-    else()
-        set(SUNSHINE_TRAY_PREFIX "sunshine")
-    endif()
+    set(SUNSHINE_TRAY_PREFIX "${PROJECT_FQDN}")
     list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY_PREFIX="${SUNSHINE_TRAY_PREFIX}")
 else()
     set(SUNSHINE_TRAY 0)
