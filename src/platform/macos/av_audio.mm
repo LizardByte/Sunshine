@@ -654,7 +654,7 @@ namespace platf {
     @kAudioAggregateDeviceUIDKey: [NSString stringWithFormat:@"com.lizardbyte.sunshine.aggregate-%p", (void *) self],
     @kAudioAggregateDeviceTapListKey: @[subTapDictionary],
     @kAudioAggregateDeviceTapAutoStartKey: @NO,
-  // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect when set
+    // Shows the tap in Audio MIDI Setup and HALLab where it's easier to inspect when set
     @kAudioAggregateDeviceIsPrivateKey: std::getenv("SUNSHINE_PUBLIC_AUDIO_TAP") ? @NO : @YES,
   };
 

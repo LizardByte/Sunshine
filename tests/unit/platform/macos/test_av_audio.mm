@@ -38,10 +38,10 @@ class AVAudioTest: public PlatformTestSuite, public ::testing::WithParamInterfac
  */
 TEST_F(AVAudioTest, FindMicrophoneWithNilReturnsNil) {
   @try {
-    #pragma clang diagnostic push
-    #pragma clang diagnostic ignored "-Wnonnull"
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wnonnull"
     AVCaptureDevice *device = [AVAudio findMicrophone:nil];
-    #pragma clang diagnostic pop
+  #pragma clang diagnostic pop
     EXPECT_EQ(device, nil);
   }
   @catch (NSException *exception) {
