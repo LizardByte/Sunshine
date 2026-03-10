@@ -194,13 +194,13 @@ namespace portal {
       }
 
       if (screencast_proxy) {
-        g_object_unref(screencast_proxy);
+        g_clear_object(&screencast_proxy);
       }
       if (remote_desktop_proxy) {
-        g_object_unref(remote_desktop_proxy);
+        g_clear_object(&remote_desktop_proxy);
       }
       if (conn) {
-        g_object_unref(conn);
+        g_clear_object(&conn);
       }
     }
 
@@ -531,8 +531,8 @@ namespace portal {
     }
 
     int open_pipewire_remote(const gchar *session_path, int &fd) {
-      GUnixFDList *fd_list;
-      GVariant *msg = g_variant_new("(oa{sv})", session_path, nullptr);
+      g_autoptr(GUnixFDList) fd_list = nullptr;
+      g_autoptr(GVariant) msg = g_variant_ref_sink(g_variant_new("(oa{sv})", session_path, nullptr));
 
       g_autoptr(GError) err = nullptr;
       g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &fd_list, nullptr, &err);
