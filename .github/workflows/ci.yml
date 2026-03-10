@@ -158,14 +158,16 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-windows.yml
     with:
+      azure_signing_account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+      azure_signing_cert_profile: ${{ vars.AZURE_SIGNING_CERT_PROFILE }}
+      azure_signing_endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
       publish_release: ${{ needs.release-setup.outputs.publish_release }}
       release_commit: ${{ needs.release-setup.outputs.release_commit }}
       release_version: ${{ needs.release-setup.outputs.release_version }}
     secrets:
-      SSLCOM_USERNAME: ${{ secrets.SSLCOM_USERNAME }}
-      SSLCOM_PASSWORD: ${{ secrets.SSLCOM_PASSWORD }}
-      SSLCOM_CREDENTIAL_ID: ${{ secrets.SSLCOM_CREDENTIAL_ID }}
-      SSLCOM_TOTP_SECRET: ${{ secrets.SSLCOM_TOTP_SECRET }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
 
   bundle-analysis:
     name: Bundle Analysis
