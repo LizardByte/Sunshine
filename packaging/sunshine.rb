@@ -110,6 +110,13 @@ class Sunshine < Formula
       url "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz"
       sha256 "0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d"
     end
+
+    # setuptools provides pkg_resources which glad's plugin.py imports at build time.
+    # setuptools >= 81 removed pkg_resources; this is the last release that still ships it.
+    resource "setuptools" do
+      url "https://files.pythonhosted.org/packages/76/95/faf61eb8363f26aa7e1d762267a8d602a1b26d4f3a1e758e92cb3cb8b054/setuptools-80.10.2.tar.gz"
+      sha256 "8b0e9d10c784bf7d262c4e5ec5d4ec94127ce206e8738f29a437945fbc219b70"
+    end
   end
 
   conflicts_with "sunshine-beta", because: "sunshine and sunshine-beta cannot be installed at the same time"
@@ -122,6 +129,11 @@ class Sunshine < Formula
   fails_with :gcc do
     version "12" # fails with GCC 12.x and earlier
     cause "Requires C++23 support"
+  end
+
+  fails_with :gcc do
+    version "13"
+    cause "Array out of bounds error when compiling glad sources"
   end
 
   def setup_build_environment

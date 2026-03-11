@@ -164,24 +164,58 @@ jobs:
           python-version: '3.14'
 
       - name: Print generated glad sources
-        # Temporary step: format and display the generated glad files so they can be
-        # compared with the previously committed sources. Remove once verified.
+        # Temporary step: diff the generated glad files against the versions on master so we
+        # can verify correctness before removing the pre-committed sources. Remove once verified.
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ${{ steps.python.outputs.python-path }} -m pip install ".[lint]"
 
           glad_files=(
-            "build/gladsources/glad/include/EGL/eglplatform.h"
-            "build/gladsources/glad/include/KHR/khrplatform.h"
-            "build/gladsources/glad/include/glad/egl.h"
-            "build/gladsources/glad/include/glad/gl.h"
-            "build/gladsources/glad/src/egl.c"
-            "build/gladsources/glad/src/gl.c"
+            "build/gladsources/glad_egl/include/EGL/eglplatform.h"
+            "build/gladsources/glad_egl/include/KHR/khrplatform.h"
+            "build/gladsources/glad_egl/include/glad/egl.h"
+            "build/gladsources/glad_egl/src/egl.c"
+            "build/gladsources/glad_gl/include/KHR/khrplatform.h"
+            "build/gladsources/glad_gl/include/glad/gl.h"
+            "build/gladsources/glad_gl/src/gl.c"
           )
+
+          # clang-format all generated files first
+          for f in "${glad_files[@]}"; do
+            clang-format --style=file:.clang-format -i "${f}"
+          done
+
+          # Fetch the full blob list under third-party/glad/ from master.
+          # Used to locate the pre-committed counterpart for each generated file.
+          master_tree=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/git/trees/master?recursive=1" \
+            --jq '[.tree[] | select(.path | startswith("third-party/glad/")) | select(.type == "blob") | .path]' \
+            2>/dev/null || echo "[]")
 
           for f in "${glad_files[@]}"; do
             echo "::group::${f}"
-            clang-format --style=file:.clang-format -i "${f}"
-            cat "${f}"
+
+            filename="$(basename "${f}")"
+            parent_dir="$(basename "$(dirname "${f}")")"
+
+            # Find the best match in master: same filename AND same immediate parent dir.
+            # Collapsed to one -c line to keep all content inside the YAML block indent.
+            master_path=$(echo "${master_tree}" | \
+              ${{ steps.python.outputs.python-path }} -c "import sys,json;t=json.load(sys.stdin);m=[p for p in t if p.rsplit('/',1)[-1]=='${filename}' and p.rsplit('/',2)[-2]=='${parent_dir}'];print(m[0] if m else '')")
+
+            if [ -n "${master_path}" ]; then
+              echo "Comparing generated file against master: ${master_path}"
+              master_tmp=$(mktemp)
+              gh api "repos/${GITHUB_REPOSITORY}/contents/${master_path}?ref=master" \
+                --jq '.content' | base64 -d > "${master_tmp}"
+              diff --unified "${master_tmp}" "${f}" || true
+              rm -f "${master_tmp}"
+            else
+              echo "No matching file found on master under third-party/glad/ — showing generated content:"
+              cat "${f}"
+            fi
+
             echo "::endgroup::"
           done
 
