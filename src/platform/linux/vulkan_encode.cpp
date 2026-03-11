@@ -124,6 +124,10 @@ namespace vk {
       // on complex frames.
       if (config::video.vk.rc_mode == 4) {
         ctx->rc_min_rate = 0;
+        // Cap maxBitrate to 120% of target to limit VBR overshoots.
+        // FFmpeg's vulkan_encode passes rc_max_rate as maxBitrate to the driver;
+        // without this, maxBitrate == averageBitrate gives the driver no ceiling.
+        ctx->rc_max_rate = ctx->bit_rate * 120 / 100;
       }
     }
 
