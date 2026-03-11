@@ -5,12 +5,41 @@ permissions: {}
 on:
   workflow_call:
     inputs:
+      # Azure Artifact Signing account name
+      azure_signing_account:
+        required: false
+        type: string
+        default: ''
+      # Azure Artifact Signing certificate profile name
+      azure_signing_cert_profile:
+        required: false
+        type: string
+        default: ''
+      # Azure Artifact Signing account endpoint
+      # e.g. https://<region>.codesigning.azure.net
+      azure_signing_endpoint:
+        required: false
+        type: string
+        default: ''
+      publish_release:
+        required: true
+        type: string
       release_commit:
         required: true
         type: string
       release_version:
         required: true
         type: string
+    secrets:
+      # Azure Client ID (App Registration) for Artifact Signing
+      AZURE_CLIENT_ID:
+        required: false
+      # Azure Client Secret for Artifact Signing
+      AZURE_CLIENT_SECRET:
+        required: false
+      # Azure Tenant ID for Artifact Signing
+      AZURE_TENANT_ID:
+        required: false
 
 jobs:
   build_windows:
@@ -217,6 +246,25 @@ jobs:
           ninja -C build
           echo "::remove-matcher owner=gcc::"
 
+      - name: Sign Windows executables
+        if: inputs.publish_release == 'true' && inputs.azure_signing_account != ''
+        uses: azure/trusted-signing-action@87c2e83e6868da99d3380aa309851b32ed9a8346  # v1.1.0
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          certificate-profile-name: ${{ inputs.azure_signing_cert_profile }}
+          endpoint: ${{ inputs.azure_signing_endpoint }}
+          files: |
+            ${{ github.workspace }}/build/sunshine.exe
+            ${{ github.workspace }}/build/tools/audio-info.exe
+            ${{ github.workspace }}/build/tools/dxgi-info.exe
+            ${{ github.workspace }}/build/tools/sunshinesvc.exe
+          files-folder: src_assets/windows
+          files-folder-filter: ps1
+          files-folder-recurse: true
+          signing-account-name: ${{ inputs.azure_signing_account }}
+
       - name: Package Windows
         shell: msys2 {0}
         run: |
@@ -232,6 +280,20 @@ jobs:
           mv ./cpack_artifacts/Sunshine.exe ../artifacts/Sunshine-${{ matrix.name }}-installer.exe
           mv ./cpack_artifacts/Sunshine.msi ../artifacts/Sunshine-${{ matrix.name }}-installer.msi
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
+
+      - name: Sign Windows installers
+        if: inputs.publish_release == 'true' && inputs.azure_signing_account != ''
+        uses: azure/trusted-signing-action@87c2e83e6868da99d3380aa309851b32ed9a8346  # v1.1.0
+        with:
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          certificate-profile-name: ${{ inputs.azure_signing_cert_profile }}
+          endpoint: ${{ inputs.azure_signing_endpoint }}
+          files-folder: artifacts
+          files-folder-filter: exe,msi
+          files-folder-recurse: false
+          signing-account-name: ${{ inputs.azure_signing_account }}
 
       - name: Debug nsis
         if: always()
