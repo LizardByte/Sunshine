@@ -247,7 +247,8 @@ jobs:
           echo "::remove-matcher owner=gcc::"
 
       - name: Sign Windows executables
-        if: inputs.publish_release == 'true' && inputs.azure_signing_account != ''
+        # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
+        if: inputs.publish_release == 'true' && inputs.azure_signing_account != '' && matrix.name != 'Windows-ARM64'
         uses: azure/trusted-signing-action@87c2e83e6868da99d3380aa309851b32ed9a8346  # v1.1.0
         with:
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -282,7 +283,8 @@ jobs:
           mv ./cpack_artifacts/Sunshine.zip ../artifacts/Sunshine-${{ matrix.name }}-portable.zip
 
       - name: Sign Windows installers
-        if: inputs.publish_release == 'true' && inputs.azure_signing_account != ''
+        # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
+        if: inputs.publish_release == 'true' && inputs.azure_signing_account != '' && matrix.name != 'Windows-ARM64'
         uses: azure/trusted-signing-action@87c2e83e6868da99d3380aa309851b32ed9a8346  # v1.1.0
         with:
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
