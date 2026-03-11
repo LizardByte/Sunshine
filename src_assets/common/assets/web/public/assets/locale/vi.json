@@ -161,6 +161,8 @@
     "controller_desc": "Cho phép khách điều khiển hệ thống chủ bằng gamepad / bộ điều khiển.",
     "credentials_file": "Tệp thông tin xác thực",
     "credentials_file_desc": "Lưu tên người dùng/mật khẩu riêng biệt với tệp trạng thái của Sunshine.",
+    "csrf_allowed_origins": "Nguồn gốc được phép cho CSRF",
+    "csrf_allowed_origins_desc": "Danh sách các nguồn gốc bổ sung được phép cho bảo vệ CSRF (được thêm vào các giá trị mặc định: các biến thể của localhost và cổng giao diện web). Chỉ thêm các nguồn gốc mà bạn tin cậy. Mỗi nguồn gốc phải bao gồm giao thức và tên miền (ví dụ: https://example.com).",
     "dd_config_ensure_active": "Bật màn hình tự động",
     "dd_config_ensure_only_display": "Tắt các màn hình khác và chỉ kích hoạt màn hình đã chỉ định.",
     "dd_config_ensure_primary": "Kích hoạt màn hình tự động và thiết lập nó làm màn hình chính.",

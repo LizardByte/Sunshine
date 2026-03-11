@@ -161,6 +161,8 @@
     "controller_desc": "게스트가 게임패드/컨트롤러로 호스트 시스템을 제어할 수 있습니다.",
     "credentials_file": "자격 증명 파일",
     "credentials_file_desc": "사용자 이름/비밀번호를 Sunshine의 상태 파일과 별도로 저장하세요.",
+    "csrf_allowed_origins": "CSRF 허용 오리진",
+    "csrf_allowed_origins_desc": "쉼표로 구분된 CSRF 보호를 위해 추가로 허용되는 출처 목록(기본값에 추가됨: 로컬 호스트 변형 및 웹 UI 포트). 신뢰할 수 있는 출처만 추가하세요. 각 오리진에는 프로토콜과 호스트(예: https://example.com)가 포함되어야 합니다.",
     "dd_config_ensure_active": "디스플레이 자동 활성화",
     "dd_config_ensure_only_display": "다른 디스플레이를 비활성화하고 지정된 디스플레이만 활성화하기",
     "dd_config_ensure_primary": "디스플레이를 자동으로 활성화하고 기본 디스플레이로 설정하기",

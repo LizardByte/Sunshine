@@ -161,6 +161,8 @@
     "controller_desc": "Tillåter gästerna att styra värdsystemet med en gamepad / controller",
     "credentials_file": "Filen för inloggningsuppgifter",
     "credentials_file_desc": "Lagra användarnamn/lösenord separat från Sunshines statusfil.",
+    "csrf_allowed_origins": "CSRF-tillåtna ursprung",
+    "csrf_allowed_origins_desc": "Kommaseparerad lista med ytterligare tillåtna ursprung för CSRF-skydd (bifogat till standardinställningar: localhost varianter och web UI port). Lägg bara till ursprung som du litar på. Varje ursprung måste innehålla protokoll och värd (t.ex., https://example.com).",
     "dd_config_ensure_active": "Aktivera skärmen automatiskt",
     "dd_config_ensure_only_display": "Inaktivera andra skärmar och aktivera endast den angivna skärmen",
     "dd_config_ensure_primary": "Aktivera skärmen automatiskt och gör den till en primär display",
