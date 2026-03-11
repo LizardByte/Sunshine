@@ -68,6 +68,7 @@ BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
 BuildRequires: python3-jinja2
+BuildRequires: python3-setuptools
 BuildRequires: systemd-udev
 %{?sysusers_requires_compat}
 # for unit tests
@@ -89,6 +90,7 @@ BuildRequires: libpulse-devel
 BuildRequires: npm
 BuildRequires: python311
 BuildRequires: python311-Jinja2
+BuildRequires: python311-setuptools
 BuildRequires: udev
 # for unit tests
 BuildRequires: xvfb-run
@@ -120,9 +122,9 @@ BuildRequires: gcc15-c++
 %if 0%{?suse_version}
 %if 0%{?suse_version} <= 1699
 # OpenSUSE Leap 15.x
-BuildRequires: gcc13
-BuildRequires: gcc13-c++
-%global gcc_version 13
+BuildRequires: gcc14
+BuildRequires: gcc14-c++
+%global gcc_version 14
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
 %else
