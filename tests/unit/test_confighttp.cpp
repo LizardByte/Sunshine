@@ -131,7 +131,7 @@ protected:
     };
 
     // Create test web directory in temp
-    test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";
+    test_web_dir = std::filesystem::temp_directory_path() / "sunshine_test_confighttp";  // NOSONAR(cpp:S5443) - safe for tests
     std::filesystem::create_directories(test_web_dir / "web");
 
     // Create test HTML file in WEB_DIR, creating parent directories with proper permissions
@@ -298,6 +298,14 @@ protected:
                                                 ) {
       // Call the actual confighttp::getLocale function
       confighttp::getLocale(response, request);
+    };
+
+    // Add a route to test browseDirectory
+    server->resource["^/browse-test$"]["GET"] = [](
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Response> &response,
+                                                  const std::shared_ptr<SimpleWeb::ServerBase<SimpleWeb::HTTPS>::Request> &request
+                                                ) {
+      confighttp::browseDirectory(response, request);
     };
 
     // Start server
@@ -728,3 +736,668 @@ TEST_F(ConfigHttpTest, GetLocaleReturnsJson) {
   ASSERT_TRUE(body.find("\"status\":true") != std::string::npos || body.find("\"status\": true") != std::string::npos);
   ASSERT_TRUE(body.find("\"locale\":\"en\"") != std::string::npos || body.find("\"locale\": \"en\"") != std::string::npos);
 }
+
+/**
+ * @brief Test fixture for confighttp::browseDirectory tests.
+ *
+ * Creates a known directory structure in the system temp directory so that
+ * the browse endpoint can be exercised with predictable contents.
+ *
+ * Layout:
+ *   sunshine_browse_test/
+ *   ├── subdir_a/
+ *   ├── subdir_b/
+ *   ├── file_alpha.txt
+ *   ├── file_beta.txt
+ *   └── test_exec[.exe]   (executable file)
+ */
+class BrowseDirectoryTest: public ConfigHttpTest {  // NOSONAR(cpp:S3656) - protected members are intentional for test fixture subclassing
+protected:
+  std::filesystem::path browse_test_dir;
+
+  void SetUp() override {
+    ConfigHttpTest::SetUp();
+
+    browse_test_dir = std::filesystem::temp_directory_path() / "sunshine_browse_test";  // NOSONAR(cpp:S5443) - safe for tests
+
+    // Remove any leftover directory from a previous interrupted run
+    if (std::filesystem::exists(browse_test_dir)) {
+      std::filesystem::remove_all(browse_test_dir);
+    }
+
+    std::filesystem::create_directories(browse_test_dir / "subdir_a");
+    std::filesystem::create_directories(browse_test_dir / "subdir_b");
+    std::ofstream(browse_test_dir / "file_alpha.txt") << "alpha";
+    std::ofstream(browse_test_dir / "file_beta.txt") << "beta";
+
+#ifdef _WIN32
+    std::ofstream(browse_test_dir / "test_exec.exe") << "fake exe";
+#else
+    const auto exec_file = browse_test_dir / "test_exec";
+    std::ofstream(exec_file) << "#!/bin/sh\necho hello";
+    std::filesystem::permissions(
+      exec_file,
+      std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::owner_exec,
+      std::filesystem::perm_options::replace
+    );
+#endif
+  }
+
+  void TearDown() override {
+    if (std::filesystem::exists(browse_test_dir)) {
+      std::filesystem::remove_all(browse_test_dir);
+    }
+    ConfigHttpTest::TearDown();
+  }
+
+  /**
+   * @brief URL-encodes a single query-parameter value.
+   *
+   * All characters except unreserved ones (RFC 3986) are percent-encoded so
+   * that slashes, backslashes, colons, etc. in filesystem paths are
+   * transmitted correctly.
+   */
+  static std::string url_encode_param(const std::string &str) {
+    std::string encoded;
+    for (const unsigned char c : str) {
+      if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+        encoded += static_cast<char>(c);
+      } else {
+        encoded += std::format("%{:02X}", static_cast<int>(c));
+      }
+    }
+    return encoded;
+  }
+
+  /**
+   * @brief Builds the /browse-test URL with optional path and type query params.
+   */
+  std::string browse_url(const std::string &path = "", const std::string &type = "") const {
+    std::string url = "/browse-test";
+    std::string sep = "?";
+    if (!path.empty()) {
+      url += sep + "path=" + url_encode_param(path);
+      sep = "&";
+    }
+    if (!type.empty()) {
+      url += sep + "type=" + type;
+    }
+    return url;
+  }
+
+  /**
+   * @brief Helper: locate an entry by name in the JSON entries array.
+   */
+  static nlohmann::json::const_iterator find_entry(const nlohmann::json &entries, const std::string &name) {
+    return std::ranges::find_if(entries, [&name](const nlohmann::json &e) {
+      return e.at("name").get<std::string>() == name;
+    });
+  }
+};
+
+// Test: browseDirectory requires authentication
+TEST_F(BrowseDirectoryTest, BrowseRequiresAuthentication) {
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()));
+  ASSERT_EQ(response->status_code, "401 Unauthorized");
+}
+
+// Test: browseDirectory returns 200 with valid JSON for a real directory
+TEST_F(BrowseDirectoryTest, BrowseListsValidDirectory) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const auto content_type = response->header.find("Content-Type");
+  ASSERT_NE(content_type, response->header.end());
+  ASSERT_TRUE(content_type->second.find("application/json") != std::string::npos);
+
+  assert_security_headers(response);
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(json.contains("path"));
+  ASSERT_TRUE(json.contains("parent"));
+  ASSERT_TRUE(json.contains("entries"));
+  ASSERT_TRUE(json["entries"].is_array());
+}
+
+// Test: returned 'path' field matches the requested directory
+TEST_F(BrowseDirectoryTest, BrowseResponsePathMatchesRequest) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const std::filesystem::path returned = std::filesystem::weakly_canonical(json["path"].get<std::string>());
+  const std::filesystem::path expected = std::filesystem::weakly_canonical(browse_test_dir);
+  ASSERT_EQ(returned, expected);
+}
+
+// Test: returned 'parent' field is the parent of 'path'
+TEST_F(BrowseDirectoryTest, BrowseResponseParentIsCorrect) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const std::filesystem::path returned_path(json["path"].get<std::string>());
+  const std::filesystem::path returned_parent(json["parent"].get<std::string>());
+  ASSERT_EQ(returned_parent, returned_path.parent_path());
+}
+
+// Test: entries contain the expected subdirectories and files with correct types
+TEST_F(BrowseDirectoryTest, BrowseResponseContainsExpectedEntries) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+  const auto subdir_a = find_entry(entries, "subdir_a");
+  ASSERT_NE(subdir_a, entries.end());
+  ASSERT_EQ((*subdir_a)["type"].get<std::string>(), "directory");
+
+  const auto subdir_b = find_entry(entries, "subdir_b");
+  ASSERT_NE(subdir_b, entries.end());
+  ASSERT_EQ((*subdir_b)["type"].get<std::string>(), "directory");
+
+  const auto file_alpha = find_entry(entries, "file_alpha.txt");
+  ASSERT_NE(file_alpha, entries.end());
+  ASSERT_EQ((*file_alpha)["type"].get<std::string>(), "file");
+
+  const auto file_beta = find_entry(entries, "file_beta.txt");
+  ASSERT_NE(file_beta, entries.end());
+  ASSERT_EQ((*file_beta)["type"].get<std::string>(), "file");
+}
+
+// Test: every entry has non-empty 'name', 'type', and 'path' fields
+TEST_F(BrowseDirectoryTest, BrowseEntryFieldsArePresent) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  for (const auto &entry : json["entries"]) {
+    ASSERT_TRUE(entry.contains("name"));
+    ASSERT_TRUE(entry.contains("type"));
+    ASSERT_TRUE(entry.contains("path"));
+    ASSERT_FALSE(entry["name"].get<std::string>().empty());
+    ASSERT_FALSE(entry["path"].get<std::string>().empty());
+    const auto type = entry["type"].get<std::string>();
+    ASSERT_TRUE(type == "directory" || type == "file");
+  }
+}
+
+// Test: entries are sorted – all directories appear before any file
+TEST_F(BrowseDirectoryTest, BrowseEntriesSortedDirsFirst) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  bool seen_file = false;
+  for (const auto &entry : json["entries"]) {
+    const std::string type = entry["type"].get<std::string>();
+    if (type == "file") {
+      seen_file = true;
+    } else if (type == "directory") {
+      ASSERT_FALSE(seen_file) << "Directory '" << entry["name"] << "' appears after a file in the listing";
+    }
+  }
+}
+
+// Test: entries within each group (dirs / files) are sorted case-insensitively
+TEST_F(BrowseDirectoryTest, BrowseEntriesSortedAlphabeticallyWithinGroups) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  std::string prev_dir;
+  std::string prev_file;
+  for (const auto &entry : json["entries"]) {
+    std::string name = entry["name"].get<std::string>();
+    std::ranges::transform(name, name.begin(), ::tolower);
+
+    if (entry["type"] == "directory") {
+      if (!prev_dir.empty()) {
+        ASSERT_LE(prev_dir, name) << "Directories are not in alphabetical order";
+      }
+      prev_dir = name;
+    } else {
+      if (!prev_file.empty()) {
+        ASSERT_LE(prev_file, name) << "Files are not in alphabetical order";
+      }
+      prev_file = name;
+    }
+  }
+}
+
+// Test: type=directory filter excludes files from the listing
+TEST_F(BrowseDirectoryTest, BrowseTypeDirFilterExcludesFiles) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string(), "directory"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+  for (const auto &entry : entries) {
+    ASSERT_EQ(entry["type"].get<std::string>(), "directory")
+      << "Non-directory entry '" << entry["name"] << "' found with type=directory filter";
+  }
+
+  // Subdirectories must still be present
+  ASSERT_NE(find_entry(entries, "subdir_a"), entries.end());
+  ASSERT_NE(find_entry(entries, "subdir_b"), entries.end());
+}
+
+// Test: type=file returns both files and directories
+TEST_F(BrowseDirectoryTest, BrowseTypeFileReturnsBoth) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string(), "file"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+  const bool has_dir = std::ranges::any_of(entries, [](const nlohmann::json &e) {
+    return e["type"] == "directory";
+  });
+  const bool has_file = std::ranges::any_of(entries, [](const nlohmann::json &e) {
+    return e["type"] == "file";
+  });
+  ASSERT_TRUE(has_dir);
+  ASSERT_TRUE(has_file);
+}
+
+// Test: type=executable still includes directories for navigation
+TEST_F(BrowseDirectoryTest, BrowseTypeExecutableIncludesDirs) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string(), "executable"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+  const bool has_dir = std::ranges::any_of(entries, [](const nlohmann::json &e) {
+    return e["type"] == "directory";
+  });
+  ASSERT_TRUE(has_dir);
+}
+
+// Test: type=executable excludes plain (non-executable) files
+TEST_F(BrowseDirectoryTest, BrowseTypeExecutableExcludesNonExecutableFiles) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string(), "executable"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+  // file_alpha.txt and file_beta.txt have no execute permission / wrong extension
+  for (const auto &entry : entries) {
+    if (entry["type"] == "file") {
+      const std::string name = entry["name"].get<std::string>();
+      ASSERT_NE(name, "file_alpha.txt") << "Non-executable file included in type=executable listing";
+      ASSERT_NE(name, "file_beta.txt") << "Non-executable file included in type=executable listing";
+    }
+  }
+}
+
+// Test: type=executable includes the known executable file
+TEST_F(BrowseDirectoryTest, BrowseTypeExecutableIncludesExecutableFile) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url(browse_test_dir.string(), "executable"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const auto &entries = json["entries"];
+
+#ifdef _WIN32
+  const std::string exec_name = "test_exec.exe";
+#else
+  const std::string exec_name = "test_exec";
+#endif
+
+  ASSERT_NE(find_entry(entries, exec_name), entries.end())
+    << "Expected executable file '" << exec_name << "' not found with type=executable filter";
+}
+
+// Test: supplying a file path navigates to its parent directory
+TEST_F(BrowseDirectoryTest, BrowseFilepathNavigatesToParentDirectory) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const std::filesystem::path file_path = browse_test_dir / "file_alpha.txt";
+  const auto response = client->request("GET", browse_url(file_path.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const std::filesystem::path returned = std::filesystem::weakly_canonical(json["path"].get<std::string>());
+  const std::filesystem::path expected = std::filesystem::weakly_canonical(browse_test_dir);
+  ASSERT_EQ(returned, expected);
+}
+
+// Test: a non-existent child path falls back to the existing parent directory
+TEST_F(BrowseDirectoryTest, BrowseNonexistentChildPathFallsBackToParent) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const std::filesystem::path nonexistent = browse_test_dir / "does_not_exist_xyz";
+  const auto response = client->request("GET", browse_url(nonexistent.string()), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const std::filesystem::path returned = std::filesystem::weakly_canonical(json["path"].get<std::string>());
+  const std::filesystem::path expected = std::filesystem::weakly_canonical(browse_test_dir);
+  ASSERT_EQ(returned, expected);
+}
+
+// Test: a path where both the target and its parent don't exist returns 400
+TEST_F(BrowseDirectoryTest, BrowseTrulyNonexistentPathReturnsBadRequest) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  // Construct a deeply non-existent path (parent also doesn't exist)
+  const std::string nonexistent = "/sunshine_nonexistent_xyz_54321/also_nonexistent";
+  const auto response = client->request("GET", browse_url(nonexistent), "", headers);
+  ASSERT_EQ(response->status_code, "400 Bad Request");
+}
+
+// Test: omitting the path parameter returns a valid response (defaults to a browsable location)
+TEST_F(BrowseDirectoryTest, BrowseEmptyPathReturnsValidResponse) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/browse-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  ASSERT_TRUE(json.contains("path"));
+  ASSERT_TRUE(json.contains("parent"));
+  ASSERT_TRUE(json.contains("entries"));
+  ASSERT_TRUE(json["entries"].is_array());
+}
+
+#ifdef _WIN32
+// Test (Windows): empty/root path returns the list of logical drive letters
+TEST_F(BrowseDirectoryTest, BrowseWindowsEmptyPathReturnsDriveList) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", "/browse-test", "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  ASSERT_EQ(json["path"].get<std::string>(), "");
+  ASSERT_EQ(json["parent"].get<std::string>(), "");
+  ASSERT_GT(json["entries"].size(), 0u);
+
+  // Every entry must look like "X:\" – a drive letter root
+  for (const auto &entry : json["entries"]) {
+    ASSERT_EQ(entry["type"].get<std::string>(), "directory");
+    const std::string name = entry["name"].get<std::string>();
+    ASSERT_EQ(name.size(), 3u) << "Drive entry name should be 3 chars, e.g. 'C:\\'";
+    ASSERT_TRUE(std::isalpha(static_cast<unsigned char>(name[0])));
+    ASSERT_EQ(name[1], ':');
+    ASSERT_EQ(name[2], '\\');
+  }
+}
+#else
+// Test (Unix): browsing "/" returns path == "/" and parent == "/" (at root, parent == self)
+TEST_F(BrowseDirectoryTest, BrowseUnixRootParentEqualsSelf) {
+  SimpleWeb::CaseInsensitiveMultimap headers;
+  headers.emplace("Authorization", create_auth_header("testuser", "testpass"));
+
+  const auto response = client->request("GET", browse_url("/"), "", headers);
+  ASSERT_EQ(response->status_code, "200 OK");
+
+  const nlohmann::json json = nlohmann::json::parse(response->content.string());
+  const std::string path = json["path"].get<std::string>();
+  const std::string parent = json["parent"].get<std::string>();
+
+  ASSERT_EQ(path, "/");
+  ASSERT_EQ(parent, "/");
+}
+#endif
+
+// ============================================================
+// Direct unit tests for browseDirectory helper functions
+// ============================================================
+
+// Test: is_browsable_executable correctly identifies executable files
+#ifdef _WIN32
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_WindowsExeExtension_ReturnsTrue) {
+  const std::filesystem::path exec_file = browse_test_dir / "test_exec.exe";
+  const std::filesystem::directory_entry entry(exec_file);
+  ASSERT_TRUE(confighttp::is_browsable_executable(entry, std::filesystem::status(exec_file)));
+}
+
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_WindowsBatExtension_ReturnsTrue) {
+  const std::filesystem::path bat_file = browse_test_dir / "test_script.bat";
+  std::ofstream(bat_file) << "@echo off";
+  const std::filesystem::directory_entry entry(bat_file);
+  ASSERT_TRUE(confighttp::is_browsable_executable(entry, std::filesystem::status(bat_file)));
+  std::filesystem::remove(bat_file);
+}
+
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_WindowsTxtExtension_ReturnsFalse) {
+  const std::filesystem::path txt_file = browse_test_dir / "file_alpha.txt";
+  const std::filesystem::directory_entry entry(txt_file);
+  ASSERT_FALSE(confighttp::is_browsable_executable(entry, std::filesystem::status(txt_file)));
+}
+
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_WindowsCaseInsensitive_ReturnsTrue) {
+  // .EXE uppercase should still be recognized
+  const std::filesystem::path upper_exe = browse_test_dir / "UPPER.EXE";
+  std::ofstream(upper_exe) << "fake";
+  const std::filesystem::directory_entry entry(upper_exe);
+  ASSERT_TRUE(confighttp::is_browsable_executable(entry, std::filesystem::status(upper_exe)));
+  std::filesystem::remove(upper_exe);
+}
+#else
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_LinuxExecBitSet_ReturnsTrue) {
+  const std::filesystem::path exec_file = browse_test_dir / "test_exec";
+  const std::filesystem::directory_entry entry(exec_file);
+  ASSERT_TRUE(confighttp::is_browsable_executable(entry, std::filesystem::status(exec_file)));
+}
+
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_LinuxNoExecBit_ReturnsFalse) {
+  const std::filesystem::path txt_file = browse_test_dir / "file_alpha.txt";
+  const std::filesystem::directory_entry entry(txt_file);
+  ASSERT_FALSE(confighttp::is_browsable_executable(entry, std::filesystem::status(txt_file)));
+}
+
+TEST_F(BrowseDirectoryTest, IsBrowsableExecutable_LinuxGroupExecBit_ReturnsTrue) {
+  const std::filesystem::path group_exec = browse_test_dir / "group_exec_file";
+  std::ofstream(group_exec) << "#!/bin/sh";
+  std::filesystem::permissions(
+    group_exec,
+    std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_exec,
+    std::filesystem::perm_options::replace
+  );
+  const std::filesystem::directory_entry entry(group_exec);
+  ASSERT_TRUE(confighttp::is_browsable_executable(entry, std::filesystem::status(group_exec)));
+  std::filesystem::remove(group_exec);
+}
+#endif
+
+// Test: build_browse_entries returns all entries for "any" type
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeAny_ReturnsAllEntries) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
+  ASSERT_TRUE(entries.is_array());
+  // subdir_a, subdir_b, file_alpha.txt, file_beta.txt, test_exec[.exe] = 5
+  ASSERT_EQ(entries.size(), 5u);
+}
+
+// Test: build_browse_entries returns only directories for "directory" type
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeDirectory_OnlyReturnsDirs) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "directory");
+  ASSERT_TRUE(entries.is_array());
+  ASSERT_EQ(entries.size(), 2u);  // subdir_a, subdir_b
+  for (const auto &e : entries) {
+    ASSERT_EQ(e["type"].get<std::string>(), "directory");
+  }
+}
+
+// Test: build_browse_entries returns dirs and files for "file" type
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeFile_ReturnsDirsAndFiles) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "file");
+  ASSERT_TRUE(entries.is_array());
+  const bool has_dir = std::ranges::any_of(entries, [](const nlohmann::json &e) {
+    return e["type"] == "directory";
+  });
+  const bool has_file = std::ranges::any_of(entries, [](const nlohmann::json &e) {
+    return e["type"] == "file";
+  });
+  ASSERT_TRUE(has_dir);
+  ASSERT_TRUE(has_file);
+}
+
+// Test: build_browse_entries for "executable" includes dirs and only executable files
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_TypeExecutable_IncludesDirsAndExecFiles) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "executable");
+  ASSERT_TRUE(entries.is_array());
+
+  // All directories must still be present for navigation
+  ASSERT_NE(find_entry(entries, "subdir_a"), entries.end());
+  ASSERT_NE(find_entry(entries, "subdir_b"), entries.end());
+
+#ifdef _WIN32
+  const std::string exec_name = "test_exec.exe";
+#else
+  const std::string exec_name = "test_exec";
+#endif
+  ASSERT_NE(find_entry(entries, exec_name), entries.end())
+    << "Expected executable '" << exec_name << "' not found";
+
+  // Non-executable text files must NOT appear
+  ASSERT_EQ(find_entry(entries, "file_alpha.txt"), entries.end());
+  ASSERT_EQ(find_entry(entries, "file_beta.txt"), entries.end());
+}
+
+// Test: build_browse_entries sorts directories before files
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_SortsDirsBeforeFiles) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
+  ASSERT_GE(entries.size(), 3u);
+
+  bool seen_file = false;
+  for (const auto &e : entries) {
+    if (e["type"] == "file") {
+      seen_file = true;
+    } else {
+      // directory after a file means incorrect sort order
+      ASSERT_FALSE(seen_file)
+        << "Directory '" << e["name"].get<std::string>() << "' appeared after a file entry";
+    }
+  }
+}
+
+// Test: build_browse_entries sorts entries alphabetically within each group
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_SortsAlphabeticallyWithinGroups) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
+
+  // Collect names of dirs and files separately and check they are in order
+  std::vector<std::string> dir_names;
+  std::vector<std::string> file_names;
+  for (const auto &e : entries) {
+    auto name = e["name"].get<std::string>();
+    std::ranges::transform(name, name.begin(), [](unsigned char c) {
+      return std::tolower(c);
+    });
+    if (e["type"] == "directory") {
+      dir_names.push_back(name);
+    } else {
+      file_names.push_back(name);
+    }
+  }
+
+  ASSERT_TRUE(std::ranges::is_sorted(dir_names))
+    << "Directory names are not in alphabetical order";
+  ASSERT_TRUE(std::ranges::is_sorted(file_names))
+    << "File names are not in alphabetical order";
+}
+
+// Test: every entry returned by build_browse_entries has the required fields
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_EachEntryHasRequiredFields) {
+  const auto entries = confighttp::build_browse_entries(browse_test_dir, "any");
+  ASSERT_FALSE(entries.empty());
+  for (const auto &e : entries) {
+    ASSERT_TRUE(e.contains("name")) << "Entry missing 'name' field";
+    ASSERT_TRUE(e.contains("type")) << "Entry missing 'type' field";
+    ASSERT_TRUE(e.contains("path")) << "Entry missing 'path' field";
+    const std::string type = e["type"].get<std::string>();
+    ASSERT_TRUE(type == "directory" || type == "file")
+      << "Unexpected entry type: " << type;
+  }
+}
+
+// Test: build_browse_entries on an empty directory returns an empty array
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_EmptyDirectory_ReturnsEmptyArray) {
+  const std::filesystem::path empty_dir = browse_test_dir / "empty_subdir_for_test";
+  std::filesystem::create_directory(empty_dir);
+
+  const auto entries = confighttp::build_browse_entries(empty_dir, "any");
+
+  std::filesystem::remove(empty_dir);
+
+  ASSERT_TRUE(entries.is_array());
+  ASSERT_TRUE(entries.empty());
+}
+
+// Test: build_browse_entries on a non-existent path returns an empty array (does not throw)
+TEST_F(BrowseDirectoryTest, BuildBrowseEntries_NonexistentDirectory_ReturnsEmptyArray) {
+  const auto entries = confighttp::build_browse_entries("/sunshine_nonexistent_dir_xyz_99999", "any");
+  ASSERT_TRUE(entries.is_array());
+  ASSERT_TRUE(entries.empty());
+}
+
+#ifdef _WIN32
+// Test: get_windows_drives returns at least one drive
+TEST_F(BrowseDirectoryTest, GetWindowsDrives_ReturnsAtLeastOneDrive) {
+  const auto drives = confighttp::get_windows_drives();
+  ASSERT_TRUE(drives.is_array());
+  ASSERT_GT(drives.size(), 0u);
+}
+
+// Test: get_windows_drives entries have correct name/type/path fields
+TEST_F(BrowseDirectoryTest, GetWindowsDrives_EntriesHaveCorrectFormat) {
+  for (const auto drives = confighttp::get_windows_drives(); const auto &drive : drives) {
+    ASSERT_TRUE(drive.contains("name"));
+    ASSERT_TRUE(drive.contains("type"));
+    ASSERT_TRUE(drive.contains("path"));
+    ASSERT_EQ(drive["type"].get<std::string>(), "directory");
+    const std::string name = drive["name"].get<std::string>();
+    ASSERT_EQ(name.size(), 3u) << "Drive name should be 3 chars, e.g. 'C:\\'";
+    ASSERT_TRUE(std::isalpha(static_cast<unsigned char>(name[0])));
+    ASSERT_EQ(name[1], ':');
+    ASSERT_EQ(name[2], '\\');
+    ASSERT_EQ(drive["path"].get<std::string>(), name);
+  }
+}
+#endif
