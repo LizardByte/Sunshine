@@ -251,6 +251,8 @@ namespace va {
         BOOST_LOG(info) << "Using normal encoding mode"sv;
       }
 
+      av_dict_set_int(options, "async_depth", config::video.vaapi.async_depth, 0);
+
       VAConfigAttrib rc_attr = {VAConfigAttribRateControl};
       auto status = vaGetConfigAttributes(va_display, va_profile, va_entrypoint, &rc_attr, 1);
       if (status != VA_STATUS_SUCCESS) {

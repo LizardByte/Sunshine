@@ -2920,6 +2920,35 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### vaapi_async_depth
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Number of frames to queue in the GPU.
+            @warning{Higher values help FPS stability under GPU load,
+            but may slightly increase latency.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">1-64</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vaapi_async_depth = 4
+            @endcode</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset

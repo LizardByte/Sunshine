@@ -78,6 +78,7 @@ namespace config {
 
     struct {
       bool strict_rc_buffer;
+      int async_depth;
     } vaapi;
 
     std::string capture;

@@ -374,6 +374,8 @@
     "touchpad_as_ds4_desc": "If disabled, touchpad presence will not be taken into account during gamepad type selection.",
     "upnp": "UPnP",
     "upnp_desc": "Automatically configure port forwarding for streaming over the Internet",
+    "vaapi_async_depth": "VA-API Async Depth",
+    "vaapi_async_depth_desc": "Number of frames to queue in the GPU. Higher values help FPS stability under GPU load, but may slightly increase latency.",
     "vaapi_strict_rc_buffer": "Strictly enforce frame bitrate limits for H.264/HEVC on AMD GPUs",
     "vaapi_strict_rc_buffer_desc": "Enabling this option can avoid dropped frames over the network during scene changes, but video quality may be reduced during motion.",
     "virtual_sink": "Virtual Sink",
