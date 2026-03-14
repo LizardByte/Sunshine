@@ -1365,6 +1365,11 @@ namespace portal {
       return 0;
     }
 
+    // This capture method is event driven; don't insert duplicate frames
+    bool is_event_driven() override {
+      return true;
+    }
+
   private:
     bool is_buffer_redundant(const egl::img_descriptor_t *img) {
       // Check for corrupted frame
