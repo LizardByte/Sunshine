@@ -3,6 +3,7 @@
  * @brief Definitions for video.
  */
 // standard includes
+#include <array>
 #include <atomic>
 #include <bitset>
 #include <list>
@@ -3011,7 +3012,7 @@ namespace video {
   }
 
 #ifdef SUNSHINE_BUILD_VULKAN
-  typedef int (*vulkan_init_avcodec_hardware_input_buffer_fn)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
+  using vulkan_init_avcodec_hardware_input_buffer_fn = int (*)(platf::avcodec_encode_device_t *encode_device, AVBufferRef **hw_device_buf);
 
   util::Either<avcodec_buffer_t, int> vulkan_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *encode_device) {
     avcodec_buffer_t hw_device_buf;
@@ -3033,11 +3034,11 @@ namespace video {
     }
 
     // Fallback: try device indices for multi-GPU systems
-    const char *devices[] = {"1", "0", "2", "3", nullptr};
-    for (int i = 0; devices[i]; i++) {
-      status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, devices[i], nullptr, 0);
+    const std::array<const char *, 4> devices = {"1", "0", "2", "3"};
+    for (auto device : devices) {
+      status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, device, nullptr, 0);
       if (status >= 0) {
-        BOOST_LOG(info) << "Using Vulkan device index: "sv << devices[i];
+        BOOST_LOG(info) << "Using Vulkan device index: "sv << device;
         return hw_device_buf;
       }
     }
