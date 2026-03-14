@@ -2156,6 +2156,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>Use VA-API (AMD, Intel)</td>
     </tr>
     <tr>
+        <td>vulkan</td>
+        <td>Use Vulkan encoder (AMD, Intel, NVIDIA).
+            @note{Applies to Linux only.}</td>
+    </tr>
+    <tr>
         <td>software</td>
         <td>Encoding occurs on the CPU</td>
     </tr>

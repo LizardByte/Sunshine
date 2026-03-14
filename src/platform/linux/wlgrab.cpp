@@ -11,6 +11,7 @@
 #include "src/platform/common.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "vulkan_encode.h"
 #include "wayland.h"
 
 using namespace std::literals;
@@ -377,6 +378,12 @@ namespace wl {
       }
 #endif
 
+#ifdef SUNSHINE_BUILD_VULKAN
+      if (mem_type == platf::mem_type_e::vulkan) {
+        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
+      }
+#endif
+
 #ifdef SUNSHINE_BUILD_CUDA
       if (mem_type == platf::mem_type_e::cuda) {
         return cuda::make_avcodec_gl_encode_device(width, height, 0, 0);
@@ -398,12 +405,12 @@ namespace wl {
 
 namespace platf {
   std::shared_ptr<display_t> wl_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
-    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda) {
+    if (hwdevice_type != platf::mem_type_e::system && hwdevice_type != platf::mem_type_e::vaapi && hwdevice_type != platf::mem_type_e::cuda && hwdevice_type != platf::mem_type_e::vulkan) {
       BOOST_LOG(error) << "[wlgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda) {
+    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda || hwdevice_type == platf::mem_type_e::vulkan) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
