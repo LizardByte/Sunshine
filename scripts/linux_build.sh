@@ -194,6 +194,8 @@ function add_arch_deps() {
     'opus'
     'udev'
     'wayland'
+    'dbus'  # D-Bus for system tray support
+    'at-spi2-core'  # AT-SPI accessibility services
   )
 
   if [[ "$skip_libva" == 0 ]]; then
@@ -253,6 +255,8 @@ function add_debian_based_deps() {
     "udev"
     "wget"  # necessary for cuda install with `run` file
     "xvfb"  # necessary for headless unit testing
+    "dbus-x11"  # D-Bus session bus for system tray tests
+    "at-spi2-core"  # AT-SPI accessibility services for system tray
   )
 
   if [[ "$skip_libva" == 0 ]]; then
@@ -329,6 +333,8 @@ function add_fedora_deps() {
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing
+    "dbus-x11"  # D-Bus session bus for system tray tests
+    "at-spi2-core"  # AT-SPI accessibility services for system tray
   )
 
   if [[ "$skip_libva" == 0 ]]; then
