@@ -49,6 +49,9 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 ## DELETE /api/apps/{index}
 @copydoc confighttp::deleteApp()
 
+## GET /api/browse
+@copydoc confighttp::browseDirectory()
+
 ## GET /api/clients/list
 @copydoc confighttp::getClients()
 

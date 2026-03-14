@@ -73,8 +73,14 @@
         <!-- output -->
         <div class="mb-3">
           <label for="appOutput" class="form-label">{{ $t('apps.output_name') }}</label>
-          <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
-            v-model="editForm.output" />
+          <div class="input-group">
+            <input type="text" class="form-control monospace" id="appOutput" aria-describedby="appOutputHelp"
+              v-model="editForm.output" />
+            <button class="btn btn-secondary" type="button"
+              @click="browseFor('any', 'file_browser.select_file', editForm.output, v => editForm.output = v)">
+              <folder-open :size="18" class="icon"></folder-open>
+            </button>
+          </div>
           <div id="appOutputHelp" class="form-text">{{ $t('apps.output_desc') }}</div>
         </div>
         <!-- prep-cmd -->
@@ -116,10 +122,20 @@
             <tbody>
               <tr v-for="(c, i) in editForm['prep-cmd']">
                 <td>
-                  <input type="text" class="form-control monospace" v-model="c.do" />
+                  <div class="input-group">
+                    <input type="text" class="form-control monospace" v-model="c.do" />
+                    <button class="btn btn-secondary btn-sm" type="button" @click="browsePrep(i, 'do')">
+                      <folder-open :size="14" class="icon"></folder-open>
+                    </button>
+                  </div>
                 </td>
                 <td>
-                  <input type="text" class="form-control monospace" v-model="c.undo" />
+                  <div class="input-group">
+                    <input type="text" class="form-control monospace" v-model="c.undo" />
+                    <button class="btn btn-secondary btn-sm" type="button" @click="browsePrep(i, 'undo')">
+                      <folder-open :size="14" class="icon"></folder-open>
+                    </button>
+                  </div>
                 </td>
                 <td v-if="platform === 'windows'" class="align-middle">
                   <Checkbox :id="'prep-cmd-admin-' + i"
@@ -145,6 +161,9 @@
           <label for="appName" class="form-label">{{ $t('apps.detached_cmds') }}</label>
           <div v-for="(c,i) in editForm.detached" class="d-flex justify-content-between align-items-center my-2">
             <input type="text" v-model="editForm.detached[i]" class="form-control monospace">
+            <button class="btn btn-secondary btn-sm ms-2" @click="browseDetached(i)">
+              <folder-open :size="14" class="icon"></folder-open>
+            </button>
             <button class="btn btn-danger btn-sm ms-2" @click="editForm.detached.splice(i,1)">
               <trash-2 :size="16" class="icon"></trash-2>
             </button>
@@ -166,8 +185,14 @@
         <!-- command -->
         <div class="mb-3">
           <label for="appCmd" class="form-label">{{ $t('apps.cmd') }}</label>
-          <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
-            v-model="editForm.cmd" />
+          <div class="input-group">
+            <input type="text" class="form-control monospace" id="appCmd" aria-describedby="appCmdHelp"
+              v-model="editForm.cmd" />
+            <button class="btn btn-secondary" type="button"
+              @click="browseFor('executable', 'file_browser.select_executable', editForm.cmd, v => editForm.cmd = v)">
+              <folder-open :size="18" class="icon"></folder-open>
+            </button>
+          </div>
           <div id="appCmdHelp" class="form-text">
             {{ $t('apps.cmd_desc') }}<br>
             <b>{{ $t('_common.note') }}</b> {{ $t('apps.cmd_note') }}
@@ -176,8 +201,14 @@
         <!-- working dir -->
         <div class="mb-3">
           <label for="appWorkingDir" class="form-label">{{ $t('apps.working_dir') }}</label>
-          <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
-            v-model="editForm['working-dir']" />
+          <div class="input-group">
+            <input type="text" class="form-control monospace" id="appWorkingDir" aria-describedby="appWorkingDirHelp"
+              v-model="editForm['working-dir']" />
+            <button class="btn btn-secondary" type="button"
+              @click="browseFor('directory', 'file_browser.select_directory', editForm['working-dir'], v => editForm['working-dir'] = v)">
+              <folder-open :size="18" class="icon"></folder-open>
+            </button>
+          </div>
           <div id="appWorkingDirHelp" class="form-text">{{ $t('apps.working_dir_desc') }}</div>
         </div>
         <!-- elevation -->
@@ -217,6 +248,10 @@
           <div class="input-group">
             <input type="text" class="form-control monospace" id="appImagePath" aria-describedby="appImagePathHelp"
               v-model="editForm['image-path']" />
+            <button class="btn btn-secondary" type="button"
+              @click="browseFor('file', 'file_browser.select_file', editForm['image-path'], v => editForm['image-path'] = v)">
+              <folder-open :size="18" class="icon"></folder-open>
+            </button>
             <button class="btn btn-secondary" type="button" data-bs-toggle="modal" data-bs-target="#coverFinderModal"
               @click="showCoverFinder">
               <search :size="18" class="icon"></search>
@@ -371,6 +406,74 @@
         {{ $t('apps.add_new') }}
       </button>
     </div>
+
+    <!-- Shared file browser modal -->
+    <div class="modal fade" ref="fileBrowserModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ fileBrowserTitle || $t('file_browser.title') }}</h5>
+            <button type="button" class="btn-close" @click="fileBrowserClose" :aria-label="$t('_common.close')"></button>
+          </div>
+          <div class="modal-body">
+            <!-- Path input -->
+            <div class="input-group mb-2">
+              <input type="text" class="form-control monospace" v-model="fileBrowserTypedPath"
+                @input="fileBrowserOnTypedInput" @keyup.enter="fileBrowserNavigate(fileBrowserTypedPath)" />
+              <button class="btn btn-secondary" type="button" @click="fileBrowserNavigate(fileBrowserTypedPath)">
+                <arrow-right :size="16" class="icon"></arrow-right>
+              </button>
+            </div>
+            <!-- Up button -->
+            <div class="mb-2">
+              <button class="btn btn-sm btn-outline-secondary" type="button"
+                :disabled="fileBrowserLoading || fileBrowserParentPath === fileBrowserCurrentPath"
+                @click="fileBrowserNavigateUp">
+                <folder-up :size="16" class="icon me-1"></folder-up>
+                {{ $t('file_browser.up') }}
+              </button>
+            </div>
+            <!-- Error -->
+            <div v-if="fileBrowserError" class="alert alert-danger py-2 small">{{ fileBrowserError }}</div>
+            <!-- Loading -->
+            <div v-if="fileBrowserLoading" class="text-center py-3">
+              <output class="spinner-border spinner-border-sm">
+                <span class="visually-hidden">{{ $t('_common.loading') }}</span>
+              </output>
+            </div>
+            <!-- Entries -->
+            <div v-else class="list-group" style="max-height: 400px; overflow-y: auto;">
+              <div v-if="fileBrowserEntries.length === 0" class="list-group-item text-muted text-center">
+                {{ $t('file_browser.empty') }}
+              </div>
+              <button v-for="entry in fileBrowserEntries" :key="entry.path" type="button"
+                class="list-group-item list-group-item-action d-flex align-items-center py-1"
+                :class="{ active: fileBrowserSelectedPath === entry.path }"
+                @click="fileBrowserSelectEntry(entry)" @dblclick="fileBrowserActivateEntry(entry)">
+                <hard-drive v-if="!fileBrowserCurrentPath && entry.type === 'directory'" :size="16" class="icon me-2 flex-shrink-0"></hard-drive>
+                <folder v-else-if="entry.type === 'directory'" :size="16" class="icon me-2 flex-shrink-0 text-warning"></folder>
+                <file-text v-else :size="16" class="icon me-2 flex-shrink-0"></file-text>
+                <span class="text-truncate">{{ entry.name }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="modal-footer flex-wrap gap-2">
+            <div class="flex-grow-1 text-muted small text-truncate" v-if="fileBrowserSelectedPath">
+              <code>{{ fileBrowserSelectedPath }}</code>
+            </div>
+            <button type="button" class="btn btn-secondary" @click="fileBrowserClose">
+              <x :size="16" class="icon me-1"></x>
+              {{ $t('_common.cancel') }}
+            </button>
+            <button type="button" class="btn btn-primary" @click="fileBrowserConfirm"
+              :disabled="!fileBrowserSelectedPath && !fileBrowserTypedPath">
+              <check :size="16" class="icon me-1"></check>
+              {{ $t('file_browser.select') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </body>
 <script type="module">
@@ -380,8 +483,14 @@
   import Checkbox from './Checkbox.vue'
   import { Modal } from 'bootstrap/dist/js/bootstrap'
   import {
+    ArrowRight,
+    Check,
     Edit,
     FileText,
+    Folder,
+    FolderOpen,
+    FolderUp,
+    HardDrive,
     LayersPlus,
     Play,
     Plus,
@@ -398,8 +507,14 @@
     components: {
       Navbar,
       Checkbox,
+      ArrowRight,
+      Check,
       Edit,
       FileText,
+      Folder,
+      FolderOpen,
+      FolderUp,
+      HardDrive,
       LayersPlus,
       Play,
       Plus,
@@ -422,6 +537,16 @@
         coverCandidates: [],
         coverSearchQuery: "",
         platform: "",
+        fileBrowserType: "any",
+        fileBrowserTitle: "",
+        fileBrowserCallback: null,
+        fileBrowserCurrentPath: "",
+        fileBrowserParentPath: "",
+        fileBrowserEntries: [],
+        fileBrowserLoading: false,
+        fileBrowserError: "",
+        fileBrowserSelectedPath: "",
+        fileBrowserTypedPath: "",
       };
     },
     created() {
@@ -604,6 +729,82 @@
           }
         })
           .finally(() => this.coverFinderBusy = false);
+      },
+      browseFor(type, titleKey, startPath, callback) {
+        this.fileBrowserType = type;
+        this.fileBrowserTitle = this.$t(titleKey);
+        this.fileBrowserCallback = callback;
+        this.fileBrowserSelectedPath = startPath || '';
+        this.fileBrowserTypedPath = startPath || '';
+        this.fileBrowserError = '';
+        this.fileBrowserNavigate(startPath || '');
+        Modal.getOrCreateInstance(this.$refs.fileBrowserModal).show();
+      },
+      fileBrowserClose() {
+        const modal = Modal.getInstance(this.$refs.fileBrowserModal);
+        if (modal) modal.hide();
+      },
+      fileBrowserConfirm() {
+        const path = this.fileBrowserSelectedPath || this.fileBrowserTypedPath;
+        if (path) {
+          if (this.fileBrowserCallback) {
+            this.fileBrowserCallback(path);
+            this.fileBrowserCallback = null;
+          }
+          this.fileBrowserClose();
+        }
+      },
+      fileBrowserNavigate(path) {
+        this.fileBrowserLoading = true;
+        this.fileBrowserError = '';
+        const params = new URLSearchParams({ type: this.fileBrowserType });
+        if (path) params.set('path', path);
+        fetch(`./api/browse?${params.toString()}`)
+          .then(r => r.ok ? r.json() : r.json().then(e => { throw new Error(e.error || 'Browse failed'); }))
+          .then(data => {
+            this.fileBrowserCurrentPath = data.path ?? '';
+            this.fileBrowserParentPath = data.parent ?? '';
+            this.fileBrowserEntries = data.entries ?? [];
+            this.fileBrowserTypedPath = data.path ?? '';
+            this.fileBrowserSelectedPath = this.fileBrowserType === 'directory' ? (data.path ?? '') : '';
+          })
+          .catch(err => { this.fileBrowserError = err.message; })
+          .finally(() => { this.fileBrowserLoading = false; });
+      },
+      fileBrowserNavigateUp() {
+        this.fileBrowserNavigate(this.fileBrowserParentPath);
+      },
+      fileBrowserSelectEntry(entry) {
+        if (entry.type === 'directory') {
+          this.fileBrowserNavigate(entry.path);
+        } else {
+          this.fileBrowserSelectedPath = entry.path;
+          this.fileBrowserTypedPath = entry.path;
+        }
+      },
+      fileBrowserActivateEntry(entry) {
+        if (entry.type === 'directory') {
+          this.fileBrowserNavigate(entry.path);
+        } else {
+          this.fileBrowserSelectedPath = entry.path;
+          this.fileBrowserTypedPath = entry.path;
+          this.fileBrowserConfirm();
+        }
+      },
+      fileBrowserOnTypedInput() {
+        this.fileBrowserSelectedPath = this.fileBrowserTypedPath;
+      },
+      browsePrep(index, field) {
+        const current = this.editForm['prep-cmd'][index][field] || '';
+        this.browseFor('executable', 'file_browser.select_executable', current, (path) => {
+          this.editForm['prep-cmd'][index][field] = path;
+        });
+      },
+      browseDetached(index) {
+        const current = this.editForm.detached[index] || '';
+        this.browseFor('executable', 'file_browser.select_executable', current, (path) => {
+          this.editForm.detached[index] = path;
+        });
       },
       save() {
         this.editForm["image-path"] = this.editForm["image-path"].toString().replace(/"/g, '');

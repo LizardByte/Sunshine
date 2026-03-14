@@ -5,6 +5,7 @@
 #pragma once
 
 // standard includes
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -42,8 +43,34 @@ namespace confighttp {
   bool check_app_index(const resp_https_t &response, const req_https_t &request, int index);
   void getPage(const resp_https_t &response, const req_https_t &request, const char *html_file, bool require_auth = true, bool redirect_if_username = false);
   void getAsset(const resp_https_t &response, const req_https_t &request);
+  void browseDirectory(const resp_https_t &response, const req_https_t &request);
   void getLocale(const resp_https_t &response, const req_https_t &request);
   void getCSRFToken(const resp_https_t &response, const req_https_t &request);
+
+  // Browse helper functions (also exposed for unit testing)
+  /**
+   * @brief Checks whether a directory entry qualifies as an executable file.
+   * @param entry The directory entry to check.
+   * @param status The cached file status for the entry.
+   * @return True if the file should be included in an executable-type listing.
+   */
+  bool is_browsable_executable(const std::filesystem::directory_entry &entry, const std::filesystem::file_status &status);
+
+  /**
+   * @brief Lists, filters, and sorts the entries of a directory for the browse API.
+   * @param dir_path The directory to list.
+   * @param type_str Filter type: "directory", "executable", "file", or "any".
+   * @return Sorted JSON array of entry objects with name/type/path fields.
+   */
+  nlohmann::json build_browse_entries(const std::filesystem::path &dir_path, const std::string &type_str);
+
+#ifdef _WIN32
+  /**
+   * @brief Builds a JSON array of available Windows drive letters.
+   * @return JSON array of drive-letter entries.
+   */
+  nlohmann::json get_windows_drives();
+#endif
 }  // namespace confighttp
 
 // mime types map
