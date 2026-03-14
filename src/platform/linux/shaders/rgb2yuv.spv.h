@@ -4,9 +4,10 @@
  * @note Regenerate: glslc -O rgb2yuv.comp -o rgb2yuv.spv, then convert with this script.
  */
 #pragma once
+#include <array>
 #include <cstdint>
 
-static const uint32_t rgb2yuv_comp_spv[] = {
+static const std::array<uint32_t, 1860> rgb2yuv_comp_spv = {
   0x07230203, 0x00010000, 0x000d000b, 0x00000270, 0x00000000, 0x00020011, 0x00000001, 0x00020011,
   0x00000032, 0x00020011, 0x00000038, 0x0006000b, 0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e,
   0x00000000, 0x0003000e, 0x00000000, 0x00000001, 0x0006000f, 0x00000005, 0x00000004, 0x6e69616d,
@@ -241,4 +242,4 @@ static const uint32_t rgb2yuv_comp_spv[] = {
   0x0000012b, 0x0000013b, 0x000200f9, 0x000000ce, 0x000200f8, 0x000000ce, 0x000200f9, 0x0000013e,
   0x000200f8, 0x0000013e, 0x000100fd, 0x00010038,
 };
-static const size_t rgb2yuv_comp_spv_size = sizeof(rgb2yuv_comp_spv);
+static const size_t rgb2yuv_comp_spv_size = rgb2yuv_comp_spv.size() * sizeof(uint32_t);
