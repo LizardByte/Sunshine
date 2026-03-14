@@ -99,13 +99,13 @@ BuildRequires: gcc13-c++
 %global gcc_version 13
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
-%elif 0%{?fedora} >= 42 && 0%{?fedora} <= 44
+%elif 0%{?fedora} >= 42 && 0%{?fedora} <= 43
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
 %global gcc_version 14
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
-%elif 0%{?fedora} >= 45
+%elif 0%{?fedora} >= 44
 BuildRequires: gcc15
 BuildRequires: gcc15-c++
 %global gcc_version 15
