@@ -119,12 +119,15 @@
             <!-- Platform Icons -->
             <div class="mb-3">
               <span class="badge bg-secondary me-1" v-for="platform in app.platforms" :key="platform">
-                <monitor v-if="platform === 'windows'" :size="14" class="icon"></monitor>
-                <monitor v-else-if="platform === 'macos'" :size="14" class="icon"></monitor>
-                <monitor v-else-if="platform === 'linux'" :size="14" class="icon"></monitor>
-                <smartphone v-else-if="platform === 'android'" :size="14" class="icon"></smartphone>
+                <smartphone v-if="platform === 'android'" :size="14" class="icon"></smartphone>
+                <gamepad2 v-else-if="platform === 'console'" :size="14" class="icon"></gamepad2>
+                <gamepad v-else-if="platform === 'handheld'" :size="14" class="icon"></gamepad>
                 <smartphone v-else-if="platform === 'ios'" :size="14" class="icon"></smartphone>
+                <monitor v-else-if="platform === 'linux'" :size="14" class="icon"></monitor>
+                <monitor v-else-if="platform === 'macos'" :size="14" class="icon"></monitor>
+                <tv v-else-if="platform === 'tv'" :size="14" class="icon"></tv>
                 <globe v-else-if="platform === 'web'" :size="14" class="icon"></globe>
+                <monitor v-else-if="platform === 'windows'" :size="14" class="icon"></monitor>
                 {{ platformName(platform) }}
               </span>
             </div>
@@ -237,11 +240,14 @@
     ChevronRight,
     CircleDot,
     ExternalLink,
+    Gamepad,
+    Gamepad2,
     GitFork,
     Globe,
     Monitor,
     Smartphone,
     Star,
+    Tv,
   } from 'lucide-vue-next'
 
   const app = createApp({
@@ -254,11 +260,14 @@
       ChevronRight,
       CircleDot,
       ExternalLink,
+      Gamepad,
+      Gamepad2,
       GitFork,
       Globe,
       Monitor,
       Smartphone,
       Star,
+      Tv,
     },
     data() {
       return {
@@ -328,12 +337,15 @@
       },
       platformName(platform) {
         const names = {
-          'windows': 'Windows',
-          'macos': 'macOS',
-          'linux': 'Linux',
           'android': 'Android',
+          'console': 'Console',
+          'handheld': 'Handheld',
           'ios': 'iOS',
-          'web': 'Web'
+          'linux': 'Linux',
+          'macos': 'macOS',
+          'tv': 'TV',
+          'web': 'Web',
+          'windows': 'Windows',
         };
         return names[platform] || platform;
       },

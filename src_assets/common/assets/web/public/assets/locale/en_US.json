@@ -161,6 +161,8 @@
     "controller_desc": "Allows guests to control the host system with a gamepad / controller",
     "credentials_file": "Credentials File",
     "credentials_file_desc": "Store Username/Password separately from Sunshine's state file.",
+    "csrf_allowed_origins": "CSRF Allowed Origins",
+    "csrf_allowed_origins_desc": "Comma-separated list of additional allowed origins for CSRF protection (appended to defaults: localhost variants and web UI port). Only add origins you trust. Each origin must include protocol and host (e.g., https://example.com).",
     "dd_config_ensure_active": "Activate the display automatically",
     "dd_config_ensure_only_display": "Deactivate other displays and activate only the specified display",
     "dd_config_ensure_primary": "Activate the display automatically and make it a primary display",

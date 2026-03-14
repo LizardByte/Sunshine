@@ -5,6 +5,7 @@
     "auto": "Automatic",
     "autodetect": "Autodetect (recommended)",
     "beta": "(beta)",
+    "browse": "Browse",
     "cancel": "Cancel",
     "close": "Close",
     "disabled": "Disabled",
@@ -509,6 +510,16 @@
     "official": "Official",
     "title": "Featured Apps",
     "website": "Website"
+  },
+  "file_browser": {
+    "empty": "No items to display",
+    "root": "Root",
+    "select": "Select",
+    "select_directory": "Select Directory",
+    "select_executable": "Select Executable",
+    "select_file": "Select File",
+    "title": "Browse",
+    "up": "Up"
   },
   "welcome": {
     "confirm_password": "Confirm password",
