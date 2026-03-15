@@ -176,6 +176,13 @@ glad_add_library(glad_egl
         EXTENSIONS
             EGL_EXT_image_dma_buf_import
             EGL_EXT_image_dma_buf_import_modifiers
+            EGL_EXT_platform_base
+            EGL_EXT_platform_wayland
+            EGL_EXT_platform_x11
+            EGL_KHR_create_context
+            EGL_KHR_image_base
+            EGL_KHR_surfaceless_context
+            EGL_MESA_platform_gbm
 )
 
 # GL compatibility=4.6 --loader --mx
