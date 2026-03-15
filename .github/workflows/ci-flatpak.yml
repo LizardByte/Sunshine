@@ -64,7 +64,7 @@ jobs:
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          python -m pip install ./packaging/linux/flatpak/deps/flatpak-builder-tools/node
+          python -m pip install ".[flatpak]"
 
           sudo apt-get update -y
           sudo apt-get install -y \
@@ -90,6 +90,19 @@ jobs:
 
       - name: Debug generated-sources.json
         run: cat generated-sources.json
+
+      - name: flatpak pip generator
+        # generates glad-dependencies.json for PyPI build-time dependencies (e.g. jinja2 for glad)
+        run: |
+          python \
+            ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
+            --runtime="org.freedesktop.Sdk//${PLATFORM_VERSION}" \
+            --output glad-dependencies \
+            --build-only \
+            --requirements-file=./third-party/glad/requirements.txt
+
+          # Copy generated pip sources into build dir alongside the manifest
+          cp glad-dependencies.json build/
 
       - name: Cache Flatpak build
         uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306  # v5.0.3
@@ -195,6 +208,7 @@ jobs:
         run: |
           mkdir -p flathub/modules
           cp "./build/generated-sources.json" "./flathub/"
+          cp "./build/glad-dependencies.json" "./flathub/"
           cp "./build/package-lock.json" "./flathub/"
           cp "./build/${APP_ID}.yml" "./flathub/"
           cp "./build/${APP_ID}.metainfo.xml" "./flathub/"
