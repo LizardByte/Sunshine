@@ -31,6 +31,12 @@
 #include "vaapi.h"
 #include "wayland.h"
 
+#if !defined(__FreeBSD__)
+  // platform includes
+  #include <sys/capability.h>
+  #include <sys/prctl.h>
+#endif
+
 namespace {
   // Buffer and limit constants
   constexpr int SPA_POD_BUFFER_SIZE = 4096;
@@ -223,11 +229,42 @@ namespace portal {
       return 0;
     }
 
+    void finalize_portal_security() {
+#if !defined(__FreeBSD__)
+      BOOST_LOG(debug) << "Finalizing Portal security: dropping CAP_SYS_ADMIN and resetting dumpable"sv;
+
+      cap_t caps = cap_get_proc();
+      if (!caps) {
+        BOOST_LOG(error) << "Failed to get process capabilities"sv;
+        return;
+      }
+
+      std::array<cap_value_t, 1> remove_list {CAP_SYS_ADMIN};
+
+      cap_set_flag(caps, CAP_PERMITTED, remove_list.size(), remove_list.data(), CAP_CLEAR);
+      cap_set_flag(caps, CAP_EFFECTIVE, remove_list.size(), remove_list.data(), CAP_CLEAR);
+
+      if (cap_set_proc(caps) != 0) {
+        BOOST_LOG(error) << "Failed to prune capabilities: "sv << std::strerror(errno);
+      }
+      cap_free(caps);
+
+      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
+      // access /proc/pid/root.
+      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
+        BOOST_LOG(error) << "Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      }
+#endif
+    }
+
     int connect_to_portal() {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
       create_session_path(conn, nullptr, &session_token);
+
+      // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
+      finalize_portal_security();
 
       // Try combined RemoteDesktop + ScreenCast session first
       bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);

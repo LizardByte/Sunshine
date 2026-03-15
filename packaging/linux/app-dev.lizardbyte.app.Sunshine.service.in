@@ -2,7 +2,6 @@
 Description=@PROJECT_DESCRIPTION@
 StartLimitIntervalSec=500
 StartLimitBurst=5
-Conflicts=sunshine.service
 After=graphical-session.target xdg-desktop-autostart.target xdg-desktop-portal.service
 
 [Service]
@@ -12,7 +11,7 @@ ExecStartPre=/bin/sleep 5
 @SUNSHINE_SERVICE_STOP_COMMAND@
 Restart=on-failure
 RestartSec=5s
-NoNewPrivileges=true
 
 [Install]
 WantedBy=graphical-session.target
+Alias=sunshine.service
