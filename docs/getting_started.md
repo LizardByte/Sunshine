@@ -447,20 +447,20 @@ After adding yourself to the group, log out and log back in for the changes to t
 
 #### Services
 
-> [!NOTE]
-> Two service unit files are available. Pick "app-dev.lizardbyte.app.Sunshine" for unprivileged XDG Portal
-> or X11 capture, otherwise pick "sunshine" for privileged KMS capture.
-
 **Start once**
 ```bash
-systemctl --user start sunshine
+systemctl --user start app-dev.lizardbyte.app.Sunshine
 ```
 
-**Start on boot (privileged; swap names for unprivileged XDG capture)**
+**Start on boot**
 ```bash
-systemctl --user --now disable app-dev.lizardbyte.app.Sunshine
-systemctl --user --now enable sunshine
+systemctl --user --now enable app-dev.lizardbyte.app.Sunshine
 ```
+
+> [!NOTE]
+> The service has been renamed to "app-dev.lizardbyte.app.Sunshine" in order to increase compatibility with
+> XDG Desktop Portal, but it is also aliased to "sunshine.service" for the distro-specific packages as a
+> convenience.
 
 ### macOS
 The first time you start Sunshine, you will be asked to grant access to screen recording and your microphone.

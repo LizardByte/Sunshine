@@ -25,8 +25,6 @@ elseif(UNIX)
 
     # configure service
     configure_file(packaging/linux/app-${PROJECT_FQDN}.service.in app-${PROJECT_FQDN}.service @ONLY)
-    configure_file(packaging/linux/sunshine.service.in sunshine.service @ONLY)
-    configure_file(packaging/linux/00-app-${PROJECT_FQDN}.preset.in 00-app-${PROJECT_FQDN}.preset @ONLY)
 
     # configure the arch linux pkgbuild
     if(${SUNSHINE_CONFIGURE_PKGBUILD})

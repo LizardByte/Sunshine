@@ -20,11 +20,6 @@ IF (NOT WIN32)
             OUTPUT_VARIABLE SYSTEMD_USER_UNIT_INSTALL_DIR)
 
         execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
-            --variable=systemd_user_preset_dir systemd
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            OUTPUT_VARIABLE SYSTEMD_USER_PRESET_INSTALL_DIR)
-
-        execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE}
             --variable=systemd_system_unit_dir systemd
             OUTPUT_STRIP_TRAILING_WHITESPACE
             OUTPUT_VARIABLE SYSTEMD_SYSTEM_UNIT_INSTALL_DIR)
@@ -36,7 +31,6 @@ IF (NOT WIN32)
 
         mark_as_advanced(
                 SYSTEMD_USER_UNIT_INSTALL_DIR
-                SYSTEMD_USER_PRESET_INSTALL_DIR
                 SYSTEMD_SYSTEM_UNIT_INSTALL_DIR
                 SYSTEMD_MODULES_LOAD_DIR
         )
