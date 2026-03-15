@@ -312,10 +312,6 @@ namespace egl {
    * @memberof egl::display_t
    */
   display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
-    constexpr auto EGL_PLATFORM_GBM_MESA = 0x31D7;
-    constexpr auto EGL_PLATFORM_WAYLAND_KHR = 0x31D8;
-    constexpr auto EGL_PLATFORM_X11_KHR = 0x31D5;
-
     int egl_platform;
     void *native_display_p;
 
@@ -338,17 +334,30 @@ namespace egl {
     }
 
     // native_display.left() equals native_display.right()
-    display_t display = eglGetPlatformDisplay(egl_platform, native_display_p, nullptr);
+    EGLDisplay raw_display = EGL_NO_DISPLAY;
 
-    if (fail()) {
-      BOOST_LOG(error) << "Couldn't open EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+    if (eglGetPlatformDisplayEXT) {
+      raw_display = eglGetPlatformDisplayEXT(egl_platform, native_display_p, nullptr);
+    } else if (eglGetPlatformDisplay) {
+      raw_display = eglGetPlatformDisplay(egl_platform, native_display_p, nullptr);
+    }
+
+    if (raw_display == EGL_NO_DISPLAY) {
+      BOOST_LOG(error) << "Couldn't open EGL display: ["sv
+                       << util::hex(eglGetError()).to_string_view() << ']';
       return nullptr;
     }
+    display_t display {raw_display};
 
     int major;
     int minor;
     if (!eglInitialize(display.get(), &major, &minor)) {
       BOOST_LOG(error) << "Couldn't initialize EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      return nullptr;
+    }
+
+    if (!gladLoaderLoadEGL(display.get())) {
+      BOOST_LOG(error) << "Failed to reload EGL for initialized display"sv;
       return nullptr;
     }
 
