@@ -10,6 +10,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 // lib includes
 #include <boost/core/noncopyable.hpp>
@@ -834,9 +835,10 @@ namespace platf {
    * @param id The gamepad ID.
    * @param metadata Controller metadata from client (empty if none provided).
    * @param feedback_queue The queue for posting messages back to the client.
+   * @param gamepad_override Per-session gamepad type override (e.g. "xone", "ds4"); empty = use global config.
    * @return 0 on success.
    */
-  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue, std::string_view gamepad_override = {});
   void free_gamepad(input_t &input, int nr);
 
   /**

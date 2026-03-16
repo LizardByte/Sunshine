@@ -1163,7 +1163,7 @@ namespace platf {
     }
   }
 
-  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue, std::string_view gamepad_override) {
     auto raw = (input_raw_t *) input.get();
 
     if (!raw->vigem) {
@@ -1171,11 +1171,12 @@ namespace platf {
     }
 
     VIGEM_TARGET_TYPE selectedGamepadType;
+    const std::string_view effective_gamepad = gamepad_override.empty() ? std::string_view(config::input.gamepad) : gamepad_override;
 
-    if (config::input.gamepad == "x360"sv) {
+    if (effective_gamepad == "x360"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox 360 controller (manual selection)"sv;
       selectedGamepadType = Xbox360Wired;
-    } else if (config::input.gamepad == "ds4"sv) {
+    } else if (effective_gamepad == "ds4"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualShock 4 controller (manual selection)"sv;
       selectedGamepadType = DualShock4Wired;
     } else if (metadata.type == LI_CTYPE_PS) {

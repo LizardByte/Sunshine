@@ -22,7 +22,7 @@ namespace input {
 
   bool probe_gamepads();
 
-  std::shared_ptr<input_t> alloc(safe::mail_t mail);
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string_view gamepad_override = {});
 
   struct touch_port_t: public platf::touch_port_t {
     int env_width;

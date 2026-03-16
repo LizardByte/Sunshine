@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <algorithm>
 #include <fstream>
 #include <future>
 #include <queue>
@@ -405,6 +406,7 @@ namespace stream {
     } control;
 
     std::uint32_t launch_session_id;
+    std::string gamepad_override;  // per-app gamepad type when streaming this session; empty = use global config
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
@@ -1961,7 +1963,7 @@ namespace stream {
     }
 
     int start(session_t &session, const std::string &addr_string) {
-      session.input = input::alloc(session.mail);
+      session.input = input::alloc(session.mail, session.gamepad_override);
 
       session.broadcast_ref = broadcast.ref();
       if (!session.broadcast_ref) {
@@ -2009,6 +2011,15 @@ namespace stream {
 
       session->shutdown_event = mail->event<bool>(mail::shutdown);
       session->launch_session_id = launch_session.id;
+      {
+        const auto &apps = proc::proc.get_apps();
+        auto it = std::find_if(apps.begin(), apps.end(), [&](const proc::ctx_t &app) {
+          return app.id == std::to_string(launch_session.appid);
+        });
+        if (it != apps.end() && !it->gamepad.empty() && it->gamepad != "auto") {
+          session->gamepad_override = it->gamepad;
+        }
+      }
 
       session->config = config;
 

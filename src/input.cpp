@@ -162,13 +162,15 @@ namespace input {
 
     input_t(
       safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event,
-      platf::feedback_queue_t feedback_queue
+      platf::feedback_queue_t feedback_queue,
+      std::string gamepad_override = {}
     ):
         shortcutFlags {},
         gamepads(MAX_GAMEPADS),
         client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
+        gamepad_override {std::move(gamepad_override)},
         mouse_left_button_timeout {},
         touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
@@ -179,6 +181,7 @@ namespace input {
     int shortcutFlags;
 
     std::vector<gamepad_t> gamepads;
+    std::string gamepad_override;  // per-session override; empty = use global config
     std::unique_ptr<platf::client_input_t> client_context;
 
     safe::mail_raw_t::event_t<input::touch_port_t> touch_port_event;
@@ -894,7 +897,7 @@ namespace input {
     }
 
     // Allocate a new gamepad
-    if (platf::alloc_gamepad(platf_input, {id, packet->controllerNumber}, arrival, input->feedback_queue)) {
+    if (platf::alloc_gamepad(platf_input, {id, packet->controllerNumber}, arrival, input->feedback_queue, input->gamepad_override)) {
       free_id(gamepadMask, id);
       return;
     }
@@ -1147,7 +1150,7 @@ namespace input {
         return;
       }
 
-      if (platf::alloc_gamepad(platf_input, {id, (uint8_t) packet->controllerNumber}, {}, input->feedback_queue)) {
+      if (platf::alloc_gamepad(platf_input, {id, (uint8_t) packet->controllerNumber}, {}, input->feedback_queue, input->gamepad_override)) {
         free_id(gamepadMask, id);
         return;
       }
@@ -1681,10 +1684,11 @@ namespace input {
     return true;
   }
 
-  std::shared_ptr<input_t> alloc(safe::mail_t mail) {
+  std::shared_ptr<input_t> alloc(safe::mail_t mail, std::string_view gamepad_override) {
     auto input = std::make_shared<input_t>(
       mail->event<input::touch_port_t>(mail::touch_port),
-      mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback)
+      mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback),
+      std::string {gamepad_override}
     );
 
     // Workaround to ensure new frames will be captured when a client connects

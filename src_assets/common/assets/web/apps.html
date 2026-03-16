@@ -243,6 +243,24 @@
                  v-model="editForm['exit-timeout']" min="0" placeholder="5" />
           <div id="exitTimeoutHelp" class="form-text">{{ $t('apps.exit_timeout_desc') }}</div>
         </div>
+        <!-- per-app gamepad type (when not macos) -->
+        <div class="mb-3" v-if="platform !== 'macos'">
+          <label for="appGamepad" class="form-label">{{ $t('apps.gamepad') }}</label>
+          <select id="appGamepad" class="form-select" v-model="editForm.gamepad">
+            <option value="">{{ $t('apps.gamepad_default') }}</option>
+            <option value="auto">{{ $t('_common.auto') }}</option>
+            <template v-if="platform === 'windows'">
+              <option value="x360">{{ $t('config.gamepad_x360') }}</option>
+              <option value="ds4">{{ $t('config.gamepad_ds4') }}</option>
+            </template>
+            <template v-if="platform === 'linux' || platform === 'freebsd'">
+              <option value="xone">{{ $t('config.gamepad_xone') }}</option>
+              <option value="ds5">{{ $t('config.gamepad_ds5') }}</option>
+              <option value="switch">{{ $t('config.gamepad_switch') }}</option>
+            </template>
+          </select>
+          <div class="form-text">{{ $t('apps.gamepad_desc') }}</div>
+        </div>
         <div class="mb-3">
           <label for="appImagePath" class="form-label">{{ $t('apps.image') }}</label>
           <div class="input-group">
@@ -573,6 +591,7 @@
           "auto-detach": true,
           "wait-all": true,
           "exit-timeout": 5,
+          gamepad: "",
           "prep-cmd": [],
           detached: [],
           "image-path": ""
@@ -600,6 +619,9 @@
         }
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
+        }
+        if (this.editForm.gamepad === undefined) {
+          this.editForm.gamepad = "";
         }
         this.showEditForm = true;
       },
