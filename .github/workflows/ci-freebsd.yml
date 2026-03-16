@@ -138,8 +138,8 @@ jobs:
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            # install gcvor
-            python -m pip install "./scripts[test]"
+            # install glad deps and gcvor
+            python -m pip install ".[glad,test]"
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"

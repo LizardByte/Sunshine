@@ -1074,8 +1074,9 @@ namespace platf {
       return nullptr;
     }
 
-    if (!gladLoaderLoadEGL(EGL_NO_DISPLAY) || !eglGetPlatformDisplay) {
-      BOOST_LOG(warning) << "Couldn't load EGL library"sv;
+    if (!gladLoaderLoadEGL(NULL)) {
+      BOOST_LOG(error) << "Failed to load EGL library symbols"sv;
+      return nullptr;
     }
 
     return std::make_unique<deinit_t>();
