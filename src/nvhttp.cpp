@@ -1252,8 +1252,8 @@ namespace nvhttp {
   }
 
   bool is_client_enabled(const std::string_view cert_pem) {
-    client_t &client = client_root;
-    for (auto &named_cert : client.named_devices) {
+    const client_t &client = client_root;
+    for (const auto &named_cert : client.named_devices) {
       if (named_cert.cert == cert_pem) {
         return named_cert.enabled;
       }
