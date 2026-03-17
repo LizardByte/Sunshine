@@ -12,10 +12,10 @@ if [ ! -x "$(command -v rpm-ostree)" ]; then
   path_to_setcap=$(which setcap)
   path_to_sunshine=$(readlink -f "$(which sunshine)")
   if [ -x "$path_to_setcap" ] ; then
-    echo "Setting CAP_SYS_ADMIN capability on Sunshine binary."
-    echo "$path_to_setcap cap_sys_admin+p $path_to_sunshine"
-    $path_to_setcap cap_sys_admin+p $path_to_sunshine
-    echo "CAP_SYS_ADMIN capability set on Sunshine binary."
+    echo "Setting CAP_SYS_ADMIN, CAP_SYS_NICE capabilities on Sunshine binary."
+    echo "$path_to_setcap cap_sys_admin,cap_sys_nice+p $path_to_sunshine"
+    $path_to_setcap cap_sys_admin,cap_sys_nice+p $path_to_sunshine
+    echo "CAP_SYS_ADMIN, CAP_SYS_NICE capabilities set on Sunshine binary."
   else
     echo "error: setcap not found or not executable."
   fi

@@ -59,7 +59,7 @@ from source and using the binary directly, this will also work:
 
 ```bash
 sudo cp build/sunshine /tmp
-sudo setcap cap_sys_admin+p /tmp/sunshine
+sudo setcap cap_sys_admin,cap_sys_nice+p /tmp/sunshine
 sudo getcap /tmp/sunshine
 sudo mv /tmp/sunshine build/sunshine
 ```
