@@ -3,11 +3,11 @@
  * @brief Vulkan-native encoder: DMA-BUF -> Vulkan compute (RGB->YUV) -> Vulkan Video encode.
  *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
  */
+#include <array>
+#include <drm_fourcc.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
-#include <array>
 #include <vector>
-#include <drm_fourcc.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -15,14 +15,14 @@ extern "C" {
 #include <libavutil/hwcontext_vulkan.h>
 }
 
-#include <vulkan/vulkan.h>
-
-#include "vulkan_encode.h"
 #include "graphics.h"
+#include "shaders/rgb2yuv.spv.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/video_colorspace.h"
-#include "shaders/rgb2yuv.spv.h"
+#include "vulkan_encode.h"
+
+#include <vulkan/vulkan.h>
 
 using namespace std::literals;
 
@@ -32,7 +32,9 @@ namespace vk {
   // Returns the index as a string (e.g. "1"), or empty string if no match.
   static std::string find_vulkan_index_for_render_node(const char *render_path) {
     struct stat node_stat;
-    if (stat(render_path, &node_stat) < 0) return {};
+    if (stat(render_path, &node_stat) < 0) {
+      return {};
+    }
 
     auto target_major = major(node_stat.st_rdev);
     auto target_minor = minor(node_stat.st_rdev);
@@ -42,7 +44,9 @@ namespace vk {
     VkInstanceCreateInfo ci = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ci.pApplicationInfo = &app;
     VkInstance inst = VK_NULL_HANDLE;
-    if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) return {};
+    if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
+      return {};
+    }
 
     uint32_t count = 0;
     vkEnumeratePhysicalDevices(inst, &count, nullptr);
@@ -55,7 +59,7 @@ namespace vk {
       VkPhysicalDeviceProperties2 props2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
       props2.pNext = &drm;
       vkGetPhysicalDeviceProperties2(devs[i], &props2);
-      if (drm.hasRender && drm.renderMajor == (int64_t)target_major && drm.renderMinor == (int64_t)target_minor) {
+      if (drm.hasRender && drm.renderMajor == (int64_t) target_major && drm.renderMinor == (int64_t) target_minor) {
         result = std::to_string(i);
         break;
       }
@@ -66,19 +70,20 @@ namespace vk {
 
   static int create_vulkan_hwdevice(AVBufferRef **hw_device_buf) {
     // Resolve render device path to Vulkan device index
-    if (auto render_path = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name;
-        render_path[0] == '/') {
-      if (auto idx = find_vulkan_index_for_render_node(render_path.c_str());
-          !idx.empty() && av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, idx.c_str(), nullptr, 0) >= 0)
+    if (auto render_path = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name; render_path[0] == '/') {
+      if (auto idx = find_vulkan_index_for_render_node(render_path.c_str()); !idx.empty() && av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, idx.c_str(), nullptr, 0) >= 0) {
         return 0;
+      }
     } else {
       // Non-path: treat as device name substring or numeric index
-      if (av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, render_path.c_str(), nullptr, 0) >= 0)
+      if (av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, render_path.c_str(), nullptr, 0) >= 0) {
         return 0;
+      }
     }
     // Final fallback: let FFmpeg pick default
-    if (av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) >= 0)
+    if (av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, nullptr, nullptr, 0) >= 0) {
       return 0;
+    }
     return -1;
   }
 
@@ -95,11 +100,23 @@ namespace vk {
     std::array<int32_t, 2> cursor_size;
   };
 
-  // Helper to check VkResult
-  #define VK_CHECK(expr) do { VkResult _r = (expr); if (_r != VK_SUCCESS) { \
-    BOOST_LOG(error) << #expr << " failed: " << _r; return -1; } } while(0)
-  #define VK_CHECK_BOOL(expr) do { VkResult _r = (expr); if (_r != VK_SUCCESS) { \
-    BOOST_LOG(error) << #expr << " failed: " << _r; return false; } } while(0)
+// Helper to check VkResult
+#define VK_CHECK(expr) \
+  do { \
+    VkResult _r = (expr); \
+    if (_r != VK_SUCCESS) { \
+      BOOST_LOG(error) << #expr << " failed: " << _r; \
+      return -1; \
+    } \
+  } while (0)
+#define VK_CHECK_BOOL(expr) \
+  do { \
+    VkResult _r = (expr); \
+    if (_r != VK_SUCCESS) { \
+      BOOST_LOG(error) << #expr << " failed: " << _r; \
+      return false; \
+    } \
+  } while (0)
 
   class vk_vram_t: public platf::avcodec_encode_device_t {
   public:
@@ -163,8 +180,12 @@ namespace vk {
       vk_dev.getMemoryFdProperties = (PFN_vkGetMemoryFdPropertiesKHR)
         vkGetDeviceProcAddr(vk_dev.dev, "vkGetMemoryFdPropertiesKHR");
 
-      if (!create_compute_pipeline()) return -1;
-      if (!create_command_resources()) return -1;
+      if (!create_compute_pipeline()) {
+        return -1;
+      }
+      if (!create_command_resources()) {
+        return -1;
+      }
 
       return 0;
     }
@@ -182,12 +203,11 @@ namespace vk {
 
     void init_hwframes(AVHWFramesContext *frames) override {
       frames->initial_pool_size = 4;
-      auto *vk_frames = (AVVulkanFramesContext *)frames->hwctx;
+      auto *vk_frames = (AVVulkanFramesContext *) frames->hwctx;
       vk_frames->tiling = VK_IMAGE_TILING_OPTIMAL;
-      vk_frames->usage = (VkImageUsageFlagBits)(
-        VK_IMAGE_USAGE_STORAGE_BIT |
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-        VK_IMAGE_USAGE_SAMPLED_BIT);
+      vk_frames->usage = (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT |
+                                                 VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT);
     }
 
     int convert(platf::img_t &img) override {
@@ -216,11 +236,15 @@ namespace vk {
         descriptors_dirty = true;
       }
 
-      if (src.image == VK_NULL_HANDLE) return -1;
+      if (src.image == VK_NULL_HANDLE) {
+        return -1;
+      }
 
       // Setup Y/UV image views for the encoder target (once)
       if (!target.views_created) {
-        if (!create_target_views()) return -1;
+        if (!create_target_views()) {
+          return -1;
+        }
         target.views_created = true;
         descriptors_dirty = true;
       }
@@ -233,8 +257,9 @@ namespace vk {
 
       if (descriptor.data && descriptor.serial != cursor_serial) {
         cursor_serial = descriptor.serial;
-        if (!create_cursor_image(descriptor.src_w, descriptor.src_h, descriptor.data))
+        if (!create_cursor_image(descriptor.src_w, descriptor.src_h, descriptor.data)) {
           return -1;
+        }
         update_descriptors();
         descriptors_dirty = false;
       }
@@ -248,12 +273,12 @@ namespace vk {
       push.dst_size[1] = frame->height;
 
       if (descriptor.data) {
-        float scale_x = (float)frame->width / width;
-        float scale_y = (float)frame->height / height;
-        push.cursor_pos[0] = (int32_t)((descriptor.x - offset_x) * scale_x);
-        push.cursor_pos[1] = (int32_t)((descriptor.y - offset_y) * scale_y);
-        push.cursor_size[0] = (int32_t)(descriptor.width * scale_x);
-        push.cursor_size[1] = (int32_t)(descriptor.height * scale_y);
+        float scale_x = (float) frame->width / width;
+        float scale_y = (float) frame->height / height;
+        push.cursor_pos[0] = (int32_t) ((descriptor.x - offset_x) * scale_x);
+        push.cursor_pos[1] = (int32_t) ((descriptor.y - offset_y) * scale_y);
+        push.cursor_size[0] = (int32_t) (descriptor.width * scale_x);
+        push.cursor_size[1] = (int32_t) (descriptor.height * scale_y);
       } else {
         push.cursor_size[0] = 0;
       }
@@ -326,7 +351,9 @@ namespace vk {
       sampler_ci.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
       VK_CHECK_BOOL(vkCreateSampler(vk_dev.dev, &sampler_ci, nullptr, &compute.sampler));
 
-      if (!create_cursor_image(1, 1, nullptr)) return false;
+      if (!create_cursor_image(1, 1, nullptr)) {
+        return false;
+      }
 
       return true;
     }
@@ -349,13 +376,17 @@ namespace vk {
     static VkFormat drm_fourcc_to_vk_format(uint32_t fourcc) {
       switch (fourcc) {
         case DRM_FORMAT_XRGB8888:
-        case DRM_FORMAT_ARGB8888: return VK_FORMAT_B8G8R8A8_UNORM;
+        case DRM_FORMAT_ARGB8888:
+          return VK_FORMAT_B8G8R8A8_UNORM;
         case DRM_FORMAT_XBGR8888:
-        case DRM_FORMAT_ABGR8888: return VK_FORMAT_R8G8B8A8_UNORM;
+        case DRM_FORMAT_ABGR8888:
+          return VK_FORMAT_R8G8B8A8_UNORM;
         case DRM_FORMAT_XRGB2101010:
-        case DRM_FORMAT_ARGB2101010: return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+        case DRM_FORMAT_ARGB2101010:
+          return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
         case DRM_FORMAT_XBGR2101010:
-        case DRM_FORMAT_ABGR2101010: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+        case DRM_FORMAT_ABGR2101010:
+          return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
         default:
           BOOST_LOG(warning) << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
           return VK_FORMAT_B8G8R8A8_UNORM;
@@ -366,7 +397,9 @@ namespace vk {
       destroy_src_image();
 
       int fd = dup(sd.fds[0]);
-      if (fd < 0) return false;
+      if (fd < 0) {
+        return false;
+      }
 
       // Query memory requirements for this DMA-BUF
       VkMemoryFdPropertiesKHR fd_props = {VK_STRUCTURE_TYPE_MEMORY_FD_PROPERTIES_KHR};
@@ -380,7 +413,8 @@ namespace vk {
 
       std::array<VkSubresourceLayout, 4> drm_layouts = {};
       VkImageDrmFormatModifierExplicitCreateInfoEXT drm_ci = {
-        VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT};
+        VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT
+      };
       VkImageTiling tiling;
 
       if (sd.modifier != DRM_FORMAT_MOD_INVALID) {
@@ -405,7 +439,7 @@ namespace vk {
       img_ci.pNext = &ext_ci;
       img_ci.imageType = VK_IMAGE_TYPE_2D;
       img_ci.format = vk_format;
-      img_ci.extent = {(uint32_t)sd.width, (uint32_t)sd.height, 1};
+      img_ci.extent = {(uint32_t) sd.width, (uint32_t) sd.height, 1};
       img_ci.mipLevels = 1;
       img_ci.arrayLayers = 1;
       img_ci.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -435,7 +469,8 @@ namespace vk {
       alloc_info.allocationSize = mem_req.size;
       alloc_info.memoryTypeIndex = find_memory_type(
         fd_props.memoryTypeBits ? fd_props.memoryTypeBits : mem_req.memoryTypeBits,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+      );
 
       VkDeviceMemory src_mem = VK_NULL_HANDLE;
       res = vkAllocateMemory(vk_dev.dev, &alloc_info, nullptr, &src_mem);
@@ -466,7 +501,7 @@ namespace vk {
       VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
       img_ci.imageType = VK_IMAGE_TYPE_2D;
       img_ci.format = VK_FORMAT_B8G8R8A8_UNORM;
-      img_ci.extent = {(uint32_t)w, (uint32_t)h, 1};
+      img_ci.extent = {(uint32_t) w, (uint32_t) h, 1};
       img_ci.mipLevels = 1;
       img_ci.arrayLayers = 1;
       img_ci.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -479,8 +514,7 @@ namespace vk {
       vkGetImageMemoryRequirements(vk_dev.dev, cursor.image, &mem_req);
       VkMemoryAllocateInfo alloc = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
       alloc.allocationSize = mem_req.size;
-      alloc.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+      alloc.memoryTypeIndex = find_memory_type(mem_req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
       VK_CHECK_BOOL(vkAllocateMemory(vk_dev.dev, &alloc, nullptr, &cursor.mem));
       VK_CHECK_BOOL(vkBindImageMemory(vk_dev.dev, cursor.image, cursor.mem, 0));
 
@@ -490,8 +524,9 @@ namespace vk {
         VkImageSubresource subres = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0};
         VkSubresourceLayout layout;
         vkGetImageSubresourceLayout(vk_dev.dev, cursor.image, &subres, &layout);
-        for (int y = 0; y < h; y++)
-          memcpy((uint8_t *)mapped + layout.offset + y * layout.rowPitch, pixels + y * w * 4, w * 4);
+        for (int y = 0; y < h; y++) {
+          memcpy((uint8_t *) mapped + layout.offset + y * layout.rowPitch, pixels + y * w * 4, w * 4);
+        }
         vkUnmapMemory(vk_dev.dev, cursor.mem);
       }
 
@@ -508,21 +543,34 @@ namespace vk {
     }
 
     void destroy_cursor_image() {
-      if (cursor.view) { vkDestroyImageView(vk_dev.dev, cursor.view, nullptr); cursor.view = VK_NULL_HANDLE; }
-      if (cursor.image) { vkDestroyImage(vk_dev.dev, cursor.image, nullptr); cursor.image = VK_NULL_HANDLE; }
-      if (cursor.mem) { vkFreeMemory(vk_dev.dev, cursor.mem, nullptr); cursor.mem = VK_NULL_HANDLE; }
+      if (cursor.view) {
+        vkDestroyImageView(vk_dev.dev, cursor.view, nullptr);
+        cursor.view = VK_NULL_HANDLE;
+      }
+      if (cursor.image) {
+        vkDestroyImage(vk_dev.dev, cursor.image, nullptr);
+        cursor.image = VK_NULL_HANDLE;
+      }
+      if (cursor.mem) {
+        vkFreeMemory(vk_dev.dev, cursor.mem, nullptr);
+        cursor.mem = VK_NULL_HANDLE;
+      }
     }
 
     bool create_target_views() {
       auto *vk_frame = (AVVkFrame *) frame->data[0];
-      if (!vk_frame) return false;
+      if (!vk_frame) {
+        return false;
+      }
 
       auto y_fmt = is_10bit ? VK_FORMAT_R16_UNORM : VK_FORMAT_R8_UNORM;
       auto uv_fmt = is_10bit ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R8G8_UNORM;
 
       // Detect multiplane vs multi-image layout
       int num_imgs = 0;
-      for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) num_imgs++;
+      for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) {
+        num_imgs++;
+      }
 
       if (num_imgs == 1) {
         // Single multiplane image — create plane views
@@ -563,21 +611,19 @@ namespace vk {
       VkDescriptorImageInfo cursor_info = {compute.sampler, cursor.view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
 
       std::array<VkWriteDescriptorSet, 4> writes = {};
-      writes[0] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 0, 0, 1,
-                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &src_info, nullptr, nullptr};
-      writes[1] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 1, 0, 1,
-                   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &y_info, nullptr, nullptr};
-      writes[2] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 2, 0, 1,
-                   VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &uv_info, nullptr, nullptr};
-      writes[3] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 3, 0, 1,
-                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &cursor_info, nullptr, nullptr};
+      writes[0] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 0, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &src_info, nullptr, nullptr};
+      writes[1] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 1, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &y_info, nullptr, nullptr};
+      writes[2] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 2, 0, 1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, &uv_info, nullptr, nullptr};
+      writes[3] = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, nullptr, compute.desc_set, 3, 0, 1, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, &cursor_info, nullptr, nullptr};
       vkUpdateDescriptorSets(vk_dev.dev, writes.size(), writes.data(), 0, nullptr);
     }
 
     int dispatch_compute() {
       auto *vk_frame = (AVVkFrame *) frame->data[0];
       int num_imgs = 0;
-      for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) num_imgs++;
+      for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) {
+        num_imgs++;
+      }
 
       // Rotate to next command buffer. With CMD_RING_SIZE slots, the buffer
       // we're about to reuse was submitted CMD_RING_SIZE frames ago.
@@ -601,9 +647,7 @@ namespace vk {
       src_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_EXTERNAL;
       src_barrier.dstQueueFamilyIndex = vk_dev.compute_qf;
 
-      vkCmdPipelineBarrier(cmd_buf,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, 1, &src_barrier);
+      vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &src_barrier);
 
       // Transition cursor image if needed
       if (cursor.needs_transition) {
@@ -616,9 +660,7 @@ namespace vk {
         cursor_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
         cursor_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         cursor_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        vkCmdPipelineBarrier(cmd_buf,
-          VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-          0, 0, nullptr, 0, nullptr, 1, &cursor_barrier);
+        vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_HOST_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &cursor_barrier);
         cursor.needs_transition = false;
       }
 
@@ -637,16 +679,12 @@ namespace vk {
         dst_barriers[i].dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
       }
 
-      vkCmdPipelineBarrier(cmd_buf,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, num_dst_barriers, dst_barriers.data());
+      vkCmdPipelineBarrier(cmd_buf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 0, nullptr, 0, nullptr, num_dst_barriers, dst_barriers.data());
 
       // Bind pipeline and dispatch
       vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline);
-      vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE,
-        compute.pipeline_layout, 0, 1, &compute.desc_set, 0, nullptr);
-      vkCmdPushConstants(cmd_buf, compute.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-        0, sizeof(PushConstants), &push);
+      vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_COMPUTE, compute.pipeline_layout, 0, 1, &compute.desc_set, 0, nullptr);
+      vkCmdPushConstants(cmd_buf, compute.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(PushConstants), &push);
 
       uint32_t gx = (frame->width + 15) / 16;
       uint32_t gy = (frame->height + 15) / 16;
@@ -691,12 +729,16 @@ namespace vk {
 
       // Lock the queue (FFmpeg requires this)
       vk_dev.ctx->lock_queue(
-        (AVHWDeviceContext *)((AVHWFramesContext *)hw_frames_ctx->data)->device_ref->data,
-        vk_dev.compute_qf, 0);
+        (AVHWDeviceContext *) ((AVHWFramesContext *) hw_frames_ctx->data)->device_ref->data,
+        vk_dev.compute_qf,
+        0
+      );
       auto res = vkQueueSubmit(vk_dev.compute_queue, 1, &submit, VK_NULL_HANDLE);
       vk_dev.ctx->unlock_queue(
-        (AVHWDeviceContext *)((AVHWFramesContext *)hw_frames_ctx->data)->device_ref->data,
-        vk_dev.compute_qf, 0);
+        (AVHWDeviceContext *) ((AVHWFramesContext *) hw_frames_ctx->data)->device_ref->data,
+        vk_dev.compute_qf,
+        0
+      );
 
       if (res != VK_SUCCESS) {
         BOOST_LOG(error) << "vkQueueSubmit failed: " << res;
@@ -718,12 +760,15 @@ namespace vk {
       VkPhysicalDeviceMemoryProperties mem_props;
       vkGetPhysicalDeviceMemoryProperties(vk_dev.phys_dev, &mem_props);
       for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++) {
-        if ((type_bits & (1 << i)) && (mem_props.memoryTypes[i].propertyFlags & props) == props)
+        if ((type_bits & (1 << i)) && (mem_props.memoryTypes[i].propertyFlags & props) == props) {
           return i;
+        }
       }
       // Fallback: any matching type bit
       for (uint32_t i = 0; i < mem_props.memoryTypeCount; i++) {
-        if (type_bits & (1 << i)) return i;
+        if (type_bits & (1 << i)) {
+          return i;
+        }
       }
       return 0;
     }
@@ -733,9 +778,15 @@ namespace vk {
         // Defer destruction — the GPU may still be using this image.
         // By the time we wrap around (4 frames later), it's guaranteed done.
         auto &slot = defer_ring[defer_idx];
-        if (slot.view) vkDestroyImageView(vk_dev.dev, slot.view, nullptr);
-        if (slot.image) vkDestroyImage(vk_dev.dev, slot.image, nullptr);
-        if (slot.mem) vkFreeMemory(vk_dev.dev, slot.mem, nullptr);
+        if (slot.view) {
+          vkDestroyImageView(vk_dev.dev, slot.view, nullptr);
+        }
+        if (slot.image) {
+          vkDestroyImage(vk_dev.dev, slot.image, nullptr);
+        }
+        if (slot.mem) {
+          vkFreeMemory(vk_dev.dev, slot.mem, nullptr);
+        }
         slot = src;
         defer_idx = (defer_idx + 1) % DEFER_RING_SIZE;
       }
@@ -743,26 +794,52 @@ namespace vk {
     }
 
     void cleanup_pipeline() {
-      if (!vk_dev.dev) return;
+      if (!vk_dev.dev) {
+        return;
+      }
       vkDeviceWaitIdle(vk_dev.dev);
       destroy_src_image();
       // Flush deferred destroys
       for (auto &slot : defer_ring) {
-        if (slot.view) vkDestroyImageView(vk_dev.dev, slot.view, nullptr);
-        if (slot.image) vkDestroyImage(vk_dev.dev, slot.image, nullptr);
-        if (slot.mem) vkFreeMemory(vk_dev.dev, slot.mem, nullptr);
+        if (slot.view) {
+          vkDestroyImageView(vk_dev.dev, slot.view, nullptr);
+        }
+        if (slot.image) {
+          vkDestroyImage(vk_dev.dev, slot.image, nullptr);
+        }
+        if (slot.mem) {
+          vkFreeMemory(vk_dev.dev, slot.mem, nullptr);
+        }
         slot = {};
       }
-      if (target.y_view) vkDestroyImageView(vk_dev.dev, target.y_view, nullptr);
-      if (target.uv_view) vkDestroyImageView(vk_dev.dev, target.uv_view, nullptr);
+      if (target.y_view) {
+        vkDestroyImageView(vk_dev.dev, target.y_view, nullptr);
+      }
+      if (target.uv_view) {
+        vkDestroyImageView(vk_dev.dev, target.uv_view, nullptr);
+      }
       destroy_cursor_image();
-      if (cmd.pool) vkDestroyCommandPool(vk_dev.dev, cmd.pool, nullptr);
-      if (compute.sampler) vkDestroySampler(vk_dev.dev, compute.sampler, nullptr);
-      if (compute.desc_pool) vkDestroyDescriptorPool(vk_dev.dev, compute.desc_pool, nullptr);
-      if (compute.pipeline) vkDestroyPipeline(vk_dev.dev, compute.pipeline, nullptr);
-      if (compute.pipeline_layout) vkDestroyPipelineLayout(vk_dev.dev, compute.pipeline_layout, nullptr);
-      if (compute.ds_layout) vkDestroyDescriptorSetLayout(vk_dev.dev, compute.ds_layout, nullptr);
-      if (compute.shader_module) vkDestroyShaderModule(vk_dev.dev, compute.shader_module, nullptr);
+      if (cmd.pool) {
+        vkDestroyCommandPool(vk_dev.dev, cmd.pool, nullptr);
+      }
+      if (compute.sampler) {
+        vkDestroySampler(vk_dev.dev, compute.sampler, nullptr);
+      }
+      if (compute.desc_pool) {
+        vkDestroyDescriptorPool(vk_dev.dev, compute.desc_pool, nullptr);
+      }
+      if (compute.pipeline) {
+        vkDestroyPipeline(vk_dev.dev, compute.pipeline, nullptr);
+      }
+      if (compute.pipeline_layout) {
+        vkDestroyPipelineLayout(vk_dev.dev, compute.pipeline_layout, nullptr);
+      }
+      if (compute.ds_layout) {
+        vkDestroyDescriptorSetLayout(vk_dev.dev, compute.ds_layout, nullptr);
+      }
+      if (compute.shader_module) {
+        vkDestroyShaderModule(vk_dev.dev, compute.shader_module, nullptr);
+      }
     }
 
     static int init_hw_device(platf::avcodec_encode_device_t *, AVBufferRef **hw_device_buf) {
@@ -788,6 +865,7 @@ namespace vk {
       VkQueue compute_queue = VK_NULL_HANDLE;
       PFN_vkGetMemoryFdPropertiesKHR getMemoryFdProperties = nullptr;
     };
+
     vk_device_t vk_dev = {};
 
     // Compute pipeline
@@ -800,16 +878,19 @@ namespace vk {
       VkDescriptorSet desc_set = VK_NULL_HANDLE;
       VkSampler sampler = VK_NULL_HANDLE;
     };
+
     compute_pipeline_t compute = {};
 
     // Command submission — ring of buffers to avoid reuse while in-flight.
     // No CPU waits: by the time we wrap around, the old submission is long done.
     static constexpr int CMD_RING_SIZE = 3;
+
     struct cmd_submission_t {
       VkCommandPool pool = VK_NULL_HANDLE;
       std::array<VkCommandBuffer, CMD_RING_SIZE> ring = {};
       int ring_idx = 0;
     };
+
     cmd_submission_t cmd = {};
 
     // Source DMA-BUF image with deferred destruction
@@ -818,6 +899,7 @@ namespace vk {
       VkDeviceMemory mem = VK_NULL_HANDLE;
       VkImageView view = VK_NULL_HANDLE;
     };
+
     src_image_t src = {};
     static constexpr int DEFER_RING_SIZE = 4;
     std::array<src_image_t, DEFER_RING_SIZE> defer_ring = {};
@@ -830,6 +912,7 @@ namespace vk {
       bool views_created = false;
       bool initialized = false;
     };
+
     target_state_t target = {};
 
     bool descriptors_dirty = false;
@@ -841,6 +924,7 @@ namespace vk {
       VkImageView view = VK_NULL_HANDLE;
       bool needs_transition = false;
     } cursor = {};
+
     unsigned long cursor_serial = 0;
 
     // Push constants (color matrix)
@@ -854,18 +938,22 @@ namespace vk {
   }
 
   bool validate() {
-    if (!avcodec_find_encoder_by_name("h264_vulkan") && !avcodec_find_encoder_by_name("hevc_vulkan"))
+    if (!avcodec_find_encoder_by_name("h264_vulkan") && !avcodec_find_encoder_by_name("hevc_vulkan")) {
       return false;
+    }
     AVBufferRef *dev = nullptr;
-    if (create_vulkan_hwdevice(&dev) < 0)
+    if (create_vulkan_hwdevice(&dev) < 0) {
       return false;
+    }
     av_buffer_unref(&dev);
     return true;
   }
 
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device_vram(int w, int h, int offset_x, int offset_y) {
     auto dev = std::make_unique<vk_vram_t>();
-    if (dev->init(w, h, offset_x, offset_y) < 0) return nullptr;
+    if (dev->init(w, h, offset_x, offset_y) < 0) {
+      return nullptr;
+    }
     return dev;
   }
 

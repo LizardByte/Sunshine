@@ -2925,6 +2925,101 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+## Vulkan Encoder
+
+### vk_tune
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Encoder tuning preset. Low latency modes reduce encoding delay at the cost of quality.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            2
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_tune = 1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Options</td>
+        <td>0 (default)</td>
+        <td>Let the driver decide</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>1 (hq)</td>
+        <td>High Quality</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>2 (ll)</td>
+        <td>Low Latency</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>3 (ull)</td>
+        <td>Ultra Low Latency</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>4 (lossless)</td>
+        <td>Lossless</td>
+    </tr>
+</table>
+
+### vk_rc_mode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Rate control mode for encoding. Auto lets the driver decide.
+            @note{This option only applies when using Vulkan [encoder](#encoder).}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            4
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            vk_rc_mode = 2
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Options</td>
+        <td>0</td>
+        <td>Auto (driver decides)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>1</td>
+        <td>CQP (Constant QP)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>2</td>
+        <td>CBR (Constant Bitrate)</td>
+    </tr>
+    <tr>
+        <td></td>
+        <td>4</td>
+        <td>VBR (Variable Bitrate)</td>
+    </tr>
+</table>
+
 ## Software Encoder
 
 ### sw_preset

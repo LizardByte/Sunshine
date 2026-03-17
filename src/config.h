@@ -81,7 +81,7 @@ namespace config {
     } vaapi;
 
     struct {
-      int tune;     // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
+      int tune;  // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
       int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
     } vk;
 

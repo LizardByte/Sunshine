@@ -3026,7 +3026,7 @@ namespace video {
 
     // Try render device path first (like VAAPI does), then fallback to device indices
     auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
-    
+
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, render_device, nullptr, 0);
     if (status >= 0) {
       BOOST_LOG(info) << "Using Vulkan device: "sv << render_device;
