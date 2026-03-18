@@ -4,6 +4,7 @@
  *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
  */
 #include <array>
+#include <cstdint>
 #include <drm_fourcc.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
@@ -16,11 +17,16 @@ extern "C" {
 }
 
 #include "graphics.h"
-#include "shaders/rgb2yuv.spv.h"
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/video_colorspace.h"
 #include "vulkan_encode.h"
+
+// SPIR-V data generated at build time
+static const std::vector<uint32_t> rgb2yuv_comp_spv_data
+#include "shaders/rgb2yuv.spv.inc"
+  ;
+static const size_t rgb2yuv_comp_spv_size = rgb2yuv_comp_spv_data.size() * sizeof(uint32_t);
 
 #include <vulkan/vulkan.h>
 
@@ -294,7 +300,7 @@ namespace vk {
       // Shader module
       VkShaderModuleCreateInfo shader_ci = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
       shader_ci.codeSize = rgb2yuv_comp_spv_size;
-      shader_ci.pCode = rgb2yuv_comp_spv.data();
+      shader_ci.pCode = rgb2yuv_comp_spv_data.data();
       VK_CHECK_BOOL(vkCreateShaderModule(vk_dev.dev, &shader_ci, nullptr, &compute.shader_module));
 
       // Descriptor set layout: binding 0=sampler, 1=Y storage, 2=UV storage, 3=cursor sampler

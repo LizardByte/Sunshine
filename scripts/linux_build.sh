@@ -194,6 +194,7 @@ function add_arch_deps() {
     'opus'
     'python-jinja'  # glad OpenGL/EGL loader generator
     'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
+    'shaderc'
     'udev'
     'vulkan-headers'
     'vulkan-icd-loader'
@@ -252,6 +253,7 @@ function add_debian_based_deps() {
     "libxrandr-dev"  # X11
     "libxtst-dev"  # X11
     "libvulkan-dev"  # Vulkan
+    "glslang-tools"  # Vulkan shader compiler
     "ninja-build"
     "npm"  # web-ui
     "python3-jinja2"  # glad OpenGL/EGL loader generator
@@ -337,6 +339,7 @@ function add_fedora_deps() {
     "rpm-build"  # if you want to build an RPM binary package
     "vulkan-headers"
     "vulkan-loader-devel"
+    "glslc"
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file
     "xorg-x11-server-Xvfb"  # necessary for headless unit testing

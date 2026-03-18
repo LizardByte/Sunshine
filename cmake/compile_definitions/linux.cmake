@@ -123,6 +123,14 @@ endif()
 # vulkan video encoding (via FFmpeg)
 if(${SUNSHINE_ENABLE_VULKAN})
     find_package(Vulkan REQUIRED)
+    # prefer glslc, fall back to glslangValidator
+    find_package(Vulkan QUIET COMPONENTS glslc)
+    if(NOT TARGET Vulkan::glslc)
+        find_package(Vulkan QUIET COMPONENTS glslangValidator)
+    endif()
+    if(NOT TARGET Vulkan::glslc AND NOT TARGET Vulkan::glslangValidator)
+        message(FATAL_ERROR "Vulkan shader compiler not found (need glslc or glslangValidator)")
+    endif()
 endif()
 if(SUNSHINE_ENABLE_VULKAN AND Vulkan_FOUND)
     list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_VULKAN=1)
@@ -131,6 +139,43 @@ if(SUNSHINE_ENABLE_VULKAN AND Vulkan_FOUND)
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.cpp")
+
+    # compile GLSL -> SPIR-V -> C include at build time
+    set(VULKAN_SHADER_DIR "${CMAKE_BINARY_DIR}/generated-src/shaders")
+    set(VULKAN_SHADER_SOURCE "${SUNSHINE_SOURCE_ASSETS_DIR}/linux/assets/shaders/vulkan/rgb2yuv.comp")
+    set(VULKAN_SHADER_SPV "${VULKAN_SHADER_DIR}/rgb2yuv.spv")
+    set(VULKAN_SHADER_DATA "${VULKAN_SHADER_DIR}/rgb2yuv.spv.inc")
+
+    file(MAKE_DIRECTORY "${VULKAN_SHADER_DIR}")
+
+    if(TARGET Vulkan::glslc)
+        add_custom_command(
+                OUTPUT "${VULKAN_SHADER_SPV}"
+                COMMAND Vulkan::glslc -O "${VULKAN_SHADER_SOURCE}" -o "${VULKAN_SHADER_SPV}"
+                DEPENDS "${VULKAN_SHADER_SOURCE}"
+                COMMENT "Compiling Vulkan shader rgb2yuv.comp (glslc)"
+                VERBATIM)
+    else()
+        add_custom_command(
+                OUTPUT "${VULKAN_SHADER_SPV}"
+                COMMAND Vulkan::glslangValidator -V -o "${VULKAN_SHADER_SPV}" "${VULKAN_SHADER_SOURCE}"
+                DEPENDS "${VULKAN_SHADER_SOURCE}"
+                COMMENT "Compiling Vulkan shader rgb2yuv.comp (glslangValidator)"
+                VERBATIM)
+    endif()
+
+    add_custom_command(
+            OUTPUT "${VULKAN_SHADER_DATA}"
+            COMMAND ${CMAKE_COMMAND} -DSPV_FILE=${VULKAN_SHADER_SPV} -DOUT_FILE=${VULKAN_SHADER_DATA}
+                -P "${CMAKE_SOURCE_DIR}/cmake/scripts/binary_to_c.cmake"
+            DEPENDS "${VULKAN_SHADER_SPV}"
+            COMMENT "Generating C include from rgb2yuv.spv"
+            VERBATIM)
+
+    add_custom_target(vulkan_shaders
+            DEPENDS "${VULKAN_SHADER_DATA}"
+            COMMENT "Vulkan shader compilation")
+    set(SUNSHINE_TARGET_DEPENDENCIES ${SUNSHINE_TARGET_DEPENDENCIES} vulkan_shaders)
 endif()
 
 # wayland

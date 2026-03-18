@@ -113,6 +113,7 @@ jobs:
               devel/pkgconf \
               ftp/curl \
               graphics/libdrm \
+              graphics/shaderc \
               graphics/vulkan-headers \
               graphics/vulkan-loader \
               graphics/wayland \
