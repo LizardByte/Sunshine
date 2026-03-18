@@ -18,6 +18,7 @@ layout(push_constant) uniform PushConstants {
   ivec2 dst_size;
   ivec2 cursor_pos;
   ivec2 cursor_size;  // w=0 means no cursor
+  int y_invert;
 } pc;
 
 vec3 blend_cursor(vec3 rgb, ivec2 pos) {
@@ -38,6 +39,8 @@ void main() {
   vec2 scale = vec2(pc.src_size) / vec2(pc.dst_size);
 
   vec2 uv = (vec2(pc.src_offset) + (vec2(pos) + 0.5) * scale) * inv_tex;
+  if (pc.y_invert != 0)
+    uv.y = 1.0 - uv.y;
   vec3 rgb = texture(rgb_in, uv).rgb;
 
   if (pc.cursor_size.x > 0)
@@ -50,6 +53,8 @@ void main() {
   // UV plane (half resolution, one thread per 2x2 block)
   if ((pos.x & 1) == 0 && (pos.y & 1) == 0) {
     vec2 step = scale * inv_tex;
+    if (pc.y_invert != 0)
+      step.y = -step.y;
 
     vec3 rgb_r  = texture(rgb_in, uv + vec2(step.x, 0)).rgb;
     vec3 rgb_b  = texture(rgb_in, uv + vec2(0, step.y)).rgb;

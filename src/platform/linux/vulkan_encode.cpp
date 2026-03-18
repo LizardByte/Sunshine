@@ -98,6 +98,7 @@ namespace vk {
     std::array<int32_t, 2> dst_size;
     std::array<int32_t, 2> cursor_pos;
     std::array<int32_t, 2> cursor_size;
+    int32_t y_invert;
   };
 
 // Helper to check VkResult
@@ -271,6 +272,7 @@ namespace vk {
       push.src_size[1] = height;
       push.dst_size[0] = frame->width;
       push.dst_size[1] = frame->height;
+      push.y_invert = descriptor.y_invert ? 1 : 0;
 
       if (descriptor.data) {
         float scale_x = (float) frame->width / width;

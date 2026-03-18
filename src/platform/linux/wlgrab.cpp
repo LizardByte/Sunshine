@@ -349,6 +349,7 @@ namespace wl {
 
       img->sd = current_frame->sd;
       img->frame_timestamp = current_frame->frame_timestamp;
+      img->y_invert = dmabuf.y_invert;
 
       // Prevent dmabuf from closing the file descriptors.
       std::fill_n(current_frame->sd.fds, 4, -1);
