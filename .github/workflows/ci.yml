@@ -260,7 +260,7 @@ jobs:
         if: |
           steps.should_run.outputs.SHOULD_RUN == 'true'  &&
           matrix.coverage != false
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5.5.2
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad  # v5.5.3
         with:
           disable_search: true
           fail_ci_if_error: true
@@ -272,7 +272,7 @@ jobs:
 
       - name: Upload test results
         if: steps.should_run.outputs.SHOULD_RUN == 'true'
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de  # v5.5.2
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad  # v5.5.3
         with:
           disable_search: true
           fail_ci_if_error: true
