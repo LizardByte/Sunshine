@@ -9,6 +9,7 @@ uniform int rotation;
 
 out vec3 uuv;
 
+// Note: duplicated in Scene.vert (no shader include mechanism available)
 vec2 rotate_uv(vec2 uv, int rot) {
 	if (rot == 90) {
 		return vec2(uv.y, 1.0 - uv.x);

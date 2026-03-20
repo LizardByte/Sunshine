@@ -8,6 +8,7 @@ uniform int rotation;
 
 out vec2 tex;
 
+// Note: duplicated in ConvertUV.vert (no shader include mechanism available)
 vec2 rotate_uv(vec2 uv, int rot) {
 	if (rot == 90) {
 		return vec2(uv.y, 1.0 - uv.x);
