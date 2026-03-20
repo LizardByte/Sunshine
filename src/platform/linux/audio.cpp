@@ -457,7 +457,8 @@ namespace platf {
           sink_name = get_default_sink_name();
         }
 
-        return ::platf::microphone(mapping, channels, sample_rate, frame_size, get_monitor_name(sink_name));
+        auto monitor_name = config::audio.source.empty() ? get_monitor_name(sink_name) : config::audio.source;
+        return ::platf::microphone(mapping, channels, sample_rate, frame_size, monitor_name);
       }
 
       bool is_sink_available(const std::string &sink) override {
