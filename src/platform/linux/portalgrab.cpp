@@ -49,7 +49,12 @@ namespace {
   constexpr uint32_t CURSOR_MODE_EMBEDDED = 2;
 
   constexpr uint32_t PERSIST_FORGET = 0;
-  constexpr uint32_t PERSIST_WHILE_RUNNING = 2;
+  constexpr uint32_t PERSIST_WHILE_RUNNING = 1;
+  constexpr uint32_t PERSIST_UNTIL_REVOKED = 2;
+
+  constexpr uint32_t TYPE_KEYBOARD = 1;
+  constexpr uint32_t TYPE_POINTER = 2;
+  constexpr uint32_t TYPE_TOUCHSCREEN = 4;
 
   // Portal D-Bus interface names and paths
   constexpr const char *PORTAL_NAME = "org.freedesktop.portal.Desktop";
@@ -299,7 +304,7 @@ namespace portal {
         return false;
       }
 
-      if (select_screencast_sources(loop, *session_path) < 0) {
+      if (select_screencast_sources(loop, *session_path, false) < 0) {
         BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
         g_free(*session_path);
         *session_path = nullptr;
@@ -316,7 +321,9 @@ namespace portal {
       if (create_portal_session(loop, session_path, new_session_token, true) < 0) {
         return -1;
       }
-      if (select_screencast_sources(loop, *session_path) < 0) {
+      if (select_screencast_sources(loop, *session_path, true) < 0) {
+        g_free(*session_path);
+        *session_path = nullptr;
         return -1;
       }
       return 0;
@@ -411,7 +418,8 @@ namespace portal {
       g_variant_builder_add(&builder, "o", session_path);
       g_variant_builder_open(&builder, G_VARIANT_TYPE("a{sv}"));
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
-      g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
+      g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(TYPE_KEYBOARD | TYPE_POINTER | TYPE_TOUCHSCREEN));
+      g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_UNTIL_REVOKED));
       if (!restore_token_t::empty()) {
         g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
       }
@@ -448,7 +456,7 @@ namespace portal {
       return 0;
     }
 
-    int select_screencast_sources(GMainLoop *loop, const gchar *session_path) {
+    int select_screencast_sources(GMainLoop *loop, const gchar *session_path, bool persist) {
       dbus_response_t response = {
         nullptr,
       };
@@ -462,9 +470,11 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
-      g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_WHILE_RUNNING));
-      if (!restore_token_t::empty()) {
-        g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
+      if (persist) {
+        g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_UNTIL_REVOKED));
+        if (!restore_token_t::empty()) {
+          g_variant_builder_add(&builder, "{sv}", "restore_token", g_variant_new_string(restore_token_t::get().c_str()));
+        }
       }
       g_variant_builder_close(&builder);
 
@@ -723,6 +733,14 @@ namespace portal {
       }
     }
 
+    bool is_maxframerate_failed() const {
+      return maxframerate_failed_;
+    }
+
+    void set_maxframerate_failed() {
+      maxframerate_failed_ = true;
+    }
+
   private:
     session_cache_t() = default;
 
@@ -743,6 +761,7 @@ namespace portal {
     int width_ = 0;
     int height_ = 0;
     bool valid_ = false;
+    bool maxframerate_failed_ = false;
   };
 
   session_cache_t &session_cache_t::instance() {
@@ -759,6 +778,9 @@ namespace portal {
     }
 
     ~pipewire_t() {
+      if (loop) {
+        pw_thread_loop_stop(loop);
+      }
       cleanup_stream();
 
       pw_thread_loop_lock(loop);
@@ -774,7 +796,6 @@ namespace portal {
 
       pw_thread_loop_unlock(loop);
 
-      pw_thread_loop_stop(loop);
       if (fd >= 0) {
         close(fd);
       }
@@ -879,73 +900,75 @@ namespace portal {
       pw_thread_loop_unlock(loop);
     }
 
+    static void close_img_fds(egl::img_descriptor_t *img_descriptor) {
+      for (int &fd : img_descriptor->sd.fds) {
+        if (fd >= 0) {
+          close(fd);
+          fd = -1;
+        }
+      }
+    }
+
+    static void fill_img_metadata(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf) {
+      img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
+
+      struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
+        spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
+      );
+      if (h) {
+        img_descriptor->seq = h->seq;
+        img_descriptor->pts = h->pts;
+      }
+
+      if (buf->n_datas > 0) {
+        img_descriptor->pw_flags = buf->datas[0].chunk->flags;
+      }
+
+      struct spa_meta_region *damage = static_cast<struct spa_meta_region *>(
+        spa_buffer_find_meta_data(buf, SPA_META_VideoDamage, sizeof(*damage))
+      );
+      img_descriptor->pw_damage = (damage && damage->region.size.width > 0 && damage->region.size.height > 0) ? std::optional<bool>(true) : std::nullopt;
+    }
+
+    static void fill_img_dmabuf(egl::img_descriptor_t *img_descriptor, struct spa_buffer *buf, const stream_data_t &d) {
+      img_descriptor->sd.width = d.format.info.raw.size.width;
+      img_descriptor->sd.height = d.format.info.raw.size.height;
+      img_descriptor->sd.modifier = d.format.info.raw.modifier;
+      img_descriptor->sd.fourcc = d.drm_format;
+      for (int i = 0; i < MIN(buf->n_datas, 4); i++) {
+        img_descriptor->sd.fds[i] = dup(buf->datas[i].fd);
+        img_descriptor->sd.pitches[i] = buf->datas[i].chunk->stride;
+        img_descriptor->sd.offsets[i] = buf->datas[i].chunk->offset;
+      }
+    }
+
     void fill_img(platf::img_t *img) {
       pw_thread_loop_lock(loop);
-
-      // 1. Lock the frame mutex immediately to protect against on_process reallocations
       std::scoped_lock lock(stream_data.frame_mutex);
 
-      // Check if the stream is marked dead by modesetting logic
       if (stream_data.shared && stream_data.shared->stream_dead.load()) {
+        img->data = nullptr;
+        close_img_fds(static_cast<egl::img_descriptor_t *>(img));
+        pw_thread_loop_unlock(loop);
+        return;
+      }
+
+      if (!stream_data.current_buffer) {
         img->data = nullptr;
         pw_thread_loop_unlock(loop);
         return;
       }
 
-      // 2. Validate we have a buffer and a signal that it's "new"
-      if (stream_data.current_buffer) {
-        struct spa_buffer *buf = stream_data.current_buffer->buffer;
-
-        if (buf->datas[0].chunk->size != 0) {
-          const auto img_descriptor = static_cast<egl::img_descriptor_t *>(img);
-          img_descriptor->frame_timestamp = std::chrono::steady_clock::now();
-
-          // PipeWire header metadata
-          struct spa_meta_header *h = static_cast<struct spa_meta_header *>(
-            spa_buffer_find_meta_data(buf, SPA_META_Header, sizeof(*h))
-          );
-          if (h) {
-            img_descriptor->seq = h->seq;
-            img_descriptor->pts = h->pts;
-          }
-
-          // PipeWire flags
-          if (buf->n_datas > 0) {
-            img_descriptor->pw_flags = buf->datas[0].chunk->flags;
-          }
-
-          // PipeWire damage metadata
-          struct spa_meta_region *damage = (struct spa_meta_region *) spa_buffer_find_meta_data(
-            stream_data.current_buffer->buffer,
-            SPA_META_VideoDamage,
-            sizeof(*damage)
-          );
-          if (damage) {
-            img_descriptor->pw_damage = (damage->region.size.width > 0 && damage->region.size.height > 0);
-          } else {
-            img_descriptor->pw_damage = std::nullopt;
-          }
-
-          if (buf->datas[0].type == SPA_DATA_DmaBuf) {
-            img_descriptor->sd.width = stream_data.format.info.raw.size.width;
-            img_descriptor->sd.height = stream_data.format.info.raw.size.height;
-            img_descriptor->sd.modifier = stream_data.format.info.raw.modifier;
-            img_descriptor->sd.fourcc = stream_data.drm_format;
-
-            for (int i = 0; i < MIN(buf->n_datas, 4); i++) {
-              img_descriptor->sd.fds[i] = dup(buf->datas[i].fd);
-              img_descriptor->sd.pitches[i] = buf->datas[i].chunk->stride;
-              img_descriptor->sd.offsets[i] = buf->datas[i].chunk->offset;
-            }
-          } else {
-            // Point the encoder to the front buffer
-            img->data = stream_data.front_buffer->data();
-            img->row_pitch = stream_data.local_stride;
-          }
+      struct spa_buffer *buf = stream_data.current_buffer->buffer;
+      if (buf->datas[0].chunk->size != 0) {
+        auto *img_descriptor = static_cast<egl::img_descriptor_t *>(img);
+        fill_img_metadata(img_descriptor, buf);
+        if (buf->datas[0].type == SPA_DATA_DmaBuf) {
+          fill_img_dmabuf(img_descriptor, buf, stream_data);
+        } else {
+          img->data = stream_data.front_buffer->data();
+          img->row_pitch = stream_data.local_stride;
         }
-      } else {
-        // No new frame ready, or buffer was cleared during reinit
-        img->data = nullptr;
       }
 
       pw_thread_loop_unlock(loop);
@@ -970,17 +993,19 @@ namespace portal {
       sizes[1] = SPA_RECTANGLE(1, 1);
       sizes[2] = SPA_RECTANGLE(8192, 4096);
 
-      framerates[0] = SPA_FRACTION(0, 1);  // we only want variable rate, thus bypassing compositor pacing
-      framerates[1] = SPA_FRACTION(0, 1);
-      framerates[2] = SPA_FRACTION(0, 1);
+      framerates[0] = SPA_FRACTION(0, 1);  // default; we only want variable rate, thus bypassing compositor pacing
+      framerates[1] = SPA_FRACTION(0, 1);  // min
+      framerates[2] = SPA_FRACTION(0, 1);  // max
 
       spa_pod_builder_push_object(b, &object_frame, SPA_TYPE_OBJECT_Format, SPA_PARAM_EnumFormat);
       spa_pod_builder_add(b, SPA_FORMAT_mediaType, SPA_POD_Id(SPA_MEDIA_TYPE_video), 0);
       spa_pod_builder_add(b, SPA_FORMAT_mediaSubtype, SPA_POD_Id(SPA_MEDIA_SUBTYPE_raw), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
-      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
-      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
+      if (!session_cache_t::instance().is_maxframerate_failed()) {
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      }
 
       if (n_modifiers) {
         spa_pod_builder_prop(b, SPA_FORMAT_VIDEO_modifier, SPA_POD_PROP_FLAG_MANDATORY | SPA_POD_PROP_FLAG_DONT_FIXATE);
@@ -1013,23 +1038,33 @@ namespace portal {
     };
 
     static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
+      BOOST_LOG(debug) << "PipeWire stream state: " << pw_stream_state_as_string(old)
+                       << " -> " << pw_stream_state_as_string(state);
+
       auto *d = static_cast<stream_data_t *>(user_data);
 
       switch (state) {
-        case PW_STREAM_STATE_ERROR:
-        case PW_STREAM_STATE_UNCONNECTED:
-          // If we hit an actual error or unconnected, it's always dead.
-          if (d->shared) {
-            d->shared->stream_dead.store(true, std::memory_order_relaxed);
+        case PW_STREAM_STATE_PAUSED:
+          if (d->shared && old == PW_STREAM_STATE_STREAMING) {
+            {
+              std::scoped_lock lock(d->frame_mutex);
+              d->frame_ready = false;
+              d->current_buffer = nullptr;
+              d->shared->stream_dead.store(true, std::memory_order_relaxed);
+            }
+            d->frame_cv.notify_all();
           }
           break;
-        case PW_STREAM_STATE_PAUSED:
-          // Trigger a reinit to identify if changes occurred
-          if (d->shared && old == PW_STREAM_STATE_STREAMING) {
-            std::scoped_lock lock(d->frame_mutex);
-            d->frame_ready = false;
-            d->current_buffer = nullptr;
+        case PW_STREAM_STATE_ERROR:
+          if (old != PW_STREAM_STATE_STREAMING && !session_cache_t::instance().is_maxframerate_failed()) {
+            BOOST_LOG(warning) << "Negotiation failed, will retry without maxFramerate"sv;
+            session_cache_t::instance().set_maxframerate_failed();
+          }
+          [[fallthrough]];
+        case PW_STREAM_STATE_UNCONNECTED:
+          if (d->shared) {
             d->shared->stream_dead.store(true, std::memory_order_relaxed);
+            d->frame_cv.notify_all();
           }
           break;
         default:
@@ -1206,8 +1241,13 @@ namespace portal {
 
       framerate = config.framerate;
 
-      shared_state = std::make_shared<shared_state_t>();
-
+      if (!shared_state) {
+        shared_state = std::make_shared<shared_state_t>();
+      } else {
+        shared_state->stream_dead.store(false);
+        shared_state->negotiated_width.store(0);
+        shared_state->negotiated_height.store(0);
+      }
       pipewire.init(pipewire_fd, pipewire_node, shared_state);
 
       // Start PipeWire now so format negotiation can proceed before capture start
@@ -1231,7 +1271,11 @@ namespace portal {
       if (previous_width.load() == width &&
           previous_height.load() == height) {
         if (capture_running.load()) {
-          stream_stopped.store(true);
+          {
+            std::scoped_lock lock(pipewire.frame_mutex());
+            stream_stopped.store(true);
+          }
+          pipewire.frame_cv().notify_all();
         }
       } else {
         previous_width.store(width);
@@ -1314,11 +1358,6 @@ namespace portal {
       while (true) {
         // Check if PipeWire signaled a state change or error
         if (stream_stopped.load() || shared_state->stream_dead.exchange(false)) {
-          pipewire.cleanup_stream();
-
-          // Add a small delay before reinit to let WirePlumber see state change
-          std::this_thread::sleep_for(std::chrono::milliseconds(500));
-
           // If stream is marked as stopped, clear state and send interrupted status
           if (stream_stopped.load()) {
             BOOST_LOG(warning) << "PipeWire stream stopped by user."sv;
@@ -1326,9 +1365,8 @@ namespace portal {
             stream_stopped.store(false);
             previous_height.store(0);
             previous_width.store(0);
-            // Delay interrupt signal to give Portal time to detect change
-            std::this_thread::sleep_for(std::chrono::milliseconds(1500));
-            return platf::capture_e::interrupted;
+            pipewire.frame_cv().notify_all();
+            return platf::capture_e::error;
           } else {
             BOOST_LOG(warning) << "PipeWire stream disconnected. Forcing session reset."sv;
             return platf::capture_e::reinit;
@@ -1353,8 +1391,22 @@ namespace portal {
           case platf::capture_e::error:
           case platf::capture_e::interrupted:
             capture_running.store(false);
+            stream_stopped.store(false);
+            previous_height.store(0);
+            previous_width.store(0);
+            pipewire.frame_cv().notify_all();
             return status;
           case platf::capture_e::timeout:
+            if (!pull_free_image_cb(img_out)) {
+              // Detect if shutdown is pending
+              BOOST_LOG(debug) << "PipeWire: timeout -> interrupt nudge";
+              capture_running.store(false);
+              stream_stopped.store(false);
+              previous_height.store(0);
+              previous_width.store(0);
+              pipewire.frame_cv().notify_all();
+              return platf::capture_e::interrupted;
+            }
             push_captured_image_cb(std::move(img_out), false);
             break;
           case platf::capture_e::ok:
@@ -1436,7 +1488,7 @@ namespace portal {
       std::unique_lock<std::mutex> lock(pipewire.frame_mutex());
 
       bool success = pipewire.frame_cv().wait_until(lock, deadline, [&] {
-        return pipewire.is_frame_ready() || stream_stopped.load();
+        return pipewire.is_frame_ready() || stream_stopped.load() || shared_state->stream_dead.load();
       });
 
       if (success && !stream_stopped.load()) {
