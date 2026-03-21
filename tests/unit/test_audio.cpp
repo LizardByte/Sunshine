@@ -12,22 +12,6 @@ struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std:
   void SetUp() override {
     m_config = std::get<1>(GetParam());
     m_mail = std::make_shared<safe::mail_raw_t>();
-    // Check if audio capture is available on this platform/configuration,
-    // mirroring the pattern in EncoderTest::SetUp which skips when a hardware
-    // encoder is unavailable. On macOS with an empty audio sink the microphone()
-    // call exercises the Core Audio system-tap path; if the tap cannot be set up
-    // (e.g. permission not yet granted, or running in a VM without real audio
-    // hardware), microphone() returns nullptr and we skip rather than hang.
-    auto control = platf::audio_control();
-    if (!control) {
-      GTEST_SKIP() << "Audio control not available";
-    }
-    const auto &stream = audio::stream_configs[audio::STEREO];
-    constexpr std::uint32_t kProbeFrameSize = 240;  // 5 ms at 48 kHz
-    auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, kProbeFrameSize, false, false);
-    if (!mic) {
-      GTEST_SKIP() << "Audio capture not available";
-    }
   }
 
   config_t m_config;
