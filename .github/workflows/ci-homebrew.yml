@@ -61,6 +61,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
 
+      - name: Seed additional macOS TCC permissions
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+
+          configure_system_tccdb() {
+            local values=$1
+            local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sudo sqlite3 "$dbPath" "$sqlQuery"
+          }
+
+          configure_user_tccdb() {
+            local values=$1
+            local dbPath="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sqlite3 "$dbPath" "$sqlQuery"
+          }
+
+          systemValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+          )
+          for values in "${systemValuesArray[@]}"; do
+            configure_system_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
+          done
+
+          userValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+          )
+          for values in "${userValuesArray[@]}"; do
+            configure_user_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
+          done
+
+          echo "macOS TCC permissions configured."
+
       - name: Configure formula
         env:
           INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
