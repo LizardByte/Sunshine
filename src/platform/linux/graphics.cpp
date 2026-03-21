@@ -32,6 +32,12 @@ using namespace std::literals;
 namespace gl {
   GladGLContext ctx;
 
+  static PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d_fn = nullptr;
+
+  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d() {
+    return egl_image_target_texture_2d_fn;
+  }
+
   void drain_errors(const std::string_view &prefix) {
     GLenum err;
     while ((err = ctx.GetError()) != GL_NO_ERROR) {
@@ -297,28 +303,6 @@ namespace gbm {
 }  // namespace gbm
 
 namespace egl {
-  constexpr auto EGL_LINUX_DMA_BUF_EXT = 0x3270;
-  constexpr auto EGL_LINUX_DRM_FOURCC_EXT = 0x3271;
-  constexpr auto EGL_DMA_BUF_PLANE0_FD_EXT = 0x3272;
-  constexpr auto EGL_DMA_BUF_PLANE0_OFFSET_EXT = 0x3273;
-  constexpr auto EGL_DMA_BUF_PLANE0_PITCH_EXT = 0x3274;
-  constexpr auto EGL_DMA_BUF_PLANE1_FD_EXT = 0x3275;
-  constexpr auto EGL_DMA_BUF_PLANE1_OFFSET_EXT = 0x3276;
-  constexpr auto EGL_DMA_BUF_PLANE1_PITCH_EXT = 0x3277;
-  constexpr auto EGL_DMA_BUF_PLANE2_FD_EXT = 0x3278;
-  constexpr auto EGL_DMA_BUF_PLANE2_OFFSET_EXT = 0x3279;
-  constexpr auto EGL_DMA_BUF_PLANE2_PITCH_EXT = 0x327A;
-  constexpr auto EGL_DMA_BUF_PLANE3_FD_EXT = 0x3440;
-  constexpr auto EGL_DMA_BUF_PLANE3_OFFSET_EXT = 0x3441;
-  constexpr auto EGL_DMA_BUF_PLANE3_PITCH_EXT = 0x3442;
-  constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_LO_EXT = 0x3443;
-  constexpr auto EGL_DMA_BUF_PLANE0_MODIFIER_HI_EXT = 0x3444;
-  constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_LO_EXT = 0x3445;
-  constexpr auto EGL_DMA_BUF_PLANE1_MODIFIER_HI_EXT = 0x3446;
-  constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_LO_EXT = 0x3447;
-  constexpr auto EGL_DMA_BUF_PLANE2_MODIFIER_HI_EXT = 0x3448;
-  constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_LO_EXT = 0x3449;
-  constexpr auto EGL_DMA_BUF_PLANE3_MODIFIER_HI_EXT = 0x344A;
 
   bool fail() {
     return eglGetError() != EGL_SUCCESS;
@@ -328,10 +312,6 @@ namespace egl {
    * @memberof egl::display_t
    */
   display_t make_display(std::variant<gbm::gbm_t::pointer, wl_display *, _XDisplay *> native_display) {
-    constexpr auto EGL_PLATFORM_GBM_MESA = 0x31D7;
-    constexpr auto EGL_PLATFORM_WAYLAND_KHR = 0x31D8;
-    constexpr auto EGL_PLATFORM_X11_KHR = 0x31D5;
-
     int egl_platform;
     void *native_display_p;
 
@@ -354,17 +334,30 @@ namespace egl {
     }
 
     // native_display.left() equals native_display.right()
-    display_t display = eglGetPlatformDisplay(egl_platform, native_display_p, nullptr);
+    EGLDisplay raw_display = EGL_NO_DISPLAY;
 
-    if (fail()) {
-      BOOST_LOG(error) << "Couldn't open EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+    if (eglGetPlatformDisplayEXT) {
+      raw_display = eglGetPlatformDisplayEXT(egl_platform, native_display_p, nullptr);
+    } else if (eglGetPlatformDisplay) {
+      raw_display = eglGetPlatformDisplay(egl_platform, native_display_p, nullptr);
+    }
+
+    if (raw_display == EGL_NO_DISPLAY) {
+      BOOST_LOG(error) << "Couldn't open EGL display: ["sv
+                       << util::hex(eglGetError()).to_string_view() << ']';
       return nullptr;
     }
+    display_t display {raw_display};
 
     int major;
     int minor;
     if (!eglInitialize(display.get(), &major, &minor)) {
       BOOST_LOG(error) << "Couldn't initialize EGL display: ["sv << util::hex(eglGetError()).to_string_view() << ']';
+      return nullptr;
+    }
+
+    if (!gladLoaderLoadEGL(display.get())) {
+      BOOST_LOG(error) << "Failed to reload EGL for initialized display"sv;
       return nullptr;
     }
 
@@ -435,10 +428,28 @@ namespace egl {
       return std::nullopt;
     }
 
-    BOOST_LOG(debug) << "GL: vendor: "sv << gl::ctx.GetString(GL_VENDOR);
-    BOOST_LOG(debug) << "GL: renderer: "sv << gl::ctx.GetString(GL_RENDERER);
-    BOOST_LOG(debug) << "GL: version: "sv << gl::ctx.GetString(GL_VERSION);
-    BOOST_LOG(debug) << "GL: shader: "sv << gl::ctx.GetString(GL_SHADING_LANGUAGE_VERSION);
+    gl::egl_image_target_texture_2d_fn =
+      (gl::PFNGLEGLIMAGETARGETTEXTURE2DOESPROC) (GLADapiproc) eglGetProcAddress("glEGLImageTargetTexture2DOES");
+    if (!gl::egl_image_target_texture_2d_fn) {
+      BOOST_LOG(warning) << "GL: glEGLImageTargetTexture2DOES not available; DMA-BUF import will fail"sv;
+    }
+
+    // GetString returns const GLubyte* (unsigned char*); convert to std::string safely (avoids sonar cpp:S6996).
+    auto gl_string = [](const GLubyte *s) {
+      std::string result;
+      while (s && *s) {
+        result += static_cast<char>(*s++);
+      }
+      return result;
+    };
+    const auto gl_vendor = gl_string(gl::ctx.GetString(GL_VENDOR));
+    const auto gl_renderer = gl_string(gl::ctx.GetString(GL_RENDERER));
+    const auto gl_version = gl_string(gl::ctx.GetString(GL_VERSION));
+    const auto gl_shader = gl_string(gl::ctx.GetString(GL_SHADING_LANGUAGE_VERSION));
+    BOOST_LOG(debug) << "GL: vendor: "sv << gl_vendor;
+    BOOST_LOG(debug) << "GL: renderer: "sv << gl_renderer;
+    BOOST_LOG(debug) << "GL: version: "sv << gl_version;
+    BOOST_LOG(debug) << "GL: shader: "sv << gl_shader;
 
     gl::ctx.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
@@ -551,7 +562,11 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, rgb->xrgb8);
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      return std::nullopt;
+    }
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
@@ -609,10 +624,14 @@ namespace egl {
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[0]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->r8);
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv;
+      return std::nullopt;
+    }
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, nv12->r8);
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, nv12->tex[1]);
-    gl::ctx.EGLImageTargetTexture2DOES(GL_TEXTURE_2D, nv12->bg88);
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, nv12->bg88);
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 

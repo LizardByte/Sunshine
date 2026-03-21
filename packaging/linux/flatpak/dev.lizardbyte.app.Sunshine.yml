@@ -50,6 +50,11 @@ modules:
   # FFmpeg prebuilt binaries
   - "modules/ffmpeg.json"
 
+  # Python PyPI build-time dependencies (e.g. jinja2 for glad generator).
+  # glad-dependencies.json is generated at CI time by flatpak-pip-generator and
+  # placed alongside the manifest in the build directory.
+  - "glad-dependencies.json"
+
   - name: sunshine
     builddir: true
     build-options:
@@ -71,6 +76,7 @@ modules:
       - -DCMAKE_BUILD_TYPE=Release
       - -DCMAKE_CUDA_COMPILER=/app/cuda/bin/nvcc
       - -DFFMPEG_PREPARED_BINARIES=/app/ffmpeg
+      - -DGLAD_SKIP_PIP_INSTALL=ON
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_BUILD_FLATPAK=ON
       - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine

@@ -192,6 +192,8 @@ function add_arch_deps() {
     'numactl'
     'openssl'
     'opus'
+    'python-jinja'  # glad OpenGL/EGL loader generator
+    'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
     'udev'
     'wayland'
   )
@@ -249,6 +251,8 @@ function add_debian_based_deps() {
     "libxtst-dev"  # X11
     "ninja-build"
     "npm"  # web-ui
+    "python3-jinja2"  # glad OpenGL/EGL loader generator
+    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "systemd"
     "udev"
     "wget"  # necessary for cuda install with `run` file
@@ -325,6 +329,8 @@ function add_fedora_deps() {
     "opus-devel"
     "pipewire-devel"
     "pulseaudio-libs-devel"
+    "python3-jinja2"  # glad OpenGL/EGL loader generator
+    "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "rpm-build"  # if you want to build an RPM binary package
     "wget"  # necessary for cuda install with `run` file
     "which"  # necessary for cuda install with `run` file
@@ -766,7 +772,7 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
   package_install_command="${sudo_cmd} apt-get install -y"
   cuda_version="12.9.1"
   cuda_build="575.57.08"
-  gcc_version="13"
+  gcc_version="14"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
   distro="ubuntu"

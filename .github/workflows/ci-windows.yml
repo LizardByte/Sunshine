@@ -322,7 +322,7 @@ jobs:
         shell: msys2 {0}
         working-directory: build
         run: |
-          ${{ steps.python-path.outputs.python-path }} -m pip install "../scripts[test]"
+          ${{ steps.python-path.outputs.python-path }} -m pip install "..[test]"
           ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \

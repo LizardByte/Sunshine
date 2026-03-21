@@ -36,6 +36,13 @@ using frame_t = util::safe_ptr<AVFrame, free_frame>;
 
 namespace gl {
   extern GladGLContext ctx;
+
+  // glEGLImageTargetTexture2DOES (GL_OES_EGL_image) is not part of desktop GL —
+  // it is a GLES extension that must be loaded manually via eglGetProcAddress.
+  // GLeglImageOES is typedef void* per the Khronos spec (gl.xml).
+  using PFNGLEGLIMAGETARGETTEXTURE2DOESPROC = void (*)(GLenum target, void *image);
+  PFNGLEGLIMAGETARGETTEXTURE2DOESPROC egl_image_target_texture_2d();
+
   void drain_errors(const std::string_view &prefix);
 
   class tex_t: public util::buffer_t<GLuint> {
