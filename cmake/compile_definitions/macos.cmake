@@ -28,7 +28,10 @@ endif()
 list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${APP_KIT_LIBRARY}
         ${APP_SERVICES_LIBRARY}
+        ${AUDIO_TOOLBOX_LIBRARY}
+        ${AUDIO_UNIT_LIBRARY}
         ${AV_FOUNDATION_LIBRARY}
+        ${CORE_AUDIO_LIBRARY}
         ${CORE_MEDIA_LIBRARY}
         ${CORE_VIDEO_LIBRARY}
         ${FOUNDATION_LIBRARY}
@@ -40,7 +43,7 @@ configure_file("${APPLE_PLIST_TEMPLATE}" "${APPLE_PLIST_FILE}" @ONLY)
 
 set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.h"
-        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.m"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/av_audio.mm"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_img_t.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/av_video.m"

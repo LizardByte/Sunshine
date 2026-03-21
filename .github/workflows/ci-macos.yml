@@ -39,6 +39,7 @@ env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
   COMMIT: ${{ inputs.release_commit }}
+  MACOSX_DEPLOYMENT_TARGET: 14.2
 
 jobs:
   build_dmg:
