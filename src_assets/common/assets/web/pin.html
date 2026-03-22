@@ -40,6 +40,7 @@
   import { createApp } from 'vue'
   import { initApp } from './init'
   import Navbar from './Navbar.vue'
+  import { apiFetch } from './fetch_utils'
   import {
     Forward,
     Hash,
@@ -60,7 +61,7 @@
         let name = document.querySelector("#name-input").value;
         document.querySelector("#status").innerHTML = "";
         let b = JSON.stringify({pin: pin, name: name});
-        fetch("./api/pin", {
+        apiFetch("./api/pin", {
           method: "POST",
           headers: {
             'Content-Type': 'application/json'
