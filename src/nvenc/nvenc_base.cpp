@@ -98,7 +98,6 @@ namespace nvenc {
   }
 
   bool nvenc_base::create_encoder(const nvenc_config &config, const video::config_t &client_config, const nvenc_colorspace_t &colorspace, NV_ENC_BUFFER_FORMAT buffer_format) {
-    minimum_api_version = NVENCAPI_VERSION;
     if (!nvenc && !init_library()) {
       return false;
     }
@@ -115,7 +114,7 @@ namespace nvenc {
     encoder_params.buffer_format = buffer_format;
     encoder_params.rfi = true;
 
-    NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = { NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER };
+    NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS session_params = {NV_ENC_OPEN_ENCODE_SESSION_EX_PARAMS_VER};
     session_params.device = device;
     session_params.deviceType = device_type;
     session_params.apiVersion = NVENCAPI_VERSION;
@@ -136,7 +135,7 @@ namespace nvenc {
       return false;
     }
 
-    NV_ENC_INITIALIZE_PARAMS init_params = { NV_ENC_INITIALIZE_PARAMS_VER };
+    NV_ENC_INITIALIZE_PARAMS init_params = {NV_ENC_INITIALIZE_PARAMS_VER};
 
     switch (client_config.videoFormat) {
       case 0:
@@ -170,11 +169,14 @@ namespace nvenc {
     }
 
     auto get_encoder_cap = [&](NV_ENC_CAPS cap) {
-      NV_ENC_CAPS_PARAM param = { NV_ENC_CAPS_PARAM_VER };
+      NV_ENC_CAPS_PARAM param = {NV_ENC_CAPS_PARAM_VER};
       param.capsToQuery = cap;
       int value = 0;
-      nvenc->nvEncGetEncodeCaps(encoder, init_params.encodeGUID, &param, &value);
-      return value;
+      int ret = nvenc->nvEncGetEncodeCaps(encoder, init_params.encodeGUID, &param, &value);
+      if (ret == NV_ENC_SUCCESS) {
+        return value;
+      }
+      return 0;
     };
 
     auto buffer_is_10bit = [&]() {
@@ -229,10 +231,17 @@ namespace nvenc {
       init_params.frameRateDen = fps.den;
     }
 
+    if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
+      // SFE supports HEVC/AV1 if you have more than 1 nvenc block
+      using enum nvenc_split_frame_encoding;
+      init_params.splitEncodeMode = config.split_frame_encoding == disabled      ? NV_ENC_SPLIT_DISABLE_MODE :
+                                    config.split_frame_encoding == force_enabled ? NV_ENC_SPLIT_AUTO_FORCED_MODE :
+                                                                                   NV_ENC_SPLIT_AUTO_MODE;
+    }
 
     NV_ENC_PRESET_CONFIG preset_config = {
       .version = NV_ENC_PRESET_CONFIG_VER,
-      .presetCfg = { .version = NV_ENC_CONFIG_VER },
+      .presetCfg = {.version = NV_ENC_CONFIG_VER},
     };
     if (nvenc_failed(nvenc->nvEncGetEncodePresetConfigEx(encoder, init_params.encodeGUID, init_params.presetGUID, init_params.tuningInfo, &preset_config))) {
       BOOST_LOG(error) << "NvEnc: NvEncGetEncodePresetConfigEx() failed: " << last_nvenc_error_string;
@@ -398,7 +407,7 @@ namespace nvenc {
     }
 
     if (async_event_handle) {
-      NV_ENC_EVENT_PARAMS event_params = { NV_ENC_EVENT_PARAMS_VER };
+      NV_ENC_EVENT_PARAMS event_params = {NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncRegisterAsyncEvent(encoder, &event_params))) {
         BOOST_LOG(error) << "NvEnc: NvEncRegisterAsyncEvent() failed: " << last_nvenc_error_string;
@@ -406,7 +415,7 @@ namespace nvenc {
       }
     }
 
-    NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = { NV_ENC_CREATE_BITSTREAM_BUFFER_VER };
+    NV_ENC_CREATE_BITSTREAM_BUFFER create_bitstream_buffer = {NV_ENC_CREATE_BITSTREAM_BUFFER_VER};
     if (nvenc_failed(nvenc->nvEncCreateBitstreamBuffer(encoder, &create_bitstream_buffer))) {
       BOOST_LOG(error) << "NvEnc: NvEncCreateBitstreamBuffer() failed: " << last_nvenc_error_string;
       return false;
@@ -458,6 +467,13 @@ namespace nvenc {
       if (config.insert_filler_data) {
         extra += " filler-data";
       }
+      if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
+        if (init_params.splitEncodeMode == NV_ENC_SPLIT_AUTO_MODE) {
+          extra += " sfe-auto";
+        } else if (init_params.splitEncodeMode == NV_ENC_SPLIT_AUTO_FORCED_MODE) {
+          extra += " sfe";
+        }
+      }
 
       BOOST_LOG(info) << "NvEnc: created encoder " << video_format_string << quality_preset_string_from_guid(init_params.presetGUID) << extra;
     }
@@ -475,7 +491,7 @@ namespace nvenc {
       output_bitstream = nullptr;
     }
     if (encoder && async_event_handle) {
-      NV_ENC_EVENT_PARAMS event_params = { NV_ENC_EVENT_PARAMS_VER };
+      NV_ENC_EVENT_PARAMS event_params = {NV_ENC_EVENT_PARAMS_VER};
       event_params.completionEvent = async_event_handle;
       if (nvenc_failed(nvenc->nvEncUnregisterAsyncEvent(encoder, &event_params))) {
         BOOST_LOG(error) << "NvEnc: NvEncUnregisterAsyncEvent() failed: " << last_nvenc_error_string;
@@ -511,7 +527,7 @@ namespace nvenc {
       return {};
     }
 
-    NV_ENC_MAP_INPUT_RESOURCE mapped_input_buffer = { NV_ENC_MAP_INPUT_RESOURCE_VER };
+    NV_ENC_MAP_INPUT_RESOURCE mapped_input_buffer = {NV_ENC_MAP_INPUT_RESOURCE_VER};
     mapped_input_buffer.registeredResource = registered_input_buffer;
 
     if (nvenc_failed(nvenc->nvEncMapInputResource(encoder, &mapped_input_buffer))) {
@@ -524,7 +540,7 @@ namespace nvenc {
       }
     });
 
-    NV_ENC_PIC_PARAMS pic_params = { NV_ENC_PIC_PARAMS_VER };
+    NV_ENC_PIC_PARAMS pic_params = {NV_ENC_PIC_PARAMS_VER};
     pic_params.inputWidth = encoder_params.width;
     pic_params.inputHeight = encoder_params.height;
     pic_params.encodePicFlags = force_idr ? NV_ENC_PIC_FLAG_FORCEIDR : 0;
@@ -540,7 +556,7 @@ namespace nvenc {
       return {};
     }
 
-    NV_ENC_LOCK_BITSTREAM lock_bitstream = { NV_ENC_LOCK_BITSTREAM_VER };
+    NV_ENC_LOCK_BITSTREAM lock_bitstream = {NV_ENC_LOCK_BITSTREAM_VER};
     lock_bitstream.outputBitstream = output_bitstream;
     lock_bitstream.doNotWait = async_event_handle ? 1 : 0;
 
@@ -587,8 +603,7 @@ namespace nvenc {
       return false;
     }
 
-    if (first_frame >= encoder_state.last_rfi_range.first &&
-        last_frame <= encoder_state.last_rfi_range.second) {
+    if (first_frame >= encoder_state.last_rfi_range.first && last_frame <= encoder_state.last_rfi_range.second) {
       BOOST_LOG(debug) << "NvEnc: rfi request " << first_frame << "-" << last_frame << " already done";
       return true;
     }

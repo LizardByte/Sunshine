@@ -132,7 +132,6 @@ namespace nvenc {
 
   private:
     NV_ENC_OUTPUT_PTR output_bitstream = nullptr;
-    uint32_t minimum_api_version = 0;
 
     struct {
       uint64_t last_encoded_frame_index = 0;
