@@ -6,6 +6,7 @@
 </head>
 
 <body id="app" v-cloak>
+  <Notification></Notification>
   <main role="main" style="max-width: 1200px; margin: 1em auto">
     <div class="d-flex gap-4">
       <div class="card p-2">
@@ -55,10 +56,13 @@
   import { createApp } from "vue"
   import ResourceCard from './ResourceCard.vue'
   import { initApp } from './init'
+  import { apiFetch } from './fetch_utils'
+  import Notification from './Notification.vue'
 
   let app = createApp({
     components: {
-      ResourceCard
+      ResourceCard,
+      Notification,
     },
     data() {
       return {
@@ -76,7 +80,7 @@
       save() {
         this.error = null;
         this.loading = true;
-        fetch("./api/password", {
+        apiFetch("./api/password", {
           method: "POST",
           headers: {
             'Content-Type': 'application/json'

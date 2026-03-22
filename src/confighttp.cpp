@@ -335,17 +335,23 @@ namespace confighttp {
     const auto token_it = csrf_tokens.find(client_id);
 
     if (token_it == csrf_tokens.end()) {
+      auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: no token found for client"sv;
       bad_request(response, request, "Invalid CSRF token");
       return false;
     }
 
     if (const auto now = std::chrono::steady_clock::now(); token_it->second.expiration < now) {
       csrf_tokens.erase(token_it);
+      auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: token expired"sv;
       bad_request(response, request, "CSRF token expired");
       return false;
     }
 
     if (token_it->second.token != provided_token) {
+      auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+      BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF token validation failed: token mismatch"sv;
       bad_request(response, request, "Invalid CSRF token");
       return false;
     }
@@ -390,6 +396,7 @@ namespace confighttp {
 
     // A browser-like request arrived with an Origin/Referer that doesn't match an allowed origin.
     // Require a CSRF token.
+    const std::string_view blocked_origin = (origin_it != request->header.end()) ? origin_it->second : referer_it->second;
     // Extract token from X-CSRF-Token header
     const auto header_it = request->header.find("X-CSRF-Token");
     if (header_it == request->header.end()) {
@@ -397,6 +404,9 @@ namespace confighttp {
       auto query_params = request->parse_query_string();
       const auto query_it = query_params.find("csrf_token");
       if (query_it == query_params.end()) {
+        auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+        BOOST_LOG(error) << "Web UI: ["sv << address << "] -- CSRF protection blocked request from origin: "sv << blocked_origin;
+        BOOST_LOG(error) << "Web UI: To allow this origin, add it to the 'csrf_allowed_origins' option in your Sunshine configuration"sv;
         bad_request(response, request, "Missing CSRF token");
         return false;
       }

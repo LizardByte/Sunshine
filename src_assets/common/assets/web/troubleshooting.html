@@ -193,6 +193,7 @@
     import { createApp } from 'vue'
     import { initApp } from './init'
     import Navbar from './Navbar.vue'
+    import { apiFetch } from './fetch_utils'
     import {
       AlertCircle,
       AlertTriangle,
@@ -410,7 +411,7 @@
         },
         closeApp() {
           this.closeAppPressed = true;
-          fetch("./api/apps/close", {
+          apiFetch("./api/apps/close", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -426,7 +427,7 @@
         },
         unpairAll() {
           this.unpairAllPressed = true;
-          fetch("./api/clients/unpair-all", {
+          apiFetch("./api/clients/unpair-all", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -443,7 +444,7 @@
             });
         },
         unpairSingle(uuid) {
-          fetch("./api/clients/unpair", {
+          apiFetch("./api/clients/unpair", {
             method: "POST",
             headers: {
               'Content-Type': 'application/json'
@@ -493,7 +494,7 @@
           setTimeout(() => {
             this.restartPressed = false;
           }, 5000);
-          fetch("./api/restart", {
+          apiFetch("./api/restart", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -502,7 +503,7 @@
         },
         ddResetPersistence() {
           this.ddResetPressed = true;
-          fetch("/api/reset-display-device-persistence", {
+          apiFetch("/api/reset-display-device-persistence", {
             method: "POST",
             headers: {
               "Content-Type": "application/json"
@@ -536,7 +537,7 @@
           this.vigemBusInstallPressed = true;
           this.vigemBusInstallStatus = null;
           this.vigemBusInstallError = null;
-          fetch("/api/vigembus/install", {
+          apiFetch("/api/vigembus/install", {
             method: "POST",
             headers: {
               "Content-Type": "application/json"

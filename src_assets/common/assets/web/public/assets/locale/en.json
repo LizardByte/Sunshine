@@ -8,6 +8,8 @@
     "browse": "Browse",
     "cancel": "Cancel",
     "close": "Close",
+    "csrf_error": "CSRF Protection Error",
+    "csrf_error_desc": "The request was blocked by CSRF protection. If you are accessing Sunshine from a non-default URL or reverse proxy, add that origin to the 'csrf_allowed_origins' option in your configuration.",
     "disabled": "Disabled",
     "disabled_def": "Disabled (default)",
     "disabled_def_cbox": "Default: unchecked",
