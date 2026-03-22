@@ -879,7 +879,13 @@ namespace confighttp {
       nlohmann::json output_tree;
       const nlohmann::json input_tree = nlohmann::json::parse(ss);
       const std::string uuid = input_tree.value("uuid", "");
-      output_tree["status"] = nvhttp::unpair_client(uuid);
+      const bool removed = nvhttp::unpair_client(uuid);
+      output_tree["status"] = removed;
+
+      if (removed && nvhttp::get_all_clients().empty()) {
+        proc::proc.terminate();
+      }
+
       send_response(response, output_tree);
     } catch (std::exception &e) {
       BOOST_LOG(warning) << "Unpair: "sv << e.what();
