@@ -179,6 +179,7 @@ glad_add_library(glad_egl
             EGL_EXT_platform_base
             EGL_EXT_platform_wayland
             EGL_EXT_platform_x11
+            EGL_IMG_context_priority
             EGL_KHR_create_context
             EGL_KHR_image_base
             EGL_KHR_surfaceless_context

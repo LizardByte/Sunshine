@@ -11,6 +11,11 @@
 #include "src/logging.h"
 #include "src/video.h"
 
+// platform includes
+#if !defined(__FreeBSD__)
+  #include <sys/capability.h>
+#endif
+
 extern "C" {
 #include <libavutil/pixdesc.h>
 }
@@ -387,6 +392,18 @@ namespace egl {
   }
 
   std::optional<ctx_t> make_ctx(display_t::pointer display) {
+    bool nice_warning = false;
+#if !defined(__FreeBSD__)
+    cap_t caps = cap_get_proc();
+
+    cap_value_t sys_nice = CAP_SYS_NICE;
+    if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_nice, CAP_SET) || cap_set_proc(caps)) {
+      BOOST_LOG(debug) << "Failed to gain CAP_SYS_NICE"sv;
+      nice_warning = true;
+    }
+    cap_free(caps);
+#endif
+
     constexpr int conf_attr[] {
       EGL_RENDERABLE_TYPE,
       EGL_OPENGL_BIT,
@@ -405,20 +422,42 @@ namespace egl {
       return std::nullopt;
     }
 
-    constexpr int attr[] {
-      EGL_CONTEXT_CLIENT_VERSION,
-      3,
-      EGL_NONE
-    };
+    const char *extension_st = eglQueryString(display, EGL_EXTENSIONS);
 
-    ctx_t ctx {display, eglCreateContext(display, conf, EGL_NO_CONTEXT, attr)};
-    if (fail()) {
+    std::vector<EGLint> attr;
+    attr.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    attr.push_back(3);
+
+    // Only add the high priority attribute if the driver explicitly supports it
+    if (extension_st && std::string_view(extension_st).contains("EGL_IMG_context_priority"sv)) {
+      BOOST_LOG(debug) << "EGL: High priority context supported"sv;
+      attr.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
+      attr.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+    }
+    attr.push_back(EGL_NONE);
+
+    EGLContext raw_ctx = eglCreateContext(display, conf, EGL_NO_CONTEXT, attr.data());
+    if (raw_ctx == EGL_NO_CONTEXT) {
       BOOST_LOG(error) << "Couldn't create EGL context: ["sv << util::hex(eglGetError()).to_string_view() << ']';
       return std::nullopt;
     }
 
-    TUPLE_EL_REF(ctx_p, 1, ctx.el);
-    if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, ctx_p)) {
+    ctx_t ctx {display, raw_ctx};
+
+    EGLint actual_priority = EGL_CONTEXT_PRIORITY_MEDIUM_IMG;
+    std::string actual_priority_str = "MEDIUM";
+    if (eglQueryContext(display, raw_ctx, EGL_CONTEXT_PRIORITY_LEVEL_IMG, &actual_priority)) {
+      if (actual_priority == EGL_CONTEXT_PRIORITY_HIGH_IMG) {
+        actual_priority_str = "HIGH";
+      }
+      if (nice_warning) {
+        BOOST_LOG(warning) << "EGL: context priority set to "sv << actual_priority_str << " but CAP_SYS_NICE capability is missing"sv;
+      } else {
+        BOOST_LOG(info) << "EGL: context priority set to "sv << actual_priority_str;
+      }
+    }
+
+    if (!eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, raw_ctx)) {
       BOOST_LOG(error) << "Couldn't make current display"sv;
       return std::nullopt;
     }
@@ -452,6 +491,14 @@ namespace egl {
     BOOST_LOG(debug) << "GL: shader: "sv << gl_shader;
 
     gl::ctx.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+#if !defined(__FreeBSD__)
+    caps = cap_get_proc();
+    if (cap_set_flag(caps, CAP_EFFECTIVE, 1, &sys_nice, CAP_CLEAR) || cap_set_proc(caps)) {
+      BOOST_LOG(debug) << "Failed to drop CAP_SYS_NICE"sv;
+    }
+    cap_free(caps);
+#endif
 
     return ctx;
   }
