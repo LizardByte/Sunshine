@@ -106,16 +106,6 @@ namespace nvenc {
 
     bool nvenc_failed(NVENCSTATUS status);
 
-    /**
-     * @brief This function returns the corresponding struct version for the minimum API required by the codec.
-     * @details Reducing the struct versions maximizes driver compatibility by avoiding needless API breaks.
-     * @param version The raw structure version from `NVENCAPI_STRUCT_VERSION()`.
-     * @param v11_struct_version Optionally specifies the struct version to use with v11 SDK major versions.
-     * @param v12_struct_version Optionally specifies the struct version to use with v12 SDK major versions.
-     * @return A suitable struct version for the active codec.
-     */
-    uint32_t min_struct_version(uint32_t version, uint32_t v11_struct_version = 0, uint32_t v12_struct_version = 0);
-
     const NV_ENC_DEVICE_TYPE device_type;
 
     void *encoder = nullptr;
