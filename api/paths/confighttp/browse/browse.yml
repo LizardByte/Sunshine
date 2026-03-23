@@ -1,0 +1,64 @@
+---
+get:
+  summary: Browse directories and files.
+  description: Browse the filesystem to find directories and files.
+  operationId: browseDirectory
+  tags:
+    - Browse
+  parameters:
+    - name: path
+      in: query
+      description: The path to browse.
+      schema:
+        type: string
+    - name: type
+      in: query
+      description: The type of items to return (directory or file).
+      schema:
+        type: string
+        enum: [directory, file]
+  responses:
+    '200':
+      description: A list of directories and/or files.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              parent:
+                type: string
+                description: The parent directory path
+              entries:
+                type: array
+                description: List of entries in the directory
+                items:
+                  type: object
+                  properties:
+                    name:
+                      type: string
+                      description: The name of the entry
+                    path:
+                      type: string
+                      description: The full path to the entry
+                    type:
+                      type: string
+                      enum: [directory, file]
+                      description: The type of entry
+          example:
+            status: true
+            parent: "/home/user"
+            entries:
+              - name: "Documents"
+                path: "/home/user/Documents"
+                type: "directory"
+              - name: "file.txt"
+                path: "/home/user/file.txt"
+                type: "file"
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

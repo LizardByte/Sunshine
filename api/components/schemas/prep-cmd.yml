@@ -1,0 +1,13 @@
+---
+type: object
+properties:
+  do:
+    type: string
+    description: Command to run when starting the application
+  undo:
+    type: string
+    description: Command to run when stopping the application
+  elevated:
+    type: boolean
+    description: Run the command as an elevated process
+    default: false

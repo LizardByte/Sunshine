@@ -1,0 +1,39 @@
+---
+post:
+  summary: Unpair a client.
+  description: Unpair a client from Sunshine by its UUID.
+  operationId: unpair
+  tags:
+    - Clients
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - uuid
+          properties:
+            uuid:
+              type: string
+              description: The UUID of the client to unpair
+        example:
+          uuid: "abc123def456"
+  responses:
+    '200':
+      description: The client was unpaired successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+          example:
+            status: true
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

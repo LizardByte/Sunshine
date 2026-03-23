@@ -1,0 +1,9 @@
+---
+type: object
+properties:
+  name:
+    type: string
+    description: The friendly name of the client
+  uuid:
+    type: string
+    description: Unique identifier for the client certificate

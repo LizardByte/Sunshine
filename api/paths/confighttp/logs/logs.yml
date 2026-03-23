@@ -1,0 +1,21 @@
+---
+get:
+  summary: Get the logs.
+  description: Get the contents of the Sunshine log file.
+  operationId: getLogs
+  tags:
+    - Troubleshooting
+  responses:
+    '200':
+      description: The log file contents.
+      content:
+        text/plain:
+          schema:
+            type: string
+          example: |
+            [2024-01-15 10:30:45.123] [info] Sunshine version: 0.23.1
+            [2024-01-15 10:30:45.456] [info] Configuration UI available at [https://localhost:47990]
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

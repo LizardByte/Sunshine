@@ -1,0 +1,17 @@
+---
+description: Forbidden - The server understood the request, but refuses to authorize it.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+        status:
+          type: boolean
+        error:
+          type: string
+    example:
+      status_code: 403
+      status: false
+      error: "Forbidden"

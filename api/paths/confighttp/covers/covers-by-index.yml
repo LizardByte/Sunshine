@@ -1,0 +1,28 @@
+---
+get:
+  summary: Get a cover image.
+  description: Get a cover image by its index.
+  operationId: getCover
+  tags:
+    - Covers
+  parameters:
+    - name: index
+      in: path
+      description: The index of the cover to retrieve.
+      required: true
+      schema:
+        type: integer
+  responses:
+    '200':
+      description: The cover image.
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"
+    '404':
+      $ref: "../../../components/responses/404.yml"

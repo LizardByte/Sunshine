@@ -1,0 +1,24 @@
+---
+get:
+  summary: Get the locale setting.
+  description: Get the current locale setting. This endpoint does not require authentication.
+  operationId: getLocale
+  tags:
+    - Configuration
+  security: []
+  responses:
+    '200':
+      description: The current locale setting.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              locale:
+                type: string
+                description: The current locale
+          example:
+            status: true
+            locale: "en"

@@ -1,0 +1,24 @@
+---
+get:
+  summary: Get a CSRF token.
+  description: Get a CSRF token for the authenticated user. Required for cross-origin POST/DELETE requests from browsers.
+  operationId: getCSRFToken
+  tags:
+    - Authentication
+  responses:
+    '200':
+      description: A CSRF token.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              csrf_token:
+                type: string
+                description: The CSRF token to use in subsequent requests
+          example:
+            csrf_token: "abc123def456ghi789"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

@@ -1,0 +1,118 @@
+---
+get:
+  summary: Get the list of available applications.
+  description: Get the list of available applications configured in Sunshine.
+  operationId: getApps
+  tags:
+    - Apps
+  responses:
+    '200':
+      description: A list of available applications.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              apps:
+                type: array
+                items:
+                  $ref: "../../../components/schemas/app.yml"
+          example:
+            status: true
+            apps:
+              - name: "Desktop"
+                cmd: ""
+                image-path: "desktop.png"
+              - name: "Steam"
+                cmd: "steam"
+                image-path: "steam.png"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"
+
+post:
+  summary: Save an application.
+  description: |
+    Save an application. To save a new application the index must be `-1`.
+    To update an existing application, provide the current index of the application.
+  operationId: saveApp
+  tags:
+    - Apps
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - name
+          properties:
+            index:
+              type: integer
+              description: The index of the application to update. Use -1 to create a new application.
+              default: -1
+            name:
+              type: string
+              description: Application Name
+            output:
+              type: string
+              description: Log Output Path
+            cmd:
+              type: string
+              description: Command to run the application
+            exclude-global-prep-cmd:
+              type: boolean
+              description: Enable/Disable the execution of Global Prep Commands
+            elevated:
+              type: boolean
+              description: Run the application as an elevated process
+            auto-detach:
+              type: boolean
+              description: Continue streaming if the application exits quickly
+            wait-all:
+              type: boolean
+              description: Continue streaming until all app processes exit
+            exit-timeout:
+              type: integer
+              description: Seconds to wait for app processes to gracefully exit
+            prep-cmd:
+              type: array
+              description: Commands to run before the main application
+              items:
+                $ref: "../../../components/schemas/prep-cmd.yml"
+            detached:
+              type: array
+              description: Commands to run in detached processes
+              items:
+                type: string
+            image-path:
+              type: string
+              description: Full path to the application image (PNG file)
+            working-dir:
+              type: string
+              description: The working directory for the process
+        example:
+          name: "My Game"
+          cmd: "my-game"
+          index: -1
+  responses:
+    '200':
+      description: The application was saved successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+          example:
+            status: true
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

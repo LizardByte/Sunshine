@@ -1,0 +1,31 @@
+---
+get:
+  summary: Get ViGEmBus driver status.
+  description: Check if the ViGEmBus driver is installed and its version.
+  operationId: getViGEmBusStatus
+  tags:
+    - System
+  responses:
+    '200':
+      description: ViGEmBus driver status.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              installed:
+                type: boolean
+                description: Whether ViGEmBus is installed
+              version:
+                type: string
+                description: The installed version of ViGEmBus
+          example:
+            status: true
+            installed: true
+            version: "1.21.442.0"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

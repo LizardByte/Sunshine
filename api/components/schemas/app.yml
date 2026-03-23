@@ -1,0 +1,55 @@
+---
+type: object
+required:
+  - name
+properties:
+  name:
+    type: string
+    description: Application Name, as shown on Moonlight
+  output:
+    type: string
+    description: The file where the output of the command is stored, if it is not specified, the output is ignored
+  cmd:
+    type: string
+    description: The main application to start. If blank, no application will be started.
+  exclude-global-prep-cmd:
+    type: boolean
+    description: Enable/Disable the execution of Global Prep Commands for this application.
+    default: false
+  elevated:
+    type: boolean
+    description: Run the application as an elevated process.
+    default: false
+  auto-detach:
+    type: boolean
+    description: Continue streaming if the application exits quickly
+    default: true
+  wait-all:
+    type: boolean
+    description: Continue streaming until all app processes exit
+    default: false
+  exit-timeout:
+    type: integer
+    description: Number of seconds to wait for all app processes to gracefully exit when requested to quit.
+    default: 5
+  image-path:
+    type: string
+    description: |
+      Application icon/picture/image path that will be sent to client. Image must be a PNG file.
+      If not set, Sunshine will send default box image.
+  working-dir:
+    type: string
+    description: |
+      The working directory that should be passed to the process.
+      For example, some applications use the working directory to search for configuration files.
+      If not set, Sunshine will default to the parent directory of the command
+  prep-cmd:
+    type: array
+    description: Commands to run before the main application
+    items:
+      $ref: "./prep-cmd.yml"
+  detached:
+    type: array
+    description: Commands to run in detached processes
+    items:
+      type: string

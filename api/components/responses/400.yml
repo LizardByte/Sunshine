@@ -1,0 +1,17 @@
+---
+description: Bad Request - The request could not be understood or was missing required parameters.
+content:
+  application/json:
+    schema:
+      type: object
+      properties:
+        status_code:
+          type: integer
+        status:
+          type: boolean
+        error:
+          type: string
+    example:
+      status_code: 400
+      status: false
+      error: "Bad Request"

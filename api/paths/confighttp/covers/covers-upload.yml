@@ -1,0 +1,52 @@
+---
+post:
+  summary: Upload a cover image.
+  description: |
+    Upload a cover image for an application. The image must be a PNG file.
+    You can either provide a URL to download from (images.igdb.com only) or base64 encoded image data.
+  operationId: uploadCover
+  tags:
+    - Covers
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - key
+          properties:
+            key:
+              type: string
+              description: The key for the cover (e.g., "igdb_1234")
+            url:
+              type: string
+              description: URL to download the cover from (must be from images.igdb.com)
+            data:
+              type: string
+              description: Base64 encoded image data (alternative to URL)
+        example:
+          key: "igdb_1234"
+          url: "https://images.igdb.com/igdb/image/upload/t_cover_big_2x/abc123.png"
+  responses:
+    '200':
+      description: The cover was uploaded successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              path:
+                type: string
+                description: The path where the cover was saved
+          example:
+            status: true
+            path: "/home/user/.config/sunshine/covers/igdb_1234.png"
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

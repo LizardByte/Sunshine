@@ -1,0 +1,28 @@
+---
+post:
+  summary: Install ViGEmBus driver.
+  description: Download and install the ViGEmBus driver (Windows only).
+  operationId: installViGEmBus
+  tags:
+    - System
+  responses:
+    '200':
+      description: ViGEmBus installation started.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              message:
+                type: string
+          example:
+            status: true
+            message: "ViGEmBus installation started"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"
+    '400':
+      $ref: "../../../components/responses/400.yml"

@@ -1,0 +1,74 @@
+---
+get:
+  summary: Get the configuration settings.
+  description: Get the current configuration settings of Sunshine.
+  operationId: getConfig
+  tags:
+    - Configuration
+  responses:
+    '200':
+      description: The current configuration settings.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              platform:
+                type: string
+                description: The platform Sunshine is running on
+              version:
+                type: string
+                description: The version of Sunshine
+          example:
+            status: true
+            platform: "windows"
+            version: "0.23.1"
+            port: 47989
+            fps: "60"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"
+
+post:
+  summary: Save the configuration settings.
+  description: Save configuration settings to the Sunshine config file.
+  operationId: saveConfig
+  tags:
+    - Configuration
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          description: Key-value pairs of configuration settings
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: boolean
+        example:
+          fps: "60"
+          bitrate: "20000"
+          resolution: "1920x1080"
+  responses:
+    '200':
+      description: The configuration was saved successfully.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+          example:
+            status: true
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

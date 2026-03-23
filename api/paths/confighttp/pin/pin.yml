@@ -1,0 +1,47 @@
+---
+post:
+  summary: Send a PIN code.
+  description: |
+    Send a PIN code to the host. The PIN is generated from the Moonlight client during the pairing process.
+    This endpoint is used to complete the pairing of a new client.
+  operationId: savePin
+  tags:
+    - Clients
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          required:
+            - pin
+            - name
+          properties:
+            pin:
+              type: string
+              description: The PIN code (4 digits, 0000-9999)
+              pattern: "^[0-9]{4}$"
+            name:
+              type: string
+              description: A friendly name for the client
+        example:
+          pin: "1234"
+          name: "Living Room TV"
+  responses:
+    '200':
+      description: The PIN was accepted.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+          example:
+            status: true
+    '400':
+      $ref: "../../../components/responses/400.yml"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

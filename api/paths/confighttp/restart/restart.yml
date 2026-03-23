@@ -1,0 +1,23 @@
+---
+post:
+  summary: Restart Sunshine.
+  description: Restart the Sunshine service. This endpoint may not return a response.
+  operationId: restart
+  tags:
+    - System
+  responses:
+    '200':
+      description: Sunshine is restarting.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+          example:
+            status: true
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

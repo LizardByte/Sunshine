@@ -1,0 +1,33 @@
+---
+get:
+  summary: Get the list of paired clients.
+  description: Get the list of all clients that are paired with Sunshine.
+  operationId: getClients
+  tags:
+    - Clients
+  responses:
+    '200':
+      description: A list of paired clients.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: boolean
+              named_certs:
+                type: array
+                description: List of paired clients
+                items:
+                  $ref: "../../../components/schemas/client.yml"
+          example:
+            status: true
+            named_certs:
+              - name: "Living Room TV"
+                uuid: "abc123def456"
+              - name: "Bedroom Shield"
+                uuid: "xyz789ghi012"
+    '401':
+      $ref: "../../../components/responses/401.yml"
+    '403':
+      $ref: "../../../components/responses/403.yml"

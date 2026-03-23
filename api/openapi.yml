@@ -1,0 +1,74 @@
+---
+# https://openapi.tools
+
+openapi: 3.1.0
+
+info:
+  title: Sunshine
+  summary: Self-hosted game stream host for Moonlight.
+  version: 0.0.0
+  contact:
+    name: LizardByte
+    url: https://app.lizardbyte.dev/support
+  license:
+    name: GNU General Public License v3.0 only
+    url: https://github.com/LizardByte/Sunshine/blob/master/LICENSE
+
+servers:
+  - url: "https://{host}:{ui-port}"
+    description: Sunshine server
+    variables:
+      host:
+        default: "localhost"
+      ui-port:
+        default: 47990
+
+security:
+  - basicAuth: []
+
+components:
+  securitySchemes:
+    basicAuth:
+      description: HTTP Basic authentication
+      type: http
+      scheme: basic
+
+paths:
+  /api/apps:
+    $ref: "./paths/confighttp/apps/apps.yml"
+  /api/apps/{index}:
+    $ref: "./paths/confighttp/apps/apps-by-index.yml"
+  /api/apps/close:
+    $ref: "./paths/confighttp/apps/apps-close.yml"
+  /api/browse:
+    $ref: "./paths/confighttp/browse/browse.yml"
+  /api/clients/list:
+    $ref: "./paths/confighttp/clients/clients-list.yml"
+  /api/clients/unpair:
+    $ref: "./paths/confighttp/clients/clients-unpair.yml"
+  /api/clients/unpair-all:
+    $ref: "./paths/confighttp/clients/clients-unpair-all.yml"
+  /api/config:
+    $ref: "./paths/confighttp/config/config.yml"
+  /api/configLocale:
+    $ref: "./paths/confighttp/config/config-locale.yml"
+  /api/covers/{index}:
+    $ref: "./paths/confighttp/covers/covers-by-index.yml"
+  /api/covers/upload:
+    $ref: "./paths/confighttp/covers/covers-upload.yml"
+  /api/csrf-token:
+    $ref: "./paths/confighttp/csrf-token/csrf-token.yml"
+  /api/logs:
+    $ref: "./paths/confighttp/logs/logs.yml"
+  /api/password:
+    $ref: "./paths/confighttp/password/password.yml"
+  /api/pin:
+    $ref: "./paths/confighttp/pin/pin.yml"
+  /api/reset-display-device-persistence:
+    $ref: "./paths/confighttp/display-device/reset-display-device-persistence.yml"
+  /api/restart:
+    $ref: "./paths/confighttp/restart/restart.yml"
+  /api/vigembus/status:
+    $ref: "./paths/confighttp/vigembus/vigembus-status.yml"
+  /api/vigembus/install:
+    $ref: "./paths/confighttp/vigembus/vigembus-install.yml"
