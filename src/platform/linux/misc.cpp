@@ -17,14 +17,18 @@
 // platform includes
 #include <arpa/inet.h>
 #include <dlfcn.h>
+#include <gio/gio.h>  // For RTKit
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <netinet/udp.h>
 #include <pwd.h>
+#include <sys/resource.h>  // For setpriority
 #include <sys/socket.h>
 
 #ifdef __FreeBSD__
   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
+  #include <sys/syscall.h>  // For syscall: SYS_thr_self
+  #include <sys/thr.h>  // For thr_self
 #endif
 
 // lib includes
@@ -324,7 +328,68 @@ namespace platf {
   }
 
   void adjust_thread_priority(thread_priority_e priority) {
-    // Unimplemented
+#if defined(__FreeBSD__)
+    pid_t tid = syscall(SYS_thr_self);
+#else
+    pid_t tid = syscall(SYS_gettid);
+#endif
+    bool success = false;
+    int32_t linux_nice;
+
+    using enum thread_priority_e;
+    switch (priority) {
+      case low:
+        linux_nice = 10;
+        break;
+      case normal:
+        linux_nice = 0;
+        break;
+      case high:
+        linux_nice = -10;
+        break;
+      case critical:
+        linux_nice = -15;
+        break;
+      default:
+        BOOST_LOG(debug) << "Unknown thread priority: "sv << std::to_underlying(priority);
+        return;
+    }
+
+    g_autoptr(GError) err = nullptr;
+    GDBusConnection *conn = g_bus_get_sync(G_BUS_TYPE_SYSTEM, nullptr, &err);
+
+    if (conn) {
+      g_dbus_connection_call_sync(
+        conn,
+        "org.freedesktop.RealtimeKit1",
+        "/org/freedesktop/RealtimeKit1",
+        "org.freedesktop.RealtimeKit1",
+        "MakeThreadHighPriority",
+        g_variant_new("(ti)", (guint64) tid, linux_nice),
+        nullptr,
+        G_DBUS_CALL_FLAGS_NONE,
+        -1,
+        nullptr,
+        &err
+      );
+
+      if (!err) {
+        success = true;
+        BOOST_LOG(debug) << "RTKit: Successfully set priority to "sv << linux_nice;
+      } else {
+        BOOST_LOG(debug) << "RTKit: Could not set priority: "sv << err->message;
+        g_clear_error(&err);
+      }
+    }
+
+    if (!success) {
+      // This will run on FreeBSD OR Linux if RTKit failed/was missing
+      if (setpriority(PRIO_PROCESS, 0, linux_nice) == -1) {
+        BOOST_LOG(warning) << "setpriority failed for nice "sv << linux_nice << ": "sv << strerror(errno);
+      } else {
+        BOOST_LOG(debug) << "setpriority success for nice "sv << linux_nice;
+      }
+    }
   }
 
   void set_thread_name(const std::string &name) {
