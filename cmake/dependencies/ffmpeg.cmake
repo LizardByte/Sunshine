@@ -18,6 +18,13 @@ if(NOT DEFINED FFMPEG_PREPARED_BINARIES)
     # Determine download location
     set(FFMPEG_DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_deps")
 
+    # Fetch tags for the build-deps submodule so tag lookups work in CI shallow clones
+    execute_process(
+        COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" fetch --tags --depth=1
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+
     # Get the current commit/tag from the build-deps submodule
     execute_process(
         COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" describe --tags --exact-match
