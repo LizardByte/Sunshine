@@ -56,3 +56,4 @@ package-lock.json
 # Python
 *.pyc
 venv/
+.tmp/

@@ -785,6 +785,11 @@ namespace rtsp_stream {
     ss << "a=x-ss-general.encryptionSupported:" << encryption_flags_supported << std::endl;
     ss << "a=x-ss-general.encryptionRequested:" << encryption_flags_requested << std::endl;
 
+    // Advertise microphone passthrough support if enabled in config
+    if (config::audio.mic_passthrough) {
+      ss << "a=x-ss-general.micSupport:micop" << std::endl;
+    }
+
     if (video::last_encoder_probe_supported_ref_frames_invalidation) {
       ss << "a=x-nv-video[0].refPicInvalidation:1"sv << std::endl;
     }
@@ -960,6 +965,7 @@ namespace rtsp_stream {
     args.try_emplace("x-ss-video[0].chromaSamplingType"sv, "0"sv);
     args.try_emplace("x-ss-video[0].intraRefresh"sv, "0"sv);
     args.try_emplace("x-nv-video[0].clientRefreshRateX100"sv, "0"sv);
+    args.try_emplace("x-ss-general.micInfo"sv, ""sv);
 
     stream::config_t config;
 
@@ -1000,6 +1006,12 @@ namespace rtsp_stream {
       config.monitor.enableIntraRefresh = (int) util::from_view(args.at("x-ss-video[0].intraRefresh"sv));
 
       configuredBitrateKbps = util::from_view(args.at("x-ml-video.configuredBitrateKbps"sv));
+
+      // Log mic passthrough request if client sent one
+      auto &mic_info = args.at("x-ss-general.micInfo"sv);
+      if (!mic_info.empty() && config::audio.mic_passthrough) {
+        BOOST_LOG(info) << "Client requested mic passthrough: "sv << mic_info;
+      }
     } catch (std::out_of_range &) {
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;

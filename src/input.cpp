@@ -24,6 +24,7 @@ extern "C" {
 #include "globals.h"
 #include "input.h"
 #include "logging.h"
+#include "mic_stream.h"
 #include "platform/common.h"
 #include "thread_pool.h"
 #include "utility.h"
@@ -1617,6 +1618,58 @@ namespace input {
       case SS_CONTROLLER_BATTERY_MAGIC:
         passthrough(input, (PSS_CONTROLLER_BATTERY_PACKET) payload);
         break;
+
+      // ----------------------------------------------------------------
+      // Microphone passthrough (Sunshine protocol extension)
+      // Packets arrive via the same input control stream as keyboard/mouse.
+      // ----------------------------------------------------------------
+      case SS_MIC_START_MAGIC: {
+        if (!config::audio.mic_passthrough) {
+          BOOST_LOG(warning) << "Client sent MIC_START but mic_passthrough is disabled in config"sv;
+          break;
+        }
+        if (entry.size() < sizeof(SS_MIC_START_PACKET)) {
+          BOOST_LOG(error) << "MIC_START packet too small ("sv << entry.size() << " bytes)"sv;
+          break;
+        }
+        auto *pkt = reinterpret_cast<PSS_MIC_START_PACKET>(payload);
+        mic_stream::config_t cfg;
+        cfg.audio_input_id = pkt->audioInputId;
+        cfg.channels = pkt->channels > 0 ? pkt->channels : 1;
+        cfg.sample_rate = pkt->sampleRate > 0 ? pkt->sampleRate : 48000;
+        cfg.bitrate = pkt->bitrate > 0 ? pkt->bitrate : 64000;
+        BOOST_LOG(info) << "Mic START — id="sv << static_cast<int>(cfg.audio_input_id)
+                        << ", ch="sv << static_cast<int>(cfg.channels)
+                        << ", rate="sv << cfg.sample_rate
+                        << ", bps="sv << cfg.bitrate;
+        mic_stream::g_mic_stream_manager.start_stream(cfg);
+        break;
+      }
+
+      case SS_MIC_STOP_MAGIC: {
+        if (entry.size() < sizeof(SS_MIC_STOP_PACKET)) {
+          BOOST_LOG(error) << "MIC_STOP packet too small"sv;
+          break;
+        }
+        auto *pkt = reinterpret_cast<PSS_MIC_STOP_PACKET>(payload);
+        BOOST_LOG(info) << "Mic STOP — id="sv << static_cast<int>(pkt->audioInputId);
+        mic_stream::g_mic_stream_manager.stop_stream(pkt->audioInputId);
+        break;
+      }
+
+      case SS_MIC_DATA_MAGIC: {
+        if (entry.size() <= sizeof(SS_MIC_DATA_PACKET)) {
+          break;  // no Opus payload — skip silently
+        }
+        auto *pkt = reinterpret_cast<PSS_MIC_DATA_PACKET>(payload);
+        const auto *opus_data = reinterpret_cast<const uint8_t *>(pkt + 1);
+        const size_t opus_size = entry.size() - sizeof(SS_MIC_DATA_PACKET);
+        auto stream = mic_stream::g_mic_stream_manager.get_stream(pkt->audioInputId);
+        if (stream) {
+          stream->process_opus_data(opus_data, opus_size);
+        }
+        break;
+      }
     }
   }
 
