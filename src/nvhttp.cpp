@@ -589,6 +589,7 @@ namespace nvhttp {
           std::getline(std::cin, pin);
 
           getservercert(ptr->second, tree, pin);
+          return;
         } else {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
           system_tray::update_tray_require_pin();
