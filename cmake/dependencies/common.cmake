@@ -19,6 +19,10 @@ add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/Simple-Web-Server")
 # libdisplaydevice
 add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/libdisplaydevice")
 
+if(SUNSHINE_ENABLE_TRAY)
+    add_subdirectory("${CMAKE_SOURCE_DIR}/third-party/tray")
+endif()
+
 # common dependencies
 include("${CMAKE_MODULE_PATH}/dependencies/nlohmann_json.cmake")
 find_package(PkgConfig REQUIRED)

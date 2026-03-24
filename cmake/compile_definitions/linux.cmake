@@ -2,6 +2,10 @@
 
 if(FREEBSD)
     add_compile_definitions(SUNSHINE_PLATFORM="freebsd")
+    # FreeBSD installs packages to /usr/local/lib, which is not in the default linker search path.
+    # link_directories() is directory-scoped and propagates to all subdirectories (including tests/),
+    # so all targets (sunshine, test_sunshine) can resolve libraries found via pkg_check_modules.
+    link_directories(/usr/local/lib)
 else()
     add_compile_definitions(SUNSHINE_PLATFORM="linux")
 endif()
@@ -264,37 +268,6 @@ if(NOT ${CUDA_FOUND}
         AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
         AND NOT ${LIBVA_FOUND})
     message(FATAL_ERROR "Couldn't find either cuda, libva, pipewire, wayland, x11, or (libdrm and libcap)")
-endif()
-
-# tray icon
-if(${SUNSHINE_ENABLE_TRAY})
-    pkg_check_modules(APPINDICATOR ayatana-appindicator3-0.1)
-    if(APPINDICATOR_FOUND)
-        list(APPEND SUNSHINE_DEFINITIONS TRAY_AYATANA_APPINDICATOR=1)
-    else()
-        pkg_check_modules(APPINDICATOR appindicator3-0.1)
-        if(APPINDICATOR_FOUND)
-            list(APPEND SUNSHINE_DEFINITIONS TRAY_LEGACY_APPINDICATOR=1)
-        endif ()
-    endif()
-    pkg_check_modules(LIBNOTIFY libnotify)
-    if(NOT APPINDICATOR_FOUND OR NOT LIBNOTIFY_FOUND)
-        message(STATUS "APPINDICATOR_FOUND: ${APPINDICATOR_FOUND}")
-        message(STATUS "LIBNOTIFY_FOUND: ${LIBNOTIFY_FOUND}")
-        message(FATAL_ERROR "Couldn't find either appindicator or libnotify")
-    else()
-        include_directories(SYSTEM ${APPINDICATOR_INCLUDE_DIRS} ${LIBNOTIFY_INCLUDE_DIRS})
-        link_directories(${APPINDICATOR_LIBRARY_DIRS} ${LIBNOTIFY_LIBRARY_DIRS})
-
-        list(APPEND PLATFORM_TARGET_FILES "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray_linux.c")
-        list(APPEND SUNSHINE_EXTERNAL_LIBRARIES ${APPINDICATOR_LIBRARIES} ${LIBNOTIFY_LIBRARIES})
-    endif()
-
-    set(SUNSHINE_TRAY_PREFIX "${PROJECT_FQDN}")
-    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_TRAY_PREFIX="${SUNSHINE_TRAY_PREFIX}")
-else()
-    set(SUNSHINE_TRAY 0)
-    message(STATUS "Tray icon disabled")
 endif()
 
 # These need to be set before adding the inputtino subdirectory in order for them to be picked up

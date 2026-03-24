@@ -17,9 +17,10 @@ jobs:
     name: ${{ matrix.arch }}
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
+      FREEDESKTOP_SDK_VERSION: "25.08"
+      KDE_PLATFORM_VERSION: "6.10"
       MATRIX_ARCH: ${{ matrix.arch }}
       NODE_VERSION: "20"
-      PLATFORM_VERSION: "24.08"
     permissions:
       contents: read
     runs-on: ${{ matrix.runner }}
@@ -77,9 +78,9 @@ jobs:
 
           sudo su "$(whoami)" -c "flatpak --user install -y flathub \
             org.flatpak.Builder \
-            org.freedesktop.Platform/${MATRIX_ARCH}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk/${MATRIX_ARCH}/${PLATFORM_VERSION} \
-            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${MATRIX_ARCH}/${PLATFORM_VERSION} \
+            org.kde.Platform/${MATRIX_ARCH}/${KDE_PLATFORM_VERSION} \
+            org.kde.Sdk/${MATRIX_ARCH}/${KDE_PLATFORM_VERSION} \
+            org.freedesktop.Sdk.Extension.node${NODE_VERSION}/${MATRIX_ARCH}/${FREEDESKTOP_SDK_VERSION} \
           "
 
           flatpak run org.flatpak.Builder --version
@@ -96,7 +97,7 @@ jobs:
         run: |
           python \
             ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
-            --runtime="org.freedesktop.Sdk//${PLATFORM_VERSION}" \
+            --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
             --output glad-dependencies \
             --build-only \
             --requirements-file=./third-party/glad/requirements.txt

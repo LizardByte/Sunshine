@@ -99,6 +99,9 @@
     },
     {
       "name": "libtirpc",
+      "build-options": {
+        "cflags": "-std=gnu17"
+      },
       "config-opts": [
         "--disable-gssapi"
       ],

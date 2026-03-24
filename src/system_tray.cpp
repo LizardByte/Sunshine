@@ -14,10 +14,10 @@
     #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.ico"
     #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.ico"
   #elif defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
-    #define TRAY_ICON SUNSHINE_TRAY_PREFIX "-tray"
-    #define TRAY_ICON_PLAYING SUNSHINE_TRAY_PREFIX "-playing"
-    #define TRAY_ICON_PAUSING SUNSHINE_TRAY_PREFIX "-pausing"
-    #define TRAY_ICON_LOCKED SUNSHINE_TRAY_PREFIX "-locked"
+    #define TRAY_ICON WEB_DIR "images/logo-sunshine.svg"
+    #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing.svg"
+    #define TRAY_ICON_PAUSING WEB_DIR "images/sunshine-pausing.svg"
+    #define TRAY_ICON_LOCKED WEB_DIR "images/sunshine-locked.svg"
   #elif defined(__APPLE__) || defined(__MACH__)
     #define TRAY_ICON WEB_DIR "images/logo-sunshine-16.png"
     #define TRAY_ICON_PLAYING WEB_DIR "images/sunshine-playing-16.png"
@@ -39,7 +39,7 @@
   // lib includes
   #include <boost/filesystem.hpp>
   #include <boost/process/v1/environment.hpp>
-  #include <tray/src/tray.h>
+  #include <tray.h>
 
   // local includes
   #include "confighttp.h"
@@ -71,6 +71,33 @@ namespace system_tray {
   void tray_donate_paypal_cb([[maybe_unused]] struct tray_menu *item) {
     platf::open_url("https://www.paypal.com/paypalme/ReenigneArcher");
   }
+
+  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
+  /**
+   * @brief Forwards Qt log messages to Sunshine's BOOST_LOG logger.
+   * @param level Log level: 0=debug, 1=info, 2=warning, 3=error.
+   * @param msg The message string from Qt.
+   */
+  static void qt_log_to_boost(int level, const char *msg) {
+    if (msg == nullptr) {
+      return;
+    }
+    switch (level) {
+      case 0:
+        BOOST_LOG(debug) << "Qt: " << msg;
+        break;
+      case 1:
+        BOOST_LOG(info) << "Qt: " << msg;
+        break;
+      case 2:
+        BOOST_LOG(warning) << "Qt: " << msg;
+        break;
+      default:
+        BOOST_LOG(error) << "Qt: " << msg;
+        break;
+    }
+  }
+  #endif
 
   void tray_reset_display_device_config_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Resetting display device config from system tray"sv;
@@ -253,6 +280,12 @@ namespace system_tray {
 
     tray.icon = tray.allIconPaths[0];
   #endif
+
+  #if defined(__linux__) || defined(linux) || defined(__linux) || defined(__FreeBSD__)
+    tray_set_log_callback(qt_log_to_boost);
+  #endif
+
+    tray_set_app_info(PROJECT_NAME, PROJECT_NAME, PROJECT_FQDN);
 
     if (tray_init(&tray) < 0) {
       BOOST_LOG(warning) << "Failed to create system tray"sv;
