@@ -105,8 +105,3 @@ list(PREPEND PLATFORM_LIBRARIES
         ws2_32
         wsock32
 )
-
-if(SUNSHINE_ENABLE_TRAY)
-    list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/third-party/tray/src/tray_windows.c")
-endif()

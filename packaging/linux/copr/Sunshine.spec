@@ -30,7 +30,6 @@ BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel
-BuildRequires: libnotify-devel
 BuildRequires: libva-devel
 BuildRequires: libX11-devel
 BuildRequires: libxcb-devel
@@ -58,7 +57,6 @@ BuildRequires: vulkan-loader-devel
 # needed for npm from nvm
 BuildRequires: libatomic
 %endif
-BuildRequires: libayatana-appindicator3-devel
 BuildRequires: libgudev
 BuildRequires: mesa-libGL-devel
 BuildRequires: mesa-libgbm-devel
@@ -71,6 +69,8 @@ BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
 BuildRequires: python3-jinja2
 BuildRequires: python3-setuptools
+BuildRequires: qt6-qtbase-devel
+BuildRequires: qt6-qtsvg-devel
 BuildRequires: systemd-udev
 %{?sysusers_requires_compat}
 # for unit tests
@@ -81,7 +81,6 @@ BuildRequires: xorg-x11-server-Xvfb
 # OpenSUSE-specific BuildRequires
 BuildRequires: AppStream
 BuildRequires: appstream-glib
-BuildRequires: libappindicator3-devel
 BuildRequires: libgudev-1_0-devel
 BuildRequires: Mesa-libGL-devel
 BuildRequires: libgbm-devel
@@ -132,6 +131,9 @@ BuildRequires: gcc15-c++
 # OpenSUSE Leap 15.x
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
+# OpenSUSE Leap: Qt6 not in standard repos, use Qt5
+BuildRequires: libqt5-qtbase-devel
+BuildRequires: libqt5-qtsvg-devel
 %global gcc_version 14
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
@@ -139,6 +141,8 @@ BuildRequires: gcc14-c++
 # OpenSUSE Tumbleweed
 BuildRequires: gcc14
 BuildRequires: gcc14-c++
+BuildRequires: libqt6-qtbase-devel
+BuildRequires: libqt6-qtsvg-devel
 %global gcc_version 14
 %global cuda_version 12.9.1
 %global cuda_build 575.57.08
@@ -153,7 +157,6 @@ Requires: which >= 2.21
 
 %if 0%{?fedora}
 # Fedora runtime requirements
-Requires: libayatana-appindicator3 >= 0.5.3
 Requires: libcap >= 2.22
 Requires: libcurl >= 7.0
 Requires: libdrm > 2.4.97
@@ -165,12 +168,13 @@ Requires: libX11 >= 1.7.3.1
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
+Requires: qt6-qtbase
+Requires: qt6-qtsvg
 Requires: vulkan-loader
 %endif
 
 %if 0%{?suse_version}
 # OpenSUSE runtime requirements
-Requires: libappindicator3-1
 Requires: libcap2
 Requires: libcurl4
 Requires: libdrm2
@@ -184,6 +188,17 @@ Requires: libopenssl3
 Requires: libpulse0
 %if !0%{?sle_version}
 Requires: libvulkan1
+%endif
+%if 0%{?suse_version} <= 1699
+# OpenSUSE Leap: built with Qt5
+Requires: libQt5DBus5
+Requires: libQt5Svg5
+Requires: libQt5Widgets5
+%else
+# OpenSUSE Tumbleweed: built with Qt6
+Requires: libQt6DBus6
+Requires: libQt6Svg6
+Requires: libQt6Widgets6
 %endif
 %endif
 
@@ -421,7 +436,6 @@ fi
 
 # Icons
 %{_datadir}/icons/hicolor/scalable/apps/*.Sunshine.svg
-%{_datadir}/icons/hicolor/scalable/status/*.Sunshine-*.svg
 
 # Metainfo
 %{_datadir}/metainfo/*.metainfo.xml
