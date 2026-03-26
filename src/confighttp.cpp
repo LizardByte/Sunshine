@@ -847,7 +847,6 @@ namespace confighttp {
    * @brief Enable or disable a client.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
-   *
    * The body for the POST request should be JSON serialized in the following format:
    * @code{.json}
    * {
@@ -855,9 +854,18 @@ namespace confighttp {
    *   "enabled": true
    * }
    * @endcode
+   *
+   * @api_examples{/api/clients/update| POST| {"uuid":"<uuid>","enabled":true}}
    */
   void updateClient(resp_https_t response, req_https_t request) {
-    if (!check_content_type(response, request, "application/json") || !authenticate(response, request)) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
       return;
     }
 
