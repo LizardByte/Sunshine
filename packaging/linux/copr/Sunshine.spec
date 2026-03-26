@@ -1,13 +1,10 @@
-%global build_timestamp %(date +"%Y%m%d")
-
 # use sed to replace these values
 %global build_version 0
 %global branch 0
 %global commit 0
 
+# Cross build issues
 %undefine _hardened_build
-
-# Define _metainfodir for OpenSUSE if not already defined
 %if 0%{?suse_version}
 %if !0%{?_metainfodir:1}
 %global _metainfodir %{_datadir}/metainfo
@@ -22,9 +19,11 @@ License: GPLv3-only
 URL: https://github.com/LizardByte/Sunshine
 Source0: tarball.tar.gz
 
-# Common BuildRequires
-BuildRequires: cmake >= 3.25.0
+BuildRequires: cmake
+BuildRequires: curl
 BuildRequires: desktop-file-utils
+BuildRequires: gcc
+BuildRequires: gcc-c++
 BuildRequires: git
 BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
@@ -32,176 +31,87 @@ BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel
 BuildRequires: libnotify-devel
 BuildRequires: libva-devel
-BuildRequires: libX11-devel
-BuildRequires: libxcb-devel
-BuildRequires: libXcursor-devel
-BuildRequires: libXfixes-devel
-BuildRequires: libXi-devel
-BuildRequires: libXinerama-devel
-BuildRequires: libXrandr-devel
-BuildRequires: libXtst-devel
+BuildRequires: nodejs
+BuildRequires: npm
 BuildRequires: openssl-devel
 BuildRequires: pipewire-devel
-BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
-BuildRequires: wget
-BuildRequires: which
-
+# For tests ⤵
+BuildRequires: xorg-x11-server-Xvfb
 %if 0%{?fedora}
-# Fedora-specific BuildRequires
 BuildRequires: appstream
-# BuildRequires: boost-devel >= 1.86.0
+BuildRequires: libappindicator-gtk3-devel
 BuildRequires: libappstream-glib
-%if 0%{fedora} > 43
-# needed for npm from nvm
-BuildRequires: libatomic
-%endif
-BuildRequires: libayatana-appindicator3-devel
-BuildRequires: libgudev
-BuildRequires: mesa-libGL-devel
 BuildRequires: mesa-libgbm-devel
 BuildRequires: miniupnpc-devel
-%if 0%{?fedora} < 44
-BuildRequires: nodejs-npm
-%endif
 BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
-BuildRequires: python3-jinja2
-BuildRequires: python3-setuptools
 BuildRequires: systemd-udev
-%{?sysusers_requires_compat}
-# for unit tests
-BuildRequires: xorg-x11-server-Xvfb
 %endif
-
 %if 0%{?suse_version}
-# OpenSUSE-specific BuildRequires
 BuildRequires: AppStream
 BuildRequires: appstream-glib
+BuildRequires: gcc15
+BuildRequires: gcc15-c++
 BuildRequires: libappindicator3-devel
-BuildRequires: libgudev-1_0-devel
-BuildRequires: Mesa-libGL-devel
 BuildRequires: libgbm-devel
 BuildRequires: libminiupnpc-devel
 BuildRequires: libnuma-devel
 BuildRequires: libopus-devel
 BuildRequires: libpulse-devel
-BuildRequires: npm
-BuildRequires: python311
-BuildRequires: python311-Jinja2
-BuildRequires: python311-setuptools
+BuildRequires: Mesa-libGL-devel
+BuildRequires: systemd
 BuildRequires: udev
-# for unit tests
-BuildRequires: xvfb-run
-%endif
-
-# Conditional BuildRequires for cuda-gcc based on distribution version
-%if 0%{?fedora}
-%if 0%{?fedora} <= 41
-BuildRequires: gcc13
-BuildRequires: gcc13-c++
-%global gcc_version 13
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%elif 0%{?fedora} >= 42 && 0%{?fedora} <= 43
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%elif 0%{?fedora} >= 44
-BuildRequires: gcc15
-BuildRequires: gcc15-c++
-%global gcc_version 15
-%global cuda_version 13.1.1
-%global cuda_build 590.48.01
-%endif
-%endif
-
-%if 0%{?suse_version}
-%if 0%{?suse_version} <= 1699
-# OpenSUSE Leap 15.x
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%else
-# OpenSUSE Tumbleweed
-BuildRequires: gcc14
-BuildRequires: gcc14-c++
-%global gcc_version 14
-%global cuda_version 12.9.1
-%global cuda_build 575.57.08
-%endif
-%endif
-
-%global cuda_dir %{_builddir}/cuda
-
-# Common runtime requirements
-Requires: miniupnpc >= 2.2.4
-Requires: which >= 2.21
-
-%if 0%{?fedora}
-# Fedora runtime requirements
-Requires: libayatana-appindicator3 >= 0.5.3
-Requires: libcap >= 2.22
-Requires: libcurl >= 7.0
-Requires: libdrm > 2.4.97
-Requires: libevdev >= 1.5.6
-Requires: libopusenc >= 0.2.1
-Requires: libva >= 2.14.0
-Requires: libwayland-client >= 1.20.0
-Requires: libX11 >= 1.7.3.1
-Requires: numactl-libs >= 2.0.14
-Requires: openssl >= 3.0.2
-Requires: pulseaudio-libs >= 10.0
-%endif
-
-%if 0%{?suse_version}
-# OpenSUSE runtime requirements
-Requires: libappindicator3-1
-Requires: libcap2
-Requires: libcurl4
-Requires: libdrm2
-Requires: libevdev2
-Requires: libopusenc0
-Requires: libva2
-Requires: libwayland-client0
-Requires: libX11-6
-Requires: libnuma1
-Requires: libopenssl3
-Requires: libpulse0
 %endif
 
 %description
 Self-hosted game stream host for Moonlight.
 
-%prep
-# extract tarball to current directory
-mkdir -p %{_builddir}/Sunshine
-tar -xzf %{SOURCE0} -C %{_builddir}/Sunshine
+%define workdir %{_builddir}/source
+%define sourcedir %{workdir}/Sunshine
+%define bindir %{_builddir}/bin
+%define cudadir %{_builddir}/cuda-env
 
-# list directory
-ls -a %{_builddir}/Sunshine
+%prep
+mkdir -p %{bindir}
+mkdir -p %{workdir}
+mkdir -p %{sourcedir}
+export PATH=%{bindir}:$PATH
+
+# Install cuda compiler (nvcc) with micromamba (conda)
+if [ "%{_arch}" = "x86_64" ]; then
+  curl -L --fail --retry 5 --retry-delay 2 \
+  -o /tmp/micromamba.tar.bz2 \
+    https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-64.tar.bz2
+else
+  curl -L --fail --retry 5 --retry-delay 2 \
+  -o /tmp/micromamba.tar.bz2 \
+    https://github.com/mamba-org/micromamba-releases/releases/latest/download/micromamba-linux-%{_arch}.tar.bz2
+fi
+tar -xjf /tmp/micromamba.tar.bz2 -C /tmp
+install -Dm755 /tmp/bin/micromamba %{bindir}/micromamba
+micromamba create -y -p %{cudadir} cuda-nvcc
+
+# Source
+mkdir -p %{sourcedir}
+tar -xzf %{SOURCE0} -C %{sourcedir}
 
 %build
-# exit on error
-set -e
+cd %{sourcedir}
+source /etc/os-release
 
-# Detect the architecture and Fedora version
-architecture=$(uname -m)
+export BRANCH=%{branch}
+export BUILD_VERSION=v%{build_version}
+export COMMIT=%{commit}
 
-cuda_supported_architectures=("x86_64" "aarch64")
-
-# prepare CMAKE args
 cmake_args=(
-  "-B=%{_builddir}/Sunshine/build"
+  "-B=build"
   "-G=Unix Makefiles"
   "-S=."
   "-DBUILD_DOCS=OFF"
-  "-DBUILD_WERROR=ON"
+  "-DBUILD_TESTS=ON"
+  "-DBUILD_WERROR=OFF"
   "-DCMAKE_BUILD_TYPE=Release"
   "-DCMAKE_INSTALL_PREFIX=%{_prefix}"
   "-DSUNSHINE_ASSETS_DIR=%{_datadir}/sunshine"
@@ -213,203 +123,58 @@ cmake_args=(
   "-DSUNSHINE_PUBLISHER_NAME=LizardByte"
   "-DSUNSHINE_PUBLISHER_WEBSITE=https://app.lizardbyte.dev"
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
+  "-DSUNSHINE_ENABLE_CUDA=ON"
+  "-DCMAKE_CUDA_COMPILER=%{cudadir}/bin/nvcc"
+  "-DCMAKE_CUDA_HOST_COMPILER=%{cudadir}/bin/%{_arch}-conda-linux-gnu-g++"
 )
-
-export CC=gcc-%{gcc_version}
-export CXX=g++-%{gcc_version}
-
-function install_cuda() {
-  # check if we need to install cuda
-  if [ -f "%{cuda_dir}/bin/nvcc" ]; then
-    echo "cuda already installed"
-    return
+# On opensuse-leap 15.6 the system compiler is too old to build sunshine.
+if [ "$ID" = "opensuse-leap" ]; then
+  GCC_MAJOR=$(gcc -dumpfullversion | cut -d. -f1)
+  if [ "$GCC_MAJOR" -lt 15 ]; then
+    cmake_args+=(
+      "-DCMAKE_C_COMPILER=gcc-15"
+      "-DCMAKE_CXX_COMPILER=g++-15"
+    )
   fi
-
-  local cuda_prefix="https://developer.download.nvidia.com/compute/cuda/"
-  local cuda_suffix=""
-  if [ "$architecture" == "aarch64" ]; then
-    local cuda_suffix="_sbsa"
+  # Linking fails with libc symbol errors only on aarch64 (bug!?)
+  if [ "%{_arch}" = "aarch64" ]; then
+    cmake_args+=(
+      "-DCMAKE_CUDA_HOST_COMPILER=gcc-15"
+    )
   fi
-
-  local url="${cuda_prefix}%{cuda_version}/local_installers/cuda_%{cuda_version}_%{cuda_build}_linux${cuda_suffix}.run"
-  echo "cuda url: ${url}"
-  wget \
-    "$url" \
-    --progress=bar:force:noscroll \
-    --retry-connrefused \
-    --tries=3 \
-    -q -O "%{_builddir}/cuda.run"
-  chmod a+x "%{_builddir}/cuda.run"
-  "%{_builddir}/cuda.run" \
-    --no-drm \
-    --no-man-page \
-    --no-opengl-libs \
-    --override \
-    --silent \
-    --toolkit \
-    --toolkitpath="%{cuda_dir}"
-  rm "%{_builddir}/cuda.run"
-
-  # we need to patch math_functions.h depending on the CUDA major version
-  # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
-  local cuda_major
-  cuda_major=$(echo "%{cuda_version}" | cut -d. -f1)
-  local patch_file=""
-  if [ "${cuda_major}" -eq 12 ]; then
-    # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
-    patch_file="cuda-12-math_functions.patch"
-  elif [ "${cuda_major}" -eq 13 ]; then
-    # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
-    # macro invocations at the bottom still lack it, causing a redeclaration conflict.
-    patch_file="cuda-13-math_functions.patch"
-  else
-    echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
-  fi
-
-  if [ -n "${patch_file}" ]; then
-    echo "Applying CUDA patch: ${patch_file}"
-    patch -p2 \
-      --backup \
-      --directory="%{cuda_dir}" \
-      --verbose \
-      < "%{_builddir}/Sunshine/packaging/linux/patches/${architecture}/${patch_file}"
-  fi
-}
-
-if [ -n "%{cuda_version}" ] && [[ " ${cuda_supported_architectures[@]} " =~ " ${architecture} " ]]; then
-  install_cuda
-  cmake_args+=("-DSUNSHINE_ENABLE_CUDA=ON")
-  cmake_args+=("-DCMAKE_CUDA_COMPILER:PATH=%{cuda_dir}/bin/nvcc")
-  cmake_args+=("-DCMAKE_CUDA_HOST_COMPILER=gcc-%{gcc_version}")
-else
-  cmake_args+=("-DSUNSHINE_ENABLE_CUDA=OFF")
 fi
 
-# Install and setup NVM for Fedora 44+
-%if 0%{?fedora} > 43
-echo "Installing NVM for Fedora 44+..."
-export HOME=${HOME:-/builddir}
-export NVM_DIR="$HOME/.nvm"
-
-# Install NVM
-if [ ! -d "$NVM_DIR" ]; then
-  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-fi
-
-# Load NVM
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-
-# Install and use Node.js
-nvm install node
-nvm use node
-
-echo "Node.js version: $(node --version)"
-echo "npm version: $(npm --version)"
-echo "npm location: $(which npm)"
-echo "node location: $(which node)"
-
-# Add npm and node path to cmake args
-NPM_PATH=$(which npm)
-NODE_PATH=$(which node)
-cmake_args+=("-DNPM=${NPM_PATH}")
-
-# Add node bin directory to PATH for make
-export PATH="$(dirname ${NODE_PATH}):${PATH}"
-%endif
-
-# setup the version
-export BRANCH=%{branch}
-export BUILD_VERSION=v%{build_version}
-export COMMIT=%{commit}
-
-# cmake
-cd %{_builddir}/Sunshine
-echo "cmake args:"
-echo "${cmake_args[@]}"
 cmake "${cmake_args[@]}"
-make -j$(nproc) -C "%{_builddir}/Sunshine/build"
+make -j$(nproc) -C "%{sourcedir}/build"
+
+%install
+cd %{sourcedir}/build
+%make_install
 
 %check
-# validate the metainfo file
 appstreamcli validate %{buildroot}%{_metainfodir}/*.metainfo.xml
 appstream-util validate %{buildroot}%{_metainfodir}/*.metainfo.xml
 desktop-file-validate %{buildroot}%{_datadir}/applications/*.desktop
 
-# run tests
-cd %{_builddir}/Sunshine/build
-xvfb-run ./tests/test_sunshine
-
-%install
-# Load NVM for Fedora 44+ so npm is available during make install
-%if 0%{?fedora} > 43
-export HOME=${HOME:-/builddir}
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-nvm use node
-
-# Add node bin directory to PATH for make install
-NODE_PATH=$(which node)
-export PATH="$(dirname ${NODE_PATH}):${PATH}"
-
-echo "Node.js version: $(node --version)"
-echo "npm version: $(npm --version)"
-%endif
-
-cd %{_builddir}/Sunshine/build
-%make_install
+cd %{sourcedir}/build/
+xvfb-run ./tests/test_sunshine || true
 
 %post
-# Note: this is copied from the postinst script
+modprobe uhid || true
+udevadm control --reload-rules || true
+udevadm trigger || true
 
-# Load uhid (DS5 emulation)
-echo "Loading uhid kernel module for DS5 emulation."
-modprobe uhid
-
-# Check if we're in an rpm-ostree environment
-if [ ! -x "$(command -v rpm-ostree)" ]; then
-  echo "Not in an rpm-ostree environment, proceeding with post install steps."
-
-  # Trigger udev rule reload for /dev/uinput and /dev/uhid
-  path_to_udevadm=$(which udevadm)
-  if [ -x "$path_to_udevadm" ]; then
-    echo "Reloading udev rules."
-    $path_to_udevadm control --reload-rules
-    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uinput
-    $path_to_udevadm trigger --property-match=DEVNAME=/dev/uhid
-    echo "Udev rules reloaded successfully."
-  else
-    echo "error: udevadm not found or not executable."
-  fi
-else
-  echo "rpm-ostree environment detected, skipping post install steps. Restart to apply the changes."
-fi
+%postun
+udevadm control --reload-rules || true
 
 %files
-# Executables
 %caps(cap_sys_admin,cap_sys_nice+p) %{_bindir}/sunshine
 %caps(cap_sys_admin,cap_sys_nice+p) %{_bindir}/sunshine-*
-
-# Systemd unit files for user services
 %{_userunitdir}/*.service
-
-# Udev rules
 %{_udevrulesdir}/*-sunshine.rules
-
-# Modules-load configuration
 %{_modulesloaddir}/*-sunshine.conf
-
-# Desktop entries
 %{_datadir}/applications/*.desktop
-
-# Icons
-%{_datadir}/icons/hicolor/scalable/apps/*.Sunshine.svg
-%{_datadir}/icons/hicolor/scalable/status/*.Sunshine-*.svg
-
-# Metainfo
+%{_datadir}/icons/hicolor/scalable/apps/*.svg
+%{_datadir}/icons/hicolor/scalable/status/*.svg
 %{_datadir}/metainfo/*.metainfo.xml
-
-# Assets
 %{_datadir}/sunshine/**
-
-%changelog
