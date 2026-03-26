@@ -122,7 +122,17 @@ endif()
 
 # vulkan video encoding (via FFmpeg)
 if(${SUNSHINE_ENABLE_VULKAN})
-    find_package(Vulkan REQUIRED)
+    # use Vulkan headers from build-deps submodule (system headers may be too old, e.g. Ubuntu 22.04)
+    set(VULKAN_HEADERS_DIR "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/Vulkan-Headers/include")
+    if(NOT EXISTS "${VULKAN_HEADERS_DIR}/vulkan/vulkan.h")
+        message(FATAL_ERROR "Vulkan headers not found in build-deps submodule")
+    endif()
+
+    find_library(VULKAN_LIBRARY NAMES vulkan vulkan-1)
+    if(NOT VULKAN_LIBRARY)
+        message(FATAL_ERROR "libvulkan not found")
+    endif()
+
     # prefer glslc, fall back to glslangValidator
     find_package(Vulkan QUIET COMPONENTS glslc)
     if(NOT TARGET Vulkan::glslc)
@@ -131,11 +141,10 @@ if(${SUNSHINE_ENABLE_VULKAN})
     if(NOT TARGET Vulkan::glslc AND NOT TARGET Vulkan::glslangValidator)
         message(FATAL_ERROR "Vulkan shader compiler not found (need glslc or glslangValidator)")
     endif()
-endif()
-if(SUNSHINE_ENABLE_VULKAN AND Vulkan_FOUND)
+
     list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_BUILD_VULKAN=1)
-    include_directories(SYSTEM ${Vulkan_INCLUDE_DIRS})
-    list(APPEND PLATFORM_LIBRARIES ${Vulkan_LIBRARIES})
+    include_directories(SYSTEM ${VULKAN_HEADERS_DIR})
+    list(APPEND PLATFORM_LIBRARIES ${VULKAN_LIBRARY})
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.cpp")

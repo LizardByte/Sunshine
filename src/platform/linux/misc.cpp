@@ -1087,6 +1087,9 @@ namespace platf {
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
     set_env("AMD_DEBUG", "lowlatencyenc");
 
+    // enable Vulkan video extensions for AMD RADV
+    set_env("RADV_PERFTEST", "video_encode");
+
     // These are allowed to fail.
     gbm::init();
 

@@ -7,7 +7,11 @@
 #include <cstdint>
 #include <drm_fourcc.h>
 #include <sys/stat.h>
-#include <sys/sysmacros.h>
+#if defined(__FreeBSD__)
+  #include <sys/types.h>
+#else
+  #include <sys/sysmacros.h>
+#endif
 #include <vector>
 
 extern "C" {

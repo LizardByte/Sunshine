@@ -196,7 +196,6 @@ function add_arch_deps() {
     'python-setuptools'  # glad OpenGL/EGL loader generated, v2.0.0
     'shaderc'
     'udev'
-    'vulkan-headers'
     'vulkan-icd-loader'
     'wayland'
   )
@@ -337,7 +336,6 @@ function add_fedora_deps() {
     "python3-jinja2"  # glad OpenGL/EGL loader generator
     "python3-setuptools"  # glad OpenGL/EGL loader generated, v2.0.0
     "rpm-build"  # if you want to build an RPM binary package
-    "vulkan-headers"
     "vulkan-loader-devel"
     "glslc"
     "wget"  # necessary for cuda install with `run` file

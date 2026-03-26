@@ -45,7 +45,6 @@ BuildRequires: glslc
 BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
-BuildRequires: vulkan-headers
 BuildRequires: vulkan-loader-devel
 BuildRequires: wget
 BuildRequires: which
