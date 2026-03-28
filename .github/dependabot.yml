@@ -81,7 +81,9 @@ updates:
     open-pull-requests-limit: 10
 
   - package-ecosystem: "pip"
-    directory: "/"
+    directories:
+      - "/"
+      - "/*"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
