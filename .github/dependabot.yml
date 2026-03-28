@@ -84,6 +84,7 @@ updates:
     directories:
       - "/"
       - "/**"
+      - "/**/**"  # https://github.com/dependabot/dependabot-core/issues/14569
     rebase-strategy: disabled
     schedule:
       interval: "cron"
