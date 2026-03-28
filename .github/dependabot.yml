@@ -83,7 +83,7 @@ updates:
   - package-ecosystem: "pip"
     directories:
       - "/"
-      - "/*"
+      - "/**"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
