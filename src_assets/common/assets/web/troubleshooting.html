@@ -142,6 +142,7 @@
             <input class="form-check-input" type="checkbox" role="switch"
                    :id="'toggle-' + client.uuid"
                    :checked="client.enabled"
+                   :aria-checked="client.enabled.toString()"
                    @change="toggleClient(client.uuid, !client.enabled)">
           </div>
           <button class="btn btn-danger btn-sm ms-2" @click="unpairSingle(client.uuid)">

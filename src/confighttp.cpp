@@ -1759,6 +1759,7 @@ namespace confighttp {
     server.resource["^/api/clients/list$"]["GET"] = getClients;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
+    server.resource["^/api/clients/update$"]["POST"] = updateClient;
     server.resource["^/api/config$"]["GET"] = getConfig;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;
@@ -1772,15 +1773,6 @@ namespace confighttp {
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
-    server.resource["^/api/password$"]["POST"] = savePassword;
-    server.resource["^/api/apps/([0-9]+)$"]["DELETE"] = deleteApp;
-    server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
-    server.resource["^/api/clients/list$"]["GET"] = getClients;
-    server.resource["^/api/clients/update$"]["POST"] = updateClient;
-    server.resource["^/api/clients/unpair$"]["POST"] = unpair;
-    server.resource["^/api/apps/close$"]["POST"] = closeApp;
-    server.resource["^/api/covers/upload$"]["POST"] = uploadCover;
-    server.resource["^/api/covers/([0-9]+)$"]["GET"] = getCover;
 
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
