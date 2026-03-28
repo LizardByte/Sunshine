@@ -15,7 +15,10 @@ updates:
     open-pull-requests-limit: 10
 
   - package-ecosystem: "docker"
-    directory: "/"
+    directories:
+      - "/"
+      - "/**"
+      - "/**/**"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
