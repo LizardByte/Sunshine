@@ -2788,6 +2788,36 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### amd_max_au_size
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Maximum encoded frame size (Access Unit) in bytes. When set to a non-zero value, the
+            encoder will cap the maximum frame size. This prevents oversized frames from exceeding
+            FEC shard limits (DATA_SHARDS_MAX=255), which otherwise causes FEC to be skipped for
+            those frames. This is especially important for Wi-Fi streaming where packet loss on
+            large unprotected frames leads to dropped frames and stuttering.
+            @note{This option only applies when using amdvce [encoder](#encoder).}
+            @note{Works with all rate control modes (CQP, CBR, VBR). Most beneficial with CQP
+            where frame sizes are otherwise unbounded.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            amd_max_au_size = 800000
+            @endcode</td>
+    </tr>
+</table>
+
 ## VideoToolbox Encoder
 
 ### vt_coder

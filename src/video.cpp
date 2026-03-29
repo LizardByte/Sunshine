@@ -749,6 +749,7 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_av1},
         {"usage"s, &config::video.amd.amd_usage_av1},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
+        {"max_au_size"s, &config::video.amd.amd_max_au_size},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -776,6 +777,7 @@ namespace video {
         {"usage"s, &config::video.amd.amd_usage_hevc},
         {"vbaq"s, &config::video.amd.amd_vbaq},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
+        {"max_au_size"s, &config::video.amd.amd_max_au_size},
         {"level"s, [](const config_t &cfg) {
            auto size = cfg.width * cfg.height;
            // For 4K and below, try to use level 5.1 or 5.2 if possible
@@ -813,6 +815,7 @@ namespace video {
         {"usage"s, &config::video.amd.amd_usage_h264},
         {"vbaq"s, &config::video.amd.amd_vbaq},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
+        {"max_au_size"s, &config::video.amd.amd_max_au_size},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
