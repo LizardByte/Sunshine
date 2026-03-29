@@ -167,10 +167,10 @@ namespace input {
     ):
         shortcutFlags {},
         gamepads(MAX_GAMEPADS),
+        gamepad_override {std::move(gamepad_override)},
         client_context {platf::allocate_client_input_context(platf_input)},
         touch_port_event {std::move(touch_port_event)},
         feedback_queue {std::move(feedback_queue)},
-        gamepad_override {std::move(gamepad_override)},
         mouse_left_button_timeout {},
         touch_port {{0, 0, 0, 0}, 0, 0, 1.0f, 1.0f, 0, 0},
         accumulated_vscroll_delta {},
