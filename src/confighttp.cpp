@@ -879,6 +879,11 @@ namespace confighttp {
       std::string uuid = input_tree.value("uuid", "");
       bool enabled = input_tree.value("enabled", true);
       output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
+
+      if (!enabled && output_tree["status"] && !nvhttp::has_enabled_clients()) {
+        proc::proc.terminate();
+      }
+
       send_response(response, output_tree);
     } catch (nlohmann::json::exception &e) {
       BOOST_LOG(warning) << "Update Client: "sv << e.what();
