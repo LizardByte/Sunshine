@@ -749,7 +749,6 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_av1},
         {"usage"s, &config::video.amd.amd_usage_av1},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
-        {"max_au_size"s, &config::video.amd.amd_max_au_size},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options

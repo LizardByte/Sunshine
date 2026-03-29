@@ -2794,14 +2794,16 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Description</td>
         <td colspan="2">
-            Maximum encoded frame size (Access Unit) in bytes. When set to a non-zero value, the
-            encoder will cap the maximum frame size. This prevents oversized frames from exceeding
+            Maximum Access Unit (frame) size for rate control, in bits. When set, the encoder
+            will cap the maximum encoded frame size. This prevents oversized frames from exceeding
             FEC shard limits (DATA_SHARDS_MAX=255), which otherwise causes FEC to be skipped for
             those frames. This is especially important for Wi-Fi streaming where packet loss on
             large unprotected frames leads to dropped frames and stuttering.
-            @note{This option only applies when using amdvce [encoder](#encoder).}
+            @note{This option only applies to H.264 and HEVC when using amdvce [encoder](#encoder).
+            AV1 does not support this option.}
             @note{Works with all rate control modes (CQP, CBR, VBR). Most beneficial with CQP
             where frame sizes are otherwise unbounded.}
+            @note{Value is in bits. To cap at 800 KB, use 6400000 (800000 × 8).}
         </td>
     </tr>
     <tr>
@@ -2813,7 +2815,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            amd_max_au_size = 800000
+            amd_max_au_size = 6400000
             @endcode</td>
     </tr>
 </table>
