@@ -2803,7 +2803,9 @@ editing the `conf` file in a text editor. Use the examples as reference.
             AV1 does not support this option.}
             @note{Works with all rate control modes (CQP, CBR, VBR). Most beneficial with CQP
             where frame sizes are otherwise unbounded.}
-            @note{Value is in bits. To cap at 800 KB, use 6400000 (800000 × 8).}
+            @note{Value is in bits. To calculate: (target_bitrate_mbps / fps / 1.2) × 1000000,
+            where 1.2 accounts for ~20% FEC overhead. Examples: 800000 for ~50 Mbps at 60fps,
+            1600000 for ~100 Mbps at 60fps, 400000 for ~50 Mbps at 120fps.}
         </td>
     </tr>
     <tr>
@@ -2815,7 +2817,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            amd_max_au_size = 6400000
+            amd_max_au_size = 800000
             @endcode</td>
     </tr>
 </table>
