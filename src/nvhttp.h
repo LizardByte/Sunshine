@@ -202,12 +202,6 @@ namespace nvhttp {
   nlohmann::json get_all_clients();
 
   /**
-   * @brief Check if any paired clients are enabled.
-   * @return true if at least one client is enabled.
-   */
-  bool has_enabled_clients();
-
-  /**
    * @brief Remove all paired clients.
    * @examples
    * nvhttp::erase_all_clients();

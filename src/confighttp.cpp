@@ -41,6 +41,7 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
+#include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
 
@@ -880,8 +881,12 @@ namespace confighttp {
       bool enabled = input_tree.value("enabled", true);
       output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
 
-      if (!enabled && output_tree["status"] && !nvhttp::has_enabled_clients()) {
-        proc::proc.terminate();
+      if (!enabled && output_tree["status"]) {
+        rtsp_stream::terminate_sessions();
+
+        if (rtsp_stream::session_count() == 0 && proc::proc.running() > 0) {
+          proc::proc.terminate();
+        }
       }
 
       send_response(response, output_tree);
