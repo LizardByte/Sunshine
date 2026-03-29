@@ -96,6 +96,7 @@ class Sunshine < Formula
     depends_on "pango"
     depends_on "pipewire"
     depends_on "pulseaudio"
+    depends_on "shaderc"
     depends_on "systemd"
     depends_on "vulkan-loader"
     depends_on "wayland"

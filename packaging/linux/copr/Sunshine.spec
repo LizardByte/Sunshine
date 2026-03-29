@@ -41,7 +41,6 @@ BuildRequires: libXinerama-devel
 BuildRequires: libXrandr-devel
 BuildRequires: libXtst-devel
 BuildRequires: openssl-devel
-BuildRequires: glslc
 BuildRequires: pipewire-devel
 BuildRequires: rpm-build
 BuildRequires: systemd-rpm-macros
@@ -53,6 +52,7 @@ BuildRequires: which
 # Fedora-specific BuildRequires
 BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
+BuildRequires: glslc
 BuildRequires: libappstream-glib
 %if 0%{fedora} > 43
 # needed for npm from nvm
@@ -93,6 +93,7 @@ BuildRequires: npm
 BuildRequires: python311
 BuildRequires: python311-Jinja2
 BuildRequires: python311-setuptools
+BuildRequires: shaderc
 BuildRequires: udev
 # for unit tests
 BuildRequires: xvfb-run

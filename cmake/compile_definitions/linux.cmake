@@ -134,11 +134,11 @@ if(${SUNSHINE_ENABLE_VULKAN})
     endif()
 
     # prefer glslc, fall back to glslangValidator
-    find_package(Vulkan QUIET COMPONENTS glslc)
-    if(NOT TARGET Vulkan::glslc)
-        find_package(Vulkan QUIET COMPONENTS glslangValidator)
+    find_program(GLSLC_EXECUTABLE glslc)
+    if(NOT GLSLC_EXECUTABLE)
+        find_program(GLSLANG_EXECUTABLE glslangValidator)
     endif()
-    if(NOT TARGET Vulkan::glslc AND NOT TARGET Vulkan::glslangValidator)
+    if(NOT GLSLC_EXECUTABLE AND NOT GLSLANG_EXECUTABLE)
         message(FATAL_ERROR "Vulkan shader compiler not found (need glslc or glslangValidator)")
     endif()
 
@@ -157,17 +157,17 @@ if(${SUNSHINE_ENABLE_VULKAN})
 
     file(MAKE_DIRECTORY "${VULKAN_SHADER_DIR}")
 
-    if(TARGET Vulkan::glslc)
+    if(GLSLC_EXECUTABLE)
         add_custom_command(
                 OUTPUT "${VULKAN_SHADER_SPV}"
-                COMMAND Vulkan::glslc -O "${VULKAN_SHADER_SOURCE}" -o "${VULKAN_SHADER_SPV}"
+                COMMAND ${GLSLC_EXECUTABLE} -O "${VULKAN_SHADER_SOURCE}" -o "${VULKAN_SHADER_SPV}"
                 DEPENDS "${VULKAN_SHADER_SOURCE}"
                 COMMENT "Compiling Vulkan shader rgb2yuv.comp (glslc)"
                 VERBATIM)
     else()
         add_custom_command(
                 OUTPUT "${VULKAN_SHADER_SPV}"
-                COMMAND Vulkan::glslangValidator -V -o "${VULKAN_SHADER_SPV}" "${VULKAN_SHADER_SOURCE}"
+                COMMAND ${GLSLANG_EXECUTABLE} -V -o "${VULKAN_SHADER_SPV}" "${VULKAN_SHADER_SOURCE}"
                 DEPENDS "${VULKAN_SHADER_SOURCE}"
                 COMMENT "Compiling Vulkan shader rgb2yuv.comp (glslangValidator)"
                 VERBATIM)
