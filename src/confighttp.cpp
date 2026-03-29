@@ -41,6 +41,7 @@
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
+#include "rtsp.h"
 #include "utility.h"
 #include "uuid.h"
 
@@ -841,6 +842,58 @@ namespace confighttp {
     output_tree["named_certs"] = named_certs;
     output_tree["status"] = true;
     send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Enable or disable a client.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   * The body for the POST request should be JSON serialized in the following format:
+   * @code{.json}
+   * {
+   *   "uuid": "<uuid>",
+   *   "enabled": true
+   * }
+   * @endcode
+   *
+   * @api_examples{/api/clients/update| POST| {"uuid":"<uuid>","enabled":true}}
+   */
+  void updateClient(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      nlohmann::json input_tree = nlohmann::json::parse(ss.str());
+      nlohmann::json output_tree;
+      std::string uuid = input_tree.value("uuid", "");
+      bool enabled = input_tree.value("enabled", true);
+      output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
+
+      if (!enabled && output_tree["status"]) {
+        rtsp_stream::terminate_sessions();
+
+        if (rtsp_stream::session_count() == 0 && proc::proc.running() > 0) {
+          proc::proc.terminate();
+        }
+      }
+
+      send_response(response, output_tree);
+    } catch (nlohmann::json::exception &e) {
+      BOOST_LOG(warning) << "Update Client: "sv << e.what();
+      bad_request(response, request, e.what());
+    }
   }
 
   /**
@@ -1716,6 +1769,7 @@ namespace confighttp {
     server.resource["^/api/clients/list$"]["GET"] = getClients;
     server.resource["^/api/clients/unpair$"]["POST"] = unpair;
     server.resource["^/api/clients/unpair-all$"]["POST"] = unpairAll;
+    server.resource["^/api/clients/update$"]["POST"] = updateClient;
     server.resource["^/api/config$"]["GET"] = getConfig;
     server.resource["^/api/config$"]["POST"] = saveConfig;
     server.resource["^/api/configLocale$"]["GET"] = getLocale;

@@ -61,6 +61,9 @@ curl -u user:pass -H "X-CSRF-Token: your_token_here" \
 ## POST /api/clients/unpair-all
 @copydoc confighttp::unpairAll()
 
+## POST /api/clients/update
+@copydoc confighttp::updateClient()
+
 ## GET /api/config
 @copydoc confighttp::getConfig()
 

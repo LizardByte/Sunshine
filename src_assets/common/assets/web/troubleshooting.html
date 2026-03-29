@@ -135,8 +135,17 @@
       </div>
       <ul class="list-group list-group-flush" v-if="clients && clients.length > 0">
         <li v-for="client in clients" :key="client.uuid" class="list-group-item d-flex align-items-center">
-          <div class="flex-grow-1">{{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}</div>
-          <button class="btn btn-danger ms-auto" @click="unpairSingle(client.uuid)">
+          <div class="flex-grow-1">
+            {{ client.name !== "" ? client.name : $t('troubleshooting.unpair_single_unknown') }}
+          </div>
+          <div class="form-check form-switch ms-2 mb-0">
+            <input class="form-check-input" type="checkbox" role="switch"
+                   :id="'toggle-' + client.uuid"
+                   :checked="client.enabled"
+                   :aria-checked="client.enabled.toString()"
+                   @change="toggleClient(client.uuid, !client.enabled)">
+          </div>
+          <button class="btn btn-danger btn-sm ms-2" @click="unpairSingle(client.uuid)">
             <trash-2 :size="18" class="icon"></trash-2>
           </button>
         </li>
@@ -452,6 +461,17 @@
             body: JSON.stringify({ uuid })
           }).then(() => {
             this.showApplyMessage = true;
+            this.refreshClients();
+          });
+        },
+        toggleClient(uuid, enabled) {
+          fetch("./api/clients/update", {
+            method: "POST",
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ uuid, enabled })
+          }).then(() => {
             this.refreshClients();
           });
         },
