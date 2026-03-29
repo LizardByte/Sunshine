@@ -13,6 +13,7 @@
   #include <sys/sysmacros.h>
 #endif
 #include <vector>
+#include <vulkan/vulkan.h>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -31,8 +32,6 @@ static const std::vector<uint32_t> rgb2yuv_comp_spv_data
 #include "shaders/rgb2yuv.spv.inc"
   ;
 static const size_t rgb2yuv_comp_spv_size = rgb2yuv_comp_spv_data.size() * sizeof(uint32_t);
-
-#include <vulkan/vulkan.h>
 
 using namespace std::literals;
 
