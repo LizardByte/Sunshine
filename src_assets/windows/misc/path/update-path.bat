@@ -94,7 +94,9 @@ if /i "%~1"=="remove" (
     rem Only update if path was changed
     if "!CHANGES_MADE!"=="1" (
         rem Set the new path in the registry
-        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /d "!CURRENT_PATH!" /f
+        rem Windows systems running Chinese may unexpectedly ignore the /f option at the end of the command.
+        rem This issue only occurs with the remove command.
+        reg add "%KEY_NAME%" /v "%VALUE_NAME%" /t REG_EXPAND_SZ /f /d "!CURRENT_PATH!"
         if !ERRORLEVEL!==0 (
             echo Successfully removed Sunshine directories from PATH
         ) else (
