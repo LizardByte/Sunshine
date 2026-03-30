@@ -812,9 +812,17 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_h264},
         {"usage"s, &config::video.amd.amd_usage_h264},
         {"vbaq"s, &config::video.amd.amd_vbaq},
+        {"coder"s, &config::video.amd.amd_coder},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
       },
-      {},  // SDR-specific options
+      {
+        // SDR-specific options
+        {"profile"s, [](const config_t &cfg) {
+           if (cfg.profile == 66) return "baseline"s;
+           if (cfg.profile == 77) return "main"s;
+           return "high"s;
+         }},
+      },
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
