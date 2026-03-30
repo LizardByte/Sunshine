@@ -1271,8 +1271,7 @@ namespace portal {
       }
 
       // Check previous logical dimensions
-      if (previous_width.load() == width &&
-          previous_height.load() == height) {
+      if (previous_width.load() == width && previous_height.load() == height) {
         if (capture_running.load()) {
           {
             std::scoped_lock lock(pipewire.frame_mutex());
@@ -1285,8 +1284,7 @@ namespace portal {
         previous_height.store(height);
       }
 
-      if (negotiated_w > 0 && negotiated_h > 0 &&
-          (negotiated_w != width || negotiated_h != height)) {
+      if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
         BOOST_LOG(info) << "Using negotiated resolution "sv
                         << negotiated_w << "x" << negotiated_h;
 

@@ -961,10 +961,7 @@ namespace platf {
         } else if (plane->fb_id != captured_cursor.fb_id) {
           BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
           cursor_dirty = true;
-        } else if (*prop_src_x != captured_cursor.prop_src_x ||
-                   *prop_src_y != captured_cursor.prop_src_y ||
-                   *prop_src_w != captured_cursor.prop_src_w ||
-                   *prop_src_h != captured_cursor.prop_src_h) {
+        } else if (*prop_src_x != captured_cursor.prop_src_x || *prop_src_y != captured_cursor.prop_src_y || *prop_src_w != captured_cursor.prop_src_w || *prop_src_h != captured_cursor.prop_src_h) {
           BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
           cursor_dirty = true;
         }
