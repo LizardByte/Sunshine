@@ -50,6 +50,7 @@ depends=(
   'openssl'
   'opus'
   'udev'
+  'vulkan-icd-loader'
   'which'
 )
 
@@ -65,6 +66,7 @@ makedepends=(
   'npm'
   'python-jinja'  # required by the glad OpenGL/EGL loader generator
   'python-setuptools'  # required for glad OpenGL/EGL loader generated, v2.0.0
+  'shaderc'
 )
 
 checkdepends=(

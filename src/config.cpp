@@ -486,6 +486,11 @@ namespace config {
       false,  // strict_rc_buffer
     },  // vaapi
 
+    {
+      2,  // vk.tune (default: ll - low latency)
+      4,  // vk.rc_mode (default: vbr)
+    },
+
     {},  // capture
     {},  // encoder
     {},  // adapter_name
@@ -1136,6 +1141,9 @@ namespace config {
     int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     bool_f(vars, "vaapi_strict_rc_buffer", video.vaapi.strict_rc_buffer);
+
+    int_f(vars, "vk_tune", video.vk.tune);
+    int_f(vars, "vk_rc_mode", video.vk.rc_mode);
 
     string_f(vars, "capture", video.capture);
     string_f(vars, "encoder", video.encoder);

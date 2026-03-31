@@ -29,6 +29,7 @@
 #include "src/platform/common.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "vulkan_encode.h"
 #include "wayland.h"
 
 #if !defined(__FreeBSD__)
@@ -877,6 +878,7 @@ namespace portal {
         // On hybrid GPU systems (Intel+NVIDIA), DMA-BUFs come from the Intel GPU and cannot
         // be imported into CUDA, so we fall back to memory buffers in that case.
         bool use_dmabuf = n_dmabuf_infos > 0 && (mem_type == platf::mem_type_e::vaapi ||
+                                                 mem_type == platf::mem_type_e::vulkan ||
                                                  (mem_type == platf::mem_type_e::cuda && display_is_nvidia));
         if (use_dmabuf) {
           for (int i = 0; i < n_dmabuf_infos; i++) {
@@ -1269,8 +1271,7 @@ namespace portal {
       }
 
       // Check previous logical dimensions
-      if (previous_width.load() == width &&
-          previous_height.load() == height) {
+      if (previous_width.load() == width && previous_height.load() == height) {
         if (capture_running.load()) {
           {
             std::scoped_lock lock(pipewire.frame_mutex());
@@ -1283,8 +1284,7 @@ namespace portal {
         previous_height.store(height);
       }
 
-      if (negotiated_w > 0 && negotiated_h > 0 &&
-          (negotiated_w != width || negotiated_h != height)) {
+      if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
         BOOST_LOG(info) << "Using negotiated resolution "sv
                         << negotiated_w << "x" << negotiated_h;
 
@@ -1426,6 +1426,12 @@ namespace portal {
 #ifdef SUNSHINE_BUILD_VAAPI
       if (mem_type == platf::mem_type_e::vaapi) {
         return va::make_avcodec_encode_device(width, height, n_dmabuf_infos > 0);
+      }
+#endif
+
+#ifdef SUNSHINE_BUILD_VULKAN
+      if (mem_type == platf::mem_type_e::vulkan && n_dmabuf_infos > 0) {
+        return vk::make_avcodec_encode_device_vram(width, height, 0, 0);
       }
 #endif
 
@@ -1612,7 +1618,7 @@ namespace portal {
 namespace platf {
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     using enum platf::mem_type_e;
-    if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda) {
+    if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda && hwdevice_type != vulkan) {
       BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
       return nullptr;
     }

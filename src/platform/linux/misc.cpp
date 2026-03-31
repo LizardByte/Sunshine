@@ -250,8 +250,7 @@ namespace platf {
     if (!interface_name.empty()) {
       // Find the AF_LINK entry for this interface to get MAC address
       for (auto pos = ifaddrs.get(); pos != nullptr; pos = pos->ifa_next) {
-        if (pos->ifa_addr && pos->ifa_addr->sa_family == AF_LINK &&
-            interface_name == pos->ifa_name) {
+        if (pos->ifa_addr && pos->ifa_addr->sa_family == AF_LINK && interface_name == pos->ifa_name) {
           auto sdl = (struct sockaddr_dl *) pos->ifa_addr;
           auto mac = (unsigned char *) LLADDR(sdl);
 
@@ -1086,6 +1085,9 @@ namespace platf {
     // enable low latency mode for AMD
     // https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/30039
     set_env("AMD_DEBUG", "lowlatencyenc");
+
+    // enable Vulkan video extensions for AMD RADV
+    set_env("RADV_PERFTEST", "video_encode");
 
     // These are allowed to fail.
     gbm::init();

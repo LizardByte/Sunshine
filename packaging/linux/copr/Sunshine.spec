@@ -51,7 +51,9 @@ BuildRequires: which
 # Fedora-specific BuildRequires
 BuildRequires: appstream
 # BuildRequires: boost-devel >= 1.86.0
+BuildRequires: glslc
 BuildRequires: libappstream-glib
+BuildRequires: vulkan-loader-devel
 %if 0%{fedora} > 43
 # needed for npm from nvm
 BuildRequires: libatomic
@@ -91,7 +93,13 @@ BuildRequires: npm
 BuildRequires: python311
 BuildRequires: python311-Jinja2
 BuildRequires: python311-setuptools
+%if !0%{?sle_version}
+BuildRequires: shaderc
+%endif
 BuildRequires: udev
+%if !0%{?sle_version}
+BuildRequires: vulkan-devel
+%endif
 # for unit tests
 BuildRequires: xvfb-run
 %endif
@@ -157,6 +165,7 @@ Requires: libX11 >= 1.7.3.1
 Requires: numactl-libs >= 2.0.14
 Requires: openssl >= 3.0.2
 Requires: pulseaudio-libs >= 10.0
+Requires: vulkan-loader
 %endif
 
 %if 0%{?suse_version}
@@ -173,6 +182,9 @@ Requires: libX11-6
 Requires: libnuma1
 Requires: libopenssl3
 Requires: libpulse0
+%if !0%{?sle_version}
+Requires: libvulkan1
+%endif
 %endif
 
 %description
@@ -322,6 +334,11 @@ export PATH="$(dirname ${NODE_PATH}):${PATH}"
 export BRANCH=%{branch}
 export BUILD_VERSION=v%{build_version}
 export COMMIT=%{commit}
+
+# Disable Vulkan on openSUSE Leap (shaderc/glslang not in official repos)
+%if 0%{?sle_version}
+cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
+%endif
 
 # cmake
 cd %{_builddir}/Sunshine
