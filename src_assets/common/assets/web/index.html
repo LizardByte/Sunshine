@@ -200,7 +200,8 @@
             this.preReleaseVersion = new SunshineVersion(pre, null);
           }
         } else {
-          this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
+          const latestJson = await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then(e => e.json());
+          this.githubVersion = new SunshineVersion(latestJson, null);
           console.log("GitHub Version: ", this.githubVersion.version)
 
           let preReleaseJson = null;
