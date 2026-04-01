@@ -144,12 +144,11 @@ namespace vk {
     }
 
     void init_codec_options(AVCodecContext *ctx, AVDictionary **options) override {
-      // When VBR mode is selected (rc_mode=4), don't pin rc_min_rate to the target bitrate.
-      // Having rc_min_rate == rc_max_rate == bit_rate in VBR mode prevents the encoder from
-      // undershooting on simple frames, which builds up headroom that causes large overshoots
-      // on complex frames.
+      // VBR: reduce bit_rate to 80% and floor at 50% to limit overshoot.
+      // FFmpeg doesn't pass VBV buffer size to the Vulkan Video API.
       if (config::video.vk.rc_mode == 4) {
-        ctx->rc_min_rate = 0;
+        ctx->rc_min_rate = ctx->bit_rate / 2;
+        ctx->bit_rate = ctx->bit_rate * 4 / 5;
       }
     }
 
