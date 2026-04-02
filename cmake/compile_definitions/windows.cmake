@@ -40,6 +40,17 @@ file(GLOB NVPREFS_FILES CONFIGURE_DEPENDS
 # vigem
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include")
 
+# winuhid - virtual HID gamepad emulation (DualSense, DS4, Xbox One)
+option(SUNSHINE_ENABLE_WINUHID "Enable WinUHid virtual gamepad backend for DualSense support" ON)
+if(SUNSHINE_ENABLE_WINUHID)
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_WINUHID)
+    # WRL compatibility shim must come before WinUHid includes so MinGW finds our shim
+    # instead of looking for MSVC's wrl/wrappers/corewrappers.h
+    include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/WinUHid-compat")
+    include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHid")
+    include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs")
+endif()
+
 # sunshine icon
 if(NOT DEFINED SUNSHINE_ICON_PATH)
     set(SUNSHINE_ICON_PATH "${CMAKE_SOURCE_DIR}/sunshine.ico")
@@ -79,6 +90,31 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/Util.h"
         "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include/ViGEm/km/BusShared.h"
         ${NVPREFS_FILES})
+
+if(SUNSHINE_ENABLE_WINUHID)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHid/WinUHid.cpp"
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidDevs.cpp"
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidPS5.cpp")
+
+    # WinUHid is compiled as static source — no DLL export/import.
+    # DllMain is renamed per-file to avoid duplicate symbol errors when linking.
+    set_source_files_properties(
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHid/WinUHid.cpp"
+            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC;DllMain=WinUHid_DllMain_Unused"
+            COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
+    )
+    set_source_files_properties(
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidDevs.cpp"
+            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC;DllMain=WinUHidDevs_DllMain_Unused"
+            COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
+    )
+    set_source_files_properties(
+            "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidPS5.cpp"
+            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC"
+            COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
+    )
+endif()
 
 set(OPENSSL_LIBRARIES
         libssl.a
