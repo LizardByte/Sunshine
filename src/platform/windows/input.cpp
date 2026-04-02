@@ -16,7 +16,6 @@
 #include <ViGEm/Client.h>
 
 #ifdef SUNSHINE_WINUHID
-  #define WINUHID_STATIC
   #include <WinUHid.h>
   #include <WinUHidPS5.h>
 #endif
@@ -558,15 +557,15 @@ namespace platf {
       WinUHidPS5InitializeInputReport(&ctx.ps5_report);
 
       // Generate a deterministic MAC from gamepad index for stable Steam controller identity
-      WINUHID_PS5_GAMEPAD_INFO info {};
-      info.MacAddress[0] = 0x00;
-      info.MacAddress[1] = 0x05;
-      info.MacAddress[2] = 0x53;  // 'S' for Sunshine
-      info.MacAddress[3] = 0x00;
-      info.MacAddress[4] = 0x00;
-      info.MacAddress[5] = (UCHAR) (id.globalIndex & 0xFF);
+      WINUHID_PS5_GAMEPAD_INFO gp_info {};
+      gp_info.MacAddress[0] = 0x00;
+      gp_info.MacAddress[1] = 0x05;
+      gp_info.MacAddress[2] = 0x53;  // 'S' for Sunshine
+      gp_info.MacAddress[3] = 0x00;
+      gp_info.MacAddress[4] = 0x00;
+      gp_info.MacAddress[5] = (UCHAR) (id.globalIndex & 0xFF);
 
-      ctx.ps5 = WinUHidPS5Create(&info, rumble_cb, lightbar_cb, player_led_cb, trigger_effect_cb, &ctx);
+      ctx.ps5 = WinUHidPS5Create(&gp_info, rumble_cb, lightbar_cb, player_led_cb, trigger_effect_cb, &ctx);
       if (!ctx.ps5) {
         BOOST_LOG(error) << "Failed to create WinUHid PS5 gamepad: "sv << GetLastError();
         return -1;

@@ -43,7 +43,7 @@ include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/ViGEmClient/include"
 # winuhid - virtual HID gamepad emulation (DualSense, DS4, Xbox One)
 option(SUNSHINE_ENABLE_WINUHID "Enable WinUHid virtual gamepad backend for DualSense support" ON)
 if(SUNSHINE_ENABLE_WINUHID)
-    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_WINUHID)
+    list(APPEND SUNSHINE_DEFINITIONS SUNSHINE_WINUHID WINUHID_STATIC)
     # WRL compatibility shim must come before WinUHid includes so MinGW finds our shim
     # instead of looking for MSVC's wrl/wrappers/corewrappers.h
     include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/third-party/WinUHid-compat")
@@ -97,22 +97,20 @@ if(SUNSHINE_ENABLE_WINUHID)
             "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidDevs.cpp"
             "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidPS5.cpp")
 
-    # WinUHid is compiled as static source — no DLL export/import.
-    # DllMain is renamed per-file to avoid duplicate symbol errors when linking.
+    # DllMain is renamed per-file to avoid duplicate symbol errors when linking statically.
     set_source_files_properties(
             "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHid/WinUHid.cpp"
-            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC;DllMain=WinUHid_DllMain_Unused"
+            PROPERTIES COMPILE_DEFINITIONS "DllMain=WinUHid_DllMain_Unused"
             COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
     )
     set_source_files_properties(
             "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidDevs.cpp"
-            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC;DllMain=WinUHidDevs_DllMain_Unused"
+            PROPERTIES COMPILE_DEFINITIONS "DllMain=WinUHidDevs_DllMain_Unused"
             COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
     )
     set_source_files_properties(
             "${CMAKE_SOURCE_DIR}/third-party/WinUHid/WinUHidDevs/WinUHidPS5.cpp"
-            PROPERTIES COMPILE_DEFINITIONS "WINUHID_STATIC"
-            COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
+            PROPERTIES COMPILE_OPTIONS "-Wno-missing-field-initializers;-Wno-unused-parameter;-Wno-sign-compare"
     )
 endif()
 
