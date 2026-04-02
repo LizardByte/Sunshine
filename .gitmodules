@@ -69,3 +69,6 @@
 	path = third-party/wlr-protocols
 	url = https://github.com/LizardByte-infrastructure/wlr-protocols.git
 	branch = master
+[submodule "third-party/WinUHid"]
+	path = third-party/WinUHid
+	url = https://github.com/cgutman/WinUHid.git
