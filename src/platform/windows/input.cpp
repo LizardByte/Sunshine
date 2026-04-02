@@ -15,6 +15,12 @@
 // lib includes
 #include <ViGEm/Client.h>
 
+#ifdef SUNSHINE_WINUHID
+  #define WINUHID_STATIC
+  #include <WinUHid.h>
+  #include <WinUHidPS5.h>
+#endif
+
 // local includes
 #include "keylayout.h"
 #include "misc.h"
@@ -431,12 +437,176 @@ namespace platf {
     task_pool.push(&vigem_t::set_rgb_led, (vigem_t *) userdata, target, led_color.Red, led_color.Green, led_color.Blue);
   }
 
+#ifdef SUNSHINE_WINUHID
+  /**
+   * @brief Per-gamepad context for WinUHid backend.
+   */
+  struct winuhid_gamepad_context_t {
+    PWINUHID_PS5_GAMEPAD ps5 = nullptr;
+    WINUHID_PS5_INPUT_REPORT ps5_report {};
+
+    feedback_queue_t feedback_queue;
+    uint8_t client_relative_index = 0;
+
+    // Touchpad pointer tracking (same pattern as DS4 path)
+    std::map<uint32_t, uint8_t> pointer_id_map;
+    uint8_t available_pointers = 0x3;
+
+    // Dedup caches to avoid sending duplicate feedback messages
+    gamepad_feedback_msg_t last_rumble {};
+    gamepad_feedback_msg_t last_rgb_led {};
+
+    bool is_active() const { return ps5 != nullptr; }
+
+    void reset() {
+      if (ps5) {
+        WinUHidPS5Destroy(ps5);
+        ps5 = nullptr;
+      }
+      pointer_id_map.clear();
+      available_pointers = 0x3;
+      last_rumble = {};
+      last_rgb_led = {};
+    }
+  };
+
+  /**
+   * @brief WinUHid gamepad manager — provides DualSense emulation on Windows.
+   */
+  struct winuhid_t {
+    bool available = false;
+    std::vector<winuhid_gamepad_context_t> gamepads;
+
+    int init() {
+      DWORD version = WinUHidGetDriverInterfaceVersion();
+      if (version == 0) {
+        BOOST_LOG(info) << "WinUHid driver not found. DualSense emulation unavailable. Install WinUHid for PS5 controller support."sv;
+        return -1;
+      }
+
+      BOOST_LOG(info) << "WinUHid driver detected (interface version "sv << version << "). DualSense emulation available."sv;
+      available = true;
+      gamepads.resize(MAX_GAMEPADS);
+      return 0;
+    }
+
+    static void CALLBACK rumble_cb(PVOID ctx, UCHAR leftMotor, UCHAR rightMotor) {
+      auto *gp = (winuhid_gamepad_context_t *) ctx;
+
+      // Scale 8-bit to 16-bit: 0xFF -> 0xFFFF
+      uint16_t normalizedLeft = (uint16_t) leftMotor << 8 | leftMotor;
+      uint16_t normalizedRight = (uint16_t) rightMotor << 8 | rightMotor;
+
+      auto msg = gamepad_feedback_msg_t::make_rumble(gp->client_relative_index, normalizedLeft, normalizedRight);
+      if (msg.data.rumble.lowfreq != gp->last_rumble.data.rumble.lowfreq ||
+          msg.data.rumble.highfreq != gp->last_rumble.data.rumble.highfreq) {
+        gp->feedback_queue->raise(msg);
+        gp->last_rumble = msg;
+      }
+    }
+
+    static void CALLBACK lightbar_cb(PVOID ctx, UCHAR r, UCHAR g, UCHAR b) {
+      auto *gp = (winuhid_gamepad_context_t *) ctx;
+
+      auto msg = gamepad_feedback_msg_t::make_rgb_led(gp->client_relative_index, r, g, b);
+      if (msg.data.rgb_led.r != gp->last_rgb_led.data.rgb_led.r ||
+          msg.data.rgb_led.g != gp->last_rgb_led.data.rgb_led.g ||
+          msg.data.rgb_led.b != gp->last_rgb_led.data.rgb_led.b) {
+        gp->feedback_queue->raise(msg);
+        gp->last_rgb_led = msg;
+      }
+    }
+
+    static void CALLBACK player_led_cb(PVOID ctx, UCHAR ledValue) {
+      // Moonlight protocol doesn't support player LED feedback yet
+      (void) ctx;
+      (void) ledValue;
+    }
+
+    static void CALLBACK trigger_effect_cb(PVOID ctx, PCWINUHID_PS5_TRIGGER_EFFECT left, PCWINUHID_PS5_TRIGGER_EFFECT right) {
+      auto *gp = (winuhid_gamepad_context_t *) ctx;
+
+      uint8_t event_flags = 0;
+      uint8_t type_left = 0;
+      uint8_t type_right = 0;
+      std::array<uint8_t, 10> data_left {};
+      std::array<uint8_t, 10> data_right {};
+
+      if (left) {
+        event_flags |= 0x08;
+        type_left = left->Type;
+        std::copy_n(left->Data, 10, data_left.begin());
+      }
+      if (right) {
+        event_flags |= 0x04;
+        type_right = right->Type;
+        std::copy_n(right->Data, 10, data_right.begin());
+      }
+
+      gp->feedback_queue->raise(
+        gamepad_feedback_msg_t::make_adaptive_triggers(
+          gp->client_relative_index, event_flags, type_left, type_right, data_left, data_right));
+    }
+
+    int alloc_gamepad(const gamepad_id_t &id, feedback_queue_t &feedback_queue) {
+      auto &ctx = gamepads[id.globalIndex];
+      assert(!ctx.is_active());
+
+      ctx.client_relative_index = id.clientRelativeIndex;
+      ctx.available_pointers = 0x3;
+
+      WinUHidPS5InitializeInputReport(&ctx.ps5_report);
+
+      // Generate a deterministic MAC from gamepad index for stable Steam controller identity
+      WINUHID_PS5_GAMEPAD_INFO info {};
+      info.MacAddress[0] = 0x00;
+      info.MacAddress[1] = 0x05;
+      info.MacAddress[2] = 0x53;  // 'S' for Sunshine
+      info.MacAddress[3] = 0x00;
+      info.MacAddress[4] = 0x00;
+      info.MacAddress[5] = (UCHAR) (id.globalIndex & 0xFF);
+
+      ctx.ps5 = WinUHidPS5Create(&info, rumble_cb, lightbar_cb, player_led_cb, trigger_effect_cb, &ctx);
+      if (!ctx.ps5) {
+        BOOST_LOG(error) << "Failed to create WinUHid PS5 gamepad: "sv << GetLastError();
+        return -1;
+      }
+
+      ctx.feedback_queue = std::move(feedback_queue);
+
+      // Request motion data from client at 100Hz
+      ctx.feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(ctx.client_relative_index, LI_MOTION_TYPE_ACCEL, 100));
+      ctx.feedback_queue->raise(gamepad_feedback_msg_t::make_motion_event_state(ctx.client_relative_index, LI_MOTION_TYPE_GYRO, 100));
+
+      BOOST_LOG(info) << "Created WinUHid DualSense gamepad "sv << id.globalIndex;
+      return 0;
+    }
+
+    void free_target(int nr) {
+      auto &ctx = gamepads[nr];
+      ctx.reset();
+    }
+
+    ~winuhid_t() {
+      for (auto &ctx : gamepads) {
+        ctx.reset();
+      }
+    }
+  };
+#endif
+
   struct input_raw_t {
     ~input_raw_t() {
       delete vigem;
+#ifdef SUNSHINE_WINUHID
+      delete winuhid;
+#endif
     }
 
-    vigem_t *vigem;
+    vigem_t *vigem = nullptr;
+#ifdef SUNSHINE_WINUHID
+    winuhid_t *winuhid = nullptr;
+#endif
 
     decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
     decltype(InjectSyntheticPointerInput) *fnInjectSyntheticPointerInput;
@@ -447,6 +617,16 @@ namespace platf {
     input_t result {new input_raw_t {}};
     auto &raw = *(input_raw_t *) result.get();
 
+#ifdef SUNSHINE_WINUHID
+    // Try WinUHid first (preferred — supports DualSense with adaptive triggers)
+    raw.winuhid = new winuhid_t {};
+    if (raw.winuhid->init()) {
+      delete raw.winuhid;
+      raw.winuhid = nullptr;
+    }
+#endif
+
+    // ViGEm is always available as fallback
     raw.vigem = new vigem_t {};
     if (raw.vigem->init()) {
       delete raw.vigem;
@@ -1166,6 +1346,37 @@ namespace platf {
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto raw = (input_raw_t *) input.get();
 
+#ifdef SUNSHINE_WINUHID
+    // Try WinUHid DualSense emulation for PS-type controllers or when explicitly configured
+    if (raw->winuhid && raw->winuhid->available) {
+      bool use_ds5 = false;
+
+      if (config::input.gamepad == "ds5"sv) {
+        BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (manual selection)"sv;
+        use_ds5 = true;
+      } else if (config::input.gamepad == "auto"sv || config::input.gamepad.empty()) {
+        if (metadata.type == LI_CTYPE_PS) {
+          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by client-reported PS type)"sv;
+          use_ds5 = true;
+        } else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by motion sensor presence)"sv;
+          use_ds5 = true;
+        } else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by touchpad presence)"sv;
+          use_ds5 = true;
+        }
+      }
+
+      if (use_ds5) {
+        int ret = raw->winuhid->alloc_gamepad(id, feedback_queue);
+        if (ret == 0) {
+          return 0;
+        }
+        BOOST_LOG(warning) << "WinUHid DualSense creation failed, falling back to ViGEm"sv;
+      }
+    }
+#endif
+
     if (!raw->vigem) {
       return 0;
     }
@@ -1219,6 +1430,13 @@ namespace platf {
 
   void free_gamepad(input_t &input, int nr) {
     auto raw = (input_raw_t *) input.get();
+
+#ifdef SUNSHINE_WINUHID
+    if (raw->winuhid && raw->winuhid->gamepads[nr].is_active()) {
+      raw->winuhid->free_target(nr);
+      return;
+    }
+#endif
 
     if (!raw->vigem) {
       return;
@@ -1478,7 +1696,60 @@ namespace platf {
    * @param gamepad_state The gamepad button/axis state sent from the client.
    */
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+
+#ifdef SUNSHINE_WINUHID
+    if (raw->winuhid && raw->winuhid->gamepads[nr].is_active()) {
+      auto &ctx = raw->winuhid->gamepads[nr];
+      auto &r = ctx.ps5_report;
+
+      auto flags = gamepad_state.buttonFlags;
+
+      // Sticks: Moonlight sends int16 (-32768..32767), DualSense expects uint8 (0-255, center=0x80)
+      r.LeftStickX = (uint8_t) ((gamepad_state.lsX + 32768) >> 8);
+      r.LeftStickY = (uint8_t) ((gamepad_state.lsY + 32768) >> 8);
+      r.RightStickX = (uint8_t) ((gamepad_state.rsX + 32768) >> 8);
+      r.RightStickY = (uint8_t) ((gamepad_state.rsY + 32768) >> 8);
+
+      // Triggers: already 0-255
+      r.LeftTrigger = gamepad_state.lt;
+      r.RightTrigger = gamepad_state.rt;
+
+      // Face buttons (A=Cross, B=Circle, X=Square, Y=Triangle)
+      r.ButtonCross = !!(flags & A);
+      r.ButtonCircle = !!(flags & B);
+      r.ButtonSquare = !!(flags & X);
+      r.ButtonTriangle = !!(flags & Y);
+
+      // Shoulder buttons
+      r.ButtonL1 = !!(flags & LEFT_BUTTON);
+      r.ButtonR1 = !!(flags & RIGHT_BUTTON);
+      r.ButtonL2 = gamepad_state.lt > 0 ? 1 : 0;
+      r.ButtonR2 = gamepad_state.rt > 0 ? 1 : 0;
+      r.ButtonL3 = !!(flags & LEFT_STICK);
+      r.ButtonR3 = !!(flags & RIGHT_STICK);
+
+      // System buttons
+      r.ButtonShare = !!(flags & BACK);
+      r.ButtonOptions = !!(flags & START);
+      r.ButtonHome = !!(flags & HOME);
+      r.ButtonTouchpad = !!(flags & (TOUCHPAD_BUTTON | MISC_BUTTON));
+      r.ButtonMute = 0;
+
+      // D-pad: convert flags to hat X/Y for WinUHidPS5SetHatState
+      int hatX = 0, hatY = 0;
+      if (flags & DPAD_UP) hatY = -1;
+      if (flags & DPAD_DOWN) hatY = 1;
+      if (flags & DPAD_LEFT) hatX = -1;
+      if (flags & DPAD_RIGHT) hatX = 1;
+      WinUHidPS5SetHatState(&r, hatX, hatY);
+
+      WinUHidPS5ReportInput(ctx.ps5, &r);
+      return;
+    }
+#endif
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1510,7 +1781,59 @@ namespace platf {
    * @param touch The touch event.
    */
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+
+#ifdef SUNSHINE_WINUHID
+    if (raw->winuhid && raw->winuhid->gamepads[touch.id.globalIndex].is_active()) {
+      auto &ctx = raw->winuhid->gamepads[touch.id.globalIndex];
+      auto &r = ctx.ps5_report;
+
+      uint8_t pointerIndex;
+      if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+        if (ctx.available_pointers & 0x1) {
+          ctx.pointer_id_map[touch.pointerId] = pointerIndex = 0;
+          ctx.available_pointers &= ~(1 << pointerIndex);
+        } else if (ctx.available_pointers & 0x2) {
+          ctx.pointer_id_map[touch.pointerId] = pointerIndex = 1;
+          ctx.available_pointers &= ~(1 << pointerIndex);
+        } else {
+          BOOST_LOG(warning) << "No more free pointer indices for DS5 touchpad"sv;
+          return;
+        }
+        // DualSense touchpad: 1920x1080
+        uint16_t x = (uint16_t) (touch.x * 1920);
+        uint16_t y = (uint16_t) (touch.y * 1080);
+        WinUHidPS5SetTouchState(&r, pointerIndex, TRUE, x, y);
+      } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+        WinUHidPS5SetTouchState(&r, 0, FALSE, 0, 0);
+        WinUHidPS5SetTouchState(&r, 1, FALSE, 0, 0);
+        ctx.pointer_id_map.clear();
+        ctx.available_pointers = 0x3;
+      } else {
+        auto i = ctx.pointer_id_map.find(touch.pointerId);
+        if (i == ctx.pointer_id_map.end()) {
+          BOOST_LOG(warning) << "Pointer ID not found for DS5 touchpad"sv;
+          return;
+        }
+        pointerIndex = i->second;
+
+        if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
+          WinUHidPS5SetTouchState(&r, pointerIndex, FALSE, 0, 0);
+          ctx.pointer_id_map.erase(i);
+          ctx.available_pointers |= (1 << pointerIndex);
+        } else if (touch.eventType == LI_TOUCH_EVENT_MOVE) {
+          uint16_t x = (uint16_t) (touch.x * 1920);
+          uint16_t y = (uint16_t) (touch.y * 1080);
+          WinUHidPS5SetTouchState(&r, pointerIndex, TRUE, x, y);
+        }
+      }
+
+      WinUHidPS5ReportInput(ctx.ps5, &r);
+      return;
+    }
+#endif
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1616,7 +1939,29 @@ namespace platf {
    * @param motion The motion event.
    */
   void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+
+#ifdef SUNSHINE_WINUHID
+    if (raw->winuhid && raw->winuhid->gamepads[motion.id.globalIndex].is_active()) {
+      auto &ctx = raw->winuhid->gamepads[motion.id.globalIndex];
+      auto &r = ctx.ps5_report;
+
+      constexpr float DEG_TO_RAD = (float) M_PI / 180.0f;
+
+      if (motion.motionType == LI_MOTION_TYPE_ACCEL) {
+        // WinUHidPS5SetAccelState expects m/s^2 — Moonlight sends m/s^2. Direct pass-through.
+        WinUHidPS5SetAccelState(&r, motion.x, motion.y, motion.z);
+      } else if (motion.motionType == LI_MOTION_TYPE_GYRO) {
+        // WinUHidPS5SetGyroState expects rad/s — Moonlight sends deg/s.
+        WinUHidPS5SetGyroState(&r, motion.x * DEG_TO_RAD, motion.y * DEG_TO_RAD, motion.z * DEG_TO_RAD);
+      }
+
+      WinUHidPS5ReportInput(ctx.ps5, &r);
+      return;
+    }
+#endif
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1643,7 +1988,25 @@ namespace platf {
    * @param battery The battery event.
    */
   void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
-    auto vigem = ((input_raw_t *) input.get())->vigem;
+    auto raw = (input_raw_t *) input.get();
+
+#ifdef SUNSHINE_WINUHID
+    if (raw->winuhid && raw->winuhid->gamepads[battery.id.globalIndex].is_active()) {
+      auto &ctx = raw->winuhid->gamepads[battery.id.globalIndex];
+      auto &r = ctx.ps5_report;
+
+      bool wired = (battery.state == LI_BATTERY_STATE_CHARGING || battery.state == LI_BATTERY_STATE_FULL);
+      uint8_t pct = (battery.percentage != LI_BATTERY_PERCENTAGE_UNKNOWN)
+        ? (uint8_t) std::min((int) battery.percentage, 100)
+        : 50;
+
+      WinUHidPS5SetBatteryState(&r, wired ? TRUE : FALSE, pct);
+      WinUHidPS5ReportInput(ctx.ps5, &r);
+      return;
+    }
+#endif
+
+    auto vigem = raw->vigem;
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1722,21 +2085,35 @@ namespace platf {
         supported_gamepad_t {"auto", true, ""},
         supported_gamepad_t {"x360", false, ""},
         supported_gamepad_t {"ds4", false, ""},
+#ifdef SUNSHINE_WINUHID
+        supported_gamepad_t {"ds5", false, ""},
+#endif
       };
 
       return gps;
     }
 
-    auto vigem = ((input_raw_t *) input)->vigem;
-    auto enabled = vigem != nullptr;
-    auto reason = enabled ? "" : "gamepads.vigem-not-available";
+    auto raw = (input_raw_t *) input;
+    auto vigem_enabled = raw->vigem != nullptr;
+    auto vigem_reason = vigem_enabled ? "" : "gamepads.vigem-not-available";
 
-    // ds4 == ps4
+#ifdef SUNSHINE_WINUHID
+    auto winuhid_enabled = raw->winuhid && raw->winuhid->available;
+    auto ds5_reason = winuhid_enabled ? "" : "gamepads.winuhid-not-available";
+
     static std::vector gps {
-      supported_gamepad_t {"auto", true, reason},
-      supported_gamepad_t {"x360", enabled, reason},
-      supported_gamepad_t {"ds4", enabled, reason}
+      supported_gamepad_t {"auto", true, ""},
+      supported_gamepad_t {"ds5", winuhid_enabled, ds5_reason},
+      supported_gamepad_t {"x360", vigem_enabled, vigem_reason},
+      supported_gamepad_t {"ds4", vigem_enabled, vigem_reason},
     };
+#else
+    static std::vector gps {
+      supported_gamepad_t {"auto", true, vigem_reason},
+      supported_gamepad_t {"x360", vigem_enabled, vigem_reason},
+      supported_gamepad_t {"ds4", vigem_enabled, vigem_reason},
+    };
+#endif
 
     for (auto &[name, is_enabled, reason_disabled] : gps) {
       if (!is_enabled) {
