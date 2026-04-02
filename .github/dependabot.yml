@@ -16,15 +16,16 @@ updates:
 
   - package-ecosystem: "docker"
     directories:
-      - "/"
-      - "/**"
-      - "/**/**"
+      - "/**/*"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
       cronjob: "30 1 * * *"
       timezone: "America/New_York"
     open-pull-requests-limit: 10
+    groups:
+      monorepo-dependencies:
+        group-by: dependency-name
 
   - package-ecosystem: "github-actions"
     directories:
@@ -38,6 +39,8 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 10
     groups:
+      monorepo-dependencies:
+        group-by: dependency-name
       docker-actions:
         applies-to: version-updates
         patterns:
@@ -85,9 +88,7 @@ updates:
 
   - package-ecosystem: "pip"
     directories:
-      - "/"
-      - "/**"
-      - "/**/**"  # https://github.com/dependabot/dependabot-core/issues/14569
+      - "/**/*"
     rebase-strategy: disabled
     schedule:
       interval: "cron"
@@ -95,6 +96,8 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 10
     groups:
+      monorepo-dependencies:
+        group-by: dependency-name
       pytest-dependencies:
         applies-to: version-updates
         patterns:
