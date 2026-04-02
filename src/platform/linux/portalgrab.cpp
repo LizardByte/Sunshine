@@ -93,7 +93,7 @@ namespace portal {
       if (file.is_open()) {
         std::getline(file, *token_);
         if (!token_->empty()) {
-          BOOST_LOG(info) << "Loaded portal restore token from disk"sv;
+          BOOST_LOG(info) << "[portalgrab] Loaded portal restore token from disk"sv;
         }
       }
     }
@@ -105,9 +105,9 @@ namespace portal {
       std::ofstream file(get_file_path());
       if (file.is_open()) {
         file << *token_;
-        BOOST_LOG(info) << "Saved portal restore token to disk"sv;
+        BOOST_LOG(info) << "[portalgrab] Saved portal restore token to disk"sv;
       } else {
-        BOOST_LOG(warning) << "Failed to save portal restore token"sv;
+        BOOST_LOG(warning) << "[portalgrab] Failed to save portal restore token"sv;
       }
     }
 
@@ -194,15 +194,15 @@ namespace portal {
           );
 
           if (err) {
-            BOOST_LOG(warning) << "Failed to explicitly close portal session: "sv << err->message;
+            BOOST_LOG(warning) << "[portalgrab] Failed to explicitly close portal session: "sv << err->message;
           } else {
-            BOOST_LOG(debug) << "Explicitly closed portal session: "sv << session_handle;
+            BOOST_LOG(debug) << "[portalgrab] Explicitly closed portal session: "sv << session_handle;
           }
         }
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "Standard exception caught in ~dbus_t: "sv << e.what();
+        BOOST_LOG(error) << "[portalgrab] Standard exception caught in ~dbus_t: "sv << e.what();
       } catch (...) {
-        BOOST_LOG(error) << "Unknown exception caught in ~dbus_t"sv;
+        BOOST_LOG(error) << "[portalgrab] Unknown exception caught in ~dbus_t"sv;
       }
 
       if (screencast_proxy) {
@@ -237,11 +237,11 @@ namespace portal {
 
     void finalize_portal_security() {
 #if !defined(__FreeBSD__)
-      BOOST_LOG(debug) << "Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
+      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
 
       cap_t caps = cap_get_proc();
       if (!caps) {
-        BOOST_LOG(error) << "Failed to get process capabilities"sv;
+        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
         return;
       }
 
@@ -252,14 +252,14 @@ namespace portal {
       cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
 
       if (cap_set_proc(caps) != 0) {
-        BOOST_LOG(error) << "Failed to prune capabilities: "sv << std::strerror(errno);
+        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
       }
       cap_free(caps);
 
       // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
       // access /proc/pid/root.
       if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-        BOOST_LOG(error) << "Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
       }
 #endif
     }
@@ -300,14 +300,14 @@ namespace portal {
       }
 
       if (select_remote_desktop_devices(loop, *session_path) < 0) {
-        BOOST_LOG(warning) << "RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
+        BOOST_LOG(warning) << "[portalgrab] RemoteDesktop.SelectDevices failed, falling back to ScreenCast-only mode"sv;
         g_free(*session_path);
         *session_path = nullptr;
         return false;
       }
 
       if (select_screencast_sources(loop, *session_path, false) < 0) {
-        BOOST_LOG(warning) << "ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
+        BOOST_LOG(warning) << "[portalgrab] ScreenCast.SelectSources failed with RemoteDesktop session, trying ScreenCast-only mode"sv;
         g_free(*session_path);
         *session_path = nullptr;
         return false;
@@ -363,7 +363,7 @@ namespace portal {
       g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "CreateSession", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
-        BOOST_LOG(error) << "Could not create "sv << session_type << " session: "sv << err->message;
+        BOOST_LOG(error) << "[portalgrab] Could not create "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
@@ -374,7 +374,7 @@ namespace portal {
       g_autoptr(GVariant) create_response = dbus_response_wait(&response);
 
       if (!create_response) {
-        BOOST_LOG(error) << session_type << " CreateSession: no response received"sv;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession: no response received"sv;
         return -1;
       }
 
@@ -382,16 +382,16 @@ namespace portal {
       g_autoptr(GVariant) results = nullptr;
       g_variant_get(create_response, "(u@a{sv})", &response_code, &results);
 
-      BOOST_LOG(debug) << session_type << " CreateSession response_code: "sv << response_code;
+      BOOST_LOG(debug) << "[portalgrab] " << session_type << " CreateSession response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << session_type << " CreateSession failed with response code: "sv << response_code;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession failed with response code: "sv << response_code;
         return -1;
       }
 
       g_autoptr(GVariant) session_handle_v = g_variant_lookup_value(results, "session_handle", nullptr);
       if (!session_handle_v) {
-        BOOST_LOG(error) << session_type << " CreateSession: session_handle not found in response"sv;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " CreateSession: session_handle not found in response"sv;
         return -1;
       }
 
@@ -402,7 +402,7 @@ namespace portal {
         *session_path_out = g_strdup(g_variant_get_string(session_handle_v, nullptr));
       }
 
-      BOOST_LOG(debug) << session_type << " CreateSession: got session handle: "sv << *session_path_out;
+      BOOST_LOG(debug) << "[portalgrab] " << session_type << " CreateSession: got session handle: "sv << *session_path_out;
       // Save it for the destructor to use during cleanup
       this->session_handle = *session_path_out;
       return 0;
@@ -431,7 +431,7 @@ namespace portal {
       g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(remote_desktop_proxy, "SelectDevices", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
 
       if (err) {
-        BOOST_LOG(error) << "Could not select devices: "sv << err->message;
+        BOOST_LOG(error) << "[portalgrab] Could not select devices: "sv << err->message;
         return -1;
       }
 
@@ -442,16 +442,16 @@ namespace portal {
       g_autoptr(GVariant) devices_response = dbus_response_wait(&response);
 
       if (!devices_response) {
-        BOOST_LOG(error) << "SelectDevices: no response received"sv;
+        BOOST_LOG(error) << "[portalgrab] SelectDevices: no response received"sv;
         return -1;
       }
 
       guint32 response_code;
       g_variant_get(devices_response, "(u@a{sv})", &response_code, nullptr);
-      BOOST_LOG(debug) << "SelectDevices response_code: "sv << response_code;
+      BOOST_LOG(debug) << "[portalgrab] SelectDevices response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << "SelectDevices failed with response code: "sv << response_code;
+        BOOST_LOG(error) << "[portalgrab] SelectDevices failed with response code: "sv << response_code;
         return -1;
       }
 
@@ -483,7 +483,7 @@ namespace portal {
       g_autoptr(GError) err = nullptr;
       g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(screencast_proxy, "SelectSources", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
-        BOOST_LOG(error) << "Could not select sources: "sv << err->message;
+        BOOST_LOG(error) << "[portalgrab] Could not select sources: "sv << err->message;
         return -1;
       }
 
@@ -494,16 +494,16 @@ namespace portal {
       g_autoptr(GVariant) sources_response = dbus_response_wait(&response);
 
       if (!sources_response) {
-        BOOST_LOG(error) << "SelectSources: no response received"sv;
+        BOOST_LOG(error) << "[portalgrab] SelectSources: no response received"sv;
         return -1;
       }
 
       guint32 response_code;
       g_variant_get(sources_response, "(u@a{sv})", &response_code, nullptr);
-      BOOST_LOG(debug) << "SelectSources response_code: "sv << response_code;
+      BOOST_LOG(debug) << "[portalgrab] SelectSources response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << "SelectSources failed with response code: "sv << response_code;
+        BOOST_LOG(error) << "[portalgrab] SelectSources failed with response code: "sv << response_code;
         return -1;
       }
 
@@ -531,7 +531,7 @@ namespace portal {
       g_autoptr(GError) err = nullptr;
       g_autoptr(GVariant) reply = g_dbus_proxy_call_sync(proxy, "Start", g_variant_builder_end(&builder), G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &err);
       if (err) {
-        BOOST_LOG(error) << "Could not start "sv << session_type << " session: "sv << err->message;
+        BOOST_LOG(error) << "[portalgrab] Could not start "sv << session_type << " session: "sv << err->message;
         return -1;
       }
 
@@ -542,7 +542,7 @@ namespace portal {
       g_autoptr(GVariant) start_response = dbus_response_wait(&response);
 
       if (!start_response) {
-        BOOST_LOG(error) << session_type << " Start: no response received"sv;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " Start: no response received"sv;
         return -1;
       }
 
@@ -551,16 +551,16 @@ namespace portal {
       g_autoptr(GVariant) streams = nullptr;
       g_variant_get(start_response, "(u@a{sv})", &response_code, &dict);
 
-      BOOST_LOG(debug) << session_type << " Start response_code: "sv << response_code;
+      BOOST_LOG(debug) << "[portalgrab] " << session_type << " Start response_code: "sv << response_code;
 
       if (response_code != 0) {
-        BOOST_LOG(error) << session_type << " Start failed with response code: "sv << response_code;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " Start failed with response code: "sv << response_code;
         return -1;
       }
 
       streams = g_variant_lookup_value(dict, "streams", G_VARIANT_TYPE("a(ua{sv})"));
       if (!streams) {
-        BOOST_LOG(error) << session_type << " Start: no streams in response"sv;
+        BOOST_LOG(error) << "[portalgrab] " << session_type << " Start: no streams in response"sv;
         return -1;
       }
 
@@ -586,7 +586,7 @@ namespace portal {
       g_autoptr(GError) err = nullptr;
       g_autoptr(GVariant) reply = g_dbus_proxy_call_with_unix_fd_list_sync(screencast_proxy, "OpenPipeWireRemote", msg, G_DBUS_CALL_FLAGS_NONE, -1, nullptr, &fd_list, nullptr, &err);
       if (err) {
-        BOOST_LOG(error) << "Could not open pipewire remote: "sv << err->message;
+        BOOST_LOG(error) << "[portalgrab] Could not open pipewire remote: "sv << err->message;
         return -1;
       }
 
@@ -678,7 +678,7 @@ namespace portal {
         pipewire_node = pipewire_node_;
         width = width_;
         height = height_;
-        BOOST_LOG(debug) << "Reusing cached portal session"sv;
+        BOOST_LOG(debug) << "[portalgrab] Reusing cached portal session"sv;
         return 0;
       }
 
@@ -705,7 +705,7 @@ namespace portal {
       width = width_;
       height = height_;
 
-      BOOST_LOG(debug) << "Created new portal session (cached)"sv;
+      BOOST_LOG(debug) << "[portalgrab] Created new portal session (cached)"sv;
       return 0;
     }
 
@@ -718,7 +718,7 @@ namespace portal {
       try {
         std::scoped_lock lock(mutex_);
         if (valid_) {
-          BOOST_LOG(debug) << "Invalidating cached portal session"sv;
+          BOOST_LOG(debug) << "[portalgrab] Invalidating cached portal session"sv;
           if (pipewire_fd_ >= 0) {
             close(pipewire_fd_);
             pipewire_fd_ = -1;
@@ -729,9 +729,9 @@ namespace portal {
           valid_ = false;
         }
       } catch (const std::exception &e) {
-        BOOST_LOG(error) << "Exception during session invalidation: "sv << e.what();
+        BOOST_LOG(error) << "[portalgrab] Exception during session invalidation: "sv << e.what();
       } catch (...) {
-        BOOST_LOG(error) << "Unknown error during session invalidation"sv;
+        BOOST_LOG(error) << "[portalgrab] Unknown error during session invalidation"sv;
       }
     }
 
@@ -1027,11 +1027,11 @@ namespace portal {
     }
 
     static void on_core_info_cb([[maybe_unused]] void *user_data, const struct pw_core_info *pw_info) {
-      BOOST_LOG(info) << "Connected to pipewire version "sv << pw_info->version;
+      BOOST_LOG(info) << "[portalgrab] Connected to pipewire version "sv << pw_info->version;
     }
 
     static void on_core_error_cb([[maybe_unused]] void *user_data, const uint32_t id, const int seq, [[maybe_unused]] int res, const char *message) {
-      BOOST_LOG(info) << "Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
+      BOOST_LOG(info) << "[portalgrab] Pipewire Error, id:"sv << id << " seq:"sv << seq << " message: "sv << message;
     }
 
     constexpr static const struct pw_core_events core_events = {
@@ -1041,7 +1041,7 @@ namespace portal {
     };
 
     static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
-      BOOST_LOG(debug) << "PipeWire stream state: " << pw_stream_state_as_string(old)
+      BOOST_LOG(debug) << "[portalgrab] PipeWire stream state: " << pw_stream_state_as_string(old)
                        << " -> " << pw_stream_state_as_string(state);
 
       auto *d = static_cast<stream_data_t *>(user_data);
@@ -1060,7 +1060,7 @@ namespace portal {
           break;
         case PW_STREAM_STATE_ERROR:
           if (old != PW_STREAM_STATE_STREAMING && !session_cache_t::instance().is_maxframerate_failed()) {
-            BOOST_LOG(warning) << "Negotiation failed, will retry without maxFramerate"sv;
+            BOOST_LOG(warning) << "[portalgrab] Negotiation failed, will retry without maxFramerate"sv;
             session_cache_t::instance().set_maxframerate_failed();
           }
           [[fallthrough]];
@@ -1145,13 +1145,13 @@ namespace portal {
         return;
       }
 
-      BOOST_LOG(info) << "Video format: "sv << d->format.info.raw.format;
-      BOOST_LOG(info) << "Size: "sv << d->format.info.raw.size.width << "x"sv << d->format.info.raw.size.height;
+      BOOST_LOG(info) << "[portalgrab] Video format: "sv << d->format.info.raw.format;
+      BOOST_LOG(info) << "[portalgrab] Size: "sv << d->format.info.raw.size.width << "x"sv << d->format.info.raw.size.height;
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
-        BOOST_LOG(info) << "Framerate (from compositor): 0/1 (variable rate capture)";
+        BOOST_LOG(info) << "[portalgrab] Framerate (from compositor): 0/1 (variable rate capture)";
       } else {
-        BOOST_LOG(info) << "Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
-        BOOST_LOG(info) << "Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
+        BOOST_LOG(info) << "[portalgrab] Framerate (from compositor): "sv << d->format.info.raw.framerate.num << "/"sv << d->format.info.raw.framerate.denom;
+        BOOST_LOG(info) << "[portalgrab] Framerate (from compositor, max): "sv << d->format.info.raw.max_framerate.num << "/"sv << d->format.info.raw.max_framerate.denom;
       }
 
       int physical_w = d->format.info.raw.size.width;
@@ -1180,10 +1180,10 @@ namespace portal {
 
       uint32_t buffer_types = 0;
       if (spa_pod_find_prop(param, nullptr, SPA_FORMAT_VIDEO_modifier) != nullptr && d->drm_format) {
-        BOOST_LOG(info) << "using DMA-BUF buffers"sv;
+        BOOST_LOG(info) << "[portalgrab] using DMA-BUF buffers"sv;
         buffer_types |= 1 << SPA_DATA_DmaBuf;
       } else {
-        BOOST_LOG(info) << "using memory buffers"sv;
+        BOOST_LOG(info) << "[portalgrab] using memory buffers"sv;
         buffer_types |= 1 << SPA_DATA_MemPtr;
       }
 
@@ -1224,10 +1224,10 @@ namespace portal {
         delay = std::chrono::nanoseconds(
           (static_cast<int64_t>(fps_strict.den) * 1'000'000'000LL) / fps_strict.num
         );
-        BOOST_LOG(info) << "Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
+        BOOST_LOG(info) << "[portalgrab] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
       } else {
         delay = std::chrono::nanoseconds {1s} / framerate;
-        BOOST_LOG(info) << "Requested frame rate [" << framerate << "fps]";
+        BOOST_LOG(info) << "[portalgrab] Requested frame rate [" << framerate << "fps]";
       }
       mem_type = hwdevice_type;
 
@@ -1285,7 +1285,7 @@ namespace portal {
       }
 
       if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
-        BOOST_LOG(info) << "Using negotiated resolution "sv
+        BOOST_LOG(info) << "[portalgrab] Using negotiated resolution "sv
                         << negotiated_w << "x" << negotiated_h;
 
         width = negotiated_w;
@@ -1361,7 +1361,7 @@ namespace portal {
         if (stream_stopped.load() || shared_state->stream_dead.exchange(false)) {
           // If stream is marked as stopped, clear state and send interrupted status
           if (stream_stopped.load()) {
-            BOOST_LOG(warning) << "PipeWire stream stopped by user."sv;
+            BOOST_LOG(warning) << "[portalgrab] PipeWire stream stopped by user."sv;
             capture_running.store(false);
             stream_stopped.store(false);
             previous_height.store(0);
@@ -1369,7 +1369,7 @@ namespace portal {
             pipewire.frame_cv().notify_all();
             return platf::capture_e::error;
           } else {
-            BOOST_LOG(warning) << "PipeWire stream disconnected. Forcing session reset."sv;
+            BOOST_LOG(warning) << "[portalgrab] PipeWire stream disconnected. Forcing session reset."sv;
             return platf::capture_e::reinit;
           }
         }
@@ -1400,7 +1400,7 @@ namespace portal {
           case platf::capture_e::timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
-              BOOST_LOG(debug) << "PipeWire: timeout -> interrupt nudge";
+              BOOST_LOG(debug) << "[portalgrab] PipeWire: timeout -> interrupt nudge";
               capture_running.store(false);
               stream_stopped.store(false);
               previous_height.store(0);
@@ -1414,7 +1414,7 @@ namespace portal {
             push_captured_image_cb(std::move(img_out), true);
             break;
           default:
-            BOOST_LOG(error) << "Unrecognized capture status ["sv << std::to_underlying(status) << ']';
+            BOOST_LOG(error) << "[portalgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
         }
       }
@@ -1487,7 +1487,7 @@ namespace portal {
       img->sequence = ++sequence;
 
       if (retries > 0) {
-        BOOST_LOG(debug) << "Processed frame after " << retries << " redundant events."sv;
+        BOOST_LOG(debug) << "[portalgrab] Processed frame after " << retries << " redundant events."sv;
       }
     }
 
@@ -1523,7 +1523,7 @@ namespace portal {
       eglQueryDmaBufFormatsEXT(egl_display, MAX_DMABUF_FORMATS, dmabuf_formats.data(), &num_dmabuf_formats);
 
       if (num_dmabuf_formats > MAX_DMABUF_FORMATS) {
-        BOOST_LOG(warning) << "Some DMA-BUF formats are being ignored"sv;
+        BOOST_LOG(warning) << "[portalgrab] Some DMA-BUF formats are being ignored"sv;
       }
 
       for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
@@ -1537,7 +1537,7 @@ namespace portal {
         eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
 
         if (num_modifiers > MAX_DMABUF_MODIFIERS) {
-          BOOST_LOG(warning) << "Some DMA-BUF modifiers are being ignored"sv;
+          BOOST_LOG(warning) << "[portalgrab] Some DMA-BUF modifiers are being ignored"sv;
         }
 
         dmabuf_infos[n_dmabuf_infos].format = pw_format;
@@ -1577,13 +1577,13 @@ namespace portal {
         bool intel_present = check_intel("/sys/class/drm/card0/device/vendor") ||
                              check_intel("/sys/class/drm/card1/device/vendor");
         if (intel_present) {
-          BOOST_LOG(info) << "Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
+          BOOST_LOG(info) << "[portalgrab] Hybrid GPU system detected (Intel + discrete) - CUDA will use memory buffers"sv;
           display_is_nvidia = false;
         } else {
           // No Intel GPU found, check if NVIDIA is present
           const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
           if (vendor && std::string_view(vendor).contains("NVIDIA")) {
-            BOOST_LOG(info) << "Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
+            BOOST_LOG(info) << "[portalgrab] Pure NVIDIA system - DMA-BUF will be enabled for CUDA"sv;
             display_is_nvidia = true;
           }
         }
@@ -1619,7 +1619,7 @@ namespace platf {
   std::shared_ptr<display_t> portal_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     using enum platf::mem_type_e;
     if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda && hwdevice_type != vulkan) {
-      BOOST_LOG(error) << "Could not initialize display with the given hw device type."sv;
+      BOOST_LOG(error) << "[portalgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
     }
 
