@@ -191,10 +191,10 @@
 
         const now = Date.now();
         let { lastCheck, latest, pre } = JSON.parse(localStorage.getItem('sunshine_version_cache') || '{}');
-        const oneDay = 24 * 60 * 60 * 1000;
+        const cacheAge = 60 * 60 * 1000;
 
-        if (lastCheck && (now - lastCheck < oneDay) && latest) {
-          console.log("Using cached version data (within 24h cooldown)");
+        if (lastCheck && (now - lastCheck < cacheAge) && latest) {
+          console.log("Using cached version data");
           this.githubVersion = new SunshineVersion(latest, null);
           if (pre) {
             this.preReleaseVersion = new SunshineVersion(pre, null);
