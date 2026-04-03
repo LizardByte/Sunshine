@@ -1,10 +1,14 @@
 ---
 app-id: "@PROJECT_FQDN@"
-runtime: org.freedesktop.Platform
-runtime-version: "24.08"
-sdk: org.freedesktop.Sdk
-sdk-extensions:
-  - org.freedesktop.Sdk.Extension.node20
+runtime: org.kde.Platform
+runtime-version: "6.10"
+sdk: org.kde.Sdk
+add-build-extensions:
+  org.freedesktop.Sdk.Extension.node20:
+    directory: lib/sdk/node20
+    version: "25.08"
+    no-autodownload: true
+    autodelete: false
 command: sunshine
 separate-locales: false
 finish-args:
@@ -37,7 +41,6 @@ modules:
   - "modules/nlohmann_json.json"
 
   # Runtime dependencies
-  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
   - "modules/avahi.json"
   - "modules/boost.json"
   - "modules/libevdev.json"
@@ -79,12 +82,12 @@ modules:
       - -DGLAD_SKIP_PIP_INSTALL=ON
       - -DSUNSHINE_ASSETS_DIR=share/sunshine
       - -DSUNSHINE_BUILD_FLATPAK=ON
-      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_ENABLE_CUDA=ON
       - -DSUNSHINE_ENABLE_DRM=ON
       - -DSUNSHINE_ENABLE_PORTAL=ON
       - -DSUNSHINE_ENABLE_WAYLAND=ON
       - -DSUNSHINE_ENABLE_X11=ON
+      - -DSUNSHINE_EXECUTABLE_PATH=/app/bin/sunshine
       - -DSUNSHINE_PUBLISHER_NAME='LizardByte'
       - -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       - -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'

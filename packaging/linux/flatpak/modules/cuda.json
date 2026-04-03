@@ -1,7 +1,8 @@
 {
   "name": "cuda",
   "build-options": {
-    "no_debuginfo": true
+    "no_debuginfo": true,
+    "prepend-ld-library-path": "/app/lib:/app/lib64"
   },
   "buildsystem": "simple",
   "cleanup": [
@@ -9,9 +10,32 @@
   ],
   "build-commands": [
     "chmod u+x ./cuda.run",
-    "./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR",
-    "rm -r $FLATPAK_DEST/cuda/nsight-systems-*",
+    "./cuda.run --silent --toolkit --toolkitpath=$FLATPAK_DEST/cuda --no-opengl-libs --no-man-page --no-drm --tmpdir=$FLATPAK_BUILDER_BUILDDIR || { echo '=== cuda-installer.log ==='; cat /tmp/cuda-installer.log 2>/dev/null; true; }",
+    "test -f $FLATPAK_DEST/cuda/bin/nvcc",
+    "rm -rf $FLATPAK_DEST/cuda/nsight-systems-*",
     "rm ./cuda.run"
+  ],
+  "modules": [
+    {
+      "name": "libxml2",
+      "config-opts": [
+        "--without-python",
+        "--without-debug",
+        "--without-history"
+      ],
+      "cleanup": [
+        "/share",
+        "/include",
+        "/bin"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "url": "https://download.gnome.org/sources/libxml2/2.13/libxml2-2.13.9.tar.xz",
+          "sha256": "a2c9ae7b770da34860050c309f903221c67830c86e4a7e760692b803df95143a"
+        }
+      ]
+    }
   ],
   "sources": [
     {
@@ -19,8 +43,8 @@
       "only-arches": [
         "x86_64"
       ],
-      "url": "https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux.run",
-      "sha256": "0f6d806ddd87230d2adbe8a6006a9d20144fdbda9de2d6acc677daa5d036417a",
+      "url": "https://developer.download.nvidia.com/compute/cuda/13.2.0/local_installers/cuda_13.2.0_595.45.04_linux.run",
+      "sha256": "c599b651582c8f345ebde7bcf089b7dcfcd8afd7d3ea7f50525698c563a239d7",
       "dest-filename": "cuda.run"
     },
     {
@@ -28,8 +52,8 @@
       "only-arches": [
         "aarch64"
       ],
-      "url": "https://developer.download.nvidia.com/compute/cuda/12.9.1/local_installers/cuda_12.9.1_575.57.08_linux_sbsa.run",
-      "sha256": "64f47ab791a76b6889702425e0755385f5fa216c5a9f061875c7deed5f08cdb6",
+      "url": "https://developer.download.nvidia.com/compute/cuda/13.2.0/local_installers/cuda_13.2.0_595.45.04_linux_sbsa.run",
+      "sha256": "9684ebc64988f71ef1c70846cc9d158fb27950c1355bf37c8795c346346b6a72",
       "dest-filename": "cuda.run"
     }
   ]

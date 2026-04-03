@@ -138,33 +138,50 @@ set(CPACK_RPM_PACKAGE_AUTOREQ ON)
 install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps"
         RENAME "${PROJECT_FQDN}.svg")
+install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
+        DESTINATION "${SUNSHINE_ASSETS_DIR}/web/images"
+        RENAME "logo-sunshine.svg")
 
 # tray icon
 if(${SUNSHINE_TRAY} STREQUAL 1)
-    install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
-            RENAME "${PROJECT_FQDN}-tray.svg")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-playing.svg"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
-            RENAME "${PROJECT_FQDN}-playing.svg")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-pausing.svg"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
-            RENAME "${PROJECT_FQDN}-pausing.svg")
-    install(FILES "${SUNSHINE_SOURCE_ASSETS_DIR}/common/assets/web/public/images/sunshine-locked.svg"
-            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/status"
-            RENAME "${PROJECT_FQDN}-locked.svg")
+    # Icons used by the Qt tray backend are no longer installed to the hicolor icon theme,
+    # because Qt6 will not allow icons not part of the theme... so we will use icons from our web directory instead
 
-    set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+    if(TRAY_QT_VERSION EQUAL 6)
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
                     ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
-                    libayatana-appindicator3-1, \
-                    libnotify4")
-    set(CPACK_RPM_PACKAGE_REQUIRES "\
+                    libqt6widgets6, \
+                    libqt6dbus6, \
+                    libqt6svg6"
+        )
+        set(CPACK_RPM_PACKAGE_REQUIRES "\
                     ${CPACK_RPM_PACKAGE_REQUIRES}, \
-                    libappindicator-gtk3 >= 12.10.0")
-    list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
-            devel/libayatana-appindicator
-            devel/libnotify
-    )
+                    qt6-qtbase, \
+                    qt6-qtsvg"
+        )
+        list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+                x11-toolkits/qt6-widgets
+                devel/qt6-dbus
+                graphics/qt6-svg
+        )
+    else()
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                    ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                    libqt5widgets5, \
+                    libqt5dbus5, \
+                    libqt5svg5"
+        )
+        set(CPACK_RPM_PACKAGE_REQUIRES "\
+                    ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                    qt5-qtbase, \
+                    qt5-qtsvg"
+        )
+        list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+                x11-toolkits/qt5-widgets
+                devel/qt5-dbus
+                graphics/qt5-svg
+        )
+    endif()
 endif()
 
 # desktop file
