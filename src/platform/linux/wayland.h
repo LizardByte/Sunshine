@@ -32,6 +32,9 @@ namespace wl {
 
     egl::surface_descriptor_t sd;
     std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    void *shm_data = nullptr;
+    uint32_t shm_stride = 0;
+    bool is_shm = false;
   };
 
   class dmabuf_t {
@@ -50,7 +53,7 @@ namespace wl {
     dmabuf_t &operator=(const dmabuf_t &) = delete;
     dmabuf_t &operator=(dmabuf_t &&) = delete;
 
-    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_output *output, bool blend_cursor = false);
+    void listen(zwlr_screencopy_manager_v1 *screencopy_manager, zwp_linux_dmabuf_v1 *dmabuf_interface, wl_shm *shm_interface, wl_output *output, bool blend_cursor = false);
     static void buffer_params_created(void *data, struct zwp_linux_buffer_params_v1 *params, struct wl_buffer *wl_buffer);
     static void buffer_params_failed(void *data, struct zwp_linux_buffer_params_v1 *params);
     void buffer(zwlr_screencopy_frame_v1 *frame, std::uint32_t format, std::uint32_t width, std::uint32_t height, std::uint32_t stride);
@@ -74,9 +77,14 @@ namespace wl {
   private:
     bool init_gbm();
     void cleanup_gbm();
-    void create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    bool create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    void create_and_copy_shm(zwlr_screencopy_frame_v1 *frame);
+    bool init_shm(size_t size);
+    void cleanup_shm();
+    void destroy_shm();
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
+    bool gbm_failed {false};  // sticky: skip DMA-BUF after first GBM failure
 
     struct {
       bool supported {false};
@@ -96,6 +104,14 @@ namespace wl {
     struct gbm_device *gbm_device {nullptr};
     struct gbm_bo *current_bo {nullptr};
     struct wl_buffer *current_wl_buffer {nullptr};
+
+    wl_shm *shm_interface {nullptr};
+    int shm_fd {-1};
+    void *shm_mmap {nullptr};
+    size_t shm_mmap_size {0};
+    wl_shm_pool *shm_pool {nullptr};
+    wl_buffer *shm_wl_buffer {nullptr};
+    bool shm_mode {false};
   };
 
   class monitor_t {
@@ -162,6 +178,7 @@ namespace wl {
     zwlr_screencopy_manager_v1 *screencopy_manager {nullptr};
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     zxdg_output_manager_v1 *output_manager {nullptr};
+    wl_shm *shm_interface {nullptr};
 
   private:
     void add_interface(wl_registry *registry, std::uint32_t id, const char *interface, std::uint32_t version);
