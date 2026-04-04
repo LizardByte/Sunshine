@@ -372,10 +372,14 @@ namespace wl {
 
     shm_mode = true;
 
-    BOOST_LOG(info) << "[wayland] SHM capture: "sv
-                    << shm_info.width << "x"sv << shm_info.height
-                    << " stride="sv << shm_info.stride
-                    << " format=0x"sv << std::hex << shm_info.format << std::dec;
+    static bool shm_format_logged = false;
+    if (!shm_format_logged) {
+      BOOST_LOG(info) << "[wayland] SHM capture: "sv
+                      << shm_info.width << "x"sv << shm_info.height
+                      << " stride="sv << shm_info.stride
+                      << " format=0x"sv << std::hex << shm_info.format << std::dec;
+      shm_format_logged = true;
+    }
 
     // Tell compositor to copy the frame into our SHM buffer
     zwlr_screencopy_frame_v1_copy(frame, shm_wl_buffer);

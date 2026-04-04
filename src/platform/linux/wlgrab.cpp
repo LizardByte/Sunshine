@@ -215,17 +215,7 @@ namespace wl {
 
         auto src = static_cast<const uint8_t *>(current_frame->shm_data);
         auto dst = static_cast<uint8_t *>(img_out->data);
-        int shm_bpp = current_frame->shm_stride / width;  // bytes per pixel from stride
-
-        static bool logged = false;
-        if (!logged) {
-          BOOST_LOG(info) << "[wlgrab] SHM frame: shm_stride="sv << current_frame->shm_stride
-                          << " shm_bpp="sv << shm_bpp
-                          << " img_row_pitch="sv << img_out->row_pitch
-                          << " img_pixel_pitch="sv << img_out->pixel_pitch
-                          << " "sv << width << "x"sv << height;
-          logged = true;
-        }
+        int shm_bpp = current_frame->shm_stride / width;
 
         if (shm_bpp == 4) {
           // XRGB8888/ARGB8888: direct copy, strides may differ
@@ -239,9 +229,9 @@ namespace wl {
             auto row_src = src + y * current_frame->shm_stride;
             auto row_dst = dst + y * img_out->row_pitch;
             for (int x = 0; x < width; x++) {
-              row_dst[x * 4 + 0] = row_src[x * 3 + 0];  // B
+              row_dst[x * 4 + 0] = row_src[x * 3 + 2];  // B (from src R position)
               row_dst[x * 4 + 1] = row_src[x * 3 + 1];  // G
-              row_dst[x * 4 + 2] = row_src[x * 3 + 2];  // R
+              row_dst[x * 4 + 2] = row_src[x * 3 + 0];  // R (from src B position)
               row_dst[x * 4 + 3] = 0xFF;  // A
             }
           }
