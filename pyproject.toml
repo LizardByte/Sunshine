@@ -30,7 +30,7 @@ flatpak = [
 ]
 
 lint = [
-    "clang-format==20.*",
+    "clang-format==22.*",
     "flake8==7.3.0",
 ]
 
