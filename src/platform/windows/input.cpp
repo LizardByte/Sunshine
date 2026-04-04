@@ -455,6 +455,12 @@ namespace platf {
     gamepad_feedback_msg_t last_rumble {};
     gamepad_feedback_msg_t last_rgb_led {};
 
+    winuhid_gamepad_context_t() = default;
+    winuhid_gamepad_context_t(winuhid_gamepad_context_t &&other) noexcept = default;
+    winuhid_gamepad_context_t &operator=(winuhid_gamepad_context_t &&other) noexcept = default;
+    winuhid_gamepad_context_t(const winuhid_gamepad_context_t &) = delete;
+    winuhid_gamepad_context_t &operator=(const winuhid_gamepad_context_t &) = delete;
+
     bool is_active() const { return ps5 != nullptr; }
 
     void reset() {
@@ -490,7 +496,7 @@ namespace platf {
     }
 
     static void CALLBACK rumble_cb(PVOID ctx, UCHAR leftMotor, UCHAR rightMotor) {
-      auto *gp = (winuhid_gamepad_context_t *) ctx;
+      auto *gp = static_cast<winuhid_gamepad_context_t *>(ctx);
 
       // Scale 8-bit to 16-bit: 0xFF -> 0xFFFF
       uint16_t normalizedLeft = (uint16_t) leftMotor << 8 | leftMotor;
@@ -505,7 +511,7 @@ namespace platf {
     }
 
     static void CALLBACK lightbar_cb(PVOID ctx, UCHAR r, UCHAR g, UCHAR b) {
-      auto *gp = (winuhid_gamepad_context_t *) ctx;
+      auto *gp = static_cast<winuhid_gamepad_context_t *>(ctx);
 
       auto msg = gamepad_feedback_msg_t::make_rgb_led(gp->client_relative_index, r, g, b);
       if (msg.data.rgb_led.r != gp->last_rgb_led.data.rgb_led.r ||
@@ -516,18 +522,16 @@ namespace platf {
       }
     }
 
-    static void CALLBACK player_led_cb(PVOID ctx, UCHAR ledValue) {
+    static void CALLBACK player_led_cb(PVOID /* ctx */, UCHAR /* ledValue */) {
       // Moonlight protocol doesn't support player LED feedback yet
-      (void) ctx;
-      (void) ledValue;
     }
 
     static void CALLBACK trigger_effect_cb(PVOID ctx, PCWINUHID_PS5_TRIGGER_EFFECT left, PCWINUHID_PS5_TRIGGER_EFFECT right) {
-      auto *gp = (winuhid_gamepad_context_t *) ctx;
+      auto *gp = static_cast<winuhid_gamepad_context_t *>(ctx);
 
       uint8_t event_flags = 0;
-      uint8_t type_left = 0;
-      uint8_t type_right = 0;
+      auto type_left = uint8_t {0};
+      auto type_right = uint8_t {0};
       std::array<uint8_t, 10> data_left {};
       std::array<uint8_t, 10> data_right {};
 
@@ -545,6 +549,28 @@ namespace platf {
       gp->feedback_queue->raise(
         gamepad_feedback_msg_t::make_adaptive_triggers(
           gp->client_relative_index, event_flags, type_left, type_right, data_left, data_right));
+    }
+
+    /**
+     * @brief Determines whether to use DualSense emulation for a given gamepad.
+     */
+    static bool should_use_ds5(const gamepad_arrival_t &metadata) {
+      if (config::input.gamepad == "ds5"sv) {
+        return true;
+      }
+      if (config::input.gamepad != "auto"sv && !config::input.gamepad.empty()) {
+        return false;
+      }
+      if (metadata.type == LI_CTYPE_PS) {
+        return true;
+      }
+      if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
+        return true;
+      }
+      if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
+        return true;
+      }
+      return false;
     }
 
     int alloc_gamepad(const gamepad_id_t &id, feedback_queue_t &feedback_queue) {
@@ -595,16 +621,9 @@ namespace platf {
 #endif
 
   struct input_raw_t {
-    ~input_raw_t() {
-      delete vigem;
+    std::unique_ptr<vigem_t> vigem;
 #ifdef SUNSHINE_WINUHID
-      delete winuhid;
-#endif
-    }
-
-    vigem_t *vigem = nullptr;
-#ifdef SUNSHINE_WINUHID
-    winuhid_t *winuhid = nullptr;
+    std::unique_ptr<winuhid_t> winuhid;
 #endif
 
     decltype(CreateSyntheticPointerDevice) *fnCreateSyntheticPointerDevice;
@@ -618,18 +637,16 @@ namespace platf {
 
 #ifdef SUNSHINE_WINUHID
     // Try WinUHid first (preferred — supports DualSense with adaptive triggers)
-    raw.winuhid = new winuhid_t {};
+    raw.winuhid = std::make_unique<winuhid_t>();
     if (raw.winuhid->init()) {
-      delete raw.winuhid;
-      raw.winuhid = nullptr;
+      raw.winuhid.reset();
     }
 #endif
 
     // ViGEm is always available as fallback
-    raw.vigem = new vigem_t {};
+    raw.vigem = std::make_unique<vigem_t>();
     if (raw.vigem->init()) {
-      delete raw.vigem;
-      raw.vigem = nullptr;
+      raw.vigem.reset();
     }
 
     // Get pointers to virtual touch/pen input functions (Win10 1809+)
@@ -1346,33 +1363,12 @@ namespace platf {
     auto raw = (input_raw_t *) input.get();
 
 #ifdef SUNSHINE_WINUHID
-    // Try WinUHid DualSense emulation for PS-type controllers or when explicitly configured
-    if (raw->winuhid && raw->winuhid->available) {
-      bool use_ds5 = false;
-
-      if (config::input.gamepad == "ds5"sv) {
-        BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (manual selection)"sv;
-        use_ds5 = true;
-      } else if (config::input.gamepad == "auto"sv || config::input.gamepad.empty()) {
-        if (metadata.type == LI_CTYPE_PS) {
-          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by client-reported PS type)"sv;
-          use_ds5 = true;
-        } else if (config::input.motion_as_ds4 && (metadata.capabilities & (LI_CCAP_ACCEL | LI_CCAP_GYRO))) {
-          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by motion sensor presence)"sv;
-          use_ds5 = true;
-        } else if (config::input.touchpad_as_ds4 && (metadata.capabilities & LI_CCAP_TOUCHPAD)) {
-          BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller (auto-selected by touchpad presence)"sv;
-          use_ds5 = true;
-        }
+    if (raw->winuhid && raw->winuhid->available && winuhid_t::should_use_ds5(metadata)) {
+      BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense controller via WinUHid"sv;
+      if (raw->winuhid->alloc_gamepad(id, feedback_queue) == 0) {
+        return 0;
       }
-
-      if (use_ds5) {
-        int ret = raw->winuhid->alloc_gamepad(id, feedback_queue);
-        if (ret == 0) {
-          return 0;
-        }
-        BOOST_LOG(warning) << "WinUHid DualSense creation failed, falling back to ViGEm"sv;
-      }
+      BOOST_LOG(warning) << "WinUHid DualSense creation failed, falling back to ViGEm"sv;
     }
 #endif
 
@@ -1714,7 +1710,6 @@ namespace platf {
       r.LeftTrigger = gamepad_state.lt;
       r.RightTrigger = gamepad_state.rt;
 
-      // Face buttons (A=Cross, B=Circle, X=Square, Y=Triangle)
       r.ButtonCross = !!(flags & A);
       r.ButtonCircle = !!(flags & B);
       r.ButtonSquare = !!(flags & X);
@@ -1735,8 +1730,8 @@ namespace platf {
       r.ButtonTouchpad = !!(flags & (TOUCHPAD_BUTTON | MISC_BUTTON));
       r.ButtonMute = 0;
 
-      // D-pad: convert flags to hat X/Y for WinUHidPS5SetHatState
-      int hatX = 0, hatY = 0;
+      int hatX = 0;
+      int hatY = 0;
       if (flags & DPAD_UP) hatY = -1;
       if (flags & DPAD_DOWN) hatY = 1;
       if (flags & DPAD_LEFT) hatX = -1;
@@ -1748,7 +1743,7 @@ namespace platf {
     }
 #endif
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1779,60 +1774,60 @@ namespace platf {
    * @param input The global input context.
    * @param touch The touch event.
    */
+#ifdef SUNSHINE_WINUHID
+  /**
+   * @brief Handles a touch event for a WinUHid DualSense gamepad.
+   */
+  static void winuhid_handle_touch(winuhid_gamepad_context_t &ctx, const gamepad_touch_t &touch) {
+    auto &r = ctx.ps5_report;
+
+    if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
+      uint8_t pointerIndex = (ctx.available_pointers & 0x1) ? 0 : ((ctx.available_pointers & 0x2) ? 1 : 0xFF);
+      if (pointerIndex == 0xFF) {
+        BOOST_LOG(warning) << "No more free pointer indices for DS5 touchpad"sv;
+        return;
+      }
+      ctx.pointer_id_map[touch.pointerId] = pointerIndex;
+      ctx.available_pointers &= ~(1 << pointerIndex);
+      WinUHidPS5SetTouchState(&r, pointerIndex, TRUE,
+        static_cast<USHORT>(touch.x * 1920), static_cast<USHORT>(touch.y * 1080));
+    } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
+      WinUHidPS5SetTouchState(&r, 0, FALSE, 0, 0);
+      WinUHidPS5SetTouchState(&r, 1, FALSE, 0, 0);
+      ctx.pointer_id_map.clear();
+      ctx.available_pointers = 0x3;
+    } else {
+      auto i = ctx.pointer_id_map.find(touch.pointerId);
+      if (i == ctx.pointer_id_map.end()) {
+        BOOST_LOG(warning) << "Pointer ID not found for DS5 touchpad"sv;
+        return;
+      }
+      auto pointerIndex = i->second;
+
+      if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
+        WinUHidPS5SetTouchState(&r, pointerIndex, FALSE, 0, 0);
+        ctx.pointer_id_map.erase(i);
+        ctx.available_pointers |= (1 << pointerIndex);
+      } else if (touch.eventType == LI_TOUCH_EVENT_MOVE) {
+        WinUHidPS5SetTouchState(&r, pointerIndex, TRUE,
+          static_cast<USHORT>(touch.x * 1920), static_cast<USHORT>(touch.y * 1080));
+      }
+    }
+    WinUHidPS5ReportInput(ctx.ps5, &r);
+  }
+#endif
+
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
     auto raw = (input_raw_t *) input.get();
 
 #ifdef SUNSHINE_WINUHID
     if (raw->winuhid && raw->winuhid->gamepads[touch.id.globalIndex].is_active()) {
-      auto &ctx = raw->winuhid->gamepads[touch.id.globalIndex];
-      auto &r = ctx.ps5_report;
-
-      uint8_t pointerIndex;
-      if (touch.eventType == LI_TOUCH_EVENT_DOWN) {
-        if (ctx.available_pointers & 0x1) {
-          ctx.pointer_id_map[touch.pointerId] = pointerIndex = 0;
-          ctx.available_pointers &= ~(1 << pointerIndex);
-        } else if (ctx.available_pointers & 0x2) {
-          ctx.pointer_id_map[touch.pointerId] = pointerIndex = 1;
-          ctx.available_pointers &= ~(1 << pointerIndex);
-        } else {
-          BOOST_LOG(warning) << "No more free pointer indices for DS5 touchpad"sv;
-          return;
-        }
-        // DualSense touchpad: 1920x1080
-        uint16_t x = (uint16_t) (touch.x * 1920);
-        uint16_t y = (uint16_t) (touch.y * 1080);
-        WinUHidPS5SetTouchState(&r, pointerIndex, TRUE, x, y);
-      } else if (touch.eventType == LI_TOUCH_EVENT_CANCEL_ALL) {
-        WinUHidPS5SetTouchState(&r, 0, FALSE, 0, 0);
-        WinUHidPS5SetTouchState(&r, 1, FALSE, 0, 0);
-        ctx.pointer_id_map.clear();
-        ctx.available_pointers = 0x3;
-      } else {
-        auto i = ctx.pointer_id_map.find(touch.pointerId);
-        if (i == ctx.pointer_id_map.end()) {
-          BOOST_LOG(warning) << "Pointer ID not found for DS5 touchpad"sv;
-          return;
-        }
-        pointerIndex = i->second;
-
-        if (touch.eventType == LI_TOUCH_EVENT_UP || touch.eventType == LI_TOUCH_EVENT_CANCEL) {
-          WinUHidPS5SetTouchState(&r, pointerIndex, FALSE, 0, 0);
-          ctx.pointer_id_map.erase(i);
-          ctx.available_pointers |= (1 << pointerIndex);
-        } else if (touch.eventType == LI_TOUCH_EVENT_MOVE) {
-          uint16_t x = (uint16_t) (touch.x * 1920);
-          uint16_t y = (uint16_t) (touch.y * 1080);
-          WinUHidPS5SetTouchState(&r, pointerIndex, TRUE, x, y);
-        }
-      }
-
-      WinUHidPS5ReportInput(ctx.ps5, &r);
+      winuhid_handle_touch(raw->winuhid->gamepads[touch.id.globalIndex], touch);
       return;
     }
 #endif
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -1960,7 +1955,7 @@ namespace platf {
     }
 #endif
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
@@ -2005,7 +2000,7 @@ namespace platf {
     }
 #endif
 
-    auto vigem = raw->vigem;
+    auto *vigem = raw->vigem.get();
 
     // If there is no gamepad support
     if (!vigem) {
