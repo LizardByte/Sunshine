@@ -12,7 +12,7 @@
     "bootstrap": "5.3.8",
     "date-fns": "4.1.0",
     "lucide-vue-next": "1.0.0",
-    "marked": "17.0.5",
+    "marked": "17.0.6",
     "vue": "3.5.32",
     "vue-i18n": "11.3.0",
     "vue3-simple-icons": "16.10.0"
