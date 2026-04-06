@@ -14,7 +14,7 @@
     "lucide-vue-next": "1.0.0",
     "marked": "17.0.5",
     "vue": "3.5.32",
-    "vue-i18n": "11.3.0",
+    "vue-i18n": "11.3.1",
     "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
