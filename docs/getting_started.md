@@ -445,48 +445,6 @@ After adding yourself to the group, log out and log back in for the changes to t
 
 ### Linux
 
-#### Virtual Input Devices
-
-Sunshine uses virtual input devices (via uinput) to inject keyboard, mouse, and gamepad events. Access to `/dev/uinput` is typically restricted to the `input` group.
-
-Add your user to the group:
-
-```bash
-sudo usermod -aG input $USER
-```
-
-> Log out and back in after running this.
-
-The required udev rules are bundled with Sunshine and installed automatically. No manual udev configuration is needed for single-seat setups.
-
----
-
-#### Multi-seat
-
-If you run multiple concurrent Wayland sessions on separate logind seats (e.g. `seat0`, `seat1`), your compositor may ignore injected input unless Sunshine's virtual devices are assigned to the correct seat.
-
-Sunshine determines its target seat from `XDG_SEAT`, which is typically set automatically by your display manager. If needed, you can override it manually in your systemd service file or shell environment before starting Sunshine.
-
-When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
-
-- `Keyboard passthrough (seat1)`
-- `Sunshine PS5 (virtual) pad (seat1)`
-
-> Sunshine creates two mouse devices: a relative one and an absolute one (suffixed with ` (absolute)`).
-
-To assign Sunshine's virtual devices to the correct seat, create this udev rules file:
-
-**`/etc/udev/rules.d/72-sunshine-virtual-seat.rules`**
-```udev
-SUBSYSTEM=="input", KERNEL=="input*", ATTR{name}=="*(seat1)*", TAG+="seat", ENV{ID_SEAT}="seat1"
-```
-
-Then reload udev:
-
-```bash
-sudo udevadm control --reload-rules && sudo udevadm trigger -s input
-```
-
 #### Services
 
 **Start once**
