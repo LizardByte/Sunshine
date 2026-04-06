@@ -248,11 +248,28 @@ namespace cuda {
       return std::tolower(c);
     });
 
-    // Look for the name of the primary node in sysfs
+    // Look for DRM nodes in sysfs — prefer render node (doesn't require DRM master)
     try {
       char sysfs_path[PATH_MAX];
       std::snprintf(sysfs_path, sizeof(sysfs_path), "/sys/bus/pci/devices/%s/drm", pci_bus_id.data());
       fs::path sysfs_dir {sysfs_path};
+
+      // First pass: look for render node (renderD*)
+      for (auto &entry : fs::directory_iterator {sysfs_dir}) {
+        auto file = entry.path().filename();
+        auto filestring = file.generic_string();
+        if (std::string_view {filestring}.substr(0, 7) != "renderD"sv) {
+          continue;
+        }
+
+        BOOST_LOG(debug) << "Found DRM render node: "sv << filestring;
+
+        fs::path dri_path {"/dev/dri"sv};
+        auto device_path = dri_path / file;
+        return open(device_path.c_str(), O_RDWR);
+      }
+
+      // Second pass: fallback to primary node (card*)
       for (auto &entry : fs::directory_iterator {sysfs_dir}) {
         auto file = entry.path().filename();
         auto filestring = file.generic_string();
@@ -260,7 +277,7 @@ namespace cuda {
           continue;
         }
 
-        BOOST_LOG(debug) << "Found DRM primary node: "sv << filestring;
+        BOOST_LOG(debug) << "Found DRM primary node (fallback): "sv << filestring;
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;

@@ -485,9 +485,36 @@ namespace wl {
       return false;
     }
 
-    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
+    // Try progressively relaxed GBM usage flags.
+    // NVIDIA GBM on headless render nodes may not support all combinations.
+    static const struct {
+      uint32_t flags;
+      const char *desc;
+    } flag_combos[] = {
+      { GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR, "RENDERING|LINEAR" },
+      { GBM_BO_USE_RENDERING, "RENDERING" },
+      { GBM_BO_USE_LINEAR, "LINEAR" },
+      { 0, "none" },
+    };
+
+    for (const auto &combo : flag_combos) {
+      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, combo.flags);
+      if (current_bo) {
+        static bool flags_logged = false;
+        if (!flags_logged) {
+          BOOST_LOG(info) << "[wayland] GBM buffer created with flags: "sv << combo.desc
+                          << " format=0x"sv << std::hex << dmabuf_info.format << std::dec
+                          << " "sv << dmabuf_info.width << "x"sv << dmabuf_info.height;
+          flags_logged = true;
+        }
+        break;
+      }
+    }
+
     if (!current_bo) {
-      BOOST_LOG(error) << "Failed to create GBM buffer"sv;
+      BOOST_LOG(error) << "Failed to create GBM buffer with any flag combination"sv
+                       << " format=0x"sv << std::hex << dmabuf_info.format << std::dec
+                       << " "sv << dmabuf_info.width << "x"sv << dmabuf_info.height;
       return false;
     }
 
