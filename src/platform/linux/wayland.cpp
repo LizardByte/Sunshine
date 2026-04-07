@@ -17,6 +17,7 @@
 
 // local includes
 #include "graphics.h"
+#include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/round_robin.h"
@@ -235,11 +236,16 @@ namespace wl {
     }
 
     int drm_fd = -1;
-    for (int i = 0; i < n; i++) {
-      if (devices[i]->available_nodes & (1 << DRM_NODE_RENDER)) {
-        drm_fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR);
-        if (drm_fd >= 0) {
-          break;
+
+    if (!config::video.adapter_name.empty()) {
+      drm_fd = open(config::video.adapter_name.c_str(), O_RDWR);
+    } else {
+      for (int i = 0; i < n; i++) {
+        if (devices[i]->available_nodes & (1 << DRM_NODE_RENDER)) {
+          drm_fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR);
+          if (drm_fd >= 0) {
+            break;
+          }
         }
       }
     }
