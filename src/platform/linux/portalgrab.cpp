@@ -331,6 +331,33 @@ namespace portal {
       return 0;
     }
 
+    bool is_session_closed() const {
+      if (conn && !session_handle.empty()) {
+        // Try to retrieve property org.freedesktop.portal.Session::version
+        g_autoptr(GError) err = nullptr;
+        g_dbus_connection_call_sync(
+          conn,
+          "org.freedesktop.portal.Desktop",
+          session_handle.c_str(),
+          "org.freedesktop.DBus.Properties",
+          "Get",
+          g_variant_new("(ss)", "org.freedesktop.portal.Session", "version"),
+          G_VARIANT_TYPE("(v)"),
+          G_DBUS_CALL_FLAGS_NONE,
+          -1,
+          nullptr,
+          &err
+        );
+        // If we cannot get the property then the session portal was closed.
+        if (err) {
+          BOOST_LOG(debug) << "[portalgrab] Session closed as check failed: "sv << err->message;
+          return true;
+        }
+      }
+      // The session is not closed (or might not have been opened yet).
+      return false;
+    }
+
     int pipewire_fd;
     int pipewire_node;
     int width;
@@ -707,6 +734,10 @@ namespace portal {
 
       BOOST_LOG(debug) << "[portalgrab] Created new portal session (cached)"sv;
       return 0;
+    }
+
+    bool is_session_closed() const {
+      return dbus_ && dbus_->is_session_closed();
     }
 
     /**
@@ -1270,20 +1301,6 @@ namespace portal {
         timeout_ms -= 10;
       }
 
-      // Check previous logical dimensions
-      if (previous_width.load() == width && previous_height.load() == height) {
-        if (capture_running.load()) {
-          {
-            std::scoped_lock lock(pipewire.frame_mutex());
-            stream_stopped.store(true);
-          }
-          pipewire.frame_cv().notify_all();
-        }
-      } else {
-        previous_width.store(width);
-        previous_height.store(height);
-      }
-
       if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
         BOOST_LOG(info) << "[portalgrab] Using negotiated resolution "sv
                         << negotiated_w << "x" << negotiated_h;
@@ -1309,7 +1326,7 @@ namespace portal {
 
       while (std::chrono::steady_clock::now() < deadline) {
         if (!wait_for_frame(deadline)) {
-          return stream_stopped.load() ? platf::capture_e::interrupted : platf::capture_e::timeout;
+          return platf::capture_e::timeout;
         }
 
         if (!pull_free_image_cb(img_out)) {
@@ -1354,24 +1371,19 @@ namespace portal {
 
       pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
       sleep_overshoot_logger.reset();
-      capture_running.store(true);
 
       while (true) {
-        // Check if PipeWire signaled a state change or error
-        if (stream_stopped.load() || shared_state->stream_dead.exchange(false)) {
-          // If stream is marked as stopped, clear state and send interrupted status
-          if (stream_stopped.load()) {
-            BOOST_LOG(warning) << "[portalgrab] PipeWire stream stopped by user."sv;
-            capture_running.store(false);
-            stream_stopped.store(false);
-            previous_height.store(0);
-            previous_width.store(0);
+        // Check if PipeWire signaled a dead stream
+        if (shared_state->stream_dead.exchange(false)) {
+          // If the pipewire stream stopped due to closed portal session stop the capture with an error
+          if (session_cache_t::instance().is_session_closed()) {
+            BOOST_LOG(warning) << "[portalgrab] PipeWire stream stopped by closed portal session."sv;
             pipewire.frame_cv().notify_all();
             return platf::capture_e::error;
-          } else {
-            BOOST_LOG(warning) << "[portalgrab] PipeWire stream disconnected. Forcing session reset."sv;
-            return platf::capture_e::reinit;
           }
+          // Re-init the capture if the stream is dead for any other reason
+          BOOST_LOG(warning) << "[portalgrab] PipeWire stream disconnected. Forcing session reset."sv;
+          return platf::capture_e::reinit;
         }
 
         // Advance to (or catch up with) next delay interval
@@ -1391,20 +1403,12 @@ namespace portal {
           case platf::capture_e::reinit:
           case platf::capture_e::error:
           case platf::capture_e::interrupted:
-            capture_running.store(false);
-            stream_stopped.store(false);
-            previous_height.store(0);
-            previous_width.store(0);
             pipewire.frame_cv().notify_all();
             return status;
           case platf::capture_e::timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
               BOOST_LOG(debug) << "[portalgrab] PipeWire: timeout -> interrupt nudge";
-              capture_running.store(false);
-              stream_stopped.store(false);
-              previous_height.store(0);
-              previous_width.store(0);
               pipewire.frame_cv().notify_all();
               return platf::capture_e::interrupted;
             }
@@ -1495,10 +1499,10 @@ namespace portal {
       std::unique_lock<std::mutex> lock(pipewire.frame_mutex());
 
       bool success = pipewire.frame_cv().wait_until(lock, deadline, [&] {
-        return pipewire.is_frame_ready() || stream_stopped.load() || shared_state->stream_dead.load();
+        return pipewire.is_frame_ready() || shared_state->stream_dead.load();
       });
 
-      if (success && !stream_stopped.load()) {
+      if (success) {
         pipewire.set_frame_ready(false);
         return true;
       }
@@ -1607,10 +1611,6 @@ namespace portal {
     std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};
     uint32_t framerate;
-    static inline std::atomic<uint32_t> previous_height {0};
-    static inline std::atomic<uint32_t> previous_width {0};
-    static inline std::atomic<bool> stream_stopped {false};
-    static inline std::atomic<bool> capture_running {false};
     std::shared_ptr<shared_state_t> shared_state;
   };
 }  // namespace portal
@@ -1621,6 +1621,10 @@ namespace platf {
     if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda && hwdevice_type != vulkan) {
       BOOST_LOG(error) << "[portalgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
+    }
+
+    if (portal::session_cache_t::instance().is_session_closed()) {
+      portal::session_cache_t::instance().invalidate();
     }
 
     auto portal = std::make_shared<portal::portal_t>();
