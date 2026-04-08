@@ -215,6 +215,8 @@ namespace config {
 
     bool high_resolution_scrolling;
     bool native_pen_touch;
+
+    bool wlr_virtual_mouse;  ///< Linux/Wayland only: use wlr-virtual-pointer protocol instead of uinput
   };
 
   namespace flag {

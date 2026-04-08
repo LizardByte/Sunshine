@@ -282,6 +282,8 @@
     "mouse_desc": "允许访客使用鼠标控制主机系统",
     "native_pen_touch": "原生笔/触摸支持",
     "native_pen_touch_desc": "启用后，Sunshine 将透传来自 Moonlight 客户端的原生笔/触控事件。对于不支持原生笔/触控的旧版应用程序来说，禁用此功能非常有用。",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "预发布通知",
     "notify_pre_releases_desc": "是否接收 Sunshine 新预发布版本的通知",
     "nvenc_h264_cavlc": "在 H.264 中，偏向 CAVLC 而不是 CABAC",

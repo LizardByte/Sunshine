@@ -282,6 +282,8 @@
     "mouse_desc": "Tillåter gäster att styra värdsystemet med musen",
     "native_pen_touch": "Stöd för infödda pen/tryck",
     "native_pen_touch_desc": "När aktiverad, kommer Sunshine att passera genom infödda penn/touch händelser från Moonlight klienter. Detta kan vara användbart för att inaktivera för äldre applikationer utan inbyggt penn/touch stöd.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "PreRelease Notiser",
     "notify_pre_releases_desc": "Huruvida meddelas om nya förhandsversioner av Sunshine",
     "nvenc_h264_cavlc": "Föredrar CAVLC över CABAC i H.264",

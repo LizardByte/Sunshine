@@ -282,6 +282,8 @@
     "mouse_desc": "Konukların ana sistemi fare ile kontrol etmesini sağlar",
     "native_pen_touch": "Kalem/Dokunma Desteği",
     "native_pen_touch_desc": "Etkinleştirildiğinde Sunshine, Moonlight istemcilerinden gelen yerel kalem/dokunma olaylarını aktarır. Bu, yerel kalem/dokunmatik desteği olmayan eski uygulamalar için devre dışı bırakmak için yararlı olabilir.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Yayın Öncesi Bildirimler",
     "notify_pre_releases_desc": "Sunshine'ın yeni yayın öncesi sürümlerinden haberdar edilip edilmeme",
     "nvenc_h264_cavlc": "H.264'te CAVLC'yi CABAC'a tercih edin",
