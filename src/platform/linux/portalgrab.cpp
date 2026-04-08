@@ -679,92 +679,12 @@ namespace portal {
   };
 
   /**
-   * @brief Singleton cache for portal session data.
+   * @brief Singleton cache for persistent portalgrab session data.
    *
-   * This prevents creating multiple portal sessions during encoder probing,
-   * which would show multiple screen recording indicators in the system tray.
    */
   class session_cache_t {
   public:
     static session_cache_t &instance();
-
-    /**
-     * @brief Get or create a portal session.
-     *
-     * If a cached session exists and is valid, returns the cached data.
-     * Otherwise, creates a new session and caches it.
-     *
-     * @return 0 on success, -1 on failure
-     */
-    int get_or_create_session(int &pipewire_fd, int &pipewire_node, int &width, int &height) {
-      std::scoped_lock lock(mutex_);
-
-      if (valid_) {
-        // Return cached session data
-        pipewire_fd = dup(pipewire_fd_);  // Duplicate FD for each caller
-        pipewire_node = pipewire_node_;
-        width = width_;
-        height = height_;
-        BOOST_LOG(debug) << "[portalgrab] Reusing cached portal session"sv;
-        return 0;
-      }
-
-      // Create new session
-      dbus_ = std::make_unique<dbus_t>();
-      if (dbus_->init() < 0) {
-        return -1;
-      }
-      if (dbus_->connect_to_portal() < 0) {
-        dbus_.reset();
-        return -1;
-      }
-
-      // Cache the session data
-      pipewire_fd_ = dbus_->pipewire_fd;
-      pipewire_node_ = dbus_->pipewire_node;
-      width_ = dbus_->width;
-      height_ = dbus_->height;
-      valid_ = true;
-
-      // Return to caller (duplicate FD so each caller has their own)
-      pipewire_fd = dup(pipewire_fd_);
-      pipewire_node = pipewire_node_;
-      width = width_;
-      height = height_;
-
-      BOOST_LOG(debug) << "[portalgrab] Created new portal session (cached)"sv;
-      return 0;
-    }
-
-    bool is_session_closed() const {
-      return dbus_ && dbus_->is_session_closed();
-    }
-
-    /**
-     * @brief Invalidate the cached session.
-     *
-     * Call this when the session becomes invalid (e.g., on error).
-     */
-    void invalidate() noexcept {
-      try {
-        std::scoped_lock lock(mutex_);
-        if (valid_) {
-          BOOST_LOG(debug) << "[portalgrab] Invalidating cached portal session"sv;
-          if (pipewire_fd_ >= 0) {
-            close(pipewire_fd_);
-            pipewire_fd_ = -1;
-          }
-
-          dbus_.reset();
-
-          valid_ = false;
-        }
-      } catch (const std::exception &e) {
-        BOOST_LOG(error) << "[portalgrab] Exception during session invalidation: "sv << e.what();
-      } catch (...) {
-        BOOST_LOG(error) << "[portalgrab] Unknown error during session invalidation"sv;
-      }
-    }
 
     bool is_maxframerate_failed() const {
       return maxframerate_failed_;
@@ -777,23 +697,10 @@ namespace portal {
   private:
     session_cache_t() = default;
 
-    ~session_cache_t() {
-      if (pipewire_fd_ >= 0) {
-        close(pipewire_fd_);
-      }
-    }
-
     // Prevent copying
     session_cache_t(const session_cache_t &) = delete;
     session_cache_t &operator=(const session_cache_t &) = delete;
 
-    std::mutex mutex_;
-    std::unique_ptr<dbus_t> dbus_;
-    int pipewire_fd_ = -1;
-    int pipewire_node_ = 0;
-    int width_ = 0;
-    int height_ = 0;
-    bool valid_ = false;
     bool maxframerate_failed_ = false;
   };
 
@@ -887,7 +794,6 @@ namespace portal {
 
         pw_thread_loop_unlock(loop);
       }
-      session_cache_t::instance().invalidate();
     }
 
     void ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
@@ -1266,10 +1172,13 @@ namespace portal {
         return -1;
       }
 
-      // Use cached portal session to avoid creating multiple screen recordings
-      int pipewire_fd = -1;
-      int pipewire_node = 0;
-      if (session_cache_t::instance().get_or_create_session(pipewire_fd, pipewire_node, width, height) < 0) {
+      // Connect DBus portal session
+      if (dbus.init() < 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to connect to dbus. portal_t::init() failed.";
+        return -1;
+      }
+      if (dbus.connect_to_portal() < 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to connect to portal. portal_t::init() failed.";
         return -1;
       }
 
@@ -1282,7 +1191,7 @@ namespace portal {
         shared_state->negotiated_width.store(0);
         shared_state->negotiated_height.store(0);
       }
-      pipewire.init(pipewire_fd, pipewire_node, shared_state);
+      pipewire.init(dbus.pipewire_fd, dbus.pipewire_node, shared_state);
 
       // Start PipeWire now so format negotiation can proceed before capture start
       pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
@@ -1376,7 +1285,7 @@ namespace portal {
         // Check if PipeWire signaled a dead stream
         if (shared_state->stream_dead.exchange(false)) {
           // If the pipewire stream stopped due to closed portal session stop the capture with an error
-          if (session_cache_t::instance().is_session_closed()) {
+          if (dbus.is_session_closed()) {
             BOOST_LOG(warning) << "[portalgrab] PipeWire stream stopped by closed portal session."sv;
             pipewire.frame_cv().notify_all();
             return platf::capture_e::error;
@@ -1602,6 +1511,7 @@ namespace portal {
 
     platf::mem_type_e mem_type;
     wl::display_t wl_display;
+    dbus_t dbus;
     pipewire_t pipewire;
     std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;
     int n_dmabuf_infos;
@@ -1621,10 +1531,6 @@ namespace platf {
     if (hwdevice_type != system && hwdevice_type != vaapi && hwdevice_type != cuda && hwdevice_type != vulkan) {
       BOOST_LOG(error) << "[portalgrab] Could not initialize display with the given hw device type."sv;
       return nullptr;
-    }
-
-    if (portal::session_cache_t::instance().is_session_closed()) {
-      portal::session_cache_t::instance().invalidate();
     }
 
     auto portal = std::make_shared<portal::portal_t>();
