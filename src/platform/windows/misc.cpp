@@ -1791,4 +1791,8 @@ namespace platf {
 
     return true;
   }
+
+  std::string find_render_node_with_display() {
+    return {};
+  }
 }  // namespace platf

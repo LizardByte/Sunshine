@@ -2994,9 +2994,10 @@ namespace video {
       return hw_device_buf;
     }
 
-    auto render_device = config::video.adapter_name.empty() ? nullptr : config::video.adapter_name.c_str();
+    auto detected = platf::find_render_node_with_display();
+    auto render_device = config::video.adapter_name.empty() ? detected.c_str() : config::video.adapter_name.c_str();
 
-    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device, nullptr, 0);
+    auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VAAPI, render_device[0] ? render_device : nullptr, nullptr, 0);
     if (status < 0) {
       char string[AV_ERROR_MAX_STRING_SIZE];
       BOOST_LOG(error) << "Failed to create a VAAPI device: "sv << av_make_error_string(string, AV_ERROR_MAX_STRING_SIZE, status);
@@ -3019,8 +3020,10 @@ namespace video {
       return hw_device_buf;
     }
 
-    // Try render device path first (like VAAPI does), then fallback to device indices
-    auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
+    // Try render device path first, auto-detecting the GPU with a connected display
+    auto detected = platf::find_render_node_with_display();
+    auto fallback = detected.empty() ? std::string("/dev/dri/renderD128") : detected;
+    auto render_device = config::video.adapter_name.empty() ? fallback.c_str() : config::video.adapter_name.c_str();
 
     auto status = av_hwdevice_ctx_create(&hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, render_device, nullptr, 0);
     if (status >= 0) {

@@ -861,6 +861,8 @@ namespace platf {
    */
   std::string get_host_name();
 
+  std::string find_render_node_with_display();
+
   /**
    * @brief Gets the supported gamepads for this platform backend.
    * @details This may be called prior to `platf::input()`!
