@@ -1214,7 +1214,7 @@ namespace config {
       "https://[::1]"
     };
 
-    // Validate and append user-configured options
+    // Validate and append user-configured origins
     bool csrf_invalid_config = false;
     for (const auto &origin : user_csrf_origins) {
       if (origin.size() > 8 && origin.starts_with("https://")) {
