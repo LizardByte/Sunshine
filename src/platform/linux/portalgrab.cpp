@@ -172,6 +172,55 @@ namespace portal {
     int n_modifiers;
   };
 
+  struct pipewire_streaminfo_t {
+    int pipewire_node;
+    int width;
+    int height;
+    int pos_x;
+    int pos_y;
+    std::string monitor_name;
+
+    std::string to_display_name() {
+      if (monitor_name.length() > 0) {
+        return std::format("n{}", monitor_name);
+      }
+      return std::format("p{},{},{},{}", pos_x, pos_y, width, height);
+    }
+
+    bool match_display_name(const std::string &display_name) const {
+      // Empty display_name never matches
+      if (display_name.empty()) {
+        return false;
+      }
+      // Method 1: Display_name starts with 'n' match by monitor_name starting from pos 1
+      if (display_name[0] == 'n') {
+        return display_name.substr(1) == monitor_name;
+      }
+      // Method 2: Display_name starts with 'p' match by position+resolution starting from pos 1
+      if (display_name[0] == 'p') {
+        auto stringstream = std::stringstream(display_name.substr(1));
+        std::string stringvalue;
+        std::vector<int> values;
+        constexpr char display_name_delimiter = ',';
+        while (std::getline(stringstream, stringvalue, display_name_delimiter)) {
+          if (std::ranges::all_of(stringvalue, ::isdigit)) {
+            values.emplace_back(std::stoi(stringvalue));
+          } else {
+            BOOST_LOG(debug) << "[portalgrab] Failed to parse int value: '"sv << stringvalue << "'";
+          }
+        }
+        // Check if the vector has 4 values (pos_x, pos_y, width, height) from display_names formatting
+        if (values.size() != 4) {
+          BOOST_LOG(debug) << "[portalgrab] Display name does not match expected format 'x,y,w,h': '"sv << display_name << "'";
+          return false;
+        }
+        return pos_x == values[0] && pos_y == values[1] && width == values[2] && height == values[3];
+      }
+      // All matching methods have failed. No match!
+      return false;
+    }
+  };
+
   class dbus_t {
   public:
     ~dbus_t() noexcept {
@@ -284,7 +333,7 @@ namespace portal {
         return -1;
       }
 
-      if (start_portal_session(loop, session_path, pipewire_node, width, height, use_screencast_only) < 0) {
+      if (start_portal_session(loop, session_path, pipewire_streams, use_screencast_only) < 0) {
         return -1;
       }
 
@@ -361,10 +410,8 @@ namespace portal {
       return false;
     }
 
+    std::vector<pipewire_streaminfo_t> pipewire_streams;
     int pipewire_fd;
-    int pipewire_node;
-    int width;
-    int height;
 
   private:
     GDBusConnection *conn;
@@ -502,6 +549,7 @@ namespace portal {
       g_variant_builder_add(&builder, "{sv}", "handle_token", g_variant_new_string(request_token));
       g_variant_builder_add(&builder, "{sv}", "types", g_variant_new_uint32(SOURCE_TYPE_MONITOR));
       g_variant_builder_add(&builder, "{sv}", "cursor_mode", g_variant_new_uint32(CURSOR_MODE_EMBEDDED));
+      g_variant_builder_add(&builder, "{sv}", "multiple", g_variant_new_boolean(TRUE));
       if (persist) {
         g_variant_builder_add(&builder, "{sv}", "persist_mode", g_variant_new_uint32(PERSIST_UNTIL_REVOKED));
         if (!restore_token_t::empty()) {
@@ -540,7 +588,7 @@ namespace portal {
       return 0;
     }
 
-    int start_portal_session(GMainLoop *loop, const gchar *session_path, int &out_pipewire_node, int &out_width, int &out_height, bool use_screencast) {
+    int start_portal_session(GMainLoop *loop, const gchar *session_path, std::vector<pipewire_streaminfo_t> &out_pipewire_streams, bool use_screencast) {
       GDBusProxy *proxy = use_screencast ? screencast_proxy : remote_desktop_proxy;
       const char *session_type = use_screencast ? "ScreenCast" : "RemoteDesktop";
 
@@ -600,10 +648,30 @@ namespace portal {
       }
 
       GVariantIter iter;
+      const auto wl_monitors = wl::monitors();
+      int out_pipewire_node;
       g_autoptr(GVariant) value = nullptr;
       g_variant_iter_init(&iter, streams);
       while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
+        int out_width;
+        int out_height;
         g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
+
+        int out_pos_x;
+        int out_pos_y;
+        g_variant_lookup(value, "position", "(ii)", &out_pos_x, &out_pos_y, nullptr);
+
+        auto stream = pipewire_streaminfo_t {out_pipewire_node, out_width, out_height, out_pos_x, out_pos_y};
+
+        // Try to match the stream to a monitor_name by position/resolution and update stream info
+        for (const auto &monitor : wl_monitors) {
+          if (monitor->viewport.offset_x == out_pos_x && monitor->viewport.offset_y == out_pos_y && monitor->viewport.logical_width == out_width && monitor->viewport.logical_height == out_height) {
+            stream.monitor_name = monitor->name;
+            break;
+          }
+        }
+
+        out_pipewire_streams.emplace_back(stream);
       }
 
       return 0;
@@ -1221,6 +1289,26 @@ namespace portal {
         return -1;
       }
 
+      // Match display_name to a stream from the pipewire_streams vector
+      bool use_fallback = true;
+      pipewire_streaminfo_t stream;
+      for (const auto &stream_ : dbus.pipewire_streams) {
+        if (stream_.match_display_name(display_name)) {
+          stream = stream_;
+          use_fallback = false;
+          break;
+        }
+      }
+      // Fall back to first stream if we cannot match the given display_name to a stream in currently available streams.
+      if (use_fallback) {
+        BOOST_LOG(info) << "[portalgrab] Using first available stream as no matching stream was found for: '"sv << display_name << "'";
+        stream = dbus.pipewire_streams[0];
+      }
+      // Set values inherited from display_t
+      width = stream.width;
+      height = stream.height;
+      BOOST_LOG(info) << "[portalgrab] Streaming display '"sv << stream.monitor_name << "' from position: "sv << stream.pos_x << "x"sv << stream.pos_y << " resolution: "sv << width << "x"sv << height;
+
       framerate = config.framerate;
 
       if (!shared_state) {
@@ -1230,7 +1318,7 @@ namespace portal {
         shared_state->negotiated_width.store(0);
         shared_state->negotiated_height.store(0);
       }
-      if (pipewire.init(dbus.pipewire_fd, dbus.pipewire_node, shared_state) < 0) {
+      if (pipewire.init(dbus.pipewire_fd, stream.pipewire_node, shared_state) < 0) {
         BOOST_LOG(error) << "[portalgrab] Failed to init pipewire. portal_t::init() failed.";
         return -1;
       }
@@ -1370,10 +1458,16 @@ namespace portal {
               pipewire.frame_cv().notify_all();
               return platf::capture_e::interrupted;
             }
-            push_captured_image_cb(std::move(img_out), false);
+            if (!push_captured_image_cb(std::move(img_out), false)) {
+              BOOST_LOG(debug) << "[portalgrab] PipeWire: !push_captured_image_cb -> ok";
+              return platf::capture_e::ok;
+            }
             break;
           case platf::capture_e::ok:
-            push_captured_image_cb(std::move(img_out), true);
+            if (!push_captured_image_cb(std::move(img_out), true)) {
+              BOOST_LOG(debug) << "[portalgrab] PipeWire: !push_captured_image_cb -> ok";
+              return platf::capture_e::ok;
+            }
             break;
           default:
             BOOST_LOG(error) << "[portalgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
@@ -1595,12 +1689,25 @@ namespace platf {
     auto dbus = std::make_shared<portal::dbus_t>();
 
     if (dbus->init() < 0) {
+      BOOST_LOG(warning) << "[portalgrab] Failed to connect to dbus. Cannot enumerate displays, returning empty list.";
       return {};
     }
 
     pw_init(nullptr, nullptr);
 
-    display_names.emplace_back("org.freedesktop.portal.Desktop");
+    if (dbus->connect_to_portal() < 0) {
+      BOOST_LOG(warning) << "[portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.";
+      return {};
+    }
+
+    for (auto stream_ : dbus->pipewire_streams) {
+      BOOST_LOG(info) << "[portalgrab] Found stream for display: '"sv << stream_.monitor_name << "' position: "sv << stream_.pos_x << "x"sv << stream_.pos_y << " resolution: "sv << stream_.width << "x"sv << stream_.height;
+      display_names.emplace_back(stream_.to_display_name());
+    }
+    // Release the portal session as soon as possible to properly release related resources early.
+    dbus.reset();
+
+    // Return currently active display names
     return display_names;
   }
 }  // namespace platf
