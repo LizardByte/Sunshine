@@ -205,6 +205,9 @@ namespace portal {
         BOOST_LOG(error) << "[portalgrab] Unknown exception caught in ~dbus_t"sv;
       }
 
+      if (pipewire_fd >= 0) {
+        close(pipewire_fd);
+      }
       if (screencast_proxy) {
         g_clear_object(&screencast_proxy);
       }
@@ -714,22 +717,33 @@ namespace portal {
   public:
     pipewire_t():
         loop(pw_thread_loop_new("Pipewire thread", nullptr)) {
+      BOOST_LOG(debug) << "[portalgrab] Start PW thread loop"sv;
       pw_thread_loop_start(loop);
     }
 
     ~pipewire_t() {
+      BOOST_LOG(debug) << "[portalgrab] Destroying pipewire_t"sv;
       if (loop) {
+        BOOST_LOG(debug) << "[portalgrab] Stop PW thread loop"sv;
         pw_thread_loop_stop(loop);
       }
-      cleanup_stream();
+      try {
+        cleanup_stream();
+      } catch (const std::exception &e) {
+        BOOST_LOG(error) << "[portalgrab] Standard exception caught in ~pipewire_t: "sv << e.what();
+      } catch (...) {
+        BOOST_LOG(error) << "[portalgrab] Unknown exception caught in ~pipewire_t"sv;
+      }
 
       pw_thread_loop_lock(loop);
 
       if (core) {
+        BOOST_LOG(debug) << "[portalgrab] Disconnect PW core"sv;
         pw_core_disconnect(core);
         core = nullptr;
       }
       if (context) {
+        BOOST_LOG(debug) << "[portalgrab] Destroy PW context"sv;
         pw_context_destroy(context);
         context = nullptr;
       }
@@ -737,8 +751,12 @@ namespace portal {
       pw_thread_loop_unlock(loop);
 
       if (fd >= 0) {
+        BOOST_LOG(debug) << "[portalgrab] Close pipewire_fd"sv;
         close(fd);
       }
+      BOOST_LOG(debug) << "[portalgrab] Stop PW thread loop"sv;
+      pw_thread_loop_stop(loop);
+      BOOST_LOG(debug) << "[portalgrab] Destroy PW thread loop"sv;
       pw_thread_loop_destroy(loop);
     }
 
@@ -758,29 +776,39 @@ namespace portal {
       stream_data.frame_ready = ready;
     }
 
-    void init(int stream_fd, int stream_node, std::shared_ptr<shared_state_t> shared_state) {
+    int init(int stream_fd, int stream_node, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
       stream_data.shared = std::move(shared_state);
 
       pw_thread_loop_lock(loop);
-
+      BOOST_LOG(debug) << "[portalgrab] Setup PW context"sv;
       context = pw_context_new(pw_thread_loop_get_loop(loop), nullptr, 0);
       if (context) {
-        core = pw_context_connect_fd(context, dup(fd), nullptr, 0);
+        BOOST_LOG(debug) << "[portalgrab] Connect PW context to fd"sv;
+        core = pw_context_connect_fd(context, fd, nullptr, 0);
         if (core) {
           pw_core_add_listener(core, &core_listener, &core_events, nullptr);
+        } else {
+          BOOST_LOG(debug) << "[portalgrab] Failed to connect to PW core. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+          return -1;
         }
+      } else {
+        BOOST_LOG(debug) << "[portalgrab] Failed to setup PW context. Error: "sv << errno << "(" << strerror(errno) << ")"sv;
+        return -1;
       }
 
       pw_thread_loop_unlock(loop);
+      return 0;
     }
 
     void cleanup_stream() {
+      BOOST_LOG(debug) << "[portalgrab] Cleaning up stream"sv;
       if (loop && stream_data.stream) {
         pw_thread_loop_lock(loop);
 
         // 1. Lock the frame mutex to stop fill_img
+        BOOST_LOG(debug) << "[portalgrab] Stop fill_img"sv;
         {
           std::scoped_lock lock(stream_data.frame_mutex);
           stream_data.frame_ready = false;
@@ -788,6 +816,9 @@ namespace portal {
         }
 
         if (stream_data.stream) {
+          BOOST_LOG(debug) << "[portalgrab] Disconnect stream"sv;
+          pw_stream_disconnect(stream_data.stream);
+          BOOST_LOG(debug) << "[portalgrab] Destroy stream"sv;
           pw_stream_destroy(stream_data.stream);
           stream_data.stream = nullptr;
         }
@@ -796,11 +827,18 @@ namespace portal {
       }
     }
 
-    void ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
+    int ensure_stream(const platf::mem_type_e mem_type, const uint32_t width, const uint32_t height, const uint32_t refresh_rate, const struct dmabuf_format_info_t *dmabuf_infos, const int n_dmabuf_infos, const bool display_is_nvidia) {
       pw_thread_loop_lock(loop);
       if (!stream_data.stream) {
+        if (!core) {
+          BOOST_LOG(debug) << "[portalgrab] PW core not available. Cannot ensure stream."sv;
+          pw_thread_loop_unlock(loop);
+          return -1;
+        }
+
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
 
+        BOOST_LOG(debug) << "[portalgrab] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
         pw_stream_add_listener(stream_data.stream, &stream_data.stream_listener, &stream_events, &stream_data);
 
@@ -834,10 +872,11 @@ namespace portal {
           params[n_params] = format_param;
           n_params++;
         }
-
+        BOOST_LOG(debug) << "[portalgrab] Connect PW stream - fd "sv << fd << " node "sv << node;
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
       }
       pw_thread_loop_unlock(loop);
+      return 0;
     }
 
     static void close_img_fds(egl::img_descriptor_t *img_descriptor) {
@@ -1191,10 +1230,16 @@ namespace portal {
         shared_state->negotiated_width.store(0);
         shared_state->negotiated_height.store(0);
       }
-      pipewire.init(dbus.pipewire_fd, dbus.pipewire_node, shared_state);
+      if (pipewire.init(dbus.pipewire_fd, dbus.pipewire_node, shared_state) < 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to init pipewire. portal_t::init() failed.";
+        return -1;
+      }
 
       // Start PipeWire now so format negotiation can proceed before capture start
-      pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
+      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to ensure pipewire stream. portal_t::init() failed.";
+        return -1;
+      }
 
       int timeout_ms = 1500;
       int negotiated_w = 0;
@@ -1210,6 +1255,7 @@ namespace portal {
         timeout_ms -= 10;
       }
 
+      // Set width and height to the values negotiated by pipewire
       if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
         BOOST_LOG(info) << "[portalgrab] Using negotiated resolution "sv
                         << negotiated_w << "x" << negotiated_h;
@@ -1278,7 +1324,10 @@ namespace portal {
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
 
-      pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia);
+      if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to ensure pipewire stream. capture() failed with error.";
+        return platf::capture_e::error;
+      }
       sleep_overshoot_logger.reset();
 
       while (true) {
