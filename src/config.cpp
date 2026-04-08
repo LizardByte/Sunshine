@@ -1069,9 +1069,7 @@ namespace config {
 
   void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save) {
     for (auto &[name, val] : vars) {
-      bool is_redacted = std::ranges::any_of(config::redacted_config, [&](auto s) {
-        return s == name;
-      });
+      bool is_redacted = std::ranges::find(config::redacted_config, name) != config::redacted_config.end();
 
       BOOST_LOG(info) << "config: '"sv << name << "' = "sv << (is_redacted ? "[redacted]" : val);
 
