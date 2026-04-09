@@ -530,8 +530,8 @@ namespace video {
   #endif
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
-      AV_PIX_FMT_NONE,
-      AV_PIX_FMT_NONE,
+      AV_PIX_FMT_YUV444P,
+      AV_PIX_FMT_YUV444P16,
   #ifdef _WIN32
       dxgi_init_avcodec_hardware_input_buffer
   #else
@@ -610,7 +610,7 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
-    PARALLEL_ENCODING
+    PARALLEL_ENCODING | YUV444_SUPPORT
   };
 #endif
 
@@ -1632,14 +1632,25 @@ namespace video {
       return nullptr;
     }
 
-    if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
-      BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
-      return nullptr;
-    }
+    if (config.chromaSamplingType == 1) {
 
-    if (config.chromaSamplingType == 1 && !video_format[encoder_t::YUV444]) {
-      BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 not supported"sv;
-      return nullptr;
+      if (!video_format[encoder_t::YUV444]) {
+        BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 not supported"sv;
+        return nullptr;
+      }
+
+      if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 dynamic range not supported"sv;
+        return nullptr;
+      }
+
+    } else {
+
+      if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
+        BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
+        return nullptr;
+      }
+
     }
 
     auto codec = avcodec_find_encoder_by_name(video_format.name.c_str());
@@ -2732,16 +2743,17 @@ namespace video {
         encoder.h264[encoder_t::YUV444] = false;
       }
 
-      const config_t generic_hdr_config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, 1, 1, 0};
+      auto test_yuv444 = [&](auto &flag_map, auto video_format) {
+        const config_t sdr_yuv444_config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, 1, 0, 1};
 
-      // Reset the display since we're switching from SDR to HDR
-      reset_display(disp, encoder.platform_formats->dev_type, output_name, generic_hdr_config);
-      if (!disp) {
-        return false;
-      }
+        auto config = sdr_yuv444_config;
 
-      auto test_hdr_and_yuv444 = [&](auto &flag_map, auto video_format) {
-        auto config = generic_hdr_config;
+        // Reset the display
+        reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
+        if (!disp) {
+          return;
+        }
+
         config.videoFormat = video_format;
 
         if (!flag_map[encoder_t::PASSED]) {
@@ -2750,14 +2762,45 @@ namespace video {
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        // Test 4:4:4 HDR first. If 4:4:4 is supported, 4:2:0 should also be supported.
+        // Test 4:4:4 SDR first
         config.chromaSamplingType = 1;
-        if ((encoder.flags & YUV444_SUPPORT) && disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config) >= 0) {
-          flag_map[encoder_t::DYNAMIC_RANGE] = true;
+        if ((encoder.flags & YUV444_SUPPORT) &&
+            disp->is_codec_supported(encoder_codec_name, config) &&
+            validate_config(disp, encoder, config) >= 0) {
           flag_map[encoder_t::YUV444] = true;
-          return;
         } else {
           flag_map[encoder_t::YUV444] = false;
+        }
+      };
+
+      auto test_hdr = [&](auto &flag_map, auto video_format) {
+
+        const config_t generic_hdr_config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, 1, 1, 0};
+
+        auto config = generic_hdr_config;
+
+        // Reset the display
+        reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
+        if (!disp) {
+          return;
+        }
+
+        config.videoFormat = video_format;
+
+        if (!flag_map[encoder_t::PASSED]) {
+          return;
+        }
+
+        auto encoder_codec_name = encoder.codec_from_config(config).name;
+
+        // Test 4:4:4 HDR first.
+        config.chromaSamplingType = 1;
+        if ((encoder.flags & YUV444_SUPPORT) &&
+            disp->is_codec_supported(encoder_codec_name, config) &&
+            validate_config(disp, encoder, config) >= 0) {
+          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = true;
+        } else {
+          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = false;
         }
 
         // Test 4:2:0 HDR
@@ -2771,9 +2814,12 @@ namespace video {
 
       // HDR is not supported with H.264. Don't bother even trying it.
       encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
+      encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444] = false;
 
-      test_hdr_and_yuv444(encoder.hevc, 1);
-      test_hdr_and_yuv444(encoder.av1, 2);
+      test_yuv444(encoder.hevc, 1);
+      test_hdr(encoder.hevc, 1);
+      test_yuv444(encoder.av1, 2);
+      test_hdr(encoder.av1, 2);
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -2812,7 +2858,13 @@ namespace video {
 
     auto adjust_encoder_constraints = [&](encoder_t *encoder) {
       // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
-      if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+      if (active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 Rext10_444 on this system"sv;
+        active_hevc_mode = 0;
+      } else if (active_hevc_mode == 4 && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Rext10_444 on this system"sv;
+        active_hevc_mode = 0;
+      } else if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 on this system"sv;
         active_hevc_mode = 0;
       } else if (active_hevc_mode == 2 && !encoder->hevc[encoder_t::PASSED]) {
@@ -2820,9 +2872,15 @@ namespace video {
         active_hevc_mode = 0;
       }
 
-      if (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE]) {
-        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 on this system"sv;
+      if (active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 Rext10_444 on this system"sv;
         active_av1_mode = 0;
+      } else if (active_hevc_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Rext10_444 on this system"sv;
+        active_hevc_mode = 0;
+      } else if (active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 on this system"sv;
+        active_hevc_mode = 0;
       } else if (active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
         active_av1_mode = 0;
@@ -2870,13 +2928,29 @@ namespace video {
         }
 
         // Skip it if it doesn't support the specified codec at all
-        if ((active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) || (active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED])) {
+        if ((active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) ||
+            (active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED])) {
           pos++;
           continue;
         }
 
         // Skip it if it doesn't support HDR on the specified codec
-        if ((active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) || (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE])) {
+        if ((active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) ||
+            (active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444])) {
+          pos++;
+          continue;
+        }
+
+        // Skip it if it doesn't support HDR on the specified codec
+        if ((active_hevc_mode == 4 && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) ||
+            (active_av1_mode == 4 && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444])) {
+          pos++;
+          continue;
+        }
+
+        // Skip it if it doesn't support HDR on the specified codec
+        if ((active_hevc_mode == 3 && !encoder->hevc[encoder_t::DYNAMIC_RANGE]) ||
+            (active_av1_mode == 3 && !encoder->av1[encoder_t::DYNAMIC_RANGE])) {
           pos++;
           continue;
         }
@@ -2967,12 +3041,29 @@ namespace video {
       BOOST_LOG(info) << "Found AV1 encoder: "sv << encoder.av1.name << " ["sv << encoder.name << ']';
     }
 
+    // 2 - passed
+    // 3 - HDR yuv420
+    // 4 - HDR yuv444
+    // 5 - HDR yuv420 & HDR yuv444
+
     if (active_hevc_mode == 0) {
-      active_hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+      active_hevc_mode = 1;
+      if (encoder.hevc[encoder_t::PASSED]) {
+        active_hevc_mode = 2;
+        if (encoder.hevc[encoder_t::DYNAMIC_RANGE]) active_hevc_mode += 1;
+        if (encoder.hevc[encoder_t::DYNAMIC_RANGE_YUV444]) active_hevc_mode += 2;
+      }
+      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_HEVC_MODE: "sv<<active_hevc_mode;
     }
 
     if (active_av1_mode == 0) {
-      active_av1_mode = encoder.av1[encoder_t::PASSED] ? (encoder.av1[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+      active_av1_mode = 1;
+      if (encoder.av1[encoder_t::PASSED]) {
+        active_av1_mode = 2;
+        if (encoder.av1[encoder_t::DYNAMIC_RANGE]) active_av1_mode += 1;
+        if (encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444]) active_av1_mode += 2;
+      }
+      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_AV1_MODE: "sv<<active_av1_mode;
     }
 
     return 0;
@@ -3170,6 +3261,10 @@ namespace video {
         return platf::pix_fmt_e::nv12;
       case AV_PIX_FMT_P010:
         return platf::pix_fmt_e::p010;
+      case AV_PIX_FMT_YUV444P:
+        return platf::pix_fmt_e::yuv444p;
+      case AV_PIX_FMT_YUV444P16:
+        return platf::pix_fmt_e::yuv444p16;
       default:
         return platf::pix_fmt_e::unknown;
     }

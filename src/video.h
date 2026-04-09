@@ -130,6 +130,7 @@ namespace video {
       REF_FRAMES_RESTRICT,  ///< Set maximum reference frames.
       DYNAMIC_RANGE,  ///< HDR support.
       YUV444,  ///< YUV 4:4:4 support.
+      DYNAMIC_RANGE_YUV444, ///< YUV 4:4:4 HDR support.
       VUI_PARAMETERS,  ///< AMD encoder with VAAPI doesn't add VUI parameters to SPS.
       MAX_FLAGS  ///< Maximum number of flags.
     };
@@ -143,6 +144,7 @@ namespace video {
         _CONVERT(REF_FRAMES_RESTRICT);
         _CONVERT(DYNAMIC_RANGE);
         _CONVERT(YUV444);
+        _CONVERT(DYNAMIC_RANGE_YUV444);
         _CONVERT(VUI_PARAMETERS);
         _CONVERT(MAX_FLAGS);
       }

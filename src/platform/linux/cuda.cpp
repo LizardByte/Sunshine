@@ -120,8 +120,10 @@ namespace cuda {
       this->frame = frame;
 
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
-      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
-        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
+
+      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 &&
+        hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
 
@@ -178,7 +180,12 @@ namespace cuda {
         return;
       }
 
-      sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      } else {
+        sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      }
     }
 
     cudaTextureObject_t tex_obj(const tex_t &tex) const {
@@ -200,6 +207,11 @@ namespace cuda {
   class cuda_ram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
+
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        return sws.load_ram(img, tex.array) || sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(tex), stream.get());
+      }
       return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
     }
 
@@ -224,6 +236,11 @@ namespace cuda {
   class cuda_vram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
+
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        return sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(((img_t *) &img)->tex), stream.get());
+      }
       return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
     }
   };

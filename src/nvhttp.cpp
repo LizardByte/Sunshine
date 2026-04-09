@@ -741,8 +741,10 @@ namespace nvhttp {
         codec_mode_flags |= SCM_HEVC_REXT8_444;
       }
     }
-    if (video::active_hevc_mode >= 3) {
+    if (video::active_hevc_mode == 3 || video::active_hevc_mode == 5) {
       codec_mode_flags |= SCM_HEVC_MAIN10;
+    }
+    if (video::active_hevc_mode == 4 || video::active_hevc_mode == 5) {
       if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
         codec_mode_flags |= SCM_HEVC_REXT10_444;
       }
@@ -811,7 +813,7 @@ namespace nvhttp {
     for (auto &proc : proc::proc.get_apps()) {
       pt::ptree app;
 
-      app.put("IsHdrSupported"s, video::active_hevc_mode == 3 ? 1 : 0);
+      app.put("IsHdrSupported"s, video::active_hevc_mode >= 3 ? 1 : 0);
       app.put("AppTitle"s, proc.name);
       app.put("ID", proc.id);
 
