@@ -155,6 +155,18 @@ namespace cuda {
     return (dot(pixel, make_float3(vec_y)) + vec_y.w) * color_matrix->range_y.x + color_matrix->range_y.y;
   }
 
+  inline __device__ float calcU(float3 pixel, const cuda_color_t *const color_matrix) {
+    float4 vec_u = color_matrix->color_vec_u;
+
+    return (dot(pixel, make_float3(vec_u)) + vec_u.w) * color_matrix->range_uv.x + color_matrix->range_uv.y;
+  }
+
+  inline __device__ float calcV(float3 pixel, const cuda_color_t *const color_matrix) {
+    float4 vec_v = color_matrix->color_vec_v;
+
+    return (dot(pixel, make_float3(vec_v)) + vec_v.w) * color_matrix->range_uv.x + color_matrix->range_uv.y;
+  }
+
   __global__ void RGBA_to_NV12(
     cudaTextureObject_t srcImage,
     std::uint8_t *dstY,
@@ -203,6 +215,44 @@ namespace cuda {
     dstY0[1] = calcY(rgb_rt, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
     dstY1[0] = calcY(rgb_lb, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
     dstY1[1] = calcY(rgb_rb, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
+  }
+
+  __global__ void RGBA_to_YUV444_packed(
+    cudaTextureObject_t srcImage,
+    std::uint8_t *dstY,
+    std::uint8_t *dstU,
+    std::uint8_t *dstV,
+    std::uint32_t dstPitchY,
+    float scale,
+    const viewport_t viewport,
+    const cuda_color_t *const color_matrix
+    ) {
+    int idX = threadIdx.x + blockDim.x * blockIdx.x;
+    int idY = threadIdx.y + blockDim.y * blockIdx.y;
+
+    if (idX >= viewport.width) {
+      return;
+    }
+    if (idY >= viewport.height) {
+      return;
+    }
+
+    float x = idX * scale;
+    float y = idY * scale;
+
+    idX += viewport.offsetX;
+    idY += viewport.offsetY;
+
+    dstY = dstY + idX + idY * dstPitchY;
+    dstU = dstU + idX + idY * dstPitchY;
+    dstV = dstV + idX + idY * dstPitchY;
+
+    float3 rgb = bgra_to_rgb(tex2D<float4>(srcImage, x, y));
+
+    dstY[0] = calcY(rgb, color_matrix) * 255.0f;
+    dstU[0] = calcU(rgb, color_matrix) * 255.0f;
+    dstV[0] = calcV(rgb, color_matrix) * 255.0f;
+
   }
 
   int tex_t::copy(std::uint8_t *src, int height, int pitch) {
@@ -327,6 +377,27 @@ namespace cuda {
     RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (cuda_color_t *) color_matrix.get());
 
     return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
+  }
+
+  int sws_t::convert_yuv444(std::uint8_t *Y, std::uint8_t *U, std::uint8_t *V, std::uint32_t pitch, cudaTextureObject_t texture, stream_t::pointer stream) {
+    return convert_yuv444(Y, U, V, pitch, texture, stream, viewport);
+  }
+
+  int sws_t::convert_yuv444(std::uint8_t *Y, std::uint8_t *U, std::uint8_t *V, std::uint32_t pitch,
+                                    cudaTextureObject_t texture, stream_t::pointer stream,
+                                    const viewport_t &viewport) {
+    int threadsX = viewport.width;
+    int threadsY = viewport.height;
+
+    dim3 block(threadsPerBlock);
+    dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
+
+    RGBA_to_YUV444_packed<<<grid, block, 0, stream>>>(
+        texture, Y, U, V, pitch, scale, viewport,
+        (cuda_color_t *) color_matrix.get()
+    );
+
+    return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_YUV444_planar failed");
   }
 
   void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
