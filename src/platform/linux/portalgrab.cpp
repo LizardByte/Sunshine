@@ -287,43 +287,11 @@ namespace portal {
       return 0;
     }
 
-    void finalize_portal_security() {
-#if !defined(__FreeBSD__)
-      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
-
-      cap_t caps = cap_get_proc();
-      if (!caps) {
-        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
-        return;
-      }
-
-      std::array<cap_value_t, 2> effective_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-      std::array<cap_value_t, 2> permitted_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-
-      cap_set_flag(caps, CAP_EFFECTIVE, effective_list.size(), effective_list.data(), CAP_CLEAR);
-      cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
-
-      if (cap_set_proc(caps) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
-      }
-      cap_free(caps);
-
-      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
-      // access /proc/pid/root.
-      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
-      }
-#endif
-    }
-
     int connect_to_portal() {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
       create_session_path(conn, nullptr, &session_token);
-
-      // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
-      finalize_portal_security();
 
       // Try combined RemoteDesktop + ScreenCast session first
       bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
@@ -779,6 +747,40 @@ namespace portal {
       maxframerate_failed_ = true;
     }
 
+    bool is_portal_secured() {
+      return is_portal_secured_;
+    }
+
+    void finalize_portal_security() {
+#if !defined(__FreeBSD__)
+      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
+
+      cap_t caps = cap_get_proc();
+      if (!caps) {
+        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
+        return;
+      }
+
+      std::array<cap_value_t, 2> effective_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
+      std::array<cap_value_t, 2> permitted_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
+
+      cap_set_flag(caps, CAP_EFFECTIVE, effective_list.size(), effective_list.data(), CAP_CLEAR);
+      cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
+
+      if (cap_set_proc(caps) != 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
+      }
+      cap_free(caps);
+
+      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
+      // access /proc/pid/root.
+      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      }
+#endif
+      is_portal_secured_ = true;
+    }
+
   private:
     session_cache_t() = default;
 
@@ -787,6 +789,7 @@ namespace portal {
     session_cache_t &operator=(const session_cache_t &) = delete;
 
     bool maxframerate_failed_ = false;
+    bool is_portal_secured_ = false;
   };
 
   session_cache_t &session_cache_t::instance() {
@@ -1690,6 +1693,9 @@ namespace platf {
       return nullptr;
     }
 
+    // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
+    portal::session_cache_t::instance().finalize_portal_security();
+
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
@@ -1708,6 +1714,13 @@ namespace platf {
     }
 
     pw_init(nullptr, nullptr);
+
+    if (!portal::session_cache_t::instance().is_portal_secured()) {
+      // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
+      // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
+      display_names.emplace_back("init");
+      return display_names;
+    }
 
     if (dbus->connect_to_portal() < 0) {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.";
