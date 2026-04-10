@@ -72,7 +72,7 @@ using namespace std::literals;
 
 namespace portal {
   // Forward declarations
-  class session_cache_t;
+  class runtime_t;
 
   class restore_token_t {
   public:
@@ -173,15 +173,15 @@ namespace portal {
   };
 
   struct pipewire_streaminfo_t {
-    int pipewire_node;
-    int width;
-    int height;
-    int pos_x;
-    int pos_y;
+    int pipewire_node = -1;
+    int width = 0;
+    int height = 0;
+    int pos_x = 0;
+    int pos_y = 0;
     std::string monitor_name;
 
     std::string to_display_name() {
-      if (monitor_name.length() > 0) {
+      if (!monitor_name.empty()) {
         return std::format("n{}", monitor_name);
       }
       return std::format("p{},{},{},{}", pos_x, pos_y, width, height);
@@ -287,43 +287,11 @@ namespace portal {
       return 0;
     }
 
-    void finalize_portal_security() {
-#if !defined(__FreeBSD__)
-      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
-
-      cap_t caps = cap_get_proc();
-      if (!caps) {
-        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
-        return;
-      }
-
-      std::array<cap_value_t, 2> effective_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-      std::array<cap_value_t, 2> permitted_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-
-      cap_set_flag(caps, CAP_EFFECTIVE, effective_list.size(), effective_list.data(), CAP_CLEAR);
-      cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
-
-      if (cap_set_proc(caps) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
-      }
-      cap_free(caps);
-
-      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
-      // access /proc/pid/root.
-      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
-      }
-#endif
-    }
-
     int connect_to_portal() {
       g_autoptr(GMainLoop) loop = g_main_loop_new(nullptr, FALSE);
       g_autofree gchar *session_path = nullptr;
       g_autofree gchar *session_token = nullptr;
       create_session_path(conn, nullptr, &session_token);
-
-      // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
-      finalize_portal_security();
 
       // Try combined RemoteDesktop + ScreenCast session first
       bool use_screencast_only = !try_remote_desktop_session(loop, &session_path, session_token);
@@ -655,12 +623,20 @@ namespace portal {
       while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
         int out_width;
         int out_height;
-        g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
+        bool result = g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
+        if (!result) {
+          BOOST_LOG(warning) << "[portalgrab] Ignoring stream without proper resolution on pipewire node "sv << out_pipewire_node;
+          continue;
+        }
 
         int out_pos_x;
         int out_pos_y;
-        g_variant_lookup(value, "position", "(ii)", &out_pos_x, &out_pos_y, nullptr);
-
+        result = g_variant_lookup(value, "position", "(ii)", &out_pos_x, &out_pos_y, nullptr);
+        if (!result) {
+          BOOST_LOG(warning) << "[portalgrab] Falling back to position 0x0 for stream with resolution "sv << out_width << "x"sv << out_height << "on pipewire node "sv << out_pipewire_node;
+          out_pos_x = 0;
+          out_pos_y = 0;
+        }
         auto stream = pipewire_streaminfo_t {out_pipewire_node, out_width, out_height, out_pos_x, out_pos_y};
 
         // Try to match the stream to a monitor_name by position/resolution and update stream info
@@ -673,6 +649,12 @@ namespace portal {
 
         out_pipewire_streams.emplace_back(stream);
       }
+
+      // The portal call returns the streams sorted by out_pipewire_node which can shuffle displays around, so
+      // we have to sort pipewire streams by position here to be consistent
+      std::ranges::sort(out_pipewire_streams, [](const auto &a, const auto &b) {
+        return a.pos_x < b.pos_x || a.pos_y < b.pos_y;
+      });
 
       return 0;
     }
@@ -750,12 +732,12 @@ namespace portal {
   };
 
   /**
-   * @brief Singleton cache for persistent portalgrab session data.
+   * @brief Singleton for portalgrab stuff persistent during an application run.
    *
    */
-  class session_cache_t {
+  class runtime_t {
   public:
-    static session_cache_t &instance();
+    static runtime_t &instance();
 
     bool is_maxframerate_failed() const {
       return maxframerate_failed_;
@@ -765,19 +747,54 @@ namespace portal {
       maxframerate_failed_ = true;
     }
 
+    bool is_portal_secured() {
+      return is_portal_secured_;
+    }
+
+    void finalize_portal_security() {
+#if !defined(__FreeBSD__)
+      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
+
+      cap_t caps = cap_get_proc();
+      if (!caps) {
+        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
+        return;
+      }
+
+      std::array<cap_value_t, 2> effective_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
+      std::array<cap_value_t, 2> permitted_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
+
+      cap_set_flag(caps, CAP_EFFECTIVE, effective_list.size(), effective_list.data(), CAP_CLEAR);
+      cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
+
+      if (cap_set_proc(caps) != 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
+      }
+      cap_free(caps);
+
+      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
+      // access /proc/pid/root.
+      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
+        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      }
+#endif
+      is_portal_secured_ = true;
+    }
+
   private:
-    session_cache_t() = default;
+    runtime_t() = default;
 
     // Prevent copying
-    session_cache_t(const session_cache_t &) = delete;
-    session_cache_t &operator=(const session_cache_t &) = delete;
+    runtime_t(const runtime_t &) = delete;
+    runtime_t &operator=(const runtime_t &) = delete;
 
     bool maxframerate_failed_ = false;
+    bool is_portal_secured_ = false;
   };
 
-  session_cache_t &session_cache_t::instance() {
-    alignas(session_cache_t) static std::array<std::byte, sizeof(session_cache_t)> storage;
-    static auto instance_ = new (storage.data()) session_cache_t();
+  runtime_t &runtime_t::instance() {
+    alignas(runtime_t) static std::array<std::byte, sizeof(runtime_t)> storage;
+    static auto instance_ = new (storage.data()) runtime_t();
     return *instance_;
   }
 
@@ -1050,7 +1067,7 @@ namespace portal {
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
-      if (!session_cache_t::instance().is_maxframerate_failed()) {
+      if (!runtime_t::instance().is_maxframerate_failed()) {
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
       }
 
@@ -1103,9 +1120,9 @@ namespace portal {
           }
           break;
         case PW_STREAM_STATE_ERROR:
-          if (old != PW_STREAM_STATE_STREAMING && !session_cache_t::instance().is_maxframerate_failed()) {
+          if (old != PW_STREAM_STATE_STREAMING && !runtime_t::instance().is_maxframerate_failed()) {
             BOOST_LOG(warning) << "[portalgrab] Negotiation failed, will retry without maxFramerate"sv;
-            session_cache_t::instance().set_maxframerate_failed();
+            runtime_t::instance().set_maxframerate_failed();
           }
           [[fallthrough]];
         case PW_STREAM_STATE_UNCONNECTED:
@@ -1676,6 +1693,9 @@ namespace platf {
       return nullptr;
     }
 
+    // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
+    portal::runtime_t::instance().finalize_portal_security();
+
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
@@ -1694,6 +1714,13 @@ namespace platf {
     }
 
     pw_init(nullptr, nullptr);
+
+    if (!portal::runtime_t::instance().is_portal_secured()) {
+      // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
+      // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
+      display_names.emplace_back("init");
+      return display_names;
+    }
 
     if (dbus->connect_to_portal() < 0) {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to portal. Cannot enumerate displays, returning empty list.";
