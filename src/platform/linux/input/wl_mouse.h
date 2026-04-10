@@ -6,6 +6,9 @@
 
 #ifdef SUNSHINE_BUILD_WAYLAND
 
+// standard includes
+#include <vector>
+
 // lib includes
 #include <wayland-client.h>
 
@@ -29,9 +32,15 @@ namespace platf::wl_mouse {
     zwlr_virtual_pointer_manager_v1 *manager = nullptr;
     zwlr_virtual_pointer_v1 *pointer = nullptr;
 
+    /** All wl_output globals discovered during registry enumeration, in announcement order. */
+    std::vector<wl_output *> outputs;
+    /** The output this pointer is bound to (nullptr if creation fell back to unbound). */
+    wl_output *bound_output = nullptr;
+
     /**
      * Connect to WAYLAND_DISPLAY, discover zwlr_virtual_pointer_manager_v1
-     * via the registry, and create a virtual pointer device.
+     * via the registry, and create a virtual pointer device bound to the
+     * output that matches config::video.capture (same index logic as wlgrab).
      * @return true on success, false if the compositor does not support the protocol.
      */
     bool init();

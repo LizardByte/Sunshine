@@ -22,6 +22,7 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/utility.h"
 #include "wl_mouse.h"
 
 namespace platf::wl_mouse {
@@ -40,7 +41,7 @@ namespace platf::wl_mouse {
     }
 
     // -------------------------------------------------------------------------
-    // Registry listener — binds zwlr_virtual_pointer_manager_v1 when found
+    // Registry listener — binds zwlr_virtual_pointer_manager_v1 and wl_output
     // -------------------------------------------------------------------------
 
     void
@@ -50,6 +51,13 @@ namespace platf::wl_mouse {
         uint32_t bind_version = std::min(version, (uint32_t) 2);
         state->manager = reinterpret_cast<zwlr_virtual_pointer_manager_v1 *>(
           wl_registry_bind(registry, name, &zwlr_virtual_pointer_manager_v1_interface, bind_version));
+      }
+      else if (strcmp(interface, "wl_output") == 0) {
+        // Collect outputs in announcement order — same ordering wlgrab uses for interface.monitors,
+        // so index N here corresponds to the same physical output as display_name "N" in capture config.
+        auto *out = reinterpret_cast<wl_output *>(
+          wl_registry_bind(registry, name, &wl_output_interface, 1));
+        state->outputs.push_back(out);
       }
     }
 
@@ -88,11 +96,32 @@ namespace platf::wl_mouse {
       return false;
     }
 
-    // NULL seat = compositor picks the default seat
-    pointer = zwlr_virtual_pointer_manager_v1_create_virtual_pointer(manager, nullptr);
-    wl_display_roundtrip(display);  // finish device creation
+    // Select the output that matches the configured capture monitor (same index logic as wlgrab).
+    // Binding the pointer to an output makes motion_absolute coordinates relative to that
+    // output's local frame instead of the full global compositor space, which prevents
+    // absolute inputs from mapping across multiple monitors.
+    int monitor_idx = 0;
+    if (!config::video.capture.empty()) {
+      auto idx = util::from_view(config::video.capture);
+      if (idx >= 0 && idx < (int) outputs.size()) {
+        monitor_idx = (int) idx;
+      }
+    }
 
-    BOOST_LOG(info) << "wl_mouse: virtual pointer created via wlr-virtual-pointer protocol";
+    if (!outputs.empty()) {
+      bound_output = outputs[monitor_idx];
+      pointer = zwlr_virtual_pointer_manager_v1_create_virtual_pointer_with_output(
+        manager, nullptr, bound_output);
+      BOOST_LOG(info) << "wl_mouse: virtual pointer bound to output index " << monitor_idx
+                      << " (matches capture display)";
+    }
+    else {
+      BOOST_LOG(warning) << "wl_mouse: no wl_output globals found; "
+                         << "absolute coordinates will use global compositor space";
+      pointer = zwlr_virtual_pointer_manager_v1_create_virtual_pointer(manager, nullptr);
+    }
+
+    wl_display_roundtrip(display);  // finish device creation
     return true;
   }
 
@@ -106,6 +135,11 @@ namespace platf::wl_mouse {
       zwlr_virtual_pointer_manager_v1_destroy(manager);
       manager = nullptr;
     }
+    for (auto *out : outputs) {
+      wl_output_destroy(out);
+    }
+    outputs.clear();
+    bound_output = nullptr;
     if (registry) {
       wl_registry_destroy(registry);
       registry = nullptr;
