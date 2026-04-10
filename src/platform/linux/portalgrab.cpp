@@ -173,15 +173,15 @@ namespace portal {
   };
 
   struct pipewire_streaminfo_t {
-    int pipewire_node;
-    int width;
-    int height;
-    int pos_x;
-    int pos_y;
+    int pipewire_node = -1;
+    int width = 0;
+    int height = 0;
+    int pos_x = 0;
+    int pos_y = 0;
     std::string monitor_name;
 
     std::string to_display_name() {
-      if (monitor_name.length() > 0) {
+      if (!monitor_name.empty()) {
         return std::format("n{}", monitor_name);
       }
       return std::format("p{},{},{},{}", pos_x, pos_y, width, height);
@@ -655,12 +655,20 @@ namespace portal {
       while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
         int out_width;
         int out_height;
-        g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
+        bool result = g_variant_lookup(value, "size", "(ii)", &out_width, &out_height, nullptr);
+        if (!result) {
+          BOOST_LOG(warning) << "[portalgrab] Ignoring stream without proper resolution on pipewire node "sv << out_pipewire_node;
+          continue;
+        }
 
         int out_pos_x;
         int out_pos_y;
-        g_variant_lookup(value, "position", "(ii)", &out_pos_x, &out_pos_y, nullptr);
-
+        result = g_variant_lookup(value, "position", "(ii)", &out_pos_x, &out_pos_y, nullptr);
+        if (!result) {
+          BOOST_LOG(warning) << "[portalgrab] Falling back to position 0x0 for stream with resolution "sv << out_width << "x"sv << out_height << "on pipewire node "sv << out_pipewire_node;
+          out_pos_x = 0;
+          out_pos_y = 0;
+        }
         auto stream = pipewire_streaminfo_t {out_pipewire_node, out_width, out_height, out_pos_x, out_pos_y};
 
         // Try to match the stream to a monitor_name by position/resolution and update stream info
@@ -673,6 +681,12 @@ namespace portal {
 
         out_pipewire_streams.emplace_back(stream);
       }
+
+      // The portal call returns the streams sorted by out_pipewire_node which can shuffle displays around, so
+      // we have to sort pipewire streams by position here to be consistent
+      std::ranges::sort(out_pipewire_streams, [](const auto &a, const auto &b) {
+        return a.pos_x < b.pos_x || a.pos_y < b.pos_y;
+      });
 
       return 0;
     }
