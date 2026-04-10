@@ -72,7 +72,7 @@ using namespace std::literals;
 
 namespace portal {
   // Forward declarations
-  class session_cache_t;
+  class runtime_t;
 
   class restore_token_t {
   public:
@@ -732,12 +732,12 @@ namespace portal {
   };
 
   /**
-   * @brief Singleton cache for persistent portalgrab session data.
+   * @brief Singleton for portalgrab stuff persistent during an application run.
    *
    */
-  class session_cache_t {
+  class runtime_t {
   public:
-    static session_cache_t &instance();
+    static runtime_t &instance();
 
     bool is_maxframerate_failed() const {
       return maxframerate_failed_;
@@ -782,19 +782,19 @@ namespace portal {
     }
 
   private:
-    session_cache_t() = default;
+    runtime_t() = default;
 
     // Prevent copying
-    session_cache_t(const session_cache_t &) = delete;
-    session_cache_t &operator=(const session_cache_t &) = delete;
+    runtime_t(const runtime_t &) = delete;
+    runtime_t &operator=(const runtime_t &) = delete;
 
     bool maxframerate_failed_ = false;
     bool is_portal_secured_ = false;
   };
 
-  session_cache_t &session_cache_t::instance() {
-    alignas(session_cache_t) static std::array<std::byte, sizeof(session_cache_t)> storage;
-    static auto instance_ = new (storage.data()) session_cache_t();
+  runtime_t &runtime_t::instance() {
+    alignas(runtime_t) static std::array<std::byte, sizeof(runtime_t)> storage;
+    static auto instance_ = new (storage.data()) runtime_t();
     return *instance_;
   }
 
@@ -1067,7 +1067,7 @@ namespace portal {
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_format, SPA_POD_Id(format), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_size, SPA_POD_CHOICE_RANGE_Rectangle(&sizes[0], &sizes[1], &sizes[2]), 0);
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
-      if (!session_cache_t::instance().is_maxframerate_failed()) {
+      if (!runtime_t::instance().is_maxframerate_failed()) {
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
       }
 
@@ -1120,9 +1120,9 @@ namespace portal {
           }
           break;
         case PW_STREAM_STATE_ERROR:
-          if (old != PW_STREAM_STATE_STREAMING && !session_cache_t::instance().is_maxframerate_failed()) {
+          if (old != PW_STREAM_STATE_STREAMING && !runtime_t::instance().is_maxframerate_failed()) {
             BOOST_LOG(warning) << "[portalgrab] Negotiation failed, will retry without maxFramerate"sv;
-            session_cache_t::instance().set_maxframerate_failed();
+            runtime_t::instance().set_maxframerate_failed();
           }
           [[fallthrough]];
         case PW_STREAM_STATE_UNCONNECTED:
@@ -1694,7 +1694,7 @@ namespace platf {
     }
 
     // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
-    portal::session_cache_t::instance().finalize_portal_security();
+    portal::runtime_t::instance().finalize_portal_security();
 
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
@@ -1715,7 +1715,7 @@ namespace platf {
 
     pw_init(nullptr, nullptr);
 
-    if (!portal::session_cache_t::instance().is_portal_secured()) {
+    if (!portal::runtime_t::instance().is_portal_secured()) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
       // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
       display_names.emplace_back("init");
