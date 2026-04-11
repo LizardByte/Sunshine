@@ -40,8 +40,6 @@ class Sunshine < Formula
 
   option "with-cuda", "Enable CUDA support (Linux only)"
   option "with-docs", "Enable docs build"
-  option "with-static-boost", "Enable static link of Boost libraries"
-  option "without-static-boost", "Disable static link of Boost libraries" # default option
 
   depends_on "cmake" => :build
   depends_on "doxygen" => :build if build.with? "docs"
@@ -49,9 +47,7 @@ class Sunshine < Formula
   depends_on "node" => :build
   depends_on "pkgconf" => :build
   depends_on "gcovr" => :test
-  depends_on "boost"
   depends_on "curl"
-  depends_on "icu4c@78"
   depends_on "miniupnpc"
   depends_on "openssl@3"
   depends_on "opus"
@@ -203,32 +199,6 @@ class Sunshine < Formula
     end
   end
 
-  def add_boost_args(args)
-    if build.without? "static-boost"
-      args << "-DBOOST_USE_STATIC=OFF"
-      ohai "Disabled statically linking Boost libraries"
-    else
-      configure_static_boost(args)
-    end
-  end
-
-  def configure_static_boost(args)
-    args << "-DBOOST_USE_STATIC=ON"
-    ohai "Enabled statically linking Boost libraries"
-
-    unless Formula["icu4c"].any_version_installed?
-      odie <<~EOS
-        icu4c must be installed to link against static Boost libraries,
-        either install icu4c or use brew install sunshine --with-static-boost instead
-      EOS
-    end
-    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
-    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
-    ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
-    ENV["LIBRARY_PATH"] = icu4c_lib_path
-    ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
-  end
-
   def add_cuda_args(args)
     return unless OS.linux?
 
@@ -255,7 +225,6 @@ class Sunshine < Formula
     args = base_cmake_args
     add_test_args(args)
     add_docs_args(args)
-    add_boost_args(args)
     add_cuda_args(args)
     args
   end

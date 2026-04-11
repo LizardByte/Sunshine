@@ -82,7 +82,6 @@ jobs:
             graphviz \
             node \
             pkgconf \
-            icu4c@78 \
             miniupnpc \
             openssl@3 \
             opus
