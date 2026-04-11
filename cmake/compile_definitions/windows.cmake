@@ -100,7 +100,7 @@ list(PREPEND PLATFORM_LIBRARIES
         ntdll
         setupapi
         shlwapi
-        synchronization.lib
+        synchronization
         userenv
         ws2_32
         wsock32

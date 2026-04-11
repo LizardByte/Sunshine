@@ -11,6 +11,13 @@ if(NOT DEFINED BOOST_PREPARED_BINARIES AND BOOST_USE_STATIC)
     # Determine download location
     set(BOOST_DOWNLOAD_DIR "${CMAKE_BINARY_DIR}/_deps")
 
+    # Fetch tags for the build-deps submodule so tag lookups work in CI shallow clones
+    execute_process(
+        COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" fetch --tags --depth=1
+        OUTPUT_QUIET
+        ERROR_QUIET
+    )
+
     # Get the current commit/tag from the build-deps submodule
     execute_process(
         COMMAND git -C "${CMAKE_SOURCE_DIR}/third-party/build-deps" describe --tags --exact-match
@@ -103,28 +110,141 @@ if(NOT DEFINED BOOST_PREPARED_BINARIES AND BOOST_USE_STATIC)
 endif()
 
 if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
-    set(Boost_FOUND TRUE)  # cmake-lint: disable=C0103
-    set(Boost_INCLUDE_DIRS  # cmake-lint: disable=C0103
-            "$<BUILD_INTERFACE:${BOOST_PREPARED_BINARIES}/include/boost>")
-
-    # Define the components we need
     set(BOOST_COMPONENTS
+            headers
             filesystem
             locale
             log
+            log_setup
             program_options
             system
             thread
     )
 
-    # Build the library list from actual components instead of globbing all libraries
-    set(Boost_LIBRARIES "")  # cmake-lint: disable=C0103
-    foreach(component ${BOOST_COMPONENTS})
-        file(GLOB component_libs "${BOOST_PREPARED_BINARIES}/lib/libboost_${component}*.a")
-        if(component_libs)
-            list(APPEND Boost_LIBRARIES ${component_libs})
+    set(_boost_use_config FALSE)
+    file(GLOB BOOST_CONFIG_DIRS LIST_DIRECTORIES TRUE "${BOOST_PREPARED_BINARIES}/lib/cmake/Boost-*")
+    file(GLOB BOOST_HEADERS_TARGET_FILES LIST_DIRECTORIES FALSE
+            "${BOOST_PREPARED_BINARIES}/lib/cmake/boost_headers-*/boost_headers-targets.cmake")
+    if(BOOST_CONFIG_DIRS AND BOOST_HEADERS_TARGET_FILES)
+        list(SORT BOOST_CONFIG_DIRS)
+        list(REVERSE BOOST_CONFIG_DIRS)
+        list(GET BOOST_CONFIG_DIRS 0 BOOST_CONFIG_DIR)
+        list(GET BOOST_HEADERS_TARGET_FILES 0 BOOST_HEADERS_TARGET_FILE)
+
+        file(READ "${BOOST_HEADERS_TARGET_FILE}" BOOST_HEADERS_TARGET_CONTENT LIMIT 512)
+        if(BOOST_HEADERS_TARGET_CONTENT MATCHES "get_filename_component\\(_IMPORT_PREFIX")
+            set(_boost_use_config TRUE)
         endif()
-    endforeach()
+    endif()
+
+    if(_boost_use_config)
+        set(Boost_DIR "${BOOST_CONFIG_DIR}")  # cmake-lint: disable=C0103
+
+        if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+            cmake_policy(SET CMP0167 NEW)  # Get BoostConfig.cmake from upstream
+        endif()
+
+        find_package(Boost CONFIG REQUIRED COMPONENTS ${BOOST_COMPONENTS})
+        message(STATUS "Using relocatable Boost package config from ${Boost_DIR}")
+    else()
+        message(STATUS "Boost package config is not relocatable. Falling back to manual imported targets.")
+
+        add_library(Boost::headers INTERFACE IMPORTED)
+        set_target_properties(Boost::headers PROPERTIES
+                INTERFACE_INCLUDE_DIRECTORIES "${BOOST_PREPARED_BINARIES}/include"
+        )
+
+        if(NOT TARGET Boost::boost)
+            add_library(Boost::boost INTERFACE IMPORTED)
+            set_target_properties(Boost::boost PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers"
+            )
+        endif()
+
+        foreach(component headers system algorithm asio_core preprocessor scope uuid regex)
+            if(NOT TARGET Boost::${component})
+                add_library(Boost::${component} INTERFACE IMPORTED)
+                set_target_properties(Boost::${component} PROPERTIES
+                        INTERFACE_LINK_LIBRARIES "Boost::headers"
+                )
+            endif()
+        endforeach()
+
+        foreach(component atomic chrono date_time filesystem locale log log_setup program_options thread)
+            file(GLOB component_libs "${BOOST_PREPARED_BINARIES}/lib/libboost_${component}*.a")
+            if(component_libs AND NOT TARGET Boost::${component})
+                list(SORT component_libs)
+                list(GET component_libs 0 COMPONENT_LIB)
+                add_library(Boost::${component} STATIC IMPORTED)
+                set_target_properties(Boost::${component} PROPERTIES
+                        IMPORTED_LOCATION "${COMPONENT_LIB}"
+                        INTERFACE_INCLUDE_DIRECTORIES "${BOOST_PREPARED_BINARIES}/include"
+                )
+            endif()
+        endforeach()
+
+        if(TARGET Boost::filesystem)
+            set_target_properties(Boost::filesystem PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers;Boost::system"
+            )
+        endif()
+        if(TARGET Boost::locale)
+            set_target_properties(Boost::locale PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers"
+            )
+        endif()
+        if(TARGET Boost::program_options)
+            set_target_properties(Boost::program_options PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers"
+            )
+        endif()
+        if(TARGET Boost::thread)
+            set(_boost_thread_link_libraries Boost::headers)
+            if(TARGET Boost::chrono)
+                list(PREPEND _boost_thread_link_libraries Boost::chrono)
+            endif()
+            set_target_properties(Boost::thread PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${_boost_thread_link_libraries}"
+            )
+        endif()
+        if(TARGET Boost::log)
+            set(_boost_log_link_libraries
+                    Boost::asio_core
+                    Boost::filesystem
+                    Boost::headers
+                    Boost::regex
+                    Boost::system
+                    Boost::thread
+            )
+            foreach(component atomic date_time)
+                if(TARGET Boost::${component})
+                    list(APPEND _boost_log_link_libraries Boost::${component})
+                endif()
+            endforeach()
+            if(WIN32)
+                list(APPEND _boost_log_link_libraries
+                        advapi32
+                        mswsock
+                        psapi
+                        secur32
+                        synchronization
+                        ws2_32
+                )
+            endif()
+            set_target_properties(Boost::log PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${_boost_log_link_libraries}"
+            )
+        endif()
+        if(TARGET Boost::log_setup)
+            set_target_properties(Boost::log_setup PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers;Boost::log"
+            )
+        endif()
+        unset(_boost_thread_link_libraries)
+        unset(_boost_log_link_libraries)
+
+        set(Boost_FOUND TRUE)  # cmake-lint: disable=C0103
+    endif()
 
     set(PREPARED_BOOST_USED TRUE)
 
@@ -132,10 +252,31 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
     # This is used to conditionally include platform-specific headers
     add_compile_definitions(SUNSHINE_PREBUILT_BOOST)
 
-    # Create Boost::headers target
-    add_library(Boost::headers INTERFACE IMPORTED)
-    set_target_properties(Boost::headers PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${BOOST_PREPARED_BINARIES}/include/boost"
+    if(TARGET Boost::headers AND NOT TARGET Boost::boost)
+        add_library(Boost::boost INTERFACE IMPORTED)
+        set_target_properties(Boost::boost PROPERTIES
+                INTERFACE_LINK_LIBRARIES "Boost::headers"
+        )
+    endif()
+
+    foreach(component algorithm preprocessor scope uuid)
+        if(TARGET Boost::headers AND NOT TARGET Boost::${component})
+            add_library(Boost::${component} INTERFACE IMPORTED)
+            set_target_properties(Boost::${component} PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "Boost::headers"
+            )
+        endif()
+    endforeach()
+
+    set(Boost_INCLUDE_DIRS "${BOOST_PREPARED_BINARIES}/include")  # cmake-lint: disable=C0103
+    set(Boost_LIBRARIES  # cmake-lint: disable=C0103
+            Boost::filesystem
+            Boost::locale
+            Boost::log
+            Boost::log_setup
+            Boost::program_options
+            Boost::system
+            Boost::thread
     )
 endif()
 
