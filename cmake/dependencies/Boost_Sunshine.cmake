@@ -189,8 +189,19 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
             )
         endif()
         if(TARGET Boost::locale)
+            set(_boost_locale_link_libraries Boost::headers)
+            if(UNIX)
+                find_package(Iconv REQUIRED)
+                find_package(ICU REQUIRED COMPONENTS data i18n uc)
+                list(APPEND _boost_locale_link_libraries
+                        Iconv::Iconv
+                        ICU::data
+                        ICU::i18n
+                        ICU::uc
+                )
+            endif()
             set_target_properties(Boost::locale PROPERTIES
-                    INTERFACE_LINK_LIBRARIES "Boost::headers"
+                    INTERFACE_LINK_LIBRARIES "${_boost_locale_link_libraries}"
             )
         endif()
         if(TARGET Boost::program_options)
@@ -240,6 +251,7 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
                     INTERFACE_LINK_LIBRARIES "Boost::headers;Boost::log"
             )
         endif()
+        unset(_boost_locale_link_libraries)
         unset(_boost_thread_link_libraries)
         unset(_boost_log_link_libraries)
 
