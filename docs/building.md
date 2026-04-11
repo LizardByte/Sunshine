@@ -86,7 +86,6 @@ dependencies=(
   "cmake"
   "doxygen"  # Optional, for docs
   "graphviz"  # Optional, for docs
-  "icu4c"  # Optional, if boost is not installed
   "miniupnpc"
   "ninja"
   "node"

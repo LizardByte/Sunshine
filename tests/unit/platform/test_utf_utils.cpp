@@ -29,28 +29,28 @@ TEST_F(Utf32DecodeTest, Utf8ToUtf32WithAsciiAndMultibyteText) {
 }
 
 TEST_F(Utf32DecodeTest, Utf8ToUtf32RejectsTruncatedSequence) {
-  const std::string input("\xE2\x82", 2);
+  const std::string input("\x{E2}\x{82}", 2);
   std::u32string output;
 
   EXPECT_FALSE(utf_utils::utf8_to_utf32(input, output));
 }
 
 TEST_F(Utf32DecodeTest, Utf8ToUtf32RejectsOverlongEncoding) {
-  const std::string input("\xC0\xAF", 2);
+  const std::string input("\x{C0}\x{AF}", 2);
   std::u32string output;
 
   EXPECT_FALSE(utf_utils::utf8_to_utf32(input, output));
 }
 
 TEST_F(Utf32DecodeTest, Utf8ToUtf32RejectsUtf16SurrogateRange) {
-  const std::string input("\xED\xA0\x80", 3);
+  const std::string input("\x{ED}\x{A0}\x{80}", 3);
   std::u32string output;
 
   EXPECT_FALSE(utf_utils::utf8_to_utf32(input, output));
 }
 
 TEST_F(Utf32DecodeTest, Utf8ToUtf32RejectsCodePointsOutsideUnicodeRange) {
-  const std::string input("\xF4\x90\x80\x80", 4);
+  const std::string input("\x{F4}\x{90}\x{80}\x{80}", 4);
   std::u32string output;
 
   EXPECT_FALSE(utf_utils::utf8_to_utf32(input, output));
