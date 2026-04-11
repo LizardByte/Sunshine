@@ -8,8 +8,8 @@
   "sources": [
     {
       "type": "file",
-      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.215.1920/Linux-x86_64-boost.tar.gz",
-      "sha256": "5a29814c96bf181d0edcfd9963993f8d025c414ade66389c619a306c05161254",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.221.143859/Linux-x86_64-boost.tar.gz",
+      "sha256": "d1ab71466a052a0ad8ea7fed6281021c405888e6c60b1082b7d92382780f883e",
       "dest-filename": "boost.tar.gz",
       "only-arches": [
         "x86_64"
@@ -23,8 +23,8 @@
     },
     {
       "type": "file",
-      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.215.1920/Linux-aarch64-boost.tar.gz",
-      "sha256": "f90b3d41508622835477c95bc2873379094b7143a36f5538a6d9a791ddff22f4",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.221.143859/Linux-aarch64-boost.tar.gz",
+      "sha256": "679f92738421ad990abd3ed5af4abb1b345ba28dc9c29dfbf897e078519cd8f0",
       "dest-filename": "boost.tar.gz",
       "only-arches": [
         "aarch64"
