@@ -3,7 +3,7 @@
  * @brief Displays information about connected displays and GPUs
  */
 #define WINVER 0x0A00
-#include "src/platform/windows/utf_utils.h"
+#include "src/platform/utf_utils.h"
 #include "src/utility.h"
 
 #include <d3dcommon.h>

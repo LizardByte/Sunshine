@@ -18,8 +18,8 @@
 #include "src/network.h"
 #include "src/nvhttp.h"
 #include "src/platform/common.h"
+#include "src/platform/utf_utils.h"
 #include "src/thread_safe.h"
-#include "utf_utils.h"
 
 #define _FN(x, ret, args) \
   typedef ret(*x##_fn) args; \

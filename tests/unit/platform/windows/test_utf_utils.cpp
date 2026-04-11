@@ -2,17 +2,20 @@
  * @file tests/unit/platform/windows/test_utf_utils.cpp
  * @brief Test src/platform/windows/utf_utils.cpp UTF conversion functions.
  */
-#include "../../../tests_common.h"
-
-#include <iostream>
-#include <string>
-
 #ifdef _WIN32
-  #include <src/platform/windows/utf_utils.h>
+  // test includes
+  #include "../../../tests_common.h"
+
+  // standard includes
+  #include <iostream>
+  #include <string>
+
+// platform includes
   #include <Windows.h>
-#endif
 
-#ifdef _WIN32
+  // local includes
+  #include <src/platform/utf_utils.h>
+
 /**
  * @brief Test fixture for utf_utils namespace functions
  */
@@ -254,9 +257,4 @@ TEST_F(UtfUtilsTest, LongStringsWithSpecialCharacters) {
   EXPECT_EQ(long_special, back_result) << "Long string round trip should preserve content";
 }
 
-#else
-// For non-Windows platforms, the utf_utils namespace doesn't exist
-TEST(UtfUtilsTest, UtfUtilsNotAvailableOnNonWindows) {
-  GTEST_SKIP() << "utf_utils namespace is Windows-specific";
-}
 #endif

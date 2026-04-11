@@ -12,62 +12,12 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/utf_utils.h"
 #include "src/utility.h"
 
 using namespace std::literals;
 
 namespace platf::keyboard {
-
-  bool utf8_to_utf32(const char *utf8, int size, std::u32string &output) {
-    output.clear();
-    output.reserve(size);
-
-    for (int i = 0; i < size;) {
-      const auto lead = static_cast<unsigned char>(utf8[i]);
-      uint32_t code_point = 0;
-      int continuation_bytes = 0;
-
-      if (lead <= 0x7F) {
-        code_point = lead;
-      } else if ((lead & 0xE0) == 0xC0) {
-        code_point = lead & 0x1F;
-        continuation_bytes = 1;
-      } else if ((lead & 0xF0) == 0xE0) {
-        code_point = lead & 0x0F;
-        continuation_bytes = 2;
-      } else if ((lead & 0xF8) == 0xF0) {
-        code_point = lead & 0x07;
-        continuation_bytes = 3;
-      } else {
-        return false;
-      }
-
-      if (i + continuation_bytes >= size) {
-        return false;
-      }
-
-      for (int j = 1; j <= continuation_bytes; ++j) {
-        const auto continuation = static_cast<unsigned char>(utf8[i + j]);
-        if ((continuation & 0xC0) != 0x80) {
-          return false;
-        }
-        code_point = (code_point << 6) | (continuation & 0x3F);
-      }
-
-      if ((continuation_bytes == 1 && code_point < 0x80) ||
-          (continuation_bytes == 2 && code_point < 0x800) ||
-          (continuation_bytes == 3 && code_point < 0x10000) ||
-          (code_point >= 0xD800 && code_point <= 0xDFFF) ||
-         code_point > 0x10FFFF) {
-        return false;
-      }
-
-      output.push_back(static_cast<char32_t>(code_point));
-      i += continuation_bytes + 1;
-    }
-
-    return true;
-  }
 
   /**
    * Takes an UTF-32 encoded string and returns a hex string representation of the bytes (uppercase)
@@ -223,7 +173,13 @@ namespace platf::keyboard {
   void unicode(input_raw_t *raw, char *utf8, int size) {
     if (raw->keyboard) {
       std::u32string utf32_str;
-      if (!utf8_to_utf32(utf8, size, utf32_str)) {
+      if (size < 0 || (size > 0 && utf8 == nullptr)) {
+        BOOST_LOG(warning) << "Failed to decode UTF-8 keyboard input";
+        return;
+      }
+
+      const auto utf8_view = size == 0 ? std::string_view {} : std::string_view {utf8, static_cast<size_t>(size)};
+      if (!utf_utils::utf8_to_utf32(utf8_view, utf32_str)) {
         BOOST_LOG(warning) << "Failed to decode UTF-8 keyboard input";
         return;
       }

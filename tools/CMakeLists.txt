@@ -9,6 +9,7 @@ include_directories(
 
 set(TOOL_SOURCES
         "${CMAKE_SOURCE_DIR}/src/logging.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/utf_utils.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/windows/utf_utils.cpp"
 )
 
