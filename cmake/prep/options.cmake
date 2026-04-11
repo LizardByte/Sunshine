@@ -23,11 +23,7 @@ option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-pro
 option(CPM_USE_LOCAL_PACKAGES "Try to use local packages instead of downloading them." OFF)
 option(CPM_LOCAL_PACKAGES_ONLY "Only use local packages, do not download them." OFF)
 
-if(APPLE)
-    option(BOOST_USE_STATIC "Use static boost libraries." OFF)
-else()
-    option(BOOST_USE_STATIC "Use static boost libraries." ON)
-endif()
+option(BOOST_USE_STATIC "Use static boost libraries." ON)
 
 option(CUDA_FAIL_ON_MISSING "Fail the build if CUDA is not found." ON)
 option(CUDA_INHERIT_COMPILE_OPTIONS
