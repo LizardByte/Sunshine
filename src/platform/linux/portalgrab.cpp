@@ -1309,7 +1309,12 @@ namespace portal {
       // Match display_name to a stream from the pipewire_streams vector
       bool use_fallback = true;
       pipewire_streaminfo_t stream;
-      for (const auto &stream_ : dbus.pipewire_streams) {
+      auto streams = dbus.pipewire_streams;
+      if (streams.empty()) {
+        BOOST_LOG(error) << "[portalgrab] No streams found on portal. portal_t::init() failed.";
+        return -1;
+      }
+      for (const auto &stream_ : streams) {
         if (stream_.match_display_name(display_name)) {
           stream = stream_;
           use_fallback = false;
@@ -1319,7 +1324,7 @@ namespace portal {
       // Fall back to first stream if we cannot match the given display_name to a stream in currently available streams.
       if (use_fallback) {
         BOOST_LOG(info) << "[portalgrab] Using first available stream as no matching stream was found for: '"sv << display_name << "'";
-        stream = dbus.pipewire_streams[0];
+        stream = dbus.pipewire_streams.at(0);
       }
       // Set values inherited from display_t
       width = stream.width;
