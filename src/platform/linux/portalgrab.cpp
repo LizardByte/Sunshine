@@ -1701,6 +1701,9 @@ namespace platf {
     // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
     portal::runtime_t::instance().finalize_portal_security();
 
+    // Ensure pipewire is initialized and modules are loaded
+    pw_init(nullptr, nullptr);
+
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
@@ -1717,8 +1720,6 @@ namespace platf {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to dbus. Cannot enumerate displays, returning empty list.";
       return {};
     }
-
-    pw_init(nullptr, nullptr);
 
     if (!portal::runtime_t::instance().is_portal_secured()) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
