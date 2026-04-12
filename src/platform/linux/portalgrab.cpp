@@ -223,6 +223,8 @@ namespace portal {
 
   class dbus_t {
   public:
+    dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
+
     ~dbus_t() noexcept {
       try {
         if (conn && !session_handle.empty()) {
@@ -747,7 +749,7 @@ namespace portal {
       maxframerate_failed_ = true;
     }
 
-    bool is_portal_secured() {
+    bool is_portal_secured() const {
       return is_portal_secured_;
     }
 
