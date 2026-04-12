@@ -1,0 +1,27 @@
+---
+# This workflow is centrally managed in https://github.com/LizardByte/.github/
+# Don't make changes to this file in this repo as they will be overwritten with changes made to the same file in
+# the above-mentioned repo.
+
+# Create a top issues dashboard
+
+name: Top issues
+permissions: {}
+
+on:
+  schedule:
+    - cron: '0 6/12 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: 'top-issues'
+  cancel-in-progress: true
+
+jobs:
+  top-issues:
+    name: Top issues
+    uses: LizardByte/.github/.github/workflows/__call-top-issues.yml@master
+    if: github.repository_owner == 'LizardByte'
+    permissions:
+      contents: read
+      issues: write
