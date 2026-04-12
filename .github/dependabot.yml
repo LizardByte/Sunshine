@@ -39,8 +39,6 @@ updates:
       timezone: "America/New_York"
     open-pull-requests-limit: 10
     groups:
-      monorepo-dependencies:
-        group-by: dependency-name
       docker-actions:
         applies-to: version-updates
         patterns:
