@@ -1087,7 +1087,7 @@ namespace platf {
     set_env("AMD_DEBUG", "lowlatencyenc");
 
     // enable Vulkan video extensions for AMD RADV
-    set_env("RADV_PERFTEST", "video_encode");
+    set_env("RADV_PERFTEST", "video_encode,lowlatencyenc");
 
     // These are allowed to fail.
     gbm::init();
