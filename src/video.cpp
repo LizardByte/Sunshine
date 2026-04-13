@@ -2734,36 +2734,19 @@ namespace video {
 
     // Test HDR and YUV444 support
     {
-      // H.264 is special because encoders may support YUV 4:4:4 without supporting 10-bit color depth
-      if (encoder.flags & YUV444_SUPPORT) {
-        config_t config_h264_yuv444 {1920, 1080, 60, 6000, 1000, 1, 0, 1, 0, 0, 1};
-        encoder.h264[encoder_t::YUV444] = disp->is_codec_supported(encoder.h264.name, config_h264_yuv444) &&
-                                          validate_config(disp, encoder, config_h264_yuv444) >= 0;
-      } else {
-        encoder.h264[encoder_t::YUV444] = false;
-      }
-
       auto test_yuv444 = [&](auto &flag_map, auto video_format) {
-        const config_t sdr_yuv444_config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, 1, 0, 1};
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 1, video_format, 0, 1};
 
-        auto config = sdr_yuv444_config;
-
-        // Reset the display
         reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
         if (!disp) {
           return;
         }
-
-        config.videoFormat = video_format;
-
         if (!flag_map[encoder_t::PASSED]) {
           return;
         }
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        // Test 4:4:4 SDR first
-        config.chromaSamplingType = 1;
         if ((encoder.flags & YUV444_SUPPORT) &&
             disp->is_codec_supported(encoder_codec_name, config) &&
             validate_config(disp, encoder, config) >= 0) {
@@ -2773,38 +2756,19 @@ namespace video {
         }
       };
 
-      auto test_hdr = [&](auto &flag_map, auto video_format) {
+      auto test_yuv420_hdr = [&](auto &flag_map, auto video_format) {
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 0};
 
-        const config_t generic_hdr_config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, 1, 1, 0};
-
-        auto config = generic_hdr_config;
-
-        // Reset the display
         reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
         if (!disp) {
           return;
         }
-
-        config.videoFormat = video_format;
-
         if (!flag_map[encoder_t::PASSED]) {
           return;
         }
 
         auto encoder_codec_name = encoder.codec_from_config(config).name;
 
-        // Test 4:4:4 HDR first.
-        config.chromaSamplingType = 1;
-        if ((encoder.flags & YUV444_SUPPORT) &&
-            disp->is_codec_supported(encoder_codec_name, config) &&
-            validate_config(disp, encoder, config) >= 0) {
-          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = true;
-        } else {
-          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = false;
-        }
-
-        // Test 4:2:0 HDR
-        config.chromaSamplingType = 0;
         if (disp->is_codec_supported(encoder_codec_name, config) && validate_config(disp, encoder, config) >= 0) {
           flag_map[encoder_t::DYNAMIC_RANGE] = true;
         } else {
@@ -2812,14 +2776,39 @@ namespace video {
         }
       };
 
+      auto test_yuv444_hdr = [&](auto &flag_map, auto video_format) {
+        const config_t config = {1920, 1080, 60, 6000, 1000, 1, 0, 3, video_format, 1, 1};
+
+        reset_display(disp, encoder.platform_formats->dev_type, output_name, config);
+        if (!disp) {
+          return;
+        }
+        if (!flag_map[encoder_t::PASSED]) {
+          return;
+        }
+
+        auto encoder_codec_name = encoder.codec_from_config(config).name;
+
+        if ((encoder.flags & YUV444_SUPPORT) &&
+            disp->is_codec_supported(encoder_codec_name, config) &&
+            validate_config(disp, encoder, config) >= 0) {
+          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = true;
+        } else {
+          flag_map[encoder_t::DYNAMIC_RANGE_YUV444] = false;
+        }
+      };
+
+      test_yuv444(encoder.h264, 0);
       // HDR is not supported with H.264. Don't bother even trying it.
       encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
       encoder.h264[encoder_t::DYNAMIC_RANGE_YUV444] = false;
 
       test_yuv444(encoder.hevc, 1);
-      test_hdr(encoder.hevc, 1);
+      test_yuv420_hdr(encoder.hevc, 1);
+      test_yuv444_hdr(encoder.hevc, 1);
       test_yuv444(encoder.av1, 2);
-      test_hdr(encoder.av1, 2);
+      test_yuv420_hdr(encoder.av1, 2);
+      test_yuv444_hdr(encoder.av1, 2);
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -2856,7 +2845,7 @@ namespace video {
     active_av1_mode = config::video.av1_mode;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
-    auto adjust_encoder_constraints = [&](encoder_t *encoder) {
+    auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
       // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
       if (active_hevc_mode == 5 && !encoder->hevc[encoder_t::DYNAMIC_RANGE] && !encoder->hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC Main10 Rext10_444 on this system"sv;
@@ -2871,7 +2860,10 @@ namespace video {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support HEVC on this system"sv;
         active_hevc_mode = 0;
       }
+    };
 
+    auto adjust_encoder_constraints_av1 = [&](encoder_t *encoder) {
+      // If we can't satisfy both the encoder and codec requirement, prefer the encoder over codec support
       if (active_av1_mode == 5 && !encoder->av1[encoder_t::DYNAMIC_RANGE] && !encoder->av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 Main10 Rext10_444 on this system"sv;
         active_av1_mode = 0;
@@ -2900,7 +2892,8 @@ namespace video {
           }
 
           // We will return an encoder here even if it fails one of the codec requirements specified by the user
-          adjust_encoder_constraints(encoder);
+          adjust_encoder_constraints_hevc(encoder);
+          adjust_encoder_constraints_av1(encoder);
 
           chosen_encoder = encoder;
           break;
@@ -2979,7 +2972,8 @@ namespace video {
         }
 
         // We will return an encoder here even if it fails one of the codec requirements specified by the user
-        adjust_encoder_constraints(encoder);
+        adjust_encoder_constraints_hevc(encoder);
+        adjust_encoder_constraints_av1(encoder);
 
         chosen_encoder = encoder;
         break;
