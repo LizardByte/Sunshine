@@ -716,7 +716,7 @@ namespace egl {
     yuv444_t yuv444 {
       egl_display,
       eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.data()),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.data()),
       eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.data()),
       gl::tex_t::make(3),
       gl::frame_buf_t::make(3),
@@ -1104,7 +1104,7 @@ namespace egl {
       // V - shader
       sws.program[2] = std::move(program.left());
 
-      program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[2].left()); //HERE!!
+      program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[2].left());
       if (program.has_right()) {
         BOOST_LOG(error) << "GL linker (U - shader): "sv << program.right();
         return std::nullopt;
@@ -1208,21 +1208,14 @@ namespace egl {
     return make_nv12(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
-  void sws_t::load_nv12_ram(platf::img_t &img) {
+  void sws_t::load_ram(platf::img_t &img) {
     loaded_texture = tex[0];
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
   }
 
-  void sws_t::load_yuv444_ram(platf::img_t &img) {
-    loaded_texture = tex[0];
-
-    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
-    gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
-  }
-
-  void sws_t::load_nv12_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
+  void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444) {
     // When only a sub-part of the image must be encoded...
     const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
     if (copy) {
@@ -1239,7 +1232,11 @@ namespace egl {
       GLenum attachment = GL_COLOR_ATTACHMENT0;
 
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
-      gl::ctx.UseProgram(program[2].handle());
+
+      //nv12 cursor program[2]
+      //yuv444 cursor program[3]
+      const int cursor_program = is_yuv444 ? 3 : 2;
+      gl::ctx.UseProgram(program[cursor_program].handle());
 
       // When a copy has already been made...
       if (!copy) {
@@ -1270,64 +1267,6 @@ namespace egl {
         return;
       }
 #endif
-
-      gl::ctx.Viewport(img.x, img.y, img.width, img.height);
-      gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
-
-      gl::ctx.Disable(GL_BLEND);
-
-      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-  }
-
-  void sws_t::load_yuv444_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
-    // When only a sub-part of the image must be encoded...
-    const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
-    if (copy) {
-      auto framebuf = gl::frame_buf_t::make(1);
-      framebuf.bind(&texture, &texture + 1);
-
-      loaded_texture = tex[0];
-      framebuf.copy(0, loaded_texture, offset_x, offset_y, in_width, in_height);
-    } else {
-      loaded_texture = texture;
-    }
-    if (img.data) {
-      GLenum attachment = GL_COLOR_ATTACHMENT0;
-
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
-      gl::ctx.UseProgram(program[3].handle());
-
-      // When a copy has already been made...
-      if (!copy) {
-        gl::ctx.BindTexture(GL_TEXTURE_2D, texture);
-        gl::ctx.DrawBuffers(1, &attachment);
-
-        gl::ctx.Viewport(0, 0, in_width, in_height);
-        gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
-
-        loaded_texture = tex[0];
-      }
-
-      gl::ctx.BindTexture(GL_TEXTURE_2D, tex[1]);
-      if (serial != img.serial) {
-        serial = img.serial;
-
-        gl::ctx.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, img.src_w, img.src_h, 0, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
-      }
-
-      gl::ctx.Enable(GL_BLEND);
-
-      gl::ctx.DrawBuffers(1, &attachment);
-
-      #ifndef NDEBUG
-      auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
-      if (status != GL_FRAMEBUFFER_COMPLETE) {
-        BOOST_LOG(error) << "Pass Cursor: CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
-        return;
-      }
-      #endif
 
       gl::ctx.Viewport(img.x, img.y, img.width, img.height);
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);

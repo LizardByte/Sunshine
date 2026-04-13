@@ -368,11 +368,8 @@ namespace egl {
     // Make an area of the image black
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format);
 
-    void load_nv12_ram(platf::img_t &img);
-    void load_nv12_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
-
-    void load_yuv444_ram(platf::img_t &img);
-    void load_yuv444_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
+    void load_ram(platf::img_t &img);
+    void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444);
 
     void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
