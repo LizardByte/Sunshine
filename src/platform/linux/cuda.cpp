@@ -430,10 +430,10 @@ namespace cuda {
 
       // Perform the color conversion and scaling in GL
       if (sw_format == AV_PIX_FMT_YUV444P) {
-        sws.load_yuv444_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
+        sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], true);
         sws.convert_yuv444(yuv444->buf);
       } else {
-        sws.load_nv12_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
+        sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], false);
         sws.convert_nv12(nv12->buf);
       }
 
