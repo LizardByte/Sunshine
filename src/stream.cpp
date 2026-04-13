@@ -924,6 +924,21 @@ namespace stream {
       BOOST_LOG(verbose) << "type [IDX_PERIODIC_PING]"sv;
     });
 
+    // Some clients can emit Sunshine extension control packets on the inbound control path.
+    // We currently do not consume them here, so map them explicitly to avoid noisy unknown dumps.
+    server->map(packetTypes[IDX_RUMBLE_TRIGGER_DATA], [](session_t *session, const std::string_view &payload) {
+      BOOST_LOG(verbose) << "type [IDX_RUMBLE_TRIGGER_DATA] (ignored inbound)"sv;
+    });
+    server->map(packetTypes[IDX_SET_MOTION_EVENT], [](session_t *session, const std::string_view &payload) {
+      BOOST_LOG(verbose) << "type [IDX_SET_MOTION_EVENT] (ignored inbound)"sv;
+    });
+    server->map(packetTypes[IDX_SET_RGB_LED], [](session_t *session, const std::string_view &payload) {
+      BOOST_LOG(verbose) << "type [IDX_SET_RGB_LED] (ignored inbound)"sv;
+    });
+    server->map(packetTypes[IDX_SET_ADAPTIVE_TRIGGERS], [](session_t *session, const std::string_view &payload) {
+      BOOST_LOG(verbose) << "type [IDX_SET_ADAPTIVE_TRIGGERS] (ignored inbound)"sv;
+    });
+
     server->map(packetTypes[IDX_START_A], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_START_A]"sv;
     });
@@ -1292,6 +1307,13 @@ namespace stream {
     }
 
     auto ratecontrol_next_frame_start = std::chrono::steady_clock::now();
+    auto network_stats_window_start = std::chrono::steady_clock::now();
+    auto next_network_stats_log = network_stats_window_start + 5s;
+    std::uint64_t video_frames_sent = 0;
+    std::uint64_t pacing_sleep_events = 0;
+    std::chrono::nanoseconds pacing_sleep_total {0};
+    std::size_t last_packet_overflow_events = packets->overflow_events();
+    std::size_t last_packet_overflow_items = packets->overflow_items();
 
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
@@ -1527,7 +1549,10 @@ namespace stream {
 
                 auto now = std::chrono::steady_clock::now();
                 if (now < due) {
-                  timer->sleep_for(due - now);
+                  auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(due - now);
+                  pacing_sleep_total += sleep_duration;
+                  ++pacing_sleep_events;
+                  timer->sleep_for(sleep_duration);
                 }
 
                 ratecontrol_group_packets_sent = 0;
@@ -1583,9 +1608,39 @@ namespace stream {
         });
 
         session->video.lowseq = lowseq;
+        ++video_frames_sent;
       } catch (const std::exception &e) {
         BOOST_LOG(error) << "Broadcast video failed "sv << e.what();
         std::this_thread::sleep_for(100ms);
+      }
+
+      auto stats_now = std::chrono::steady_clock::now();
+      if (stats_now >= next_network_stats_log) {
+        const auto window_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(stats_now - network_stats_window_start).count();
+        const auto fps = window_ns > 0 ? (double) video_frames_sent * 1'000'000'000.0 / (double) window_ns : 0.0;
+        const auto pacing_sleep_ms = (double) pacing_sleep_total.count() / 1'000'000.0;
+        const auto pacing_sleep_ratio_pct = window_ns > 0 ? (double) pacing_sleep_total.count() * 100.0 / (double) window_ns : 0.0;
+        auto packet_overflow_events = packets->overflow_events();
+        auto packet_overflow_items = packets->overflow_items();
+
+        BOOST_LOG(debug)
+          << "[stream] video tx stats fps="sv << fps
+          << " frames="sv << video_frames_sent
+          << " pacing_sleep_events="sv << pacing_sleep_events
+          << " pacing_sleep_total_ms="sv << pacing_sleep_ms
+          << " pacing_sleep_ratio_pct="sv << pacing_sleep_ratio_pct
+          << " packet_queue_depth="sv << packets->depth()
+          << "/"sv << packets->max_elements()
+          << " packet_queue_overflow_events_delta="sv << (packet_overflow_events - last_packet_overflow_events)
+          << " packet_queue_overflow_items_delta="sv << (packet_overflow_items - last_packet_overflow_items);
+
+        network_stats_window_start = stats_now;
+        next_network_stats_log = stats_now + 5s;
+        video_frames_sent = 0;
+        pacing_sleep_events = 0;
+        pacing_sleep_total = std::chrono::nanoseconds {0};
+        last_packet_overflow_events = packet_overflow_events;
+        last_packet_overflow_items = packet_overflow_items;
       }
     }
 

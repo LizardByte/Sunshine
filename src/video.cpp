@@ -1389,7 +1389,7 @@ namespace video {
 
     // Capture takes place on this thread
     platf::set_thread_name("video::capture");
-    platf::adjust_thread_priority(platf::thread_priority_e::critical);
+    platf::adjust_thread_priority(platf::thread_priority_e::high);
 
     while (capture_ctx_queue->running()) {
       bool artificial_reinit = false;
@@ -2058,6 +2058,10 @@ namespace video {
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
     auto idr_events = mail->event<bool>(mail::idr);
     auto invalidate_ref_frames_events = mail->event<std::pair<int64_t, int64_t>>(mail::invalidate_ref_frames);
+    auto encode_stats_window_start = std::chrono::steady_clock::now();
+    auto next_encode_stats_log = encode_stats_window_start + 5s;
+    std::uint64_t encode_frames_in_window = 0;
+    std::uint64_t duplicate_encode_frames = 0;
 
     {
       // Load a dummy image into the AVFrame to ensure we have something to encode
@@ -2118,12 +2122,34 @@ namespace video {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
+      ++encode_frames_in_window;
+      if (!frame_timestamp) {
+        ++duplicate_encode_frames;
+      }
 
       session->request_normal_frame();
 
       // While streaming check to see if the mouse is present and enable Mouse Keys to force the cursor to appear
       // This is useful for KVM switch scenarios where mouse may disappear during streaming
       platf::enable_mouse_keys();
+
+      auto stats_now = std::chrono::steady_clock::now();
+      if (stats_now >= next_encode_stats_log) {
+        const auto window_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(stats_now - encode_stats_window_start).count();
+        const auto fps = window_ns > 0 ? (double) encode_frames_in_window * 1'000'000'000.0 / (double) window_ns : 0.0;
+        const auto duplicate_pct = encode_frames_in_window > 0 ? (double) duplicate_encode_frames * 100.0 / (double) encode_frames_in_window : 0.0;
+
+        BOOST_LOG(debug)
+          << "[video] encode stats fps="sv << fps
+          << " frames="sv << encode_frames_in_window
+          << " duplicate_frames="sv << duplicate_encode_frames
+          << " duplicate_pct="sv << duplicate_pct;
+
+        encode_stats_window_start = stats_now;
+        next_encode_stats_log = stats_now + 5s;
+        encode_frames_in_window = 0;
+        duplicate_encode_frames = 0;
+      }
     }
   }
 
