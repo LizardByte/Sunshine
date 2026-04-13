@@ -37,6 +37,13 @@ elseif(UNIX)
         configure_file(packaging/linux/Arch/sunshine.install sunshine.install @ONLY)
     endif()
 
+    # configure the Alpine Linux APKBUILD
+    if(${SUNSHINE_CONFIGURE_APKBUILD})
+        configure_file(packaging/linux/Alpine/APKBUILD APKBUILD @ONLY)
+        configure_file(packaging/linux/Alpine/sunshine.post-install sunshine.post-install COPYONLY)
+        configure_file(packaging/linux/Alpine/sunshine.post-install sunshine.post-upgrade COPYONLY)
+    endif()
+
     # configure the flatpak manifest
     if(${SUNSHINE_CONFIGURE_FLATPAK_MAN})
         configure_file(packaging/linux/flatpak/${PROJECT_FQDN}.yml ${PROJECT_FQDN}.yml @ONLY)

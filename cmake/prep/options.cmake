@@ -54,6 +54,8 @@ elseif(UNIX)  # Linux
             "Enable a Flatpak build." OFF)
     option(SUNSHINE_CONFIGURE_PKGBUILD
             "Configure files required for AUR. Recommended to use with SUNSHINE_CONFIGURE_ONLY" OFF)
+    option(SUNSHINE_CONFIGURE_APKBUILD
+            "Configure files required for an Alpine Linux package. Recommended to use with SUNSHINE_CONFIGURE_ONLY" OFF)
     option(SUNSHINE_CONFIGURE_FLATPAK_MAN
             "Configure manifest file required for Flatpak build. Recommended to use with SUNSHINE_CONFIGURE_ONLY" OFF)
 
