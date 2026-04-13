@@ -2119,6 +2119,31 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### portal_enable_nvidia_dmabuf
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Enable DMA-BUF capture for CUDA when using XDG Portal on pure NVIDIA systems.
+            @note{Applies to Linux only.}
+            @warning{Disabled by default because some NVIDIA systems show lower game GPU utilization at higher stream FPS when this is enabled.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            portal_enable_nvidia_dmabuf = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### encoder
 
 <table>

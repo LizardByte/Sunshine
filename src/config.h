@@ -96,6 +96,7 @@ namespace config {
     std::string encoder;
     std::string adapter_name;
     std::string output_name;
+    bool portal_enable_nvidia_dmabuf;
 
     struct dd_t {
       struct workarounds_t {

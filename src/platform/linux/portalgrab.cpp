@@ -67,16 +67,6 @@ namespace {
 
   constexpr const char REQUEST_PREFIX[] = "/org/freedesktop/portal/desktop/request/";
   constexpr const char SESSION_PREFIX[] = "/org/freedesktop/portal/desktop/session/";
-
-  bool env_truthy(const char *name) {
-    const char *value = std::getenv(name);
-    if (!value) {
-      return false;
-    }
-
-    const std::string_view v {value};
-    return v == "1" || v == "true" || v == "TRUE" || v == "yes" || v == "YES" || v == "on" || v == "ON";
-  }
 }  // namespace
 
 using namespace std::literals;
@@ -1420,14 +1410,8 @@ namespace portal {
         const bool redundant_frame = has_valid_data && is_buffer_redundant(img_egl);
         if (has_valid_data && !redundant_frame) {
           // Update frame metadata
-          update_metadata(img_egl, retries);
+          update_metadata(img_egl);
           return platf::capture_e::ok;
-        }
-
-        if (redundant_frame) {
-          ++redundant_drop_events_total;
-        } else if (!has_valid_data) {
-          ++invalid_frame_events_total;
         }
 
         // No valid frame yet, or it was a duplicate
@@ -1454,14 +1438,6 @@ namespace portal {
 
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
-      auto capture_stats_window_start = next_frame;
-      auto next_capture_stats_log = next_frame + 5s;
-      std::uint64_t capture_attempts = 0;
-      std::uint64_t capture_ok = 0;
-      std::uint64_t capture_timeout = 0;
-      std::uint64_t last_redundant_drop_events = redundant_drop_events_total;
-      std::uint64_t last_redundant_retry_events = redundant_retry_events_total;
-      std::uint64_t last_invalid_frame_events = invalid_frame_events_total;
 
       if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
         BOOST_LOG(error) << "[portalgrab] Failed to ensure pipewire stream. capture() failed with error.";
@@ -1470,7 +1446,6 @@ namespace portal {
       sleep_overshoot_logger.reset();
 
       while (true) {
-        ++capture_attempts;
         // Check if PipeWire signaled a dead stream
         if (shared_state->stream_dead.exchange(false)) {
           // If the pipewire stream stopped due to closed portal session stop the capture with an error
@@ -1504,7 +1479,6 @@ namespace portal {
             pipewire.frame_cv().notify_all();
             return status;
           case platf::capture_e::timeout:
-            ++capture_timeout;
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
               BOOST_LOG(debug) << "[portalgrab] PipeWire: timeout -> interrupt nudge";
@@ -1517,7 +1491,6 @@ namespace portal {
             }
             break;
           case platf::capture_e::ok:
-            ++capture_ok;
             if (!push_captured_image_cb(std::move(img_out), true)) {
               BOOST_LOG(debug) << "[portalgrab] PipeWire: !push_captured_image_cb -> ok";
               return platf::capture_e::ok;
@@ -1526,35 +1499,6 @@ namespace portal {
           default:
             BOOST_LOG(error) << "[portalgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
-        }
-
-        auto stats_now = std::chrono::steady_clock::now();
-        if (stats_now >= next_capture_stats_log) {
-          const auto window_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(stats_now - capture_stats_window_start).count();
-          const auto effective_fps = window_ns > 0 ? (double) capture_ok * 1'000'000'000.0 / (double) window_ns : 0.0;
-          const auto redundant_drop_delta = redundant_drop_events_total - last_redundant_drop_events;
-          const auto redundant_retry_delta = redundant_retry_events_total - last_redundant_retry_events;
-          const auto invalid_frame_delta = invalid_frame_events_total - last_invalid_frame_events;
-
-          BOOST_LOG(debug)
-            << "[portalgrab] capture stats mode="sv << (display_is_nvidia && n_dmabuf_infos > 0 ? "dmabuf" : "mem")
-            << " nvidia="sv << display_is_nvidia
-            << " attempts="sv << capture_attempts
-            << " ok="sv << capture_ok
-            << " timeout="sv << capture_timeout
-            << " effective_fps="sv << effective_fps
-            << " redundant_drop_delta="sv << redundant_drop_delta
-            << " redundant_retry_delta="sv << redundant_retry_delta
-            << " invalid_frame_delta="sv << invalid_frame_delta;
-
-          capture_stats_window_start = stats_now;
-          next_capture_stats_log = stats_now + 5s;
-          capture_attempts = 0;
-          capture_ok = 0;
-          capture_timeout = 0;
-          last_redundant_drop_events = redundant_drop_events_total;
-          last_redundant_retry_events = redundant_retry_events_total;
-          last_invalid_frame_events = invalid_frame_events_total;
         }
       }
 
@@ -1620,15 +1564,10 @@ namespace portal {
       return false;
     }
 
-    void update_metadata(egl::img_descriptor_t *img, int retries) {
+    void update_metadata(egl::img_descriptor_t *img) {
       last_seq = img->seq;
       last_pts = img->pts;
       img->sequence = ++sequence;
-      redundant_retry_events_total += retries;
-
-      if (retries > 0) {
-        BOOST_LOG(debug) << "[portalgrab] Processed frame after " << retries << " redundant events."sv;
-      }
     }
 
     bool wait_for_frame(std::chrono::steady_clock::time_point deadline) {
@@ -1689,14 +1628,7 @@ namespace portal {
     }
 
     int get_dmabuf_modifiers() {
-      if (env_truthy("SUNSHINE_PORTAL_FORCE_MEM")) {
-        n_dmabuf_infos = 0;
-        display_is_nvidia = false;
-        BOOST_LOG(info) << "[portalgrab] SUNSHINE_PORTAL_FORCE_MEM=1 set: forcing memory buffers (DMA-BUF disabled)"sv;
-        return 0;
-      }
-
-      const bool allow_nvidia_dmabuf = env_truthy("SUNSHINE_PORTAL_ENABLE_NVIDIA_DMABUF");
+      const bool allow_nvidia_dmabuf = config::video.portal_enable_nvidia_dmabuf;
 
       if (wl_display.init() < 0) {
         return -1;
@@ -1733,9 +1665,9 @@ namespace portal {
           const char *vendor = eglQueryString(egl_display.get(), EGL_VENDOR);
           if (vendor && std::string_view(vendor).contains("NVIDIA")) {
             if (allow_nvidia_dmabuf) {
-              BOOST_LOG(info) << "[portalgrab] Pure NVIDIA system - DMA-BUF enabled for CUDA (SUNSHINE_PORTAL_ENABLE_NVIDIA_DMABUF=1)"sv;
+              BOOST_LOG(info) << "[portalgrab] Pure NVIDIA system - DMA-BUF enabled for CUDA"sv;
             } else {
-              BOOST_LOG(info) << "[portalgrab] Pure NVIDIA system - using memory buffers for CUDA by default; set SUNSHINE_PORTAL_ENABLE_NVIDIA_DMABUF=1 to re-enable DMA-BUF"sv;
+              BOOST_LOG(info) << "[portalgrab] Pure NVIDIA system - using memory buffers for CUDA by default"sv;
             }
             display_is_nvidia = true;
           }
@@ -1764,9 +1696,6 @@ namespace portal {
     std::optional<std::uint64_t> last_pts {};
     std::optional<std::uint64_t> last_seq {};
     std::uint64_t sequence {};
-    std::uint64_t redundant_drop_events_total {};
-    std::uint64_t redundant_retry_events_total {};
-    std::uint64_t invalid_frame_events_total {};
     uint32_t framerate;
     std::shared_ptr<shared_state_t> shared_state;
   };

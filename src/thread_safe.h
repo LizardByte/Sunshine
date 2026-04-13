@@ -266,14 +266,8 @@ namespace safe {
         return;
       }
 
-      if (_max_elements == 0) {
-        return;
-      }
-
       if (_queue.size() == _max_elements) {
-        _overflow_events.fetch_add(1, std::memory_order_relaxed);
-        _overflow_items.fetch_add(1, std::memory_order_relaxed);
-        _queue.erase(std::begin(_queue));
+        _queue.clear();
       }
 
       _queue.emplace_back(std::forward<Args>(args)...);
@@ -342,33 +336,14 @@ namespace safe {
       return _continue;
     }
 
-    [[nodiscard]] std::size_t depth() const {
-      std::lock_guard lg {_lock};
-      return _queue.size();
-    }
-
-    [[nodiscard]] std::size_t max_elements() const {
-      return _max_elements;
-    }
-
-    [[nodiscard]] std::size_t overflow_events() const {
-      return _overflow_events.load(std::memory_order_relaxed);
-    }
-
-    [[nodiscard]] std::size_t overflow_items() const {
-      return _overflow_items.load(std::memory_order_relaxed);
-    }
-
   private:
     bool _continue {true};
     std::uint32_t _max_elements;
 
-    mutable std::mutex _lock;
+    std::mutex _lock;
     std::condition_variable _cv;
 
     std::vector<T> _queue;
-    std::atomic<std::size_t> _overflow_events {0};
-    std::atomic<std::size_t> _overflow_items {0};
   };
 
   template<class T>

@@ -85,6 +85,16 @@ const config = ref(props.config)
       <div class="form-text">{{ $t('config.capture_desc') }}</div>
     </div>
 
+    <!-- Portal NVIDIA DMA-BUF -->
+    <div class="mb-3" v-if="platform === 'linux'">
+      <label for="portal_enable_nvidia_dmabuf" class="form-label">{{ $t('config.portal_enable_nvidia_dmabuf') }}</label>
+      <select id="portal_enable_nvidia_dmabuf" class="form-select" v-model="config.portal_enable_nvidia_dmabuf">
+        <option value="disabled">{{ $t('_common.disabled_def') }}</option>
+        <option value="enabled">{{ $t('_common.enabled') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.portal_enable_nvidia_dmabuf_desc') }}</div>
+    </div>
+
     <!-- Encoder -->
     <div class="mb-3">
       <label for="encoder" class="form-label">{{ $t('config.encoder') }}</label>

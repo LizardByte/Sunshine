@@ -154,23 +154,14 @@ namespace wl {
   public:
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
-      auto capture_stats_window_start = next_frame;
-      auto next_capture_stats_log = next_frame + 5s;
-      std::uint64_t capture_attempts = 0;
-      std::uint64_t capture_ok = 0;
-      std::uint64_t capture_timeout = 0;
-      std::chrono::nanoseconds capture_sleep_total {0};
 
       sleep_overshoot_logger.reset();
 
       while (true) {
         auto now = std::chrono::steady_clock::now();
-        ++capture_attempts;
 
         if (next_frame > now) {
-          auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(next_frame - now);
-          std::this_thread::sleep_for(sleep_duration);
-          capture_sleep_total += sleep_duration;
+          std::this_thread::sleep_for(next_frame - now);
           sleep_overshoot_logger.first_point(next_frame);
           sleep_overshoot_logger.second_point_now_and_log();
         }
@@ -188,13 +179,11 @@ namespace wl {
           case platf::capture_e::interrupted:
             return status;
           case platf::capture_e::timeout:
-            ++capture_timeout;
             if (!push_captured_image_cb(std::move(img_out), false)) {
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
-            ++capture_ok;
             if (!push_captured_image_cb(std::move(img_out), true)) {
               return platf::capture_e::ok;
             }
@@ -202,26 +191,6 @@ namespace wl {
           default:
             BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
-        }
-
-        auto stats_now = std::chrono::steady_clock::now();
-        if (stats_now >= next_capture_stats_log) {
-          const auto window_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(stats_now - capture_stats_window_start).count();
-          const auto avg_interval_ms = capture_attempts > 0 ? (double) window_ns / 1'000'000.0 / (double) capture_attempts : 0.0;
-          const auto sleep_ratio_pct = window_ns > 0 ? (double) capture_sleep_total.count() * 100.0 / (double) window_ns : 0.0;
-          BOOST_LOG(debug)
-            << "[wlgrab] capture stats attempts="sv << capture_attempts
-            << " ok="sv << capture_ok
-            << " timeout="sv << capture_timeout
-            << " avg_interval_ms="sv << avg_interval_ms
-            << " sleep_ratio_pct="sv << sleep_ratio_pct;
-
-          capture_stats_window_start = stats_now;
-          next_capture_stats_log = stats_now + 5s;
-          capture_attempts = 0;
-          capture_ok = 0;
-          capture_timeout = 0;
-          capture_sleep_total = std::chrono::nanoseconds {0};
         }
       }
 
@@ -318,23 +287,14 @@ namespace wl {
   public:
     platf::capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
       auto next_frame = std::chrono::steady_clock::now();
-      auto capture_stats_window_start = next_frame;
-      auto next_capture_stats_log = next_frame + 5s;
-      std::uint64_t capture_attempts = 0;
-      std::uint64_t capture_ok = 0;
-      std::uint64_t capture_timeout = 0;
-      std::chrono::nanoseconds capture_sleep_total {0};
 
       sleep_overshoot_logger.reset();
 
       while (true) {
         auto now = std::chrono::steady_clock::now();
-        ++capture_attempts;
 
         if (next_frame > now) {
-          auto sleep_duration = std::chrono::duration_cast<std::chrono::nanoseconds>(next_frame - now);
-          std::this_thread::sleep_for(sleep_duration);
-          capture_sleep_total += sleep_duration;
+          std::this_thread::sleep_for(next_frame - now);
           sleep_overshoot_logger.first_point(next_frame);
           sleep_overshoot_logger.second_point_now_and_log();
         }
@@ -352,13 +312,11 @@ namespace wl {
           case platf::capture_e::interrupted:
             return status;
           case platf::capture_e::timeout:
-            ++capture_timeout;
             if (!push_captured_image_cb(std::move(img_out), false)) {
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
-            ++capture_ok;
             if (!push_captured_image_cb(std::move(img_out), true)) {
               return platf::capture_e::ok;
             }
@@ -366,26 +324,6 @@ namespace wl {
           default:
             BOOST_LOG(error) << "[wlgrab] Unrecognized capture status ["sv << std::to_underlying(status) << ']';
             return status;
-        }
-
-        auto stats_now = std::chrono::steady_clock::now();
-        if (stats_now >= next_capture_stats_log) {
-          const auto window_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(stats_now - capture_stats_window_start).count();
-          const auto avg_interval_ms = capture_attempts > 0 ? (double) window_ns / 1'000'000.0 / (double) capture_attempts : 0.0;
-          const auto sleep_ratio_pct = window_ns > 0 ? (double) capture_sleep_total.count() * 100.0 / (double) window_ns : 0.0;
-          BOOST_LOG(debug)
-            << "[wlgrab] capture stats attempts="sv << capture_attempts
-            << " ok="sv << capture_ok
-            << " timeout="sv << capture_timeout
-            << " avg_interval_ms="sv << avg_interval_ms
-            << " sleep_ratio_pct="sv << sleep_ratio_pct;
-
-          capture_stats_window_start = stats_now;
-          next_capture_stats_log = stats_now + 5s;
-          capture_attempts = 0;
-          capture_ok = 0;
-          capture_timeout = 0;
-          capture_sleep_total = std::chrono::nanoseconds {0};
         }
       }
 
