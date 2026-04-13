@@ -223,6 +223,8 @@ namespace portal {
 
   class dbus_t {
   public:
+    dbus_t &operator=(dbus_t &&) = delete;  // Do not allow to copying
+
     ~dbus_t() noexcept {
       try {
         if (conn && !session_handle.empty()) {
@@ -747,7 +749,7 @@ namespace portal {
       maxframerate_failed_ = true;
     }
 
-    bool is_portal_secured() {
+    bool is_portal_secured() const {
       return is_portal_secured_;
     }
 
@@ -1309,7 +1311,12 @@ namespace portal {
       // Match display_name to a stream from the pipewire_streams vector
       bool use_fallback = true;
       pipewire_streaminfo_t stream;
-      for (const auto &stream_ : dbus.pipewire_streams) {
+      auto streams = dbus.pipewire_streams;
+      if (streams.empty()) {
+        BOOST_LOG(error) << "[portalgrab] No streams found on portal. portal_t::init() failed.";
+        return -1;
+      }
+      for (const auto &stream_ : streams) {
         if (stream_.match_display_name(display_name)) {
           stream = stream_;
           use_fallback = false;
@@ -1319,7 +1326,7 @@ namespace portal {
       // Fall back to first stream if we cannot match the given display_name to a stream in currently available streams.
       if (use_fallback) {
         BOOST_LOG(info) << "[portalgrab] Using first available stream as no matching stream was found for: '"sv << display_name << "'";
-        stream = dbus.pipewire_streams[0];
+        stream = dbus.pipewire_streams.at(0);
       }
       // Set values inherited from display_t
       width = stream.width;
@@ -1696,6 +1703,9 @@ namespace platf {
     // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
     portal::runtime_t::instance().finalize_portal_security();
 
+    // Ensure pipewire is initialized and modules are loaded
+    pw_init(nullptr, nullptr);
+
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
       return nullptr;
@@ -1712,8 +1722,6 @@ namespace platf {
       BOOST_LOG(warning) << "[portalgrab] Failed to connect to dbus. Cannot enumerate displays, returning empty list.";
       return {};
     }
-
-    pw_init(nullptr, nullptr);
 
     if (!portal::runtime_t::instance().is_portal_secured()) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
