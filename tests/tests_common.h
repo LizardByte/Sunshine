@@ -12,7 +12,13 @@
   #pragma GCC diagnostic ignored "-Wstringop-overflow"
 #endif
 
+// standard includes
+#include <initializer_list>
+
+// lib includes
 #include <gtest/gtest.h>
+
+// local includes
 #include <src/globals.h>
 #include <src/logging.h>
 #include <src/platform/common.h>
@@ -90,6 +96,22 @@ namespace test_utils {
       BOOST_LOG(debug) << "Assertion check: " << message << " - " << (result ? "PASSED" : "FAILED");
     }
     return result;
+  }
+
+  /**
+   * @brief Build a string from raw byte values.
+   * @param bytes The byte sequence to copy into the string.
+   * @return A string containing the exact byte values in order.
+   */
+  inline std::string make_bytes(std::initializer_list<unsigned char> bytes) {
+    std::string output;
+    output.reserve(bytes.size());
+
+    for (const auto byte : bytes) {
+      output.push_back(static_cast<char>(byte));
+    }
+
+    return output;
   }
 }  // namespace test_utils
 

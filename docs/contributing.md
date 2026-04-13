@@ -97,11 +97,6 @@ The following is a simple example of how to use it.
   > More formatting examples can be found in the
   > [Vue I18n guide](https://kazupon.github.io/vue-i18n/guide/formatting.html).
 
-<!--
-This section has been temporarily disabled since boost locale was removed, and there is no localization in the C++ yet.
-To get this working, we can either reimplement boost locale, which will require adding icu as a dependency.
-Alternatively, another idea is to tap into the JSON translations instead of having separate translation systems.
-
 ##### C++
 
 There should be minimal cases where strings need to be extracted from C++ source code; however it may be necessary in
@@ -157,7 +152,6 @@ Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed
 > Pull Requests. The files are automatically generated and updated by the workflow. Once the PR is merged, the
 > translations can take place on [CrowdIn][crowdin-url]. Once the translations are
 > complete, a PR will be made to merge the translations into Sunshine.
--->
 
 ### Testing
 

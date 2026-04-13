@@ -28,12 +28,9 @@ namespace utf_utils {
   /**
    * @brief Decode UTF-8 text into UTF-32 code points.
    *
-   * This validates that the input uses well-formed UTF-8:
-   * - the leading byte matches a supported UTF-8 sequence length,
-   * - every required continuation byte is present,
-   * - no overlong encodings are accepted,
-   * - UTF-16 surrogate values are rejected, and
-   * - code points above U+10FFFF are rejected.
+   * The conversion uses Boost.Locale to validate the UTF-8 input first, then
+   * normalizes the intermediate wide string into UTF-32 so Linux input code can
+   * work with fixed-width code points.
    *
    * @param utf8 The UTF-8 encoded input text.
    * @param output Receives the decoded UTF-32 code points on success.

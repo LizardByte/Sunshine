@@ -27,6 +27,7 @@ BuildRequires: cmake >= 3.25.0
 BuildRequires: desktop-file-utils
 BuildRequires: git
 BuildRequires: libcap-devel
+BuildRequires: libicu-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel

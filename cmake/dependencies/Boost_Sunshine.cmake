@@ -113,6 +113,7 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
     set(BOOST_COMPONENTS
             headers
             filesystem
+            locale
             log
             log_setup
             program_options
@@ -169,7 +170,7 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
             endif()
         endforeach()
 
-        foreach(component atomic chrono date_time filesystem log log_setup program_options thread)
+        foreach(component atomic chrono date_time filesystem locale log log_setup program_options thread)
             file(GLOB component_libs "${BOOST_PREPARED_BINARIES}/lib/libboost_${component}*.a")
             if(component_libs AND NOT TARGET Boost::${component})
                 list(SORT component_libs)
@@ -185,6 +186,22 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
         if(TARGET Boost::filesystem)
             set_target_properties(Boost::filesystem PROPERTIES
                     INTERFACE_LINK_LIBRARIES "Boost::headers;Boost::system"
+            )
+        endif()
+        if(TARGET Boost::locale)
+            set(_boost_locale_link_libraries Boost::headers)
+            if(UNIX)
+                find_package(Iconv REQUIRED)
+                find_package(ICU REQUIRED COMPONENTS data i18n uc)
+                list(APPEND _boost_locale_link_libraries
+                        Iconv::Iconv
+                        ICU::data
+                        ICU::i18n
+                        ICU::uc
+                )
+            endif()
+            set_target_properties(Boost::locale PROPERTIES
+                    INTERFACE_LINK_LIBRARIES "${_boost_locale_link_libraries}"
             )
         endif()
         if(TARGET Boost::program_options)
@@ -234,6 +251,7 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
                     INTERFACE_LINK_LIBRARIES "Boost::headers;Boost::log"
             )
         endif()
+        unset(_boost_locale_link_libraries)
         unset(_boost_thread_link_libraries)
         unset(_boost_log_link_libraries)
 
@@ -265,6 +283,7 @@ if(BOOST_PREPARED_BINARIES AND EXISTS "${BOOST_PREPARED_BINARIES}")
     set(Boost_INCLUDE_DIRS "${BOOST_PREPARED_BINARIES}/include")  # cmake-lint: disable=C0103
     set(Boost_LIBRARIES  # cmake-lint: disable=C0103
             Boost::filesystem
+            Boost::locale
             Boost::log
             Boost::log_setup
             Boost::program_options
@@ -276,6 +295,7 @@ endif()
 if(NOT Boost_FOUND)
     set(BOOST_COMPONENTS
             filesystem
+            locale
             log
             program_options
             system

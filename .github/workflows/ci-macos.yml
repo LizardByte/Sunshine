@@ -80,6 +80,7 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            icu4c@78 \
             node \
             pkgconf \
             miniupnpc \

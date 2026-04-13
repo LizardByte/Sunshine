@@ -31,6 +31,7 @@ fi
 depends=(
   'avahi'
   'curl'
+  'icu'
   'libayatana-appindicator'
   'libcap'
   'libdrm'

@@ -48,6 +48,7 @@ class Sunshine < Formula
   depends_on "pkgconf" => :build
   depends_on "gcovr" => :test
   depends_on "curl"
+  depends_on "icu4c@78"
   depends_on "miniupnpc"
   depends_on "openssl@3"
   depends_on "opus"
@@ -134,10 +135,20 @@ class Sunshine < Formula
     cause "Array out of bounds error when compiling glad sources"
   end
 
+  def configure_boost
+    ENV.append "CXXFLAGS", "-I#{Formula["icu4c"].opt_include}"
+    icu4c_lib_path = Formula["icu4c"].opt_lib.to_s
+    ENV.append "LDFLAGS", "-L#{icu4c_lib_path}"
+    ENV["LIBRARY_PATH"] = icu4c_lib_path
+    ohai "Linking against ICU libraries at: #{icu4c_lib_path}"
+  end
+
   def setup_build_environment
     ENV["BRANCH"] = "@GITHUB_BRANCH@"
     ENV["BUILD_VERSION"] = "@BUILD_VERSION@"
     ENV["COMMIT"] = "@GITHUB_COMMIT@"
+
+    configure_boost
 
     setup_linux_gcc_environment if OS.linux?
 

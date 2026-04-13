@@ -7,7 +7,6 @@
   #include "../../../tests_common.h"
 
   // standard includes
-  #include <iostream>
   #include <string>
 
 // platform includes
@@ -232,8 +231,8 @@ TEST_F(UtfUtilsTest, RealAudioDeviceNames) {
 
 TEST_F(UtfUtilsTest, InvalidUtf8Sequences) {
   // Test with invalid UTF-8 sequences - should return empty string
-  const std::string invalid1 = "Test\x{FF}\x{FE}\x{FD}";  // Invalid UTF-8 bytes
-  const std::string invalid2 = "Test\x{80}\x{81}\x{82}";  // Invalid continuation bytes
+  const std::string invalid1 = "Test" + test_utils::make_bytes({0xFF, 0xFE, 0xFD});  // Invalid UTF-8 bytes
+  const std::string invalid2 = "Test" + test_utils::make_bytes({0x80, 0x81, 0x82});  // Invalid continuation bytes
 
   const std::wstring result1 = utf_utils::from_utf8(invalid1);
   const std::wstring result2 = utf_utils::from_utf8(invalid2);
