@@ -68,71 +68,78 @@ set(CPACK_RPM_USER_FILELIST "%caps(cap_sys_admin,cap_sys_nice+p) ${SUNSHINE_EXEC
 
 # Dependencies
 set(CPACK_DEB_COMPONENT_INSTALL ON)
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
-            ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
-            debianutils, \
-            libcap2, \
-            libcurl4, \
-            libdrm2, \
-            libgbm1, \
-            libevdev2, \
-            libnuma1, \
-            libopus0, \
-            libpulse0, \
-            libva2, \
-            libva-drm2, \
-            libwayland-client0, \
-            libx11-6, \
-            miniupnpc, \
-            openssl | libssl3")
-set(CPACK_RPM_PACKAGE_REQUIRES "\
-            ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
-            libcap >= 2.22, \
-            libcurl >= 7.0, \
-            libdrm >= 2.4.97, \
-            libevdev >= 1.5.6, \
-            libopusenc >= 0.2.1, \
-            libva >= 2.14.0, \
-            libwayland-client >= 1.20.0, \
-            libX11 >= 1.7.3.1, \
-            mesa-libgbm >= 25.0.7, \
-            miniupnpc >= 2.2.4, \
-            numactl-libs >= 2.0.14, \
-            openssl >= 3.0.2, \
-            pulseaudio-libs >= 10.0, \
-            which >= 2.21")
-list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
-        audio/opus
-        ftp/curl
-        devel/libevdev
-        multimedia/pipewire
-        net/avahi
-        net/miniupnpc
-        security/openssl
-        x11/libX11
-)
-
-if(NOT BOOST_USE_STATIC)
+if(SUNSHINE_LINUX_PACKAGE_RUNTIME_DEPS)
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
-                ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
-                libboost-filesystem${Boost_VERSION}, \
-                libboost-locale${Boost_VERSION}, \
-                libboost-log${Boost_VERSION}, \
-                libboost-program-options${Boost_VERSION}")
+                ${CPACK_DEB_PLATFORM_PACKAGE_DEPENDS} \
+                debianutils, \
+                libcap2, \
+                libcurl4, \
+                libdrm2, \
+                libgbm1, \
+                libevdev2, \
+                libnuma1, \
+                libopus0, \
+                libpulse0, \
+                libva2, \
+                libva-drm2, \
+                libwayland-client0, \
+                libx11-6, \
+                miniupnpc, \
+                openssl | libssl3")
     set(CPACK_RPM_PACKAGE_REQUIRES "\
-                ${CPACK_RPM_PACKAGE_REQUIRES}, \
-                boost-filesystem >= ${Boost_VERSION}, \
-                boost-locale >= ${Boost_VERSION}, \
-                boost-log >= ${Boost_VERSION}, \
-                boost-program-options >= ${Boost_VERSION}")
+                ${CPACK_RPM_PLATFORM_PACKAGE_REQUIRES} \
+                libcap >= 2.22, \
+                libcurl >= 7.0, \
+                libdrm >= 2.4.97, \
+                libevdev >= 1.5.6, \
+                libopusenc >= 0.2.1, \
+                libva >= 2.14.0, \
+                libwayland-client >= 1.20.0, \
+                libX11 >= 1.7.3.1, \
+                mesa-libgbm >= 25.0.7, \
+                miniupnpc >= 2.2.4, \
+                numactl-libs >= 2.0.14, \
+                openssl >= 3.0.2, \
+                pulseaudio-libs >= 10.0, \
+                which >= 2.21")
     list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
-            devel/boost-libs
+            audio/opus
+            ftp/curl
+            devel/libevdev
+            multimedia/pipewire
+            net/avahi
+            net/miniupnpc
+            security/openssl
+            x11/libX11
     )
-endif()
 
-# This should automatically figure out dependencies on packages
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+    if(NOT BOOST_USE_STATIC)
+        set(CPACK_DEBIAN_PACKAGE_DEPENDS "\
+                    ${CPACK_DEBIAN_PACKAGE_DEPENDS}, \
+                    libboost-filesystem${Boost_VERSION}, \
+                    libboost-locale${Boost_VERSION}, \
+                    libboost-log${Boost_VERSION}, \
+                    libboost-program-options${Boost_VERSION}")
+        set(CPACK_RPM_PACKAGE_REQUIRES "\
+                    ${CPACK_RPM_PACKAGE_REQUIRES}, \
+                    boost-filesystem >= ${Boost_VERSION}, \
+                    boost-locale >= ${Boost_VERSION}, \
+                    boost-log >= ${Boost_VERSION}, \
+                    boost-program-options >= ${Boost_VERSION}")
+        list(APPEND CPACK_FREEBSD_PACKAGE_DEPS
+                devel/boost-libs
+        )
+    endif()
+
+    # This should automatically figure out dependencies on packages
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+    set(CPACK_RPM_PACKAGE_AUTOREQ ON)
+else()
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "")
+    set(CPACK_RPM_PACKAGE_REQUIRES "")
+    set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
+    set(CPACK_RPM_PACKAGE_AUTOREQ OFF)
+endif()
 
 # application icon
 install(FILES "${CMAKE_SOURCE_DIR}/sunshine.svg"
