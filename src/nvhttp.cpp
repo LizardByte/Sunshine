@@ -680,6 +680,39 @@ namespace nvhttp {
     return true;
   }
 
+  uint32_t get_codec_mode_flags() {
+    uint32_t codec_mode_flags = SCM_H264;
+    if (video::last_encoder_probe_supported_yuv444_for_codec[0]) {
+      codec_mode_flags |= SCM_H264_HIGH8_444;
+    }
+    if (video::active_hevc_mode >= 2) {
+      codec_mode_flags |= SCM_HEVC;
+      if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+        codec_mode_flags |= SCM_HEVC_REXT8_444;
+      }
+    }
+    if (video::active_hevc_mode == 3 || video::active_hevc_mode == 5) {
+      codec_mode_flags |= SCM_HEVC_MAIN10;
+    }
+    if ((video::active_hevc_mode == 4 || video::active_hevc_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+      codec_mode_flags |= SCM_HEVC_REXT10_444;
+    }
+    
+    if (video::active_av1_mode >= 2) {
+      codec_mode_flags |= SCM_AV1_MAIN8;
+      if (video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+        codec_mode_flags |= SCM_AV1_HIGH8_444;
+      }
+    }
+    if (video::active_av1_mode == 3 || video::active_av1_mode == 5) {
+      codec_mode_flags |= SCM_AV1_MAIN10;
+    }
+    if ((video::active_av1_mode == 4 || video::active_av1_mode == 5) && video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+      codec_mode_flags |= SCM_AV1_HIGH10_444;
+    }
+    return codec_mode_flags;
+  }
+
   template<class T>
   void serverinfo(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Response> response, std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
     print_req<T>(request);
@@ -731,36 +764,7 @@ namespace nvhttp {
       tree.put("root.LocalIP", net::addr_to_normalized_string(local_endpoint.address()));
     }
 
-    uint32_t codec_mode_flags = SCM_H264;
-    if (video::last_encoder_probe_supported_yuv444_for_codec[0]) {
-      codec_mode_flags |= SCM_H264_HIGH8_444;
-    }
-    if (video::active_hevc_mode >= 2) {
-      codec_mode_flags |= SCM_HEVC;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
-        codec_mode_flags |= SCM_HEVC_REXT8_444;
-      }
-    }
-    if (video::active_hevc_mode == 3 || video::active_hevc_mode == 5) {
-      codec_mode_flags |= SCM_HEVC_MAIN10;
-    }
-    if (video::active_hevc_mode == 4 || video::active_hevc_mode == 5) {
-      if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
-        codec_mode_flags |= SCM_HEVC_REXT10_444;
-      }
-    }
-    if (video::active_av1_mode >= 2) {
-      codec_mode_flags |= SCM_AV1_MAIN8;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[2]) {
-        codec_mode_flags |= SCM_AV1_HIGH8_444;
-      }
-    }
-    if (video::active_av1_mode >= 3) {
-      codec_mode_flags |= SCM_AV1_MAIN10;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[2]) {
-        codec_mode_flags |= SCM_AV1_HIGH10_444;
-      }
-    }
+    const uint32_t codec_mode_flags = get_codec_mode_flags();
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
     if (!config::nvhttp.external_ip.empty()) {

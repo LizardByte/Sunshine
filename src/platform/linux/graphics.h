@@ -219,7 +219,6 @@ namespace egl {
     gl::tex_t tex;
     gl::frame_buf_t buf;
 
-    // sizeof(va::DRMPRIMESurfaceDescriptor::objects) / sizeof(va::DRMPRIMESurfaceDescriptor::objects[0]);
     static constexpr std::size_t num_fds = 4;
 
     std::array<file_t, num_fds> fds;
@@ -367,7 +366,7 @@ namespace egl {
     int convert_yuv444(gl::frame_buf_t &fb);
 
     // Make an area of the image black
-    int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height, AVPixelFormat format);
+    int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format);
 
     void load_nv12_ram(platf::img_t &img);
     void load_nv12_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
