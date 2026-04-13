@@ -651,6 +651,10 @@ namespace egl {
     return rgb;
   }
 
+  //constants for clear black color Y, U, V. U & V are same so:
+  const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+  const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
+
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
     auto y_attribs = surface_descriptor_to_egl_attribs(y);
     auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
@@ -690,9 +694,6 @@ namespace egl {
     for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -752,9 +753,6 @@ namespace egl {
     for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -813,9 +811,6 @@ namespace egl {
     for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -876,9 +871,6 @@ namespace egl {
     for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
     }
 
@@ -1163,10 +1155,10 @@ namespace egl {
     return sws;
   }
 
-  int sws_t::blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height, AVPixelFormat format) {
+  int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format) {
     auto f = [&]() {
-      std::swap(offsetX, this->offsetX);
-      std::swap(offsetY, this->offsetY);
+      std::swap(offsetX_, this->offsetX);
+      std::swap(offsetY_, this->offsetY);
       std::swap(width, this->out_width);
       std::swap(height, this->out_height);
     };
