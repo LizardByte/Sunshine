@@ -651,9 +651,45 @@ namespace egl {
     return rgb;
   }
 
-  //constants for clear black color Y, U, V. U & V are same so:
+  // Constants for clear black color Y, U, V. U & V are same so:
   const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
   const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
+
+  void nv12_bind_framebuffers(nv12_t &nv12) {
+    constexpr std::array<GLenum, 2> attachments {{
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    }};
+
+    for (size_t x = 0; x < attachments.size(); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+  }
+
+  void yuv44_bind_framebuffers(yuv444_t &yuv444) {
+
+    constexpr std::array<GLenum, 3> attachments {{
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1,
+      GL_COLOR_ATTACHMENT2
+    }};
+
+    for (size_t x = 0; x < attachments.size(); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+  }
 
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
     auto y_attribs = surface_descriptor_to_egl_attribs(y);
@@ -686,25 +722,11 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    constexpr std::array<GLenum, 2> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    }};
-
-    for (size_t x = 0; x < attachments.size(); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    nv12_bind_framebuffers(nv12);
 
     return nv12;
   }
 
-  //yuv444 version
   std::optional<yuv444_t> import_target_yuv444(
     display_t::pointer egl_display,
     std::array<file_t, yuv444_img_t::num_fds> &&fds,
@@ -744,21 +766,7 @@ namespace egl {
 
     yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
 
-    constexpr std::array<GLenum, 3> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1,
-      GL_COLOR_ATTACHMENT2
-    }};
-
-    for (size_t x = 0; x < attachments.size(); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    yuv44_bind_framebuffers(yuv444);
 
     return yuv444;
   }
@@ -803,20 +811,7 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    constexpr std::array<GLenum, 2> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    }};
-
-    for (size_t x = 0; x < attachments.size(); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    nv12_bind_framebuffers(nv12);
 
     return nv12;
   }
@@ -862,21 +857,7 @@ namespace egl {
 
     yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
 
-    constexpr std::array<GLenum, 3> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1,
-      GL_COLOR_ATTACHMENT2
-    }};
-
-    for (size_t x = 0; x < attachments.size(); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    yuv44_bind_framebuffers(yuv444);
 
     return yuv444;
   }
@@ -1231,8 +1212,7 @@ namespace egl {
 
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
 
-      //nv12 cursor program[2]
-      //yuv444 cursor program[3]
+      // For NV12 cursor program index is 2, for YUV444 it's 3
       const int cursor_program = is_yuv444 ? 3 : 2;
       gl::ctx.UseProgram(program[cursor_program].handle());
 
