@@ -686,12 +686,12 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    GLenum attachments[] {
+    constexpr std::array<GLenum, 2> attachments {{
       GL_COLOR_ATTACHMENT0,
       GL_COLOR_ATTACHMENT1
-    };
+    }};
 
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+    for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
@@ -744,13 +744,13 @@ namespace egl {
 
     yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
 
-    GLenum attachments[] {
+    constexpr std::array<GLenum, 3> attachments {{
       GL_COLOR_ATTACHMENT0,
       GL_COLOR_ATTACHMENT1,
       GL_COLOR_ATTACHMENT2
-    };
+    }};
 
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+    for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
@@ -803,12 +803,12 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    GLenum attachments[] {
+    constexpr std::array<GLenum, 2> attachments {{
       GL_COLOR_ATTACHMENT0,
       GL_COLOR_ATTACHMENT1
-    };
+    }};
 
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+    for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
@@ -862,13 +862,13 @@ namespace egl {
 
     yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
 
-    GLenum attachments[] {
+    constexpr std::array<GLenum, 3> attachments {{
       GL_COLOR_ATTACHMENT0,
       GL_COLOR_ATTACHMENT1,
       GL_COLOR_ATTACHMENT2
-    };
+    }};
 
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+    for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
       gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
@@ -925,25 +925,24 @@ namespace egl {
     auto width_i = 1.0f / sws.out_width;
 
     {
-      const char *sources[] {
+      constexpr std::array<const char*, 5> sources {{
         SUNSHINE_SHADERS_DIR "/ConvertUV.frag",
         SUNSHINE_SHADERS_DIR "/ConvertUV.vert",
         SUNSHINE_SHADERS_DIR "/ConvertY.frag",
         SUNSHINE_SHADERS_DIR "/Scene.vert",
         SUNSHINE_SHADERS_DIR "/Scene.frag",
-      };
+      }};
 
-      GLenum shader_type[2] {
+      constexpr std::array<GLenum, 2> shader_type {{
         GL_FRAGMENT_SHADER,
         GL_VERTEX_SHADER,
-      };
+      }};
 
-      constexpr auto count = sizeof(sources) / sizeof(const char *);
-
-      util::Either<gl::shader_t, std::string> compiled_sources[count];
+      constexpr auto count = sources.size();
+      std::array<util::Either<gl::shader_t, std::string>, count> compiled_sources;
 
       bool error_flag = false;
-      for (int x = 0; x < count; ++x) {
+      for (size_t x = 0; x < count; ++x) {
         auto &compiled_source = compiled_sources[x];
 
         compiled_source = gl::shader_t::compile(file_handler::read_file(sources[x]), shader_type[x % 2]);
@@ -997,15 +996,15 @@ namespace egl {
     gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec601, false, 8}, true);
-    std::pair<const char *, std::string_view> members[] {
+    std::array<std::pair<const char *, std::string_view>, 5> members {{
       std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
       std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
       std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
       std::make_pair("range_y", util::view(color_p->range_y)),
       std::make_pair("range_uv", util::view(color_p->range_uv)),
-    };
+    }};
 
-    auto color_matrix = sws.program[0].uniform("ColorMatrix", members, sizeof(members) / sizeof(decltype(members[0])));
+    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
     if (!color_matrix) {
       return std::nullopt;
     }
@@ -1051,22 +1050,21 @@ namespace egl {
     sws.offsetY = offsetY_f;
 
     {
-      const char *sources[] {
+      constexpr std::array<const char*, 5> sources {{
         SUNSHINE_SHADERS_DIR "/Scene.vert",
         SUNSHINE_SHADERS_DIR "/ConvertV.frag",
         SUNSHINE_SHADERS_DIR "/ConvertU.frag",
         SUNSHINE_SHADERS_DIR "/ConvertY.frag",
         SUNSHINE_SHADERS_DIR "/Scene.frag",
-      };
+      }};
 
-      GLenum shader_type[2] {
+      constexpr std::array<GLenum, 2> shader_type {{
         GL_FRAGMENT_SHADER,
         GL_VERTEX_SHADER,
-      };
+      }};
 
-      constexpr auto count = sizeof(sources) / sizeof(const char *);
-
-      util::Either<gl::shader_t, std::string> compiled_sources[count];
+      constexpr auto count = sources.size();
+      std::array<util::Either<gl::shader_t, std::string>, count> compiled_sources;
 
       bool error_flag = false;
       for (int x = 0; x < count; ++x) {
@@ -1124,15 +1122,15 @@ namespace egl {
     }
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec709, true, 8}, false);
-    std::pair<const char *, std::string_view> members[] {
+    std::array<std::pair<const char *, std::string_view>, 5> members {{
       std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
       std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
       std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
       std::make_pair("range_y", util::view(color_p->range_y)),
       std::make_pair("range_uv", util::view(color_p->range_uv)),
-    };
+    }};
 
-    auto color_matrix = sws.program[0].uniform("ColorMatrix", members, sizeof(members) / sizeof(decltype(members[0])));
+    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
     if (!color_matrix) {
       return std::nullopt;
     }
