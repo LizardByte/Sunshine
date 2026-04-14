@@ -383,7 +383,7 @@ namespace egl {
 
     // Y - shader, UV - shader, Cursor - shader : for nv12
     // Y - shader, U - shader, V - shader, Cursor - shader : for yuv444
-    gl::program_t program[4];
+    std::array<gl::program_t, 4> program;
     gl::buffer_t color_matrix;
 
     int out_width;
