@@ -442,8 +442,8 @@ namespace cuda {
        if (sw_format == AV_PIX_FMT_YUV444P) {
 
         // Map the GL textures to read for CUDA
-        CUgraphicsResource resources[3] = {y_res.get(), u_res.get(), v_res.get()};
-        CU_CHECK(cdf->cuGraphicsMapResources(3, resources, stream.get()), "Couldn't map GL textures in CUDA");
+        std::array<CUgraphicsResource, 3> resources = {{y_res.get(), u_res.get(), v_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
 
         // Copy from the GL textures to the target CUDA frame
         for (int i = 0; i < 3; i++) {
@@ -460,11 +460,11 @@ namespace cuda {
           CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
         }
         // Unmap the textures to allow modification from GL again
-        CU_CHECK(cdf->cuGraphicsUnmapResources(3, resources, stream.get()), "Couldn't unmap GL textures from CUDA");
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
 
       } else {
-        CUgraphicsResource resources[2] = {y_res.get(), uv_res.get()};
-        CU_CHECK(cdf->cuGraphicsMapResources(2, resources, stream.get()), "Couldn't map GL textures in CUDA");
+        std::array<CUgraphicsResource, 2> resources = {{y_res.get(), uv_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
 
         // Copy from the GL textures to the target CUDA frame
         for (int i = 0; i < 2; i++) {
@@ -481,7 +481,7 @@ namespace cuda {
           CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
         }
         // Unmap the textures to allow modification from GL again
-        CU_CHECK(cdf->cuGraphicsUnmapResources(2, resources, stream.get()), "Couldn't unmap GL textures from CUDA");
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
 
       }
       
