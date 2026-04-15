@@ -217,7 +217,8 @@ namespace vk {
       vk_frames->tiling = VK_IMAGE_TILING_OPTIMAL;
       vk_frames->usage = (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT |
                                                  VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                                 VK_IMAGE_USAGE_SAMPLED_BIT);
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
     }
 
     int convert(platf::img_t &img) override {
