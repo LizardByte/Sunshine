@@ -642,7 +642,7 @@ namespace va {
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
     auto render_device = platf::resolve_render_device();
 
-    file_t file = open(render_device.c_str(), O_RDWR);
+    file_t file = ::open(render_device.c_str(), O_RDWR);
     if (file.el < 0) {
       char string[1024];
       BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));
