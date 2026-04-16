@@ -21,7 +21,7 @@ glad = [
     "glad2 @ file:./third-party/glad",
     # setuptools provides pkg_resources which glad's plugin.py imports.
     # setuptools >= 81 removed pkg_resources; pin to the last series that includes it.
-    "setuptools<81",
+    "setuptools<82",
 ]
 
 flatpak = [
