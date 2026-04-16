@@ -69,3 +69,6 @@
 	path = third-party/wlr-protocols
 	url = https://github.com/LizardByte-infrastructure/wlr-protocols.git
 	branch = master
+[submodule "third-party/plasma-wayland-protocols"]
+	path = third-party/plasma-wayland-protocols
+	url = https://github.com/KDE/plasma-wayland-protocols.git

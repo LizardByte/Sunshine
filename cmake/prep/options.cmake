@@ -66,4 +66,6 @@ elseif(UNIX)  # Linux
             "Enable X11 grab if available." ON)
     option(SUNSHINE_ENABLE_PORTAL
             "Enable XDG portal grab if available" ON)
+    option(SUNSHINE_ENABLE_KWIN
+            "Enable KWin ScreenCast grab if available" ON)
 endif()
