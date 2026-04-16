@@ -244,17 +244,24 @@ if(GIO_FOUND)
     list(APPEND PLATFORM_LIBRARIES ${GIO_LIBRARIES})
 endif()
 
-# XDG portal
+# Pipewire
 if(${SUNSHINE_ENABLE_PORTAL})
     pkg_check_modules(PIPEWIRE libpipewire-0.3 REQUIRED)
 else()
     set(PIPEWIRE_FOUND OFF)
 endif()
-
-if(PIPEWIRE_FOUND AND GIO_FOUND)
-    add_compile_definitions(SUNSHINE_BUILD_PORTAL)
+if(PIPEWIRE_FOUND)
     include_directories(SYSTEM ${PIPEWIRE_INCLUDE_DIRS})
     list(APPEND PLATFORM_LIBRARIES ${PIPEWIRE_LIBRARIES})
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/pipewire.cpp")
+endif()
+
+# XDG portal
+set(PORTAL_FOUND OFF)
+if(PIPEWIRE_FOUND AND GIO_FOUND AND ${SUNSHINE_ENABLE_PORTAL})
+    set(PORTAL_FOUND ON)
+    add_compile_definitions(SUNSHINE_BUILD_PORTAL)
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/portalgrab.cpp")
 endif()
@@ -262,7 +269,7 @@ endif()
 if(NOT ${CUDA_FOUND}
         AND NOT ${WAYLAND_FOUND}
         AND NOT ${X11_FOUND}
-        AND NOT ${PIPEWIRE_FOUND}
+        AND NOT ${PORTAL_FOUND}
         AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
         AND NOT ${LIBVA_FOUND})
     message(FATAL_ERROR "Couldn't find either cuda, libva, pipewire, wayland, x11, or (libdrm and libcap)")
