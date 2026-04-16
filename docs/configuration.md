@@ -2361,7 +2361,7 @@ editing the `conf` file in a text editor. Use the examples as reference.
             Split the encoding of each video frame over multiple NVENC hardware units.
             Significantly reduces encoding latency with a marginal compression efficiency penalty.
             This option is ignored if your GPU has a singular NVENC unit.
-            @note{This option only applies when using NVENC [encoder](#encoderhttpslocalhost47990configencoder) with HEVC or AV1.}
+            @note{This option only applies when using NVENC [encoder](#encoder) with HEVC or AV1.}
             @note{Applies to Windows only.}
         </td>
     </tr>

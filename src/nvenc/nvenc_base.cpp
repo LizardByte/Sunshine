@@ -172,8 +172,7 @@ namespace nvenc {
       NV_ENC_CAPS_PARAM param = {NV_ENC_CAPS_PARAM_VER};
       param.capsToQuery = cap;
       int value = 0;
-      int ret = nvenc->nvEncGetEncodeCaps(encoder, init_params.encodeGUID, &param, &value);
-      if (ret == NV_ENC_SUCCESS) {
+      if (int ret = nvenc->nvEncGetEncodeCaps(encoder, init_params.encodeGUID, &param, &value); ret == NV_ENC_SUCCESS) {
         return value;
       }
       return 0;
@@ -234,9 +233,15 @@ namespace nvenc {
     if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
       // SFE supports HEVC/AV1 if you have more than 1 nvenc block
       using enum nvenc_split_frame_encoding;
-      init_params.splitEncodeMode = config.split_frame_encoding == disabled      ? NV_ENC_SPLIT_DISABLE_MODE :
-                                    config.split_frame_encoding == force_enabled ? NV_ENC_SPLIT_AUTO_FORCED_MODE :
-                                                                                   NV_ENC_SPLIT_AUTO_MODE;
+      NV_ENC_SPLIT_ENCODE_MODE split_mode;
+      if (config.split_frame_encoding == disabled) {
+        split_mode = NV_ENC_SPLIT_DISABLE_MODE;
+      } else if (config.split_frame_encoding == force_enabled) {
+        split_mode = NV_ENC_SPLIT_AUTO_FORCED_MODE;
+      } else {
+        split_mode = NV_ENC_SPLIT_AUTO_MODE;
+      }
+      init_params.splitEncodeMode = split_mode;
     }
 
     NV_ENC_PRESET_CONFIG preset_config = {
