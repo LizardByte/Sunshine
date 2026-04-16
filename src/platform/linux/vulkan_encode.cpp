@@ -217,7 +217,8 @@ namespace vk {
       vk_frames->tiling = VK_IMAGE_TILING_OPTIMAL;
       vk_frames->usage = (VkImageUsageFlagBits) (VK_IMAGE_USAGE_STORAGE_BIT |
                                                  VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                                                 VK_IMAGE_USAGE_SAMPLED_BIT);
+                                                 VK_IMAGE_USAGE_SAMPLED_BIT |
+                                                 VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
     }
 
     int convert(platf::img_t &img) override {
@@ -384,23 +385,53 @@ namespace vk {
       return true;
     }
 
-    static VkFormat drm_fourcc_to_vk_format(uint32_t fourcc) {
+    struct drm_format_info {
+      VkFormat format;
+      VkComponentMapping swizzle;
+    };
+
+    static drm_format_info drm_fourcc_to_vk_format(uint32_t fourcc) {
+      static constexpr VkComponentMapping identity = {
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+        VK_COMPONENT_SWIZZLE_IDENTITY,
+      };
+      static constexpr VkComponentMapping bgr_swap = {
+        VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_A,
+      };
+
       switch (fourcc) {
         case DRM_FORMAT_XRGB8888:
         case DRM_FORMAT_ARGB8888:
-          return VK_FORMAT_B8G8R8A8_UNORM;
+          return {VK_FORMAT_B8G8R8A8_UNORM, identity};
         case DRM_FORMAT_XBGR8888:
         case DRM_FORMAT_ABGR8888:
-          return VK_FORMAT_R8G8B8A8_UNORM;
+          return {VK_FORMAT_R8G8B8A8_UNORM, identity};
         case DRM_FORMAT_XRGB2101010:
         case DRM_FORMAT_ARGB2101010:
-          return VK_FORMAT_A2R10G10B10_UNORM_PACK32;
+          return {VK_FORMAT_A2R10G10B10_UNORM_PACK32, identity};
         case DRM_FORMAT_XBGR2101010:
         case DRM_FORMAT_ABGR2101010:
-          return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+          return {VK_FORMAT_A2B10G10R10_UNORM_PACK32, identity};
+        case DRM_FORMAT_XBGR16161616:
+        case DRM_FORMAT_ABGR16161616:
+          return {VK_FORMAT_R16G16B16A16_UNORM, identity};
+        case DRM_FORMAT_XRGB16161616:
+        case DRM_FORMAT_ARGB16161616:
+          return {VK_FORMAT_R16G16B16A16_UNORM, bgr_swap};
+        case DRM_FORMAT_XBGR16161616F:
+        case DRM_FORMAT_ABGR16161616F:
+          return {VK_FORMAT_R16G16B16A16_SFLOAT, identity};
+        case DRM_FORMAT_XRGB16161616F:
+        case DRM_FORMAT_ARGB16161616F:
+          return {VK_FORMAT_R16G16B16A16_SFLOAT, bgr_swap};
         default:
           BOOST_LOG(warning) << "Unknown DRM fourcc 0x" << std::hex << fourcc << std::dec << ", assuming B8G8R8A8";
-          return VK_FORMAT_B8G8R8A8_UNORM;
+          return {VK_FORMAT_B8G8R8A8_UNORM, identity};
       }
     }
 
@@ -444,7 +475,7 @@ namespace vk {
         tiling = VK_IMAGE_TILING_LINEAR;
       }
 
-      auto vk_format = drm_fourcc_to_vk_format(sd.fourcc);
+      auto [vk_format, vk_swizzle] = drm_fourcc_to_vk_format(sd.fourcc);
 
       VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
       img_ci.pNext = &ext_ci;
@@ -494,11 +525,12 @@ namespace vk {
 
       vkBindImageMemory(vk_dev.dev, src.image, src_mem, 0);
 
-      // Create image view (Vulkan sampling always returns RGBA order regardless of memory layout)
+      // Create image view
       VkImageViewCreateInfo view_ci = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
       view_ci.image = src.image;
       view_ci.viewType = VK_IMAGE_VIEW_TYPE_2D;
       view_ci.format = vk_format;
+      view_ci.components = vk_swizzle;
       view_ci.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
       VK_CHECK_BOOL(vkCreateImageView(vk_dev.dev, &view_ci, nullptr, &src.view));
 
