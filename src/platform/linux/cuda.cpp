@@ -266,7 +266,13 @@ namespace cuda {
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
-        return open(device_path.c_str(), O_RDWR);
+        int fd = open(device_path.c_str(), O_RDWR);
+        if (fd >= 0) {
+          return fd;
+        }
+        char errbuf[256];
+        BOOST_LOG(warning) << "Failed to open render node "sv << device_path.string()
+                           << " ("sv << strerror_r(errno, errbuf, sizeof(errbuf)) << "), trying primary node"sv;
       }
 
       // Second pass: fallback to primary node (card*)
@@ -281,7 +287,13 @@ namespace cuda {
 
         fs::path dri_path {"/dev/dri"sv};
         auto device_path = dri_path / file;
-        return open(device_path.c_str(), O_RDWR);
+        int fd = open(device_path.c_str(), O_RDWR);
+        if (fd >= 0) {
+          return fd;
+        }
+        char errbuf[256];
+        BOOST_LOG(warning) << "Failed to open primary node "sv << device_path.string()
+                           << ": "sv << strerror_r(errno, errbuf, sizeof(errbuf));
       }
     } catch (const std::filesystem::filesystem_error &err) {
       BOOST_LOG(error) << "Failed to read sysfs: "sv << err.what();
