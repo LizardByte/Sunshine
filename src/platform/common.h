@@ -861,7 +861,14 @@ namespace platf {
    */
   std::string get_host_name();
 
-  std::string find_render_node_with_display();
+  /**
+   * @brief Resolves the render device path to use for hardware encoding.
+   * @details If `config::video.adapter_name` is set, returns that.
+   *          Otherwise, auto-detects the GPU with a connected display via `find_render_node_with_display()`.
+   *          Falls back to `/dev/dri/renderD128` if detection fails.
+   * @return Resolved render device path (may be empty on non-Linux platforms).
+   */
+  std::string resolve_render_device();
 
   /**
    * @brief Gets the supported gamepads for this platform backend.

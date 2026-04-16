@@ -1218,4 +1218,12 @@ namespace platf {
 #endif
   }
 
+  std::string resolve_render_device() {
+    if (!config::video.adapter_name.empty()) {
+      return config::video.adapter_name;
+    }
+    auto detected = find_render_node_with_display();
+    return detected.empty() ? "/dev/dri/renderD128" : detected;
+  }
+
 }  // namespace platf

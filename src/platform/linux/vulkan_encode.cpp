@@ -79,9 +79,8 @@ namespace vk {
 
   static int create_vulkan_hwdevice(AVBufferRef **hw_device_buf) {
     // Resolve render device path to Vulkan device index
-    auto detected = platf::find_render_node_with_display();
-    auto fallback = detected.empty() ? std::string("/dev/dri/renderD128") : detected;
-    if (auto render_path = config::video.adapter_name.empty() ? fallback : config::video.adapter_name; render_path[0] == '/') {
+    auto render_path = platf::resolve_render_device();
+    if (render_path[0] == '/') {
       if (auto idx = find_vulkan_index_for_render_node(render_path.c_str()); !idx.empty() && av_hwdevice_ctx_create(hw_device_buf, AV_HWDEVICE_TYPE_VULKAN, idx.c_str(), nullptr, 0) >= 0) {
         return 0;
       }

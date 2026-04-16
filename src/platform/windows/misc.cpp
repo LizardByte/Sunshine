@@ -1792,7 +1792,7 @@ namespace platf {
     return true;
   }
 
-  std::string find_render_node_with_display() {
+  std::string resolve_render_device() {
     return {};
   }
 }  // namespace platf

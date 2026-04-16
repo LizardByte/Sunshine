@@ -561,7 +561,7 @@ namespace platf {
     return std::make_unique<macos_high_precision_timer>();
   }
 
-  std::string find_render_node_with_display() {
+  std::string resolve_render_device() {
     return {};
   }
 }  // namespace platf
