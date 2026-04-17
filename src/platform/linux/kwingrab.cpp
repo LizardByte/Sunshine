@@ -20,13 +20,9 @@
 #include <thread>
 
 // lib includes
-#include <libdrm/drm_fourcc.h>
 #include <pipewire/pipewire.h>
 #include <poll.h>
 #include <unistd.h>
-#include <spa/param/video/format-utils.h>
-#include <spa/param/video/type-info.h>
-#include <spa/pod/builder.h>
 #include <wayland-client.h>
 
 // generated protocol header
@@ -35,11 +31,10 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "pipewire.cpp"
 #include "src/platform/common.h"
-#include "src/platform/linux/pipewire.cpp"
 #include "src/video.h"
 #include "vaapi.h"
-#include "wayland.h"
 
 namespace {
   // KDE ScreenCast cursor modes (from protocol enum)
@@ -53,32 +48,6 @@ using namespace std::literals;
 extern const wl_interface wl_output_interface;
 
 namespace kwin {
-
-  struct format_map_t {
-    uint64_t fourcc;
-    int32_t pw_format;
-  };
-
-  static constexpr std::array<format_map_t, 3> format_map = {{
-    {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
-    {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
-    {0, 0},
-  }};
-
-  struct stream_data_t {
-    struct pw_stream *stream;
-    struct spa_hook stream_listener;
-    struct spa_video_info format;
-    struct pw_buffer *current_buffer;
-    uint64_t drm_format;
-  };
-
-  struct dmabuf_format_info_t {
-    int32_t format;
-    uint64_t *modifiers;
-    int n_modifiers;
-  };
-
   // ─── Wayland ScreenCast session ──────────────────────────────────────────────
   //
   // Owns its own wl_display connection. Binds zkde_screencast_unstable_v1
@@ -87,6 +56,8 @@ namespace kwin {
 
   class screencast_t {
   public:
+    screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
+
     ~screencast_t() {
       if (stream) {
         zkde_screencast_stream_unstable_v1_close(stream);
@@ -113,21 +84,21 @@ namespace kwin {
     }
 
     /**
-     * @brief Connect to KWin, enumerate outputs, request a screencast stream.
+     * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
      * @param output_index Which wl_output to capture (0 = first).
      * @return 0 on success, -1 on failure. On success, node_id and
-     *         output width/height are populated.
+     *         output width/height/x/y are populated.
      */
-    int init(int output_index = 0) {
+    int init() {
       const char *wl_name = std::getenv("WAYLAND_DISPLAY");
       if (!wl_name) {
-        BOOST_LOG(error) << "WAYLAND_DISPLAY not set"sv;
+        BOOST_LOG(error) << "[kwingrab] WAYLAND_DISPLAY not set"sv;
         return -1;
       }
 
       display = wl_display_connect(wl_name);
       if (!display) {
-        BOOST_LOG(error) << "KWin ScreenCast: cannot connect to Wayland display: "sv << wl_name;
+        BOOST_LOG(error) << "[kwingrab] cannot connect to Wayland display: "sv << wl_name;
         return -1;
       }
 
@@ -136,18 +107,57 @@ namespace kwin {
       wl_display_roundtrip(display);
 
       if (!screencast) {
-        BOOST_LOG(error) << "KWin ScreenCast: zkde_screencast_unstable_v1 not found in registry. "
+        BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "
                             "Is KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 set?"sv;
         return -1;
       }
       if (outputs.empty()) {
-        BOOST_LOG(error) << "KWin ScreenCast: no wl_output found"sv;
+        BOOST_LOG(error) << "[kwingrab] no wl_output found"sv;
         return -1;
       }
-      if (output_index < 0 || output_index >= static_cast<int>(outputs.size())) {
-        BOOST_LOG(error) << "KWin ScreenCast: output index "sv << output_index
-                         << " out of range (have "sv << outputs.size() << " outputs)"sv;
-        return -1;
+      // We need a second roundtrip after binding outputs to get wl_output events
+      wl_display_roundtrip(display);
+
+      return 0;
+    }
+
+    std::vector<std::string> get_outputs() {
+      struct output_params_t_ {
+        int index;
+        int width;
+        int height;
+        int pos_x;
+        int pos_y;
+      };
+
+      std::vector<output_params_t_> output_params_;
+      for (int i = 0; i < outputs.size(); i++) {
+        output_params_.emplace_back(i, output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i]);
+      }
+      // TODO: Add output priority from kde-output-device-v2 here as first sorting parameter
+      std::ranges::sort(output_params_, [](const auto &a, const auto &b) {
+        return a.pos_x < b.pos_x || a.pos_y < b.pos_y;
+      });
+      std::vector<std::string> output_names_;
+      for (auto output_param : output_params_) {
+        BOOST_LOG(info) << "[kwingrab] Found output: "sv << output_param.index << " position: "sv << output_param.pos_x << "x"sv << output_param.pos_y << " resolution: "sv << output_param.width << "x"sv << output_param.height;
+        output_names_.emplace_back(std::to_string(output_param.index));
+      }
+      return output_names_;
+    }
+
+    /**
+     * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
+     * @param output_name Which wl_output to capture.
+     * @return 0 on success, -1 on failure. On success, node_id and
+     *         output width/height/x/y are populated.
+     */
+    int start(const std::string &output_name) {
+      int output_index = 0;
+      if (!output_name.empty() && std::ranges::all_of(output_name, ::isdigit)) {
+        output_index = std::stoi(output_name);
+      } else {
+        BOOST_LOG(debug) << "[kwingrab] Failed to parse int value: '"sv << output_name << "'";
       }
 
       // Request a stream for the chosen output with embedded cursor
@@ -165,49 +175,51 @@ namespace kwin {
         pfd.events = POLLIN;
 
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-          deadline - std::chrono::steady_clock::now());
-        if (remaining.count() <= 0) break;
+          deadline - std::chrono::steady_clock::now()
+        );
+        if (remaining.count() <= 0) {
+          break;
+        }
 
-        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN)) {
-          if (wl_display_dispatch(display) < 0) {
-            BOOST_LOG(error) << "KWin ScreenCast: wl_display_dispatch failed"sv;
-            return -1;
-          }
+        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(display) < 0) {
+          BOOST_LOG(error) << "[kwingrab] wl_display_dispatch failed"sv;
+          return -1;
         }
       }
 
       if (failed) {
-        BOOST_LOG(error) << "KWin ScreenCast: stream_output failed: "sv << error_msg;
+        BOOST_LOG(error) << "[kwingrab] stream_output failed: "sv << error_msg;
         return -1;
       }
       if (node_id == 0) {
-        BOOST_LOG(error) << "KWin ScreenCast: timeout waiting for created event"sv;
+        BOOST_LOG(error) << "[kwingrab] timeout waiting for created event"sv;
         return -1;
       }
 
-      BOOST_LOG(info) << "KWin ScreenCast: stream created, PipeWire node "sv << node_id;
+      BOOST_LOG(info) << "[kwingrab] stream created, PipeWire node "sv << node_id;
 
       // Get output dimensions from mode events
-      // We need a second roundtrip after binding outputs to get mode events
-      wl_display_roundtrip(display);
       out_width = output_widths[output_index];
       out_height = output_heights[output_index];
+      out_pos_x = output_x_positions[output_index];
+      out_pos_y = output_y_positions[output_index];
 
       if (out_width == 0 || out_height == 0) {
-        BOOST_LOG(warning) << "KWin ScreenCast: could not determine output dimensions, using defaults"sv;
-        out_width = 1920;
-        out_height = 1080;
+        BOOST_LOG(error) << "[kwingrab] could not determine output dimensions"sv;
+        return -1;
       }
 
-      BOOST_LOG(info) << "KWin ScreenCast: output "sv << output_index
-                       << " resolution "sv << out_width << "x"sv << out_height;
-
+      BOOST_LOG(info) << "[kwingrab] Screencasting output "sv << output_index
+                      << " position "sv << out_pos_x << "x"sv << out_pos_y
+                      << " resolution "sv << out_width << "x"sv << out_height;
       return 0;
     }
 
     uint32_t node_id = 0;
     int out_width = 0;
     int out_height = 0;
+    int out_pos_x = 0;
+    int out_pos_y = 0;
 
   private:
     // ─── Wayland objects ───
@@ -218,32 +230,36 @@ namespace kwin {
     std::vector<struct wl_output *> outputs;
     std::vector<int> output_widths;
     std::vector<int> output_heights;
+    std::vector<int> output_x_positions;
+    std::vector<int> output_y_positions;
     bool failed = false;
     std::string error_msg;
 
     // ─── Registry listener ───
-    static void on_registry_global(void *data, struct wl_registry *reg,
-                                   uint32_t name, const char *interface, uint32_t version) {
+    static void on_registry_global(void *data, struct wl_registry *reg, const uint32_t name, const char *interface, const uint32_t version) {
       auto *self = static_cast<screencast_t *>(data);
 
       if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
         // Bind version 1 — we only use stream_output which is v1
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
         self->screencast = static_cast<struct zkde_screencast_unstable_v1 *>(
-          wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver));
-        BOOST_LOG(info) << "KWin ScreenCast: bound zkde_screencast_unstable_v1 v"sv << bind_ver;
-      }
-      else if (!std::strcmp(interface, wl_output_interface.name)) {
+          wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
+        );
+        BOOST_LOG(info) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
+      } else if (!std::strcmp(interface, wl_output_interface.name)) {
         auto *output = static_cast<struct wl_output *>(
-          wl_registry_bind(reg, name, &wl_output_interface, std::min(version, static_cast<uint32_t>(2))));
+          wl_registry_bind(reg, name, &wl_output_interface, std::min(version, static_cast<uint32_t>(2)))
+        );
         wl_output_add_listener(output, &output_listener, self);
-        self->outputs.push_back(output);
-        self->output_widths.push_back(0);
-        self->output_heights.push_back(0);
+        self->outputs.emplace_back(output);
+        self->output_widths.emplace_back(0);
+        self->output_heights.emplace_back(0);
+        self->output_x_positions.emplace_back(0);
+        self->output_y_positions.emplace_back(0);
       }
     }
 
-    static void on_registry_global_remove(void *data, struct wl_registry *reg, uint32_t name) {
+    static void on_registry_global_remove(void *data [[maybe_unused]], struct wl_registry *reg [[maybe_unused]], uint32_t name [[maybe_unused]]) {
       // We don't handle output hot-unplug during init
     }
 
@@ -253,14 +269,21 @@ namespace kwin {
     };
 
     // ─── wl_output listener (for mode/dimensions) ───
-    static void on_output_geometry(void *data, struct wl_output *output,
-                                   int32_t x, int32_t y, int32_t pw, int32_t ph,
-                                   int32_t subpixel, const char *make,
-                                   const char *model, int32_t transform) {}
+    static void on_output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y, int32_t pw [[maybe_unused]], int32_t ph [[maybe_unused]], int32_t subpixel [[maybe_unused]], const char *make [[maybe_unused]], const char *model [[maybe_unused]], int32_t transform [[maybe_unused]]) {
+      auto *self = static_cast<screencast_t *>(data);
+      for (size_t i = 0; i < self->outputs.size(); i++) {
+        if (self->outputs[i] == output) {
+          self->output_x_positions[i] = x;
+          self->output_y_positions[i] = y;
+          break;
+        }
+      }
+    }
 
-    static void on_output_mode(void *data, struct wl_output *output,
-                               uint32_t flags, int32_t width, int32_t height, int32_t refresh) {
-      if (!(flags & WL_OUTPUT_MODE_CURRENT)) return;
+    static void on_output_mode(void *data, struct wl_output *output, uint32_t flags, int32_t width, int32_t height, int32_t refresh [[maybe_unused]]) {
+      if (!(flags & WL_OUTPUT_MODE_CURRENT)) {
+        return;
+      }
 
       auto *self = static_cast<screencast_t *>(data);
       for (size_t i = 0; i < self->outputs.size(); i++) {
@@ -272,8 +295,13 @@ namespace kwin {
       }
     }
 
-    static void on_output_done(void *data, struct wl_output *output) {}
-    static void on_output_scale(void *data, struct wl_output *output, int32_t factor) {}
+    static void on_output_done(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]]) {
+      // Currently unused
+    }
+
+    static void on_output_scale(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], int32_t factor [[maybe_unused]]) {
+      // Currently unused
+    }
 
     static constexpr struct wl_output_listener output_listener = {
       .geometry = on_output_geometry,
@@ -283,24 +311,24 @@ namespace kwin {
     };
 
     // ─── ScreenCast stream listener ───
-    static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream) {
+    static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
       auto *self = static_cast<screencast_t *>(data);
-      BOOST_LOG(warning) << "KWin ScreenCast: stream closed by server"sv;
+      BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
       self->failed = true;
       self->error_msg = "stream closed by server";
     }
 
-    static void on_stream_created(void *data, struct zkde_screencast_stream_unstable_v1 *stream, uint32_t node) {
+    static void on_stream_created(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const uint32_t node) {
       auto *self = static_cast<screencast_t *>(data);
       self->node_id = node;
-      BOOST_LOG(debug) << "KWin ScreenCast: created event, node_id="sv << node;
+      BOOST_LOG(debug) << "[kwingrab] created event, node_id="sv << node;
     }
 
-    static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream, const char *err_msg) {
+    static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const char *err_msg) {
       auto *self = static_cast<screencast_t *>(data);
       self->failed = true;
       self->error_msg = err_msg ? err_msg : "unknown error";
-      BOOST_LOG(error) << "KWin ScreenCast: failed event: "sv << self->error_msg;
+      BOOST_LOG(error) << "[kwingrab] failed event: "sv << self->error_msg;
     }
 
     static constexpr struct zkde_screencast_stream_unstable_v1_listener stream_listener = {
@@ -310,37 +338,30 @@ namespace kwin {
     };
   };
 
-    // ─── Display backend ─────────────────────────────────────────────────────────
+  // ─── Display backend ─────────────────────────────────────────────────────────
   //
   // Orchestrates screencast_t + pipewire_t, provides the capture loop.
 
   class kwin_t: public pipewire::pipewire_display_t {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) override {
-       // Parse output index from display_name (default 0)
-      int output_index = 0;
-      if (!display_name.empty()) {
-        try {
-          output_index = std::stoi(display_name);
-        } catch (...) {
-          output_index = 0;
-        }
-      }
-
-      // Connect to KWin ScreenCast
       screencast = std::make_unique<screencast_t>();
-      if (screencast->init(output_index) < 0) {
+      if (screencast->init() < 0) {
+        return -1;
+      }
+      if (screencast->start(display_name) < 0) {
         return -1;
       }
 
-      out_pos_x = 0; // TODO: Implment multi-monitor
-      out_pos_y = 0; // TODO: Implment multi-monitor
+      out_pos_x = screencast->out_pos_x;
+      out_pos_y = screencast->out_pos_y;
       out_width = screencast->out_width;
       out_height = screencast->out_height;
       out_pipewire_fd = -1;  // KWin capture runs of the local pipewire core
       out_pipewire_node = screencast->node_id;
       return 0;
     }
+
     std::unique_ptr<screencast_t> screencast;
   };
 }  // namespace kwin
@@ -363,55 +384,12 @@ namespace platf {
   }
 
   std::vector<std::string> kwin_display_names() {
-    // Verify that we can connect to Wayland and find the ScreenCast protocol
-    const char *wl_name = std::getenv("WAYLAND_DISPLAY");
-    if (!wl_name) {
-      return {};
-    }
-
-    auto *display = wl_display_connect(wl_name);
-    if (!display) {
-      return {};
-    }
-
-    bool found_screencast = false;
-    bool found_output = false;
-
-    struct probe_data_t {
-      bool *found_screencast;
-      bool *found_output;
-    } probe = {&found_screencast, &found_output};
-
-    static const struct wl_registry_listener probe_listener = {
-      .global = [](void *data, struct wl_registry *, uint32_t, const char *interface, uint32_t) {
-        auto *p = static_cast<probe_data_t *>(data);
-        if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
-          *p->found_screencast = true;
-        } else if (!std::strcmp(interface, wl_output_interface.name)) {
-          *p->found_output = true;
-        }
-      },
-      .global_remove = [](void *, struct wl_registry *, uint32_t) {},
-    };
-
-    auto *registry = wl_display_get_registry(display);
-    wl_registry_add_listener(registry, &probe_listener, &probe);
-    wl_display_roundtrip(display);
-    wl_registry_destroy(registry);
-    wl_display_disconnect(display);
-
-    if (!found_screencast) {
+    const auto screencast = std::make_unique<kwin::screencast_t>();
+    if (screencast->init() < 0) {
       BOOST_LOG(warning) << "[kwingrab] KWin ScreenCast protocol not available."sv;
       return {};
     }
-    if (!found_output) {
-      return {};
-    }
-
     // Return output indices as display names
-    // TODO: Implement multi-monitor
-    std::vector<std::string> names;
-    names.emplace_back("0");
-    return names;
+    return screencast->get_outputs();
   }
 }  // namespace platf
