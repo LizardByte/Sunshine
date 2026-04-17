@@ -38,6 +38,12 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#ifdef SUNSHINE_BUILD_DRM
+  #include <dirent.h>
+  #include <xf86drm.h>
+  #include <xf86drmMode.h>
+#endif
+
 // local includes
 #include "graphics.h"
 #include "misc.h"
@@ -1163,4 +1169,61 @@ namespace platf {
   std::unique_ptr<high_precision_timer> create_high_precision_timer() {
     return std::make_unique<linux_high_precision_timer>();
   }
+
+  std::string find_render_node_with_display() {
+#ifdef SUNSHINE_BUILD_DRM
+    auto *dir = opendir("/dev/dri");
+    if (!dir) {
+      return {};
+    }
+
+    std::string result;
+    while (auto *entry = readdir(dir)) {
+      if (strncmp(entry->d_name, "card", 4) != 0 || !isdigit(entry->d_name[4])) {
+        continue;
+      }
+
+      std::string path = std::string("/dev/dri/") + entry->d_name;
+      int fd = open(path.c_str(), O_RDWR);
+      if (fd < 0) {
+        continue;
+      }
+
+      auto *res = drmModeGetResources(fd);
+      if (res) {
+        for (int i = 0; i < res->count_connectors && result.empty(); i++) {
+          auto *conn = drmModeGetConnector(fd, res->connectors[i]);
+          if (conn) {
+            if (conn->connection == DRM_MODE_CONNECTED) {
+              char *render = drmGetRenderDeviceNameFromFd(fd);
+              if (render) {
+                result = render;
+                free(render);
+              }
+            }
+            drmModeFreeConnector(conn);
+          }
+        }
+        drmModeFreeResources(res);
+      }
+      close(fd);
+      if (!result.empty()) {
+        break;
+      }
+    }
+    closedir(dir);
+    return result;
+#else
+    return {};
+#endif
+  }
+
+  std::string resolve_render_device() {
+    if (!config::video.adapter_name.empty()) {
+      return config::video.adapter_name;
+    }
+    auto detected = find_render_node_with_display();
+    return detected.empty() ? "/dev/dri/renderD128" : detected;
+  }
+
 }  // namespace platf

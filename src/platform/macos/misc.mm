@@ -560,6 +560,10 @@ namespace platf {
   std::unique_ptr<high_precision_timer> create_high_precision_timer() {
     return std::make_unique<macos_high_precision_timer>();
   }
+
+  std::string resolve_render_device() {
+    return {};
+  }
 }  // namespace platf
 
 namespace dyn {
