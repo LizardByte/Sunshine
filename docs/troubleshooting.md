@@ -188,6 +188,33 @@ nvidia_drm.modeset=1
 Consult your distribution's documentation for details on how to do this. (Most
 often grub is used to load the kernel and set its command line.)
 
+### Multi-GPU NVIDIA systems with wlr capture
+
+If your system has multiple NVIDIA GPUs and you observe any of the following with `capture = wlr`:
+
+- Repeated `Failed to create buffer from params` errors in the Sunshine log
+- Black screen on the Moonlight client; the stream never starts
+- VRAM filling on the GPU that is *not* running your compositor
+- Sunshine accumulating large numbers of open file descriptors against `/dev/dri/renderD*`
+
+…explicitly set `adapter_name` to the render node of the GPU running your compositor:
+adapter_name = /dev/dri/renderD128
+
+To find the correct render node:
+
+```bash
+# Map render nodes to PCI bus IDs
+for r in /dev/dri/renderD*; do
+  echo -n "$r -> "
+  basename $(readlink -f /sys/class/drm/$(basename $r)/device)
+done
+
+# Cross-reference with nvidia-smi to identify which GPU runs your compositor
+nvidia-smi --query-gpu=index,pci.bus_id --format=csv
+```
+
+Use the render node corresponding to the GPU your compositor renders on. Without this setting, capture may auto-select the wrong GPU, causing failed dmabuf imports and rapid resource accumulation. See #5023.
+
 ### AMD encoding latency issues
 If you notice unexpectedly high encoding latencies (e.g., in Moonlight's
 performance overlay) or strong fluctuations thereof, your system's Mesa
