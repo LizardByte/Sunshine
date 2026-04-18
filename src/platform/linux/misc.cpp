@@ -25,6 +25,10 @@
 #include <sys/resource.h>  // For setpriority
 #include <sys/socket.h>
 
+#if !defined(__FreeBSD__)
+  #include <sys/capability.h>
+  #include <sys/prctl.h>
+#endif
 #ifdef __FreeBSD__
   #include <net/if_dl.h>  // For sockaddr_dl, LLADDR, and AF_LINK
   #include <sys/syscall.h>  // For syscall: SYS_thr_self
@@ -1226,4 +1230,65 @@ namespace platf {
     return detected.empty() ? "/dev/dri/renderD128" : detected;
   }
 
+#if !defined(__FreeBSD__)
+  constexpr std::array<cap_value_t, 2> ELEVATED_PRIVILEGES_EFFECTIVE {CAP_SYS_ADMIN, CAP_SYS_NICE};
+  constexpr std::array<cap_value_t, 2> ELEVATED_PRIVILEGES_PERMITTED {CAP_SYS_ADMIN, CAP_SYS_NICE};
+#endif
+
+  bool has_elevated_privileges() {
+#if !defined(__FreeBSD__)
+    const cap_t caps = cap_get_proc();
+    if (!caps) {
+      BOOST_LOG(error) << "[misc] has_elevated_privileges failed to get process capabilities."sv;
+      return false;
+    }
+    for (const auto c : ELEVATED_PRIVILEGES_EFFECTIVE) {
+      cap_flag_value_t cap_flags_value;
+      cap_get_flag(caps, c, CAP_EFFECTIVE, &cap_flags_value);
+      if (cap_flags_value == CAP_SET) {
+        BOOST_LOG(debug) << "[misc] has_elevated_privileges found effective cap:"sv << c;
+        return true;
+      }
+    }
+    for (const auto c : ELEVATED_PRIVILEGES_PERMITTED) {
+      cap_flag_value_t cap_flags_value;
+      cap_get_flag(caps, c, CAP_PERMITTED, &cap_flags_value);
+      if (cap_flags_value == CAP_SET) {
+        BOOST_LOG(debug) << "[misc] has_elevated_privileges found permitted cap:"sv << c;
+        return true;
+      }
+    }
+    cap_free(caps);
+#endif
+    return false;
+  }
+
+  void drop_elevated_privileges() {
+#if !defined(__FreeBSD__)
+    bool failed = false;
+    const cap_t caps = cap_get_proc();
+    if (!caps) {
+      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to get process capabilities"sv;
+      return;
+    }
+
+    cap_set_flag(caps, CAP_EFFECTIVE, ELEVATED_PRIVILEGES_EFFECTIVE.size(), ELEVATED_PRIVILEGES_EFFECTIVE.data(), CAP_CLEAR);
+    cap_set_flag(caps, CAP_PERMITTED, ELEVATED_PRIVILEGES_PERMITTED.size(), ELEVATED_PRIVILEGES_PERMITTED.data(), CAP_CLEAR);
+
+    if (cap_set_proc(caps) != 0) {
+      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);
+      failed = true;
+    }
+    cap_free(caps);
+
+    // Reset dumpable AFTER the caps have been pruned to ensure /proc/pid/root is accessible.
+    if (prctl(PR_SET_DUMPABLE, 1) != 0) {
+      BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
+      failed = true;
+    }
+    if (!failed) {
+      BOOST_LOG(info) << "[misc] drop_elevated_privileges succeeded in dropping capabilities"sv;
+    }
+#endif
+  }
 }  // namespace platf

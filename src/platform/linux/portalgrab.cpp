@@ -33,12 +33,6 @@
 #include "vulkan_encode.h"
 #include "wayland.h"
 
-#if !defined(__FreeBSD__)
-  // platform includes
-  #include <sys/capability.h>
-  #include <sys/prctl.h>
-#endif
-
 namespace {
   // Portal configuration constants
   constexpr uint32_t SOURCE_TYPE_MONITOR = 1;
@@ -728,64 +722,6 @@ namespace portal {
     }
   };
 
-  /**
-   * @brief Singleton for portalgrab stuff persistent during an application run.
-   *
-   */
-  class runtime_t {
-  public:
-    static runtime_t &instance();
-
-    bool is_portal_secured() const {
-      return is_portal_secured_;
-    }
-
-    void finalize_portal_security() {
-#if !defined(__FreeBSD__)
-      BOOST_LOG(debug) << "[portalgrab] Finalizing Portal security: dropping capabilities and resetting dumpable"sv;
-
-      cap_t caps = cap_get_proc();
-      if (!caps) {
-        BOOST_LOG(error) << "[portalgrab] Failed to get process capabilities"sv;
-        return;
-      }
-
-      std::array<cap_value_t, 2> effective_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-      std::array<cap_value_t, 2> permitted_list {CAP_SYS_ADMIN, CAP_SYS_NICE};
-
-      cap_set_flag(caps, CAP_EFFECTIVE, effective_list.size(), effective_list.data(), CAP_CLEAR);
-      cap_set_flag(caps, CAP_PERMITTED, permitted_list.size(), permitted_list.data(), CAP_CLEAR);
-
-      if (cap_set_proc(caps) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to prune capabilities: "sv << std::strerror(errno);
-      }
-      cap_free(caps);
-
-      // Reset dumpable AFTER the caps have been pruned to ensure the Portal can
-      // access /proc/pid/root.
-      if (prctl(PR_SET_DUMPABLE, 1) != 0) {
-        BOOST_LOG(error) << "[portalgrab] Failed to set PR_SET_DUMPABLE: "sv << std::strerror(errno);
-      }
-#endif
-      is_portal_secured_ = true;
-    }
-
-  private:
-    runtime_t() = default;
-
-    // Prevent copying
-    runtime_t(const runtime_t &) = delete;
-    runtime_t &operator=(const runtime_t &) = delete;
-
-    bool is_portal_secured_ = false;
-  };
-
-  runtime_t &runtime_t::instance() {
-    alignas(runtime_t) static std::array<std::byte, sizeof(runtime_t)> storage;
-    static auto instance_ = new (storage.data()) runtime_t();
-    return *instance_;
-  }
-
   class portal_t: public pipewire::pipewire_display_t {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) override {
@@ -870,7 +806,9 @@ namespace platf {
     }
 
     // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
-    portal::runtime_t::instance().finalize_portal_security();
+    if (has_elevated_privileges()) {
+      drop_elevated_privileges();
+    }
 
     auto portal = std::make_shared<portal::portal_t>();
     if (portal->init(hwdevice_type, display_name, config)) {
@@ -889,7 +827,7 @@ namespace platf {
       return {};
     }
 
-    if (!portal::runtime_t::instance().is_portal_secured()) {
+    if (has_elevated_privileges()) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
       // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
       display_names.emplace_back("init");

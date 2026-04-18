@@ -896,4 +896,15 @@ namespace platf {
    */
   std::unique_ptr<high_precision_timer> create_high_precision_timer();
 
+  /**
+   * @brief Check is the current process is running with elevated privileges (e.g. system admin/etc.)
+   * @return True if system admin capabilities are present.
+   */
+  bool has_elevated_privileges();
+
+  /**
+   * @brief Drop elevated privileges (e.g. system admin/etc.)
+   */
+  void drop_elevated_privileges();
+
 }  // namespace platf
