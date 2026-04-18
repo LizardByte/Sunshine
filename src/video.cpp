@@ -154,7 +154,13 @@ namespace video {
 
           // Copy line-by-line to preserve leading padding for each row
           for (int line = 0; line < sws_output_frame->height >> shift_h; line++) {
-            memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), (size_t) (sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step);
+            auto copy_len = (size_t)(sws_output_frame->width >> shift_w) * fmt_desc->comp[plane].step;
+            auto dst_col_offset = (size_t)(offsetW >> shift_w) * fmt_desc->comp[plane].step;
+            auto dst_available = (size_t) sw_frame->linesize[plane] > dst_col_offset ? (size_t) sw_frame->linesize[plane] - dst_col_offset : (size_t) 0;
+            auto src_available = (size_t) sws_output_frame->linesize[plane];
+            copy_len = std::min({copy_len, dst_available, src_available});
+            if (copy_len == 0) { continue; }
+            memcpy(sw_frame->data[plane] + offset + (line * sw_frame->linesize[plane]), sws_output_frame->data[plane] + (line * sws_output_frame->linesize[plane]), copy_len);
           }
         }
       }
