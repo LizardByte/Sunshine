@@ -269,6 +269,7 @@ set(KWIN_FOUND OFF)
 if(WAYLAND_FOUND AND PIPEWIRE_FOUND AND ${SUNSHINE_ENABLE_KWIN})
     set(KWIN_FOUND ON)
     add_compile_definitions(SUNSHINE_BUILD_KWIN)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" kde-output-order-v1)
     GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" zkde-screencast-unstable-v1)
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/kwingrab.cpp")

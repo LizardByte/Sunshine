@@ -26,11 +26,13 @@
 #include <wayland-client.h>
 
 // generated protocol header
+#include <kde-output-order-v1.h>
 #include <zkde-screencast-unstable-v1.h>
 
 // local includes
 #include "cuda.h"
 #include "graphics.h"
+#include "kde-output-order-v1.h"
 #include "pipewire.cpp"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -202,10 +204,17 @@ namespace kwin {
         zkde_screencast_stream_unstable_v1_close(stream);
         stream = nullptr;
       }
-      if (screencast) {
-        zkde_screencast_unstable_v1_destroy(screencast);
-        screencast = nullptr;
+
+      if (zkde_screencast) {
+        zkde_screencast_unstable_v1_destroy(zkde_screencast);
+        zkde_screencast = nullptr;
       }
+
+      if (kde_output_order) {
+        kde_output_order_v1_destroy(kde_output_order);
+        kde_output_order = nullptr;
+      }
+
       // wl_output is owned by the registry, released on disconnect
       for (auto *out : outputs) {
         wl_output_destroy(out);
@@ -216,6 +225,7 @@ namespace kwin {
         wl_registry_destroy(registry);
         registry = nullptr;
       }
+
       if (display) {
         wl_display_disconnect(display);
         display = nullptr;
@@ -248,7 +258,7 @@ namespace kwin {
       wl_registry_add_listener(registry, &registry_listener, this);
       wl_display_roundtrip(display);
 
-      if (!screencast) {
+      if (!zkde_screencast) {
         if (screencast_permission_helper_t::is_newly_initialized()) {
           BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
                               "A new permission desktop file was automatically created but might now have been recognized yet. Try restarting."sv;
@@ -281,15 +291,14 @@ namespace kwin {
 
       std::vector<output_params_t_> output_params_;
       for (int i = 0; i < outputs.size(); i++) {
-        // TODO: Add output order value here from kde-output-order wayland extension
-        output_params_.emplace_back(i, output_names[i], output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i]);
+        output_params_.emplace_back(i, output_names[i], output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i], get_order_for_output_name(output_names[i]));
       }
       std::ranges::sort(output_params_, [](const auto &a, const auto &b) {
         return a.order < b.order || a.pos_x < b.pos_x || a.pos_y < b.pos_y;
       });
       std::vector<std::string> output_names_;
       for (auto output_param : output_params_) {
-        BOOST_LOG(info) << "[kwingrab] Found output "sv << output_param.index << ": "sv << output_param.name << " position: "sv << output_param.pos_x << "x"sv << output_param.pos_y << " resolution: "sv << output_param.width << "x"sv << output_param.height;
+        BOOST_LOG(info) << "[kwingrab] Found output "sv << output_param.index << ": "sv << output_param.name << " order: "sv << output_param.order << " position: "sv << output_param.pos_x << "x"sv << output_param.pos_y << " resolution: "sv << output_param.width << "x"sv << output_param.height;
         output_names_.emplace_back(output_param.name);
       }
       return output_names_;
@@ -314,7 +323,7 @@ namespace kwin {
 
       // Request a stream for the chosen output with embedded cursor
       auto *target_output = outputs[output_index];
-      stream = zkde_screencast_unstable_v1_stream_output(screencast, target_output, CURSOR_EMBEDDED);
+      stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, target_output, CURSOR_EMBEDDED);
       zkde_screencast_stream_unstable_v1_add_listener(stream, &stream_listener, this);
 
       // Dispatch until we get created/failed, with a 5s timeout
@@ -378,7 +387,8 @@ namespace kwin {
     // ─── Wayland objects ───
     struct wl_display *display = nullptr;
     struct wl_registry *registry = nullptr;
-    struct zkde_screencast_unstable_v1 *screencast = nullptr;
+    struct kde_output_order_v1 *kde_output_order = nullptr;
+    struct zkde_screencast_unstable_v1 *zkde_screencast = nullptr;
     struct zkde_screencast_stream_unstable_v1 *stream = nullptr;
     std::vector<struct wl_output *> outputs;
     std::vector<int> output_widths;
@@ -386,17 +396,36 @@ namespace kwin {
     std::vector<int> output_x_positions;
     std::vector<int> output_y_positions;
     std::vector<std::string> output_names;
+    std::vector<std::string> output_order;
     bool failed = false;
     std::string error_msg;
+
+    // ─── Misc functions ───
+    int get_order_for_output_name(const std::string &name) const {
+      for (int i = 0; i < output_order.size(); i++) {
+        if (output_order[i] == name) {
+          return i;
+        }
+      }
+      // If nothing matches move output to the end of the list (highest order)
+      return output_order.size();
+    }
 
     // ─── Registry listener ───
     static void on_registry_global(void *data, struct wl_registry *reg, const uint32_t name, const char *interface, const uint32_t version) {
       auto *self = static_cast<screencast_t *>(data);
-
-      if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
+      if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
+        // Bind version 1
+        uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
+        self->kde_output_order = static_cast<struct kde_output_order_v1 *>(
+          wl_registry_bind(reg, name, &kde_output_order_v1_interface, bind_ver)
+        );
+        kde_output_order_v1_add_listener(self->kde_output_order, &output_order_listener, self);
+        BOOST_LOG(info) << "[kwingrab] bound kde_output_order_v1 v"sv << bind_ver;
+      } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
         // Bind version 1 — we only use stream_output which is v1
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
-        self->screencast = static_cast<struct zkde_screencast_unstable_v1 *>(
+        self->zkde_screencast = static_cast<struct zkde_screencast_unstable_v1 *>(
           wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
         );
         BOOST_LOG(info) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
@@ -506,6 +535,21 @@ namespace kwin {
       .closed = on_stream_closed,
       .created = on_stream_created,
       .failed = on_stream_failed,
+    };
+
+    // ─── Output order listener ───
+    static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {
+      auto *self = static_cast<screencast_t *>(data);
+      self->output_order.emplace_back(output_name);
+    }
+
+    static void on_output_order_done(void *data [[maybe_unused]], struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]]) {
+      // Currently unused
+    }
+
+    static constexpr kde_output_order_v1_listener output_order_listener = {
+      .output = on_output_order_output,
+      .done = on_output_order_done,
     };
   };
 
