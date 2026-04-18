@@ -5,7 +5,7 @@
  * Bypasses xdg-desktop-portal entirely. Sunshine connects directly to KWin's
  * Wayland protocol to obtain a PipeWire node_id, then streams frames via PipeWire.
  *
- * Chain: KWin (DRM) -> Wayland zkde_screencast_v1 -> PipeWire -> Sunshine -> NVENC -> Moonlight
+ * Chain: KWin -> Wayland zkde_screencast_v1 -> PipeWire -> Sunshine
  */
 // standard includes
 #include <algorithm>
@@ -32,7 +32,6 @@
 // local includes
 #include "cuda.h"
 #include "graphics.h"
-#include "kde-output-order-v1.h"
 #include "pipewire.cpp"
 #include "src/platform/common.h"
 #include "src/video.h"
@@ -79,6 +78,10 @@ namespace kwin {
 
       // User: Check and (if necessary) update user's XDG applications for permission
       auto user_applications = get_xdg_user_applications_path();
+      if (user_applications.empty()) {
+        BOOST_LOG(error) << "[kwingrab] Failed to determine user application directory. Cannot continue with permission setup.";
+        return;
+      }
       // Create non-existing application directory so we can write into it
       if (!std::filesystem::exists(user_applications) && !std::filesystem::create_directories(user_applications)) {
         // In case of failure log and return
@@ -87,10 +90,7 @@ namespace kwin {
         initialized = true;
         return;
       }
-      auto user_filepathprefix = (user_applications / filenameprefix).string();
-      // Generate a unique file identifier based on current unixtime
-      auto user_filepathidentifier = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-      auto user_filepath = std::format("{}{}.desktop", user_filepathprefix, user_filepathidentifier);
+      auto user_filepathprefix = (std::filesystem::path(user_applications) / filenameprefix).string();
       for (const auto &path : std::filesystem::directory_iterator(user_applications)) {
         // List existing files for prefix and check if they contain this executable or remove them
         const auto entry = path.path().string();
@@ -115,6 +115,9 @@ namespace kwin {
         }
       }
       if (create_file) {
+        // Generate a unique file identifier based on current unixtime
+        auto user_filepathidentifier = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+        auto user_filepath = std::format("{}{}.desktop", user_filepathprefix, user_filepathidentifier);
         // Write new file if necessary
         std::ofstream filestream(user_filepath);
         if (filestream.is_open()) {
@@ -153,17 +156,27 @@ namespace kwin {
       return val;
     }
 
-    static std::filesystem::path get_xdg_user_applications_path() {
-      std::string homedir = getenvstr("HOME");
-      if (homedir.empty()) {
-        homedir = getpwuid(geteuid())->pw_dir;
+    static std::filesystem::path get_home_dir() {
+      // Check HOME environment variable
+      if (std::string homedir = getenvstr("HOME"); !homedir.empty()) {
+        return homedir;
       }
+      // Fall back to home directory from NSS passwd
+      // Note: This should be thread-safe as we're always accessing the same entry for Sunshine
+      return getpwuid(geteuid())->pw_dir;
+    }
+
+    static std::filesystem::path get_xdg_user_applications_path() {
       // Follow the XDG base directory specification for user data home:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
       std::filesystem::path xdg_data_home;
       if (std::string dir = getenvstr("XDG_DATA_HOME"); !dir.empty()) {
         xdg_data_home = std::filesystem::path(dir);
       } else {
+        const auto homedir = get_home_dir();
+        if (homedir.empty()) {
+          return "";
+        }
         xdg_data_home = std::filesystem::path(homedir) / ".local"sv / "share"sv;
       }
       return xdg_data_home / "applications";
@@ -172,9 +185,8 @@ namespace kwin {
     static std::string get_executable_full_path() {
       // Adapted from https://linuxvox.com/blog/how-do-i-find-the-location-of-the-executable-in-c/
       char exe_path[PATH_MAX];  // PATH_MAX is defined in limits.h (e.g., 4096 on Linux)
-      ssize_t len;
       // Read the symlink /proc/self/exe into exe_path
-      len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+      const ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
       if (len == -1) {
         return "";
       }
@@ -219,7 +231,6 @@ namespace kwin {
             return true;
           }
         }
-
       }
       return false;
     }
@@ -235,9 +246,9 @@ namespace kwin {
     screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
 
     ~screencast_t() {
-      if (stream) {
-        zkde_screencast_stream_unstable_v1_close(stream);
-        stream = nullptr;
+      if (zkde_screencast_stream) {
+        zkde_screencast_stream_unstable_v1_close(zkde_screencast_stream);
+        zkde_screencast_stream = nullptr;
       }
 
       if (zkde_screencast) {
@@ -256,14 +267,14 @@ namespace kwin {
       }
       outputs.clear();
 
-      if (registry) {
-        wl_registry_destroy(registry);
-        registry = nullptr;
+      if (wl_registry) {
+        wl_registry_destroy(wl_registry);
+        wl_registry = nullptr;
       }
 
-      if (display) {
-        wl_display_disconnect(display);
-        display = nullptr;
+      if (wl_display) {
+        wl_display_disconnect(wl_display);
+        wl_display = nullptr;
       }
     }
 
@@ -283,22 +294,22 @@ namespace kwin {
         return -1;
       }
 
-      display = wl_display_connect(wl_name);
-      if (!display) {
+      wl_display = wl_display_connect(wl_name);
+      if (!wl_display) {
         BOOST_LOG(error) << "[kwingrab] cannot connect to Wayland display: "sv << wl_name;
         return -1;
       }
 
-      registry = wl_display_get_registry(display);
-      wl_registry_add_listener(registry, &registry_listener, this);
-      wl_display_roundtrip(display);
+      wl_registry = wl_display_get_registry(wl_display);
+      wl_registry_add_listener(wl_registry, &registry_listener, this);
+      wl_display_roundtrip(wl_display);
 
       if (!zkde_screencast) {
         if (screencast_permission_helper_t::is_newly_initialized()) {
           BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
                               "A new permission desktop file was automatically created but might now have been recognized yet. Try restarting."sv;
         } else {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check "sv
+          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission "sv
                               "desktop file for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1"sv;
         }
         return -1;
@@ -308,25 +319,25 @@ namespace kwin {
         return -1;
       }
       // We need a second roundtrip after binding outputs to get wl_output events
-      wl_display_roundtrip(display);
+      wl_display_roundtrip(wl_display);
 
       return 0;
     }
 
     std::vector<std::string> get_outputs() {
       struct output_params_t_ {
-        int index;
+        size_t index;
         std::string name;
         int width;
         int height;
         int pos_x;
         int pos_y;
-        int order = 0;
+        size_t order = 0;
       };
 
       std::vector<output_params_t_> output_params_;
-      for (int i = 0; i < outputs.size(); i++) {
-        output_params_.emplace_back(i, output_names[i], output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i], get_order_for_output_name(output_names[i]));
+      for (size_t i = 0; i < outputs.size(); i++) {
+        output_params_.emplace_back(i, outputs_name[i], outputs_width[i], outputs_height[i], outputs_pos_x[i], outputs_pos_y[i], get_order_for_output_name(outputs_name[i]));
       }
       std::ranges::sort(output_params_, [](const auto &a, const auto &b) {
         return a.order < b.order || a.pos_x < b.pos_x || a.pos_y < b.pos_y;
@@ -345,11 +356,11 @@ namespace kwin {
      * @return 0 on success, -1 on failure. On success, node_id and
      *         output width/height/x/y are populated.
      */
-    int start(const std::string &output_name) {
-      int output_index = 0;
+    int start(const std::string_view &output_name) {
+      size_t output_index = 0;
       if (!output_name.empty()) {
-        for (int i = 0; i < outputs.size(); i++) {
-          if (output_names[i] == output_name) {
+        for (size_t i = 0; i < outputs.size(); i++) {
+          if (outputs_name[i] == output_name) {
             output_index = i;
             break;
           }
@@ -358,16 +369,16 @@ namespace kwin {
 
       // Request a stream for the chosen output with embedded cursor
       auto *target_output = outputs[output_index];
-      stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, target_output, CURSOR_EMBEDDED);
-      zkde_screencast_stream_unstable_v1_add_listener(stream, &stream_listener, this);
+      zkde_screencast_stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, target_output, CURSOR_EMBEDDED);
+      zkde_screencast_stream_unstable_v1_add_listener(zkde_screencast_stream, &stream_listener, this);
 
       // Dispatch until we get created/failed, with a 5s timeout
       auto deadline = std::chrono::steady_clock::now() + 5s;
       while (node_id == 0 && !failed && std::chrono::steady_clock::now() < deadline) {
-        wl_display_flush(display);
+        wl_display_flush(wl_display);
 
         struct pollfd pfd = {};
-        pfd.fd = wl_display_get_fd(display);
+        pfd.fd = wl_display_get_fd(wl_display);
         pfd.events = POLLIN;
 
         auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -377,7 +388,7 @@ namespace kwin {
           break;
         }
 
-        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(display) < 0) {
+        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(wl_display) < 0) {
           BOOST_LOG(error) << "[kwingrab] wl_display_dispatch failed"sv;
           return -1;
         }
@@ -395,10 +406,10 @@ namespace kwin {
       BOOST_LOG(info) << "[kwingrab] stream created, PipeWire node "sv << node_id;
 
       // Get output dimensions from mode events
-      out_width = output_widths[output_index];
-      out_height = output_heights[output_index];
-      out_pos_x = output_x_positions[output_index];
-      out_pos_y = output_y_positions[output_index];
+      out_width = outputs_width[output_index];
+      out_height = outputs_height[output_index];
+      out_pos_x = outputs_pos_x[output_index];
+      out_pos_y = outputs_pos_y[output_index];
 
       if (out_width == 0 || out_height == 0) {
         BOOST_LOG(error) << "[kwingrab] could not determine output dimensions"sv;
@@ -406,7 +417,7 @@ namespace kwin {
       }
 
       BOOST_LOG(info) << "[kwingrab] Screencasting output "sv << output_index
-                      << " name "sv << output_names[output_index]
+                      << " name "sv << outputs_name[output_index]
                       << " position "sv << out_pos_x << "x"sv << out_pos_y
                       << " resolution "sv << out_width << "x"sv << out_height;
       return 0;
@@ -420,29 +431,29 @@ namespace kwin {
 
   private:
     // ─── Wayland objects ───
-    struct wl_display *display = nullptr;
-    struct wl_registry *registry = nullptr;
+    struct wl_display *wl_display = nullptr;
+    struct wl_registry *wl_registry = nullptr;
     struct kde_output_order_v1 *kde_output_order = nullptr;
     struct zkde_screencast_unstable_v1 *zkde_screencast = nullptr;
-    struct zkde_screencast_stream_unstable_v1 *stream = nullptr;
+    struct zkde_screencast_stream_unstable_v1 *zkde_screencast_stream = nullptr;
     std::vector<struct wl_output *> outputs;
-    std::vector<int> output_widths;
-    std::vector<int> output_heights;
-    std::vector<int> output_x_positions;
-    std::vector<int> output_y_positions;
-    std::vector<std::string> output_names;
+    std::vector<int> outputs_width;
+    std::vector<int> outputs_height;
+    std::vector<int> outputs_pos_x;
+    std::vector<int> outputs_pos_y;
+    std::vector<std::string> outputs_name;
     std::vector<std::string> output_order;
     bool failed = false;
     std::string error_msg;
 
     // ─── Misc functions ───
-    int get_order_for_output_name(const std::string &name) const {
-      for (int i = 0; i < output_order.size(); i++) {
+    size_t get_order_for_output_name(const std::string_view &name) const {
+      for (size_t i = 0; i < output_order.size(); i++) {
         if (output_order[i] == name) {
           return i;
         }
       }
-      // If nothing matches move output to the end of the list (highest order)
+      // If nothing matches return list size (to ensure highest order)
       return output_order.size();
     }
 
@@ -465,16 +476,18 @@ namespace kwin {
         );
         BOOST_LOG(info) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
+        // Bind version 4 - we need wl_output name for matching
+        uint32_t bind_ver = std::min(version, static_cast<uint32_t>(4));
         auto *output = static_cast<struct wl_output *>(
-          wl_registry_bind(reg, name, &wl_output_interface, std::min(version, static_cast<uint32_t>(4)))
+          wl_registry_bind(reg, name, &wl_output_interface, bind_ver)
         );
         wl_output_add_listener(output, &output_listener, self);
         self->outputs.emplace_back(output);
-        self->output_widths.emplace_back(0);
-        self->output_heights.emplace_back(0);
-        self->output_x_positions.emplace_back(0);
-        self->output_y_positions.emplace_back(0);
-        self->output_names.emplace_back("");
+        self->outputs_width.emplace_back(0);
+        self->outputs_height.emplace_back(0);
+        self->outputs_pos_x.emplace_back(0);
+        self->outputs_pos_y.emplace_back(0);
+        self->outputs_name.emplace_back("");
       }
     }
 
@@ -492,8 +505,8 @@ namespace kwin {
       auto *self = static_cast<screencast_t *>(data);
       for (size_t i = 0; i < self->outputs.size(); i++) {
         if (self->outputs[i] == output) {
-          self->output_x_positions[i] = x;
-          self->output_y_positions[i] = y;
+          self->outputs_pos_x[i] = x;
+          self->outputs_pos_y[i] = y;
           break;
         }
       }
@@ -507,8 +520,8 @@ namespace kwin {
       auto *self = static_cast<screencast_t *>(data);
       for (size_t i = 0; i < self->outputs.size(); i++) {
         if (self->outputs[i] == output) {
-          self->output_widths[i] = width;
-          self->output_heights[i] = height;
+          self->outputs_width[i] = width;
+          self->outputs_height[i] = height;
           break;
         }
       }
@@ -526,7 +539,7 @@ namespace kwin {
       auto *self = static_cast<screencast_t *>(data);
       for (size_t i = 0; i < self->outputs.size(); i++) {
         if (self->outputs[i] == output) {
-          self->output_names[i] = name;
+          self->outputs_name[i] = name;
           break;
         }
       }
@@ -680,9 +693,9 @@ namespace platf {
 
     probe_data_t probe = {&found_kwin, &found_output};
 
-    static const struct wl_registry_listener probe_listener = {
+    static constexpr struct wl_registry_listener probe_listener = {
       .global = [](void *data, struct wl_registry *, uint32_t, const char *interface, uint32_t) {
-        auto *p = static_cast<probe_data_t *>(data);
+        const auto *p = static_cast<probe_data_t *>(data);
         if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
           *p->found_kwin = true;
         } else if (!std::strcmp(interface, wl_output_interface.name)) {
