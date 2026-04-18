@@ -271,24 +271,26 @@ namespace kwin {
     std::vector<std::string> get_outputs() {
       struct output_params_t_ {
         int index;
+        std::string name;
         int width;
         int height;
         int pos_x;
         int pos_y;
+        int order = 0;
       };
 
       std::vector<output_params_t_> output_params_;
       for (int i = 0; i < outputs.size(); i++) {
-        output_params_.emplace_back(i, output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i]);
+        // TODO: Add output order value here from kde-output-order wayland extension
+        output_params_.emplace_back(i, output_names[i], output_widths[i], output_heights[i], output_x_positions[i], output_y_positions[i]);
       }
-      // TODO: Add output priority from kde-output-device-v2 here as first sorting parameter
       std::ranges::sort(output_params_, [](const auto &a, const auto &b) {
-        return a.pos_x < b.pos_x || a.pos_y < b.pos_y;
+        return a.order < b.order || a.pos_x < b.pos_x || a.pos_y < b.pos_y;
       });
       std::vector<std::string> output_names_;
       for (auto output_param : output_params_) {
-        BOOST_LOG(info) << "[kwingrab] Found output: "sv << output_param.index << " position: "sv << output_param.pos_x << "x"sv << output_param.pos_y << " resolution: "sv << output_param.width << "x"sv << output_param.height;
-        output_names_.emplace_back(std::to_string(output_param.index));
+        BOOST_LOG(info) << "[kwingrab] Found output "sv << output_param.index << ": "sv << output_param.name << " position: "sv << output_param.pos_x << "x"sv << output_param.pos_y << " resolution: "sv << output_param.width << "x"sv << output_param.height;
+        output_names_.emplace_back(output_param.name);
       }
       return output_names_;
     }
@@ -301,10 +303,13 @@ namespace kwin {
      */
     int start(const std::string &output_name) {
       int output_index = 0;
-      if (!output_name.empty() && std::ranges::all_of(output_name, ::isdigit)) {
-        output_index = std::stoi(output_name);
-      } else {
-        BOOST_LOG(debug) << "[kwingrab] Failed to parse int value: '"sv << output_name << "'";
+      if (!output_name.empty()) {
+        for (int i = 0; i < outputs.size(); i++) {
+          if (output_names[i] == output_name) {
+            output_index = i;
+            break;
+          }
+        }
       }
 
       // Request a stream for the chosen output with embedded cursor
@@ -357,6 +362,7 @@ namespace kwin {
       }
 
       BOOST_LOG(info) << "[kwingrab] Screencasting output "sv << output_index
+                      << " name "sv << output_names[output_index]
                       << " position "sv << out_pos_x << "x"sv << out_pos_y
                       << " resolution "sv << out_width << "x"sv << out_height;
       return 0;
@@ -379,6 +385,7 @@ namespace kwin {
     std::vector<int> output_heights;
     std::vector<int> output_x_positions;
     std::vector<int> output_y_positions;
+    std::vector<std::string> output_names;
     bool failed = false;
     std::string error_msg;
 
@@ -395,7 +402,7 @@ namespace kwin {
         BOOST_LOG(info) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
         auto *output = static_cast<struct wl_output *>(
-          wl_registry_bind(reg, name, &wl_output_interface, std::min(version, static_cast<uint32_t>(2)))
+          wl_registry_bind(reg, name, &wl_output_interface, std::min(version, static_cast<uint32_t>(4)))
         );
         wl_output_add_listener(output, &output_listener, self);
         self->outputs.emplace_back(output);
@@ -403,6 +410,7 @@ namespace kwin {
         self->output_heights.emplace_back(0);
         self->output_x_positions.emplace_back(0);
         self->output_y_positions.emplace_back(0);
+        self->output_names.emplace_back("");
       }
     }
 
@@ -450,11 +458,27 @@ namespace kwin {
       // Currently unused
     }
 
+    static void on_output_name(void *data, struct wl_output *output, const char *name) {
+      auto *self = static_cast<screencast_t *>(data);
+      for (size_t i = 0; i < self->outputs.size(); i++) {
+        if (self->outputs[i] == output) {
+          self->output_names[i] = name;
+          break;
+        }
+      }
+    }
+
+    static void on_output_description(void *data [[maybe_unused]], struct wl_output *output [[maybe_unused]], const char *description [[maybe_unused]]) {
+      // Currently unused
+    }
+
     static constexpr struct wl_output_listener output_listener = {
       .geometry = on_output_geometry,
       .mode = on_output_mode,
       .done = on_output_done,
       .scale = on_output_scale,
+      .name = on_output_name,
+      .description = on_output_description,
     };
 
     // ─── ScreenCast stream listener ───
