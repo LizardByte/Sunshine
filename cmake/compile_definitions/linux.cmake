@@ -148,8 +148,6 @@ if(${SUNSHINE_ENABLE_VULKAN})
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.h"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.cpp")
-    set_source_files_properties("${CMAKE_SOURCE_DIR}/src/platform/linux/vulkan_encode.cpp"
-            PROPERTIES COMPILE_OPTIONS "-Wno-deprecated-declarations")
 
     # compile GLSL -> SPIR-V -> C include at build time
     set(VULKAN_SHADER_DIR "${CMAKE_BINARY_DIR}/generated-src/shaders")
