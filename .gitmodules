@@ -40,7 +40,7 @@
 [submodule "third-party/nv-codec-headers"]
 	path = third-party/nv-codec-headers
 	url = https://github.com/FFmpeg/nv-codec-headers.git
-	branch = sdk/12.0
+	branch = master
 [submodule "third-party/nvapi"]
 	path = third-party/nvapi
 	url = https://github.com/NVIDIA/nvapi.git

@@ -169,7 +169,7 @@ namespace nvenc {
     }
 
     if (!registered_input_buffer) {
-      NV_ENC_REGISTER_RESOURCE register_resource = {min_struct_version(NV_ENC_REGISTER_RESOURCE_VER, 3, 4)};
+      NV_ENC_REGISTER_RESOURCE register_resource = {NV_ENC_REGISTER_RESOURCE_VER};
       register_resource.resourceType = NV_ENC_INPUT_RESOURCE_TYPE_CUDADEVICEPTR;
       register_resource.width = encoder_params.width;
       register_resource.height = encoder_params.height;

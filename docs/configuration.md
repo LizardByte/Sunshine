@@ -2352,6 +2352,46 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### nvenc_split_encode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Split the encoding of each video frame over multiple NVENC hardware units.
+            Significantly reduces encoding latency with a marginal compression efficiency penalty.
+            This option is ignored if your GPU has a singular NVENC unit.
+            @note{This option only applies when using NVENC [encoder](#encoder) with HEVC or AV1.}
+            @note{Applies to Windows only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            driver_decides
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            nvenc_split_encode = driver_decides
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>disabled</td>
+        <td>Disabled</td>
+    </tr>
+    <tr>
+        <td>driver_decides</td>
+        <td>The NVIDIA driver will automatically enable split frame encoding when the following conditions are met: 2+ NVENC units, resolution is at least 4K, and the preset is P1-P4.</td>
+    </tr>
+    <tr>
+        <td>enabled</td>
+        <td>Enabled</td>
+    </tr>
+</table>
+
 ### nvenc_latency_over_power
 
 <table>
