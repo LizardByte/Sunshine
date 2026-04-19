@@ -1021,11 +1021,13 @@ namespace platf {
 #endif
 
 #ifdef SUNSHINE_BUILD_KWIN
+  bool kwin_available();
   std::vector<std::string> kwin_display_names();
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config);
 
   bool verify_kwin() {
-    return window_system == window_system_e::WAYLAND && !kwin_display_names().empty();
+    // Note: The separate kwin_available check is necessary because with CAP_SYS_ADMIN kwin_display_names is never empty during startup
+    return window_system == window_system_e::WAYLAND && kwin_available() && !kwin_display_names().empty();
   }
 #endif
 

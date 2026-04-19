@@ -620,4 +620,51 @@ namespace platf {
     // Return output indices as display names
     return screencast->get_outputs();
   }
+
+  bool kwin_available() {
+    // Verify that we can connect to Wayland and find KWin
+    // Do this by checking for the kde-output-order-v1 protocol
+    // as it works regardless of CAP_SYS_ADMIN status
+    const char *wl_name = std::getenv("WAYLAND_DISPLAY");
+    if (!wl_name) {
+      return false;
+    }
+
+    auto *display = wl_display_connect(wl_name);
+    if (!display) {
+      return false;
+    }
+
+    bool found_kwin = false;
+    bool found_output = false;
+
+    struct probe_data_t {
+      bool *found_kwin;
+      bool *found_output;
+    };
+
+    probe_data_t probe = {&found_kwin, &found_output};
+
+    static const struct wl_registry_listener probe_listener = {
+      .global = [](void *data, struct wl_registry *, uint32_t, const char *interface, uint32_t) {
+        auto *p = static_cast<probe_data_t *>(data);
+        if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
+          *p->found_kwin = true;
+        } else if (!std::strcmp(interface, wl_output_interface.name)) {
+          *p->found_output = true;
+        }
+      },
+      .global_remove = [](void *, struct wl_registry *, uint32_t) {
+        // Unused as we're just probing for available methods
+      },
+    };
+
+    auto *registry = wl_display_get_registry(display);
+    wl_registry_add_listener(registry, &probe_listener, &probe);
+    wl_display_roundtrip(display);
+    wl_registry_destroy(registry);
+    wl_display_disconnect(display);
+
+    return found_kwin && found_output;
+  }
 }  // namespace platf
