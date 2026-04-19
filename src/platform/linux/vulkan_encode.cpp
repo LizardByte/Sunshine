@@ -770,21 +770,7 @@ namespace vk {
       submit.signalSemaphoreCount = sem_count;
       submit.pSignalSemaphores = signal_sems.data();
 
-#if !defined(FF_API_VULKAN_SYNC_QUEUES) || FF_API_VULKAN_SYNC_QUEUES
-      vk_dev.ctx->lock_queue(
-        (AVHWDeviceContext *) ((AVHWFramesContext *) hw_frames_ctx->data)->device_ref->data,
-        vk_dev.compute_qf,
-        0
-      );
-#endif
       auto res = vkQueueSubmit(vk_dev.compute_queue, 1, &submit, VK_NULL_HANDLE);
-#if !defined(FF_API_VULKAN_SYNC_QUEUES) || FF_API_VULKAN_SYNC_QUEUES
-      vk_dev.ctx->unlock_queue(
-        (AVHWDeviceContext *) ((AVHWFramesContext *) hw_frames_ctx->data)->device_ref->data,
-        vk_dev.compute_qf,
-        0
-      );
-#endif
 
       if (res != VK_SUCCESS) {
         BOOST_LOG(error) << "vkQueueSubmit failed: " << res;
