@@ -3029,13 +3029,13 @@ editing the `conf` file in a text editor. Use the examples as reference.
     <tr>
         <td>Default</td>
         <td colspan="2">@code{}
-            4
+            2
             @endcode</td>
     </tr>
     <tr>
         <td>Example</td>
         <td colspan="2">@code{}
-            vk_rc_mode = 2
+            vk_rc_mode = 4
             @endcode</td>
     </tr>
     <tr>
