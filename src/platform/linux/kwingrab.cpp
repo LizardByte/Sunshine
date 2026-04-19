@@ -67,10 +67,15 @@ namespace kwin {
         initialized = true;
         return;
       }
-      auto executable = get_executable_full_path();
       auto filenameprefix = std::format("{}.kwin", PROJECT_FQDN);
+      auto executablepath = get_executable_full_path();
+
       // System: Check system XDG applications for permission (usually installed with Sunshine)
-      // TODO: Implement this!
+      if (check_kwin_system_permissions(filenameprefix, executablepath)) {
+        create_file = false;
+        initialized = true;
+        return;
+      }
 
       // User: Check and (if necessary) update user's XDG applications for permission
       auto user_applications = get_xdg_user_applications_path();
@@ -85,14 +90,13 @@ namespace kwin {
       auto user_filepathprefix = (user_applications / filenameprefix).string();
       // Generate a unique file identifier based on current unixtime
       auto user_filepathidentifier = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
-      ;
       auto user_filepath = std::format("{}{}.desktop", user_filepathprefix, user_filepathidentifier);
       for (const auto &path : std::filesystem::directory_iterator(user_applications)) {
         // List existing files for prefix and check if they contain this executable or remove them
         const auto entry = path.path().string();
         if (entry.starts_with(user_filepathprefix)) {
           auto entry_executablepath = get_executable_from_desktop_file(entry);
-          if (!entry_executablepath.empty() && entry_executablepath == executable.string()) {
+          if (!entry_executablepath.empty() && entry_executablepath == executablepath) {
             // This entry is exactly the one we need
             BOOST_LOG(debug) << "[kwingrab] Ignoring current temporary KWin wayland permission file: "sv << entry;
             create_file = false;
@@ -115,7 +119,7 @@ namespace kwin {
         std::ofstream filestream(user_filepath);
         if (filestream.is_open()) {
           filestream << "[Desktop Entry]" << std::endl
-                     << "Exec=" << executable.string() << std::endl
+                     << "Exec=" << executablepath << std::endl
                      << "X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1" << std::endl
                      << "Type=Application" << std::endl
                      << "Name="sv << PROJECT_FQDN << "-kwin-wayland-permission" << std::endl
@@ -165,7 +169,7 @@ namespace kwin {
       return xdg_data_home / "applications";
     }
 
-    static std::filesystem::path get_executable_full_path() {
+    static std::string get_executable_full_path() {
       // Adapted from https://linuxvox.com/blog/how-do-i-find-the-location-of-the-executable-in-c/
       char exe_path[PATH_MAX];  // PATH_MAX is defined in limits.h (e.g., 4096 on Linux)
       ssize_t len;
@@ -177,7 +181,7 @@ namespace kwin {
       return std::string(exe_path, len);
     }
 
-    static std::string get_executable_from_desktop_file(const std::filesystem::path &path) {
+    static std::string get_executable_from_desktop_file(const std::string &path) {
       if (std::ifstream file(path); file.is_open()) {
         std::string line;
         while (std::getline(file, line)) {
@@ -187,6 +191,37 @@ namespace kwin {
         }
       }
       return "";
+    }
+
+    static bool check_kwin_system_permissions(const std::string_view &filenameprefix, const std::string_view &executablepath) {
+      // Find data dirs to check from XDG_DATA_DIRS
+      std::vector<std::string> xdg_data_dirs;
+      if (const std::string e = getenvstr("XDG_DATA_DIRS"); !e.empty()) {
+        std::stringstream ss(e);
+        std::string item;
+
+        while (getline(ss, item, ':')) {  // : is likely valid for all OSes supported, if a constant is available it should be used instead
+          xdg_data_dirs.push_back(item);
+        }
+      }
+      // Use defaults from https://specifications.freedesktop.org/basedir/latest/ if ENV var was empty
+      if (xdg_data_dirs.empty()) {
+        xdg_data_dirs.emplace_back("/usr/local/share/");
+        xdg_data_dirs.emplace_back("/usr/share/");
+      }
+      // Check for ${filenameprefix}.desktop in each directory
+      for (auto const &dir : xdg_data_dirs) {
+        std::string filename = std::format("{0}{1}applications{1}{2}.desktop", dir, boost::filesystem::path::preferred_separator, filenameprefix);
+        if (std::filesystem::exists(filename)) {
+          auto file_executablepath = get_executable_from_desktop_file(filename);
+          if (file_executablepath == executablepath) {
+            BOOST_LOG(info) << "[kwingrab] Found matching system KWin desktop permission file: "sv << filename;
+            return true;
+          }
+        }
+
+      }
+      return false;
     }
   };
 
