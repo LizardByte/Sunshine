@@ -226,27 +226,10 @@ namespace wl {
       return true;
     }
 
-    // Find render node
-    drmDevice *devices[16];
-    int n = drmGetDevices2(0, devices, 16);
-    if (n <= 0) {
-      BOOST_LOG(error) << "[wayland] No DRM devices found"sv;
-      return false;
-    }
-
-    int drm_fd = -1;
-    for (int i = 0; i < n; i++) {
-      if (devices[i]->available_nodes & (1 << DRM_NODE_RENDER)) {
-        drm_fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR);
-        if (drm_fd >= 0) {
-          break;
-        }
-      }
-    }
-    drmFreeDevices(devices, n);
-
+    auto render_path = platf::resolve_render_device();
+    int drm_fd = open(render_path.c_str(), O_RDWR);
     if (drm_fd < 0) {
-      BOOST_LOG(error) << "[wayland] Failed to open DRM render node"sv;
+      BOOST_LOG(error) << "[wayland] Failed to open DRM render node: "sv << render_path;
       return false;
     }
 
