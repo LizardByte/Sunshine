@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <gbm.h>
 #include <poll.h>
+#include <sys/mman.h>
 #include <unistd.h>
 #include <wayland-client.h>
 #include <wayland-util.h>
@@ -213,6 +214,9 @@ namespace wl {
       dmabuf_interface = (zwp_linux_dmabuf_v1 *) wl_registry_bind(registry, id, &zwp_linux_dmabuf_v1_interface, version);
 
       this->interface[LINUX_DMABUF] = true;
+    } else if (!std::strcmp(interface, wl_shm_interface.name)) {
+      BOOST_LOG(info) << "[wayland] Found interface: "sv << interface << '(' << id << ") version "sv << version;
+      shm_interface = (wl_shm *) wl_registry_bind(registry, id, &wl_shm_interface, 1);
     }
   }
 
@@ -273,6 +277,114 @@ namespace wl {
     }
   }
 
+  void dmabuf_t::cleanup_shm() {
+    if (shm_wl_buffer) {
+      wl_buffer_destroy(shm_wl_buffer);
+      shm_wl_buffer = nullptr;
+    }
+    if (shm_pool) {
+      wl_shm_pool_destroy(shm_pool);
+      shm_pool = nullptr;
+    }
+  }
+
+  void dmabuf_t::destroy_shm() {
+    cleanup_shm();
+    if (shm_mmap && shm_mmap_size > 0) {
+      munmap(shm_mmap, shm_mmap_size);
+      shm_mmap = nullptr;
+      shm_mmap_size = 0;
+    }
+    if (shm_fd >= 0) {
+      close(shm_fd);
+      shm_fd = -1;
+    }
+  }
+
+  bool dmabuf_t::init_shm(size_t size) {
+    if (size == shm_mmap_size) {
+      return true;
+    }
+
+    destroy_shm();
+
+    shm_fd = memfd_create("sunshine-shm", 0);
+    if (shm_fd < 0) {
+      BOOST_LOG(error) << "[wayland] memfd_create failed: "sv << strerror(errno);
+      return false;
+    }
+
+    if (ftruncate(shm_fd, size) < 0) {
+      BOOST_LOG(error) << "[wayland] ftruncate failed: "sv << strerror(errno);
+      close(shm_fd);
+      shm_fd = -1;
+      return false;
+    }
+
+    shm_mmap = mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (shm_mmap == MAP_FAILED) {
+      BOOST_LOG(error) << "[wayland] mmap failed: "sv << strerror(errno);
+      shm_mmap = nullptr;
+      close(shm_fd);
+      shm_fd = -1;
+      return false;
+    }
+
+    shm_mmap_size = size;
+    return true;
+  }
+
+  void dmabuf_t::create_and_copy_shm(zwlr_screencopy_frame_v1 *frame) {
+    size_t needed = (size_t) shm_info.stride * shm_info.height;
+
+    if (!init_shm(needed)) {
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    // Recreate pool+buffer each frame (compositor may require fresh buffer)
+    cleanup_shm();
+
+    shm_pool = wl_shm_create_pool(shm_interface, shm_fd, shm_mmap_size);
+    if (!shm_pool) {
+      BOOST_LOG(error) << "[wayland] wl_shm_pool_create failed"sv;
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    shm_wl_buffer = wl_shm_pool_create_buffer(
+      shm_pool,
+      0,
+      shm_info.width,
+      shm_info.height,
+      shm_info.stride,
+      shm_info.format
+    );
+    if (!shm_wl_buffer) {
+      BOOST_LOG(error) << "[wayland] wl_shm_pool_create_buffer failed"sv;
+      cleanup_shm();
+      zwlr_screencopy_frame_v1_destroy(frame);
+      status = REINIT;
+      return;
+    }
+
+    shm_mode = true;
+
+    static bool shm_format_logged = false;
+    if (!shm_format_logged) {
+      BOOST_LOG(info) << "[wayland] SHM capture: "sv
+                      << shm_info.width << "x"sv << shm_info.height
+                      << " stride="sv << shm_info.stride
+                      << " format=0x"sv << std::hex << shm_info.format << std::dec;
+      shm_format_logged = true;
+    }
+
+    // Tell compositor to copy the frame into our SHM buffer
+    zwlr_screencopy_frame_v1_copy(frame, shm_wl_buffer);
+  }
+
   dmabuf_t::dmabuf_t():
       status {READY},
       frames {},
@@ -292,10 +404,12 @@ namespace wl {
   void dmabuf_t::listen(
     zwlr_screencopy_manager_v1 *screencopy_manager,
     zwp_linux_dmabuf_v1 *dmabuf_interface,
+    wl_shm *shm_interface,
     wl_output *output,
     bool blend_cursor
   ) {
     this->dmabuf_interface = dmabuf_interface;
+    this->shm_interface = shm_interface;
     // Reset state
     shm_info.supported = false;
     dmabuf_info.supported = false;
@@ -318,13 +432,13 @@ namespace wl {
 
   dmabuf_t::~dmabuf_t() {
     cleanup_gbm();
+    destroy_shm();
 
     for (auto &frame : frames) {
       frame.destroy();
     }
 
     if (gbm_device) {
-      // We should close the DRM FD, but it's owned by GBM
       gbm_device_destroy(gbm_device);
       gbm_device = nullptr;
     }
@@ -364,74 +478,105 @@ namespace wl {
     BOOST_LOG(verbose) << "Frame flags: "sv << flags << (y_invert ? " (y_invert)" : "");
   }
 
-  // DMA-BUF creation helper
-  void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
+  // DMA-BUF creation helper — returns false on GBM failure (caller can fall back to SHM)
+  bool dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
       BOOST_LOG(error) << "Failed to initialize GBM"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
-      status = REINIT;
-      return;
+      return false;
     }
 
-    // Create GBM buffer
-    current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR);
+    // Try progressively relaxed GBM usage flags.
+    // NVIDIA GBM on headless render nodes may not support all combinations.
+    static const struct {
+      uint32_t flags;
+      const char *desc;
+    } flag_combos[] = {
+      { GBM_BO_USE_RENDERING | GBM_BO_USE_LINEAR, "RENDERING|LINEAR" },
+      { GBM_BO_USE_RENDERING, "RENDERING" },
+      { GBM_BO_USE_LINEAR, "LINEAR" },
+      { 0, "none" },
+    };
+
+    for (const auto &combo : flag_combos) {
+      current_bo = gbm_bo_create(gbm_device, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, combo.flags);
+      if (current_bo) {
+        static bool flags_logged = false;
+        if (!flags_logged) {
+          BOOST_LOG(info) << "[wayland] GBM buffer created with flags: "sv << combo.desc
+                          << " format=0x"sv << std::hex << dmabuf_info.format << std::dec
+                          << " "sv << dmabuf_info.width << "x"sv << dmabuf_info.height;
+          flags_logged = true;
+        }
+        break;
+      }
+    }
+
     if (!current_bo) {
-      BOOST_LOG(error) << "Failed to create GBM buffer"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
-      status = REINIT;
-      return;
+      BOOST_LOG(error) << "Failed to create GBM buffer with any flag combination"sv
+                       << " format=0x"sv << std::hex << dmabuf_info.format << std::dec
+                       << " "sv << dmabuf_info.width << "x"sv << dmabuf_info.height;
+      return false;
     }
 
-    // Get buffer info
     int fd = gbm_bo_get_fd(current_bo);
     if (fd < 0) {
       BOOST_LOG(error) << "Failed to get buffer FD"sv;
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
-      zwlr_screencopy_frame_v1_destroy(frame);
-      status = REINIT;
-      return;
+      return false;
     }
 
     uint32_t stride = gbm_bo_get_stride(current_bo);
     uint64_t modifier = gbm_bo_get_modifier(current_bo);
 
-    // Store in surface descriptor for later use
     auto next_frame = get_next_frame();
     next_frame->sd.fds[0] = fd;
     next_frame->sd.pitches[0] = stride;
     next_frame->sd.offsets[0] = 0;
     next_frame->sd.modifier = modifier;
 
-    // Create linux-dmabuf buffer
     auto params = zwp_linux_dmabuf_v1_create_params(dmabuf_interface);
     zwp_linux_buffer_params_v1_add(params, fd, 0, 0, stride, modifier >> 32, modifier & 0xffffffff);
-
-    // Add listener for buffer creation
     zwp_linux_buffer_params_v1_add_listener(params, &params_listener, frame);
-
-    // Create Wayland buffer (async - callback will handle copy)
     zwp_linux_buffer_params_v1_create(params, dmabuf_info.width, dmabuf_info.height, dmabuf_info.format, 0);
+
+    return true;
   }
 
   // Buffer done callback - time to create buffer
   void dmabuf_t::buffer_done(zwlr_screencopy_frame_v1 *frame) {
     auto next_frame = get_next_frame();
+    shm_mode = false;
 
-    // Prefer DMA-BUF if supported
-    if (dmabuf_info.supported && dmabuf_interface) {
-      // Store format info first
+    // Prefer DMA-BUF if supported (skip if GBM already failed once)
+    if (dmabuf_info.supported && dmabuf_interface && !gbm_failed) {
       next_frame->sd.fourcc = dmabuf_info.format;
       next_frame->sd.width = dmabuf_info.width;
       next_frame->sd.height = dmabuf_info.height;
 
-      // Create and start copy
-      create_and_copy_dmabuf(frame);
-    } else if (shm_info.supported) {
-      // SHM fallback would go here
-      BOOST_LOG(warning) << "[wayland] SHM capture not implemented"sv;
+      if (create_and_copy_dmabuf(frame)) {
+        return;  // async path continues via buffer_params callbacks
+      }
+
+      // DMA-BUF failed (e.g. GBM on headless NVIDIA) — remember and fall back
+      gbm_failed = true;
+      cleanup_gbm();
+      if (shm_info.supported && shm_interface) {
+        BOOST_LOG(warning) << "[wayland] DMA-BUF capture failed, falling back to SHM permanently"sv;
+        create_and_copy_shm(frame);
+        return;
+      }
+
+      BOOST_LOG(error) << "[wayland] DMA-BUF failed and no SHM fallback available"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
       status = REINIT;
+    } else if (shm_info.supported && shm_interface) {
+      static bool shm_logged = false;
+      if (!shm_logged) {
+        BOOST_LOG(info) << "[wayland] Using SHM capture (no DMA-BUF available)"sv;
+        shm_logged = true;
+      }
+      create_and_copy_shm(frame);
     } else {
       BOOST_LOG(error) << "[wayland] No supported buffer types"sv;
       zwlr_screencopy_frame_v1_destroy(frame);
@@ -479,7 +624,6 @@ namespace wl {
     std::uint32_t tv_sec_lo,
     std::uint32_t tv_nsec
   ) {
-    // Frame is ready for use, GBM buffer now contains screen content
     current_frame->destroy();
     current_frame = get_next_frame();
 
@@ -489,13 +633,26 @@ namespace wl {
       std::chrono::duration_cast<std::chrono::steady_clock::duration>(ready_ts)
     };
 
-    // Keep the GBM buffer alive but destroy the Wayland objects
-    if (current_wl_buffer) {
-      wl_buffer_destroy(current_wl_buffer);
-      current_wl_buffer = nullptr;
-    }
+    if (shm_mode) {
+      // SHM frame: populate dimensions for wlr_t::snapshot() check
+      current_frame->sd.width = shm_info.width;
+      current_frame->sd.height = shm_info.height;
+      current_frame->shm_data = shm_mmap;
+      current_frame->shm_stride = shm_info.stride;
+      current_frame->is_shm = true;
 
-    cleanup_gbm();
+      // Destroy Wayland objects, keep memfd+mmap for next frame
+      cleanup_shm();
+    } else {
+      current_frame->is_shm = false;
+
+      // DMA-BUF path: destroy Wayland buffer, keep GBM bo alive
+      if (current_wl_buffer) {
+        wl_buffer_destroy(current_wl_buffer);
+        current_wl_buffer = nullptr;
+      }
+      cleanup_gbm();
+    }
 
     zwlr_screencopy_frame_v1_destroy(frame);
     status = READY;
@@ -505,8 +662,8 @@ namespace wl {
   void dmabuf_t::failed(zwlr_screencopy_frame_v1 *frame) {
     BOOST_LOG(error) << "[wayland] Frame capture failed"sv;
 
-    // Clean up resources
     cleanup_gbm();
+    cleanup_shm();
     auto next_frame = get_next_frame();
     next_frame->destroy();
 

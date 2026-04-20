@@ -3,6 +3,7 @@
  * @brief Definitions for wlgrab capture.
  */
 // standard includes
+#include <cstring>
 #include <thread>
 
 // local includes
@@ -19,6 +20,7 @@ using namespace std::literals;
 namespace wl {
   static int env_width;
   static int env_height;
+  static bool force_ram_capture = false;
 
   struct img_t: public platf::img_t {
     ~img_t() override {
@@ -118,7 +120,7 @@ namespace wl {
       auto to = std::chrono::steady_clock::now() + timeout;
 
       // Dispatch events until we get a new frame or the timeout expires
-      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, output, cursor);
+      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, interface.shm_interface, output, cursor);
       do {
         auto remaining_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(to - std::chrono::steady_clock::now());
         if (remaining_time_ms.count() < 0 || !display.dispatch(remaining_time_ms)) {
@@ -205,6 +207,49 @@ namespace wl {
 
       auto current_frame = dmabuf.current_frame;
 
+      if (current_frame->is_shm) {
+        // SHM: pixel data already in CPU RAM
+        if (!pull_free_image_cb(img_out)) {
+          return platf::capture_e::interrupted;
+        }
+
+        auto src = static_cast<const uint8_t *>(current_frame->shm_data);
+        auto dst = static_cast<uint8_t *>(img_out->data);
+        int shm_bpp = current_frame->shm_stride / width;
+
+        if (shm_bpp == 4) {
+          // XRGB8888/ARGB8888: direct copy, strides may differ
+          auto copy_bytes = std::min(static_cast<uint32_t>(img_out->row_pitch), current_frame->shm_stride);
+          for (int y = 0; y < height; y++) {
+            std::memcpy(dst + y * img_out->row_pitch, src + y * current_frame->shm_stride, copy_bytes);
+          }
+        } else if (shm_bpp == 3) {
+          // BGR888/RGB888: convert to BGRA8888 (add 0xFF alpha)
+          for (int y = 0; y < height; y++) {
+            auto row_src = src + y * current_frame->shm_stride;
+            auto row_dst = dst + y * img_out->row_pitch;
+            for (int x = 0; x < width; x++) {
+              row_dst[x * 4 + 0] = row_src[x * 3 + 2];  // B (from src R position)
+              row_dst[x * 4 + 1] = row_src[x * 3 + 1];  // G
+              row_dst[x * 4 + 2] = row_src[x * 3 + 0];  // R (from src B position)
+              row_dst[x * 4 + 3] = 0xFF;  // A
+            }
+          }
+        } else {
+          BOOST_LOG(error) << "[wlgrab] Unsupported SHM bytes per pixel: "sv << shm_bpp;
+          return platf::capture_e::reinit;
+        }
+
+        img_out->frame_timestamp = current_frame->frame_timestamp;
+        return platf::capture_e::ok;
+      }
+
+      // Existing DMA-BUF path — requires EGL
+      if (!egl_display) {
+        BOOST_LOG(error) << "[wlgrab] DMA-BUF frame received but EGL not available"sv;
+        return platf::capture_e::reinit;
+      }
+
       auto rgb_opt = egl::import_source(egl_display.get(), current_frame->sd);
 
       if (!rgb_opt) {
@@ -239,12 +284,16 @@ namespace wl {
 
       egl_display = egl::make_display(display.get());
       if (!egl_display) {
-        return -1;
+        BOOST_LOG(warning) << "[wlgrab] EGL init failed, SHM-only mode"sv;
+        // Continue — SHM path does not require EGL
+        return 0;
       }
 
       auto ctx_opt = egl::make_ctx(egl_display.get());
       if (!ctx_opt) {
-        return -1;
+        BOOST_LOG(warning) << "[wlgrab] EGL context creation failed, SHM-only mode"sv;
+        egl_display.reset();
+        return 0;
       }
 
       ctx = std::move(*ctx_opt);
@@ -336,13 +385,20 @@ namespace wl {
         return status;
       }
 
+      auto current_frame = dmabuf.current_frame;
+
+      if (current_frame->is_shm) {
+        // SHM frame — vram path can't consume it, force ram path on reinit
+        BOOST_LOG(warning) << "[wlgrab] SHM frame in vram path, switching to RAM capture"sv;
+        force_ram_capture = true;
+        return platf::capture_e::reinit;
+      }
+
       if (!pull_free_image_cb(img_out)) {
         return platf::capture_e::interrupted;
       }
       auto img = (egl::img_descriptor_t *) img_out.get();
       img->reset();
-
-      auto current_frame = dmabuf.current_frame;
 
       ++sequence;
       img->sequence = sequence;
@@ -411,13 +467,17 @@ namespace platf {
       return nullptr;
     }
 
-    if (hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda || hwdevice_type == platf::mem_type_e::vulkan) {
+    if ((hwdevice_type == platf::mem_type_e::vaapi || hwdevice_type == platf::mem_type_e::cuda || hwdevice_type == platf::mem_type_e::vulkan) && !wl::force_ram_capture) {
       auto wlr = std::make_shared<wl::wlr_vram_t>();
       if (wlr->init(hwdevice_type, display_name, config)) {
         return nullptr;
       }
 
       return wlr;
+    }
+
+    if (wl::force_ram_capture) {
+      BOOST_LOG(info) << "[wlgrab] Using RAM capture path (GBM/DMA-BUF unavailable)"sv;
     }
 
     auto wlr = std::make_shared<wl::wlr_ram_t>();
