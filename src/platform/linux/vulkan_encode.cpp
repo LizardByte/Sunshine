@@ -50,11 +50,20 @@ namespace vk {
 
     VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.apiVersion = VK_API_VERSION_1_1;
+
+    static const std::array<const char *, 1> instance_exts = {VK_EXT_PHYSICAL_DEVICE_DRM_EXTENSION_NAME};
     VkInstanceCreateInfo ci = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ci.pApplicationInfo = &app;
+    ci.enabledExtensionCount = instance_exts.size();
+    ci.ppEnabledExtensionNames = instance_exts.data();
     VkInstance inst = VK_NULL_HANDLE;
     if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
-      return {};
+      // Retry without the extension for loaders that don't support it
+      ci.enabledExtensionCount = 0;
+      ci.ppEnabledExtensionNames = nullptr;
+      if (vkCreateInstance(&ci, nullptr, &inst) != VK_SUCCESS) {
+        return {};
+      }
     }
 
     uint32_t count = 0;
