@@ -444,6 +444,26 @@ namespace vk {
       }
     }
 
+    /**
+     * @brief Query the driver-expected plane count for a format+modifier pair.
+     * @return Expected plane count, or 0 if unknown.
+     */
+    int query_modifier_plane_count(VkFormat format, uint64_t modifier) {
+      VkDrmFormatModifierPropertiesListEXT mod_list = {VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT};
+      VkFormatProperties2 fmt_props2 = {VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2};
+      fmt_props2.pNext = &mod_list;
+      vkGetPhysicalDeviceFormatProperties2(vk_dev.phys_dev, format, &fmt_props2);
+      std::vector<VkDrmFormatModifierPropertiesEXT> mod_props(mod_list.drmFormatModifierCount);
+      mod_list.pDrmFormatModifierProperties = mod_props.data();
+      vkGetPhysicalDeviceFormatProperties2(vk_dev.phys_dev, format, &fmt_props2);
+      for (const auto &mp : mod_props) {
+        if (mp.drmFormatModifier == modifier) {
+          return mp.drmFormatModifierPlaneCount;
+        }
+      }
+      return 0;
+    }
+
     bool import_dmabuf(const egl::surface_descriptor_t &sd) {
       destroy_src_image();
 
@@ -468,12 +488,22 @@ namespace vk {
       };
       VkImageTiling tiling;
 
+      auto [vk_format, vk_swizzle] = drm_fourcc_to_vk_format(sd.fourcc);
+
       if (sd.modifier != DRM_FORMAT_MOD_INVALID) {
-        int plane_count = 0;
+        int dmabuf_planes = 0;
         for (int i = 0; i < 4 && sd.fds[i] >= 0; ++i) {
+          dmabuf_planes++;
+        }
+
+        // Query driver for the expected plane count for this format+modifier.
+        // DMA-BUF exports may include extra metadata planes (e.g. AMD DCC).
+        int expected = query_modifier_plane_count(vk_format, sd.modifier);
+        int plane_count = (expected > 0 && expected <= dmabuf_planes) ? expected : dmabuf_planes;
+
+        for (int i = 0; i < plane_count; ++i) {
           drm_layouts[i].offset = sd.offsets[i];
           drm_layouts[i].rowPitch = sd.pitches[i];
-          plane_count++;
         }
         drm_ci.drmFormatModifier = sd.modifier;
         drm_ci.drmFormatModifierPlaneCount = plane_count;
@@ -483,8 +513,6 @@ namespace vk {
       } else {
         tiling = VK_IMAGE_TILING_LINEAR;
       }
-
-      auto [vk_format, vk_swizzle] = drm_fourcc_to_vk_format(sd.fourcc);
 
       VkImageCreateInfo img_ci = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
       img_ci.pNext = &ext_ci;
