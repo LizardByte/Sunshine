@@ -3,12 +3,10 @@
  * @brief Definitions for XDG portal grab.
  */
 // standard includes
-#include <array>
 #include <fcntl.h>
 #include <format>
 #include <fstream>
 #include <memory>
-#include <mutex>
 #include <string.h>
 #include <string_view>
 #include <thread>
@@ -16,22 +14,14 @@
 // lib includes
 #include <gio/gio.h>
 #include <gio/gunixfdlist.h>
-#include <libdrm/drm_fourcc.h>
 #include <pipewire/pipewire.h>
-#include <spa/param/video/format-utils.h>
-#include <spa/param/video/type-info.h>
-#include <spa/pod/builder.h>
 
 // local includes
-#include "cuda.h"
 #include "graphics.h"
 #include "pipewire.cpp"
 #include "src/main.h"
 #include "src/platform/common.h"
 #include "src/video.h"
-#include "vaapi.h"
-#include "vulkan_encode.h"
-#include "wayland.h"
 
 namespace {
   // Portal configuration constants
@@ -108,57 +98,10 @@ namespace portal {
     }
   };
 
-  struct format_map_t {
-    uint64_t fourcc;
-    int32_t pw_format;
-  };
-
-  static constexpr std::array<format_map_t, 3> format_map = {{
-    {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
-    {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
-    {0, 0},
-  }};
-
   struct dbus_response_t {
     GMainLoop *loop;
     GVariant *response;
     guint subscription_id;
-  };
-
-  struct shared_state_t {
-    std::atomic<int> negotiated_width {0};
-    std::atomic<int> negotiated_height {0};
-    std::atomic<bool> stream_dead {false};
-  };
-
-  struct stream_data_t {
-    struct pw_stream *stream;
-    struct spa_hook stream_listener;
-    struct spa_video_info format;
-    struct pw_buffer *current_buffer;
-    uint64_t drm_format;
-    std::shared_ptr<shared_state_t> shared;
-    std::mutex frame_mutex;
-    std::condition_variable frame_cv;
-    size_t local_stride = 0;
-    bool frame_ready = false;
-    // Two distinct memory pools
-    std::vector<uint8_t> buffer_a;
-    std::vector<uint8_t> buffer_b;
-    // Points to the buffer currently owned by fill_img
-    std::vector<uint8_t> *front_buffer;
-    // Points to the buffer currently being written by on_process
-    std::vector<uint8_t> *back_buffer;
-
-    stream_data_t():
-        front_buffer(&buffer_a),
-        back_buffer(&buffer_b) {}
-  };
-
-  struct dmabuf_format_info_t {
-    int32_t format;
-    uint64_t *modifiers;
-    int n_modifiers;
   };
 
   struct pipewire_streaminfo_t {

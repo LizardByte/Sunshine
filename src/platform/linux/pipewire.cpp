@@ -60,12 +60,6 @@ namespace pipewire {
     {0, 0},
   }};
 
-  struct dbus_response_t {
-    GMainLoop *loop;
-    GVariant *response;
-    guint subscription_id;
-  };
-
   struct shared_state_t {
     std::atomic<int> negotiated_width {0};
     std::atomic<int> negotiated_height {0};
