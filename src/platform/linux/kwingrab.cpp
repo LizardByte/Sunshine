@@ -293,13 +293,15 @@ namespace kwin {
 
     /**
      * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
-     * @param output_index Which wl_output to capture (0 = first).
+     * @param setup_permissions - Try to setup KWin permissions (default: true)
      * @return 0 on success, -1 on failure. On success, node_id and
      *         output width/height/x/y are populated.
      */
-    int init() {
-      // Try to setup permissions for zkde_screencast_unstable_v1
-      screencast_permission_helper_t::setup();
+    int init(const bool setup_permissions = true) {
+      if (setup_permissions) {
+        // Try to set up permissions for zkde_screencast_unstable_v1
+        screencast_permission_helper_t::setup();
+      }
 
       const char *wl_name = std::getenv("WAYLAND_DISPLAY");
       if (!wl_name) {
@@ -317,20 +319,6 @@ namespace kwin {
       wl_registry_add_listener(wl_registry, &registry_listener, this);
       wl_display_roundtrip(wl_display);
 
-      if (!zkde_screencast) {
-        if (screencast_permission_helper_t::is_newly_initialized()) {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
-                              "A new permission desktop file was automatically created but might now have been recognized yet. Try restarting."sv;
-        } else {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission "sv
-                              "desktop file for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1"sv;
-        }
-        return -1;
-      }
-      if (outputs.empty()) {
-        BOOST_LOG(error) << "[kwingrab] no wl_output found"sv;
-        return -1;
-      }
       // We need a second roundtrip after binding outputs to get wl_output events
       wl_display_roundtrip(wl_display);
 
@@ -359,12 +347,39 @@ namespace kwin {
     }
 
     /**
+     * @brief Check if KWin is available for potential screencasting
+     * @return True if KWin is detected
+     */
+    bool kwin_available() const {
+      // Detect KWin using kde_output_order_v1 extension
+      if (kde_output_order) {
+        return true;
+      }
+      return false;
+    }
+
+    /**
      * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
      * @param output_name Which wl_output to capture.
      * @return 0 on success, -1 on failure. On success, node_id and
      *         output width/height/x/y are populated.
      */
     int start(const std::string_view &output_name) {
+      // Check if KDE screencast protocol is available
+      if (!zkde_screencast) {
+        if (screencast_permission_helper_t::is_newly_initialized()) {
+          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
+                              "A new permission desktop file was automatically created but might now have been recognized yet. Try restarting."sv;
+        } else {
+          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission "sv
+                              "desktop file for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1"sv;
+        }
+        return -1;
+      }
+      if (outputs.empty()) {
+        BOOST_LOG(error) << "[kwingrab] no wl_output found"sv;
+        return -1;
+      }
       // Try find correct output by name
       struct wl_output *output = nullptr;
       if (!output_name.empty()) {
@@ -595,7 +610,7 @@ namespace kwin {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) override {
       screencast = std::make_unique<screencast_t>();
-      if (screencast->init() < 0) {
+      if (screencast->init(true) < 0) {
         return -1;
       }
       if (screencast->start(display_name) < 0) {
@@ -650,7 +665,6 @@ namespace platf {
 
     const auto screencast = std::make_unique<kwin::screencast_t>();
     if (screencast->init() < 0) {
-      BOOST_LOG(warning) << "[kwingrab] KWin ScreenCast protocol not available."sv;
       return {};
     }
     // Return output indices as display names
@@ -658,49 +672,10 @@ namespace platf {
   }
 
   bool kwin_available() {
-    // Verify that we can connect to Wayland and find KWin
-    // Do this by checking for the kde-output-order-v1 protocol
-    // as it works regardless of CAP_SYS_ADMIN status
-    const char *wl_name = std::getenv("WAYLAND_DISPLAY");
-    if (!wl_name) {
+    // Init screencast without permission setup (to not cause unneeded logs / temporary desktop files) and check KWin availability
+    if (const auto screencast = std::make_unique<kwin::screencast_t>(); screencast->init(false) < 0 || !screencast->kwin_available()) {
       return false;
     }
-
-    auto *display = wl_display_connect(wl_name);
-    if (!display) {
-      return false;
-    }
-
-    bool found_kwin = false;
-    bool found_output = false;
-
-    struct probe_data_t {
-      bool *found_kwin;
-      bool *found_output;
-    };
-
-    probe_data_t probe = {&found_kwin, &found_output};
-
-    static constexpr struct wl_registry_listener probe_listener = {
-      .global = [](void *data, struct wl_registry *, uint32_t, const char *interface, uint32_t) {
-        const auto *p = static_cast<probe_data_t *>(data);
-        if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
-          *p->found_kwin = true;
-        } else if (!std::strcmp(interface, wl_output_interface.name)) {
-          *p->found_output = true;
-        }
-      },
-      .global_remove = [](void *, struct wl_registry *, uint32_t) {
-        // Unused as we're just probing for available methods
-      },
-    };
-
-    auto *registry = wl_display_get_registry(display);
-    wl_registry_add_listener(registry, &probe_listener, &probe);
-    wl_display_roundtrip(display);
-    wl_registry_destroy(registry);
-    wl_display_disconnect(display);
-
-    return found_kwin && found_output;
+    return true;
   }
 }  // namespace platf
