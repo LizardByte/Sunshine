@@ -482,14 +482,14 @@ namespace kwin {
           wl_registry_bind(reg, name, &kde_output_order_v1_interface, bind_ver)
         );
         kde_output_order_v1_add_listener(self->kde_output_order, &output_order_listener, self);
-        BOOST_LOG(info) << "[kwingrab] bound kde_output_order_v1 v"sv << bind_ver;
+        BOOST_LOG(debug) << "[kwingrab] bound kde_output_order_v1 v"sv << bind_ver;
       } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
         // Bind version 1 — we only use stream_output which is v1
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
         self->zkde_screencast = static_cast<struct zkde_screencast_unstable_v1 *>(
           wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
         );
-        BOOST_LOG(info) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
+        BOOST_LOG(debug) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
         // Bind version 4 - we need wl_output name for matching
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(4));
@@ -500,8 +500,11 @@ namespace kwin {
         const auto [_, inserted] = self->outputs.try_emplace(output, std::make_shared<output_parameter_t>());
         if (inserted) {
           wl_output_add_listener(output, &output_listener, self);
+          BOOST_LOG(debug) << "[kwingrab] bound wl_output_v4 v"sv << bind_ver << " instance: "sv << output;
         } else {
-          BOOST_LOG(warning) << "[kwingrab] Ignoring listener for output "sv << output << " because map emplace failed."sv;
+          // If we for some odd reason cannot add the output to the map clean it up and log a warning
+          BOOST_LOG(warning) << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
+          wl_output_destroy(output);
         }
       }
     }
