@@ -69,7 +69,6 @@ namespace wl {
     std::array<frame_t, 2> frames;
     frame_t *current_frame;
     zwlr_screencopy_frame_v1_listener listener;
-    bool y_invert {false};
 
   private:
     bool init_gbm();
@@ -96,6 +95,7 @@ namespace wl {
     struct gbm_device *gbm_device {nullptr};
     struct gbm_bo *current_bo {nullptr};
     struct wl_buffer *current_wl_buffer {nullptr};
+    bool y_invert {false};
   };
 
   class monitor_t {
