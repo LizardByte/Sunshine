@@ -2,26 +2,8 @@
  * @file src/platform/linux/portalgrab.cpp
  * @brief Definitions for XDG portal grab.
  */
-// standard includes
-#include <fcntl.h>
-#include <format>
-#include <fstream>
-#include <memory>
-#include <string.h>
-#include <string_view>
-#include <thread>
-
-// lib includes
-#include <gio/gio.h>
-#include <gio/gunixfdlist.h>
-#include <pipewire/pipewire.h>
-
 // local includes
-#include "graphics.h"
 #include "pipewire.cpp"
-#include "src/main.h"
-#include "src/platform/common.h"
-#include "src/video.h"
 
 namespace {
   // Portal configuration constants
