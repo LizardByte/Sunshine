@@ -818,6 +818,7 @@ namespace vk {
       for (int i = 0; i < AV_NUM_DATA_POINTERS && vk_frame->img[i]; i++) {
         vk_frame->layout[i] = VK_IMAGE_LAYOUT_GENERAL;
         vk_frame->access[i] = VK_ACCESS_SHADER_WRITE_BIT;
+        vk_frame->queue_family[i] = vk_dev.compute_qf;
       }
 
       target.initialized = true;
