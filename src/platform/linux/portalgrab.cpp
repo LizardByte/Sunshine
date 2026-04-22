@@ -724,7 +724,7 @@ namespace portal {
 
   class portal_t: public pipewire::pipewire_display_t {
   public:
-    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) override {
+    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) override {
       // Connect DBus portal session
       if (dbus.init() < 0) {
         BOOST_LOG(error) << "[portalgrab] Failed to connect to dbus. portal_t setup failed.";
@@ -759,13 +759,16 @@ namespace portal {
       // Restore global maxframerate negotiation state
       pipewire.set_negotiate_maxframerate(negotiate_maxframerate.load());
 
-      // Return values
+      // Return values for pipewire init
       out_pipewire_fd = dbus.pipewire_fd;
       out_pipewire_node = stream.pipewire_node;
-      out_pos_x = stream.pos_x;
-      out_pos_y = stream.pos_y;
-      out_width = stream.width;
-      out_height = stream.height;
+      // Set/update basic stream parameters on display_t
+      this->offset_x = stream.pos_x;
+      this->offset_y = stream.pos_y;
+      this->width = stream.width;
+      this->height = stream.height;
+      this->logical_width = 0;  // Explicitly mark for pipewire_display_t to try to figure this out.
+      this->logical_height = 0;  // Explicitly Mark for pipewire_display_t to try to figure this out.
       // Flag successful setup
       return 0;
     }
