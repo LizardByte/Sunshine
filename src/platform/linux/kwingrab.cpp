@@ -611,7 +611,7 @@ namespace kwin {
 
   class kwin_t: public pipewire::pipewire_display_t {
   public:
-    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) override {
+    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) override {
       screencast = std::make_unique<screencast_t>();
       if (screencast->init(true) < 0) {
         return -1;
@@ -620,12 +620,16 @@ namespace kwin {
         return -1;
       }
       if (screencast->out_params) {
-        out_pos_x = screencast->out_params->pos_x;
-        out_pos_y = screencast->out_params->pos_y;
-        out_width = screencast->out_params->width;
-        out_height = screencast->out_params->height;
-        out_pipewire_fd = -1;  // KWin capture runs of the local pipewire core
+        // Return values for pipewire init
+        out_pipewire_fd = -1;  // KWin screencast capture runs on the local pipewire core
         out_pipewire_node = screencast->out_node_id;
+        // Set/update basic stream parameters on display_t
+        this->offset_x = screencast->out_params->pos_x;
+        this->offset_y = screencast->out_params->pos_y;
+        this->width = screencast->out_params->width;
+        this->height = screencast->out_params->height;
+        this->logical_width = 0;  // Explicitly mark for pipewire_display_t to try to figure this out.
+        this->logical_height = 0;  // Explicitly Mark for pipewire_display_t to try to figure this out.
         return 0;
       }
       return -1;
