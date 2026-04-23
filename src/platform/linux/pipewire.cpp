@@ -3,15 +3,7 @@
  * @brief Shared classes for pipewire-based capture methods.
  */
 // standard includes
-#include <array>
-#include <fcntl.h>
-#include <format>
 #include <fstream>
-#include <memory>
-#include <mutex>
-#include <string.h>
-#include <string_view>
-#include <thread>
 
 // lib includes
 #include <gio/gio.h>
@@ -31,12 +23,6 @@
 #include "vaapi.h"
 #include "vulkan_encode.h"
 #include "wayland.h"
-
-#if !defined(__FreeBSD__)
-  // platform includes
-  #include <sys/capability.h>
-  #include <sys/prctl.h>
-#endif
 
 namespace {
   // Buffer and limit constants
@@ -59,12 +45,6 @@ namespace pipewire {
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
     {0, 0},
   }};
-
-  struct dbus_response_t {
-    GMainLoop *loop;
-    GVariant *response;
-    guint subscription_id;
-  };
 
   struct shared_state_t {
     std::atomic<int> negotiated_width {0};
@@ -698,13 +678,13 @@ namespace pipewire {
       }
 
       if (pipewire.init(pipewire_fd, pipewire_node, shared_state) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to init pipewire. portal_t::init() failed.";
+        BOOST_LOG(error) << "[pipewire] Failed to init pipewire. pipewire_t::init() failed.";
         return -1;
       }
 
       // Start PipeWire now so format negotiation can proceed before capture start
       if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. portal_t::init() failed.";
+        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.";
         return -1;
       }
 
