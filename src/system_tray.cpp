@@ -33,8 +33,10 @@
   #include <chrono>
   #include <csignal>
   #include <format>
+  #include <mutex>
   #include <string>
   #include <thread>
+  #include <utility>
 
   // lib includes
   #include <boost/filesystem.hpp>
@@ -54,6 +56,100 @@ using namespace std::literals;
 // system_tray namespace
 namespace system_tray {
   static std::atomic tray_initialized = false;
+
+  namespace detail {
+    // Holds the shared state used by the async tray update workers. Packaged
+    // in a Meyers-singleton accessor below so the mutex and the persistent
+    // string buffers are function-local statics rather than file-scope
+    // globals.
+    struct tray_async_state_t {
+      // Serializes mutation of the `tray` struct across the detached workers
+      // spawned by update_tray_*(). tray_update() itself is internally
+      // serialized on Linux/macOS via the tray library's own main-loop
+      // dispatch, but we can still race on the fields of `tray` without this.
+      std::mutex mutex;
+
+      // Persistent string storage for notification text. tray_update() on
+      // Linux stores pointers into these strings and needs them to stay
+      // valid until the next update, so they cannot be local to the worker.
+      // Accessed only while holding `mutex`.
+      std::string playing_msg;
+      std::string pausing_msg;
+      std::string stopped_msg;
+    };
+
+    static tray_async_state_t &tray_async_state() {
+      static tray_async_state_t state;
+      return state;
+    }
+
+    // Runs `fn` under the tray-async lock and contains any exception it
+    // throws so the detached worker thread terminates cleanly instead of
+    // propagating exceptions past std::jthread. Templated so the caller
+    // passes its lambda directly without a std::function hop.
+    template<typename F>
+    void safe_run_tray_update(F &&fn) noexcept {
+      try {
+        auto &state = tray_async_state();
+        std::lock_guard lk(state.mutex);
+        if (!tray_initialized) {
+          return;
+        }
+        std::forward<F>(fn)();
+      } catch (const std::exception &e) {
+        BOOST_LOG(warning) << "Tray update threw: "sv << e.what();
+      }
+    }
+  }  // namespace detail
+
+  // Spawn a detached worker that performs a tray update.
+  //
+  // Rationale: on Linux, tray_update() synchronously waits for the GTK
+  // main loop (i.e. the tray thread) to run the update callback — which
+  // in turn calls libnotify and libayatana-appindicator. If the active
+  // notification daemon is unresponsive (a common failure mode on
+  // Wayland compositors during desktop transitions or when the daemon
+  // crashes), the callback blocks indefinitely and the caller blocks
+  // with it.
+  //
+  // The caller is frequently stream::session::join(), which arms a
+  // 10-second NVENC-deadlock watchdog that triggers debug_trap() on
+  // timeout. A hung notification daemon therefore ends up terminating
+  // the entire sunshine process with SIGTRAP. See #4199.
+  //
+  // Running the update on a detached thread decouples the caller from
+  // the tray subsystem: session teardown completes promptly, while
+  // the worker stays blocked on tray_update() until the notification
+  // daemon eventually responds (or the process exits).
+  //
+  // Templated on `F` so the caller's lambda is forwarded directly into
+  // the worker without a std::function type-erasure hop.
+  template<typename F>
+  void run_tray_async(F &&fn) {
+    if (!tray_initialized) {
+      return;
+    }
+    try {
+      // std::jthread is used for its RAII guarantees; the thread is
+      // immediately detached because tray_update() is allowed to block
+      // indefinitely on a hung notification daemon and must not delay
+      // process shutdown or the caller's critical path.
+      // Intentional detach: the worker may block inside tray_update()
+      // indefinitely if the notification daemon is unresponsive (that is
+      // precisely the failure mode this function exists to isolate from
+      // the caller). Joining or extending the thread's scope would
+      // reintroduce the deadlock.
+      std::jthread worker([fn = std::forward<F>(fn)]() mutable {
+        detail::safe_run_tray_update(std::move(fn));
+      });
+      worker.detach();  // NOSONAR(cpp:S5962)
+    } catch (const std::system_error &e) {
+      // std::jthread construction can fail with std::system_error if the
+      // OS is out of resources; in that case we drop the update rather
+      // than surface the failure to the caller's critical path.
+      BOOST_LOG(warning) << "Failed to spawn tray update thread: "sv << e.what();
+    }
+  }
 
   void tray_open_ui_cb([[maybe_unused]] struct tray_menu *item) {
     BOOST_LOG(info) << "Opening UI from system tray"sv;
@@ -283,88 +379,84 @@ namespace system_tray {
   }
 
   void update_tray_playing(std::string app_name) {
-    if (!tray_initialized) {
-      return;
-    }
+    run_tray_async([name = std::move(app_name)]() {
+      auto &state = detail::tray_async_state();
+      tray.notification_title = nullptr;
+      tray.notification_text = nullptr;
+      tray.notification_cb = nullptr;
+      tray.notification_icon = nullptr;
+      tray.icon = TRAY_ICON_PLAYING;
+      tray_update(&tray);
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PLAYING;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON_PLAYING;
-    tray.notification_title = "Stream Started";
-
-    static std::string msg = std::format("Streaming started for {}", app_name);
-    tray.notification_text = msg.c_str();
-    tray.tooltip = msg.c_str();
-    tray.notification_icon = TRAY_ICON_PLAYING;
-    tray_update(&tray);
+      state.playing_msg = std::format("Streaming started for {}", name);
+      tray.icon = TRAY_ICON_PLAYING;
+      tray.notification_title = "Stream Started";
+      tray.notification_text = state.playing_msg.c_str();
+      tray.tooltip = state.playing_msg.c_str();
+      tray.notification_icon = TRAY_ICON_PLAYING;
+      tray_update(&tray);
+    });
   }
 
   void update_tray_pausing(std::string app_name) {
-    if (!tray_initialized) {
-      return;
-    }
+    run_tray_async([name = std::move(app_name)]() {
+      auto &state = detail::tray_async_state();
+      tray.notification_title = nullptr;
+      tray.notification_text = nullptr;
+      tray.notification_cb = nullptr;
+      tray.notification_icon = nullptr;
+      tray.icon = TRAY_ICON_PAUSING;
+      tray_update(&tray);
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON_PAUSING;
-    tray_update(&tray);
-
-    static std::string msg = std::format("Streaming paused for {}", app_name);
-    tray.icon = TRAY_ICON_PAUSING;
-    tray.notification_title = "Stream Paused";
-    tray.notification_text = msg.c_str();
-    tray.tooltip = msg.c_str();
-    tray.notification_icon = TRAY_ICON_PAUSING;
-    tray_update(&tray);
+      state.pausing_msg = std::format("Streaming paused for {}", name);
+      tray.icon = TRAY_ICON_PAUSING;
+      tray.notification_title = "Stream Paused";
+      tray.notification_text = state.pausing_msg.c_str();
+      tray.tooltip = state.pausing_msg.c_str();
+      tray.notification_icon = TRAY_ICON_PAUSING;
+      tray_update(&tray);
+    });
   }
 
   void update_tray_stopped(std::string app_name) {
-    if (!tray_initialized) {
-      return;
-    }
+    run_tray_async([name = std::move(app_name)]() {
+      auto &state = detail::tray_async_state();
+      tray.notification_title = nullptr;
+      tray.notification_text = nullptr;
+      tray.notification_cb = nullptr;
+      tray.notification_icon = nullptr;
+      tray.icon = TRAY_ICON;
+      tray_update(&tray);
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
-    tray_update(&tray);
-
-    static std::string msg = std::format("Application {} successfully stopped", app_name);
-    tray.icon = TRAY_ICON;
-    tray.notification_icon = TRAY_ICON;
-    tray.notification_title = "Application Stopped";
-    tray.notification_text = msg.c_str();
-    tray.tooltip = PROJECT_NAME;
-    tray_update(&tray);
+      state.stopped_msg = std::format("Application {} successfully stopped", name);
+      tray.icon = TRAY_ICON;
+      tray.notification_icon = TRAY_ICON;
+      tray.notification_title = "Application Stopped";
+      tray.notification_text = state.stopped_msg.c_str();
+      tray.tooltip = PROJECT_NAME;
+      tray_update(&tray);
+    });
   }
 
   void update_tray_require_pin() {
-    if (!tray_initialized) {
-      return;
-    }
+    run_tray_async([]() {
+      tray.notification_title = nullptr;
+      tray.notification_text = nullptr;
+      tray.notification_cb = nullptr;
+      tray.notification_icon = nullptr;
+      tray.icon = TRAY_ICON;
+      tray_update(&tray);
 
-    tray.notification_title = nullptr;
-    tray.notification_text = nullptr;
-    tray.notification_cb = nullptr;
-    tray.notification_icon = nullptr;
-    tray.icon = TRAY_ICON;
-    tray_update(&tray);
-    tray.icon = TRAY_ICON;
-    tray.notification_title = "Incoming Pairing Request";
-    tray.notification_text = "Click here to complete the pairing process";
-    tray.notification_icon = TRAY_ICON_LOCKED;
-    tray.tooltip = PROJECT_NAME;
-    tray.notification_cb = []() {
-      launch_ui("/pin");
-    };
-    tray_update(&tray);
+      tray.icon = TRAY_ICON;
+      tray.notification_title = "Incoming Pairing Request";
+      tray.notification_text = "Click here to complete the pairing process";
+      tray.notification_icon = TRAY_ICON_LOCKED;
+      tray.tooltip = PROJECT_NAME;
+      tray.notification_cb = []() {
+        launch_ui("/pin");
+      };
+      tray_update(&tray);
+    });
   }
 
   // Threading functions available on all platforms
