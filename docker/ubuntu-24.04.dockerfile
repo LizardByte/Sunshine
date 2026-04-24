@@ -4,7 +4,7 @@
 # platforms_pr: linux/amd64
 # no-cache-filters: sunshine-base,artifacts,sunshine
 ARG BASE=ubuntu
-ARG TAG=24.04
+ARG TAG=26.04
 FROM ${BASE}:${TAG} AS sunshine-base
 
 ENV DEBIAN_FRONTEND=noninteractive
