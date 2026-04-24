@@ -38,13 +38,6 @@
 #include "src/video.h"
 #include "vaapi.h"
 
-namespace {
-  // KDE ScreenCast cursor modes (from protocol enum)
-  constexpr uint32_t CURSOR_HIDDEN = 1;
-  constexpr uint32_t CURSOR_EMBEDDED = 2;
-  constexpr uint32_t CURSOR_METADATA = 4;
-}  // namespace
-
 using namespace std::literals;
 
 extern const wl_interface wl_output_interface;
@@ -398,7 +391,7 @@ namespace kwin {
       }
 
       // Request a stream for the chosen output with embedded cursor
-      zkde_screencast_stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, output, CURSOR_EMBEDDED);
+      zkde_screencast_stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, output, ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
       zkde_screencast_stream_unstable_v1_add_listener(zkde_screencast_stream, &stream_listener, this);
 
       // Dispatch until we get created/failed, with a 5s timeout
