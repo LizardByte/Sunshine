@@ -621,7 +621,7 @@ namespace portal {
 
   class portal_t: public pipewire::pipewire_display_t {
   public:
-    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) override {
+    int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_object_serial [[maybe_unused]]) override {
       // Connect DBus portal session
       if (dbus.init() < 0) {
         BOOST_LOG(error) << "[portalgrab] Failed to connect to dbus. portal_t setup failed.";
