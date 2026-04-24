@@ -35,7 +35,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
 ## 🎮 Feature Compatibility
 
 <table>
-    <caption id="feature_compatibility">Platform Feature Support</caption>
+    <caption id="gamepad_emulation">Gamepad Emulation</caption>
     <tr>
         <th>Feature</th>
         <th>FreeBSD</th>
@@ -44,7 +44,7 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <th>Windows</th>
     </tr>
     <tr>
-        <td colspan="5" align="center"><b>Gamepad Emulation</b><br>
+        <td colspan="5" align="center">
         What type of gamepads can be emulated on the host.<br>
         Clients may support other gamepads.
         </td>
@@ -84,77 +84,158 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>❌</td>
         <td>❌</td>
     </tr>
+</table>
+
+<table>
+    <caption id="encoding_api">Encoding API</caption>
     <tr>
-        <td colspan="5" align="center"><b>GPU Encoding</b></td>
+        <th>Encoding API</th>
+        <th>GPU Vendor</th>
+        <th>FreeBSD</th>
+        <th>Linux</th>
+        <th>macOS</th>
+        <th>Windows</th>
     </tr>
     <tr>
-        <td>AMD/AMF</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (Video Toolbox)</td>
-        <td>✅</td>
-    </tr>
-    <tr>
-        <td>Intel QuickSync</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (Video Toolbox)</td>
-        <td>✅</td>
-    </tr>
-    <tr>
-        <td>NVIDIA NVENC</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (vaapi)</td>
-        <td>✅ (Video Toolbox)</td>
-        <td>✅</td>
-    </tr>
-    <tr>
-        <td colspan="5" align="center"><b>Screen Capture</b></td>
-    </tr>
-    <tr>
-        <td>DXGI</td>
+        <td>AMF</td>
+        <td>AMD</td>
         <td>➖</td>
         <td>➖</td>
         <td>➖</td>
         <td>✅</td>
     </tr>
     <tr>
-        <td>KMS</td>
-        <td>❌</td>
+        <td>Media Foundation</td>
+        <td>Qualcomm</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>NVENC</td>
+        <td>NVIDIA</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>QuickSync</td>
+        <td>Intel</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td rowspan="3">VAAPI</td>
+        <td>AMD</td>
+        <td>✅</td>
         <td>✅</td>
         <td>➖</td>
         <td>➖</td>
     </tr>
     <tr>
-        <td>NVIDIA NvFBC</td>
+        <td>Intel</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>NVIDIA</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td rowspan="2">Video Toolbox</td>
+        <td>Apple</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Intel</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Vulkan Video</td>
+        <td>AMD</td>
+        <td>🟡</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>Intel</td>
+        <td>🟡</td>
+        <td>🟡</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>NVIDIA</td>
         <td>➖</td>
         <td>🟡</td>
         <td>➖</td>
         <td>➖</td>
     </tr>
     <tr>
-        <td>&nbsp;&nbsp;↳ X11 Support</td>
+        <td>Software</td>
+        <td>Any</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+    </tr>
+</table>
+
+<table>
+    <caption id="screen_capture">Screen Capture</caption>
+    <tr>
+        <th>Capture Method</th>
+        <th>FreeBSD</th>
+        <th>Linux</th>
+        <th>macOS</th>
+        <th>Windows</th>
+    </tr>
+    <tr>
+        <td>DXGI Desktop Duplication</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>➖</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>KMS/DRM</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+    <tr>
+        <td>NvFBC (X11 only)</td>
         <td>➖</td>
         <td>✅</td>
         <td>➖</td>
         <td>➖</td>
     </tr>
     <tr>
-        <td>&nbsp;&nbsp;↳ Wayland Support</td>
-        <td>➖</td>
-        <td>❌</td>
-        <td>➖</td>
-        <td>➖</td>
-    </tr>
-    <tr>
-        <td>Video Toolbox</td>
+        <td>ScreenCaptureKit</td>
         <td>➖</td>
         <td>➖</td>
         <td>✅</td>
         <td>➖</td>
     </tr>
     <tr>
-        <td>Wayland</td>
+        <td>Wayland (wlroots)</td>
         <td>✅</td>
         <td>✅</td>
         <td>➖</td>
@@ -187,6 +268,59 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>✅</td>
         <td>➖</td>
         <td>➖</td>
+    </tr>
+    <tr>
+        <td>XDG Desktop Portal</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
+</table>
+
+<table>
+    <caption id="capture_encoding_compat">Capture → Encoding Compatibility (Linux/FreeBSD)</caption>
+    <tr>
+        <th>Capture Method</th>
+        <th>VAAPI</th>
+        <th>Vulkan Video</th>
+        <th>NVENC (CUDA)</th>
+        <th>Software</th>
+    </tr>
+    <tr>
+        <td>KMS/DRM</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>NvFBC</td>
+        <td>❌</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>❌</td>
+    </tr>
+    <tr>
+        <td>Wayland (wlroots)</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>X11</td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>XDG Desktop Portal</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
     </tr>
 </table>
 

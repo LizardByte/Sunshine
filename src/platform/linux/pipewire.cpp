@@ -3,15 +3,7 @@
  * @brief Shared classes for pipewire-based capture methods.
  */
 // standard includes
-#include <array>
-#include <fcntl.h>
-#include <format>
 #include <fstream>
-#include <memory>
-#include <mutex>
-#include <string.h>
-#include <string_view>
-#include <thread>
 
 // lib includes
 #include <gio/gio.h>
@@ -31,12 +23,6 @@
 #include "vaapi.h"
 #include "vulkan_encode.h"
 #include "wayland.h"
-
-#if !defined(__FreeBSD__)
-  // platform includes
-  #include <sys/capability.h>
-  #include <sys/prctl.h>
-#endif
 
 namespace {
   // Buffer and limit constants
@@ -59,12 +45,6 @@ namespace pipewire {
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
     {0, 0},
   }};
-
-  struct dbus_response_t {
-    GMainLoop *loop;
-    GVariant *response;
-    guint subscription_id;
-  };
 
   struct shared_state_t {
     std::atomic<int> negotiated_width {0};
@@ -615,7 +595,46 @@ namespace pipewire {
       }
     }
 
-    virtual int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node, int &out_pos_x, int &out_pos_y, int &out_width, int &out_height) = 0;
+    /**
+     *  @brief Configure the pipewire stream
+     *  @param display_name provide a stream for this display_name
+     *  @param out_pipewire_fd set to the pipewire fd for the stream in during function call (or -1 for using the local context)
+     *  @param out_pipewire_node set to the pipewire node of the stream in during function call
+     *  @returns 0 if the stream successfully configured
+     */
+    virtual int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) = 0;
+
+    /**
+     *  @brief Verify and update display parameters for logical dimensions, desktop dimensions and logical desktop dimensions (default is adapted from wlgrab)
+     */
+    virtual void verify_and_update_display_parameters() {
+      // Set environment dimensions to stream dimensions (unless we find something better to report here)
+      if (env_height <= 0 || env_width <= 0) {
+        this->env_width = width;
+        this->env_height = height;
+        BOOST_LOG(debug) << "[pipewire] Desktop Resolution: "sv << env_width << 'x' << env_height;
+      }
+      // Query logical sizes directly using wayland wl::monitors() and match current screen based on offset/dimensions
+      if (logical_height <= 0 || logical_width <= 0 || env_logical_height <= 0 || env_logical_width <= 0) {
+        int desktop_logical_width = 0;
+        int desktop_logical_height = 0;
+        for (const auto &monitor : wl::monitors()) {
+          // If logical_width and logical_height are not valid try to update them to correct values by matching to monitor position/dimension or position/logical dimensions
+          // since we're iterating for maximum environment size anyway
+          if ((logical_width <= 0 || logical_height <= 0) && monitor->viewport.offset_x == offset_x && monitor->viewport.offset_y == offset_y && ((monitor->viewport.width == width && monitor->viewport.height == height) || (monitor->viewport.logical_width == width && monitor->viewport.logical_height == height))) {
+            this->logical_width = monitor->viewport.logical_width;
+            this->logical_height = monitor->viewport.logical_height;
+            BOOST_LOG(debug) << "[pipewire] Logical Resolution: "sv << logical_width << 'x' << logical_height;
+          }
+          // Update logical dimensions to setup maximum environment size over all screens
+          desktop_logical_width = std::max(desktop_logical_width, monitor->viewport.offset_x + monitor->viewport.logical_width);
+          desktop_logical_height = std::max(desktop_logical_height, monitor->viewport.offset_y + monitor->viewport.logical_height);
+        }
+        this->env_logical_width = std::max(env_logical_width, desktop_logical_width);
+        this->env_logical_height = std::max(env_logical_height, desktop_logical_height);
+        BOOST_LOG(debug) << "[pipewire] Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
+      }
+    }
 
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
@@ -638,14 +657,15 @@ namespace pipewire {
 
       int pipewire_fd = -1;
       int pipewire_node = -1;
-      int pos_x = -1;
-      int pos_y = -1;
       // Fetch stream info
-      if (configure_stream(display_name, pipewire_fd, pipewire_node, pos_x, pos_y, width, height) < 0) {
+      if (configure_stream(display_name, pipewire_fd, pipewire_node) < 0 || pipewire_node < 0) {
         BOOST_LOG(error) << "[pipewire] Could not find display with name: '"sv << display_name << "'";
         return -1;
       }
-      BOOST_LOG(info) << "[pipewire] Streaming display '"sv << display_name << "' from position: "sv << pos_x << "x"sv << pos_y << " resolution: "sv << width << "x"sv << height;
+      BOOST_LOG(info) << "[pipewire] Streaming display '"sv << display_name << "' from position: "sv << offset_x << "x"sv << offset_y << " resolution: "sv << width << "x"sv << height;
+
+      // Verify or update display parameters for streaming to ensure absolute touch inputs work as expected
+      verify_and_update_display_parameters();
 
       framerate = config.framerate;
 
@@ -658,20 +678,20 @@ namespace pipewire {
       }
 
       if (pipewire.init(pipewire_fd, pipewire_node, shared_state) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to init pipewire. portal_t::init() failed.";
+        BOOST_LOG(error) << "[pipewire] Failed to init pipewire. pipewire_t::init() failed.";
         return -1;
       }
 
       // Start PipeWire now so format negotiation can proceed before capture start
       if (pipewire.ensure_stream(mem_type, width, height, framerate, dmabuf_infos.data(), n_dmabuf_infos, display_is_nvidia) < 0) {
-        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. portal_t::init() failed.";
+        BOOST_LOG(error) << "[pipewire] Failed to ensure pipewire stream. pipewire_t::init() failed.";
         return -1;
       }
 
+      // Wait for pipewire negotiation to finish so we have the proper negotiated dimensions
       int timeout_ms = 1500;
       int negotiated_w = 0;
       int negotiated_h = 0;
-
       while (timeout_ms > 0) {
         negotiated_w = shared_state->negotiated_width.load();
         negotiated_h = shared_state->negotiated_height.load();
@@ -681,22 +701,21 @@ namespace pipewire {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         timeout_ms -= 10;
       }
-
       // Set width and height to the values negotiated by pipewire
       if (negotiated_w > 0 && negotiated_h > 0 && (negotiated_w != width || negotiated_h != height)) {
-        BOOST_LOG(info) << "[pipewire] Using negotiated resolution "sv
-                        << negotiated_w << "x" << negotiated_h;
-
         width = negotiated_w;
         height = negotiated_h;
-      }
+        BOOST_LOG(info) << "[pipewire] Using negotiated Resolution: "sv << width << "x" << height;
 
-      // Set env dimensions to match the captured display.
-      // Portal captures a single display, so the environment size equals the capture size.
-      // Without this, touch input is silently dropped because touch_port_t::operator bool()
-      // checks env_width and env_height are non-zero.
-      env_width = width;
-      env_height = height;
+        // Reset and update display parameters for negotiated resolution
+        env_width = 0;
+        env_height = 0;
+        logical_height = 0;
+        logical_width = 0;
+        env_logical_height = 0;
+        env_logical_width = 0;
+        verify_and_update_display_parameters();
+      }
 
       return 0;
     }

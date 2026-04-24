@@ -513,8 +513,10 @@ namespace platf {
       // MOUSEEVENTF_VIRTUALDESK maps to the entirety of the desktop rather than the primary desktop
       MOUSEEVENTF_VIRTUALDESK;
 
-    auto scaled_x = std::lround((x + touch_port.offset_x) * ((float) target_touch_port.width / (float) touch_port.width));
-    auto scaled_y = std::lround((y + touch_port.offset_y) * ((float) target_touch_port.height / (float) touch_port.height));
+    // Note: x and y already include the display offset (offset_x/offset_y) from client_to_touchport(),
+    // so we must not add offset_x/offset_y again here to avoid double-offsetting on multi-monitor setups.
+    auto scaled_x = std::lround(x * ((float) target_touch_port.width / (float) touch_port.width));
+    auto scaled_y = std::lround(y * ((float) target_touch_port.height / (float) touch_port.height));
 
     mi.dx = scaled_x;
     mi.dy = scaled_y;
