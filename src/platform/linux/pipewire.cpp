@@ -608,31 +608,37 @@ namespace pipewire {
      *  @brief Verify and update display parameters for logical dimensions, desktop dimensions and logical desktop dimensions (default is adapted from wlgrab)
      */
     virtual void verify_and_update_display_parameters() {
-      // Set environment dimensions to stream dimensions (unless we find something better to report here)
-      if (env_height <= 0 || env_width <= 0) {
-        this->env_width = width;
-        this->env_height = height;
-        BOOST_LOG(debug) << "[pipewire] Desktop Resolution: "sv << env_width << 'x' << env_height;
-      }
-      // Query logical sizes directly using wayland wl::monitors() and match current screen based on offset/dimensions
-      if (logical_height <= 0 || logical_width <= 0 || env_logical_height <= 0 || env_logical_width <= 0) {
+      // Query outputs directly using wayland wl::monitors()
+      if (logical_height <= 0 || logical_width <= 0 || env_logical_height <= 0 || env_logical_width <= 0 || env_height <= 0 || env_width <= 0) {
+        int desktop_width = 0;
+        int desktop_height = 0;
         int desktop_logical_width = 0;
         int desktop_logical_height = 0;
         for (const auto &monitor : wl::monitors()) {
-          // If logical_width and logical_height are not valid try to update them to correct values by matching to monitor position/dimension or position/logical dimensions
-          // since we're iterating for maximum environment size anyway
+          // If logical_width and logical_height are not valid try to update them to correct values by matching to monitor
+          // position/dimension or position/logical dimensions here since we're iterating for maximum environment size anyway
           if ((logical_width <= 0 || logical_height <= 0) && monitor->viewport.offset_x == offset_x && monitor->viewport.offset_y == offset_y && ((monitor->viewport.width == width && monitor->viewport.height == height) || (monitor->viewport.logical_width == width && monitor->viewport.logical_height == height))) {
             this->logical_width = monitor->viewport.logical_width;
             this->logical_height = monitor->viewport.logical_height;
             BOOST_LOG(debug) << "[pipewire] Logical Resolution: "sv << logical_width << 'x' << logical_height;
           }
-          // Update logical dimensions to setup maximum environment size over all screens
+          // Update desktop dimensions to setup maximum environment size over all screens
+          desktop_width = std::max(desktop_width, monitor->viewport.offset_x + monitor->viewport.width);
+          desktop_height = std::max(desktop_height, monitor->viewport.offset_y + monitor->viewport.height);
+          // Update desktop logical dimensions to setup maximum logical environment size over all screens
           desktop_logical_width = std::max(desktop_logical_width, monitor->viewport.offset_x + monitor->viewport.logical_width);
           desktop_logical_height = std::max(desktop_logical_height, monitor->viewport.offset_y + monitor->viewport.logical_height);
         }
-        this->env_logical_width = std::max(env_logical_width, desktop_logical_width);
-        this->env_logical_height = std::max(env_logical_height, desktop_logical_height);
-        BOOST_LOG(debug) << "[pipewire] Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
+        if (env_height <= 0 || env_width <= 0) {
+          this->env_width = desktop_width;
+          this->env_height = desktop_height;
+          BOOST_LOG(debug) << "[pipewire] Desktop Resolution: "sv << env_width << 'x' << env_height;
+        }
+        if (env_logical_height <= 0 || env_logical_width <= 0) {
+          this->env_logical_width = desktop_logical_width;
+          this->env_logical_height = desktop_logical_height;
+          BOOST_LOG(debug) << "[pipewire] Logical Desktop Resolution: "sv << env_logical_width << 'x' << env_logical_height;
+        }
       }
     }
 
