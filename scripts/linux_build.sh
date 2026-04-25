@@ -229,6 +229,7 @@ function add_debian_based_deps() {
     "g++-${gcc_version}"
     "git"
     "graphviz"
+    "libayatana-appindicator3-dev"
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
@@ -283,7 +284,6 @@ function add_debian_deps() {
   add_test_ppa
   add_debian_based_deps
   dependencies+=(
-    "libayatana-appindicator3-dev"
     "systemd-dev"
   )
   return 0
@@ -293,7 +293,7 @@ function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
   dependencies+=(
-    "libappindicator3-dev"
+    "libxml2-dev"
   )
   return 0
 }
@@ -802,6 +802,15 @@ elif grep -q "Ubuntu 25.04" /etc/os-release; then
 elif grep -q "Ubuntu 25.10" /etc/os-release; then
   distro="ubuntu"
   version="25.10"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_version="12.9.1"
+  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q 'VERSION_ID="26.04"' /etc/os-release; then
+  distro="ubuntu"
+  version="26.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
   cuda_version="12.9.1"
