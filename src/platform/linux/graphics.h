@@ -365,6 +365,9 @@ namespace egl {
     // Convert the loaded image into the first three framebuffers
     int convert_yuv444(gl::frame_buf_t &fb);
 
+    // Draw loaded image by programs to frame buffers
+    int draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444);
+
     // Make an area of the image black
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format);
 

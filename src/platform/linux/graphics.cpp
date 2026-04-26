@@ -880,6 +880,39 @@ namespace egl {
     program[2].bind(color_matrix);
   }
 
+  int configure_sws_pipeline(sws_t &sws, const video::color_t *color_p, gl::tex_t &&tex, bool is_yuv444) {
+    std::array<std::pair<const char *, std::string_view>, 5> members {{
+      std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
+      std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
+      std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
+      std::make_pair("range_y", util::view(color_p->range_y)),
+      std::make_pair("range_uv", util::view(color_p->range_uv)),
+    }};
+
+    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
+    if (!color_matrix) {
+      return -1;
+    }
+
+    sws.color_matrix = std::move(*color_matrix);
+
+    sws.tex = std::move(tex);
+
+    sws.cursor_framebuffer = gl::frame_buf_t::make(1);
+    sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
+
+    int programCount = is_yuv444 ? 3 : 2;
+
+    for (int i = 0; i < programCount; i++) {
+      sws.program[i].bind(sws.color_matrix);
+    }
+
+    gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    gl_drain_errors;
+    return 0;
+  }
+
   std::optional<sws_t> sws_t::make_nv12(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
@@ -977,32 +1010,11 @@ namespace egl {
     gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec601, false, 8}, true);
-    std::array<std::pair<const char *, std::string_view>, 5> members {{
-      std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
-      std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
-      std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
-      std::make_pair("range_y", util::view(color_p->range_y)),
-      std::make_pair("range_uv", util::view(color_p->range_uv)),
-    }};
 
-    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
-    if (!color_matrix) {
+    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), true);
+    if (pipeline < 0) {
       return std::nullopt;
     }
-
-    sws.color_matrix = std::move(*color_matrix);
-
-    sws.tex = std::move(tex);
-
-    sws.cursor_framebuffer = gl::frame_buf_t::make(1);
-    sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
-
-    sws.program[0].bind(sws.color_matrix);
-    sws.program[1].bind(sws.color_matrix);
-
-    gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    gl_drain_errors;
 
     return sws;
   }
@@ -1103,33 +1115,11 @@ namespace egl {
     }
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec709, true, 8}, false);
-    std::array<std::pair<const char *, std::string_view>, 5> members {{
-      std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
-      std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
-      std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
-      std::make_pair("range_y", util::view(color_p->range_y)),
-      std::make_pair("range_uv", util::view(color_p->range_uv)),
-    }};
 
-    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
-    if (!color_matrix) {
+    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), true);
+    if (pipeline < 0) {
       return std::nullopt;
     }
-
-    sws.color_matrix = std::move(*color_matrix);
-
-    sws.tex = std::move(tex);
-
-    sws.cursor_framebuffer = gl::frame_buf_t::make(1);
-    sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
-
-    sws.program[0].bind(sws.color_matrix);
-    sws.program[1].bind(sws.color_matrix);
-    sws.program[2].bind(sws.color_matrix);
-
-    gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    gl_drain_errors;
 
     return sws;
   }
@@ -1256,15 +1246,8 @@ namespace egl {
     }
   }
 
-  int sws_t::convert_nv12(gl::frame_buf_t &fb) {
-    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
-
-    GLenum attachments[] {
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    };
-
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+  int sws_t::draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444) {
+    for (int x = 0; x < count; ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
 
@@ -1276,9 +1259,28 @@ namespace egl {
       }
 #endif
 
+      int sizeCoef = is_yuv444 ? 1 : x + 1;
+
       gl::ctx.UseProgram(program[x].handle());
-      gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
+      gl::ctx.Viewport(offsetX/sizeCoef, offsetY/sizeCoef, out_width/sizeCoef, out_height/sizeCoef);
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+    }
+    return 0;
+  }
+
+  int sws_t::convert_nv12(gl::frame_buf_t &fb) {
+    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    int attachmentsCount = sizeof(attachments) / sizeof(decltype(attachments[0]));
+
+    int drawBuffers = draw_programs_to_buffers(attachments, fb, attachmentsCount, false);
+    if (drawBuffers < 0) {
+      return -1;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
@@ -1297,21 +1299,11 @@ namespace egl {
       GL_COLOR_ATTACHMENT2
     };
 
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
+    int attachmentsCount = sizeof(attachments) / sizeof(decltype(attachments[0]));
 
-      #ifndef NDEBUG
-      auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
-      if (status != GL_FRAMEBUFFER_COMPLETE) {
-        BOOST_LOG(error) << "Pass "sv << x << ": CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
-        return -1;
-      }
-      #endif
-
-      gl::ctx.UseProgram(program[x].handle());
-      gl::ctx.Viewport(offsetX, offsetY, out_width, out_height);
-      gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+    int drawBuffers = draw_programs_to_buffers(attachments, fb, attachmentsCount, true);
+    if (drawBuffers < 0) {
+      return -1;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
