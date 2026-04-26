@@ -5,7 +5,7 @@
  * Bypasses xdg-desktop-portal entirely. Sunshine connects directly to KWin's
  * Wayland protocol to obtain a PipeWire node_id, then streams frames via PipeWire.
  *
- * Chain: KWin -> Wayland zkde_screencast_v1 -> PipeWire -> Sunshine
+ * Chain: KWin -> Wayland kde_screencast -> PipeWire -> Sunshine
  */
 // standard includes
 #include <algorithm>
@@ -252,14 +252,13 @@ namespace kwin {
     screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
 
     ~screencast_t() {
-      if (zkde_screencast_stream) {
-        zkde_screencast_stream_unstable_v1_close(zkde_screencast_stream);
-        zkde_screencast_stream = nullptr;
+      if (kde_screencast_stream_v1_) {
+        zkde_screencast_stream_unstable_v1_close(kde_screencast_stream_v1_);
+        kde_screencast_stream_v1_ = nullptr;
       }
-
-      if (zkde_screencast) {
-        zkde_screencast_unstable_v1_destroy(zkde_screencast);
-        zkde_screencast = nullptr;
+      if (kde_screencast_v1_) {
+        zkde_screencast_unstable_v1_destroy(kde_screencast_v1_);
+        kde_screencast_v1_ = nullptr;
       }
 
       if (kde_output_order) {
@@ -285,7 +284,7 @@ namespace kwin {
     }
 
     /**
-     * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
+     * @brief Connect to KWin wayland, enumerate outputs.
      * @param setup_permissions - Try to setup KWin permissions (default: true)
      * @return 0 on success, -1 on failure. On success, node_id and
      *         output width/height/x/y are populated.
@@ -352,28 +351,17 @@ namespace kwin {
     }
 
     /**
-     * @brief Connect to KWin wayland, enumerate outputs, request a screencast stream.
+     * @brief Request a screencast stream.
      * @param output_name Which wl_output to capture.
      * @return 0 on success, -1 on failure. On success, node_id and
      *         output width/height/x/y are populated.
      */
     int start(const std::string_view &output_name) {
-      // Check if KDE screencast protocol is available
-      if (!zkde_screencast) {
-        if (screencast_permission_helper_t::is_newly_initialized()) {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
-                              "A new permission desktop file was automatically created but might now have been recognized yet. Try restarting."sv;
-        } else {
-          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission "sv
-                              "desktop file for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1"sv;
-        }
-        return -1;
-      }
+      // Try find correct output by name
       if (outputs.empty()) {
         BOOST_LOG(error) << "[kwingrab] no wl_output found"sv;
         return -1;
       }
-      // Try find correct output by name
       struct wl_output *output = nullptr;
       if (!output_name.empty()) {
         for (auto const &[output_, params_] : outputs) {
@@ -391,12 +379,25 @@ namespace kwin {
       }
 
       // Request a stream for the chosen output with embedded cursor
-      zkde_screencast_stream = zkde_screencast_unstable_v1_stream_output(zkde_screencast, output, ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
-      zkde_screencast_stream_unstable_v1_add_listener(zkde_screencast_stream, &stream_listener, this);
+      if (kde_screencast_v1_) {
+        kde_screencast_stream_v1_ = zkde_screencast_unstable_v1_stream_output(kde_screencast_v1_, output, ZKDE_SCREENCAST_UNSTABLE_V1_POINTER_EMBEDDED);
+        zkde_screencast_stream_unstable_v1_add_listener(kde_screencast_stream_v1_, &stream_listener, this);
+      } else {
+        // No screencast protocol found. Output an error based on newly initialized permission file.
+        if (screencast_permission_helper_t::is_newly_initialized()) {
+          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. "sv
+                              "A new permission desktop file was automatically created but might now have been recognized yet. "sv
+                              "Try restarting sunshine or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."sv;
+        } else {
+          BOOST_LOG(error) << "[kwingrab] zkde_screencast_unstable_v1 not found in registry. Check permission desktop file "sv
+                              "for sunshine binary or set KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 to fully disable permission checks."sv;
+        }
+        return -1;
+      }
 
       // Dispatch until we get created/failed, with a 5s timeout
       auto deadline = std::chrono::steady_clock::now() + 5s;
-      while (out_node_id == 0 && !stream_failed && std::chrono::steady_clock::now() < deadline) {
+      while (out_node_id == PW_ID_ANY && (out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID && !stream_failed && std::chrono::steady_clock::now() < deadline) {
         wl_display_flush(wl_display);
 
         struct pollfd pfd = {};
@@ -439,7 +440,8 @@ namespace kwin {
       return 0;
     }
 
-    uint32_t out_node_id = 0;
+    uint32_t out_node_id = PW_ID_ANY;
+    uint64_t out_objectserial = SPA_ID_INVALID;
     std::shared_ptr<output_parameter_t> out_params = nullptr;
 
   private:
@@ -447,8 +449,8 @@ namespace kwin {
     struct wl_display *wl_display = nullptr;
     struct wl_registry *wl_registry = nullptr;
     struct kde_output_order_v1 *kde_output_order = nullptr;
-    struct zkde_screencast_unstable_v1 *zkde_screencast = nullptr;
-    struct zkde_screencast_stream_unstable_v1 *zkde_screencast_stream = nullptr;
+    struct zkde_screencast_unstable_v1 *kde_screencast_v1_ = nullptr;
+    struct zkde_screencast_stream_unstable_v1 *kde_screencast_stream_v1_ = nullptr;
     std::map<struct wl_output *, std::shared_ptr<output_parameter_t>> outputs;
     std::vector<std::string> output_order;
     bool stream_failed = false;
@@ -479,7 +481,7 @@ namespace kwin {
       } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
         // Bind version 1 — we only use stream_output which is v1
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
-        self->zkde_screencast = static_cast<struct zkde_screencast_unstable_v1 *>(
+        self->kde_screencast_v1_ = static_cast<struct zkde_screencast_unstable_v1 *>(
           wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
         );
         BOOST_LOG(debug) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
@@ -493,7 +495,7 @@ namespace kwin {
         const auto [_, inserted] = self->outputs.try_emplace(output, std::make_shared<output_parameter_t>());
         if (inserted) {
           wl_output_add_listener(output, &output_listener, self);
-          BOOST_LOG(debug) << "[kwingrab] bound wl_output_v4 v"sv << bind_ver << " instance: "sv << output;
+          BOOST_LOG(debug) << "[kwingrab] bound wl_output v"sv << bind_ver << " instance: "sv << output;
         } else {
           // If we for some odd reason cannot add the output to the map clean it up and log a warning
           BOOST_LOG(warning) << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
@@ -511,7 +513,7 @@ namespace kwin {
       .global_remove = on_registry_global_remove,
     };
 
-    // ─── wl_output listener (for mode/dimensions) ───
+    // ─── wl_output listener (for mode/dimensions/name) ───
     static void on_output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y, int32_t pw [[maybe_unused]], int32_t ph [[maybe_unused]], int32_t subpixel [[maybe_unused]], const char *make [[maybe_unused]], const char *model [[maybe_unused]], int32_t transform [[maybe_unused]]) {
       const auto *self = static_cast<screencast_t *>(data);
       const auto output_parameter = self->outputs.at(output);
@@ -555,7 +557,22 @@ namespace kwin {
       .description = on_output_description,
     };
 
-    // ─── ScreenCast stream listener ───
+    // ─── Output order listener ───
+    static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {
+      auto *self = static_cast<screencast_t *>(data);
+      self->output_order.emplace_back(output_name);
+    }
+
+    static void on_output_order_done(void *data [[maybe_unused]], struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]]) {
+      // Currently unused
+    }
+
+    static constexpr kde_output_order_v1_listener output_order_listener = {
+      .output = on_output_order_output,
+      .done = on_output_order_done,
+    };
+
+    // ─── ScreenCast v1 stream listener ───
     static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
       auto *self = static_cast<screencast_t *>(data);
       BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
@@ -581,21 +598,6 @@ namespace kwin {
       .created = on_stream_created,
       .failed = on_stream_failed,
     };
-
-    // ─── Output order listener ───
-    static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {
-      auto *self = static_cast<screencast_t *>(data);
-      self->output_order.emplace_back(output_name);
-    }
-
-    static void on_output_order_done(void *data [[maybe_unused]], struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]]) {
-      // Currently unused
-    }
-
-    static constexpr kde_output_order_v1_listener output_order_listener = {
-      .output = on_output_order_output,
-      .done = on_output_order_done,
-    };
   };
 
   // ─── Display backend ─────────────────────────────────────────────────────────
@@ -604,7 +606,7 @@ namespace kwin {
 
   class kwin_t: public pipewire::pipewire_display_t {
   public:
-    int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) override {
+    int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) override {
       screencast = std::make_unique<screencast_t>();
       if (screencast->init(true) < 0) {
         return -1;
@@ -616,6 +618,7 @@ namespace kwin {
         // Return values for pipewire init
         out_pipewire_fd = -1;  // KWin screencast capture runs on the local pipewire core
         out_pipewire_node = screencast->out_node_id;
+        out_pipewire_objectserial = screencast->out_objectserial;
         // Set/update basic stream parameters on display_t
         this->offset_x = screencast->out_params->pos_x;
         this->offset_y = screencast->out_params->pos_y;
@@ -667,7 +670,6 @@ namespace platf {
     if (screencast->init() < 0) {
       return {};
     }
-    // Return output indices as display names
     return screencast->get_output_names();
   }
 
