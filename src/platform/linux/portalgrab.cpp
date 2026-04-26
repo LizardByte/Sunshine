@@ -96,42 +96,14 @@ namespace portal {
 
     std::string to_display_name() {
       if (!monitor_name.empty()) {
-        return std::format("n{}", monitor_name);
+        return monitor_name;
       }
-      return std::format("p{},{},{},{}", pos_x, pos_y, width, height);
+      return std::format("position-{}x{}-resolution-{}x{}", pos_x, pos_y, width, height);
     }
 
-    bool match_display_name(const std::string &display_name) const {
-      // Empty display_name never matches
-      if (display_name.empty()) {
-        return false;
-      }
-      // Method 1: Display_name starts with 'n' match by monitor_name starting from pos 1
-      if (display_name[0] == 'n') {
-        return display_name.substr(1) == monitor_name;
-      }
-      // Method 2: Display_name starts with 'p' match by position+resolution starting from pos 1
-      if (display_name[0] == 'p') {
-        auto stringstream = std::stringstream(display_name.substr(1));
-        std::string stringvalue;
-        std::vector<int> values;
-        constexpr char display_name_delimiter = ',';
-        while (std::getline(stringstream, stringvalue, display_name_delimiter)) {
-          if (std::ranges::all_of(stringvalue, ::isdigit)) {
-            values.emplace_back(std::stoi(stringvalue));
-          } else {
-            BOOST_LOG(debug) << "[portalgrab] Failed to parse int value: '"sv << stringvalue << "'";
-          }
-        }
-        // Check if the vector has 4 values (pos_x, pos_y, width, height) from display_names formatting
-        if (values.size() != 4) {
-          BOOST_LOG(debug) << "[portalgrab] Display name does not match expected format 'x,y,w,h': '"sv << display_name << "'";
-          return false;
-        }
-        return pos_x == values[0] && pos_y == values[1] && width == values[2] && height == values[3];
-      }
-      // All matching methods have failed. No match!
-      return false;
+    bool match_display_name(const std::string_view &display_name) {
+      // Check the given non-empty display name matches the display name for this struct
+      return !display_name.empty() && display_name == to_display_name();
     }
   };
 
@@ -668,7 +640,7 @@ namespace portal {
         BOOST_LOG(error) << "[portalgrab] No streams found on portal. portal_t setup failed.";
         return -1;
       }
-      for (const auto &stream_ : streams) {
+      for (auto &stream_ : streams) {
         if (stream_.match_display_name(display_name)) {
           stream = stream_;
           use_fallback = false;
@@ -768,7 +740,7 @@ namespace platf {
     }
 
     for (auto stream_ : dbus->pipewire_streams) {
-      BOOST_LOG(info) << "[portalgrab] Found stream for display: '"sv << stream_.monitor_name << "' position: "sv << stream_.pos_x << "x"sv << stream_.pos_y << " resolution: "sv << stream_.width << "x"sv << stream_.height;
+      BOOST_LOG(info) << "[portalgrab] Found stream for display id/name: '"sv << stream_.monitor_name << "' position: "sv << stream_.pos_x << "x"sv << stream_.pos_y << " resolution: "sv << stream_.width << "x"sv << stream_.height;
       display_names.emplace_back(stream_.to_display_name());
     }
     // Release the portal session as soon as possible to properly release related resources early.
