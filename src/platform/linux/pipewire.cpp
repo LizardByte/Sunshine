@@ -148,9 +148,10 @@ namespace pipewire {
       stream_data.frame_ready = ready;
     }
 
-    int init(int stream_fd, int stream_node, std::shared_ptr<shared_state_t> shared_state) {
+    int init(const int stream_fd, const uint32_t stream_node, const uint64_t stream_object_serial, std::shared_ptr<shared_state_t> shared_state) {
       fd = stream_fd;
       node = stream_node;
+      object_serial = stream_object_serial;
       stream_data.shared = std::move(shared_state);
 
       pw_thread_loop_lock(loop);
@@ -213,6 +214,14 @@ namespace pipewire {
         }
 
         struct pw_properties *props = pw_properties_new(PW_KEY_MEDIA_TYPE, "Video", PW_KEY_MEDIA_CATEGORY, "Capture", PW_KEY_MEDIA_ROLE, "Screen", nullptr);
+#ifdef PW_KEY_TARGET_OBJECT
+        // If pipewire supports setting a PW_KEY_TARGET_OBJECT via object serial and the serial is valid (lower 32-bits not SPA_ID_INVALID, see PW_KEY_OBJECT_SERIAL docs), use it.
+        if ((object_serial & SPA_ID_INVALID) != SPA_ID_INVALID) {
+          BOOST_LOG(debug) << "[pipewire] Set PW stream target object to serial: "sv << object_serial;
+          pw_properties_setf(props, PW_KEY_TARGET_OBJECT, "%" PRIu64, object_serial);
+          node = PW_ID_ANY;  // Force pw_connect_stream to connect via object serial in PW_KEY_TARGET_OBJECT with this value.
+        }
+#endif
 
         BOOST_LOG(debug) << "[pipewire] Create PW stream"sv;
         stream_data.stream = pw_stream_new(core, "Sunshine Video Capture", props);
@@ -248,7 +257,7 @@ namespace pipewire {
           params[n_params] = format_param;
           n_params++;
         }
-        BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd "sv << fd << " node "sv << node;
+        BOOST_LOG(debug) << "[pipewire] Connect PW stream - fd: "sv << fd << " node: "sv << node << " object serial: "sv << object_serial;
         pw_stream_connect(stream_data.stream, PW_DIRECTION_INPUT, node, (enum pw_stream_flags)(PW_STREAM_FLAG_AUTOCONNECT | PW_STREAM_FLAG_MAP_BUFFERS), params.data(), n_params);
       }
       pw_thread_loop_unlock(loop);
@@ -340,7 +349,8 @@ namespace pipewire {
     struct spa_hook core_listener;
     struct stream_data_t stream_data;
     int fd;
-    int node;
+    uint32_t node;
+    uint64_t object_serial;
     bool negotiate_maxframerate_ = true;
 
     struct spa_pod *build_format_parameter(struct spa_pod_builder *b, uint32_t width, uint32_t height, uint32_t refresh_rate, int32_t format, uint64_t *modifiers, int n_modifiers) {
@@ -598,11 +608,12 @@ namespace pipewire {
     /**
      *  @brief Configure the pipewire stream
      *  @param display_name provide a stream for this display_name
-     *  @param out_pipewire_fd set to the pipewire fd for the stream in during function call (or -1 for using the local context)
-     *  @param out_pipewire_node set to the pipewire node of the stream in during function call
+     *  @param out_pipewire_fd set to the pipewire fd for the stream during function call (or -1 for using the local context)
+     *  @param out_pipewire_node set to the pipewire node of the stream during function call (or PW_ID_ANY to refer to object_serial)
+     *  @param out_pipewire_objectserial set the pipewire object serial of the stream during function call
      *  @returns 0 if the stream successfully configured
      */
-    virtual int configure_stream(const std::string &display_name, int &out_pipewire_fd, int &out_pipewire_node) = 0;
+    virtual int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) = 0;
 
     /**
      *  @brief Verify and update display parameters for logical dimensions, desktop dimensions and logical desktop dimensions (default is adapted from wlgrab)
@@ -663,9 +674,10 @@ namespace pipewire {
       }
 
       int pipewire_fd = -1;
-      int pipewire_node = -1;
+      auto pipewire_node = PW_ID_ANY;  // Default for invalid stream from pipewire docs
+      uint64_t pipewire_object_serial = SPA_ID_INVALID;  // Default for invalid stream from pipewire docs for PW_KEY_OBJECT_SERIAL
       // Fetch stream info
-      if (configure_stream(display_name, pipewire_fd, pipewire_node) < 0 || pipewire_node < 0) {
+      if (configure_stream(display_name, pipewire_fd, pipewire_node, pipewire_object_serial) < 0 || (pipewire_node == PW_ID_ANY && (pipewire_object_serial & SPA_ID_INVALID) == SPA_ID_INVALID)) {
         BOOST_LOG(error) << "[pipewire] Could not find display with name: '"sv << display_name << "'";
         return -1;
       }
@@ -684,7 +696,7 @@ namespace pipewire {
         shared_state->negotiated_height.store(0);
       }
 
-      if (pipewire.init(pipewire_fd, pipewire_node, shared_state) < 0) {
+      if (pipewire.init(pipewire_fd, pipewire_node, pipewire_object_serial, shared_state) < 0) {
         BOOST_LOG(error) << "[pipewire] Failed to init pipewire. pipewire_t::init() failed.";
         return -1;
       }
