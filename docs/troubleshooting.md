@@ -159,6 +159,32 @@ If the input is still not working, you may need to add your user to the `input` 
 sudo usermod -aG input $USER
 ```
 
+#### Multiseat
+
+If you run multiple concurrent Wayland sessions on separate logind seats (e.g. `seat0`, `seat1`), your compositor may ignore injected input unless Sunshine's virtual devices are assigned to the correct seat.
+
+Sunshine determines its target seat from `XDG_SEAT`, which is typically set automatically by your display manager. If needed, you can override it manually in your systemd service file or shell environment before starting Sunshine.
+
+When the seat is not `seat0`, Sunshine appends the seat name to its virtual device names, for example:
+
+- `Keyboard passthrough (seat1)`
+- `Sunshine PS5 (virtual) pad (seat1)`
+
+> Sunshine creates two mouse devices: a relative one and an absolute one (suffixed with ` (absolute)`).
+
+To assign Sunshine's virtual devices to the correct seat, create this udev rules file:
+
+**`/etc/udev/rules.d/72-sunshine-virtual-seat.rules`**
+```udev
+SUBSYSTEM=="input", KERNEL=="input*", ATTR{name}=="*(seat1)*", TAG+="seat", ENV{ID_SEAT}="seat1"
+```
+
+Then reload udev:
+
+```bash
+sudo udevadm control --reload-rules && sudo udevadm trigger -s input
+```
+
 ### KMS Streaming fails
 KMS screencasting requires elevated privileges which are not allowed for Flatpak or AppImage packages.
 This means that you must install Sunshine using the native package format of your distribution, if available.

@@ -13,11 +13,27 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/linux/input/inputtino_seat.h"
 #include "src/utility.h"
 
 using namespace std::literals;
 
 namespace platf {
+
+  inline std::string inputtino_name_for_seat(std::string_view base_name) {
+    auto seat_id = inputtino_seat::get_target_seat();
+    if (seat_id.empty() || seat_id == "seat0") {
+      return std::string(base_name);
+    }
+
+    std::string name;
+    name.reserve(base_name.size() + seat_id.size() + 3);
+    name.append(base_name);
+    name.append(" (");
+    name.append(seat_id);
+    name.push_back(')');
+    return name;
+  }
 
   using joypads_t = std::variant<inputtino::XboxOneJoypad, inputtino::SwitchJoypad, inputtino::PS5Joypad>;
 
@@ -30,13 +46,13 @@ namespace platf {
   struct input_raw_t {
     input_raw_t():
         mouse(inputtino::Mouse::create({
-          .name = "Mouse passthrough",
+          .name = inputtino_name_for_seat("Mouse passthrough"sv),
           .vendor_id = 0xBEEF,
           .product_id = 0xDEAD,
           .version = 0x111,
         })),
         keyboard(inputtino::Keyboard::create({
-          .name = "Keyboard passthrough",
+          .name = inputtino_name_for_seat("Keyboard passthrough"sv),
           .vendor_id = 0xBEEF,
           .product_id = 0xDEAD,
           .version = 0x111,
@@ -66,13 +82,13 @@ namespace platf {
   struct client_input_raw_t: public client_input_t {
     client_input_raw_t(input_t &input):
         touch(inputtino::TouchScreen::create({
-          .name = "Touch passthrough",
+          .name = inputtino_name_for_seat("Touch passthrough"sv),
           .vendor_id = 0xBEEF,
           .product_id = 0xDEAD,
           .version = 0x111,
         })),
         pen(inputtino::PenTablet::create({
-          .name = "Pen passthrough",
+          .name = inputtino_name_for_seat("Pen passthrough"sv),
           .vendor_id = 0xBEEF,
           .product_id = 0xDEAD,
           .version = 0x111,
