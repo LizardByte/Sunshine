@@ -50,14 +50,12 @@ namespace kwin {
   // in the Exec= parameter.
   class screencast_permission_helper_t {
   public:
+    static bool is_permission_system_deactivated() {
+      return getenvstr("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1";
+    }
+
     static void setup() {
       if (initialized) {
-        return;
-      }
-      if (getenvstr("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1") {
-        BOOST_LOG(info) << "[kwingrab] No permission file necessary. KWIN_WAYLAND_NO_PERMISSION_CHECKS=1 found.";
-        create_file = false;
-        initialized = true;
         return;
       }
       auto filenameprefix = std::format("{}.kwin", PROJECT_FQDN);
@@ -65,6 +63,14 @@ namespace kwin {
 
       // System: Check system XDG applications for permission (usually installed with Sunshine)
       if (check_kwin_system_permissions(filenameprefix, executablepath)) {
+        create_file = false;
+        initialized = true;
+        return;
+      }
+
+      // If we do not have a system permission, check if we need a temporary permission via user's application directory
+      if (is_permission_system_deactivated()) {
+        BOOST_LOG(info) << "[kwingrab] No permission desktop file necessary. KWin permission system deactivated.";
         create_file = false;
         initialized = true;
         return;
@@ -644,8 +650,8 @@ namespace platf {
       return nullptr;
     }
 
-    // Drop CAP_SYS_ADMIN so KWin's permission check can see and match the executable
-    if (has_elevated_privileges()) {
+    // Drop CAP_SYS_ADMIN so KWin's permission check (if active) can see and match the executable
+    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges()) {
       drop_elevated_privileges();
     }
 
@@ -658,7 +664,7 @@ namespace platf {
   }
 
   std::vector<std::string> kwin_display_names() {
-    if (has_elevated_privileges()) {
+    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges()) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
       // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
       std::vector<std::string> display_names;
