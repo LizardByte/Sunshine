@@ -120,8 +120,10 @@ namespace cuda {
       this->frame = frame;
 
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
-      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12) {
-        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12"sv;
+
+      if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 &&
+        hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+        BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
 
@@ -178,7 +180,12 @@ namespace cuda {
         return;
       }
 
-      sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      } else {
+        sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex->texture.linear, stream.get(), {frame->width, frame->height, 0, 0});
+      }
     }
 
     cudaTextureObject_t tex_obj(const tex_t &tex) const {
@@ -200,6 +207,11 @@ namespace cuda {
   class cuda_ram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
+
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        return sws.load_ram(img, tex.array) || sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(tex), stream.get());
+      }
       return sws.load_ram(img, tex.array) || sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(tex), stream.get());
     }
 
@@ -224,6 +236,11 @@ namespace cuda {
   class cuda_vram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
+
+      //frame->data[2] not null on YUV444 conversion
+      if (frame->data[2]) {
+        return sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(((img_t *) &img)->tex), stream.get());
+      }
       return sws.convert(frame->data[0], frame->data[1], frame->linesize[0], frame->linesize[1], tex_obj(((img_t *) &img)->tex), stream.get());
     }
   };
@@ -345,18 +362,26 @@ namespace cuda {
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
       sw_format = hw_frames_ctx->sw_format;
 
-      auto nv12_opt = egl::create_target(frame->width, frame->height, sw_format);
-      if (!nv12_opt) {
-        return -1;
-      }
-
       auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, sw_format);
       if (!sws_opt) {
         return -1;
       }
 
       this->sws = std::move(*sws_opt);
-      this->nv12 = std::move(*nv12_opt);
+
+      if (sw_format == AV_PIX_FMT_YUV444P) {
+        auto yuv444_opt = egl::create_yuv444_target(frame->width, frame->height, sw_format);
+        if (!yuv444_opt) {
+          return -1;
+        }
+        this->yuv444 = std::move(*yuv444_opt);
+      } else {
+        auto nv12_opt = egl::create_nv12_target(frame->width, frame->height, sw_format);
+        if (!nv12_opt) {
+          return -1;
+        }
+        this->nv12 = std::move(*nv12_opt);
+      }
 
       auto cuda_ctx = (AVCUDADeviceContext *) hw_frames_ctx->device_ctx->hwctx;
 
@@ -367,9 +392,14 @@ namespace cuda {
 
       cuda_ctx->stream = stream.get();
 
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
-      CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
-
+      if (sw_format == AV_PIX_FMT_YUV444P) {
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res,yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&u_res,yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&v_res,yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
+      } else {
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
+      }
       return 0;
     }
 
@@ -399,32 +429,62 @@ namespace cuda {
       }
 
       // Perform the color conversion and scaling in GL
-      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
-      sws.convert(nv12->buf);
-
-      auto fmt_desc = av_pix_fmt_desc_get(sw_format);
-
-      // Map the GL textures to read for CUDA
-      CUgraphicsResource resources[2] = {y_res.get(), uv_res.get()};
-      CU_CHECK(cdf->cuGraphicsMapResources(2, resources, stream.get()), "Couldn't map GL textures in CUDA");
-
-      // Copy from the GL textures to the target CUDA frame
-      for (int i = 0; i < 2; i++) {
-        CUDA_MEMCPY2D cpy = {};
-        cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
-        CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
-
-        cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
-        cpy.dstDevice = (CUdeviceptr) frame->data[i];
-        cpy.dstPitch = frame->linesize[i];
-        cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
-        cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
-
-        CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+      if (sw_format == AV_PIX_FMT_YUV444P) {
+        sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], true);
+        sws.convert_yuv444(yuv444->buf);
+      } else {
+        sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], false);
+        sws.convert_nv12(nv12->buf);
       }
 
-      // Unmap the textures to allow modification from GL again
-      CU_CHECK(cdf->cuGraphicsUnmapResources(2, resources, stream.get()), "Couldn't unmap GL textures from CUDA");
+      auto fmt_desc = av_pix_fmt_desc_get(sw_format);
+      
+       if (sw_format == AV_PIX_FMT_YUV444P) {
+
+        // Map the GL textures to read for CUDA
+        std::array<CUgraphicsResource, 3> resources = {{y_res.get(), u_res.get(), v_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+
+        // Copy from the GL textures to the target CUDA frame
+        for (int i = 0; i < 3; i++) {
+          CUDA_MEMCPY2D cpy = {};
+          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+
+          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+          cpy.dstDevice = (CUdeviceptr) frame->data[i];
+          cpy.dstPitch = frame->linesize[i];
+          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step);
+          cpy.Height = frame->height;
+
+          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        }
+        // Unmap the textures to allow modification from GL again
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
+
+      } else {
+        std::array<CUgraphicsResource, 2> resources = {{y_res.get(), uv_res.get()}};
+        CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
+
+        // Copy from the GL textures to the target CUDA frame
+        for (int i = 0; i < 2; i++) {
+          CUDA_MEMCPY2D cpy = {};
+          cpy.srcMemoryType = CU_MEMORYTYPE_ARRAY;
+          CU_CHECK(cdf->cuGraphicsSubResourceGetMappedArray(&cpy.srcArray, resources[i], 0, 0), "Couldn't get mapped plane array");
+
+          cpy.dstMemoryType = CU_MEMORYTYPE_DEVICE;
+          cpy.dstDevice = (CUdeviceptr) frame->data[i];
+          cpy.dstPitch = frame->linesize[i];
+          cpy.WidthInBytes = (frame->width * fmt_desc->comp[i].step) >> (i ? fmt_desc->log2_chroma_w : 0);
+          cpy.Height = frame->height >> (i ? fmt_desc->log2_chroma_h : 0);
+
+          CU_CHECK_IGNORE(cdf->cuMemcpy2DAsync(&cpy, stream.get()), "Couldn't copy texture to CUDA frame");
+        }
+        // Unmap the textures to allow modification from GL again
+        CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
+
+      }
+      
       return 0;
     }
 
@@ -446,6 +506,7 @@ namespace cuda {
 
     egl::sws_t sws;
     egl::nv12_t nv12;
+    egl::yuv444_t yuv444;
     AVPixelFormat sw_format;
 
     int height;
@@ -455,6 +516,8 @@ namespace cuda {
     egl::rgb_t rgb;
 
     registered_resource_t y_res;
+    registered_resource_t u_res;
+    registered_resource_t v_res;
     registered_resource_t uv_res;
 
     int offset_x;

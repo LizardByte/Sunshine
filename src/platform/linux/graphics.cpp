@@ -651,6 +651,46 @@ namespace egl {
     return rgb;
   }
 
+  // Constants for clear black color Y, U, V. U & V are same so:
+  const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
+  const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
+
+  void nv12_bind_framebuffers(nv12_t &nv12) {
+    constexpr std::array<GLenum, 2> attachments {{
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    }};
+
+    for (size_t x = 0; x < attachments.size(); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+  }
+
+  void yuv44_bind_framebuffers(yuv444_t &yuv444) {
+
+    constexpr std::array<GLenum, 3> attachments {{
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1,
+      GL_COLOR_ATTACHMENT2
+    }};
+
+    for (size_t x = 0; x < attachments.size(); ++x) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
+      gl::ctx.DrawBuffers(1, &attachments[x]);
+      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
+    }
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    gl_drain_errors;
+  }
+
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
     auto y_attribs = surface_descriptor_to_egl_attribs(y);
     auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
@@ -682,25 +722,53 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    GLenum attachments[] {
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    };
-
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    nv12_bind_framebuffers(nv12);
 
     return nv12;
+  }
+
+  std::optional<yuv444_t> import_target_yuv444(
+    display_t::pointer egl_display,
+    std::array<file_t, yuv444_img_t::num_fds> &&fds,
+    const surface_descriptor_t &y, const surface_descriptor_t &u, const surface_descriptor_t &v) {
+    auto y_attribs = surface_descriptor_to_egl_attribs(y);
+    auto u_attribs = surface_descriptor_to_egl_attribs(u);
+    auto v_attribs = surface_descriptor_to_egl_attribs(v);
+
+    yuv444_t yuv444 {
+      egl_display,
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, y_attribs.data()),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, u_attribs.data()),
+      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, v_attribs.data()),
+      gl::tex_t::make(3),
+      gl::frame_buf_t::make(3),
+      std::move(fds)
+    };
+
+    if (!yuv444->r8 || !yuv444->g8 || !yuv444->b8) {
+      BOOST_LOG(error) << "Couldn't import YUV target: "sv << util::hex(eglGetError()).to_string_view();
+
+      return std::nullopt;
+    }
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[0]);
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import YUV DMA-BUF"sv;
+      return std::nullopt;
+    }
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, yuv444->r8);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[1]);
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, yuv444->g8);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[2]);
+    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, yuv444->b8);
+
+    yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
+
+    yuv44_bind_framebuffers(yuv444);
+
+    return yuv444;
   }
 
   /**
@@ -710,7 +778,7 @@ namespace egl {
    * @param format Format of the target frame.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t> create_target(int width, int height, AVPixelFormat format) {
+  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format) {
     nv12_t nv12 {
       EGL_NO_DISPLAY,
       EGL_NO_IMAGE,
@@ -743,25 +811,55 @@ namespace egl {
 
     nv12->buf.bind(std::begin(nv12->tex), std::end(nv12->tex));
 
-    GLenum attachments[] {
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    };
-
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
-      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
-      gl::ctx.DrawBuffers(1, &attachments[x]);
-
-      const float y_black[] = {0.0f, 0.0f, 0.0f, 0.0f};
-      const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
-      gl::ctx.ClearBufferfv(GL_COLOR, 0, x == 0 ? y_black : uv_black);
-    }
-
-    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
-
-    gl_drain_errors;
+    nv12_bind_framebuffers(nv12);
 
     return nv12;
+  }
+
+  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format) {
+
+    yuv444_t yuv444 {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      EGL_NO_IMAGE,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(3),
+      gl::frame_buf_t::make(3),
+    };
+
+    GLint y_format;
+    GLint u_format;
+    GLint v_format;
+
+    // Determine the size of each plane element
+    auto fmt_desc = av_pix_fmt_desc_get(format);
+    if (fmt_desc->comp[0].depth <= 8) {
+      y_format = GL_R8;
+      u_format = GL_R8;
+      v_format = GL_R8;
+    } else if (fmt_desc->comp[0].depth <= 16) {
+      y_format = GL_R16;
+      u_format = GL_R16;
+      v_format = GL_R16;
+    } else {
+      BOOST_LOG(error) << "Unsupported target pixel format: "sv << format;
+      return std::nullopt;
+    }
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, y_format, width, height);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[1]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, u_format, width, height);
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, yuv444->tex[2]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, v_format, width, height);
+
+    yuv444->buf.bind(std::begin(yuv444->tex), std::end(yuv444->tex));
+
+    yuv44_bind_framebuffers(yuv444);
+
+    return yuv444;
   }
 
   void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
@@ -779,9 +877,43 @@ namespace egl {
 
     program[0].bind(color_matrix);
     program[1].bind(color_matrix);
+    program[2].bind(color_matrix);
   }
 
-  std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
+  int configure_sws_pipeline(sws_t &sws, const video::color_t *color_p, gl::tex_t &&tex, bool is_yuv444) {
+    std::array<std::pair<const char *, std::string_view>, 5> members {{
+      std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
+      std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
+      std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
+      std::make_pair("range_y", util::view(color_p->range_y)),
+      std::make_pair("range_uv", util::view(color_p->range_uv)),
+    }};
+
+    auto color_matrix = sws.program[0].uniform("ColorMatrix", members.data(), members.size());
+    if (!color_matrix) {
+      return -1;
+    }
+
+    sws.color_matrix = std::move(*color_matrix);
+
+    sws.tex = std::move(tex);
+
+    sws.cursor_framebuffer = gl::frame_buf_t::make(1);
+    sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
+
+    int programCount = is_yuv444 ? 3 : 2;
+
+    for (int i = 0; i < programCount; i++) {
+      sws.program[i].bind(sws.color_matrix);
+    }
+
+    gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    gl_drain_errors;
+    return 0;
+  }
+
+  std::optional<sws_t> sws_t::make_nv12(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
     sws_t sws;
 
     sws.serial = std::numeric_limits<std::uint64_t>::max();
@@ -807,25 +939,24 @@ namespace egl {
     auto width_i = 1.0f / sws.out_width;
 
     {
-      const char *sources[] {
+      constexpr std::array<const char*, 5> sources {{
         SUNSHINE_SHADERS_DIR "/ConvertUV.frag",
         SUNSHINE_SHADERS_DIR "/ConvertUV.vert",
         SUNSHINE_SHADERS_DIR "/ConvertY.frag",
         SUNSHINE_SHADERS_DIR "/Scene.vert",
         SUNSHINE_SHADERS_DIR "/Scene.frag",
-      };
+      }};
 
-      GLenum shader_type[2] {
+      constexpr std::array<GLenum, 2> shader_type {{
         GL_FRAGMENT_SHADER,
         GL_VERTEX_SHADER,
-      };
+      }};
 
-      constexpr auto count = sizeof(sources) / sizeof(const char *);
-
-      util::Either<gl::shader_t, std::string> compiled_sources[count];
+      constexpr auto count = sources.size();
+      std::array<util::Either<gl::shader_t, std::string>, count> compiled_sources;
 
       bool error_flag = false;
-      for (int x = 0; x < count; ++x) {
+      for (size_t x = 0; x < count; ++x) {
         auto &compiled_source = compiled_sources[x];
 
         compiled_source = gl::shader_t::compile(file_handler::read_file(sources[x]), shader_type[x % 2]);
@@ -879,48 +1010,134 @@ namespace egl {
     gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec601, false, 8}, true);
-    std::pair<const char *, std::string_view> members[] {
-      std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
-      std::make_pair("color_vec_u", util::view(color_p->color_vec_u)),
-      std::make_pair("color_vec_v", util::view(color_p->color_vec_v)),
-      std::make_pair("range_y", util::view(color_p->range_y)),
-      std::make_pair("range_uv", util::view(color_p->range_uv)),
-    };
 
-    auto color_matrix = sws.program[0].uniform("ColorMatrix", members, sizeof(members) / sizeof(decltype(members[0])));
-    if (!color_matrix) {
+    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), true);
+    if (pipeline < 0) {
       return std::nullopt;
     }
-
-    sws.color_matrix = std::move(*color_matrix);
-
-    sws.tex = std::move(tex);
-
-    sws.cursor_framebuffer = gl::frame_buf_t::make(1);
-    sws.cursor_framebuffer.bind(&sws.tex[0], &sws.tex[1]);
-
-    sws.program[0].bind(sws.color_matrix);
-    sws.program[1].bind(sws.color_matrix);
-
-    gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    gl_drain_errors;
 
     return sws;
   }
 
-  int sws_t::blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height) {
+  std::optional<sws_t> sws_t::make_yuv444(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex) {
+    sws_t sws;
+
+    sws.serial = std::numeric_limits<std::uint64_t>::max();
+
+    // Ensure aspect ratio is maintained
+    auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
+    auto out_width_f = in_width * scalar;
+    auto out_height_f = in_height * scalar;
+
+    // result is always positive
+    auto offsetX_f = out_width - out_width_f;
+    auto offsetY_f = out_height - out_height_f;
+
+    sws.out_width = out_width_f;
+    sws.out_height = out_height_f;
+
+    sws.in_width = in_width;
+    sws.in_height = in_height;
+
+    sws.offsetX = offsetX_f;
+    sws.offsetY = offsetY_f;
+
+    {
+      constexpr std::array<const char*, 5> sources {{
+        SUNSHINE_SHADERS_DIR "/Scene.vert",
+        SUNSHINE_SHADERS_DIR "/ConvertV.frag",
+        SUNSHINE_SHADERS_DIR "/ConvertU.frag",
+        SUNSHINE_SHADERS_DIR "/ConvertY.frag",
+        SUNSHINE_SHADERS_DIR "/Scene.frag",
+      }};
+
+      constexpr std::array<GLenum, 2> shader_type {{
+        GL_FRAGMENT_SHADER,
+        GL_VERTEX_SHADER,
+      }};
+
+      constexpr auto count = sources.size();
+      std::array<util::Either<gl::shader_t, std::string>, count> compiled_sources;
+
+      bool error_flag = false;
+      for (int x = 0; x < count; ++x) {
+        auto &compiled_source = compiled_sources[x];
+
+        int num = x == 0 ? 1 : 0;
+        compiled_source = gl::shader_t::compile(file_handler::read_file(sources[x]), shader_type[num]);
+        gl_drain_errors;
+
+        if (compiled_source.has_right()) {
+          BOOST_LOG(error) << sources[x] << ": "sv << compiled_source.right();
+          error_flag = true;
+        }
+      }
+
+      if (error_flag) {
+        return std::nullopt;
+      }
+
+      auto program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[4].left());
+      if (program.has_right()) {
+        BOOST_LOG(error) << "GL linker (cursor shader): "sv << program.right();
+        return std::nullopt;
+      }
+
+      // Cursor - shader
+      sws.program[3] = std::move(program.left());
+
+      program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[1].left());
+      if (program.has_right()) {
+        BOOST_LOG(error) << "GL linker (V - shader): "sv << program.right();
+        return std::nullopt;
+      }
+
+      // V - shader
+      sws.program[2] = std::move(program.left());
+
+      program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[2].left());
+      if (program.has_right()) {
+        BOOST_LOG(error) << "GL linker (U - shader): "sv << program.right();
+        return std::nullopt;
+      }
+
+      // U - shader
+      sws.program[1] = std::move(program.left());
+
+      program = gl::program_t::link(compiled_sources[0].left(), compiled_sources[3].left());
+      if (program.has_right()) {
+        BOOST_LOG(error) << "GL linker (Y - shader): "sv << program.right();
+        return std::nullopt;
+      }
+
+      // Y - shader
+      sws.program[0] = std::move(program.left());
+    }
+
+    auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec709, true, 8}, false);
+
+    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), true);
+    if (pipeline < 0) {
+      return std::nullopt;
+    }
+
+    return sws;
+  }
+
+  int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format) {
     auto f = [&]() {
-      std::swap(offsetX, this->offsetX);
-      std::swap(offsetY, this->offsetY);
+      std::swap(offsetX_, this->offsetX);
+      std::swap(offsetY_, this->offsetY);
       std::swap(width, this->out_width);
       std::swap(height, this->out_height);
     };
 
     f();
     auto fg = util::fail_guard(f);
-
-    return convert(fb);
+    if (format == AV_PIX_FMT_YUV444P) {
+      return convert_yuv444(fb);
+    }
+    return convert_nv12(fb);
   }
 
   std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
@@ -954,7 +1171,10 @@ namespace egl {
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
     gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_format, in_width, in_height);
 
-    return make(in_width, in_height, out_width, out_height, std::move(tex));
+    if (format == AV_PIX_FMT_YUV444P) {
+      return make_yuv444(in_width, in_height, out_width, out_height, std::move(tex));
+    }
+    return make_nv12(in_width, in_height, out_width, out_height, std::move(tex));
   }
 
   void sws_t::load_ram(platf::img_t &img) {
@@ -964,7 +1184,7 @@ namespace egl {
     gl::ctx.TexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, img.width, img.height, GL_BGRA, GL_UNSIGNED_BYTE, img.data);
   }
 
-  void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
+  void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444) {
     // When only a sub-part of the image must be encoded...
     const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
     if (copy) {
@@ -981,7 +1201,10 @@ namespace egl {
       GLenum attachment = GL_COLOR_ATTACHMENT0;
 
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, cursor_framebuffer[0]);
-      gl::ctx.UseProgram(program[2].handle());
+
+      // For NV12 cursor program index is 2, for YUV444 it's 3
+      const int cursor_program = is_yuv444 ? 3 : 2;
+      gl::ctx.UseProgram(program[cursor_program].handle());
 
       // When a copy has already been made...
       if (!copy) {
@@ -1023,15 +1246,8 @@ namespace egl {
     }
   }
 
-  int sws_t::convert(gl::frame_buf_t &fb) {
-    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
-
-    GLenum attachments[] {
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    };
-
-    for (int x = 0; x < sizeof(attachments) / sizeof(decltype(attachments[0])); ++x) {
+  int sws_t::draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444) {
+    for (int x = 0; x < count; ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
 
@@ -1043,9 +1259,51 @@ namespace egl {
       }
 #endif
 
+      int sizeCoef = is_yuv444 ? 1 : x + 1;
+
       gl::ctx.UseProgram(program[x].handle());
-      gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
+      gl::ctx.Viewport(offsetX/sizeCoef, offsetY/sizeCoef, out_width/sizeCoef, out_height/sizeCoef);
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+    }
+    return 0;
+  }
+
+  int sws_t::convert_nv12(gl::frame_buf_t &fb) {
+    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1
+    };
+
+    int attachmentsCount = sizeof(attachments) / sizeof(decltype(attachments[0]));
+
+    int drawBuffers = draw_programs_to_buffers(attachments, fb, attachmentsCount, false);
+    if (drawBuffers < 0) {
+      return -1;
+    }
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+    gl::ctx.Flush();
+
+    return 0;
+  }
+
+  int sws_t::convert_yuv444(gl::frame_buf_t &fb) {
+    gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+
+    GLenum attachments[] {
+      GL_COLOR_ATTACHMENT0,
+      GL_COLOR_ATTACHMENT1,
+      GL_COLOR_ATTACHMENT2
+    };
+
+    int attachmentsCount = sizeof(attachments) / sizeof(decltype(attachments[0]));
+
+    int drawBuffers = draw_programs_to_buffers(attachments, fb, attachmentsCount, true);
+    if (drawBuffers < 0) {
+      return -1;
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
