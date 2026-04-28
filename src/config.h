@@ -73,6 +73,7 @@ namespace config {
       std::optional<int> amd_quality_av1;
       std::optional<int> amd_preanalysis;
       std::optional<int> amd_vbaq;
+      std::optional<int> amd_max_au_size;
       int amd_coder;
     } amd;
 
