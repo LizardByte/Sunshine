@@ -2117,6 +2117,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{Applies to Windows only.}
             @attention{This capture method is not compatible with the Sunshine service.}</td>
     </tr>
+    <tr>
+        <td>kwin</td>
+        <td>Capture with KDE/KWin Wayland compositor via zkde-screencast-unstable-v1.
+            @note{Applies to Linux only.}</td>
+    </tr>
 </table>
 
 ### encoder
