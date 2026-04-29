@@ -87,7 +87,8 @@ namespace portal {
   };
 
   struct pipewire_streaminfo_t {
-    int pipewire_node = -1;
+    uint32_t pipewire_node = PW_ID_ANY;
+    uint64_t pipewire_object_serial = SPA_ID_INVALID;
     int width = 0;
     int height = 0;
     int pos_x = 0;
@@ -505,7 +506,7 @@ namespace portal {
 
       GVariantIter iter;
       const auto wl_monitors = wl::monitors();
-      int out_pipewire_node;
+      uint32_t out_pipewire_node;
       g_autoptr(GVariant) value = nullptr;
       g_variant_iter_init(&iter, streams);
       while (g_variant_iter_next(&iter, "(u@a{sv})", &out_pipewire_node, &value)) {
@@ -525,7 +526,15 @@ namespace portal {
           out_pos_x = 0;
           out_pos_y = 0;
         }
-        auto stream = pipewire_streaminfo_t {out_pipewire_node, out_width, out_height, out_pos_x, out_pos_y};
+
+        uint64_t out_pipewire_object_serial;
+        result = g_variant_lookup(value, "pipewire-serial", "t", &out_pipewire_object_serial);
+        if (!result) {
+          // If pipewire-serial was not present set explicitly set to invalid value.
+          out_pipewire_object_serial = SPA_ID_INVALID;
+        }
+
+        auto stream = pipewire_streaminfo_t {out_pipewire_node, out_pipewire_object_serial, out_width, out_height, out_pos_x, out_pos_y};
 
         // Try to match the stream to a monitor_name by position/resolution and update stream info
         for (const auto &monitor : wl_monitors) {
@@ -659,6 +668,7 @@ namespace portal {
       // Return values for pipewire init
       out_pipewire_fd = dbus.pipewire_fd;
       out_pipewire_node = stream.pipewire_node;
+      out_pipewire_object_serial = stream.pipewire_object_serial;
       // Set/update basic stream parameters on display_t
       this->offset_x = stream.pos_x;
       this->offset_y = stream.pos_y;
