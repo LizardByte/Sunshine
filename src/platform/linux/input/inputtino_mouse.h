@@ -4,7 +4,6 @@
  */
 #pragma once
 // lib includes
-#include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 

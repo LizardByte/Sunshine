@@ -3,7 +3,6 @@
  * @brief Definitions for inputtino touch input handling.
  */
 // lib includes
-#include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 

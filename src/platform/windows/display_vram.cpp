@@ -27,8 +27,8 @@ extern "C" {
 #include "src/nvenc/nvenc_d3d11_native.h"
 #include "src/nvenc/nvenc_d3d11_on_cuda.h"
 #include "src/nvenc/nvenc_utils.h"
+#include "src/platform/utf_utils.h"
 #include "src/video.h"
-#include "utf_utils.h"
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/directx"

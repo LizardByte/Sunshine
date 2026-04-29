@@ -19,7 +19,7 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
-#include "utf_utils.h"
+#include "src/platform/utf_utils.h"
 
 // Must be the last included file
 // clang-format off

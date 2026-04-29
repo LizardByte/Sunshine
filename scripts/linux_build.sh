@@ -172,6 +172,7 @@ function add_arch_deps() {
     "gcc${gcc_version}-libs"
     'git'
     'graphviz'
+    'icu'
     'libayatana-appindicator'
     'libcap'
     'libdrm'
@@ -229,6 +230,7 @@ function add_debian_based_deps() {
     "g++-${gcc_version}"
     "git"
     "graphviz"
+    "libicu-dev"
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
@@ -308,6 +310,7 @@ function add_fedora_deps() {
     "gcc${gcc_version}-c++"
     "git"
     "graphviz"
+    "libicu-devel"
     "libappindicator-gtk3-devel"
     "libappstream-glib"
     "libcap-devel"
