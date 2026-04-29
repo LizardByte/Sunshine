@@ -282,6 +282,8 @@
     "mouse_desc": "Lehetővé teszi a vendégeknek, hogy egérrel irányítsák a gazdagépet",
     "native_pen_touch": "Natív toll/érintés támogatás",
     "native_pen_touch_desc": "Ha engedélyezve van, a Sunshine átengedi a natív toll/érintés eseményeket a Moonlight kliensektől. Hasznos lehet ezt kikapcsolni régebbi alkalmazásoknál, amik nem támogatják a natív toll/érintést.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Előzetes verzió értesítések",
     "notify_pre_releases_desc": "Legyen-e értesítés a Sunshine új előzetes verzióiról",
     "nvenc_h264_cavlc": "CAVLC preferálása CABAC helyett H.264-ben",

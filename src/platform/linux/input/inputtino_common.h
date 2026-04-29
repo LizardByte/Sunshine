@@ -14,6 +14,7 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/utility.h"
+#include "wl_mouse.h"
 
 using namespace std::literals;
 
@@ -48,13 +49,29 @@ namespace platf {
       if (!keyboard) {
         BOOST_LOG(warning) << "Unable to create virtual keyboard: " << keyboard.getErrorMessage();
       }
+#ifdef SUNSHINE_BUILD_WAYLAND
+      if (config::input.wlr_virtual_mouse) {
+        if (!wl_mouse.init()) {
+          BOOST_LOG(error) << "Failed to initialize wlr-virtual-pointer; "
+                           << "check WAYLAND_DISPLAY and compositor support";
+        }
+      }
+#endif
     }
 
-    ~input_raw_t() = default;
+    ~input_raw_t() {
+#ifdef SUNSHINE_BUILD_WAYLAND
+      wl_mouse.destroy();
+#endif
+    }
 
     // All devices are wrapped in Result because it might be that we aren't able to create them (ex: udev permission denied)
     inputtino::Result<inputtino::Mouse> mouse;
     inputtino::Result<inputtino::Keyboard> keyboard;
+
+#ifdef SUNSHINE_BUILD_WAYLAND
+    platf::wl_mouse::state_t wl_mouse;
+#endif
 
     /**
      * A list of gamepads that are currently connected.

@@ -282,6 +282,8 @@
     "mouse_desc": "Erlaubt Gästen das Host-System mit der Maus zu steuern",
     "native_pen_touch": "Native Pen/Touch Unterstützung",
     "native_pen_touch_desc": "Wenn aktiviert, durchläuft Sunshine natives Pen / Berühren von Moonlight-Clients. Dies kann nützlich sein, um ältere Anwendungen ohne nativen Stift-/Berührungs-Support zu deaktivieren.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Pre-Release-Benachrichtigungen",
     "notify_pre_releases_desc": "Ob über neue Versionen von Sunshine benachrichtigt werden soll",
     "nvenc_h264_cavlc": "CAVLC gegenüber CABAC in H.264 bevorzugen",

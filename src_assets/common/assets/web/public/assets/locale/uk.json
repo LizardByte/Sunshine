@@ -282,6 +282,8 @@
     "mouse_desc": "Дозволяє гостям керувати хост-системою за допомогою миші",
     "native_pen_touch": "Вбудована підтримка пера/сенсорного вводу",
     "native_pen_touch_desc": "Якщо увімкнено, Sunshine передаватиме події нативного пера/дотику від клієнтів Moonlight. Для старих програм без підтримки нативного пера/дотику може бути корисним вимкнення цього налаштування.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "PreRelease Сповіщення",
     "notify_pre_releases_desc": "Чи отримувати сповіщення про нові pre-release версії Sunshine",
     "nvenc_h264_cavlc": "Надайте перевагу CAVLC над CABAC в H.264",

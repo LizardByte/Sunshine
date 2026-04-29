@@ -282,6 +282,8 @@
     "mouse_desc": "Permite aos convidados controlar o sistema de host com o mouse",
     "native_pen_touch": "Suporte nativo para Pen/Toque",
     "native_pen_touch_desc": "Quando ativado, o Sunshine irá passar por eventos nativos de caneta/toque de clientes de lua. Isto pode ser útil para desativar aplicações mais antigas sem o suporte nativo ao canal/toque.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Pré-Lançar notificações",
     "notify_pre_releases_desc": "Se deve ser notificado de novas versões de lançamento do Sunshine",
     "nvenc_h264_cavlc": "Preferir CAVLC ao CABAC no H.264",

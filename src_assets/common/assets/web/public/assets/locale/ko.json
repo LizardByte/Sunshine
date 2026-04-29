@@ -282,6 +282,8 @@
     "mouse_desc": "게스트가 마우스로 호스트 시스템을 제어할 수 있습니다.",
     "native_pen_touch": "기본 펜/터치 지원",
     "native_pen_touch_desc": "활성화하면 Sunshine은 Moonlight 클라이언트의 기본 펜/터치 이벤트를 통과합니다. 이 기능은 기본 펜/터치를 지원하지 않는 구형 애플리케이션에서 비활성화하면 유용할 수 있습니다.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "사전 출시 알림",
     "notify_pre_releases_desc": "Sunshine의 새 사전 출시 버전에 대한 알림 여부입니다.",
     "nvenc_h264_cavlc": "H.264에서 CABAC보다 CAVLC 선호",

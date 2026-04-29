@@ -206,6 +206,7 @@ if(WAYLAND_FOUND)
     GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "unstable/xdg-output" xdg-output-unstable-v1)
     GEN_WAYLAND("${WAYLAND_PROTOCOLS_DIR}" "unstable/linux-dmabuf" linux-dmabuf-unstable-v1)
     GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/wlr-protocols" "unstable" wlr-screencopy-unstable-v1)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/wlr-protocols" "unstable" wlr-virtual-pointer-unstable-v1)
 
     include_directories(
             SYSTEM
@@ -217,7 +218,8 @@ if(WAYLAND_FOUND)
     list(APPEND PLATFORM_TARGET_FILES
             "${CMAKE_SOURCE_DIR}/src/platform/linux/wlgrab.cpp"
             "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland.h"
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland.cpp")
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/wayland.cpp"
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/input/wl_mouse.cpp")
 endif()
 
 # x11
