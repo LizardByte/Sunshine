@@ -76,8 +76,8 @@ if(CUDA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
 
-# libdrm is required for both DRM (KMS) and Wayland
-if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND})
+# libdrm is required for DRM (KMS), Wayland, and KWin ScreenCast
+if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND} OR ${SUNSHINE_ENABLE_KWIN})
     find_package(LIBDRM REQUIRED)
 else()
     set(LIBDRM_FOUND OFF)
@@ -243,7 +243,7 @@ if(GIO_FOUND)
 endif()
 
 # Pipewire
-if(${SUNSHINE_ENABLE_PORTAL})
+if(${SUNSHINE_ENABLE_PORTAL} OR ${SUNSHINE_ENABLE_KWIN})
     pkg_check_modules(PIPEWIRE libpipewire-0.3 REQUIRED)
 else()
     set(PIPEWIRE_FOUND OFF)
@@ -264,10 +264,24 @@ if(PIPEWIRE_FOUND AND GIO_FOUND AND ${SUNSHINE_ENABLE_PORTAL})
             "${CMAKE_SOURCE_DIR}/src/platform/linux/portalgrab.cpp")
 endif()
 
+# KWin ScreenCast (direct Wayland protocol, bypasses portal)
+set(KWIN_FOUND OFF)
+if(WAYLAND_FOUND AND PIPEWIRE_FOUND AND ${SUNSHINE_ENABLE_KWIN})
+    set(KWIN_FOUND ON)
+    add_compile_definitions(SUNSHINE_BUILD_KWIN)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" kde-output-order-v1)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" zkde-screencast-unstable-v1)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/kwingrab.cpp")
+elseif(${SUNSHINE_ENABLE_KWIN} AND NOT WAYLAND_FOUND)
+    message(WARNING "SUNSHINE_ENABLE_KWIN requires SUNSHINE_ENABLE_WAYLAND — KWin capture disabled")
+endif()
+
 if(NOT ${CUDA_FOUND}
         AND NOT ${WAYLAND_FOUND}
         AND NOT ${X11_FOUND}
         AND NOT ${PORTAL_FOUND}
+        AND NOT ${KWIN_FOUND}
         AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
         AND NOT ${LIBVA_FOUND})
     message(FATAL_ERROR "Couldn't find either cuda, libva, pipewire, wayland, x11, or (libdrm and libcap)")
