@@ -153,7 +153,43 @@
     sanitize: false
   });
 
-  console.log("Hello, Sunshine!")
+  console.log("Hello, Sunshine!");
+
+  async function fetchVersionFromRemote(that) {
+    const now = Date.now();
+    let { lastCheck, latest, pre } = JSON.parse(localStorage.getItem('sunshine_version_cache') || '{}');
+    const cacheAge = 60 * 60 * 1000;
+
+    if (lastCheck && (now - lastCheck < cacheAge) && latest) {
+      console.log("Using cached version data");
+      that.githubVersion = new SunshineVersion(latest, null);
+      if (pre) {
+        that.preReleaseVersion = new SunshineVersion(pre, null);
+      }
+    } else {
+      const latestJson = await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then(e => e.json());
+      that.githubVersion = new SunshineVersion(latestJson, null);
+      console.log("GitHub Version: ", that.githubVersion.version)
+
+      let preReleaseJson = null;
+      // Only send request when need pre-release
+      if (that.notifyPreReleases) {
+        const releases = await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then(e => e.json());
+        preReleaseJson = releases.find(e => e.prerelease);
+        if (preReleaseJson) {
+          that.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
+          console.log("Pre-Release Version: ", that.preReleaseVersion.version)
+        }
+      }
+
+      localStorage.setItem('sunshine_version_cache', JSON.stringify({
+          lastCheck: now,
+          latest: latestJson,
+          pre: preReleaseJson
+      }));
+    }
+  }
+
   let app = createApp({
     components: {
       Navbar,
@@ -187,11 +223,9 @@
         this.platform = config.platform;
         this.controllerEnabled = config.controller !== "disabled";
         this.version = new SunshineVersion(null, config.version);
-        console.log("Version: ", this.version.version)
-        this.githubVersion = new SunshineVersion(await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest").then((r) => r.json()), null);
-        console.log("GitHub Version: ", this.githubVersion.version)
-        this.preReleaseVersion = new SunshineVersion((await fetch("https://api.github.com/repos/LizardByte/Sunshine/releases").then((r) => r.json())).find(release => release.prerelease), null);
-        console.log("Pre-Release Version: ", this.preReleaseVersion.version)
+        console.log("Version: ", this.version.version);
+
+        await fetchVersionFromRemote(this);
 
         // Fetch ViGEmBus status only on Windows when controller is enabled
         if (this.platform === 'windows' && this.controllerEnabled) {
