@@ -13,6 +13,7 @@
 
 // Forward-declare the internal apply_config function for testing
 namespace config {
+  // NOLINTNEXTLINE(modernize-use-transparent-functors)
   void apply_config(std::unordered_map<std::string, std::string> &&vars);
 }
 
@@ -25,8 +26,9 @@ protected:
 };
 
 TEST_P(ManualRotationTest, ParsesRotationValues) {
-  auto [input, expected] = GetParam();
+  const auto [input, expected] = GetParam();
 
+  // NOLINTNEXTLINE(modernize-use-transparent-functors)
   std::unordered_map<std::string, std::string> vars;
   vars["manual_rotation"] = input;
   config::apply_config(std::move(vars));
@@ -65,6 +67,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST(ManualRotationDefaultTest, DefaultIsZero) {
   // Reset config and apply empty vars to verify default
   config::video.manual_rotation = 999;
+  // NOLINTNEXTLINE(modernize-use-transparent-functors)
   std::unordered_map<std::string, std::string> vars;
   vars["manual_rotation"] = "0";
   config::apply_config(std::move(vars));
