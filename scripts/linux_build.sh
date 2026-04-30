@@ -7,9 +7,13 @@ target_cmake_version="3.30.1"
 doxygen_min="1.10.0"
 _doxygen_min="${doxygen_min//\./_}"  # Convert dots to underscores for URL
 doxygen_max="1.12.0"
+default_cuda_version="13.1.1"
+default_cuda_build="590.48.01"
 
 # Default value for arguments
 appimage_build=0
+cuda_version="$default_cuda_version"
+cuda_build="$default_cuda_build"
 cuda_patches=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
@@ -229,6 +233,7 @@ function add_debian_based_deps() {
     "g++-${gcc_version}"
     "git"
     "graphviz"
+    "libayatana-appindicator3-dev"
     "libcap-dev"  # KMS
     "libcurl4-openssl-dev"
     "libdrm-dev"  # KMS
@@ -283,7 +288,6 @@ function add_debian_deps() {
   add_test_ppa
   add_debian_based_deps
   dependencies+=(
-    "libayatana-appindicator3-dev"
     "systemd-dev"
   )
   return 0
@@ -293,8 +297,14 @@ function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
   dependencies+=(
-    "libappindicator3-dev"
+    "libxml2-dev"
   )
+
+  if [[ "$(printf '%s\n' "$version" "24.04" | sort -V | head -n1)" == "24.04" ]]; then
+    dependencies+=(
+      "systemd-dev"
+    )
+  fi
   return 0
 }
 
@@ -722,8 +732,6 @@ elif grep -q "Debian GNU/Linux 12 (bookworm)" /etc/os-release; then
   version="12"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="13"
   nvm_node=0
 elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
@@ -731,8 +739,6 @@ elif grep -q "Debian GNU/Linux 13 (trixie)" /etc/os-release; then
   version="13"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
 elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
@@ -740,8 +746,6 @@ elif grep -q "PLATFORM_ID=\"platform:f42\"" /etc/os-release; then
   version="42"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-release; then
@@ -749,8 +753,6 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=43$' /etc/os-
   version="43"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-release; then
@@ -758,8 +760,6 @@ elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=44$' /etc/os-
   version="44"
   package_update_command="${sudo_cmd} dnf update -y"
   package_install_command="${sudo_cmd} dnf install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
 elif grep -q '^ID=fedora$' /etc/os-release && grep -q '^VERSION_ID=45$' /etc/os-release; then
@@ -776,8 +776,6 @@ elif grep -q "Ubuntu 22.04" /etc/os-release; then
   version="22.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=1
 elif grep -q "Ubuntu 24.04" /etc/os-release; then
@@ -785,8 +783,6 @@ elif grep -q "Ubuntu 24.04" /etc/os-release; then
   version="24.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=1
 elif grep -q "Ubuntu 25.04" /etc/os-release; then
@@ -794,8 +790,6 @@ elif grep -q "Ubuntu 25.04" /etc/os-release; then
   version="25.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
   gcc_version="14"
   nvm_node=0
 elif grep -q "Ubuntu 25.10" /etc/os-release; then
@@ -803,8 +797,13 @@ elif grep -q "Ubuntu 25.10" /etc/os-release; then
   version="25.10"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
-  cuda_version="12.9.1"
-  cuda_build="575.57.08"
+  gcc_version="14"
+  nvm_node=0
+elif grep -q 'VERSION_ID="26.04"' /etc/os-release; then
+  distro="ubuntu"
+  version="26.04"
+  package_update_command="${sudo_cmd} apt-get update"
+  package_install_command="${sudo_cmd} apt-get install -y"
   gcc_version="14"
   nvm_node=0
 else
