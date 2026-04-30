@@ -580,6 +580,7 @@ namespace config {
     true,  // mouse enabled
     true,  // controller enabled
     true,  // always send scancodes
+    false,  // map left alt to command on macOS
     true,  // high resolution scrolling
     true,  // native pen/touch support
   };
@@ -1278,6 +1279,8 @@ namespace config {
     if (map_rightalt_to_win) {
       input.keybindings.emplace(0xA5, 0x5B);
     }
+
+    bool_f(vars, "key_leftalt_to_key_cmd", input.key_leftalt_to_key_cmd);
 
     to = std::numeric_limits<int>::min();
     int_f(vars, "back_button_timeout", to);
