@@ -232,7 +232,7 @@ class Sunshine < Formula
   def add_cuda_args(args)
     return unless OS.linux?
 
-    if build.with?(CUDA_FORMULA)
+    if build.with? "cuda"
       configure_cuda(args)
     else
       args << "-DSUNSHINE_ENABLE_CUDA=OFF"
