@@ -401,32 +401,15 @@ namespace kwin {
         return -1;
       }
 
-      // Dispatch until we get created/failed, with a 5s timeout
-      auto deadline = std::chrono::steady_clock::now() + 5s;
-      while (out_node_id == PW_ID_ANY && (out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID && !stream_failed && std::chrono::steady_clock::now() < deadline) {
-        wl_display_flush(wl_display);
-
-        struct pollfd pfd = {};
-        pfd.fd = wl_display_get_fd(wl_display);
-        pfd.events = POLLIN;
-
-        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
-          deadline - std::chrono::steady_clock::now()
-        );
-        if (remaining.count() <= 0) {
-          break;
-        }
-
-        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(wl_display) < 0) {
-          BOOST_LOG(error) << "[kwingrab] wl_display_dispatch failed"sv;
-          return -1;
-        }
+      if (wait_for_stream() < 0) {
+        return -1;
       }
 
       if (stream_failed) {
         BOOST_LOG(error) << "[kwingrab] stream_output failed: "sv << stream_error_msg;
         return -1;
       }
+      // Check for valid node_id and/or object serial values here, stream_ready is just an internal flag
       if (out_node_id == PW_ID_ANY && (out_objectserial & SPA_ID_INVALID) == SPA_ID_INVALID) {
         BOOST_LOG(error) << "[kwingrab] timeout waiting for created event"sv;
         return -1;
@@ -460,9 +443,35 @@ namespace kwin {
     std::map<struct wl_output *, std::shared_ptr<output_parameter_t>> outputs;
     std::vector<std::string> output_order;
     bool stream_failed = false;
+    bool stream_ready = false;
     std::string stream_error_msg;
 
     // ─── Misc functions ───
+    int wait_for_stream() {
+      // Dispatch until we get created/failed, with a 5s timeout
+      auto deadline = std::chrono::steady_clock::now() + 5s;
+      while (!stream_ready && !stream_failed && std::chrono::steady_clock::now() < deadline) {
+        wl_display_flush(wl_display);
+
+        struct pollfd pfd = {};
+        pfd.fd = wl_display_get_fd(wl_display);
+        pfd.events = POLLIN;
+
+        auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+          deadline - std::chrono::steady_clock::now()
+        );
+        if (remaining.count() <= 0) {
+          break;
+        }
+
+        if (poll(&pfd, 1, remaining.count()) > 0 && (pfd.revents & POLLIN) && wl_display_dispatch(wl_display) < 0) {
+          BOOST_LOG(error) << "[kwingrab] wl_display_dispatch failed"sv;
+          return -1;
+        }
+      }
+      return 0;
+    }
+
     size_t get_order_for_output_name(const std::string_view &name) const {
       for (size_t i = 0; i < output_order.size(); i++) {
         if (output_order[i] == name) {
@@ -483,14 +492,15 @@ namespace kwin {
           wl_registry_bind(reg, name, &kde_output_order_v1_interface, bind_ver)
         );
         kde_output_order_v1_add_listener(self->kde_output_order, &output_order_listener, self);
-        BOOST_LOG(debug) << "[kwingrab] bound kde_output_order_v1 v"sv << bind_ver;
+        BOOST_LOG(debug) << "[kwingrab] bound kde_output_order_v1 version "sv << bind_ver;
       } else if (!std::strcmp(interface, zkde_screencast_unstable_v1_interface.name)) {
-        // Bind version 1 — we only use stream_output which is v1
-        uint32_t bind_ver = std::min(version, static_cast<uint32_t>(1));
+        // Bind version 1 to 6 — We use stream_output from v1 for node_id (deprecated but good as a fall-back)
+        //                       but also try to get the newer (re-use safe) pipewire objectserial from v6
+        uint32_t bind_ver = std::min(version, static_cast<uint32_t>(6));
         self->kde_screencast_v1_ = static_cast<struct zkde_screencast_unstable_v1 *>(
           wl_registry_bind(reg, name, &zkde_screencast_unstable_v1_interface, bind_ver)
         );
-        BOOST_LOG(debug) << "[kwingrab] bound zkde_screencast_unstable_v1 v"sv << bind_ver;
+        BOOST_LOG(debug) << "[kwingrab] bound zkde_screencast_unstable_v1 version "sv << bind_ver;
       } else if (!std::strcmp(interface, wl_output_interface.name)) {
         // Bind version 4 - we need wl_output name for matching
         uint32_t bind_ver = std::min(version, static_cast<uint32_t>(4));
@@ -501,7 +511,7 @@ namespace kwin {
         const auto [_, inserted] = self->outputs.try_emplace(output, std::make_shared<output_parameter_t>());
         if (inserted) {
           wl_output_add_listener(output, &output_listener, self);
-          BOOST_LOG(debug) << "[kwingrab] bound wl_output v"sv << bind_ver << " instance: "sv << output;
+          BOOST_LOG(debug) << "[kwingrab] bound wl_output version "sv << bind_ver << " instance: "sv << output;
         } else {
           // If we for some odd reason cannot add the output to the map clean it up and log a warning
           BOOST_LOG(warning) << "[kwingrab] Ignoring output "sv << output << " because map emplace failed."sv;
@@ -582,27 +592,39 @@ namespace kwin {
     static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
       auto *self = static_cast<screencast_t *>(data);
       BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
-      self->stream_failed = true;
+      self->stream_failed = false;
+      self->stream_ready = false;
       self->stream_error_msg = "stream closed by server";
     }
 
     static void on_stream_created(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const uint32_t node) {
       auto *self = static_cast<screencast_t *>(data);
       self->out_node_id = node;
+      self->stream_failed = false;
+      self->stream_ready = true;
       BOOST_LOG(debug) << "[kwingrab] created event, node_id="sv << node;
     }
 
     static void on_stream_failed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], const char *err_msg) {
       auto *self = static_cast<screencast_t *>(data);
       self->stream_failed = true;
+      self->stream_ready = false;
       self->stream_error_msg = err_msg ? err_msg : "unknown error";
       BOOST_LOG(error) << "[kwingrab] failed event: "sv << self->stream_error_msg;
+    }
+
+    static void on_stream_serial(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]], uint32_t object_serial_hi, uint32_t object_serial_low) {
+      auto *self = static_cast<screencast_t *>(data);
+      self->out_objectserial = static_cast<uint64_t>(object_serial_hi) << 32 | object_serial_low;
+      // serial event always preceded the created event with the node id, so we only set stream_ready in created for v1
+      BOOST_LOG(debug) << "[kwingrab] serial event, objectserial="sv << self->out_objectserial;
     }
 
     static constexpr struct zkde_screencast_stream_unstable_v1_listener stream_listener = {
       .closed = on_stream_closed,
       .created = on_stream_created,
       .failed = on_stream_failed,
+      .serial = on_stream_serial,
     };
   };
 
