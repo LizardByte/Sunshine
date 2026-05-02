@@ -1,5 +1,5 @@
 [Desktop Entry]
-Exec=@SUNSHINE_REAL_EXECUTABLE_PATH@
+Exec=@SUNSHINE_EXECUTABLE_PATH@
 X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1
 Type=Application
 Name=@PROJECT_FQDN@-kwin-wayland-permission
