@@ -61,19 +61,34 @@ namespace wl {
         return -1;
       }
 
+      // Populate xdg_output info (name, viewport) for every monitor up
+      // front so we can match by stable name in addition to index.
+      for (auto &m : interface.monitors) {
+        m->listen(interface.output_manager);
+      }
+      display.roundtrip();
+
       auto monitor = interface.monitors[0].get();
 
       if (!display_name.empty()) {
-        auto streamedMonitor = util::from_view(display_name);
-
-        if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
-          monitor = interface.monitors[streamedMonitor].get();
+        // Match by xdg_output name first (stable across hotplug, e.g.
+        // "eDP-1", "HEADLESS-2"). Fall back to numeric index for
+        // backward compatibility with existing configs.
+        bool matched = false;
+        for (auto &m : interface.monitors) {
+          if (m->name == display_name) {
+            monitor = m.get();
+            matched = true;
+            break;
+          }
+        }
+        if (!matched) {
+          auto streamedMonitor = util::from_view(display_name);
+          if (streamedMonitor >= 0 && streamedMonitor < interface.monitors.size()) {
+            monitor = interface.monitors[streamedMonitor].get();
+          }
         }
       }
-
-      monitor->listen(interface.output_manager);
-
-      display.roundtrip();
 
       output = monitor->output;
 
@@ -462,7 +477,7 @@ namespace platf {
 
       BOOST_LOG(info) << "[wlgrab] Monitor " << x << " is "sv << monitor->name << ": "sv << monitor->description;
 
-      display_names.emplace_back(std::to_string(x));
+      display_names.emplace_back(monitor->name.empty() ? std::to_string(x) : monitor->name);
     }
 
     BOOST_LOG(info) << "[wlgrab] --------- End of Wayland monitor list ---------"sv;
