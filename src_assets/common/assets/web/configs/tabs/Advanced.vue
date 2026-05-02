@@ -74,8 +74,8 @@ const config = ref(props.config)
             <option value="wlr">wlroots</option>
             <option value="kms">KMS</option>
             <option value="x11">X11</option>
-            <option value="portal">XDG Portal</option>
             <option value="kwin">KWin Screencast</option>
+            <option value="portal">XDG Portal</option>
           </template>
           <template #windows>
             <option value="ddx">Desktop Duplication API</option>

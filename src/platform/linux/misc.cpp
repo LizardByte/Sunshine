@@ -963,11 +963,11 @@ namespace platf {
 #ifdef SUNSHINE_BUILD_X11
       X11,  ///< X11
 #endif
-#ifdef SUNSHINE_BUILD_PORTAL
-      PORTAL,  ///< XDG PORTAL
-#endif
 #ifdef SUNSHINE_BUILD_KWIN
       KWIN,  ///< KWin ScreenCast
+#endif
+#ifdef SUNSHINE_BUILD_PORTAL
+      PORTAL,  ///< XDG PORTAL
 #endif
       MAX_FLAGS  ///< The maximum number of flags
     };

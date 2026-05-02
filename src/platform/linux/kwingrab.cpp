@@ -36,18 +36,17 @@
 #include "pipewire.cpp"
 #include "src/platform/common.h"
 #include "src/video.h"
-#include "vaapi.h"
 
 using namespace std::literals;
 
-extern const wl_interface wl_output_interface;
-
 namespace kwin {
-  // ─── KWin Wayland ScreenCast permissions ──────────────────────────────────────────────
-  //
-  // To have access to zkde_screencast_unstable_v1 KWin checks for a .desktop file with
-  // X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1 and the current executable name
-  // in the Exec= parameter.
+  /**
+   * KWin Wayland ScreenCast permissions
+   *
+   * To have access to zkde_screencast_unstable_v1 KWin checks for a .desktop file with
+   * X-KDE-Wayland-Interfaces=zkde_screencast_unstable_v1 and the current executable name
+   * in the Exec= parameter.
+   */
   class screencast_permission_helper_t {
   public:
     static bool is_permission_system_deactivated() {
@@ -184,13 +183,15 @@ namespace kwin {
 
     static std::string get_executable_full_path() {
       // Adapted from https://linuxvox.com/blog/how-do-i-find-the-location-of-the-executable-in-c/
-      char exe_path[PATH_MAX];  // PATH_MAX is defined in limits.h (e.g., 4096 on Linux)
-      // Read the symlink /proc/self/exe into exe_path
-      const ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+      constexpr auto path_len = PATH_MAX;  // PATH_MAX is defined in limits.h (e.g., 4096 on Linux)
+      auto path_exe = std::make_unique<char[]>(path_len);
+      // Read the symlink /proc/self/exe into path_exe
+      const ssize_t len = readlink("/proc/self/exe", &path_exe[0], path_len - 1);
       if (len == -1) {
         return "";
       }
-      return std::string(exe_path, len);
+      // Return path_exe as a proper std::string with len returned by readlink
+      return std::string(path_exe.get(), len);
     }
 
     static std::string get_executable_from_desktop_file(const std::string &path) {
@@ -236,8 +237,7 @@ namespace kwin {
     }
   };
 
-  // ─── Output parameters ──────────────────────────────────────────────
-  // Storage for all necessary attributes/parameters an output provides
+  // Output parameters
   struct output_parameter_t {
     std::string name = "";
     int width = 0;
@@ -248,11 +248,13 @@ namespace kwin {
     size_t order = SIZE_MAX;  // Use high number to keep monitors with uninitialized order value to the back
   };
 
-  // ─── Wayland ScreenCast session ──────────────────────────────────────────────
-  //
-  // Owns its own wl_display connection. Binds zkde_screencast_unstable_v1
-  // and wl_output from the registry, then calls stream_output() to start
-  // a ScreenCast. Waits for the created(node_id) event from KWin.
+  /**
+   * Wayland KDE ScreenCast session
+   *
+   * Owns its own wl_display connection. Binds zkde_screencast_unstable_v1
+   * and wl_output from the registry, then calls stream_output() to start
+   * a ScreenCast. Waits for the created(node_id) event from KWin.
+   */
   class screencast_t {
   public:
     screencast_t &operator=(screencast_t &&) = delete;  // Do not allow to copying
@@ -434,7 +436,7 @@ namespace kwin {
     std::shared_ptr<output_parameter_t> out_params = nullptr;
 
   private:
-    // ─── Wayland objects ───
+    // Wayland objects
     struct wl_display *wl_display = nullptr;
     struct wl_registry *wl_registry = nullptr;
     struct kde_output_order_v1 *kde_output_order = nullptr;
@@ -446,7 +448,7 @@ namespace kwin {
     bool stream_ready = false;
     std::string stream_error_msg;
 
-    // ─── Misc functions ───
+    // Misc functions
     int wait_for_stream() {
       // Dispatch until we get created/failed, with a 5s timeout
       auto deadline = std::chrono::steady_clock::now() + 5s;
@@ -482,7 +484,7 @@ namespace kwin {
       return output_order.size();
     }
 
-    // ─── Registry listener ───
+    // Registry listener
     static void on_registry_global(void *data, struct wl_registry *reg, const uint32_t name, const char *interface, const uint32_t version) {
       auto *self = static_cast<screencast_t *>(data);
       if (!std::strcmp(interface, kde_output_order_v1_interface.name)) {
@@ -529,7 +531,7 @@ namespace kwin {
       .global_remove = on_registry_global_remove,
     };
 
-    // ─── wl_output listener (for mode/dimensions/name) ───
+    // wl_output listener (for mode/dimensions/name)
     static void on_output_geometry(void *data, struct wl_output *output, int32_t x, int32_t y, int32_t pw [[maybe_unused]], int32_t ph [[maybe_unused]], int32_t subpixel [[maybe_unused]], const char *make [[maybe_unused]], const char *model [[maybe_unused]], int32_t transform [[maybe_unused]]) {
       const auto *self = static_cast<screencast_t *>(data);
       const auto output_parameter = self->outputs.at(output);
@@ -573,7 +575,7 @@ namespace kwin {
       .description = on_output_description,
     };
 
-    // ─── Output order listener ───
+    // Output order listener
     static void on_output_order_output(void *data, struct kde_output_order_v1 *kde_output_order_v1 [[maybe_unused]], const char *output_name) {
       auto *self = static_cast<screencast_t *>(data);
       self->output_order.emplace_back(output_name);
@@ -588,7 +590,7 @@ namespace kwin {
       .done = on_output_order_done,
     };
 
-    // ─── ScreenCast v1 stream listener ───
+    // ScreenCast v1 stream listener
     static void on_stream_closed(void *data, struct zkde_screencast_stream_unstable_v1 *stream [[maybe_unused]]) {
       auto *self = static_cast<screencast_t *>(data);
       BOOST_LOG(warning) << "[kwingrab] stream closed by server"sv;
@@ -628,10 +630,11 @@ namespace kwin {
     };
   };
 
-  // ─── Display backend ─────────────────────────────────────────────────────────
-  //
-  // Orchestrates screencast_t + pipewire_t, provides the capture loop.
-
+  /**
+   * Display backend
+   *
+   * Orchestrates screencast_t and implements pipewire_display_t
+   */
   class kwin_t: public pipewire::pipewire_display_t {
   public:
     int configure_stream(const std::string &display_name, int &out_pipewire_fd, uint32_t &out_pipewire_node, uint64_t &out_pipewire_objectserial) override {
@@ -663,8 +666,7 @@ namespace kwin {
   };
 }  // namespace kwin
 
-// ─── Public API for misc.cpp ─────────────────────────────────────────────────
-
+// Public API for misc.cpp
 namespace platf {
   std::shared_ptr<display_t> kwin_display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
     if (!pipewire::pipewire_display_t::init_pipewire_and_check_hwdevice_type(hwdevice_type)) {

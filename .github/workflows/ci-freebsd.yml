@@ -173,8 +173,8 @@ jobs:
             -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
             -DSUNSHINE_ENABLE_CUDA=OFF \
             -DSUNSHINE_ENABLE_DRM=OFF \
-            -DSUNSHINE_ENABLE_PORTAL=ON \
             -DSUNSHINE_ENABLE_KWIN=ON \
+            -DSUNSHINE_ENABLE_PORTAL=ON \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
             -DSUNSHINE_PUBLISHER_NAME="${GITHUB_REPOSITORY_OWNER}" \

@@ -2102,6 +2102,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
+        <td>kwin</td>
+        <td>Capture with KDE/KWin Wayland compositor via KDE screencasting.
+            @note{Applies to Linux only.}</td>
+    </tr>
+    <tr>
         <td>x11</td>
         <td>Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
             @note{Applies to FreeBSD and Linux only.}</td>
@@ -2116,11 +2121,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td>(beta feature) Use Windows.Graphics.Capture to capture the display.
             @note{Applies to Windows only.}
             @attention{This capture method is not compatible with the Sunshine service.}</td>
-    </tr>
-    <tr>
-        <td>kwin</td>
-        <td>Capture with KDE/KWin Wayland compositor via zkde-screencast-unstable-v1.
-            @note{Applies to Linux only.}</td>
     </tr>
 </table>
 
