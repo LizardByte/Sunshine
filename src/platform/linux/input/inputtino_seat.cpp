@@ -2,10 +2,11 @@
  * @file src/platform/linux/input/inputtino_seat.cpp
  * @brief Implementation for multi-seat naming (udev-only).
  */
-
-#include "inputtino_seat.h"
-
+// standard includes
 #include <cstdlib>
+
+// local includes
+#include "inputtino_seat.h"
 
 namespace platf::inputtino_seat {
 
