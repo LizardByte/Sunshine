@@ -31,15 +31,7 @@ endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-if(APPLE AND NOT SUNSHINE_BUILD_HOMEBREW)
-    # codesign on Mac won't sign an .app that uses a symlink
-    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23)
-else()
-    # symlink sunshine -> sunshine-PROJECT_VERSION
-    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
-            VERSION ${PROJECT_VERSION}
-            SOVERSION ${PROJECT_VERSION_MAJOR})
-endif()
+set_target_properties(sunshine PROPERTIES CXX_STANDARD 23)
 
 # CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
 if(CUDA_INHERIT_COMPILE_OPTIONS)

@@ -2102,6 +2102,11 @@ editing the `conf` file in a text editor. Use the examples as reference.
             @note{Applies to Linux only.}</td>
     </tr>
     <tr>
+        <td>kwin</td>
+        <td>Capture with KDE/KWin Wayland compositor via KDE screencasting.
+            @note{Applies to Linux only.}</td>
+    </tr>
+    <tr>
         <td>x11</td>
         <td>Uses XCB. This is the slowest and most CPU intensive so should be avoided if possible.
             @note{Applies to FreeBSD and Linux only.}</td>
