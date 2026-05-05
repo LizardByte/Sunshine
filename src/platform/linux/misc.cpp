@@ -1076,6 +1076,19 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+    // Keep KMS as first element to check before dropping CAP_SYS_ADMIN
+#ifdef SUNSHINE_BUILD_DRM
+    if (sources[source::KMS]) {
+      BOOST_LOG(info) << "Screencasting with KMS"sv;
+      return kms_display(hwdevice_type, display_name, config);
+    }
+#endif
+
+    // KMS capture was passed; drop CAP_SYS_ADMIN only.
+    if (has_elevated_privileges(false)) {
+      drop_elevated_privileges(false);
+    }
+
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
@@ -1086,12 +1099,6 @@ namespace platf {
     if (sources[source::WAYLAND]) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
       return wl_display(hwdevice_type, display_name, config);
-    }
-#endif
-#ifdef SUNSHINE_BUILD_DRM
-    if (sources[source::KMS]) {
-      BOOST_LOG(info) << "Screencasting with KMS"sv;
-      return kms_display(hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
