@@ -24,6 +24,10 @@
 #include "vulkan_encode.h"
 #include "wayland.h"
 
+#if !PW_CHECK_VERSION(1, 6, 0)
+constexpr int SPA_VIDEO_TRANSFER_SMPTE2084 = 14;
+#endif
+
 namespace {
   // Buffer and limit constants
   constexpr int SPA_POD_BUFFER_SIZE = 4096;
@@ -41,14 +45,16 @@ namespace pipewire {
   };
 
   static constexpr std::array<format_map_t, 3> format_map = {{
+    {DRM_FORMAT_XBGR2101010, SPA_VIDEO_FORMAT_xBGR_210LE},
     {DRM_FORMAT_ARGB8888, SPA_VIDEO_FORMAT_BGRA},
     {DRM_FORMAT_XRGB8888, SPA_VIDEO_FORMAT_BGRx},
-    {0, 0},
   }};
 
   struct shared_state_t {
     std::atomic<int> negotiated_width {0};
     std::atomic<int> negotiated_height {0};
+    std::atomic<int> color_primaries {0};
+    std::atomic<int> transfer_function {0};
     std::atomic<bool> stream_dead {false};
     pw_stream_state previous_state;
     pw_stream_state current_state;
@@ -250,9 +256,6 @@ namespace pipewire {
 
         // Add fallback for memptr
         for (const auto &fmt : format_map) {
-          if (fmt.fourcc == 0) {
-            break;
-          }
           auto format_param = build_format_parameter(&pod_builder, width, height, refresh_rate, fmt.pw_format, nullptr, 0);
           params[n_params] = format_param;
           n_params++;
@@ -375,6 +378,11 @@ namespace pipewire {
       spa_pod_builder_add(b, SPA_FORMAT_VIDEO_framerate, SPA_POD_Fraction(&framerates[0]), 0);
       if (negotiate_maxframerate_) {
         spa_pod_builder_add(b, SPA_FORMAT_VIDEO_maxFramerate, SPA_POD_CHOICE_RANGE_Fraction(&framerates[0], &framerates[1], &framerates[2]), 0);
+      }
+
+      if (format == SPA_VIDEO_FORMAT_xBGR_210LE) {
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_colorPrimaries, SPA_POD_Id(SPA_VIDEO_COLOR_PRIMARIES_BT2020), 0);
+        spa_pod_builder_add(b, SPA_FORMAT_VIDEO_transferFunction, SPA_POD_Id(SPA_VIDEO_TRANSFER_SMPTE2084), 0);
       }
 
       if (n_modifiers) {
@@ -519,6 +527,8 @@ namespace pipewire {
 
       BOOST_LOG(info) << "[pipewire] Video format: "sv << d->format.info.raw.format;
       BOOST_LOG(info) << "[pipewire] Size: "sv << d->format.info.raw.size.width << "x"sv << d->format.info.raw.size.height;
+      BOOST_LOG(info) << "[pipewire] Color primaries: "sv << d->format.info.raw.color_primaries;
+      BOOST_LOG(info) << "[pipewire] Transfer function: "sv << d->format.info.raw.transfer_function;
       if (d->format.info.raw.max_framerate.num == 0 && d->format.info.raw.max_framerate.denom == 1) {
         BOOST_LOG(info) << "[pipewire] Framerate (from compositor): 0/1 (variable rate capture)";
       } else {
@@ -532,18 +542,22 @@ namespace pipewire {
       if (d->shared) {
         int old_w = d->shared->negotiated_width.load();
         int old_h = d->shared->negotiated_height.load();
+        int old_color_primaries = d->shared->color_primaries.load();
+        int old_transfer_function = d->shared->transfer_function.load();
 
         if (physical_w != old_w || physical_h != old_h) {
           d->shared->negotiated_width.store(physical_w);
           d->shared->negotiated_height.store(physical_h);
         }
+
+        if (d->format.info.raw.color_primaries != old_color_primaries || d->format.info.raw.transfer_function != old_transfer_function) {
+          d->shared->color_primaries.store(d->format.info.raw.color_primaries);
+          d->shared->transfer_function.store(d->format.info.raw.transfer_function);
+        }
       }
 
       uint64_t drm_format = 0;
       for (const auto &fmt : format_map) {
-        if (fmt.fourcc == 0) {
-          break;
-        }
         if (fmt.pw_format == d->format.info.raw.format) {
           drm_format = fmt.fourcc;
         }
@@ -694,6 +708,8 @@ namespace pipewire {
         shared_state->stream_dead.store(false);
         shared_state->negotiated_width.store(0);
         shared_state->negotiated_height.store(0);
+        shared_state->color_primaries.store(0);
+        shared_state->transfer_function.store(0);
       }
 
       if (pipewire.init(pipewire_fd, pipewire_node, pipewire_object_serial, shared_state) < 0) {
@@ -896,6 +912,47 @@ namespace pipewire {
       return 0;
     }
 
+    bool is_hdr() override {
+      int color_primaries = shared_state->color_primaries.load();
+      int transfer_function = shared_state->transfer_function.load();
+
+      if (color_primaries == SPA_VIDEO_COLOR_PRIMARIES_BT2020 && transfer_function == SPA_VIDEO_TRANSFER_SMPTE2084) {
+        return true;
+      }
+
+      return false;
+    }
+
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      int color_primaries = shared_state->color_primaries.load();
+      int transfer_function = shared_state->transfer_function.load();
+
+      if (color_primaries == SPA_VIDEO_COLOR_PRIMARIES_BT2020 && transfer_function == SPA_VIDEO_TRANSFER_SMPTE2084) {
+        // Report Rec 2020 primaries
+        metadata.displayPrimaries[0].x = 0.708f * 50000;
+        metadata.displayPrimaries[0].y = 0.292f * 50000;
+        metadata.displayPrimaries[1].x = 0.170f * 50000;
+        metadata.displayPrimaries[1].y = 0.797f * 50000;
+        metadata.displayPrimaries[2].x = 0.131f * 50000;
+        metadata.displayPrimaries[2].y = 0.046f * 50000;
+        metadata.whitePoint.x = 0.3127f * 50000;
+        metadata.whitePoint.y = 0.3290f * 50000;
+
+        // This is according to HDR10+ standards, should probably be based on actual data
+        metadata.maxDisplayLuminance = 4000;
+        metadata.minDisplayLuminance = 1;
+
+        // These are content-specific metadata parameters that this interface doesn't give us
+        metadata.maxContentLightLevel = 0;
+        metadata.maxFrameAverageLightLevel = 0;
+        metadata.maxFullFrameLuminance = 0;
+
+        return true;
+      }
+
+      return false;
+    }
+
   private:
     bool is_buffer_redundant(const egl::img_descriptor_t *img) {
       // Check for corrupted frame
@@ -935,16 +992,13 @@ namespace pipewire {
       return false;
     }
 
-    static uint32_t lookup_pw_format(uint64_t fourcc) {
-      for (const auto &fmt : format_map) {
-        if (fmt.fourcc == 0) {
-          break;
-        }
-        if (fmt.fourcc == fourcc) {
-          return fmt.pw_format;
+    static bool pw_format_supported(uint64_t fourcc, std::array<EGLint, MAX_DMABUF_FORMATS> dmabuf_formats) {
+      for (const auto &drm_format : dmabuf_formats) {
+        if (drm_format == fourcc) {
+          return true;
         }
       }
-      return 0;
+      return false;
     }
 
     void query_dmabuf_formats(EGLDisplay egl_display) {
@@ -956,21 +1010,24 @@ namespace pipewire {
         BOOST_LOG(warning) << "[pipewire] Some DMA-BUF formats are being ignored"sv;
       }
 
-      for (EGLint i = 0; i < MIN(num_dmabuf_formats, MAX_DMABUF_FORMATS); i++) {
-        uint32_t pw_format = lookup_pw_format(dmabuf_formats[i]);
-        if (pw_format == 0) {
+      for (const auto &fmt : format_map) {
+        if (n_dmabuf_infos >= MAX_DMABUF_FORMATS) {
+          break;
+        }
+
+        if (!pw_format_supported(fmt.fourcc, dmabuf_formats)) {
           continue;
         }
 
         EGLint num_modifiers = 0;
         std::array<EGLuint64KHR, MAX_DMABUF_MODIFIERS> mods = {0};
-        eglQueryDmaBufModifiersEXT(egl_display, dmabuf_formats[i], MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
+        eglQueryDmaBufModifiersEXT(egl_display, fmt.fourcc, MAX_DMABUF_MODIFIERS, mods.data(), nullptr, &num_modifiers);
 
         if (num_modifiers > MAX_DMABUF_MODIFIERS) {
           BOOST_LOG(warning) << "[pipewire] Some DMA-BUF modifiers are being ignored"sv;
         }
 
-        dmabuf_infos[n_dmabuf_infos].format = pw_format;
+        dmabuf_infos[n_dmabuf_infos].format = fmt.pw_format;
         dmabuf_infos[n_dmabuf_infos].n_modifiers = MIN(num_modifiers, MAX_DMABUF_MODIFIERS);
         dmabuf_infos[n_dmabuf_infos].modifiers =
           static_cast<uint64_t *>(g_memdup2(mods.data(), sizeof(uint64_t) * dmabuf_infos[n_dmabuf_infos].n_modifiers));
