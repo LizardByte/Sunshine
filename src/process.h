@@ -63,6 +63,7 @@ namespace proc {
     std::string output;
     std::string image_path;
     std::string id;
+    std::string gamepad;  // optional: "xone", "ds5", "switch", "x360", "ds4", or empty/"auto" = use global config
     bool elevated;
     bool auto_detach;
     bool wait_all;

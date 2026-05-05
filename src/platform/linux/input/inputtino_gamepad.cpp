@@ -53,16 +53,17 @@ namespace platf::gamepad {
     return inputtino::PS5Joypad::create({.name = "Sunshine PS5 (virtual) pad", .vendor_id = 0x054C, .product_id = 0x0CE6, .version = 0x8111, .device_phys = device_mac, .device_uniq = device_mac});
   }
 
-  int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue, std::string_view gamepad_override) {
     ControllerType selectedGamepadType;
+    const std::string_view effective_gamepad = gamepad_override.empty() ? std::string_view(config::input.gamepad) : gamepad_override;
 
-    if (config::input.gamepad == "xone"sv) {
+    if (effective_gamepad == "xone"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Xbox One controller (manual selection)"sv;
       selectedGamepadType = XboxOneWired;
-    } else if (config::input.gamepad == "ds5"sv) {
+    } else if (effective_gamepad == "ds5"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be DualSense 5 controller (manual selection)"sv;
       selectedGamepadType = DualSenseWired;
-    } else if (config::input.gamepad == "switch"sv) {
+    } else if (effective_gamepad == "switch"sv) {
       BOOST_LOG(info) << "Gamepad " << id.globalIndex << " will be Nintendo Pro controller (manual selection)"sv;
       selectedGamepadType = SwitchProWired;
     } else if (metadata.type == LI_CTYPE_XBOX) {
