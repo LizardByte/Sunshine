@@ -675,8 +675,8 @@ namespace platf {
     }
 
     // Drop CAP_SYS_ADMIN so KWin's permission check (if active) can see and match the executable
-    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges()) {
-      drop_elevated_privileges();
+    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges(false)) {
+      drop_elevated_privileges(false);
     }
 
     auto display = std::make_shared<kwin::kwin_t>();
@@ -688,7 +688,7 @@ namespace platf {
   }
 
   std::vector<std::string> kwin_display_names() {
-    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges()) {
+    if (!kwin::screencast_permission_helper_t::is_permission_system_deactivated() && has_elevated_privileges(false)) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
       // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
       std::vector<std::string> display_names;

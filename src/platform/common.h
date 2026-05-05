@@ -895,13 +895,15 @@ namespace platf {
 
   /**
    * @brief Check is the current process is running with elevated privileges (e.g. system admin/etc.)
-   * @return True if system admin capabilities are present.
+   * @param all_caps Bool that specifies whether to check all caps or only CAP_SYS_ADMIN
+   * @return True if capabilities specified to be checked are present.
    */
-  bool has_elevated_privileges();
+  bool has_elevated_privileges(bool all_caps);
 
   /**
-   * @brief Drop elevated privileges (e.g. system admin/etc.)
+   * @brief Drop elevated privileges (e.g. system admin/nice etc.)
+   * @param all_caps Bool that specifies whether to drop all caps or only CAP_SYS_ADMIN
    */
-  void drop_elevated_privileges();
+  void drop_elevated_privileges(bool all_caps);
 
 }  // namespace platf
