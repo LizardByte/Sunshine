@@ -15,6 +15,9 @@ appimage_build=0
 cuda_version="$default_cuda_version"
 cuda_build="$default_cuda_build"
 cuda_patches=0
+cuda_system_package=0
+cuda_system_package_name=""
+force_cuda_runfile=0
 num_processors=$(nproc)
 publisher_name="Third Party Publisher"
 publisher_website=""
@@ -30,6 +33,18 @@ step="all"
 # constants
 AARCH64="aarch64"
 DOXYGEN="doxygen"
+
+function setup_cuda_system_package_environment() {
+  if [[ "$cuda_system_package" == 1 ]]; then
+    local cuda_minor_version="${cuda_version%.*}"
+    # Ubuntu CUDA 13 packages install nvcc here but do not add it to PATH.
+    local cuda_bin_path="/usr/local/cuda-${cuda_minor_version}/bin"
+    if [[ ":${PATH}:" != *":${cuda_bin_path}:"* ]]; then
+      export PATH="${cuda_bin_path}:${PATH}"
+    fi
+  fi
+  return 0
+}
 
 # Reusable function to detect nvcc path
 function detect_nvcc_path() {
@@ -86,6 +101,9 @@ Options:
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
   --cuda-patches           Apply cuda patches.
+  --cuda-runfile           Force CUDA installation from the NVIDIA runfile.
+  --cuda-system-package=*  The CUDA package to install when system CUDA is enabled.
+                           Default for Ubuntu 26.04 is cuda-toolkit-13-1.
   --num-processors         The number of processors to use for compilation. Default is the value of 'nproc'.
   --publisher-name         The name of the publisher (not developer) of the application.
   --publisher-website      The URL of the publisher's website.
@@ -125,6 +143,12 @@ while getopts ":hs-:" opt; do
           ;;
         cuda-patches)
           cuda_patches=1
+          ;;
+        cuda-runfile)
+          force_cuda_runfile=1
+          ;;
+        cuda-system-package=*)
+          cuda_system_package_name="${OPTARG#*=}"
           ;;
         num-processors=*)
           num_processors="${OPTARG#*=}"
@@ -296,9 +320,18 @@ function add_debian_deps() {
 function add_ubuntu_deps() {
   add_test_ppa
   add_debian_based_deps
-  dependencies+=(
-    "libxml2-dev"
-  )
+
+  if [[ "$skip_cuda" == 0 ]] && [[ "$cuda_system_package" == 1 ]]; then
+    if [[ -z "$cuda_system_package_name" ]]; then
+      echo "CUDA system package was requested, but no package name was configured."
+      return 1
+    fi
+
+    echo "Using CUDA system package: $cuda_system_package_name"
+    dependencies+=(
+      "$cuda_system_package_name"
+    )
+  fi
 
   if [[ "$(printf '%s\n' "$version" "24.04" | sort -V | head -n1)" == "24.04" ]]; then
     dependencies+=(
@@ -362,9 +395,18 @@ function add_fedora_deps() {
 }
 
 function install_cuda() {
+  setup_cuda_system_package_environment
+
   # Check if CUDA is already available
-  if detect_nvcc_path > /dev/null 2>&1; then
+  if [[ "$force_cuda_runfile" == 1 ]] && [[ -f "${build_dir}/cuda/bin/nvcc" ]]; then
     return
+  elif [[ "$force_cuda_runfile" == 0 ]] && detect_nvcc_path > /dev/null 2>&1; then
+    return
+  fi
+
+  if [[ "$cuda_system_package" == 1 ]]; then
+    echo "CUDA system package '$cuda_system_package_name' was requested, but nvcc was not found after dependency installation."
+    return 1
   fi
 
   local cuda_override_arg=""
@@ -566,11 +608,16 @@ function run_step_cmake() {
 
   # Setup NVM environment if needed (for web UI builds)
   setup_nvm_environment
+  setup_cuda_system_package_environment
 
   # Detect CUDA path using the reusable function
   nvcc_path=""
   if [[ "$skip_cuda" == 0 ]]; then
-    nvcc_path=$(detect_nvcc_path)
+    if [[ "$force_cuda_runfile" == 1 ]] && [[ -f "${build_dir}/cuda/bin/nvcc" ]]; then
+      nvcc_path="${build_dir}/cuda/bin/nvcc"
+    else
+      nvcc_path=$(detect_nvcc_path)
+    fi
   fi
 
   #set gcc version based on distros
@@ -805,6 +852,12 @@ elif grep -q 'VERSION_ID="26.04"' /etc/os-release; then
   version="26.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
+  if [[ "$force_cuda_runfile" == 0 ]]; then
+    cuda_system_package=1
+    if [[ -z "$cuda_system_package_name" ]]; then
+      cuda_system_package_name="cuda-toolkit-13-1"
+    fi
+  fi
   gcc_version="14"
   nvm_node=0
 else
