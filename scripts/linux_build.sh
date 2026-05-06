@@ -36,14 +36,93 @@ DOXYGEN="doxygen"
 
 function setup_cuda_system_package_environment() {
   if [[ "$cuda_system_package" == 1 ]]; then
-    local cuda_minor_version="${cuda_version%.*}"
     # Ubuntu CUDA 13 packages install nvcc here but do not add it to PATH.
-    local cuda_bin_path="/usr/local/cuda-${cuda_minor_version}/bin"
+    local cuda_bin_path
+    cuda_bin_path="$(cuda_system_toolkit_path)/bin"
     if [[ ":${PATH}:" != *":${cuda_bin_path}:"* ]]; then
       export PATH="${cuda_bin_path}:${PATH}"
     fi
   fi
   return 0
+}
+
+function cuda_system_toolkit_path() {
+  local cuda_minor_version="${cuda_version%.*}"
+  echo "/usr/local/cuda-${cuda_minor_version}"
+}
+
+function cuda_target_dir() {
+  if [[ "$architecture" == "${AARCH64}" ]]; then
+    echo "sbsa-linux"
+  else
+    echo "x86_64-linux"
+  fi
+}
+
+function cuda_math_functions_patch_applied() {
+  local cuda_toolkit_path=$1
+  local math_functions_file
+  math_functions_file="${cuda_toolkit_path}/targets/$(cuda_target_dir)/include/crt/math_functions.h"
+
+  if [[ ! -f "$math_functions_file" ]]; then
+    return 1
+  fi
+
+  grep -Fq "rsqrt(double x) noexcept (true)" "$math_functions_file" && \
+    grep -Fq "rsqrtf(float x) noexcept (true)" "$math_functions_file" && \
+    grep -Fq "__func__(double rsqrt(double a) noexcept (true));" "$math_functions_file" && \
+    grep -Fq "__func__(float rsqrtf(float a) noexcept (true));" "$math_functions_file"
+}
+
+function apply_cuda_patches() {
+  local cuda_toolkit_path=$1
+
+  if [[ "$cuda_patches" != 1 ]]; then
+    return 0
+  fi
+
+  if [[ ! -d "$cuda_toolkit_path" ]]; then
+    echo "CUDA toolkit path not found: $cuda_toolkit_path"
+    return 1
+  fi
+
+  if cuda_math_functions_patch_applied "$cuda_toolkit_path"; then
+    echo "CUDA math_functions.h patch already applied"
+    return 0
+  fi
+
+  echo "Applying CUDA patches"
+  local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
+  local patch_file=""
+
+  # Select the patch based on the CUDA major version, not the distro version.
+  # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
+  local cuda_major="${cuda_version%%.*}"
+  if [[ "${cuda_major}" -eq 12 ]]; then
+    # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
+    patch_file="${patch_dir}/cuda-12-math_functions.patch"
+  elif [[ "${cuda_major}" -eq 13 ]]; then
+    # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
+    # macro invocations at the bottom still lack it, causing a redeclaration conflict.
+    patch_file="${patch_dir}/cuda-13-math_functions.patch"
+  else
+    echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
+  fi
+
+  if [[ -n "$patch_file" ]]; then
+    if [[ -f "$patch_file" ]]; then
+      echo "Applying patch: $patch_file"
+      ${sudo_cmd} patch -p2 \
+        --backup \
+        --directory="$cuda_toolkit_path" \
+        --verbose \
+        < "$patch_file"
+    else
+      echo "Patch file not found: $patch_file"
+    fi
+  else
+    echo "No CUDA patch required for ${distro} ${version}"
+  fi
 }
 
 # Reusable function to detect nvcc path
@@ -100,7 +179,7 @@ Options:
   -h, --help               Display this help message.
   -s, --sudo-off           Disable sudo command.
   --appimage-build         Compile for AppImage, this will not create the AppImage, just the executable.
-  --cuda-patches           Apply cuda patches.
+  --cuda-patches           Apply cuda patches. Enabled automatically on Ubuntu 26.04.
   --cuda-runfile           Force CUDA installation from the NVIDIA runfile.
   --cuda-system-package=*  The CUDA package to install when system CUDA is enabled.
                            Default for Ubuntu 26.04 is cuda-toolkit-13-1.
@@ -399,8 +478,12 @@ function install_cuda() {
 
   # Check if CUDA is already available
   if [[ "$force_cuda_runfile" == 1 ]] && [[ -f "${build_dir}/cuda/bin/nvcc" ]]; then
+    apply_cuda_patches "${build_dir}/cuda"
     return
   elif [[ "$force_cuda_runfile" == 0 ]] && detect_nvcc_path > /dev/null 2>&1; then
+    if [[ "$cuda_system_package" == 1 ]]; then
+      apply_cuda_patches "$(cuda_system_toolkit_path)"
+    fi
     return
   fi
 
@@ -448,41 +531,7 @@ function install_cuda() {
   "${build_dir}/cuda.run" --silent --toolkit --toolkitpath="${build_dir}/cuda" --no-opengl-libs --no-man-page --no-drm "$cuda_override_arg"
   rm "${build_dir}/cuda.run"
 
-  # run cuda patches
-  if [[ "$cuda_patches" == 1 ]]; then
-    echo "Applying CUDA patches"
-    local patch_dir="${script_dir}/../packaging/linux/patches/${architecture}"
-    local patch_file=""
-
-    # Select the patch based on the CUDA major version, not the distro version.
-    # see https://forums.developer.nvidia.com/t/error-exception-specification-is-incompatible-for-cospi-sinpi-cospif-sinpif-with-glibc-2-41/323591/3
-    local cuda_major="${cuda_version%%.*}"
-    if [[ "${cuda_major}" -eq 12 ]]; then
-      # CUDA 12.x: the extern declarations lack noexcept(true); add it to match glibc 2.41.
-      patch_file="${patch_dir}/cuda-12-math_functions.patch"
-    elif [[ "${cuda_major}" -eq 13 ]]; then
-      # CUDA 13.x: the extern declarations already have noexcept(true), but the __func__()
-      # macro invocations at the bottom still lack it, causing a redeclaration conflict.
-      patch_file="${patch_dir}/cuda-13-math_functions.patch"
-    else
-      echo "Warning: no math_functions.h patch available for CUDA ${cuda_major}.x, skipping."
-    fi
-
-    if [[ -n "$patch_file" ]]; then
-      if [[ -f "$patch_file" ]]; then
-        echo "Applying patch: $patch_file"
-        patch -p2 \
-          --backup \
-          --directory="${build_dir}/cuda" \
-          --verbose \
-          < "$patch_file"
-      else
-        echo "Patch file not found: $patch_file"
-      fi
-    else
-      echo "No CUDA patch required for ${distro} ${version}"
-    fi
-  fi
+  apply_cuda_patches "${build_dir}/cuda"
   return 0
 }
 
@@ -609,6 +658,9 @@ function run_step_cmake() {
   # Setup NVM environment if needed (for web UI builds)
   setup_nvm_environment
   setup_cuda_system_package_environment
+  if [[ "$skip_cuda" == 0 ]] && [[ "$cuda_system_package" == 1 ]]; then
+    apply_cuda_patches "$(cuda_system_toolkit_path)"
+  fi
 
   # Detect CUDA path using the reusable function
   nvcc_path=""
@@ -852,6 +904,7 @@ elif grep -q 'VERSION_ID="26.04"' /etc/os-release; then
   version="26.04"
   package_update_command="${sudo_cmd} apt-get update"
   package_install_command="${sudo_cmd} apt-get install -y"
+  cuda_patches=1
   if [[ "$force_cuda_runfile" == 0 ]]; then
     cuda_system_package=1
     if [[ -z "$cuda_system_package_name" ]]; then
