@@ -3,7 +3,6 @@
  * @brief Definitions for inputtino keyboard input handling.
  */
 // lib includes
-#include <boost/locale.hpp>
 #include <inputtino/input.hpp>
 #include <libevdev/libevdev.h>
 
@@ -13,6 +12,7 @@
 #include "src/config.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/utf_utils.h"
 #include "src/utility.h"
 
 using namespace std::literals;
@@ -172,10 +172,18 @@ namespace platf::keyboard {
 
   void unicode(input_raw_t *raw, char *utf8, int size) {
     if (raw->keyboard) {
-      /* Reading input text as UTF-8 */
-      auto utf8_str = boost::locale::conv::to_utf<wchar_t>(utf8, utf8 + size, "UTF-8");
-      /* Converting to UTF-32 */
-      auto utf32_str = boost::locale::conv::utf_to_utf<char32_t>(utf8_str);
+      std::u32string utf32_str;
+      if (size < 0 || (size > 0 && utf8 == nullptr)) {
+        BOOST_LOG(warning) << "Failed to decode UTF-8 keyboard input";
+        return;
+      }
+
+      const auto utf8_view = size == 0 ? std::string_view {} : std::string_view {utf8, static_cast<size_t>(size)};
+      if (!utf_utils::utf8_to_utf32(utf8_view, utf32_str)) {
+        BOOST_LOG(warning) << "Failed to decode UTF-8 keyboard input";
+        return;
+      }
+
       /* To HEX string */
       auto hex_unicode = to_hex(utf32_str);
       BOOST_LOG(debug) << "Unicode, typing U+"sv << hex_unicode;

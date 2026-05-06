@@ -80,9 +80,9 @@ jobs:
             cmake \
             doxygen \
             graphviz \
+            icu4c@78 \
             node \
             pkgconf \
-            icu4c@78 \
             miniupnpc \
             openssl@3 \
             opus

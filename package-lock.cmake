@@ -1,0 +1,48 @@
+# CPM Package Lock
+# This file should be committed to version control
+
+# The first argument of CPMDeclarePackage can be freely chosen and is used as argument in CPMGetPackage.
+# The NAME argument should be package name that would also be used in a find_package call.
+# Ideally, both are the same, which might not always be possible: https://github.com/cpm-cmake/CPM.cmake/issues/603
+# This is needed to support CPM_USE_LOCAL_PACKAGES
+
+# Renovate-bot will update the versions and hashes in this file when a new version of a dependency is released.
+# The comments above each dependency are used by renovate to identify the dependencies and extract the version numbers.
+# See https://github.com/LizardByte/.github/blob/master/renovate-config.json5 for the configuration of renovate.
+#
+# Expected dependency structure for new entries:
+# - Start each block with a human-readable comment, for example `# Boost`.
+# - Follow it with consecutive renovate metadata comments.
+# - The first metadata line must start with `# renovate:` and include `datasource=` and `depName=`.
+# - Optional metadata keys are `packageName=`, `versioning=`, `extractVersion=`, and `registryUrl=`.
+# - Optional metadata may stay on the `# renovate:` line or continue on the next consecutive `#` lines.
+# - Keep metadata keys in this order: `datasource`, `depName`, `packageName`, `versioning`,
+#   `extractVersion`, `registryUrl`.
+# - After metadata, declare the tracked value with `set(NAME_VERSION ...)` or `set(NAME_TAG ...)`.
+# - If the dependency also tracks a SHA256, keep `set(NAME_SHA256 ...)` immediately after the
+#   matching `NAME_VERSION` or `NAME_TAG` line with no unrelated lines between them.
+# - Keep `CPMDeclarePackage(...)` below the tracked values.
+#
+# Example layout:
+# - `# Example dependency`
+# - `# renovate: datasource=github-tags depName=owner/repo`
+# - `# versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$`
+# - `set(EXAMPLE_TAG v1.2.3)`
+# - `set(EXAMPLE_SHA256 <sha256>)`
+# - `CPMDeclarePackage(...)`
+
+set(PATCH_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/patches")
+
+# Boost
+# renovate: datasource=github-release-attachments depName=boostorg/boost
+# versioning=regex:^boost-(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(?<prerelease>\.[A-Za-z0-9.-]+)?$
+set(BOOST_TAG boost-1.89.0)
+set(BOOST_SHA256 67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74)
+string(REGEX REPLACE "^boost-" "" BOOST_VERSION "${BOOST_TAG}")
+CPMDeclarePackage(Boost
+        NAME Boost
+        VERSION ${BOOST_VERSION}
+        URL https://github.com/boostorg/boost/releases/download/${BOOST_TAG}/${BOOST_TAG}-cmake.tar.xz
+        URL_HASH SHA256=${BOOST_SHA256}
+        DOWNLOAD_ONLY YES
+)

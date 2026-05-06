@@ -1,13 +1,18 @@
 /**
  * @file src/platform/windows/utf_utils.cpp
- * @brief Minimal UTF conversion utilities for Windows tools
+ * @brief Windows-specific UTF conversion utilities.
  */
-#include "utf_utils.h"
+// class header include
+#include "src/platform/utf_utils.h"
 
-#include "src/logging.h"
-
+// standard includes
 #include <string>
+
+// platform includes
 #include <Windows.h>
+
+// local includes
+#include "src/logging.h"
 
 using namespace std::literals;
 
