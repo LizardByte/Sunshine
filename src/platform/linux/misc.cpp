@@ -1076,6 +1076,19 @@ namespace platf {
   }
 
   std::shared_ptr<display_t> display(mem_type_e hwdevice_type, const std::string &display_name, const video::config_t &config) {
+    // Keep KMS as first element to check before dropping CAP_SYS_ADMIN
+#ifdef SUNSHINE_BUILD_DRM
+    if (sources[source::KMS]) {
+      BOOST_LOG(info) << "Screencasting with KMS"sv;
+      return kms_display(hwdevice_type, display_name, config);
+    }
+#endif
+
+    // KMS capture was passed; drop CAP_SYS_ADMIN only.
+    if (has_elevated_privileges(false)) {
+      drop_elevated_privileges(false);
+    }
+
 #ifdef SUNSHINE_BUILD_CUDA
     if (sources[source::NVFBC] && hwdevice_type == mem_type_e::cuda) {
       BOOST_LOG(info) << "Screencasting with NvFBC"sv;
@@ -1086,12 +1099,6 @@ namespace platf {
     if (sources[source::WAYLAND]) {
       BOOST_LOG(info) << "Screencasting with Wayland's protocol"sv;
       return wl_display(hwdevice_type, display_name, config);
-    }
-#endif
-#ifdef SUNSHINE_BUILD_DRM
-    if (sources[source::KMS]) {
-      BOOST_LOG(info) << "Screencasting with KMS"sv;
-      return kms_display(hwdevice_type, display_name, config);
     }
 #endif
 #ifdef SUNSHINE_BUILD_X11
@@ -1261,18 +1268,22 @@ namespace platf {
   }
 
 #if !defined(__FreeBSD__)
-  constexpr std::array<cap_value_t, 2> ELEVATED_PRIVILEGES_EFFECTIVE {CAP_SYS_ADMIN, CAP_SYS_NICE};
-  constexpr std::array<cap_value_t, 2> ELEVATED_PRIVILEGES_PERMITTED {CAP_SYS_ADMIN, CAP_SYS_NICE};
+  static constexpr cap_value_t FULL_CAPS[] = {CAP_SYS_ADMIN, CAP_SYS_NICE};
+  static constexpr cap_value_t ADMIN_CAPS[] = {CAP_SYS_ADMIN};
+
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_FULL {FULL_CAPS};
+  constexpr std::span<const cap_value_t> ELEVATED_PRIVILEGES_ADMIN {ADMIN_CAPS};
 #endif
 
-  bool has_elevated_privileges() {
+  bool has_elevated_privileges(bool all_caps) {
 #if !defined(__FreeBSD__)
+    const auto caps_to_check = all_caps ? ELEVATED_PRIVILEGES_FULL : ELEVATED_PRIVILEGES_ADMIN;
     const cap_t caps = cap_get_proc();
     if (!caps) {
       BOOST_LOG(error) << "[misc] has_elevated_privileges failed to get process capabilities."sv;
       return false;
     }
-    for (const auto c : ELEVATED_PRIVILEGES_EFFECTIVE) {
+    for (const auto c : caps_to_check) {
       cap_flag_value_t cap_flags_value;
       cap_get_flag(caps, c, CAP_EFFECTIVE, &cap_flags_value);
       if (cap_flags_value == CAP_SET) {
@@ -1280,7 +1291,7 @@ namespace platf {
         return true;
       }
     }
-    for (const auto c : ELEVATED_PRIVILEGES_PERMITTED) {
+    for (const auto c : caps_to_check) {
       cap_flag_value_t cap_flags_value;
       cap_get_flag(caps, c, CAP_PERMITTED, &cap_flags_value);
       if (cap_flags_value == CAP_SET) {
@@ -1293,17 +1304,18 @@ namespace platf {
     return false;
   }
 
-  void drop_elevated_privileges() {
+  void drop_elevated_privileges(bool all_caps) {
 #if !defined(__FreeBSD__)
     bool failed = false;
+    const auto caps_to_drop = all_caps ? ELEVATED_PRIVILEGES_FULL : ELEVATED_PRIVILEGES_ADMIN;
     const cap_t caps = cap_get_proc();
     if (!caps) {
       BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to get process capabilities"sv;
       return;
     }
 
-    cap_set_flag(caps, CAP_EFFECTIVE, ELEVATED_PRIVILEGES_EFFECTIVE.size(), ELEVATED_PRIVILEGES_EFFECTIVE.data(), CAP_CLEAR);
-    cap_set_flag(caps, CAP_PERMITTED, ELEVATED_PRIVILEGES_PERMITTED.size(), ELEVATED_PRIVILEGES_PERMITTED.data(), CAP_CLEAR);
+    cap_set_flag(caps, CAP_EFFECTIVE, caps_to_drop.size(), caps_to_drop.data(), CAP_CLEAR);
+    cap_set_flag(caps, CAP_PERMITTED, caps_to_drop.size(), caps_to_drop.data(), CAP_CLEAR);
 
     if (cap_set_proc(caps) != 0) {
       BOOST_LOG(error) << "[misc] drop_elevated_privileges failed to prune capabilities: "sv << std::strerror(errno);

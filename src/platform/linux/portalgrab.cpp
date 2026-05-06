@@ -705,9 +705,9 @@ namespace platf {
       return nullptr;
     }
 
-    // Drop CAP_SYS_ADMIN and set DUMPABLE flag to allow XDG /root access
-    if (has_elevated_privileges()) {
-      drop_elevated_privileges();
+    // Drop CAP_SYS_ADMIN, CAP_SYS_NICE and set DUMPABLE flag to allow XDG /root access
+    if (has_elevated_privileges(true)) {
+      drop_elevated_privileges(true);
     }
 
     auto portal = std::make_shared<portal::portal_t>();
@@ -727,7 +727,7 @@ namespace platf {
       return {};
     }
 
-    if (has_elevated_privileges()) {
+    if (has_elevated_privileges(true)) {
       // We're still in the probing phase of Sunshine startup. Dropping portal security early will break KMS.
       // Just return a dummy screen for now. Display re-enumeration after encoder probing will yield full result.
       display_names.emplace_back("init");
