@@ -240,7 +240,7 @@ namespace system_tray {
     // Wait for the shell to be initialized before registering the tray icon.
     // This ensures the tray icon works reliably after a logoff/logon cycle.
     while (GetShellWindow() == nullptr) {
-      Sleep(1000);
+      Sleep(1000);  // TODO: this delay causes unit tests to take ~10s for each tray initialization
     }
   #endif
 
