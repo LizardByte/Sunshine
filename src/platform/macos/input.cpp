@@ -14,6 +14,7 @@
 #include <mach/mach.h>
 
 // local includes
+#include "src/config.h"
 #include "src/display_device.h"
 #include "src/input.h"
 #include "src/logging.h"
@@ -229,6 +230,10 @@ const KeyCodeMap kKeyCodesMap[] = {
   // clang-format on
 
   int keysym(int keycode) {
+    if (config::input.key_leftalt_to_key_cmd && keycode == 0xA4 /* VKEY_LMENU */) {
+      return kVK_Command;
+    }
+
     KeyCodeMap key_map {};
 
     key_map.win_keycode = keycode;

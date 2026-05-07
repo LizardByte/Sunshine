@@ -249,6 +249,8 @@
     "key_repeat_frequency_desc": "How often keys repeat every second. This configurable option supports decimals.",
     "key_rightalt_to_key_win": "Map Right Alt key to Windows key",
     "key_rightalt_to_key_win_desc": "It may be possible that you cannot send the Windows Key from Moonlight directly. In those cases it may be useful to make Sunshine think the Right Alt key is the Windows key",
+    "key_leftalt_to_key_cmd": "Map Left Alt key to Command key",
+    "key_leftalt_to_key_cmd_desc": "On macOS, map the Left Alt key from Moonlight to the left Command key. This can be useful when the client cannot send the Windows key directly.",
     "keybindings": "Keybindings",
     "keyboard": "Enable Keyboard Input",
     "keyboard_desc": "Allows guests to control the host system with the keyboard",

@@ -212,6 +212,7 @@ namespace config {
     bool controller;
 
     bool always_send_scancodes;
+    bool key_leftalt_to_key_cmd;
 
     bool high_resolution_scrolling;
     bool native_pen_touch;
