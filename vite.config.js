@@ -6,6 +6,9 @@ import { ViteEjsPlugin } from "vite-plugin-ejs";
 import { codecovVitePlugin } from "@codecov/vite-plugin";
 import vue from '@vitejs/plugin-vue'
 import process from 'process'
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
 
 /**
  * Before actually building the pages with Vite, we do an intermediate build step using ejs
@@ -77,4 +80,4 @@ export default defineConfig({
             },
         },
     },
-})
+});

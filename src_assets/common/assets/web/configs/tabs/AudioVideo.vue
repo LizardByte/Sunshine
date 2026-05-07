@@ -85,6 +85,18 @@ const config = ref(props.config)
       :config="config"
     />
 
+    <!-- Manual Rotation (Linux only) -->
+    <div class="mb-3" v-if="platform === 'linux'">
+      <label for="manual_rotation" class="form-label">{{ $t('config.manual_rotation') }}</label>
+      <select id="manual_rotation" class="form-select" v-model="config.manual_rotation">
+        <option value="0">{{ $t('config.manual_rotation_0') }}</option>
+        <option value="90">{{ $t('config.manual_rotation_90') }}</option>
+        <option value="180">{{ $t('config.manual_rotation_180') }}</option>
+        <option value="270">{{ $t('config.manual_rotation_270') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.manual_rotation_desc') }}</div>
+    </div>
+
     <DisplayDeviceOptions
       :platform="platform"
       :config="config"

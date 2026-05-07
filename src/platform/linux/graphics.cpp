@@ -7,6 +7,7 @@
 
 // local includes
 #include "graphics.h"
+#include "src/config.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
 #include "src/video.h"
@@ -786,10 +787,19 @@ namespace egl {
 
     sws.serial = std::numeric_limits<std::uint64_t>::max();
 
+    // When rotation is 90 or 270 degrees, swap input dimensions for aspect ratio calculation
+    // because the shader will rotate the texture, effectively swapping width and height
+    int effective_in_width = in_width;
+    int effective_in_height = in_height;
+    if (config::video.manual_rotation == 90 || config::video.manual_rotation == 270) {
+      effective_in_width = in_height;
+      effective_in_height = in_width;
+    }
+
     // Ensure aspect ratio is maintained
-    auto scalar = std::fminf(out_width / (float) in_width, out_height / (float) in_height);
-    auto out_width_f = in_width * scalar;
-    auto out_height_f = in_height * scalar;
+    auto scalar = std::fminf(out_width / (float) effective_in_width, out_height / (float) effective_in_height);
+    auto out_width_f = effective_in_width * scalar;
+    auto out_height_f = effective_in_height * scalar;
 
     // result is always positive
     auto offsetX_f = (out_width - out_width_f) / 2;
@@ -878,6 +888,15 @@ namespace egl {
     gl::ctx.UseProgram(sws.program[1].handle());
     gl::ctx.Uniform1fv(loc_width_i, 1, &width_i);
 
+    // Set rotation uniform on UV shader (program[1])
+    {
+      int rotation = config::video.manual_rotation;
+      auto loc_rotation = gl::ctx.GetUniformLocation(sws.program[1].handle(), "rotation");
+      if (loc_rotation >= 0) {
+        gl::ctx.Uniform1i(loc_rotation, rotation);
+      }
+    }
+
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec601, false, 8}, true);
     std::pair<const char *, std::string_view> members[] {
       std::make_pair("color_vec_y", util::view(color_p->color_vec_y)),
@@ -901,6 +920,23 @@ namespace egl {
 
     sws.program[0].bind(sws.color_matrix);
     sws.program[1].bind(sws.color_matrix);
+
+    // Set rotation uniform on Y shader (program[0]) and Scene/Cursor shader (program[2])
+    {
+      int rotation = config::video.manual_rotation;
+
+      gl::ctx.UseProgram(sws.program[0].handle());
+      auto loc_rot_y = gl::ctx.GetUniformLocation(sws.program[0].handle(), "rotation");
+      if (loc_rot_y >= 0) {
+        gl::ctx.Uniform1i(loc_rot_y, rotation);
+      }
+
+      gl::ctx.UseProgram(sws.program[2].handle());
+      auto loc_rot_scene = gl::ctx.GetUniformLocation(sws.program[2].handle(), "rotation");
+      if (loc_rot_scene >= 0) {
+        gl::ctx.Uniform1i(loc_rot_scene, rotation);
+      }
+    }
 
     gl::ctx.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 

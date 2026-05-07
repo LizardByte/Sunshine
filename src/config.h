@@ -152,6 +152,8 @@ namespace config {
       workarounds_t wa;
     } dd;
 
+    int manual_rotation;  ///< Manual display rotation in degrees (0, 90, 180, 270). Useful for portrait panels used in landscape orientation.
+
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
   };
