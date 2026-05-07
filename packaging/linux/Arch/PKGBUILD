@@ -190,14 +190,28 @@ check() {
       # This matches the pattern used in ci-linux.yml
       cd "${srcdir}/build"
 
-      # Dynamically find the gcov executable from gcc's library directory
-      # This ensures we use the same gcov version as the compiler
+      # Dynamically find the gcov executable from the selected compiler.
+      # This ensures we use the same gcov version that produced the .gcno files.
       local gcov_path
-      gcov_path=$(find /usr/lib/gcc/x86_64-pc-linux-gnu/${_gcc_version}.*/ -name gcov -type f 2>/dev/null | head -n 1)
+      local gcc_lib_dir
+
+      gcc_lib_dir="$("$CC" -print-libgcc-file-name)"
+      gcc_lib_dir="${gcc_lib_dir%/*}"
+      gcov_path="${gcc_lib_dir}/gcov"
+
+      if [ ! -x "$gcov_path" ]; then
+        gcov_path="$("$CC" -print-prog-name=gcov)"
+      fi
+
+      if [ -n "$gcov_path" ] && command -v "$gcov_path" > /dev/null 2>&1; then
+        gcov_path="$(command -v "$gcov_path")"
+      else
+        gcov_path="$(command -v "gcov${_gcc_env_suffix}" || command -v gcov || true)"
+      fi
 
       if [ -z "$gcov_path" ]; then
-        # Fallback to standard gcov if not found
-        gcov_path="gcov"
+        echo "Unable to find gcov for ${CC}" >&2
+        return 1
       fi
 
       echo "Using gcov at: $gcov_path"
