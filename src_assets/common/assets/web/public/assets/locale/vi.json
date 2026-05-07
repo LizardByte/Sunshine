@@ -282,6 +282,8 @@
     "mouse_desc": "Cho phép khách truy cập điều khiển hệ thống chủ bằng chuột.",
     "native_pen_touch": "Hỗ trợ bút cảm ứng và chạm gốc",
     "native_pen_touch_desc": "Khi được bật, Sunshine sẽ truyền các sự kiện bút/chạm gốc từ các ứng dụng Moonlight. Tính năng này có thể hữu ích để tắt cho các ứng dụng cũ không hỗ trợ bút/chạm gốc.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Thông báo trước khi phát hành",
     "notify_pre_releases_desc": "Có muốn nhận thông báo về các phiên bản thử nghiệm mới của Sunshine không?",
     "nvenc_h264_cavlc": "Ưu tiên CAVLC hơn CABAC trong H.264",

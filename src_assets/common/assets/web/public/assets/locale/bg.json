@@ -282,6 +282,8 @@
     "mouse_desc": "Позволява на клиентите да управляват отдалечения компютър с мишка",
     "native_pen_touch": "Собствена поддръжка на писалка/докосване",
     "native_pen_touch_desc": "Когато е включено, Sunshine просто ще препредава командите идващи от писалка/докосване както са получени от клиентите използващи Moonlight. Може да е по-добре това да бъде изключено за по-старите приложения, които няма собствена поддръжка на писалка/докосване.",
+    "wlr_virtual_mouse": "WLR Virtual Mouse",
+    "wlr_virtual_mouse_desc": "Use the wlr-virtual-pointer Wayland protocol for mouse input instead of uinput. Requires a wlroots-based compositor (e.g. sway, Hyprland, labwc). Only change this if you have issues with uinput mouse input under Wayland.",
     "notify_pre_releases": "Известия за предварителни версии",
     "notify_pre_releases_desc": "Дали да бъдете уведомявани за нови предварителни версии на Sunshine, преди превръщането им в официални",
     "nvenc_h264_cavlc": "Предпочитане на CAVLC пред CABAC за H.264",
