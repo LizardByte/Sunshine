@@ -68,8 +68,8 @@ CUDA is used for NVFBC capture.
         <th>Package</th>
     </tr>
     <tr>
-        <td rowspan="8">12.9.1</td>
-        <td rowspan="8">575.57.08</td>
+        <td rowspan="8">13.1.1</td>
+        <td rowspan="8">590.48.01</td>
         <td rowspan="8">50;52;60;61;62;70;72;75;80;86;87;89;90;100;101;103;120;121</td>
         <td>sunshine.AppImage</td>
     </tr>
