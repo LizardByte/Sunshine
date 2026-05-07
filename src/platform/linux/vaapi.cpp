@@ -407,7 +407,7 @@ namespace va {
     int convert(platf::img_t &img) override {
       sws.load_ram(img);
 
-      sws.convert(nv12->buf);
+      sws.convert_nv12(nv12->buf);
       return 0;
     }
   };
@@ -434,9 +434,9 @@ namespace va {
         rgb = std::move(*rgb_opt);
       }
 
-      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0]);
+      sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], false);
 
-      sws.convert(nv12->buf);
+      sws.convert_nv12(nv12->buf);
       return 0;
     }
 

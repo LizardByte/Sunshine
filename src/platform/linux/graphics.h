@@ -210,6 +210,20 @@ namespace egl {
     std::array<file_t, num_fds> fds;
   };
 
+  struct yuv444_img_t {
+    display_t::pointer display;
+    EGLImage r8;
+    EGLImage g8;
+    EGLImage b8;
+
+    gl::tex_t tex;
+    gl::frame_buf_t buf;
+
+    static constexpr std::size_t num_fds = 4;
+
+    std::array<file_t, num_fds> fds;
+  };
+
   KITTY_USING_MOVE_T(rgb_t, rgb_img_t, , {
     if (el.xrgb8) {
       eglDestroyImage(el.display, el.xrgb8);
@@ -224,6 +238,20 @@ namespace egl {
     if (el.bg88) {
       eglDestroyImage(el.display, el.bg88);
     }
+  });
+
+  KITTY_USING_MOVE_T(yuv444_t, yuv444_img_t, , {
+    if (el.r8) {
+       eglDestroyImage(el.display, el.r8);
+     }
+
+     if (el.g8) {
+       eglDestroyImage(el.display, el.g8);
+     }
+
+     if (el.b8) {
+       eglDestroyImage(el.display, el.b8);
+     }
   });
 
   KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
@@ -262,6 +290,14 @@ namespace egl {
     const surface_descriptor_t &uv
   );
 
+  std::optional<yuv444_t> import_target(
+    display_t::pointer egl_display,
+    std::array<file_t, yuv444_img_t::num_fds> &&fds,
+    const surface_descriptor_t &y,
+    const surface_descriptor_t &u,
+    const surface_descriptor_t &v
+  );
+
   /**
    * @brief Creates biplanar YUV textures to render into.
    * @param width Width of the target frame.
@@ -269,7 +305,9 @@ namespace egl {
    * @param format Format of the target frame.
    * @return The new RGB texture.
    */
-  std::optional<nv12_t> create_target(int width, int height, AVPixelFormat format);
+  std::optional<nv12_t> create_nv12_target(int width, int height, AVPixelFormat format);
+
+  std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format);
 
   class cursor_t: public platf::img_t {
   public:
@@ -317,17 +355,24 @@ namespace egl {
 
   class sws_t {
   public:
-    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
+    static std::optional<sws_t> make_nv12(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
+    static std::optional<sws_t> make_yuv444(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
     static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format);
 
     // Convert the loaded image into the first two framebuffers
-    int convert(gl::frame_buf_t &fb);
+    int convert_nv12(gl::frame_buf_t &fb);
+
+    // Convert the loaded image into the first three framebuffers
+    int convert_yuv444(gl::frame_buf_t &fb);
+
+    // Draw loaded image by programs to frame buffers
+    int draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444);
 
     // Make an area of the image black
-    int blank(gl::frame_buf_t &fb, int offsetX, int offsetY, int width, int height);
+    int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format);
 
     void load_ram(platf::img_t &img);
-    void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture);
+    void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444);
 
     void apply_colorspace(const video::sunshine_colorspace_t &colorspace);
 
@@ -339,8 +384,9 @@ namespace egl {
     gl::frame_buf_t cursor_framebuffer;
     gl::frame_buf_t copy_framebuffer;
 
-    // Y - shader, UV - shader, Cursor - shader
-    gl::program_t program[3];
+    // Y - shader, UV - shader, Cursor - shader : for nv12
+    // Y - shader, U - shader, V - shader, Cursor - shader : for yuv444
+    std::array<gl::program_t, 4> program;
     gl::buffer_t color_matrix;
 
     int out_width;
