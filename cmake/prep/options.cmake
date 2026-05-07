@@ -10,6 +10,9 @@ set(SUNSHINE_PUBLISHER_ISSUE_URL "https://app.lizardbyte.dev/support"
 option(BUILD_DOCS "Build documentation" ON)
 option(BUILD_TESTS "Build tests" ON)
 option(NPM_OFFLINE "Use offline npm packages. You must ensure packages are in your npm cache." OFF)
+option(SUNSHINE_PREFER_STATIC_LIBS "Prefer static libraries when they are available." OFF)
+option(SUNSHINE_ENABLE_STATIC_LINK "Force static linking for Sunshine executables when supported." OFF)
+option(SUNSHINE_LINUX_PACKAGE_RUNTIME_DEPS "Include Linux runtime dependency metadata in generated packages." ON)
 
 option(BUILD_WERROR "Enable -Werror flag." OFF)
 
@@ -68,4 +71,13 @@ elseif(UNIX)  # Linux
             "Enable KWin ScreenCast grab if available" ON)
     option(SUNSHINE_ENABLE_PORTAL
             "Enable XDG portal grab if available" ON)
+endif()
+
+if(UNIX AND NOT APPLE AND SUNSHINE_PREFER_STATIC_LIBS)
+    set(PKG_CONFIG_USE_STATIC_LIBS ON)
+
+    set(SUNSHINE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    list(REMOVE_ITEM SUNSHINE_FIND_LIBRARY_SUFFIXES ".a")
+    list(PREPEND SUNSHINE_FIND_LIBRARY_SUFFIXES ".a")
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${SUNSHINE_FIND_LIBRARY_SUFFIXES})
 endif()

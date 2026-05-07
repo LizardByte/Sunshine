@@ -42,6 +42,10 @@ endif()
 
 target_compile_options(sunshine PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${SUNSHINE_COMPILE_OPTIONS}>;$<$<COMPILE_LANGUAGE:CUDA>:${SUNSHINE_COMPILE_OPTIONS_CUDA};-std=c++17>)  # cmake-lint: disable=C0301
 
+if(UNIX AND NOT APPLE AND SUNSHINE_ENABLE_STATIC_LINK)
+    target_link_options(sunshine PRIVATE -static -static-libgcc -static-libstdc++)
+endif()
+
 # Homebrew build fails the vite build if we set these environment variables
 if(${SUNSHINE_BUILD_HOMEBREW})
     set(NPM_SOURCE_ASSETS_DIR "")
