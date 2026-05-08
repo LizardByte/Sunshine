@@ -35,8 +35,6 @@ namespace crypto {
       // Expired or not-yet-valid certificates are fine. Sometimes Moonlight is running on embedded devices
       // that don't have accurate clocks (or haven't yet synchronized by the time Moonlight first runs).
       // This behavior also matches what GeForce Experience does.
-      // TODO: Checking for X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY is a temporary workaround to get moonlight-embedded to work on the raspberry pi
-      case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
       case X509_V_ERR_CERT_NOT_YET_VALID:
       case X509_V_ERR_CERT_HAS_EXPIRED:
         return 1;
