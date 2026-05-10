@@ -165,6 +165,9 @@ namespace config {
     // Video encryption settings for LAN and WAN streams
     int lan_encryption_mode;
     int wan_encryption_mode;
+
+    // Directory to write per-session metrics CSV files. Empty = disabled.
+    std::string metrics_path;
   };
 
   struct nvhttp_t {

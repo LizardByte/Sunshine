@@ -4,6 +4,7 @@
  */
 
 // standard includes
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <queue>
@@ -231,6 +232,27 @@ namespace stream {
     AUDIO_FEC_HEADER fecHeader;
   };
 
+  // Wire layout of SS_FRAME_FEC_STATUS (Moonlight → Sunshine, big-endian on the wire).
+  // Mirrors the struct in moonlight-common-c/src/Video.h with explicit endian decoding.
+  struct ss_frame_fec_status_wire_t {
+    boost::endian::big_uint32_at frameIndex;
+    boost::endian::big_uint16_at highestReceivedSequenceNumber;
+    boost::endian::big_uint16_at nextContiguousSequenceNumber;
+    boost::endian::big_uint16_at missingPacketsBeforeHighestReceived;
+    boost::endian::big_uint16_at totalDataPackets;
+    boost::endian::big_uint16_at totalParityPackets;
+    boost::endian::big_uint16_at receivedDataPackets;
+    boost::endian::big_uint16_at receivedParityPackets;
+    std::uint8_t fecPercentage;
+    std::uint8_t multiFecBlockIndex;
+    std::uint8_t multiFecBlockCount;
+  };
+
+  static_assert(
+    sizeof(ss_frame_fec_status_wire_t) == 21,
+    "SS_FRAME_FEC_STATUS wire format must be 21 bytes"
+  );
+
 #pragma pack(pop)
 
   constexpr std::size_t round_to_pkcs7_padded(std::size_t size) {
@@ -405,6 +427,14 @@ namespace stream {
     } control;
 
     std::uint32_t launch_session_id;
+
+    // Per-session metrics CSV state. Populated lazily on the first
+    // SS_FRAME_FEC_STATUS event when config::stream.metrics_path is set.
+    // Both fields are accessed only from the control thread, so no locking.
+    struct {
+      std::ofstream csv_file;
+      int idr_count = 0;
+    } metrics;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
@@ -951,7 +981,72 @@ namespace stream {
     server->map(packetTypes[IDX_REQUEST_IDR_FRAME], [&](session_t *session, const std::string_view &payload) {
       BOOST_LOG(debug) << "type [IDX_REQUEST_IDR_FRAME]"sv;
 
+      ++session->metrics.idr_count;
+
       session->video.idr_events->raise(true);
+    });
+
+    // SS_FRAME_FEC_STATUS (0x5502) is sent by Moonlight per-frame whenever there
+    // is FEC recovery activity or a frame drop. Note: the same packet type is
+    // sent by Sunshine TO clients as "Set RGB LED" — the protocol multiplexes
+    // 0x5502 by direction. The receive handler is registered only here.
+    server->map(SS_FRAME_FEC_PTYPE, [&](session_t *session, const std::string_view &payload) {
+      if (config::stream.metrics_path.empty()) {
+        return;
+      }
+
+      if (payload.size() < sizeof(ss_frame_fec_status_wire_t)) {
+        BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS payload too small: " << payload.size();
+        return;
+      }
+
+      auto *fec = reinterpret_cast<const ss_frame_fec_status_wire_t *>(payload.data());
+
+      auto wall_now = std::chrono::system_clock::now().time_since_epoch();
+      auto wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(wall_now).count();
+
+      if (!session->metrics.csv_file.is_open()) {
+        std::filesystem::path dir {config::stream.metrics_path};
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        if (ec) {
+          BOOST_LOG(error) << "metrics_path: failed to create directory "sv << dir << ": "sv << ec.message();
+          return;
+        }
+
+        auto filename = "sunshine_metrics_" + std::to_string(session->launch_session_id) +
+                        "_" + std::to_string(wall_ms) + ".csv";
+        auto path = dir / filename;
+
+        session->metrics.csv_file.open(path);
+        if (!session->metrics.csv_file.is_open()) {
+          BOOST_LOG(error) << "metrics_path: failed to open "sv << path;
+          return;
+        }
+
+        BOOST_LOG(info) << "metrics: writing session metrics to "sv << path;
+
+        session->metrics.csv_file
+          << "timestamp_ms,session_id,bitrate_kbps,frame_index,"
+             "missing_packets,total_data_packets,received_data_packets,"
+             "total_parity_packets,received_parity_packets,fec_percentage,"
+             "idr_request_count\n";
+      }
+
+      session->metrics.csv_file
+        << wall_ms << ','
+        << session->launch_session_id << ','
+        << session->config.monitor.bitrate << ','
+        << fec->frameIndex << ','
+        << fec->missingPacketsBeforeHighestReceived << ','
+        << fec->totalDataPackets << ','
+        << fec->receivedDataPackets << ','
+        << fec->totalParityPackets << ','
+        << fec->receivedParityPackets << ','
+        << static_cast<int>(fec->fecPercentage) << ','
+        << session->metrics.idr_count << '\n';
+
+      session->metrics.idr_count = 0;
     });
 
     server->map(packetTypes[IDX_INVALIDATE_REF_FRAMES], [&](session_t *session, const std::string_view &payload) {
