@@ -8,6 +8,7 @@
 #include <fstream>
 #include <future>
 #include <queue>
+#include <sstream>
 
 // lib includes
 #include <boost/endian/arithmetic.hpp>
@@ -810,6 +811,64 @@ namespace stream {
   }
 
   /**
+   * @brief Returns the header line for the per-session metrics CSV.
+   *        Pure function — exposed for testability.
+   */
+  std::string_view metrics_csv_header() {
+    return "timestamp_ms,session_id,bitrate_kbps,frame_index,"
+           "missing_packets,total_data_packets,received_data_packets,"
+           "total_parity_packets,received_parity_packets,fec_percentage,"
+           "idr_request_count";
+  }
+
+  /**
+   * @brief Decodes a SS_FRAME_FEC_STATUS payload and formats one CSV row.
+   *        Returns an empty string if the payload is too small to decode.
+   *        Pure function — exposed for testability.
+   * @param payload Raw bytes of the SS_FRAME_FEC_STATUS message (big-endian).
+   * @param timestamp_ms Wall-clock timestamp in milliseconds since Unix epoch.
+   * @param session_id The launch session identifier.
+   * @param bitrate_kbps Bitrate negotiated for the session, in kbps.
+   * @param idr_count Accumulated IDR requests since the previous row.
+   */
+  std::string format_metrics_csv_row(
+    const std::string_view &payload,
+    int64_t timestamp_ms,
+    uint32_t session_id,
+    int bitrate_kbps,
+    int idr_count
+  ) {
+    if (payload.size() < sizeof(ss_frame_fec_status_wire_t)) {
+      return {};
+    }
+
+    auto *fec = reinterpret_cast<const ss_frame_fec_status_wire_t *>(payload.data());
+
+    std::ostringstream os;
+    os << timestamp_ms << ','
+       << session_id << ','
+       << bitrate_kbps << ','
+       << fec->frameIndex << ','
+       << fec->missingPacketsBeforeHighestReceived << ','
+       << fec->totalDataPackets << ','
+       << fec->receivedDataPackets << ','
+       << fec->totalParityPackets << ','
+       << fec->receivedParityPackets << ','
+       << static_cast<int>(fec->fecPercentage) << ','
+       << idr_count;
+    return os.str();
+  }
+
+  /**
+   * @brief Builds the per-session metrics CSV filename (without directory).
+   *        Pure function — exposed for testability.
+   */
+  std::string make_metrics_csv_filename(uint32_t session_id, int64_t timestamp_ms) {
+    return "sunshine_metrics_" + std::to_string(session_id) + "_" +
+           std::to_string(timestamp_ms) + ".csv";
+  }
+
+  /**
    * @brief Pass gamepad feedback data back to the client.
    * @param session The session object.
    * @param msg The message to pass.
@@ -995,15 +1054,20 @@ namespace stream {
         return;
       }
 
-      if (payload.size() < sizeof(ss_frame_fec_status_wire_t)) {
+      auto wall_now = std::chrono::system_clock::now().time_since_epoch();
+      auto wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(wall_now).count();
+
+      auto row = format_metrics_csv_row(
+        payload,
+        wall_ms,
+        session->launch_session_id,
+        session->config.monitor.bitrate,
+        session->metrics.idr_count
+      );
+      if (row.empty()) {
         BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS payload too small: " << payload.size();
         return;
       }
-
-      auto *fec = reinterpret_cast<const ss_frame_fec_status_wire_t *>(payload.data());
-
-      auto wall_now = std::chrono::system_clock::now().time_since_epoch();
-      auto wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(wall_now).count();
 
       if (!session->metrics.csv_file.is_open()) {
         std::filesystem::path dir {config::stream.metrics_path};
@@ -1014,9 +1078,7 @@ namespace stream {
           return;
         }
 
-        auto filename = "sunshine_metrics_" + std::to_string(session->launch_session_id) +
-                        "_" + std::to_string(wall_ms) + ".csv";
-        auto path = dir / filename;
+        auto path = dir / make_metrics_csv_filename(session->launch_session_id, wall_ms);
 
         session->metrics.csv_file.open(path);
         if (!session->metrics.csv_file.is_open()) {
@@ -1025,27 +1087,10 @@ namespace stream {
         }
 
         BOOST_LOG(info) << "metrics: writing session metrics to "sv << path;
-
-        session->metrics.csv_file
-          << "timestamp_ms,session_id,bitrate_kbps,frame_index,"
-             "missing_packets,total_data_packets,received_data_packets,"
-             "total_parity_packets,received_parity_packets,fec_percentage,"
-             "idr_request_count\n";
+        session->metrics.csv_file << metrics_csv_header() << '\n';
       }
 
-      session->metrics.csv_file
-        << wall_ms << ','
-        << session->launch_session_id << ','
-        << session->config.monitor.bitrate << ','
-        << fec->frameIndex << ','
-        << fec->missingPacketsBeforeHighestReceived << ','
-        << fec->totalDataPackets << ','
-        << fec->receivedDataPackets << ','
-        << fec->totalParityPackets << ','
-        << fec->receivedParityPackets << ','
-        << static_cast<int>(fec->fecPercentage) << ','
-        << session->metrics.idr_count << '\n';
-
+      session->metrics.csv_file << row << '\n';
       session->metrics.idr_count = 0;
     });
 
