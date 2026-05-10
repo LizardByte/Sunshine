@@ -4,7 +4,9 @@
  */
 
 // standard includes
+#include <cstring>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <future>
 #include <queue>
@@ -842,19 +844,20 @@ namespace stream {
       return {};
     }
 
-    auto *fec = reinterpret_cast<const ss_frame_fec_status_wire_t *>(payload.data());
+    ss_frame_fec_status_wire_t fec;
+    std::memcpy(&fec, payload.data(), sizeof(fec));
 
     std::ostringstream os;
     os << timestamp_ms << ','
        << session_id << ','
        << bitrate_kbps << ','
-       << fec->frameIndex << ','
-       << fec->missingPacketsBeforeHighestReceived << ','
-       << fec->totalDataPackets << ','
-       << fec->receivedDataPackets << ','
-       << fec->totalParityPackets << ','
-       << fec->receivedParityPackets << ','
-       << static_cast<int>(fec->fecPercentage) << ','
+       << fec.frameIndex << ','
+       << fec.missingPacketsBeforeHighestReceived << ','
+       << fec.totalDataPackets << ','
+       << fec.receivedDataPackets << ','
+       << fec.totalParityPackets << ','
+       << fec.receivedParityPackets << ','
+       << static_cast<int>(fec.fecPercentage) << ','
        << idr_count;
     return os.str();
   }
@@ -864,8 +867,36 @@ namespace stream {
    *        Pure function — exposed for testability.
    */
   std::string make_metrics_csv_filename(uint32_t session_id, int64_t timestamp_ms) {
-    return "sunshine_metrics_" + std::to_string(session_id) + "_" +
-           std::to_string(timestamp_ms) + ".csv";
+    return std::format("sunshine_metrics_{}_{}.csv", session_id, timestamp_ms);
+  }
+
+  /**
+   * @brief Lazily opens the per-session metrics CSV file and writes the header.
+   *        No-op on subsequent calls. Returns true if the file is open and ready.
+   */
+  bool ensure_metrics_csv_open(session_t *session, int64_t wall_ms) {
+    if (session->metrics.csv_file.is_open()) {
+      return true;
+    }
+
+    std::filesystem::path dir {config::stream.metrics_path};
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    if (ec) {
+      BOOST_LOG(error) << "metrics_path: failed to create directory "sv << dir << ": "sv << ec.message();
+      return false;
+    }
+
+    auto path = dir / make_metrics_csv_filename(session->launch_session_id, wall_ms);
+    session->metrics.csv_file.open(path);
+    if (!session->metrics.csv_file.is_open()) {
+      BOOST_LOG(error) << "metrics_path: failed to open "sv << path;
+      return false;
+    }
+
+    BOOST_LOG(info) << "metrics: writing session metrics to "sv << path;
+    session->metrics.csv_file << metrics_csv_header() << '\n';
+    return true;
   }
 
   /**
@@ -1058,36 +1089,16 @@ namespace stream {
       auto wall_ms = std::chrono::duration_cast<std::chrono::milliseconds>(wall_now).count();
 
       auto row = format_metrics_csv_row(
-        payload,
-        wall_ms,
-        session->launch_session_id,
-        session->config.monitor.bitrate,
-        session->metrics.idr_count
+        payload, wall_ms, session->launch_session_id,
+        session->config.monitor.bitrate, session->metrics.idr_count
       );
       if (row.empty()) {
         BOOST_LOG(warning) << "SS_FRAME_FEC_STATUS payload too small: " << payload.size();
         return;
       }
 
-      if (!session->metrics.csv_file.is_open()) {
-        std::filesystem::path dir {config::stream.metrics_path};
-        std::error_code ec;
-        std::filesystem::create_directories(dir, ec);
-        if (ec) {
-          BOOST_LOG(error) << "metrics_path: failed to create directory "sv << dir << ": "sv << ec.message();
-          return;
-        }
-
-        auto path = dir / make_metrics_csv_filename(session->launch_session_id, wall_ms);
-
-        session->metrics.csv_file.open(path);
-        if (!session->metrics.csv_file.is_open()) {
-          BOOST_LOG(error) << "metrics_path: failed to open "sv << path;
-          return;
-        }
-
-        BOOST_LOG(info) << "metrics: writing session metrics to "sv << path;
-        session->metrics.csv_file << metrics_csv_header() << '\n';
+      if (!ensure_metrics_csv_open(session, wall_ms)) {
+        return;
       }
 
       session->metrics.csv_file << row << '\n';

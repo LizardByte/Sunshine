@@ -49,40 +49,42 @@ TEST(ConcatAndInsertTests, ConcatSmallStrideTest) {
 }
 
 namespace {
+  struct fec_status_values_t {
+    uint32_t frame_index = 0;
+    uint16_t highest_received = 0;
+    uint16_t next_contiguous = 0;
+    uint16_t missing = 0;
+    uint16_t total_data = 0;
+    uint16_t total_parity = 0;
+    uint16_t received_data = 0;
+    uint16_t received_parity = 0;
+    uint8_t fec_percentage = 0;
+    uint8_t multi_fec_index = 0;
+    uint8_t multi_fec_count = 0;
+  };
+
   // Builds a 21-byte SS_FRAME_FEC_STATUS payload in the wire (big-endian) format.
-  std::array<uint8_t, 21> build_fec_status_payload(
-    uint32_t frame_index,
-    uint16_t highest_received,
-    uint16_t next_contiguous,
-    uint16_t missing,
-    uint16_t total_data,
-    uint16_t total_parity,
-    uint16_t received_data,
-    uint16_t received_parity,
-    uint8_t fec_percentage,
-    uint8_t multi_fec_index,
-    uint8_t multi_fec_count
-  ) {
-    auto put_u16_be = [](std::array<uint8_t, 21> &out, size_t off, uint16_t v) {
-      out[off] = static_cast<uint8_t>((v >> 8) & 0xFF);
-      out[off + 1] = static_cast<uint8_t>(v & 0xFF);
+  std::array<uint8_t, 21> build_fec_status_payload(const fec_status_values_t &v) {
+    auto put_u16_be = [](std::array<uint8_t, 21> &out, size_t off, uint16_t value) {
+      out[off] = static_cast<uint8_t>((value >> 8) & 0xFF);
+      out[off + 1] = static_cast<uint8_t>(value & 0xFF);
     };
 
     std::array<uint8_t, 21> payload {};
-    payload[0] = static_cast<uint8_t>((frame_index >> 24) & 0xFF);
-    payload[1] = static_cast<uint8_t>((frame_index >> 16) & 0xFF);
-    payload[2] = static_cast<uint8_t>((frame_index >> 8) & 0xFF);
-    payload[3] = static_cast<uint8_t>(frame_index & 0xFF);
-    put_u16_be(payload, 4, highest_received);
-    put_u16_be(payload, 6, next_contiguous);
-    put_u16_be(payload, 8, missing);
-    put_u16_be(payload, 10, total_data);
-    put_u16_be(payload, 12, total_parity);
-    put_u16_be(payload, 14, received_data);
-    put_u16_be(payload, 16, received_parity);
-    payload[18] = fec_percentage;
-    payload[19] = multi_fec_index;
-    payload[20] = multi_fec_count;
+    payload[0] = static_cast<uint8_t>((v.frame_index >> 24) & 0xFF);
+    payload[1] = static_cast<uint8_t>((v.frame_index >> 16) & 0xFF);
+    payload[2] = static_cast<uint8_t>((v.frame_index >> 8) & 0xFF);
+    payload[3] = static_cast<uint8_t>(v.frame_index & 0xFF);
+    put_u16_be(payload, 4, v.highest_received);
+    put_u16_be(payload, 6, v.next_contiguous);
+    put_u16_be(payload, 8, v.missing);
+    put_u16_be(payload, 10, v.total_data);
+    put_u16_be(payload, 12, v.total_parity);
+    put_u16_be(payload, 14, v.received_data);
+    put_u16_be(payload, 16, v.received_parity);
+    payload[18] = v.fec_percentage;
+    payload[19] = v.multi_fec_index;
+    payload[20] = v.multi_fec_count;
     return payload;
   }
 }  // namespace
@@ -104,19 +106,19 @@ TEST(MetricsCsvTests, HeaderHasAllColumns) {
 }
 
 TEST(MetricsCsvTests, RowDecodesBigEndianFields) {
-  auto payload = build_fec_status_payload(
-    /*frame_index=*/0x12345678u,  // 305419896
-    /*highest_received=*/100,
-    /*next_contiguous=*/95,
-    /*missing=*/5,
-    /*total_data=*/50,
-    /*total_parity=*/10,
-    /*received_data=*/45,
-    /*received_parity=*/9,
-    /*fec_percentage=*/20,
-    /*multi_fec_index=*/0,
-    /*multi_fec_count=*/1
-  );
+  auto payload = build_fec_status_payload({
+    .frame_index = 0x12345678u,  // 305419896
+    .highest_received = 100,
+    .next_contiguous = 95,
+    .missing = 5,
+    .total_data = 50,
+    .total_parity = 10,
+    .received_data = 45,
+    .received_parity = 9,
+    .fec_percentage = 20,
+    .multi_fec_index = 0,
+    .multi_fec_count = 1,
+  });
 
   auto row = stream::format_metrics_csv_row(
     std::string_view {reinterpret_cast<const char *>(payload.data()), payload.size()},
@@ -142,7 +144,7 @@ TEST(MetricsCsvTests, RowReturnsEmptyOnShortPayload) {
 }
 
 TEST(MetricsCsvTests, RowEmbedsSessionMetadata) {
-  auto payload = build_fec_status_payload(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+  auto payload = build_fec_status_payload({});
 
   auto row = stream::format_metrics_csv_row(
     std::string_view {reinterpret_cast<const char *>(payload.data()), payload.size()},
