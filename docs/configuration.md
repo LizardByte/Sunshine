@@ -1929,6 +1929,36 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### metrics_path
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Directory where Sunshine writes a CSV file with per-session network metrics.
+            One file per session is created lazily on the first FEC status report from
+            the client (typically only when the network experiences packet loss). Each
+            row records the timestamp, session id, configured bitrate, frame index,
+            packet counts, FEC percentage, and accumulated IDR requests since the
+            previous row.
+            @note{Leave empty to disable metrics export. The directory is created if
+            it does not exist.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            (empty — disabled)
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            metrics_path = /var/log/sunshine/metrics
+            @endcode</td>
+    </tr>
+</table>
+
 ### qp
 
 <table>

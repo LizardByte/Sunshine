@@ -20,7 +20,7 @@ namespace stream {
     int idr_count
   );
   std::string make_metrics_csv_filename(uint32_t session_id, int64_t timestamp_ms);
-}
+}  // namespace stream
 
 #include "../tests_common.h"
 
