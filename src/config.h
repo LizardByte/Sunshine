@@ -19,6 +19,13 @@ namespace config {
   // track modified config options
   inline std::unordered_map<std::string, std::string> modified_config_settings;
 
+  // sensitive values that should be redacted from logging
+  inline constexpr std::array redacted_config = {
+    "csrf_allowed_origins"
+  };
+
+  void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+
   struct video_t {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
@@ -79,6 +86,11 @@ namespace config {
     struct {
       bool strict_rc_buffer;
     } vaapi;
+
+    struct {
+      int tune;  // 0=default, 1=hq, 2=ll, 3=ull, 4=lossless
+      int rc_mode;  // 0=driver, 1=cqp, 2=cbr, 4=vbr
+    } vk;
 
     std::string capture;
     std::string encoder;

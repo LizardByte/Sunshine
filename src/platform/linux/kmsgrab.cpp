@@ -27,6 +27,7 @@
 #include "src/utility.h"
 #include "src/video.h"
 #include "vaapi.h"
+#include "vulkan_encode.h"
 #include "wayland.h"
 
 using namespace std::literals;
@@ -960,10 +961,7 @@ namespace platf {
         } else if (plane->fb_id != captured_cursor.fb_id) {
           BOOST_LOG(debug) << "Refreshing cursor image after FB changed"sv;
           cursor_dirty = true;
-        } else if (*prop_src_x != captured_cursor.prop_src_x ||
-                   *prop_src_y != captured_cursor.prop_src_y ||
-                   *prop_src_w != captured_cursor.prop_src_w ||
-                   *prop_src_h != captured_cursor.prop_src_h) {
+        } else if (*prop_src_x != captured_cursor.prop_src_x || *prop_src_y != captured_cursor.prop_src_y || *prop_src_w != captured_cursor.prop_src_w || *prop_src_h != captured_cursor.prop_src_h) {
           BOOST_LOG(debug) << "Refreshing cursor image after source dimensions changed"sv;
           cursor_dirty = true;
         }
@@ -1379,6 +1377,12 @@ namespace platf {
         }
 #endif
 
+#ifdef SUNSHINE_BUILD_VULKAN
+        if (mem_type == mem_type_e::vulkan) {
+          return vk::make_avcodec_encode_device_vram(width, height, img_offset_x, img_offset_y);
+        }
+#endif
+
 #ifdef SUNSHINE_BUILD_CUDA
         if (mem_type == mem_type_e::cuda) {
           return cuda::make_avcodec_gl_encode_device(width, height, img_offset_x, img_offset_y);
@@ -1524,7 +1528,7 @@ namespace platf {
   }  // namespace kms
 
   std::shared_ptr<display_t> kms_display(mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
-    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda) {
+    if (hwdevice_type == mem_type_e::vaapi || hwdevice_type == mem_type_e::cuda || hwdevice_type == mem_type_e::vulkan) {
       auto disp = std::make_shared<kms::display_vram_t>(hwdevice_type);
 
       if (!disp->init(display_name, config)) {

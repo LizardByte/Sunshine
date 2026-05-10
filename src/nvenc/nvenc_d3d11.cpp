@@ -39,7 +39,7 @@ namespace nvenc {
     if ((dll = LoadLibraryEx(dll_name, nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32))) {
       if (auto create_instance = (decltype(NvEncodeAPICreateInstance) *) GetProcAddress(dll, "NvEncodeAPICreateInstance")) {
         auto new_nvenc = std::make_unique<NV_ENCODE_API_FUNCTION_LIST>();
-        new_nvenc->version = min_struct_version(NV_ENCODE_API_FUNCTION_LIST_VER);
+        new_nvenc->version = NV_ENCODE_API_FUNCTION_LIST_VER;
         if (nvenc_failed(create_instance(new_nvenc.get()))) {
           BOOST_LOG(error) << "NvEnc: NvEncodeAPICreateInstance() failed: " << last_nvenc_error_string;
         } else {

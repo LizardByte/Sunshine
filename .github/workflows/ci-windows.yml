@@ -72,7 +72,7 @@ jobs:
 
       - name: Setup Dependencies Windows
         # if a dependency needs to be pinned, see https://github.com/LizardByte/build-deps/pull/186
-        uses: msys2/setup-msys2@cafece8e6baf9247cf9b1bf95097b0b983cc558d  # v2.31.0
+        uses: msys2/setup-msys2@e9898307ac31d1a803454791be09ab9973336e1c  # v2.31.1
         with:
           msystem: ${{ matrix.msystem }}
           update: true
@@ -111,7 +111,6 @@ jobs:
             dependencies+=(
               "mingw-w64-${TOOLCHAIN}-MinHook"
               "mingw-w64-${TOOLCHAIN}-nsis"
-              "mingw-w64-${TOOLCHAIN}-nodejs"
             )
           fi
 
@@ -177,14 +176,11 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Setup NodeJS
-        # Clang compiled NodeJS has issues when running rollup webpack
-        if: matrix.msystem != 'ucrt64'
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e  # v6.4.0
         with:
           node-version: 'lts/*'
 
       - name: NodeJS Path
-        if: matrix.msystem != 'ucrt64'
         shell: pwsh
         run: |
           # get NodeJS PATH
@@ -226,10 +222,8 @@ jobs:
           COMMIT: ${{ inputs.release_commit }}
         run: |
           # setup NodeJS PATH
-          if [[ "${MATRIX_MSYSTEM}" != "ucrt64" ]]; then
-            NODEJS_PATH=$(cygpath "$NODEJS_PATH")
-            export PATH="$PATH:$NODEJS_PATH"
-          fi
+          NODEJS_PATH=$(cygpath "$NODEJS_PATH")
+          export PATH="$PATH:$NODEJS_PATH"
 
           mkdir -p build
           cmake \
@@ -335,7 +329,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: coverage-${{ matrix.name }}
           path: |
@@ -358,7 +352,7 @@ jobs:
             a "../artifacts/Sunshine-${{ matrix.name }}-debuginfo.7z" "*.dbg"
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: build-${{ matrix.name }}
           path: artifacts/

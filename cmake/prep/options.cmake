@@ -58,10 +58,14 @@ elseif(UNIX)  # Linux
             "Enable KMS grab if available." ON)
     option(SUNSHINE_ENABLE_VAAPI
             "Enable building vaapi specific code." ON)
+    option(SUNSHINE_ENABLE_VULKAN
+            "Enable Vulkan video encoding." ON)
     option(SUNSHINE_ENABLE_WAYLAND
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11
             "Enable X11 grab if available." ON)
+    option(SUNSHINE_ENABLE_KWIN
+            "Enable KWin ScreenCast grab if available" ON)
     option(SUNSHINE_ENABLE_PORTAL
             "Enable XDG portal grab if available" ON)
 endif()

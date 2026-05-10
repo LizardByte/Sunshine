@@ -209,11 +209,11 @@ namespace platf {
               events->raise(ready);
               break;
             case PA_CONTEXT_TERMINATED:
-              BOOST_LOG(debug) << "Pulseadio context terminated"sv;
+              BOOST_LOG(debug) << "PulseAudio context terminated"sv;
               events->raise(terminated);
               break;
             case PA_CONTEXT_FAILED:
-              BOOST_LOG(debug) << "Pulseadio context failed"sv;
+              BOOST_LOG(debug) << "PulseAudio context failed"sv;
               events->raise(failed);
               break;
             case PA_CONTEXT_CONNECTING:

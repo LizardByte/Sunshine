@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: More space
         if: matrix.arch == 'x86_64'
-        uses: LizardByte/actions/actions/more_space@0affa4f7bcb27562658960eee840eff8ff844578  # v2026.328.161128
+        uses: LizardByte/actions/actions/more_space@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
         with:
           analyze-space-savings: true
           clean-all: true
@@ -43,18 +43,6 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           submodules: recursive
-
-      - name: Setup node
-        id: node
-        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f  # v6.3.0
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install npm dependencies
-        run: npm install --ignore-scripts --package-lock-only
-
-      - name: Debug package-lock.json
-        run: cat package-lock.json
 
       - name: Setup python
         id: python
@@ -105,7 +93,7 @@ jobs:
           cp glad-dependencies.json build/
 
       - name: Cache Flatpak build
-        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7  # v5.0.4
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
         with:
           path: ./build/.flatpak-builder
           key: flatpak-${{ matrix.arch }}-${{ github.sha }}
@@ -209,9 +197,9 @@ jobs:
           mkdir -p flathub/modules
           cp "./build/generated-sources.json" "./flathub/"
           cp "./build/glad-dependencies.json" "./flathub/"
-          cp "./build/package-lock.json" "./flathub/"
           cp "./build/${APP_ID}.yml" "./flathub/"
           cp "./build/${APP_ID}.metainfo.xml" "./flathub/"
+          cp "./package-lock.json" "./flathub/"
           cp "./packaging/linux/flatpak/README.md" "./flathub/"
           cp "./packaging/linux/flatpak/flathub.json" "./flathub/"
           cp -r "./packaging/linux/flatpak/modules/." "./flathub/modules/"
@@ -221,7 +209,7 @@ jobs:
           tar -czf ./artifacts/flathub.tar.gz -C ./flathub .
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: build-Linux-Flatpak-${{ matrix.arch }}
           path: artifacts/

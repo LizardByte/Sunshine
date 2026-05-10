@@ -31,15 +31,7 @@ endif()
 
 target_link_libraries(sunshine ${SUNSHINE_EXTERNAL_LIBRARIES} ${EXTRA_LIBS})
 target_compile_definitions(sunshine PUBLIC ${SUNSHINE_DEFINITIONS})
-if(APPLE AND NOT SUNSHINE_BUILD_HOMEBREW)
-    # codesign on Mac won't sign an .app that uses a symlink
-    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23)
-else()
-    # symlink sunshine -> sunshine-PROJECT_VERSION
-    set_target_properties(sunshine PROPERTIES CXX_STANDARD 23
-            VERSION ${PROJECT_VERSION}
-            SOVERSION ${PROJECT_VERSION_MAJOR})
-endif()
+set_target_properties(sunshine PROPERTIES CXX_STANDARD 23)
 
 # CLion complains about unknown flags after running cmake, and cannot add symbols to the index for cuda files
 if(CUDA_INHERIT_COMPILE_OPTIONS)
@@ -72,7 +64,7 @@ endif()
 add_custom_target(web-ui ALL
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Installing NPM Dependencies and Building the Web UI"
-        COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" install ${NPM_INSTALL_FLAGS}
+        COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" ci ${NPM_INSTALL_FLAGS}
         COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
         COMMAND_EXPAND_LISTS
         VERBATIM)

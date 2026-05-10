@@ -522,9 +522,7 @@ namespace va {
 
     va::display_t display {vaGetDisplayDRM(fd)};
     if (!display) {
-      auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
-
-      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << render_device;
+      BOOST_LOG(error) << "Couldn't open a va display from DRM with device: "sv << platf::resolve_render_device();
       return -1;
     }
 
@@ -642,9 +640,9 @@ namespace va {
   }
 
   std::unique_ptr<platf::avcodec_encode_device_t> make_avcodec_encode_device(int width, int height, int offset_x, int offset_y, bool vram) {
-    auto render_device = config::video.adapter_name.empty() ? "/dev/dri/renderD128" : config::video.adapter_name.c_str();
+    auto render_device = platf::resolve_render_device();
 
-    file_t file = open(render_device, O_RDWR);
+    file_t file = ::open(render_device.c_str(), O_RDWR);  // NOSONAR(cpp:S1874) - `_sopen_s` not available
     if (file.el < 0) {
       char string[1024];
       BOOST_LOG(error) << "Couldn't open "sv << render_device << ": " << strerror_r(errno, string, sizeof(string));

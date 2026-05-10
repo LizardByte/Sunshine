@@ -86,7 +86,7 @@ jobs:
           echo "PROCESSOR_COUNT: $PROCESSOR_COUNT"
 
       - name: Setup FreeBSD
-        uses: vmactions/freebsd-vm@7ca82f79fe3078fecded6d3a2bff094995447bbd  # v1.4.4
+        uses: vmactions/freebsd-vm@d1e65811565151536c0c894fff74f06351ed26e6  # v1.4.5
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
@@ -113,6 +113,9 @@ jobs:
               devel/pkgconf \
               ftp/curl \
               graphics/libdrm \
+              graphics/shaderc \
+              graphics/vulkan-headers \
+              graphics/vulkan-loader \
               graphics/wayland \
               lang/python314 \
               multimedia/libva \
@@ -170,6 +173,7 @@ jobs:
             -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
             -DSUNSHINE_ENABLE_CUDA=OFF \
             -DSUNSHINE_ENABLE_DRM=OFF \
+            -DSUNSHINE_ENABLE_KWIN=ON \
             -DSUNSHINE_ENABLE_PORTAL=ON \
             -DSUNSHINE_ENABLE_WAYLAND=ON \
             -DSUNSHINE_ENABLE_X11=ON \
@@ -260,7 +264,7 @@ jobs:
         if: >-
           always() &&
           (steps.test_report.outcome == 'success')
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: coverage-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: |
@@ -269,7 +273,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f  # v7.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: build-FreeBSD-${{ matrix.bsd_release }}-${{ matrix.cmake_processor }}
           path: artifacts/

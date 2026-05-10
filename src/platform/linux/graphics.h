@@ -305,6 +305,9 @@ namespace egl {
     // Increment sequence when new rgb_t needs to be created
     std::uint64_t sequence;
 
+    // Frame is vertically flipped (GL convention)
+    bool y_invert {false};
+
     // PipeWire metadata
     std::optional<uint64_t> pts;
     std::optional<uint64_t> seq;
