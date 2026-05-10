@@ -310,7 +310,10 @@ int main(int argc, char *argv[]) {
 
     // Break out of the main loop
     shutdown_event->raise(true);
-    system_tray::end_tray();
+
+    if (tray_is_enabled && config::sunshine.system_tray) {
+      system_tray::end_tray();
+    }
 
     display_device_deinit_guard = nullptr;
   });
@@ -327,7 +330,10 @@ int main(int argc, char *argv[]) {
 
     // Break out of the main loop
     shutdown_event->raise(true);
-    system_tray::end_tray();
+
+    if (tray_is_enabled && config::sunshine.system_tray) {
+      system_tray::end_tray();
+    }
 
     display_device_deinit_guard = nullptr;
   });
