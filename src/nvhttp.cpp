@@ -150,6 +150,46 @@ namespace nvhttp {
   using resp_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Response>;
   using req_http_t = std::shared_ptr<typename SimpleWeb::ServerBase<SimpleWeb::HTTP>::Request>;
 
+  const char *pair_phase_name(PAIR_PHASE phase) {
+    switch (phase) {
+      case PAIR_PHASE::NONE:
+        return "NONE";
+      case PAIR_PHASE::GETSERVERCERT:
+        return "GETSERVERCERT";
+      case PAIR_PHASE::CLIENTCHALLENGE:
+        return "CLIENTCHALLENGE";
+      case PAIR_PHASE::SERVERCHALLENGERESP:
+        return "SERVERCHALLENGERESP";
+      case PAIR_PHASE::CLIENTPAIRINGSECRET:
+        return "CLIENTPAIRINGSECRET";
+    }
+
+    return "UNKNOWN";
+  }
+
+  std::string diag_value(std::string_view value) {
+    return value.empty() ? "<empty>"s : std::string(value);
+  }
+
+  std::string get_optional_arg(const args_t &args, const char *name) {
+    auto it = args.find(name);
+    if (it == std::end(args)) {
+      return {};
+    }
+
+    return it->second;
+  }
+
+  void log_pair_session_marker(std::string_view marker, const pair_session_t &sess) {
+    BOOST_LOG(info) << "PAIR_DIAG "sv << marker
+                    << " session_key="sv << diag_value(sess.client.uniqueID)
+                    << " client_name="sv << diag_value(sess.client.name)
+                    << " client_cert_len="sv << sess.client.cert.size()
+                    << " salt_len="sv << sess.async_insert_pin.salt.size()
+                    << " phase="sv << pair_phase_name(sess.last_phase)
+                    << " active_sessions="sv << map_id_sess.size();
+  }
+
   enum class op_e {
     ADD,  ///< Add certificate
     REMOVE  ///< Remove certificate
@@ -168,12 +208,16 @@ namespace nvhttp {
   }
 
   void save_state() {
+    BOOST_LOG(info) << "PAIR_DIAG save_state begin path="sv << config::nvhttp.file_state
+                    << " authorized_clients="sv << client_root.named_devices.size();
+
     pt::ptree root;
 
     if (fs::exists(config::nvhttp.file_state)) {
       try {
         pt::read_json(config::nvhttp.file_state, root);
       } catch (std::exception &e) {
+        BOOST_LOG(error) << "PAIR_DIAG save_state failed while reading path="sv << config::nvhttp.file_state << ": "sv << e.what();
         BOOST_LOG(error) << "Couldn't read "sv << config::nvhttp.file_state << ": "sv << e.what();
         return;
       }
@@ -199,9 +243,13 @@ namespace nvhttp {
     try {
       pt::write_json(config::nvhttp.file_state, root);
     } catch (std::exception &e) {
+      BOOST_LOG(error) << "PAIR_DIAG save_state failed while writing path="sv << config::nvhttp.file_state << ": "sv << e.what();
       BOOST_LOG(error) << "Couldn't write "sv << config::nvhttp.file_state << ": "sv << e.what();
       return;
     }
+
+    BOOST_LOG(info) << "PAIR_DIAG save_state succeeded path="sv << config::nvhttp.file_state
+                    << " authorized_clients="sv << client_root.named_devices.size();
   }
 
   void load_state() {
@@ -270,6 +318,11 @@ namespace nvhttp {
   }
 
   void add_authorized_client(const std::string &name, std::string &&cert) {
+    const auto cert_len = cert.size();
+    BOOST_LOG(info) << "PAIR_DIAG add_authorized_client called name="sv << diag_value(name)
+                    << " cert_len="sv << cert_len
+                    << " authorized_clients_before="sv << client_root.named_devices.size();
+
     client_t &client = client_root;
     named_cert_t named_cert;
     named_cert.name = name;
@@ -277,8 +330,16 @@ namespace nvhttp {
     named_cert.uuid = uuid_util::uuid_t::generate().string();
     client.named_devices.emplace_back(named_cert);
 
+    BOOST_LOG(info) << "PAIR_DIAG add_authorized_client added name="sv << diag_value(client.named_devices.back().name)
+                    << " uuid="sv << client.named_devices.back().uuid
+                    << " cert_len="sv << cert_len
+                    << " authorized_clients_after="sv << client.named_devices.size();
+
     if (!config::sunshine.flags[config::flag::FRESH_STATE]) {
+      BOOST_LOG(info) << "PAIR_DIAG add_authorized_client invoking save_state path="sv << config::nvhttp.file_state;
       save_state();
+    } else {
+      BOOST_LOG(warning) << "PAIR_DIAG add_authorized_client skipped save_state because FRESH_STATE is set";
     }
   }
 
@@ -341,10 +402,21 @@ namespace nvhttp {
   }
 
   void remove_session(const pair_session_t &sess) {
-    map_id_sess.erase(sess.client.uniqueID);
+    const auto session_key = sess.client.uniqueID;
+    const auto before = map_id_sess.size();
+    const auto erased = map_id_sess.erase(session_key);
+    BOOST_LOG(info) << "PAIR_DIAG remove_session session_key="sv << diag_value(session_key)
+                    << " erased="sv << erased
+                    << " active_sessions_before="sv << before
+                    << " active_sessions_after="sv << map_id_sess.size();
   }
 
   void fail_pair(pair_session_t &sess, pt::ptree &tree, const std::string status_msg) {
+    BOOST_LOG(warning) << "PAIR_DIAG pairing rejected session_key="sv << diag_value(sess.client.uniqueID)
+                       << " reason="sv << status_msg
+                       << " phase="sv << pair_phase_name(sess.last_phase)
+                       << " client_name="sv << diag_value(sess.client.name)
+                       << " active_sessions="sv << map_id_sess.size();
     tree.put("root.paired", 0);
     tree.put("root.<xmlattr>.status_code", 400);
     tree.put("root.<xmlattr>.status_message", status_msg);
@@ -352,13 +424,25 @@ namespace nvhttp {
   }
 
   void getservercert(pair_session_t &sess, pt::ptree &tree, const std::string &pin) {
+    log_pair_session_marker("getservercert reached", sess);
+    BOOST_LOG(info) << "PAIR_DIAG getservercert map_id_sess size before="sv << map_id_sess.size()
+                    << " pin_len="sv << pin.size();
+
     if (sess.last_phase != PAIR_PHASE::NONE) {
+      BOOST_LOG(warning) << "PAIR_DIAG getservercert rejected bad phase session_key="sv << diag_value(sess.client.uniqueID)
+                         << " phase_before="sv << pair_phase_name(sess.last_phase);
       fail_pair(sess, tree, "Out of order call to getservercert");
       return;
     }
+    const auto phase_before = sess.last_phase;
     sess.last_phase = PAIR_PHASE::GETSERVERCERT;
+    BOOST_LOG(info) << "PAIR_DIAG phase transition session_key="sv << diag_value(sess.client.uniqueID)
+                    << " from="sv << pair_phase_name(phase_before)
+                    << " to="sv << pair_phase_name(sess.last_phase);
 
     if (sess.async_insert_pin.salt.size() < 32) {
+      BOOST_LOG(warning) << "PAIR_DIAG getservercert rejected salt too short session_key="sv << diag_value(sess.client.uniqueID)
+                         << " salt_len="sv << sess.async_insert_pin.salt.size();
       fail_pair(sess, tree, "Salt too short");
       return;
     }
@@ -373,16 +457,31 @@ namespace nvhttp {
     tree.put("root.paired", 1);
     tree.put("root.plaincert", util::hex_vec(conf_intern.servercert, true));
     tree.put("root.<xmlattr>.status_code", 200);
+
+    BOOST_LOG(info) << "PAIR_DIAG getservercert accepted session_key="sv << diag_value(sess.client.uniqueID)
+                    << " phase_after="sv << pair_phase_name(sess.last_phase)
+                    << " map_id_sess size after="sv << map_id_sess.size();
   }
 
   void clientchallenge(pair_session_t &sess, pt::ptree &tree, const std::string &challenge) {
+    log_pair_session_marker("clientchallenge reached", sess);
+    BOOST_LOG(info) << "PAIR_DIAG clientchallenge payload_len="sv << challenge.size()
+                    << " phase_before="sv << pair_phase_name(sess.last_phase);
+
     if (sess.last_phase != PAIR_PHASE::GETSERVERCERT) {
+      BOOST_LOG(warning) << "PAIR_DIAG clientchallenge rejected bad phase session_key="sv << diag_value(sess.client.uniqueID)
+                         << " phase_before="sv << pair_phase_name(sess.last_phase);
       fail_pair(sess, tree, "Out of order call to clientchallenge");
       return;
     }
+    const auto phase_before = sess.last_phase;
     sess.last_phase = PAIR_PHASE::CLIENTCHALLENGE;
+    BOOST_LOG(info) << "PAIR_DIAG phase transition session_key="sv << diag_value(sess.client.uniqueID)
+                    << " from="sv << pair_phase_name(phase_before)
+                    << " to="sv << pair_phase_name(sess.last_phase);
 
     if (!sess.cipher_key) {
+      BOOST_LOG(warning) << "PAIR_DIAG clientchallenge rejected cipher key missing session_key="sv << diag_value(sess.client.uniqueID);
       fail_pair(sess, tree, "Cipher key not set");
       return;
     }
@@ -416,16 +515,34 @@ namespace nvhttp {
     tree.put("root.paired", 1);
     tree.put("root.challengeresponse", util::hex_vec(encrypted, true));
     tree.put("root.<xmlattr>.status_code", 200);
+
+    BOOST_LOG(info) << "PAIR_DIAG clientchallenge accepted session_key="sv << diag_value(sess.client.uniqueID)
+                    << " phase_after="sv << pair_phase_name(sess.last_phase)
+                    << " serversecret_len="sv << sess.serversecret.size()
+                    << " serverchallenge_len="sv << sess.serverchallenge.size();
   }
 
   void serverchallengeresp(pair_session_t &sess, pt::ptree &tree, const std::string &encrypted_response) {
+    log_pair_session_marker("serverchallengeresp reached", sess);
+    BOOST_LOG(info) << "PAIR_DIAG serverchallengeresp payload_len="sv << encrypted_response.size()
+                    << " phase_before="sv << pair_phase_name(sess.last_phase);
+
     if (sess.last_phase != PAIR_PHASE::CLIENTCHALLENGE) {
+      BOOST_LOG(warning) << "PAIR_DIAG serverchallengeresp rejected bad phase session_key="sv << diag_value(sess.client.uniqueID)
+                         << " phase_before="sv << pair_phase_name(sess.last_phase);
       fail_pair(sess, tree, "Out of order call to serverchallengeresp");
       return;
     }
+    const auto phase_before = sess.last_phase;
     sess.last_phase = PAIR_PHASE::SERVERCHALLENGERESP;
+    BOOST_LOG(info) << "PAIR_DIAG phase transition session_key="sv << diag_value(sess.client.uniqueID)
+                    << " from="sv << pair_phase_name(phase_before)
+                    << " to="sv << pair_phase_name(sess.last_phase);
 
     if (!sess.cipher_key || sess.serversecret.empty()) {
+      BOOST_LOG(warning) << "PAIR_DIAG serverchallengeresp rejected missing crypto state session_key="sv << diag_value(sess.client.uniqueID)
+                         << " has_cipher_key="sv << static_cast<bool>(sess.cipher_key)
+                         << " serversecret_len="sv << sess.serversecret.size();
       fail_pair(sess, tree, "Cipher key or serversecret not set");
       return;
     }
@@ -445,18 +562,34 @@ namespace nvhttp {
     tree.put("root.pairingsecret", util::hex_vec(serversecret, true));
     tree.put("root.paired", 1);
     tree.put("root.<xmlattr>.status_code", 200);
+
+    BOOST_LOG(info) << "PAIR_DIAG serverchallengeresp accepted session_key="sv << diag_value(sess.client.uniqueID)
+                    << " phase_after="sv << pair_phase_name(sess.last_phase)
+                    << " clienthash_len="sv << sess.clienthash.size();
   }
 
   void clientpairingsecret(pair_session_t &sess, std::shared_ptr<safe::queue_t<crypto::x509_t>> &add_cert, pt::ptree &tree, const std::string &client_pairing_secret) {
+    log_pair_session_marker("clientpairingsecret reached", sess);
+    BOOST_LOG(info) << "PAIR_DIAG clientpairingsecret payload_len="sv << client_pairing_secret.size()
+                    << " phase_before="sv << pair_phase_name(sess.last_phase);
+
     if (sess.last_phase != PAIR_PHASE::SERVERCHALLENGERESP) {
+      BOOST_LOG(warning) << "PAIR_DIAG clientpairingsecret rejected bad phase session_key="sv << diag_value(sess.client.uniqueID)
+                         << " phase_before="sv << pair_phase_name(sess.last_phase);
       fail_pair(sess, tree, "Out of order call to clientpairingsecret");
       return;
     }
+    const auto phase_before = sess.last_phase;
     sess.last_phase = PAIR_PHASE::CLIENTPAIRINGSECRET;
+    BOOST_LOG(info) << "PAIR_DIAG phase transition session_key="sv << diag_value(sess.client.uniqueID)
+                    << " from="sv << pair_phase_name(phase_before)
+                    << " to="sv << pair_phase_name(sess.last_phase);
 
     auto &client = sess.client;
 
     if (client_pairing_secret.size() <= 16) {
+      BOOST_LOG(warning) << "PAIR_DIAG clientpairingsecret rejected secret too short session_key="sv << diag_value(sess.client.uniqueID)
+                         << " payload_len="sv << client_pairing_secret.size();
       fail_pair(sess, tree, "Client pairing secret too short");
       return;
     }
@@ -466,6 +599,9 @@ namespace nvhttp {
 
     auto x509 = crypto::x509(client.cert);
     if (!x509) {
+      BOOST_LOG(warning) << "PAIR_DIAG clientpairingsecret rejected invalid client certificate session_key="sv << diag_value(sess.client.uniqueID)
+                         << " client_name="sv << diag_value(client.name)
+                         << " cert_len="sv << client.cert.size();
       fail_pair(sess, tree, "Invalid client certificate");
       return;
     }
@@ -483,18 +619,31 @@ namespace nvhttp {
     // if hash not correct, probably MITM
     bool same_hash = hash.size() == sess.clienthash.size() && std::equal(hash.begin(), hash.end(), sess.clienthash.begin());
     auto verify = crypto::verify256(crypto::x509(client.cert), secret, sign);
+    BOOST_LOG(info) << "PAIR_DIAG clientpairingsecret verification session_key="sv << diag_value(sess.client.uniqueID)
+                    << " same_hash="sv << same_hash
+                    << " verify_signature="sv << verify
+                    << " client_name="sv << diag_value(client.name);
     if (same_hash && verify) {
       tree.put("root.paired", 1);
       add_cert->raise(crypto::x509(client.cert));
 
       // The client is now successfully paired and will be authorized to connect
+      BOOST_LOG(info) << "PAIR_DIAG clientpairingsecret accepted; calling add_authorized_client session_key="sv << diag_value(sess.client.uniqueID)
+                      << " client_name="sv << diag_value(client.name);
       add_authorized_client(client.name, std::move(client.cert));
     } else {
+      BOOST_LOG(warning) << "PAIR_DIAG clientpairingsecret rejected verification failed session_key="sv << diag_value(sess.client.uniqueID)
+                         << " same_hash="sv << same_hash
+                         << " verify_signature="sv << verify;
       tree.put("root.paired", 0);
     }
 
+    const auto final_session_key = sess.client.uniqueID;
+    const auto final_phase = sess.last_phase;
     remove_session(sess);
     tree.put("root.<xmlattr>.status_code", 200);
+    BOOST_LOG(info) << "PAIR_DIAG clientpairingsecret complete session_key="sv << diag_value(final_session_key)
+                    << " phase_after="sv << pair_phase_name(final_phase);
   }
 
   template<class T>
@@ -563,121 +712,256 @@ namespace nvhttp {
       response->close_connection_after_response = true;
     });
 
-    auto args = request->parse_query_string();
-    if (args.find("uniqueid"s) == std::end(args)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
+    try {
+      auto args = request->parse_query_string();
+      const auto uniqueid_arg = get_optional_arg(args, "uniqueid");
+      const auto phrase_arg = get_optional_arg(args, "phrase");
+      const auto devicename_arg = get_optional_arg(args, "devicename");
+      const auto name_arg = get_optional_arg(args, "name");
+      const auto uuid_arg = get_optional_arg(args, "uuid");
 
-      return;
-    }
+      BOOST_LOG(info) << "PAIR_DIAG /pair request uniqueid="sv << diag_value(uniqueid_arg)
+                      << " phrase="sv << diag_value(phrase_arg)
+                      << " devicename="sv << diag_value(devicename_arg)
+                      << " name="sv << diag_value(name_arg)
+                      << " uuid="sv << diag_value(uuid_arg)
+                      << " active_sessions="sv << map_id_sess.size();
 
-    auto uniqID {get_arg(args, "uniqueid")};
+      if (args.find("uniqueid"s) == std::end(args)) {
+        BOOST_LOG(warning) << "PAIR_DIAG /pair rejected reason=missing uniqueid active_sessions="sv << map_id_sess.size();
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put("root.<xmlattr>.status_message", "Missing uniqueid parameter");
 
-    args_t::const_iterator it;
-    if (it = args.find("phrase"); it != std::end(args)) {
-      if (it->second == "getservercert"sv) {
-        pair_session_t sess;
-
-        sess.client.uniqueID = std::move(uniqID);
-        sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
-
-        BOOST_LOG(debug) << sess.client.cert;
-        auto ptr = map_id_sess.emplace(sess.client.uniqueID, std::move(sess)).first;
-
-        ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
-        if (config::sunshine.flags[config::flag::PIN_STDIN]) {
-          std::string pin;
-
-          std::cout << "Please insert pin: "sv;
-          std::getline(std::cin, pin);
-
-          getservercert(ptr->second, tree, pin);
-          return;
-        } else {
-#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
-          system_tray::update_tray_require_pin();
-#endif
-          ptr->second.async_insert_pin.response = std::move(response);
-
-          fg.disable();
-          return;
-        }
-      } else if (it->second == "pairchallenge"sv) {
-        tree.put("root.paired", 1);
-        tree.put("root.<xmlattr>.status_code", 200);
         return;
       }
-    }
 
-    auto sess_it = map_id_sess.find(uniqID);
-    if (sess_it == std::end(map_id_sess)) {
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put("root.<xmlattr>.status_message", "Invalid uniqueid");
+      auto uniqID {get_arg(args, "uniqueid")};
 
-      return;
-    }
+      args_t::const_iterator it;
+      if (it = args.find("phrase"); it != std::end(args)) {
+        if (it->second == "getservercert"sv) {
+          pair_session_t sess;
 
-    if (it = args.find("clientchallenge"); it != std::end(args)) {
-      auto challenge = util::from_hex_vec(it->second, true);
-      clientchallenge(sess_it->second, tree, challenge);
-    } else if (it = args.find("serverchallengeresp"); it != std::end(args)) {
-      auto encrypted_response = util::from_hex_vec(it->second, true);
-      serverchallengeresp(sess_it->second, tree, encrypted_response);
-    } else if (it = args.find("clientpairingsecret"); it != std::end(args)) {
-      auto pairingsecret = util::from_hex_vec(it->second, true);
-      clientpairingsecret(sess_it->second, add_cert, tree, pairingsecret);
-    } else {
-      tree.put("root.<xmlattr>.status_code", 404);
-      tree.put("root.<xmlattr>.status_message", "Invalid pairing request");
+          sess.client.uniqueID = std::move(uniqID);
+          sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
+
+          const auto session_key = sess.client.uniqueID;
+          const auto client_cert_len = sess.client.cert.size();
+          const auto sessions_before = map_id_sess.size();
+          BOOST_LOG(info) << "PAIR_DIAG creating pairing session session_key="sv << diag_value(session_key)
+                          << " client_cert_len="sv << client_cert_len
+                          << " devicename="sv << diag_value(devicename_arg)
+                          << " name="sv << diag_value(name_arg)
+                          << " uuid="sv << diag_value(uuid_arg)
+                          << " active_sessions_before="sv << sessions_before;
+
+          BOOST_LOG(debug) << sess.client.cert;
+          auto [ptr, inserted] = map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+
+          BOOST_LOG(info) << "PAIR_DIAG pairing session created session_key="sv << diag_value(session_key)
+                          << " inserted="sv << inserted
+                          << " active_sessions_before="sv << sessions_before
+                          << " active_sessions_after="sv << map_id_sess.size()
+                          << " stored_phase="sv << pair_phase_name(ptr->second.last_phase);
+
+          ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
+          log_pair_session_marker("getservercert session ready for PIN", ptr->second);
+          if (config::sunshine.flags[config::flag::PIN_STDIN]) {
+            std::string pin;
+
+            std::cout << "Please insert pin: "sv;
+            std::getline(std::cin, pin);
+
+            BOOST_LOG(info) << "PAIR_DIAG map_id_sess size before getservercert="sv << map_id_sess.size()
+                            << " source=stdin session_key="sv << diag_value(session_key);
+            getservercert(ptr->second, tree, pin);
+            BOOST_LOG(info) << "PAIR_DIAG map_id_sess size after getservercert="sv << map_id_sess.size()
+                            << " source=stdin session_key="sv << diag_value(session_key);
+            return;
+          } else {
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
+            system_tray::update_tray_require_pin();
+#endif
+            ptr->second.async_insert_pin.response = std::move(response);
+
+            BOOST_LOG(info) << "PAIR_DIAG getservercert waiting for /api/pin session_key="sv << diag_value(session_key)
+                            << " active_sessions="sv << map_id_sess.size()
+                            << " async_response_stored=1";
+            fg.disable();
+            return;
+          }
+        } else if (it->second == "pairchallenge"sv) {
+          BOOST_LOG(info) << "PAIR_DIAG pairchallenge acknowledged uniqueid="sv << diag_value(uniqID)
+                          << " active_sessions="sv << map_id_sess.size();
+          tree.put("root.paired", 1);
+          tree.put("root.<xmlattr>.status_code", 200);
+          return;
+        }
+      }
+
+      BOOST_LOG(info) << "PAIR_DIAG looking up active session uniqueid="sv << diag_value(uniqID)
+                      << " active_sessions="sv << map_id_sess.size();
+      auto sess_it = map_id_sess.find(uniqID);
+      if (sess_it == std::end(map_id_sess)) {
+        BOOST_LOG(warning) << "PAIR_DIAG /pair rejected reason=no active session or session already cleaned up uniqueid="sv << diag_value(uniqID)
+                           << " active_sessions="sv << map_id_sess.size();
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put("root.<xmlattr>.status_message", "Invalid uniqueid");
+
+        return;
+      }
+
+      log_pair_session_marker("/pair session found", sess_it->second);
+      if (it = args.find("clientchallenge"); it != std::end(args)) {
+        BOOST_LOG(info) << "PAIR_DIAG dispatch clientchallenge session_key="sv << diag_value(sess_it->second.client.uniqueID)
+                        << " hex_len="sv << it->second.size();
+        auto challenge = util::from_hex_vec(it->second, true);
+        clientchallenge(sess_it->second, tree, challenge);
+      } else if (it = args.find("serverchallengeresp"); it != std::end(args)) {
+        BOOST_LOG(info) << "PAIR_DIAG dispatch serverchallengeresp session_key="sv << diag_value(sess_it->second.client.uniqueID)
+                        << " hex_len="sv << it->second.size();
+        auto encrypted_response = util::from_hex_vec(it->second, true);
+        serverchallengeresp(sess_it->second, tree, encrypted_response);
+      } else if (it = args.find("clientpairingsecret"); it != std::end(args)) {
+        BOOST_LOG(info) << "PAIR_DIAG dispatch clientpairingsecret session_key="sv << diag_value(sess_it->second.client.uniqueID)
+                        << " hex_len="sv << it->second.size();
+        auto pairingsecret = util::from_hex_vec(it->second, true);
+        clientpairingsecret(sess_it->second, add_cert, tree, pairingsecret);
+      } else {
+        BOOST_LOG(warning) << "PAIR_DIAG /pair rejected reason=invalid pairing request uniqueid="sv << diag_value(uniqID)
+                           << " active_sessions="sv << map_id_sess.size();
+        tree.put("root.<xmlattr>.status_code", 404);
+        tree.put("root.<xmlattr>.status_message", "Invalid pairing request");
+      }
+    } catch (std::exception &e) {
+      BOOST_LOG(error) << "PAIR_DIAG exception in /pair: "sv << e.what()
+                       << " active_sessions="sv << map_id_sess.size();
+      tree.put("root.<xmlattr>.status_code", 500);
+      tree.put("root.<xmlattr>.status_message", std::format("Pairing exception: {}", e.what()));
+    } catch (...) {
+      BOOST_LOG(error) << "PAIR_DIAG unknown exception in /pair active_sessions="sv << map_id_sess.size();
+      tree.put("root.<xmlattr>.status_code", 500);
+      tree.put("root.<xmlattr>.status_message", "Unknown pairing exception");
     }
   }
 
   bool pin(std::string pin, std::string name) {
-    pt::ptree tree;
-    if (map_id_sess.empty()) {
+    try {
+      pt::ptree tree;
+      const auto sessions_before = map_id_sess.size();
+      BOOST_LOG(info) << "PAIR_DIAG /api/pin received name="sv << diag_value(name)
+                      << " missing_name="sv << name.empty()
+                      << " pin_len="sv << pin.size()
+                      << " active_sessions_before="sv << sessions_before;
+
+      if (map_id_sess.empty()) {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=no active pairing session; session may be expired or already cleaned up"
+                           << " active_sessions_before="sv << sessions_before
+                           << " active_sessions_after="sv << map_id_sess.size();
+        return false;
+      }
+
+      if (name.empty()) {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin name field is empty; continuing with existing behavior";
+      }
+
+      // ensure pin is 4 digits
+      if (pin.size() != 4) {
+        tree.put("root.paired", 0);
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put(
+          "root.<xmlattr>.status_message",
+          std::format("Pin must be 4 digits, {} provided", pin.size())
+        );
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=pin length must be 4 digits provided_len="sv << pin.size()
+                           << " active_sessions_after="sv << map_id_sess.size();
+        return false;
+      }
+
+      // ensure all pin characters are numeric
+      if (!std::all_of(pin.begin(), pin.end(), ::isdigit)) {
+        tree.put("root.paired", 0);
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put("root.<xmlattr>.status_message", "Pin must be numeric");
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=pin must be numeric active_sessions_after="sv << map_id_sess.size();
+        return false;
+      }
+
+      auto sess_it = std::begin(map_id_sess);
+      auto &sess = sess_it->second;
+      const auto session_key = sess.client.uniqueID;
+      const auto phase_before = sess.last_phase;
+      BOOST_LOG(info) << "PAIR_DIAG /api/pin matched session session_key="sv << diag_value(session_key)
+                      << " phase_before="sv << pair_phase_name(phase_before)
+                      << " client_name_before="sv << diag_value(sess.client.name)
+                      << " map_id_sess size before /api/pin getservercert="sv << map_id_sess.size();
+
+      if (phase_before != PAIR_PHASE::NONE) {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin will call getservercert with bad phase session_key="sv << diag_value(session_key)
+                           << " phase_before="sv << pair_phase_name(phase_before);
+      }
+
+      getservercert(sess, tree, pin);
+
+      BOOST_LOG(info) << "PAIR_DIAG map_id_sess size after /api/pin getservercert="sv << map_id_sess.size()
+                      << " session_key="sv << diag_value(session_key);
+
+      sess_it = map_id_sess.find(session_key);
+      if (sess_it == std::end(map_id_sess)) {
+        const auto status_msg = tree.get<std::string>("root.<xmlattr>.status_message", "session removed during getservercert");
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=session removed during getservercert"
+                           << " session_key="sv << diag_value(session_key)
+                           << " status_message="sv << status_msg
+                           << " active_sessions_after="sv << map_id_sess.size();
+        return false;
+      }
+
+      sess_it->second.client.name = name;
+
+      const auto paired = tree.get<int>("root.paired", 0);
+      const auto status_msg = tree.get<std::string>("root.<xmlattr>.status_message", "");
+      if (paired == 1) {
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin accepted for getservercert session_key="sv << diag_value(session_key)
+                        << " client_name="sv << diag_value(name)
+                        << " phase_after="sv << pair_phase_name(sess_it->second.last_phase)
+                        << " note=wrong PIN will surface during later challenge verification";
+      } else {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected by getservercert session_key="sv << diag_value(session_key)
+                           << " status_message="sv << diag_value(status_msg)
+                           << " phase_after="sv << pair_phase_name(sess_it->second.last_phase);
+      }
+
+      // response to the request for pin
+      std::ostringstream data;
+      pt::write_xml(data, tree);
+
+      auto &async_response = sess_it->second.async_insert_pin.response;
+      if (async_response.has_left() && async_response.left()) {
+        async_response.left()->write(data.str());
+      } else if (async_response.has_right() && async_response.right()) {
+        async_response.right()->write(data.str());
+      } else {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=missing stored async getservercert response"
+                           << " session_key="sv << diag_value(session_key)
+                           << " active_sessions_after="sv << map_id_sess.size();
+        return false;
+      }
+
+      // reset async_response
+      async_response = std::decay_t<decltype(async_response.left())>();
+      BOOST_LOG(info) << "PAIR_DIAG /api/pin complete session_key="sv << diag_value(session_key)
+                      << " active_sessions_before="sv << sessions_before
+                      << " active_sessions_after="sv << map_id_sess.size();
+      // response to the current request
+      return true;
+    } catch (std::exception &e) {
+      BOOST_LOG(error) << "PAIR_DIAG exception in /api/pin: "sv << e.what()
+                       << " active_sessions="sv << map_id_sess.size();
+      return false;
+    } catch (...) {
+      BOOST_LOG(error) << "PAIR_DIAG unknown exception in /api/pin active_sessions="sv << map_id_sess.size();
       return false;
     }
-
-    // ensure pin is 4 digits
-    if (pin.size() != 4) {
-      tree.put("root.paired", 0);
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put(
-        "root.<xmlattr>.status_message",
-        std::format("Pin must be 4 digits, {} provided", pin.size())
-      );
-      return false;
-    }
-
-    // ensure all pin characters are numeric
-    if (!std::all_of(pin.begin(), pin.end(), ::isdigit)) {
-      tree.put("root.paired", 0);
-      tree.put("root.<xmlattr>.status_code", 400);
-      tree.put("root.<xmlattr>.status_message", "Pin must be numeric");
-      return false;
-    }
-
-    auto &sess = std::begin(map_id_sess)->second;
-    getservercert(sess, tree, pin);
-    sess.client.name = name;
-
-    // response to the request for pin
-    std::ostringstream data;
-    pt::write_xml(data, tree);
-
-    auto &async_response = sess.async_insert_pin.response;
-    if (async_response.has_left() && async_response.left()) {
-      async_response.left()->write(data.str());
-    } else if (async_response.has_right() && async_response.right()) {
-      async_response.right()->write(data.str());
-    } else {
-      return false;
-    }
-
-    // reset async_response
-    async_response = std::decay_t<decltype(async_response.left())>();
-    // response to the current request
-    return true;
   }
 
   template<class T>

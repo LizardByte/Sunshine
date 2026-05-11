@@ -1341,16 +1341,28 @@ namespace confighttp {
       nlohmann::json input_tree = nlohmann::json::parse(ss);
       const std::string name = input_tree.value("name", "");
       const std::string pin = input_tree.value("pin", "");
+      BOOST_LOG(info) << "PAIR_DIAG /api/pin API handler received name="sv << (name.empty() ? "<empty>"s : name)
+                      << " missing_name="sv << name.empty()
+                      << " pin_len="sv << pin.size()
+                      << " web_client_id="sv << client_id;
 
       int _pin = 0;
       _pin = std::stoi(pin);
       if (_pin < 0 || _pin > 9999) {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin API handler rejected reason=pin outside 0000-9999 pin_len="sv << pin.size();
         bad_request(response, request, "PIN must be between 0000 and 9999");
       }
 
-      output_tree["status"] = nvhttp::pin(pin, name);
+      const auto pin_status = nvhttp::pin(pin, name);
+      if (pin_status) {
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin API handler completed status=true name="sv << (name.empty() ? "<empty>"s : name);
+      } else {
+        BOOST_LOG(warning) << "PAIR_DIAG /api/pin API handler completed status=false name="sv << (name.empty() ? "<empty>"s : name);
+      }
+      output_tree["status"] = pin_status;
       send_response(response, output_tree);
     } catch (std::exception &e) {
+      BOOST_LOG(error) << "PAIR_DIAG exception in /api/pin API handler: "sv << e.what();
       BOOST_LOG(warning) << "SavePin: "sv << e.what();
       bad_request(response, request, e.what());
     }
