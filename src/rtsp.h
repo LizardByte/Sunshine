@@ -4,8 +4,10 @@
  */
 #pragma once
 
-// standard includes
 #include <atomic>
+#include <cstdint>
+#include <optional>
+#include <string>
 
 // local includes
 #include "crypto.h"
@@ -22,6 +24,9 @@ namespace rtsp_stream {
 
     std::string av_ping_payload;
     uint32_t control_connect_data;
+    std::optional<std::uint16_t> audio_client_port;
+    std::optional<std::uint16_t> video_client_port;
+    std::optional<std::uint16_t> control_client_port;
 
     bool host_audio;
     std::string unique_id;

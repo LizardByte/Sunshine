@@ -5,8 +5,12 @@
 
 // standard includes
 #include <atomic>
+#include <algorithm>
+#include <cstdlib>
+#include <format>
 #include <fstream>
 #include <future>
+#include <optional>
 #include <queue>
 #include <variant>
 
@@ -105,6 +109,34 @@ namespace stream {
     }
 
     return endpoint.port();
+  }
+
+  std::string stream_diag_endpoint_to_string(const udp::endpoint &peer) {
+    boost::system::error_code ec;
+    auto address = peer.address().to_string(ec);
+    if (ec) {
+      address = "<invalid-address>";
+    }
+
+    return std::format("{}:{}", address, peer.port());
+  }
+
+  std::string stream_diag_optional_port_to_string(const std::optional<std::uint16_t> &port) {
+    return port ? std::to_string(*port) : "<missing>"s;
+  }
+
+  bool stream_diag_reuse_audio_peer_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_REUSE_AUDIO_PEER");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
   }
 
 #pragma pack(push, 1)
@@ -443,6 +475,14 @@ namespace stream {
       std::atomic_uint64_t video_udp_sent {0};
       std::atomic_uint64_t audio_udp_sent {0};
       std::atomic_uint64_t control_udp_sent {0};
+
+      std::optional<std::uint16_t> video_rtsp_client_port;
+      std::optional<std::uint16_t> audio_rtsp_client_port;
+      std::optional<std::uint16_t> control_rtsp_client_port;
+
+      std::atomic_bool audio_only_video_probe_logged {false};
+      std::atomic_bool audio_only_control_probe_logged {false};
+      std::atomic_bool audio_peer_video_promoted {false};
     } stream_diag;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -464,6 +504,9 @@ namespace stream {
                     << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
                     << " audio_udp_sent="sv << session->stream_diag.audio_udp_sent.load()
                     << " control_udp_sent="sv << session->stream_diag.control_udp_sent.load()
+                    << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                    << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                    << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
                     << " audio_raised_alone_blocks_video_or_control=0";
   }
 
@@ -1216,6 +1259,29 @@ namespace stream {
             stream_diag_log_ready_state("ready state at control ping timeout", session, "CONTROL"sv);
             BOOST_LOG(info) << address << ": Ping Timeout"sv;
             session::stop(*session);
+          }
+
+          auto session_start_time = session->pingTimeout - config::stream.ping_timeout;
+          if (now - session_start_time >= 1s &&
+              session->stream_diag.audio_ping_ready.load() &&
+              !session->stream_diag.video_ping_ready.load() &&
+              !session->stream_diag.control_peer_ready.load() &&
+              session->stream_diag.video_udp_received.load() == 0 &&
+              session->stream_diag.control_udp_received.load() == 0) {
+            bool already_logged = session->stream_diag.audio_only_control_probe_logged.exchange(true);
+            if (!already_logged) {
+              BOOST_LOG(warning) << "STREAM_DIAG audio-only peer probe"
+                                 << " channel=CONTROL"
+                                 << " launch_session_id="sv << session->launch_session_id
+                                 << " audio_peer="sv << stream_diag_endpoint_to_string(session->audio.peer)
+                                 << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                                 << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                                 << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                                 << " reuse_audio_peer_enabled="sv << stream_diag_reuse_audio_peer_enabled()
+                                 << " control_peer_promotion=not_attempted"
+                                 << " reason=audio ping accepted but no control ENet activity after diagnostic delay; CONTROL uses ENet peer state, not a raw UDP endpoint";
+              stream_diag_log_ready_state("ready state during audio-only control probe", session, "CONTROL"sv);
+            }
           }
 
           if (session->state.load(std::memory_order_acquire) == session::state_e::STOPPING) {
@@ -2062,10 +2128,52 @@ namespace stream {
 
     while (current_time - start_time < config::stream.ping_timeout) {
       auto delta_time = current_time - start_time;
+      auto remaining_time = std::chrono::duration_cast<std::chrono::milliseconds>(config::stream.ping_timeout - delta_time);
+      auto wait_time = std::min(remaining_time, 250ms);
 
-      auto msg_opt = messages->pop(config::stream.ping_timeout - delta_time);
+      auto msg_opt = messages->pop(wait_time);
       if (!msg_opt) {
-        break;
+        current_time = std::chrono::steady_clock::now();
+
+        if (type == socket_e::video &&
+            current_time - start_time >= 1s &&
+            session->stream_diag.audio_ping_ready.load() &&
+            !session->stream_diag.video_ping_ready.load() &&
+            !session->stream_diag.control_peer_ready.load() &&
+            session->stream_diag.video_udp_received.load() == 0 &&
+            session->stream_diag.control_udp_received.load() == 0) {
+          bool already_logged = session->stream_diag.audio_only_video_probe_logged.exchange(true);
+          if (!already_logged) {
+            BOOST_LOG(warning) << "STREAM_DIAG audio-only peer probe"
+                               << " channel=VIDEO"
+                               << " launch_session_id="sv << session->launch_session_id
+                               << " elapsed_ms="sv << std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count()
+                               << " audio_peer="sv << stream_diag_endpoint_to_string(session->audio.peer)
+                               << " video_peer_before="sv << stream_diag_endpoint_to_string(peer)
+                               << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                               << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                               << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                               << " reuse_audio_peer_enabled="sv << stream_diag_reuse_audio_peer_enabled()
+                               << " reason=audio ping accepted but no video UDP or control ENet activity after diagnostic delay";
+          }
+
+          if (stream_diag_reuse_audio_peer_enabled() && session->audio.peer.port() != 0) {
+            peer = session->audio.peer;
+            session->stream_diag.video_ping_ready.store(true);
+            session->stream_diag.audio_peer_video_promoted.store(true);
+            BOOST_LOG(warning) << "STREAM_DIAG experimental audio peer promotion"
+                               << " channel=VIDEO"
+                               << " launch_session_id="sv << session->launch_session_id
+                               << " promoted_video_peer="sv << stream_diag_endpoint_to_string(peer)
+                               << " source=AUDIO"
+                               << " control_peer_promotion=not_attempted"
+                               << " control_reason=CONTROL uses ENet and no control peer exists to reuse audio UDP endpoint";
+            stream_diag_log_ready_state("ready state after experimental audio peer promotion", session, channel);
+            return 0;
+          }
+        }
+
+        continue;
       }
 
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
@@ -2268,7 +2376,11 @@ namespace stream {
                       << " video_udp_port="sv << net::map_port(VIDEO_STREAM_PORT)
                       << " control_udp_port="sv << net::map_port(CONTROL_PORT)
                       << " audio_udp_port="sv << net::map_port(AUDIO_STREAM_PORT)
+                      << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session.stream_diag.video_rtsp_client_port)
+                      << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session.stream_diag.audio_rtsp_client_port)
+                      << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session.stream_diag.control_rtsp_client_port)
                       << " ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                      << " experimental_reuse_audio_peer="sv << stream_diag_reuse_audio_peer_enabled()
                       << " audio_and_video_waiters_independent=1"
                       << " audio_raised_alone_blocks_video_or_control=0";
 
@@ -2316,6 +2428,9 @@ namespace stream {
       session->launch_session_id = launch_session.id;
 
       session->config = config;
+      session->stream_diag.audio_rtsp_client_port = launch_session.audio_client_port;
+      session->stream_diag.video_rtsp_client_port = launch_session.video_client_port;
+      session->stream_diag.control_rtsp_client_port = launch_session.control_client_port;
 
       session->control.connect_data = launch_session.control_connect_data;
       session->control.feedback_queue = mail->queue<platf::gamepad_feedback_msg_t>(mail::gamepad_feedback);

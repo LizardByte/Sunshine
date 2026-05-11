@@ -12,7 +12,10 @@ extern "C" {
 // standard includes
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <format>
+#include <limits>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <unordered_map>
@@ -96,6 +99,109 @@ namespace rtsp_stream {
     }
 
     return {};
+  }
+
+  std::string_view trim_rtsp_token(std::string_view value) {
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.front()))) {
+      value.remove_prefix(1);
+    }
+
+    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
+      value.remove_suffix(1);
+    }
+
+    return value;
+  }
+
+  bool rtsp_token_iequals(std::string_view lhs, std::string_view rhs) {
+    if (lhs.size() != rhs.size()) {
+      return false;
+    }
+
+    for (std::size_t x = 0; x < lhs.size(); ++x) {
+      if (std::tolower(static_cast<unsigned char>(lhs[x])) != std::tolower(static_cast<unsigned char>(rhs[x]))) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  std::string rtsp_transport_param_value(std::string_view transport, std::string_view name) {
+    while (!transport.empty()) {
+      auto next = transport.find(';');
+      auto token = trim_rtsp_token(next == std::string_view::npos ? transport : transport.substr(0, next));
+
+      auto equals = token.find('=');
+      if (equals != std::string_view::npos) {
+        auto key = trim_rtsp_token(token.substr(0, equals));
+        auto value = trim_rtsp_token(token.substr(equals + 1));
+        if (rtsp_token_iequals(key, name)) {
+          return std::string {value};
+        }
+      }
+
+      if (next == std::string_view::npos) {
+        break;
+      }
+      transport.remove_prefix(next + 1);
+    }
+
+    return {};
+  }
+
+  std::optional<std::uint16_t> rtsp_parse_u16(std::string_view value) {
+    value = trim_rtsp_token(value);
+    if (value.empty()) {
+      return std::nullopt;
+    }
+
+    unsigned int parsed = 0;
+    auto [ptr, ec] = std::from_chars(value.data(), value.data() + value.size(), parsed);
+    if (ec != std::errc {} || ptr != value.data() + value.size() || parsed > std::numeric_limits<std::uint16_t>::max()) {
+      return std::nullopt;
+    }
+
+    return static_cast<std::uint16_t>(parsed);
+  }
+
+  struct client_port_info_t {
+    std::string raw;
+    std::string source;
+    std::optional<std::uint16_t> rtp;
+    std::optional<std::uint16_t> rtcp;
+  };
+
+  client_port_info_t rtsp_client_port_info(PRTSP_MESSAGE msg, std::string_view transport) {
+    auto standalone = rtsp_option_value(msg, "X-GS-ClientPort"sv);
+    auto transport_param = rtsp_transport_param_value(transport, "X-GS-ClientPort"sv);
+
+    client_port_info_t info;
+    if (!standalone.empty()) {
+      info.raw = std::move(standalone);
+      info.source = "standalone-header";
+    } else if (!transport_param.empty()) {
+      info.raw = std::move(transport_param);
+      info.source = "transport-param";
+    } else {
+      info.source = "missing";
+      return info;
+    }
+
+    auto split = std::string_view {info.raw}.find('-');
+    if (split == std::string_view::npos) {
+      info.rtp = rtsp_parse_u16(info.raw);
+    } else {
+      std::string_view raw {info.raw};
+      info.rtp = rtsp_parse_u16(raw.substr(0, split));
+      info.rtcp = rtsp_parse_u16(raw.substr(split + 1));
+    }
+
+    return info;
+  }
+
+  std::string rtsp_optional_port_to_string(const std::optional<std::uint16_t> &port) {
+    return port ? std::to_string(*port) : "<missing>"s;
   }
 
   std::string rtsp_message_to_string(PRTSP_MESSAGE msg) {
@@ -896,15 +1002,18 @@ namespace rtsp_stream {
     auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
     std::string_view stream_id {begin, static_cast<std::size_t>(std::distance(begin, std::end(target)))};
-    const auto client_port = rtsp_option_value(req.get(), "X-GS-ClientPort"sv);
     const auto transport = rtsp_option_value(req.get(), "Transport"sv);
+    auto client_port = rtsp_client_port_info(req.get(), transport);
 
     BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP request"
                     << " session_id="sv << session.id
                     << " channel="sv << type
                     << " stream_id="sv << stream_id
                     << " target="sv << target
-                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << " x_gs_client_port="sv << (client_port.raw.empty() ? "<missing>"s : client_port.raw)
+                    << " x_gs_client_port_source="sv << client_port.source
+                    << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
+                    << " client_rtcp_port="sv << rtsp_optional_port_to_string(client_port.rtcp)
                     << " transport="sv << (transport.empty() ? "<missing>"s : transport)
                     << std::endl
                     << "---BEGIN STREAM_DIAG RTSP SETUP REQUEST---"sv << std::endl
@@ -914,10 +1023,13 @@ namespace rtsp_stream {
     std::uint16_t port;
     if (type == "audio"sv) {
       port = net::map_port(stream::AUDIO_STREAM_PORT);
+      session.audio_client_port = client_port.rtp;
     } else if (type == "video"sv) {
       port = net::map_port(stream::VIDEO_STREAM_PORT);
+      session.video_client_port = client_port.rtp;
     } else if (type == "control"sv) {
       port = net::map_port(stream::CONTROL_PORT);
+      session.control_client_port = client_port.rtp;
     } else {
       cmd_not_found(sock, session, std::move(req));
 
@@ -954,7 +1066,10 @@ namespace rtsp_stream {
                     << " channel="sv << type
                     << " stream_id="sv << stream_id
                     << " server_udp_port="sv << port
-                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << " x_gs_client_port="sv << (client_port.raw.empty() ? "<missing>"s : client_port.raw)
+                    << " x_gs_client_port_source="sv << client_port.source
+                    << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
+                    << " client_rtcp_port="sv << rtsp_optional_port_to_string(client_port.rtcp)
                     << " payload_option="sv << payload_option.option
                     << " payload_value="sv << payload_option.content;
 
@@ -963,7 +1078,10 @@ namespace rtsp_stream {
                     << " channel="sv << type
                     << " stream_id="sv << stream_id
                     << " server_udp_port="sv << port
-                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << " x_gs_client_port="sv << (client_port.raw.empty() ? "<missing>"s : client_port.raw)
+                    << " x_gs_client_port_source="sv << client_port.source
+                    << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
+                    << " client_rtcp_port="sv << rtsp_optional_port_to_string(client_port.rtcp)
                     << std::endl
                     << "---BEGIN STREAM_DIAG RTSP SETUP RESPONSE---"sv << std::endl
                     << rtsp_response_to_string(200, "OK", &seqn, {})
