@@ -4,9 +4,11 @@
  */
 
 // standard includes
+#include <atomic>
 #include <fstream>
 #include <future>
 #include <queue>
+#include <variant>
 
 // lib includes
 #include <boost/endian/arithmetic.hpp>
@@ -83,6 +85,27 @@ namespace stream {
     video,  ///< Video
     audio  ///< Audio
   };
+
+  std::string_view stream_diag_channel_name(socket_e type) {
+    switch (type) {
+      case socket_e::video:
+        return "VIDEO"sv;
+      case socket_e::audio:
+        return "AUDIO"sv;
+    }
+
+    return "UNKNOWN"sv;
+  }
+
+  std::uint16_t stream_diag_local_udp_port(udp::socket &sock) {
+    boost::system::error_code ec;
+    auto endpoint = sock.local_endpoint(ec);
+    if (ec) {
+      return 0;
+    }
+
+    return endpoint.port();
+  }
 
 #pragma pack(push, 1)
 
@@ -245,6 +268,14 @@ namespace stream {
   using message_queue_t = std::shared_ptr<safe::queue_t<std::pair<udp::endpoint, std::string>>>;
   using message_queue_queue_t = std::shared_ptr<safe::queue_t<std::tuple<socket_e, av_session_id_t, message_queue_t>>>;
 
+  std::string stream_diag_av_session_id(const av_session_id_t &session_id) {
+    if (std::holds_alternative<asio::ip::address>(session_id)) {
+      return std::get<asio::ip::address>(session_id).to_string();
+    }
+
+    return util::hex_vec(std::get<std::string>(session_id));
+  }
+
   // return bytes written on success
   // return -1 on error
   static inline int encode_audio(bool encrypted, const audio::buffer_t &plaintext, uint8_t *destination, crypto::aes_t &iv, crypto::cipher::cbc_t &cbc) {
@@ -266,7 +297,10 @@ namespace stream {
   class control_server_t {
   public:
     int bind(net::af_e address_family, std::uint16_t port) {
+      BOOST_LOG(info) << "STREAM_DIAG udp bind begin channel=CONTROL local_port="sv << port;
       _host = net::host_create(address_family, _addr, port);
+      BOOST_LOG(info) << "STREAM_DIAG udp bind "sv << (_host ? "success"sv : "failed"sv)
+                      << " channel=CONTROL local_port="sv << port;
 
       return !(bool) _host;
     }
@@ -300,10 +334,29 @@ namespace stream {
       auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
       if (enet_peer_send(peer, 0, packet)) {
         enet_packet_destroy(packet);
+        TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
+        BOOST_LOG(warning) << "STREAM_DIAG udp send failed channel=CONTROL"
+                           << " local_port="sv << net::map_port(CONTROL_PORT)
+                           << " remote="sv << addr << ':' << port
+                           << " bytes="sv << payload.size();
 
         return -1;
       }
 
+      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
+      std::uint64_t total_packets_sent = 0;
+      {
+        auto lg = _peer_to_session.lock();
+        auto it = _peer_to_session->find(peer);
+        if (it != _peer_to_session->end()) {
+          total_packets_sent = it->second->stream_diag.control_udp_sent.fetch_add(1) + 1;
+        }
+      }
+      BOOST_LOG(info) << "STREAM_DIAG udp send queued channel=CONTROL"
+                      << " local_port="sv << net::map_port(CONTROL_PORT)
+                      << " remote="sv << addr << ':' << port
+                      << " bytes="sv << payload.size()
+                      << " total_packets_sent="sv << total_packets_sent;
       return 0;
     }
 
@@ -406,11 +459,41 @@ namespace stream {
 
     std::uint32_t launch_session_id;
 
+    struct {
+      std::atomic_bool video_ping_ready {false};
+      std::atomic_bool audio_ping_ready {false};
+      std::atomic_bool control_peer_ready {false};
+
+      std::atomic_uint64_t video_udp_received {0};
+      std::atomic_uint64_t audio_udp_received {0};
+      std::atomic_uint64_t control_udp_received {0};
+
+      std::atomic_uint64_t video_udp_sent {0};
+      std::atomic_uint64_t audio_udp_sent {0};
+      std::atomic_uint64_t control_udp_sent {0};
+    } stream_diag;
+
     safe::mail_raw_t::event_t<bool> shutdown_event;
     safe::signal_t controlEnd;
 
     std::atomic<session::state_e> state;
   };
+
+  void stream_diag_log_ready_state(std::string_view marker, session_t *session, std::string_view channel) {
+    BOOST_LOG(info) << "STREAM_DIAG "sv << marker
+                    << " channel="sv << channel
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " video_ping_ready="sv << session->stream_diag.video_ping_ready.load()
+                    << " audio_ping_ready="sv << session->stream_diag.audio_ping_ready.load()
+                    << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                    << " video_udp_received="sv << session->stream_diag.video_udp_received.load()
+                    << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                    << " control_udp_received="sv << session->stream_diag.control_udp_received.load()
+                    << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                    << " audio_udp_sent="sv << session->stream_diag.audio_udp_sent.load()
+                    << " control_udp_sent="sv << session->stream_diag.control_udp_sent.load()
+                    << " audio_raised_alone_blocks_video_or_control=0";
+  }
 
   /**
    * First part of cipher must be struct of type control_encrypted_t
@@ -515,6 +598,7 @@ namespace stream {
       rtsp_stream::launch_session_clear(session_p->launch_session_id);
 
       session_p->control.peer = peer;
+      session_p->stream_diag.control_peer_ready.store(true);
 
       // Use the local address from the control connection as the source address
       // for other communications to the client. This is necessary to ensure
@@ -529,6 +613,13 @@ namespace stream {
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
       BOOST_LOG(debug) << "Control peer address ["sv << peer_addr << ':' << peer_port << ']';
+      BOOST_LOG(info) << "STREAM_DIAG control peer ready"
+                      << " launch_session_id="sv << session_p->launch_session_id
+                      << " local_port="sv << net::map_port(CONTROL_PORT)
+                      << " remote="sv << peer_addr << ':' << peer_port
+                      << " connect_data="sv << connect_data
+                      << " expected_peer_address="sv << session_p->control.expected_peer_address;
+      stream_diag_log_ready_state("ready state after control peer", session_p, "CONTROL"sv);
 
       // Insert this into the map for O(1) lookups in the future
       auto ptslg = _peer_to_session.lock();
@@ -570,12 +661,39 @@ namespace stream {
     auto res = enet_host_service(_host.get(), &event, (enet_uint32) timeout.count());
 
     if (res > 0) {
+      TUPLE_2D(event_port, event_addr, platf::from_sockaddr_ex((sockaddr *) &event.peer->address.address));
+      const char *event_type = "UNKNOWN";
+      switch (event.type) {
+        case ENET_EVENT_TYPE_CONNECT:
+          event_type = "CONNECT";
+          break;
+        case ENET_EVENT_TYPE_DISCONNECT:
+          event_type = "DISCONNECT";
+          break;
+        case ENET_EVENT_TYPE_RECEIVE:
+          event_type = "RECEIVE";
+          break;
+        case ENET_EVENT_TYPE_NONE:
+          event_type = "NONE";
+          break;
+      }
+      BOOST_LOG(info) << "STREAM_DIAG udp receive"
+                      << " channel=CONTROL"
+                      << " event="sv << event_type
+                      << " local_port="sv << net::map_port(CONTROL_PORT)
+                      << " remote="sv << event_addr << ':' << event_port
+                      << " bytes="sv << (event.packet ? event.packet->dataLength : 0)
+                      << " connect_data="sv << event.data;
+
       auto session = get_session(event.peer, event.data);
       if (!session) {
         BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
         enet_peer_disconnect_now(event.peer, 0);
 
         return;
+      }
+      if (event.type == ENET_EVENT_TYPE_RECEIVE) {
+        session->stream_diag.control_udp_received.fetch_add(1);
       }
 
       session->pingTimeout = std::chrono::steady_clock::now() + config::stream.ping_timeout;
@@ -1086,6 +1204,14 @@ namespace stream {
 
           if (now > session->pingTimeout) {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
+            BOOST_LOG(error) << "STREAM_DIAG control ping timeout"
+                             << " channel=CONTROL"
+                             << " launch_session_id="sv << session->launch_session_id
+                             << " wait_condition=no control ENet activity before session pingTimeout"
+                             << " remote="sv << address
+                             << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                             << " audio_raised_alone_blocks_video_or_control=0";
+            stream_diag_log_ready_state("ready state at control ping timeout", session, "CONTROL"sv);
             BOOST_LOG(info) << address << ": Ping Timeout"sv;
             session::stop(*session);
           }
@@ -1201,15 +1327,23 @@ namespace stream {
           case socket_e::video:
             if (message_queue) {
               peer_to_video_session.emplace(session_id, message_queue);
+              BOOST_LOG(info) << "STREAM_DIAG udp route register"
+                              << " channel=VIDEO key="sv << stream_diag_av_session_id(session_id);
             } else {
               peer_to_video_session.erase(session_id);
+              BOOST_LOG(info) << "STREAM_DIAG udp route unregister"
+                              << " channel=VIDEO key="sv << stream_diag_av_session_id(session_id);
             }
             break;
           case socket_e::audio:
             if (message_queue) {
               peer_to_audio_session.emplace(session_id, message_queue);
+              BOOST_LOG(info) << "STREAM_DIAG udp route register"
+                              << " channel=AUDIO key="sv << stream_diag_av_session_id(session_id);
             } else {
               peer_to_audio_session.erase(session_id);
+              BOOST_LOG(info) << "STREAM_DIAG udp route unregister"
+                              << " channel=AUDIO key="sv << stream_diag_av_session_id(session_id);
             }
             break;
         }
@@ -1224,6 +1358,12 @@ namespace stream {
 
         auto type_str = buf_elem ? "AUDIO"sv : "VIDEO"sv;
         BOOST_LOG(verbose) << "Recv: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+        BOOST_LOG(info) << "STREAM_DIAG udp receive"
+                        << " channel="sv << type_str
+                        << " local_port="sv << stream_diag_local_udp_port(sock)
+                        << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                        << " bytes="sv << bytes
+                        << " ec="sv << ec.message();
 
         populate_peer_to_session();
 
@@ -1242,7 +1382,20 @@ namespace stream {
           auto it = peer_to_session.find(peer.address());
           if (it != std::end(peer_to_session)) {
             BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            BOOST_LOG(info) << "STREAM_DIAG udp packet matched"
+                            << " channel="sv << type_str
+                            << " match=legacy-address"
+                            << " local_port="sv << stream_diag_local_udp_port(sock)
+                            << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                            << " bytes="sv << bytes;
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
+          } else {
+            BOOST_LOG(warning) << "STREAM_DIAG udp packet unmatched"
+                               << " channel="sv << type_str
+                               << " match=legacy-address"
+                               << " local_port="sv << stream_diag_local_udp_port(sock)
+                               << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                               << " bytes="sv << bytes;
           }
         } else if (bytes >= sizeof(SS_PING)) {
           auto ping = (PSS_PING) buf[buf_elem].data();
@@ -1251,8 +1404,29 @@ namespace stream {
           auto it = peer_to_session.find(std::string {ping->payload, sizeof(ping->payload)});
           if (it != std::end(peer_to_session)) {
             BOOST_LOG(debug) << "RAISE: "sv << peer.address().to_string() << ':' << peer.port() << " :: " << type_str;
+            BOOST_LOG(info) << "STREAM_DIAG udp packet matched"
+                            << " channel="sv << type_str
+                            << " match=session-payload"
+                            << " local_port="sv << stream_diag_local_udp_port(sock)
+                            << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                            << " bytes="sv << bytes
+                            << " payload="sv << util::hex_vec(std::string_view {ping->payload, sizeof(ping->payload)});
             it->second->raise(peer, std::string {buf[buf_elem].data(), bytes});
+          } else {
+            BOOST_LOG(warning) << "STREAM_DIAG udp packet unmatched"
+                               << " channel="sv << type_str
+                               << " match=session-payload"
+                               << " local_port="sv << stream_diag_local_udp_port(sock)
+                               << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                               << " bytes="sv << bytes
+                               << " payload="sv << util::hex_vec(std::string_view {ping->payload, sizeof(ping->payload)});
           }
+        } else {
+          BOOST_LOG(warning) << "STREAM_DIAG udp packet unclassified"
+                             << " channel="sv << type_str
+                             << " local_port="sv << stream_diag_local_udp_port(sock)
+                             << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                             << " bytes="sv << bytes;
         }
       };
     };
@@ -1538,6 +1712,7 @@ namespace stream {
               batch_info.block_count = current_batch_size;
 
               frame_send_batch_latency_logger.first_point_now();
+              const auto packets_in_batch = current_batch_size;
               // Use a batched send if it's supported on this platform
               if (!platf::send_batch(batch_info)) {
                 // Batched send is not available, so send each packet individually
@@ -1556,6 +1731,19 @@ namespace stream {
 
                   platf::send(send_info);
                 }
+              }
+              const auto video_sent_count = session->stream_diag.video_udp_sent.fetch_add(packets_in_batch) + packets_in_batch;
+              if (video_sent_count <= 5 || video_sent_count % 300 == 0) {
+                BOOST_LOG(info) << "STREAM_DIAG udp send"
+                                << " channel=VIDEO"
+                                << " local_port="sv << net::map_port(VIDEO_STREAM_PORT)
+                                << " remote="sv << peer_address.to_string() << ':' << session->video.peer.port()
+                                << " packets_in_batch="sv << packets_in_batch
+                                << " bytes_approx="sv << (packets_in_batch * blocksize)
+                                << " total_packets_sent="sv << video_sent_count
+                                << " audio_ping_ready="sv << session->stream_diag.audio_ping_ready.load()
+                                << " video_ping_ready="sv << session->stream_diag.video_ping_ready.load()
+                                << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load();
               }
               frame_send_batch_latency_logger.second_point_now_and_log();
 
@@ -1658,6 +1846,18 @@ namespace stream {
           session->localAddress,
         };
         platf::send(send_info);
+        const auto audio_sent_count = session->stream_diag.audio_udp_sent.fetch_add(1) + 1;
+        if (audio_sent_count <= 5 || audio_sent_count % 300 == 0) {
+          BOOST_LOG(info) << "STREAM_DIAG udp send"
+                          << " channel=AUDIO"
+                          << " local_port="sv << net::map_port(AUDIO_STREAM_PORT)
+                          << " remote="sv << peer_address.to_string() << ':' << session->audio.peer.port()
+                          << " bytes_approx="sv << (sizeof(audio_packet) + static_cast<size_t>(bytes))
+                          << " total_packets_sent="sv << audio_sent_count
+                          << " audio_ping_ready="sv << session->stream_diag.audio_ping_ready.load()
+                          << " video_ping_ready="sv << session->stream_diag.video_ping_ready.load()
+                          << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load();
+        }
 
         auto &fec_packet = session->audio.fec_packet;
         // initialize the FEC header at the beginning of the FEC block
@@ -1685,6 +1885,19 @@ namespace stream {
               session->localAddress,
             };
             platf::send(send_info);
+            const auto audio_fec_sent_count = session->stream_diag.audio_udp_sent.fetch_add(1) + 1;
+            if (audio_fec_sent_count <= 5 || audio_fec_sent_count % 300 == 0) {
+              BOOST_LOG(info) << "STREAM_DIAG udp send"
+                              << " channel=AUDIO"
+                              << " subtype=FEC"
+                              << " local_port="sv << net::map_port(AUDIO_STREAM_PORT)
+                              << " remote="sv << peer_address.to_string() << ':' << session->audio.peer.port()
+                              << " bytes_approx="sv << (sizeof(fec_packet) + static_cast<size_t>(bytes))
+                              << " total_packets_sent="sv << audio_fec_sent_count
+                              << " audio_ping_ready="sv << session->stream_diag.audio_ping_ready.load()
+                              << " video_ping_ready="sv << session->stream_diag.video_ping_ready.load()
+                              << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load();
+            }
             BOOST_LOG(verbose) << "Audio FEC ["sv << (sequenceNumber & ~(RTPA_DATA_SHARDS - 1)) << ' ' << x << "] ::  send..."sv;
           }
         }
@@ -1705,18 +1918,22 @@ namespace stream {
     auto audio_port = net::map_port(AUDIO_STREAM_PORT);
 
     if (ctx.control_server.bind(address_family, control_port)) {
+      BOOST_LOG(error) << "STREAM_DIAG udp bind failed channel=CONTROL local_port="sv << control_port;
       BOOST_LOG(error) << "Couldn't bind Control server to port ["sv << control_port << "], likely another process already bound to the port"sv;
 
       return -1;
     }
 
     boost::system::error_code ec;
+    BOOST_LOG(info) << "STREAM_DIAG udp open begin channel=VIDEO local_port="sv << video_port;
     ctx.video_sock.open(protocol, ec);
     if (ec) {
+      BOOST_LOG(fatal) << "STREAM_DIAG udp open failed channel=VIDEO local_port="sv << video_port << " error="sv << ec.message();
       BOOST_LOG(fatal) << "Couldn't open socket for Video server: "sv << ec.message();
 
       return -1;
     }
+    BOOST_LOG(info) << "STREAM_DIAG udp open success channel=VIDEO local_port="sv << video_port;
 
     // Set video socket send buffer size (SO_SENDBUF) to 1MB
     try {
@@ -1732,26 +1949,35 @@ namespace stream {
       return -1;
     }
 
+    BOOST_LOG(info) << "STREAM_DIAG udp bind begin channel=VIDEO bind_addr="sv << bind_addr_str << " local_port="sv << video_port;
     ctx.video_sock.bind(udp::endpoint(bind_addr, video_port), ec);
     if (ec) {
+      BOOST_LOG(fatal) << "STREAM_DIAG udp bind failed channel=VIDEO bind_addr="sv << bind_addr_str << " local_port="sv << video_port << " error="sv << ec.message();
       BOOST_LOG(fatal) << "Couldn't bind Video server to port ["sv << video_port << "]: "sv << ec.message();
 
       return -1;
     }
+    BOOST_LOG(info) << "STREAM_DIAG udp bind success channel=VIDEO bind_addr="sv << bind_addr_str << " local_port="sv << video_port;
 
+    BOOST_LOG(info) << "STREAM_DIAG udp open begin channel=AUDIO local_port="sv << audio_port;
     ctx.audio_sock.open(protocol, ec);
     if (ec) {
+      BOOST_LOG(fatal) << "STREAM_DIAG udp open failed channel=AUDIO local_port="sv << audio_port << " error="sv << ec.message();
       BOOST_LOG(fatal) << "Couldn't open socket for Audio server: "sv << ec.message();
 
       return -1;
     }
+    BOOST_LOG(info) << "STREAM_DIAG udp open success channel=AUDIO local_port="sv << audio_port;
 
+    BOOST_LOG(info) << "STREAM_DIAG udp bind begin channel=AUDIO bind_addr="sv << bind_addr_str << " local_port="sv << audio_port;
     ctx.audio_sock.bind(udp::endpoint(bind_addr, audio_port), ec);
     if (ec) {
+      BOOST_LOG(fatal) << "STREAM_DIAG udp bind failed channel=AUDIO bind_addr="sv << bind_addr_str << " local_port="sv << audio_port << " error="sv << ec.message();
       BOOST_LOG(fatal) << "Couldn't bind Audio server to port ["sv << audio_port << "]: "sv << ec.message();
 
       return -1;
     }
+    BOOST_LOG(info) << "STREAM_DIAG udp bind success channel=AUDIO bind_addr="sv << bind_addr_str << " local_port="sv << audio_port;
 
     ctx.message_queue_queue = std::make_shared<message_queue_queue_t::element_type>(30);
 
@@ -1801,12 +2027,23 @@ namespace stream {
   int recv_ping(session_t *session, decltype(broadcast)::ptr_t ref, socket_e type, std::string_view expected_payload, udp::endpoint &peer, std::chrono::milliseconds timeout) {
     auto messages = std::make_shared<message_queue_t::element_type>(30);
     av_session_id_t session_id = std::string {expected_payload};
+    const auto channel = stream_diag_channel_name(type);
 
     // Only allow matches on the peer address for legacy clients
     if (!(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1)) {
       ref->message_queue_queue->raise(type, peer.address(), messages);
     }
     ref->message_queue_queue->raise(type, session_id, messages);
+
+    BOOST_LOG(info) << "STREAM_DIAG initial ping wait begin"
+                    << " channel="sv << channel
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " expected_payload="sv << util::hex_vec(expected_payload)
+                    << " initial_peer="sv << peer.address().to_string() << ':' << peer.port()
+                    << " timeout_ms="sv << timeout.count()
+                    << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                    << " ml_session_id_v1="sv << static_cast<bool>(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1);
+    stream_diag_log_ready_state("ready state before initial ping wait", session, channel);
 
     auto fg = util::fail_guard([&]() {
       messages->stop();
@@ -1830,6 +2067,20 @@ namespace stream {
       }
 
       TUPLE_2D_REF(recv_peer, msg, *msg_opt);
+      if (type == socket_e::video) {
+        session->stream_diag.video_udp_received.fetch_add(1);
+      } else {
+        session->stream_diag.audio_udp_received.fetch_add(1);
+      }
+
+      BOOST_LOG(info) << "STREAM_DIAG initial ping candidate"
+                      << " channel="sv << channel
+                      << " launch_session_id="sv << session->launch_session_id
+                      << " remote="sv << recv_peer.address().to_string() << ':' << recv_peer.port()
+                      << " bytes="sv << msg.size()
+                      << " expected_payload="sv << util::hex_vec(expected_payload)
+                      << " payload="sv << util::hex_vec(msg);
+
       if (msg.find(expected_payload) != std::string::npos) {
         // Match the new PING payload format
         BOOST_LOG(debug) << "Received ping [v2] from "sv << recv_peer.address() << ':' << recv_peer.port() << " ["sv << util::hex_vec(msg) << ']';
@@ -1844,9 +2095,32 @@ namespace stream {
 
       // Update connection details.
       peer = recv_peer;
+      if (type == socket_e::video) {
+        session->stream_diag.video_ping_ready.store(true);
+      } else {
+        session->stream_diag.audio_ping_ready.store(true);
+      }
+
+      BOOST_LOG(info) << "STREAM_DIAG initial ping accepted"
+                      << " channel="sv << channel
+                      << " launch_session_id="sv << session->launch_session_id
+                      << " remote="sv << peer.address().to_string() << ':' << peer.port()
+                      << " audio_raised_alone_blocks_video_or_control=0";
+      stream_diag_log_ready_state("ready state after initial ping", session, channel);
       return 0;
     }
 
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_time);
+    BOOST_LOG(error) << "STREAM_DIAG initial ping timeout"
+                     << " channel="sv << channel
+                     << " launch_session_id="sv << session->launch_session_id
+                     << " wait_condition=no matching ping before configured ping_timeout"
+                     << " elapsed_ms="sv << elapsed.count()
+                     << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                     << " expected_payload="sv << util::hex_vec(expected_payload)
+                     << " last_peer="sv << peer.address().to_string() << ':' << peer.port()
+                     << " audio_raised_alone_blocks_video_or_control=0";
+    stream_diag_log_ready_state("ready state at initial ping timeout", session, channel);
     BOOST_LOG(error) << "Initial Ping Timeout"sv;
     return -1;
   }
@@ -1859,6 +2133,10 @@ namespace stream {
 
     while_starting_do_nothing(session->state);
 
+    BOOST_LOG(info) << "STREAM_DIAG video thread waiting for initial ping"
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " expected_payload="sv << util::hex_vec(session->video.ping_payload)
+                    << " timeout_ms="sv << config::stream.ping_timeout.count();
     auto ref = broadcast.ref();
     auto error = recv_ping(session, ref, socket_e::video, session->video.ping_payload, session->video.peer, config::stream.ping_timeout);
     if (error < 0) {
@@ -1870,6 +2148,9 @@ namespace stream {
     session->video.qos = platf::enable_socket_qos(ref->video_sock.native_handle(), address, session->video.peer.port(), platf::qos_data_type_e::video, session->config.videoQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Video"sv;
+    BOOST_LOG(info) << "STREAM_DIAG video channel ready; starting capture"
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " remote="sv << session->video.peer.address().to_string() << ':' << session->video.peer.port();
     video::capture(session->mail, session->config.monitor, session);
   }
 
@@ -1881,6 +2162,11 @@ namespace stream {
 
     while_starting_do_nothing(session->state);
 
+    BOOST_LOG(info) << "STREAM_DIAG audio thread waiting for initial ping"
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " expected_payload="sv << util::hex_vec(session->audio.ping_payload)
+                    << " timeout_ms="sv << config::stream.ping_timeout.count()
+                    << " audio_raised_alone_blocks_video_or_control=0";
     auto ref = broadcast.ref();
     auto error = recv_ping(session, ref, socket_e::audio, session->audio.ping_payload, session->audio.peer, config::stream.ping_timeout);
     if (error < 0) {
@@ -1892,6 +2178,10 @@ namespace stream {
     session->audio.qos = platf::enable_socket_qos(ref->audio_sock.native_handle(), address, session->audio.peer.port(), platf::qos_data_type_e::audio, session->config.audioQosType != 0);
 
     BOOST_LOG(debug) << "Start capturing Audio"sv;
+    BOOST_LOG(info) << "STREAM_DIAG audio channel ready; starting capture"
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " remote="sv << session->audio.peer.address().to_string() << ':' << session->audio.peer.port()
+                    << " audio_raised_alone_blocks_video_or_control=0";
     audio::capture(session->mail, session->config.audio, session);
   }
 
@@ -1970,6 +2260,15 @@ namespace stream {
 
       session.control.expected_peer_address = addr_string;
       BOOST_LOG(debug) << "Expecting incoming session connections from "sv << addr_string;
+      BOOST_LOG(info) << "STREAM_DIAG stream session start"
+                      << " launch_session_id="sv << session.launch_session_id
+                      << " expected_client_address="sv << addr_string
+                      << " video_udp_port="sv << net::map_port(VIDEO_STREAM_PORT)
+                      << " control_udp_port="sv << net::map_port(CONTROL_PORT)
+                      << " audio_udp_port="sv << net::map_port(AUDIO_STREAM_PORT)
+                      << " ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                      << " audio_and_video_waiters_independent=1"
+                      << " audio_raised_alone_blocks_video_or_control=0";
 
       // Insert this session into the session list
       {
@@ -1988,6 +2287,10 @@ namespace stream {
 
       session.audioThread = std::thread {audioThread, &session};
       session.videoThread = std::thread {videoThread, &session};
+      BOOST_LOG(info) << "STREAM_DIAG stream session channel threads started"
+                      << " launch_session_id="sv << session.launch_session_id
+                      << " audio_thread=1 video_thread=1 control_thread=shared-broadcast"
+                      << " audio_raised_alone_blocks_video_or_control=0";
 
       session.state.store(state_e::RUNNING, std::memory_order_relaxed);
 

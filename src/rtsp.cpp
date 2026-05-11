@@ -14,6 +14,7 @@ extern "C" {
 #include <cctype>
 #include <format>
 #include <set>
+#include <sstream>
 #include <unordered_map>
 #include <utility>
 
@@ -85,6 +86,50 @@ namespace rtsp_stream {
   void print_msg(PRTSP_MESSAGE msg);
   void cmd_not_found(tcp::socket &sock, launch_session_t &, msg_t &&req);
   void respond(tcp::socket &sock, launch_session_t &session, POPTION_ITEM options, int statuscode, const char *status_msg, int seqn, const std::string_view &payload);
+
+  std::string rtsp_option_value(PRTSP_MESSAGE msg, std::string_view name) {
+    for (auto option = msg->options; option != nullptr; option = option->next) {
+      std::string_view option_name {option->option ? option->option : ""};
+      if (name == option_name) {
+        return option->content ? std::string(option->content) : std::string {};
+      }
+    }
+
+    return {};
+  }
+
+  std::string rtsp_message_to_string(PRTSP_MESSAGE msg) {
+    std::ostringstream ss;
+
+    if (msg->type == TYPE_RESPONSE) {
+      ss << msg->protocol << ' ' << msg->message.response.statusCode << ' ' << msg->message.response.statusString << "\r\n";
+    } else {
+      ss << msg->message.request.command << ' ' << msg->message.request.target << ' ' << msg->protocol << "\r\n";
+    }
+
+    for (auto option = msg->options; option != nullptr; option = option->next) {
+      ss << option->option << ": " << (option->content ? option->content : "") << "\r\n";
+    }
+
+    ss << "\r\n";
+    if (msg->payload && msg->payloadLength > 0) {
+      ss << std::string_view {msg->payload, static_cast<std::size_t>(msg->payloadLength)};
+    }
+
+    return ss.str();
+  }
+
+  std::string rtsp_response_to_string(int statuscode, const char *status_msg, POPTION_ITEM options, const std::string_view &payload) {
+    std::ostringstream ss;
+
+    ss << "RTSP/1.0 " << statuscode << ' ' << status_msg << "\r\n";
+    for (auto option = options; option != nullptr; option = option->next) {
+      ss << option->option << ": " << (option->content ? option->content : "") << "\r\n";
+    }
+
+    ss << "\r\n" << payload;
+    return ss.str();
+  }
 
   class socket_t: public std::enable_shared_from_this<socket_t> {
   public:
@@ -850,6 +895,21 @@ namespace rtsp_stream {
     auto begin = std::find(std::begin(target), std::end(target), '=') + 1;
     auto end = std::find(begin, std::end(target), '/');
     std::string_view type {begin, (size_t) std::distance(begin, end)};
+    std::string_view stream_id {begin, static_cast<std::size_t>(std::distance(begin, std::end(target)))};
+    const auto client_port = rtsp_option_value(req.get(), "X-GS-ClientPort"sv);
+    const auto transport = rtsp_option_value(req.get(), "Transport"sv);
+
+    BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP request"
+                    << " session_id="sv << session.id
+                    << " channel="sv << type
+                    << " stream_id="sv << stream_id
+                    << " target="sv << target
+                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << " transport="sv << (transport.empty() ? "<missing>"s : transport)
+                    << std::endl
+                    << "---BEGIN STREAM_DIAG RTSP SETUP REQUEST---"sv << std::endl
+                    << rtsp_message_to_string(req.get())
+                    << "---END STREAM_DIAG RTSP SETUP REQUEST---"sv;
 
     std::uint16_t port;
     if (type == "audio"sv) {
@@ -888,6 +948,26 @@ namespace rtsp_stream {
     }
 
     port_option.next = &payload_option;
+
+    BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP parsed"
+                    << " session_id="sv << session.id
+                    << " channel="sv << type
+                    << " stream_id="sv << stream_id
+                    << " server_udp_port="sv << port
+                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << " payload_option="sv << payload_option.option
+                    << " payload_value="sv << payload_option.content;
+
+    BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP response"
+                    << " session_id="sv << session.id
+                    << " channel="sv << type
+                    << " stream_id="sv << stream_id
+                    << " server_udp_port="sv << port
+                    << " x_gs_client_port="sv << (client_port.empty() ? "<missing>"s : client_port)
+                    << std::endl
+                    << "---BEGIN STREAM_DIAG RTSP SETUP RESPONSE---"sv << std::endl
+                    << rtsp_response_to_string(200, "OK", &seqn, {})
+                    << "---END STREAM_DIAG RTSP SETUP RESPONSE---"sv;
 
     respond(sock, session, &seqn, 200, "OK", req->sequenceNumber, {});
   }
