@@ -761,10 +761,17 @@ namespace nvhttp {
 
           sess.client.uniqueID = std::move(uniqID);
           sess.client.cert = util::from_hex_vec(get_arg(args, "clientcert"), true);
+          sess.async_insert_pin.salt = get_arg(args, "salt");
 
           const auto session_key = sess.client.uniqueID;
           const auto client_cert_len = sess.client.cert.size();
           const auto sessions_before = map_id_sess.size();
+          const auto async_pin = !config::sunshine.flags[config::flag::PIN_STDIN];
+          if (async_pin) {
+            sess.async_insert_pin.response = std::move(response);
+            log_pair_async_response_state("prepared getservercert async response before session insert", sess);
+          }
+
           BOOST_LOG(info) << "PAIR_DIAG creating pairing session session_key="sv << diag_value(session_key)
                           << " client_cert_len="sv << client_cert_len
                           << " devicename="sv << diag_value(devicename_arg)
@@ -773,7 +780,13 @@ namespace nvhttp {
                           << " active_sessions_before="sv << sessions_before;
 
           BOOST_LOG(debug) << sess.client.cert;
-          auto [ptr, inserted] = map_id_sess.emplace(sess.client.uniqueID, std::move(sess));
+          auto [ptr, inserted] = map_id_sess.try_emplace(session_key, std::move(sess));
+          if (!inserted) {
+            ptr->second.async_insert_pin.salt = get_arg(args, "salt");
+            if (async_pin) {
+              ptr->second.async_insert_pin.response = std::move(sess.async_insert_pin.response);
+            }
+          }
 
           BOOST_LOG(info) << "PAIR_DIAG pairing session created session_key="sv << diag_value(session_key)
                           << " inserted="sv << inserted
@@ -781,7 +794,11 @@ namespace nvhttp {
                           << " active_sessions_after="sv << map_id_sess.size()
                           << " stored_phase="sv << pair_phase_name(ptr->second.last_phase);
 
-          ptr->second.async_insert_pin.salt = std::move(get_arg(args, "salt"));
+          if (async_pin) {
+            fg.disable();
+            log_pair_async_response_state("stored getservercert async response immediately after session insert", ptr->second);
+          }
+
           log_pair_session_marker("getservercert session ready for PIN", ptr->second);
           if (config::sunshine.flags[config::flag::PIN_STDIN]) {
             std::string pin;
@@ -799,15 +816,12 @@ namespace nvhttp {
 #if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
             system_tray::update_tray_require_pin();
 #endif
-            ptr->second.async_insert_pin.response = std::move(response);
-            log_pair_async_response_state("stored getservercert async response", ptr->second);
 
             BOOST_LOG(info) << "PAIR_DIAG getservercert waiting for /api/pin session_key="sv << diag_value(session_key)
                             << " active_sessions="sv << map_id_sess.size()
                             << " async_response_stored="sv
                             << ((ptr->second.async_insert_pin.response.has_left() && ptr->second.async_insert_pin.response.left()) ||
                                 (ptr->second.async_insert_pin.response.has_right() && ptr->second.async_insert_pin.response.right()));
-            fg.disable();
             return;
           }
         } else if (it->second == "pairchallenge"sv) {
