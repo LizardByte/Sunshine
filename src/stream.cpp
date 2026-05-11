@@ -832,11 +832,18 @@ namespace stream {
       // for other communications to the client. This is necessary to ensure
       // proper routing on multi-homed hosts.
       auto local_address = platf::from_sockaddr((sockaddr *) &peer->localAddress.address);
-      try {
-        session_p->localAddress = boost::asio::ip::make_address(local_address);
-      } catch (const boost::system::system_error &e) {
-        BOOST_LOG(error) << "boost::system::system_error in address parsing: " << e.what() << " (code: " << e.code() << ")"sv;
-        throw;
+      boost::system::error_code local_address_ec;
+      auto parsed_local_address = boost::asio::ip::make_address(local_address, local_address_ec);
+      if (local_address_ec) {
+        BOOST_LOG(warning) << "STREAM_DIAG control local address parse failed"
+                           << " launch_session_id="sv << session_p->launch_session_id
+                           << " local_address="sv << local_address
+                           << " remote="sv << peer_addr << ':' << peer_port
+                           << " expected_peer_address="sv << session_p->control.expected_peer_address
+                           << " error="sv << local_address_ec.message()
+                           << " continuing_with_existing_local_address=1";
+      } else {
+        session_p->localAddress = parsed_local_address;
       }
 
       BOOST_LOG(debug) << "Control local address ["sv << local_address << ']';
@@ -1004,10 +1011,38 @@ namespace stream {
                       << " bytes="sv << (event.packet ? event.packet->dataLength : 0)
                       << " connect_data="sv << event.data;
 
-      auto session = get_session(event.peer, event.data);
-      if (!session) {
-        BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
-        enet_peer_disconnect_now(event.peer, 0);
+      session_t *session = nullptr;
+      if (event.type == ENET_EVENT_TYPE_DISCONNECT) {
+        auto ptslg = _peer_to_session.lock();
+        auto it = _peer_to_session->find(event.peer);
+        if (it != _peer_to_session->end()) {
+          session = it->second;
+        } else {
+          BOOST_LOG(warning) << "STREAM_DIAG control disconnect ignored"
+                             << " reason=unmapped_peer"
+                             << " local_port="sv << net::map_port(CONTROL_PORT)
+                             << " remote="sv << event_addr << ':' << event_port
+                             << " connect_data="sv << event.data
+                             << " accept_control_connect_data_zero="sv << stream_diag_accept_control_connect_data_zero_enabled()
+                             << " fallback_attempted=0";
+
+          return;
+        }
+      } else if (event.type == ENET_EVENT_TYPE_CONNECT || event.type == ENET_EVENT_TYPE_RECEIVE) {
+        session = get_session(event.peer, event.data);
+        if (!session) {
+          BOOST_LOG(warning) << "Rejected connection from ["sv << platf::from_sockaddr((sockaddr *) &event.peer->address.address) << "]: it's not properly set up"sv;
+          enet_peer_disconnect_now(event.peer, 0);
+
+          return;
+        }
+      } else {
+        BOOST_LOG(info) << "STREAM_DIAG control event ignored"
+                        << " reason=unsupported_event_for_session_matching"
+                        << " event="sv << event_type
+                        << " local_port="sv << net::map_port(CONTROL_PORT)
+                        << " remote="sv << event_addr << ':' << event_port
+                        << " connect_data="sv << event.data;
 
         return;
       }
