@@ -330,35 +330,7 @@ namespace stream {
       _map_type_cb.emplace(type, std::move(cb));
     }
 
-    int send(const std::string_view &payload, net::peer_t peer) {
-      auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
-      if (enet_peer_send(peer, 0, packet)) {
-        enet_packet_destroy(packet);
-        TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
-        BOOST_LOG(warning) << "STREAM_DIAG udp send failed channel=CONTROL"
-                           << " local_port="sv << net::map_port(CONTROL_PORT)
-                           << " remote="sv << addr << ':' << port
-                           << " bytes="sv << payload.size();
-
-        return -1;
-      }
-
-      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
-      std::uint64_t total_packets_sent = 0;
-      {
-        auto lg = _peer_to_session.lock();
-        auto it = _peer_to_session->find(peer);
-        if (it != _peer_to_session->end()) {
-          total_packets_sent = it->second->stream_diag.control_udp_sent.fetch_add(1) + 1;
-        }
-      }
-      BOOST_LOG(info) << "STREAM_DIAG udp send queued channel=CONTROL"
-                      << " local_port="sv << net::map_port(CONTROL_PORT)
-                      << " remote="sv << addr << ':' << port
-                      << " bytes="sv << payload.size()
-                      << " total_packets_sent="sv << total_packets_sent;
-      return 0;
-    }
+    int send(const std::string_view &payload, net::peer_t peer);
 
     void flush() {
       enet_host_flush(_host.get());
@@ -556,6 +528,36 @@ namespace stream {
   void end_broadcast(broadcast_ctx_t &ctx);
 
   static auto broadcast = safe::make_shared<broadcast_ctx_t>(start_broadcast, end_broadcast);
+
+  int control_server_t::send(const std::string_view &payload, net::peer_t peer) {
+    auto packet = enet_packet_create(payload.data(), payload.size(), ENET_PACKET_FLAG_RELIABLE);
+    if (enet_peer_send(peer, 0, packet)) {
+      enet_packet_destroy(packet);
+      TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
+      BOOST_LOG(warning) << "STREAM_DIAG udp send failed channel=CONTROL"
+                         << " local_port="sv << net::map_port(CONTROL_PORT)
+                         << " remote="sv << addr << ':' << port
+                         << " bytes="sv << payload.size();
+
+      return -1;
+    }
+
+    TUPLE_2D(port, addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
+    std::uint64_t total_packets_sent = 0;
+    {
+      auto lg = _peer_to_session.lock();
+      auto it = _peer_to_session->find(peer);
+      if (it != _peer_to_session->end()) {
+        total_packets_sent = it->second->stream_diag.control_udp_sent.fetch_add(1) + 1;
+      }
+    }
+    BOOST_LOG(info) << "STREAM_DIAG udp send queued channel=CONTROL"
+                    << " local_port="sv << net::map_port(CONTROL_PORT)
+                    << " remote="sv << addr << ':' << port
+                    << " bytes="sv << payload.size()
+                    << " total_packets_sent="sv << total_packets_sent;
+    return 0;
+  }
 
   session_t *control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
     {
