@@ -140,6 +140,29 @@ namespace stream {
     return enabled;
   }
 
+  bool stream_diag_control_connect_client_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_CONTROL_CONNECT_CLIENT");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
+  }
+
+  std::string_view stream_diag_video_peer_mode() {
+    auto value = std::getenv("SUNSHINE_STREAM_DIAG_VIDEO_PEER_MODE");
+    if (value && *value) {
+      return value;
+    }
+
+    return stream_diag_reuse_audio_peer_enabled() ? "audio-peer"sv : "off"sv;
+  }
+
 #pragma pack(push, 1)
 
   struct video_short_frame_header_t {
@@ -330,10 +353,17 @@ namespace stream {
   class control_server_t {
   public:
     int bind(net::af_e address_family, std::uint16_t port) {
-      BOOST_LOG(info) << "STREAM_DIAG udp bind begin channel=CONTROL local_port="sv << port;
+      const auto bind_address = net::get_bind_address(address_family);
+      BOOST_LOG(info) << "STREAM_DIAG udp bind begin channel=CONTROL"
+                      << " bind_addr="sv << bind_address
+                      << " local_port="sv << port
+                      << " raw_udp_visibility=unavailable_enet_owns_socket";
       _host = net::host_create(address_family, _addr, port);
       BOOST_LOG(info) << "STREAM_DIAG udp bind "sv << (_host ? "success"sv : "failed"sv)
-                      << " channel=CONTROL local_port="sv << port;
+                      << " channel=CONTROL"
+                      << " bind_addr="sv << bind_address
+                      << " local_port="sv << port
+                      << " raw_udp_visibility=unavailable_enet_owns_socket";
 
       return !(bool) _host;
     }
@@ -349,6 +379,7 @@ namespace stream {
     //   broadcast_ctx_t refers to control_server_t
     // Therefore, iterate is implemented further down the source file
     void iterate(std::chrono::milliseconds timeout);
+    net::peer_t connect_to_client(session_t *session);
 
     /**
      * @brief Call the handler for a given control stream message.
@@ -378,6 +409,7 @@ namespace stream {
     // ENet peer to session mapping for sessions with a peer connected
     sync_util::sync_t<std::map<net::peer_t, session_t *>> _peer_to_session;
 
+    std::uint64_t _service_poll_count = 0;
     ENetAddress _addr;
     net::host_t _host;
   };
@@ -484,6 +516,9 @@ namespace stream {
       std::atomic_bool audio_only_video_probe_logged {false};
       std::atomic_bool audio_only_control_probe_logged {false};
       std::atomic_bool audio_peer_video_promoted {false};
+      std::atomic_bool rtsp_client_port_video_promoted {false};
+      std::atomic_bool control_connect_probe_attempted {false};
+      std::atomic_bool control_connect_probe_peer_created {false};
     } stream_diag;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -508,6 +543,13 @@ namespace stream {
                     << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
                     << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
                     << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                    << " expected_connect_data="sv << session->control.connect_data
+                    << " controlProtocolType="sv << session->config.controlProtocolType
+                    << " mlFeatureFlags="sv << session->config.mlFeatureFlags
+                    << " experimental_video_peer_mode="sv << stream_diag_video_peer_mode()
+                    << " experimental_control_connect_client="sv << stream_diag_control_connect_client_enabled()
+                    << " control_connect_probe_attempted="sv << session->stream_diag.control_connect_probe_attempted.load()
+                    << " control_connect_probe_peer_created="sv << session->stream_diag.control_connect_probe_peer_created.load()
                     << " audio_raised_alone_blocks_video_or_control=0";
   }
 
@@ -603,6 +645,55 @@ namespace stream {
     return 0;
   }
 
+  net::peer_t control_server_t::connect_to_client(session_t *session) {
+    if (!_host) {
+      BOOST_LOG(warning) << "STREAM_DIAG control connect probe skipped"
+                         << " reason=no_enet_host"
+                         << " launch_session_id="sv << session->launch_session_id;
+      return nullptr;
+    }
+
+    if (!session->stream_diag.control_rtsp_client_port) {
+      BOOST_LOG(warning) << "STREAM_DIAG control connect probe skipped"
+                         << " reason=missing_rtsp_control_client_port"
+                         << " launch_session_id="sv << session->launch_session_id
+                         << " expected_client_address="sv << session->control.expected_peer_address
+                         << " expected_connect_data="sv << session->control.connect_data;
+      return nullptr;
+    }
+
+    ENetAddress address {};
+    const auto port = *session->stream_diag.control_rtsp_client_port;
+    if (enet_address_set_host(&address, session->control.expected_peer_address.c_str()) != 0) {
+      BOOST_LOG(warning) << "STREAM_DIAG control connect probe skipped"
+                         << " reason=bad_expected_client_address"
+                         << " launch_session_id="sv << session->launch_session_id
+                         << " expected_client_address="sv << session->control.expected_peer_address
+                         << " rtsp_control_client_port="sv << port
+                         << " expected_connect_data="sv << session->control.connect_data;
+      return nullptr;
+    }
+    enet_address_set_port(&address, port);
+
+    BOOST_LOG(warning) << "STREAM_DIAG control connect probe begin"
+                       << " launch_session_id="sv << session->launch_session_id
+                       << " remote="sv << session->control.expected_peer_address << ':' << port
+                       << " local_port="sv << net::map_port(CONTROL_PORT)
+                       << " expected_connect_data="sv << session->control.connect_data
+                       << " controlProtocolType="sv << session->config.controlProtocolType
+                       << " mlFeatureFlags="sv << session->config.mlFeatureFlags;
+
+    auto peer = enet_host_connect(_host.get(), &address, 1, session->control.connect_data);
+    session->stream_diag.control_connect_probe_peer_created.store(peer != nullptr);
+    BOOST_LOG(warning) << "STREAM_DIAG control connect probe result"
+                       << " launch_session_id="sv << session->launch_session_id
+                       << " remote="sv << session->control.expected_peer_address << ':' << port
+                       << " enet_host_connect_peer_created="sv << (peer != nullptr)
+                       << " expected_connect_data="sv << session->control.connect_data;
+
+    return peer;
+  }
+
   session_t *control_server_t::get_session(const net::peer_t peer, uint32_t connect_data) {
     {
       // Fast path - look up existing session by peer
@@ -616,6 +707,10 @@ namespace stream {
     // Slow path - process new session
     TUPLE_2D(peer_port, peer_addr, platf::from_sockaddr_ex((sockaddr *) &peer->address.address));
     auto lg = _sessions.lock();
+    BOOST_LOG(info) << "STREAM_DIAG control session lookup"
+                    << " remote="sv << peer_addr << ':' << peer_port
+                    << " connect_data="sv << connect_data
+                    << " active_sessions="sv << _sessions->size();
     for (auto pos = std::begin(*_sessions); pos != std::end(*_sessions); ++pos) {
       auto session_p = *pos;
 
@@ -628,15 +723,52 @@ namespace stream {
       // Only fall back to IP address matching for clients without session ID support.
       if (session_p->config.mlFeatureFlags & ML_FF_SESSION_ID_V1) {
         if (session_p->control.connect_data != connect_data) {
+          BOOST_LOG(info) << "STREAM_DIAG control session candidate mismatch"
+                          << " reason=connect_data"
+                          << " launch_session_id="sv << session_p->launch_session_id
+                          << " remote="sv << peer_addr << ':' << peer_port
+                          << " got_connect_data="sv << connect_data
+                          << " expected_connect_data="sv << session_p->control.connect_data
+                          << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session_p->stream_diag.control_rtsp_client_port)
+                          << " controlProtocolType="sv << session_p->config.controlProtocolType
+                          << " mlFeatureFlags="sv << session_p->config.mlFeatureFlags;
           continue;
         } else {
           BOOST_LOG(debug) << "Initialized new control stream session by connect data match [v2]"sv;
+          BOOST_LOG(info) << "STREAM_DIAG control session candidate matched"
+                          << " match=connect_data"
+                          << " launch_session_id="sv << session_p->launch_session_id
+                          << " remote="sv << peer_addr << ':' << peer_port
+                          << " connect_data="sv << connect_data
+                          << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session_p->stream_diag.control_rtsp_client_port)
+                          << " controlProtocolType="sv << session_p->config.controlProtocolType
+                          << " mlFeatureFlags="sv << session_p->config.mlFeatureFlags;
         }
       } else {
         if (session_p->control.expected_peer_address != peer_addr) {
+          BOOST_LOG(info) << "STREAM_DIAG control session candidate mismatch"
+                          << " reason=peer_address"
+                          << " launch_session_id="sv << session_p->launch_session_id
+                          << " remote="sv << peer_addr << ':' << peer_port
+                          << " expected_peer_address="sv << session_p->control.expected_peer_address
+                          << " got_connect_data="sv << connect_data
+                          << " expected_connect_data="sv << session_p->control.connect_data
+                          << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session_p->stream_diag.control_rtsp_client_port)
+                          << " controlProtocolType="sv << session_p->config.controlProtocolType
+                          << " mlFeatureFlags="sv << session_p->config.mlFeatureFlags;
           continue;
         } else {
           BOOST_LOG(debug) << "Initialized new control stream session by IP address match [v1]"sv;
+          BOOST_LOG(info) << "STREAM_DIAG control session candidate matched"
+                          << " match=peer_address"
+                          << " launch_session_id="sv << session_p->launch_session_id
+                          << " remote="sv << peer_addr << ':' << peer_port
+                          << " expected_peer_address="sv << session_p->control.expected_peer_address
+                          << " got_connect_data="sv << connect_data
+                          << " expected_connect_data="sv << session_p->control.connect_data
+                          << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session_p->stream_diag.control_rtsp_client_port)
+                          << " controlProtocolType="sv << session_p->config.controlProtocolType
+                          << " mlFeatureFlags="sv << session_p->config.mlFeatureFlags;
         }
       }
 
@@ -673,6 +805,10 @@ namespace stream {
       return session_p;
     }
 
+    BOOST_LOG(warning) << "STREAM_DIAG control session lookup failed"
+                       << " remote="sv << peer_addr << ':' << peer_port
+                       << " connect_data="sv << connect_data
+                       << " active_sessions="sv << _sessions->size();
     return nullptr;
   }
 
@@ -705,6 +841,70 @@ namespace stream {
   void control_server_t::iterate(std::chrono::milliseconds timeout) {
     ENetEvent event;
     auto res = enet_host_service(_host.get(), &event, (enet_uint32) timeout.count());
+    ++_service_poll_count;
+
+    if (res <= 0) {
+      std::size_t active_sessions = 0;
+      std::size_t awaiting_control_sessions = 0;
+      std::string expected_client_address = "<none>";
+      std::string rtsp_control_client_port = "<missing>";
+      std::uint32_t expected_connect_data = 0;
+      int control_protocol_type = 0;
+      std::uint32_t ml_feature_flags = 0;
+
+      {
+        auto lg = _sessions.lock();
+        active_sessions = _sessions->size();
+        for (auto session_p : *_sessions) {
+          if (!session_p->control.peer) {
+            ++awaiting_control_sessions;
+            if (expected_client_address == "<none>") {
+              expected_client_address = session_p->control.expected_peer_address;
+              rtsp_control_client_port = stream_diag_optional_port_to_string(session_p->stream_diag.control_rtsp_client_port);
+              expected_connect_data = session_p->control.connect_data;
+              control_protocol_type = session_p->config.controlProtocolType;
+              ml_feature_flags = session_p->config.mlFeatureFlags;
+            }
+          }
+        }
+      }
+
+      if (res < 0) {
+        BOOST_LOG(error) << "STREAM_DIAG enet_host_service result"
+                         << " channel=CONTROL"
+                         << " res="sv << res
+                         << " event=NONE"
+                         << " poll_count="sv << _service_poll_count
+                         << " timeout_ms="sv << timeout.count()
+                         << " local_port="sv << net::map_port(CONTROL_PORT)
+                         << " active_sessions="sv << active_sessions
+                         << " awaiting_control_sessions="sv << awaiting_control_sessions
+                         << " expected_client_address="sv << expected_client_address
+                         << " rtsp_control_client_port="sv << rtsp_control_client_port
+                         << " expected_connect_data="sv << expected_connect_data
+                         << " controlProtocolType="sv << control_protocol_type
+                         << " mlFeatureFlags="sv << ml_feature_flags
+                         << " raw_udp_visibility=unavailable_enet_owns_socket";
+      } else if (_service_poll_count <= 3 || (_service_poll_count % 20 == 0 && awaiting_control_sessions > 0)) {
+        BOOST_LOG(info) << "STREAM_DIAG enet_host_service result"
+                        << " channel=CONTROL"
+                        << " res="sv << res
+                        << " event=NONE"
+                        << " poll_count="sv << _service_poll_count
+                        << " timeout_ms="sv << timeout.count()
+                        << " local_port="sv << net::map_port(CONTROL_PORT)
+                        << " active_sessions="sv << active_sessions
+                        << " awaiting_control_sessions="sv << awaiting_control_sessions
+                        << " expected_client_address="sv << expected_client_address
+                        << " rtsp_control_client_port="sv << rtsp_control_client_port
+                        << " expected_connect_data="sv << expected_connect_data
+                        << " controlProtocolType="sv << control_protocol_type
+                        << " mlFeatureFlags="sv << ml_feature_flags
+                        << " raw_udp_visibility=unavailable_enet_owns_socket";
+      }
+
+      return;
+    }
 
     if (res > 0) {
       TUPLE_2D(event_port, event_addr, platf::from_sockaddr_ex((sockaddr *) &event.peer->address.address));
@@ -723,6 +923,15 @@ namespace stream {
           event_type = "NONE";
           break;
       }
+      BOOST_LOG(info) << "STREAM_DIAG enet_host_service result"
+                      << " channel=CONTROL"
+                      << " res="sv << res
+                      << " event="sv << event_type
+                      << " local_port="sv << net::map_port(CONTROL_PORT)
+                      << " remote="sv << event_addr << ':' << event_port
+                      << " bytes="sv << (event.packet ? event.packet->dataLength : 0)
+                      << " connect_data="sv << event.data
+                      << " raw_udp_visibility=enet_event_only";
       BOOST_LOG(info) << "STREAM_DIAG udp receive"
                       << " channel=CONTROL"
                       << " event="sv << event_type
@@ -1255,6 +1464,14 @@ namespace stream {
                              << " launch_session_id="sv << session->launch_session_id
                              << " wait_condition=no control ENet activity before session pingTimeout"
                              << " remote="sv << address
+                             << " expected_client_address="sv << session->control.expected_peer_address
+                             << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                             << " expected_connect_data="sv << session->control.connect_data
+                             << " controlProtocolType="sv << session->config.controlProtocolType
+                             << " mlFeatureFlags="sv << session->config.mlFeatureFlags
+                             << " experimental_control_connect_client="sv << stream_diag_control_connect_client_enabled()
+                             << " control_connect_probe_attempted="sv << session->stream_diag.control_connect_probe_attempted.load()
+                             << " control_connect_probe_peer_created="sv << session->stream_diag.control_connect_probe_peer_created.load()
                              << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
                              << " audio_raised_alone_blocks_video_or_control=0";
             stream_diag_log_ready_state("ready state at control ping timeout", session, "CONTROL"sv);
@@ -1263,6 +1480,21 @@ namespace stream {
           }
 
           auto session_start_time = session->pingTimeout - config::stream.ping_timeout;
+          if (now - session_start_time >= 1s &&
+              !session->control.peer &&
+              stream_diag_control_connect_client_enabled() &&
+              !session->stream_diag.control_connect_probe_attempted.exchange(true)) {
+            BOOST_LOG(warning) << "STREAM_DIAG control connect probe scheduling"
+                               << " launch_session_id="sv << session->launch_session_id
+                               << " reason=no_control_enet_after_diagnostic_delay"
+                               << " expected_client_address="sv << session->control.expected_peer_address
+                               << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                               << " expected_connect_data="sv << session->control.connect_data
+                               << " controlProtocolType="sv << session->config.controlProtocolType
+                               << " mlFeatureFlags="sv << session->config.mlFeatureFlags;
+            server->connect_to_client(session);
+          }
+
           if (now - session_start_time >= 1s &&
               session->stream_diag.audio_ping_ready.load() &&
               !session->stream_diag.video_ping_ready.load() &&
@@ -2111,7 +2343,11 @@ namespace stream {
                     << " initial_peer="sv << peer.address().to_string() << ':' << peer.port()
                     << " timeout_ms="sv << timeout.count()
                     << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
-                    << " ml_session_id_v1="sv << static_cast<bool>(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1);
+                    << " ml_session_id_v1="sv << static_cast<bool>(session->config.mlFeatureFlags & ML_FF_SESSION_ID_V1)
+                    << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                    << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                    << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                    << " experimental_video_peer_mode="sv << stream_diag_video_peer_mode();
     stream_diag_log_ready_state("ready state before initial ping wait", session, channel);
 
     auto fg = util::fail_guard([&]() {
@@ -2138,27 +2374,66 @@ namespace stream {
 
         if (type == socket_e::video &&
             current_time - start_time >= 1s &&
-            session->stream_diag.audio_ping_ready.load() &&
             !session->stream_diag.video_ping_ready.load() &&
-            !session->stream_diag.control_peer_ready.load() &&
-            session->stream_diag.video_udp_received.load() == 0 &&
-            session->stream_diag.control_udp_received.load() == 0) {
-          bool already_logged = session->stream_diag.audio_only_video_probe_logged.exchange(true);
-          if (!already_logged) {
-            BOOST_LOG(warning) << "STREAM_DIAG audio-only peer probe"
-                               << " channel=VIDEO"
-                               << " launch_session_id="sv << session->launch_session_id
-                               << " elapsed_ms="sv << std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count()
-                               << " audio_peer="sv << stream_diag_endpoint_to_string(session->audio.peer)
-                               << " video_peer_before="sv << stream_diag_endpoint_to_string(peer)
-                               << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
-                               << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
-                               << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
-                               << " reuse_audio_peer_enabled="sv << stream_diag_reuse_audio_peer_enabled()
-                               << " reason=audio ping accepted but no video UDP or control ENet activity after diagnostic delay";
+            session->stream_diag.video_udp_received.load() == 0) {
+          auto video_peer_mode = stream_diag_video_peer_mode();
+          if (session->stream_diag.audio_ping_ready.load() &&
+              !session->stream_diag.control_peer_ready.load() &&
+              session->stream_diag.control_udp_received.load() == 0) {
+            bool already_logged = session->stream_diag.audio_only_video_probe_logged.exchange(true);
+            if (!already_logged) {
+              BOOST_LOG(warning) << "STREAM_DIAG audio-only peer probe"
+                                 << " channel=VIDEO"
+                                 << " launch_session_id="sv << session->launch_session_id
+                                 << " elapsed_ms="sv << std::chrono::duration_cast<std::chrono::milliseconds>(current_time - start_time).count()
+                                 << " audio_peer="sv << stream_diag_endpoint_to_string(session->audio.peer)
+                                 << " video_peer_before="sv << stream_diag_endpoint_to_string(peer)
+                                 << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                                 << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                                 << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                                 << " experimental_video_peer_mode="sv << video_peer_mode
+                                 << " reuse_audio_peer_enabled="sv << stream_diag_reuse_audio_peer_enabled()
+                                 << " reason=audio ping accepted but no video UDP or control ENet activity after diagnostic delay";
+            }
           }
 
-          if (stream_diag_reuse_audio_peer_enabled() && session->audio.peer.port() != 0) {
+          if (video_peer_mode == "rtsp-client-port"sv &&
+              !session->stream_diag.rtsp_client_port_video_promoted.exchange(true)) {
+            if (!session->stream_diag.video_rtsp_client_port) {
+              BOOST_LOG(warning) << "STREAM_DIAG experimental rtsp client port video promotion skipped"
+                                 << " channel=VIDEO"
+                                 << " launch_session_id="sv << session->launch_session_id
+                                 << " reason=missing_rtsp_video_client_port"
+                                 << " expected_client_address="sv << session->control.expected_peer_address;
+            } else {
+              boost::system::error_code ec;
+              auto address = boost::asio::ip::make_address(session->control.expected_peer_address, ec);
+              if (ec) {
+                BOOST_LOG(warning) << "STREAM_DIAG experimental rtsp client port video promotion skipped"
+                                   << " channel=VIDEO"
+                                   << " launch_session_id="sv << session->launch_session_id
+                                   << " reason=bad_expected_client_address"
+                                   << " expected_client_address="sv << session->control.expected_peer_address
+                                   << " error="sv << ec.message();
+              } else {
+                peer.address(address);
+                peer.port(*session->stream_diag.video_rtsp_client_port);
+                session->stream_diag.video_ping_ready.store(true);
+                BOOST_LOG(warning) << "STREAM_DIAG experimental rtsp client port video promotion"
+                                   << " channel=VIDEO"
+                                   << " launch_session_id="sv << session->launch_session_id
+                                   << " promoted_video_peer="sv << stream_diag_endpoint_to_string(peer)
+                                   << " expected_client_address="sv << session->control.expected_peer_address
+                                   << " rtsp_video_client_port="sv << *session->stream_diag.video_rtsp_client_port
+                                   << " source=RTSP_X_GS_ClientPort"
+                                   << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load();
+                stream_diag_log_ready_state("ready state after experimental rtsp client port video promotion", session, channel);
+                return 0;
+              }
+            }
+          }
+
+          if (video_peer_mode == "audio-peer"sv && session->audio.peer.port() != 0) {
             peer = session->audio.peer;
             session->stream_diag.video_ping_ready.store(true);
             session->stream_diag.audio_peer_video_promoted.store(true);
@@ -2230,6 +2505,10 @@ namespace stream {
                      << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
                      << " expected_payload="sv << util::hex_vec(expected_payload)
                      << " last_peer="sv << peer.address().to_string() << ':' << peer.port()
+                     << " rtsp_video_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.video_rtsp_client_port)
+                     << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.audio_rtsp_client_port)
+                     << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session->stream_diag.control_rtsp_client_port)
+                     << " experimental_video_peer_mode="sv << stream_diag_video_peer_mode()
                      << " audio_raised_alone_blocks_video_or_control=0";
     stream_diag_log_ready_state("ready state at initial ping timeout", session, channel);
     BOOST_LOG(error) << "Initial Ping Timeout"sv;
@@ -2381,7 +2660,12 @@ namespace stream {
                       << " rtsp_audio_client_port="sv << stream_diag_optional_port_to_string(session.stream_diag.audio_rtsp_client_port)
                       << " rtsp_control_client_port="sv << stream_diag_optional_port_to_string(session.stream_diag.control_rtsp_client_port)
                       << " ping_timeout_ms="sv << config::stream.ping_timeout.count()
+                      << " expected_connect_data="sv << session.control.connect_data
+                      << " controlProtocolType="sv << session.config.controlProtocolType
+                      << " mlFeatureFlags="sv << session.config.mlFeatureFlags
+                      << " experimental_video_peer_mode="sv << stream_diag_video_peer_mode()
                       << " experimental_reuse_audio_peer="sv << stream_diag_reuse_audio_peer_enabled()
+                      << " experimental_control_connect_client="sv << stream_diag_control_connect_client_enabled()
                       << " audio_and_video_waiters_independent=1"
                       << " audio_raised_alone_blocks_video_or_control=0";
 
