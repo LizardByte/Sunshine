@@ -190,6 +190,23 @@ namespace nvhttp {
                     << " active_sessions="sv << map_id_sess.size();
   }
 
+  void log_pair_async_response_state(std::string_view marker, const pair_session_t &sess) {
+    const auto &async_response = sess.async_insert_pin.response;
+    const auto has_http_variant = async_response.has_left();
+    const auto has_https_variant = async_response.has_right();
+    const auto http_pointer_present = has_http_variant && static_cast<bool>(async_response.left());
+    const auto https_pointer_present = has_https_variant && static_cast<bool>(async_response.right());
+    const auto variant = has_http_variant ? "HTTP"sv : has_https_variant ? "HTTPS"sv : "none"sv;
+
+    BOOST_LOG(info) << "PAIR_DIAG "sv << marker
+                    << " session_key="sv << diag_value(sess.client.uniqueID)
+                    << " response_variant="sv << variant
+                    << " has_http_variant="sv << has_http_variant
+                    << " http_pointer_present="sv << http_pointer_present
+                    << " has_https_variant="sv << has_https_variant
+                    << " https_pointer_present="sv << https_pointer_present;
+  }
+
   enum class op_e {
     ADD,  ///< Add certificate
     REMOVE  ///< Remove certificate
@@ -783,10 +800,13 @@ namespace nvhttp {
             system_tray::update_tray_require_pin();
 #endif
             ptr->second.async_insert_pin.response = std::move(response);
+            log_pair_async_response_state("stored getservercert async response", ptr->second);
 
             BOOST_LOG(info) << "PAIR_DIAG getservercert waiting for /api/pin session_key="sv << diag_value(session_key)
                             << " active_sessions="sv << map_id_sess.size()
-                            << " async_response_stored=1";
+                            << " async_response_stored="sv
+                            << ((ptr->second.async_insert_pin.response.has_left() && ptr->second.async_insert_pin.response.left()) ||
+                                (ptr->second.async_insert_pin.response.has_right() && ptr->second.async_insert_pin.response.right()));
             fg.disable();
             return;
           }
@@ -934,21 +954,48 @@ namespace nvhttp {
       // response to the request for pin
       std::ostringstream data;
       pt::write_xml(data, tree);
+      const auto response_body = data.str();
 
       auto &async_response = sess_it->second.async_insert_pin.response;
+      log_pair_async_response_state("/api/pin stored response before write", sess_it->second);
       if (async_response.has_left() && async_response.left()) {
-        async_response.left()->write(data.str());
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin writing getservercert XML response"
+                        << " session_key="sv << diag_value(session_key)
+                        << " response_variant=HTTP"
+                        << " response_pointer_present=1"
+                        << " bytes="sv << response_body.size();
+        async_response.left()->close_connection_after_response = true;
+        async_response.left()->write(response_body);
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin write succeeded"
+                        << " session_key="sv << diag_value(session_key)
+                        << " response_variant=HTTP"
+                        << " active_sessions_after_write="sv << map_id_sess.size();
       } else if (async_response.has_right() && async_response.right()) {
-        async_response.right()->write(data.str());
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin writing getservercert XML response"
+                        << " session_key="sv << diag_value(session_key)
+                        << " response_variant=HTTPS"
+                        << " response_pointer_present=1"
+                        << " bytes="sv << response_body.size();
+        async_response.right()->close_connection_after_response = true;
+        async_response.right()->write(response_body);
+        BOOST_LOG(info) << "PAIR_DIAG /api/pin write succeeded"
+                        << " session_key="sv << diag_value(session_key)
+                        << " response_variant=HTTPS"
+                        << " active_sessions_after_write="sv << map_id_sess.size();
       } else {
         BOOST_LOG(warning) << "PAIR_DIAG /api/pin rejected reason=missing stored async getservercert response"
                            << " session_key="sv << diag_value(session_key)
+                           << " has_http_variant="sv << async_response.has_left()
+                           << " http_pointer_present="sv << (async_response.has_left() && static_cast<bool>(async_response.left()))
+                           << " has_https_variant="sv << async_response.has_right()
+                           << " https_pointer_present="sv << (async_response.has_right() && static_cast<bool>(async_response.right()))
                            << " active_sessions_after="sv << map_id_sess.size();
         return false;
       }
 
       // reset async_response
       async_response = std::decay_t<decltype(async_response.left())>();
+      log_pair_async_response_state("/api/pin stored response after reset", sess_it->second);
       BOOST_LOG(info) << "PAIR_DIAG /api/pin complete session_key="sv << diag_value(session_key)
                       << " active_sessions_before="sv << sessions_before
                       << " active_sessions_after="sv << map_id_sess.size();
