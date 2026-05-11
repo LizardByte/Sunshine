@@ -112,10 +112,11 @@ namespace stream {
   }
 
   std::string stream_diag_endpoint_to_string(const udp::endpoint &peer) {
-    boost::system::error_code ec;
-    auto address = peer.address().to_string(ec);
-    if (ec) {
-      address = "<invalid-address>";
+    std::string address;
+    try {
+      address = peer.address().to_string();
+    } catch (const std::exception &e) {
+      address = std::string {"<address-error:"} + e.what() + '>';
     }
 
     return std::format("{}:{}", address, peer.port());
