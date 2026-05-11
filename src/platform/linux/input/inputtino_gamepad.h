@@ -23,7 +23,7 @@ namespace platf::gamepad {
     SwitchProWired  ///< Switch Pro Wired Controller
   };
 
-  int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue);
+  int alloc(input_raw_t *raw, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue, std::string_view gamepad_override = {});
 
   void free(input_raw_t *raw, int nr);
 

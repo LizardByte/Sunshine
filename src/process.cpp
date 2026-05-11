@@ -650,6 +650,7 @@ namespace proc {
         auto auto_detach = app_node.get_optional<bool>("auto-detach"s);
         auto wait_all = app_node.get_optional<bool>("wait-all"s);
         auto exit_timeout = app_node.get_optional<int>("exit-timeout"s);
+        auto gamepad = app_node.get_optional<std::string>("gamepad"s);
 
         std::vector<proc::cmd_t> prep_cmds;
         if (!exclude_global_prep.value_or(false)) {
@@ -713,6 +714,10 @@ namespace proc {
 
         if (image_path) {
           ctx.image_path = parse_env_val(this_env, *image_path);
+        }
+
+        if (gamepad) {
+          ctx.gamepad = parse_env_val(this_env, *gamepad);
         }
 
         ctx.elevated = elevated.value_or(false);

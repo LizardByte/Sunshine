@@ -79,9 +79,9 @@ namespace platf {
     platf::pen::update(raw, touch_port, pen);
   }
 
-  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
+  int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue, std::string_view gamepad_override) {
     auto raw = (input_raw_t *) input.get();
-    return platf::gamepad::alloc(raw, id, metadata, feedback_queue);
+    return platf::gamepad::alloc(raw, id, metadata, feedback_queue, gamepad_override);
   }
 
   void free_gamepad(input_t &input, int nr) {
