@@ -935,7 +935,7 @@ namespace video {
         {"preset"s, &config::video.sw.sw_preset},
         {"tune"s, &config::video.sw.sw_tune},
         {"aq-mode"s, &config::video.sw.aq_mode},
-        {"aq-strength"s, std::function<const std::string(const config_t &)>([&](const config_t &) -> std::string {
+        {"aq-strength"s, std::function<const std::string(const config_t &)>([](const config_t &) -> std::string {
           return std::to_string(config::video.sw.aq_strength);
         })},
       },
@@ -952,7 +952,7 @@ namespace video {
         {"preset"s, &config::video.sw.sw_preset},
         {"tune"s, &config::video.sw.sw_tune},
         {"aq-mode"s, &config::video.sw.aq_mode},
-        {"aq-strength"s, std::function<const std::string(const config_t &)>([&](const config_t &) -> std::string {
+        {"aq-strength"s, std::function<const std::string(const config_t &)>([](const config_t &) -> std::string {
           return std::to_string(config::video.sw.aq_strength);
         })},
       },
