@@ -39,6 +39,23 @@ const config = ref(props.config)
       </select>
       <div class="form-text">{{ $t('config.sw_tune_desc') }}</div>
     </div>
+
+    <div class="mb-3">
+      <label for="sw_aq_mode" class="form-label">{{ $t('config.sw_aq_mode') }}</label>
+      <select id="sw_aq_mode" class="form-select" v-model.number="config.sw_aq_mode">
+        <option value="0">{{ $t('config.sw_aq_mode_0') }}</option>
+        <option value="1">{{ $t('config.sw_aq_mode_1') }}</option>
+        <option value="2">{{ $t('config.sw_aq_mode_2') }}</option>
+        <option value="3">{{ $t('config.sw_aq_mode_3') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.sw_aq_mode_desc') }}</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="sw_aq_strength" class="form-label">{{ $t('config.sw_aq_strength') }}</label>
+      <input id="sw_aq_strength" type="number" class="form-control" v-model.number="config.sw_aq_strength" min="0" max="2" step="0.1">
+      <div class="form-text">{{ $t('config.sw_aq_strength_desc') }}</div>
+    </div>
   </div>
 </template>
 

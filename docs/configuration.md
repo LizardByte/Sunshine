@@ -3192,6 +3192,34 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### sw_aq_mode
+Adaptive quantization mode for software encoders.
+<table>
+    <tr>
+        <th>Value</th>
+        <th>Description</th>
+    </tr>
+    <tr>
+        <td>0</td>
+        <td>disabled</td>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>variance AQ (temporal)</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>auto-variance AQ (default)</td>
+    </tr>
+    <tr>
+        <td>3</td>
+        <td>auto-variance AQ with dark scene bias (x264 only)</td>
+    </tr>
+</table>
+
+### sw_aq_strength
+Adaptive quantization strength. Higher values result in more aggressive quantization adjustments. Defaults to 1.0.
+
 <div class="section_buttons">
 
 | Previous          |                            Next |
