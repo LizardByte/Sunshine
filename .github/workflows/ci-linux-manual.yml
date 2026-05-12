@@ -1,0 +1,16 @@
+---
+name: CI-Linux Manual
+permissions: {}
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Linux
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-linux.yml
+    with:
+      release_commit: ${{ github.sha }}
+      release_version: ${{ github.sha }}
