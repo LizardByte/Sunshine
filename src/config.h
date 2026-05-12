@@ -39,6 +39,8 @@ namespace config {
       std::string sw_preset;
       std::string sw_tune;
       std::optional<int> svtav1_preset;
+      int aq_mode;        // 0=off, 1=variance AQ, 2=auto-variance AQ, 3=auto-variance with dark scene bias (x264 only)
+      double aq_strength; // AQ strength (typically 0.0 to 2.0, default 1.0)
     } sw;
 
     nvenc::nvenc_config nv;
