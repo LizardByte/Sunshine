@@ -1060,7 +1060,7 @@ namespace platf {
           return -1;
         }
 
-        auto selected_fb = selected_card.fb(selected_plane.get());
+        auto selected_fb = selected_card.fb(selected_plane);
         if (!selected_fb) {
           BOOST_LOG(error) << "Couldn't get drm fb for selected plane ["sv << selected_plane->fb_id << "]: "sv << strerror(errno);
           return -1;
@@ -1083,7 +1083,7 @@ namespace platf {
           return -1;
         }
 
-        kms::print(selected_plane.get(), selected_fb.get(), selected_crtc.get());
+        kms::print(selected_plane, selected_fb.get(), selected_crtc.get());
 
         img_width = selected_fb->width;
         img_height = selected_fb->height;
@@ -1158,9 +1158,6 @@ namespace platf {
                         << " pitch0="sv << selected_fb->pitches[0];
 
         this->card = std::move(selected_card);
-
-      // Neatly break from nested for loop
-      break_loop:
 
         // Look for the cursor plane for this CRTC
         cursor_plane_id = -1;
