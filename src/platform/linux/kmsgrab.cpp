@@ -4,8 +4,12 @@
  */
 // standard includes
 #include <errno.h>
+#include <algorithm>
+#include <cstdlib>
 #include <fcntl.h>
 #include <filesystem>
+#include <limits>
+#include <optional>
 #include <thread>
 #include <unistd.h>
 
@@ -333,7 +337,8 @@ namespace platf {
         }
 
         version_t ver {drmGetVersion(fd.el)};
-        BOOST_LOG(info) << path << " -> "sv << ((ver && ver->name) ? ver->name : "UNKNOWN");
+        card_name = (ver && ver->name) ? ver->name : "UNKNOWN";
+        BOOST_LOG(info) << path << " -> "sv << card_name;
 
         // Open the render node for this card to share with libva.
         // If it fails, we'll just share the primary node instead.
@@ -552,7 +557,241 @@ namespace platf {
       file_t fd;
       file_t render_fd;
       plane_res_t plane_res;
+      std::string card_name;
     };
+
+    std::string env_value(const char *name) {
+      auto value = std::getenv(name);
+      return value ? value : "";
+    }
+
+    std::optional<std::uint32_t> uint_env_value(const char *name) {
+      auto value = std::getenv(name);
+      if (!value || !*value) {
+        return std::nullopt;
+      }
+
+      char *end = nullptr;
+      errno = 0;
+      auto parsed = std::strtoul(value, &end, 10);
+      if (errno || end == value || *end || parsed > std::numeric_limits<std::uint32_t>::max()) {
+        BOOST_LOG(warning) << "STREAM_DIAG invalid uint env "sv << name << '=' << value;
+        return std::nullopt;
+      }
+
+      return static_cast<std::uint32_t>(parsed);
+    }
+
+    struct framebuffer_sample_t {
+      bool attempted = false;
+      bool available = false;
+      bool all_black = false;
+      double avg_luma = 0.0;
+      double avg_r = 0.0;
+      double avg_g = 0.0;
+      double avg_b = 0.0;
+      int min_sample = 0;
+      int max_sample = 0;
+      std::uint64_t nonblack_samples = 0;
+      std::uint64_t total_samples = 0;
+      std::string reason = "not_attempted";
+    };
+
+    framebuffer_sample_t sample_framebuffer(card_t &card, wrapper_fb &fb) {
+      framebuffer_sample_t sample;
+      sample.attempted = true;
+
+      if (!fb.handles[0] || !fb.pitches[0] || !fb.width || !fb.height) {
+        sample.reason = "missing_handle_or_geometry";
+        return sample;
+      }
+
+      const auto bytes_per_pixel = fb.pitches[0] / fb.width;
+      if (bytes_per_pixel < 3) {
+        sample.reason = "unsupported_bytes_per_pixel";
+        return sample;
+      }
+
+      auto plane_fd = card.handleFD(fb.handles[0]);
+      if (plane_fd.el < 0) {
+        sample.reason = "handlefd_failed";
+        return sample;
+      }
+
+      size_t mapped_size = static_cast<size_t>(fb.pitches[0]) * fb.height;
+      void *mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, plane_fd.el, fb.offsets[0]);
+      if (mapped_data == MAP_FAILED && errno == ENOSYS) {
+        drm_mode_map_dumb map = {};
+        map.handle = fb.handles[0];
+        if (drmIoctl(card.fd.el, DRM_IOCTL_MODE_MAP_DUMB, &map) == 0) {
+          mapped_data = mmap(nullptr, mapped_size, PROT_READ, MAP_SHARED, card.fd.el, map.offset);
+        }
+      }
+
+      if (mapped_data == MAP_FAILED) {
+        sample.reason = std::string {"mmap_failed:"} + strerror(errno);
+        return sample;
+      }
+
+      struct dma_buf_sync sync;
+      sync.flags = DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ;
+      drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+
+      const int samples_x = std::min<std::uint32_t>(fb.width, 16);
+      const int samples_y = std::min<std::uint32_t>(fb.height, 16);
+      std::uint64_t sum_r = 0;
+      std::uint64_t sum_g = 0;
+      std::uint64_t sum_b = 0;
+      int min_sample = 255;
+      int max_sample = 0;
+      std::uint64_t nonblack = 0;
+      std::uint64_t total = 0;
+
+      for (int sy = 0; sy < samples_y; ++sy) {
+        const auto y = ((sy * 2 + 1) * fb.height) / (samples_y * 2);
+        const auto *row = static_cast<std::uint8_t *>(mapped_data) + (static_cast<size_t>(y) * fb.pitches[0]);
+        for (int sx = 0; sx < samples_x; ++sx) {
+          const auto x = ((sx * 2 + 1) * fb.width) / (samples_x * 2);
+          const auto *pixel = row + (static_cast<size_t>(x) * bytes_per_pixel);
+          const int b = pixel[0];
+          const int g = pixel[1];
+          const int r = pixel[2];
+
+          sum_r += r;
+          sum_g += g;
+          sum_b += b;
+          min_sample = std::min({min_sample, r, g, b});
+          max_sample = std::max({max_sample, r, g, b});
+          if (r > 8 || g > 8 || b > 8) {
+            ++nonblack;
+          }
+          ++total;
+        }
+      }
+
+      sync.flags = DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ;
+      drmIoctl(plane_fd.el, DMA_BUF_IOCTL_SYNC, &sync);
+      munmap(mapped_data, mapped_size);
+
+      if (!total) {
+        sample.reason = "no_samples";
+        return sample;
+      }
+
+      sample.available = true;
+      sample.reason = "ok";
+      sample.avg_r = static_cast<double>(sum_r) / static_cast<double>(total);
+      sample.avg_g = static_cast<double>(sum_g) / static_cast<double>(total);
+      sample.avg_b = static_cast<double>(sum_b) / static_cast<double>(total);
+      sample.avg_luma = (0.2126 * sample.avg_r) + (0.7152 * sample.avg_g) + (0.0722 * sample.avg_b);
+      sample.min_sample = min_sample;
+      sample.max_sample = max_sample;
+      sample.nonblack_samples = nonblack;
+      sample.total_samples = total;
+      sample.all_black = nonblack == 0 || max_sample <= 8;
+      return sample;
+    }
+
+    struct plane_candidate_t {
+      std::string card_path;
+      std::string card_filename;
+      std::string card_name;
+      std::string connector_name = "unknown";
+      std::optional<std::uint32_t> connector_id;
+      bool connector_connected = false;
+      std::uint32_t crtc_id = 0;
+      int crtc_index = -1;
+      std::uint32_t crtc_width = 0;
+      std::uint32_t crtc_height = 0;
+      std::uint32_t plane_id = 0;
+      std::string plane_type_name = "UNKNOWN";
+      std::uint64_t plane_type = 0;
+      std::uint32_t possible_crtcs = 0;
+      std::uint32_t fb_id = 0;
+      std::uint32_t fb_width = 0;
+      std::uint32_t fb_height = 0;
+      std::uint32_t pixel_format = 0;
+      std::uint64_t modifier = 0;
+      std::uint32_t pitch0 = 0;
+      int monitor_index = -1;
+      std::optional<std::uint64_t> hdr_metadata_blob_id;
+      framebuffer_sample_t sample;
+      bool skipped = true;
+      bool forced = false;
+      std::string skip_reason = "not_evaluated";
+      std::int64_t score = 0;
+    };
+
+    std::int64_t score_plane_candidate(const plane_candidate_t &candidate, const ::video::config_t &config, int monitor_index) {
+      if (candidate.forced) {
+        return std::numeric_limits<std::int64_t>::max() / 4;
+      }
+
+      std::int64_t score = 0;
+      if (candidate.connector_connected) {
+        score += 100;
+      }
+      if (candidate.monitor_index == monitor_index) {
+        score += 100;
+      }
+      if (candidate.plane_type == DRM_PLANE_TYPE_PRIMARY) {
+        score += 1000;
+      }
+      if (candidate.fb_width == candidate.crtc_width && candidate.fb_height == candidate.crtc_height) {
+        score += 5000;
+      }
+      if (candidate.fb_width == static_cast<std::uint32_t>(config.width) && candidate.fb_height == static_cast<std::uint32_t>(config.height)) {
+        score += 3000;
+      }
+      score += std::min<std::int64_t>((static_cast<std::int64_t>(candidate.fb_width) * candidate.fb_height) / 100000, 500);
+
+      if (candidate.sample.available) {
+        if (candidate.sample.all_black) {
+          score -= 3000;
+        } else {
+          score += 1000;
+        }
+      }
+
+      return score;
+    }
+
+    void log_plane_candidate(std::string_view marker, const plane_candidate_t &candidate) {
+      BOOST_LOG(info) << "STREAM_DIAG "sv << marker
+                      << " drm_device="sv << candidate.card_path
+                      << " card_name="sv << candidate.card_name
+                      << " connector="sv << candidate.connector_name
+                      << " connector_id="sv << (candidate.connector_id ? std::to_string(*candidate.connector_id) : std::string {"<missing>"})
+                      << " connector_connected="sv << candidate.connector_connected
+                      << " crtc_id="sv << candidate.crtc_id
+                      << " crtc_index="sv << candidate.crtc_index
+                      << " crtc_width="sv << candidate.crtc_width
+                      << " crtc_height="sv << candidate.crtc_height
+                      << " plane_id="sv << candidate.plane_id
+                      << " plane_type="sv << candidate.plane_type_name
+                      << " fb_id="sv << candidate.fb_id
+                      << " fb_width="sv << candidate.fb_width
+                      << " fb_height="sv << candidate.fb_height
+                      << " pixel_format="sv << (candidate.pixel_format ? std::string {util::view(candidate.pixel_format)} : std::string {"<none>"})
+                      << " modifier="sv << candidate.modifier
+                      << " pitch0="sv << candidate.pitch0
+                      << " possible_crtcs="sv << candidate.possible_crtcs
+                      << " monitor_index="sv << candidate.monitor_index
+                      << " skipped="sv << candidate.skipped
+                      << " skip_reason="sv << candidate.skip_reason
+                      << " forced="sv << candidate.forced
+                      << " score="sv << candidate.score
+                      << " sample_attempted="sv << candidate.sample.attempted
+                      << " sample_available="sv << candidate.sample.available
+                      << " sample_reason="sv << candidate.sample.reason
+                      << " sample_avg_luma="sv << candidate.sample.avg_luma
+                      << " sample_avg_rgb="sv << candidate.sample.avg_r << ',' << candidate.sample.avg_g << ',' << candidate.sample.avg_b
+                      << " sample_min="sv << candidate.sample.min_sample
+                      << " sample_max="sv << candidate.sample.max_sample
+                      << " sample_nonblack="sv << candidate.sample.nonblack_samples
+                      << " sample_total="sv << candidate.sample.total_samples
+                      << " sample_all_black="sv << candidate.sample.all_black;
+    }
 
     std::map<std::uint32_t, monitor_t> map_crtc_to_monitor(const std::vector<connector_t> &connectors) {
       std::map<std::uint32_t, monitor_t> result;
@@ -617,7 +856,16 @@ namespace platf {
         delay = std::chrono::nanoseconds {1s} / config.framerate;
 
         int monitor_index = util::from_view(display_name);
-        int monitor = 0;
+        const auto forced_connector = kms::env_value("SUNSHINE_STREAM_DIAG_KMS_FORCE_CONNECTOR");
+        const auto forced_plane_id = kms::uint_env_value("SUNSHINE_STREAM_DIAG_KMS_FORCE_PLANE_ID");
+        if (!forced_connector.empty()) {
+          BOOST_LOG(warning) << "STREAM_DIAG KMS force connector enabled connector="sv << forced_connector;
+        }
+        if (forced_plane_id) {
+          BOOST_LOG(warning) << "STREAM_DIAG KMS force plane enabled plane_id="sv << *forced_plane_id;
+        }
+
+        std::optional<kms::plane_candidate_t> best_candidate;
 
         fs::path card_dir {"/dev/dri"sv};
         for (auto &entry : fs::directory_iterator {card_dir}) {
@@ -650,33 +898,83 @@ namespace platf {
             continue;
           }
 
+          // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor.
+          auto card_descriptor_pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
+            return cd.path == filestring;
+          });
+
+          kms::conn_type_count_t conn_type_count;
+          auto connectors = card.monitors(conn_type_count);
+          int plane_monitor = 0;
+
           auto end = std::end(card);
           for (auto plane = std::begin(card); plane != end; ++plane) {
-            // Skip unused planes
-            if (!plane->fb_id) {
-              continue;
-            }
-
             if (card.is_cursor(plane->plane_id)) {
               continue;
             }
 
-            if (monitor != monitor_index) {
-              ++monitor;
+            kms::plane_candidate_t candidate;
+            candidate.card_path = entry.path().generic_string();
+            candidate.card_filename = filestring;
+            candidate.card_name = card.card_name;
+            candidate.crtc_id = plane->crtc_id;
+            candidate.crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
+            candidate.plane_id = plane->plane_id;
+            candidate.possible_crtcs = plane->possible_crtcs;
+
+            auto plane_props = card.plane_props(plane->plane_id);
+            auto plane_type_value = card.prop_value_by_name(plane_props, "type"sv);
+            candidate.plane_type = plane_type_value.value_or(0);
+            candidate.plane_type_name = std::string {kms::plane_type(candidate.plane_type)};
+
+            if (plane->crtc_id) {
+              if (auto crtc = card.crtc(plane->crtc_id)) {
+                candidate.crtc_width = crtc->width;
+                candidate.crtc_height = crtc->height;
+              }
+            }
+
+            auto connector = std::find_if(std::begin(connectors), std::end(connectors), [&](const auto &conn) {
+              return conn.crtc_id == plane->crtc_id;
+            });
+            if (connector != std::end(connectors)) {
+              candidate.connector_name = kms::connector_name(connector->type, connector->index);
+              candidate.connector_id = connector->connector_id;
+              candidate.connector_connected = connector->connected;
+            }
+
+            if (!plane->fb_id) {
+              candidate.skip_reason = "unused_no_fb";
+              kms::log_plane_candidate("kms plane", candidate);
               continue;
             }
+
+            candidate.monitor_index = plane_monitor++;
 
             auto fb = card.fb(plane.get());
             if (!fb) {
               BOOST_LOG(error) << "Couldn't get drm fb for plane ["sv << plane->fb_id << "]: "sv << strerror(errno);
-              return -1;
+              candidate.skip_reason = "drm_fb_lookup_failed";
+              kms::log_plane_candidate("kms plane", candidate);
+              continue;
             }
+
+            candidate.fb_id = fb->fb_id;
+            candidate.fb_width = fb->width;
+            candidate.fb_height = fb->height;
+            candidate.pixel_format = fb->pixel_format;
+            candidate.modifier = fb->modifier;
+            candidate.pitch0 = fb->pitches[0];
+            candidate.sample = kms::sample_framebuffer(card, *fb);
 
             if (!fb->handles[0]) {
               BOOST_LOG(error) << "Couldn't get handle for DRM Framebuffer ["sv << plane->fb_id << "]: Probably not permitted"sv;
-              return -1;
+              candidate.skip_reason = "missing_fb_handle";
+              kms::log_plane_candidate("kms plane", candidate);
+              continue;
             }
 
+            bool missing_fd = false;
             for (int i = 0; i < 4; ++i) {
               if (!fb->handles[i]) {
                 break;
@@ -685,126 +983,181 @@ namespace platf {
               auto fb_fd = card.handleFD(fb->handles[i]);
               if (fb_fd.el < 0) {
                 BOOST_LOG(error) << "Couldn't get primary file descriptor for Framebuffer ["sv << fb->fb_id << "]: "sv << strerror(errno);
-                continue;
+                missing_fd = true;
+                break;
               }
+            }
+            if (missing_fd) {
+              candidate.skip_reason = "framebuffer_handlefd_failed";
+              kms::log_plane_candidate("kms plane", candidate);
+              continue;
             }
 
             auto crtc = card.crtc(plane->crtc_id);
             if (!crtc) {
               BOOST_LOG(error) << "Couldn't get CRTC info: "sv << strerror(errno);
+              candidate.skip_reason = "crtc_lookup_failed";
+              kms::log_plane_candidate("kms plane", candidate);
               continue;
             }
 
-            BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
-
-            // We need to find the correct /dev/dri/card{nr} to correlate the crtc_id with the monitor descriptor
-            auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
-              return cd.path == filestring;
-            });
-
-            if (pos == std::end(card_descriptors)) {
-              // This code path shouldn't happen, but it's there just in case.
-              // card_descriptors is part of the guesswork after all.
-              BOOST_LOG(error) << "Couldn't find ["sv << entry.path() << "]: This shouldn't have happened :/"sv;
-              return -1;
-            }
-
-            // TODO: surf_sd = fb->to_sd();
-
-            kms::print(plane.get(), fb.get(), crtc.get());
-
-            img_width = fb->width;
-            img_height = fb->height;
-            img_offset_x = crtc->x;
-            img_offset_y = crtc->y;
-
-            this->env_width = ::platf::kms::env_width;
-            this->env_height = ::platf::kms::env_height;
-
-            this->env_logical_width = ::platf::kms::env_logical_width;
-            this->env_logical_height = ::platf::kms::env_logical_height;
-
-            auto monitor = pos->crtc_to_monitor.find(plane->crtc_id);
-            if (monitor != std::end(pos->crtc_to_monitor)) {
-              auto &viewport = monitor->second.viewport;
-
-              width = viewport.width;
-              height = viewport.height;
-
-              logical_width = viewport.logical_width;
-              logical_height = viewport.logical_height;
-
-              switch (card.get_panel_orientation(plane->plane_id)) {
-                case DRM_MODE_ROTATE_270:
-                  BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
-                  width = viewport.height;
-                  height = viewport.width;
-                  break;
-                case DRM_MODE_ROTATE_90:
-                case DRM_MODE_ROTATE_180:
-                  BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
-                  break;
-              }
-
-              offset_x = viewport.offset_x;
-              offset_y = viewport.offset_y;
-            }
-
-            // This code path shouldn't happen, but it's there just in case.
-            // crtc_to_monitor is part of the guesswork after all.
-            else {
-              BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
-              width = crtc->width;
-              height = crtc->height;
-              offset_x = crtc->x;
-              offset_y = crtc->y;
-            }
-
-            plane_id = plane->plane_id;
-            crtc_id = plane->crtc_id;
-            crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
-            card_path = entry.path().generic_string();
-
-            auto plane_props = card.plane_props(plane->plane_id);
-            auto plane_type_value = card.prop_value_by_name(plane_props, "type"sv);
-            plane_type_name = std::string {kms::plane_type(plane_type_value.value_or(0))};
-
-            // Find the connector for this CRTC
-            kms::conn_type_count_t conn_type_count;
-            for (auto &connector : card.monitors(conn_type_count)) {
-              if (connector.crtc_id == crtc_id) {
-                BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
-
-                connector_id = connector.connector_id;
-                connector_name = kms::connector_name(connector.type, connector.index);
-
-                auto connector_props = card.connector_props(*connector_id);
-                hdr_metadata_blob_id = card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+            if (card_descriptor_pos != std::end(card_descriptors)) {
+              auto monitor = card_descriptor_pos->crtc_to_monitor.find(plane->crtc_id);
+              if (monitor != std::end(card_descriptor_pos->crtc_to_monitor)) {
+                candidate.monitor_index = monitor->second.monitor_index;
               }
             }
 
-            BOOST_LOG(info) << "STREAM_DIAG kms capture selected"
-                            << " drm_device="sv << card_path
-                            << " connector="sv << (connector_name.empty() ? "unknown" : connector_name)
-                            << " connector_id="sv << (connector_id ? std::to_string(*connector_id) : std::string {"<missing>"})
-                            << " crtc_id="sv << crtc_id
-                            << " crtc_index="sv << crtc_index
-                            << " plane_id="sv << plane_id
-                            << " plane_type="sv << plane_type_name
-                            << " framebuffer_id="sv << fb->fb_id
-                            << " width="sv << fb->width
-                            << " height="sv << fb->height
-                            << " pixel_format="sv << util::view(fb->pixel_format)
-                            << " modifier="sv << fb->modifier
-                            << " pitch0="sv << fb->pitches[0];
+            if (forced_plane_id) {
+              if (candidate.plane_id != *forced_plane_id) {
+                candidate.skip_reason = "force_plane_mismatch";
+                kms::log_plane_candidate("kms plane", candidate);
+                continue;
+              }
+              candidate.forced = true;
+              if (!forced_connector.empty() && candidate.connector_name != forced_connector) {
+                BOOST_LOG(warning) << "STREAM_DIAG forced plane connector mismatch"
+                                   << " plane_id="sv << candidate.plane_id
+                                   << " forced_connector="sv << forced_connector
+                                   << " candidate_connector="sv << candidate.connector_name;
+              }
+            } else if (!forced_connector.empty() && candidate.connector_name != forced_connector) {
+              candidate.skip_reason = "force_connector_mismatch";
+              kms::log_plane_candidate("kms plane", candidate);
+              continue;
+            }
 
-            this->card = std::move(card);
-            goto break_loop;
+            candidate.skipped = false;
+            candidate.skip_reason = "candidate";
+            candidate.score = kms::score_plane_candidate(candidate, config, monitor_index);
+            kms::log_plane_candidate("kms plane", candidate);
+
+            if (!best_candidate || candidate.score > best_candidate->score) {
+              best_candidate = candidate;
+            }
           }
         }
 
-        BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
-        return -1;
+        if (!best_candidate) {
+          BOOST_LOG(error) << "Couldn't find monitor ["sv << monitor_index << ']';
+          return -1;
+        }
+
+        kms::log_plane_candidate("kms plane selected", *best_candidate);
+        if (best_candidate->forced) {
+          BOOST_LOG(warning) << "STREAM_DIAG KMS forced plane selected plane_id="sv << best_candidate->plane_id;
+        }
+
+        kms::card_t selected_card;
+        if (selected_card.init(best_candidate->card_path.c_str())) {
+          BOOST_LOG(error) << "Failed to reopen selected DRM card "sv << best_candidate->card_path;
+          return -1;
+        }
+
+        auto selected_plane = drmModeGetPlane(selected_card.fd.el, best_candidate->plane_id);
+        if (!selected_plane) {
+          BOOST_LOG(error) << "Couldn't reopen selected DRM plane ["sv << best_candidate->plane_id << "]: "sv << strerror(errno);
+          return -1;
+        }
+
+        auto selected_fb = selected_card.fb(selected_plane.get());
+        if (!selected_fb) {
+          BOOST_LOG(error) << "Couldn't get drm fb for selected plane ["sv << selected_plane->fb_id << "]: "sv << strerror(errno);
+          return -1;
+        }
+
+        auto selected_crtc = selected_card.crtc(selected_plane->crtc_id);
+        if (!selected_crtc) {
+          BOOST_LOG(error) << "Couldn't get selected CRTC info: "sv << strerror(errno);
+          return -1;
+        }
+
+        BOOST_LOG(info) << "Found monitor for DRM screencasting"sv;
+
+        auto pos = std::find_if(std::begin(card_descriptors), std::end(card_descriptors), [&](card_descriptor_t &cd) {
+          return cd.path == best_candidate->card_filename;
+        });
+
+        if (pos == std::end(card_descriptors)) {
+          BOOST_LOG(error) << "Couldn't find ["sv << best_candidate->card_filename << "]: This shouldn't have happened :/"sv;
+          return -1;
+        }
+
+        kms::print(selected_plane.get(), selected_fb.get(), selected_crtc.get());
+
+        img_width = selected_fb->width;
+        img_height = selected_fb->height;
+        img_offset_x = selected_crtc->x;
+        img_offset_y = selected_crtc->y;
+
+        this->env_width = ::platf::kms::env_width;
+        this->env_height = ::platf::kms::env_height;
+
+        this->env_logical_width = ::platf::kms::env_logical_width;
+        this->env_logical_height = ::platf::kms::env_logical_height;
+
+        auto monitor = pos->crtc_to_monitor.find(selected_plane->crtc_id);
+        if (monitor != std::end(pos->crtc_to_monitor)) {
+          auto &viewport = monitor->second.viewport;
+
+          width = viewport.width;
+          height = viewport.height;
+
+          logical_width = viewport.logical_width;
+          logical_height = viewport.logical_height;
+
+          switch (selected_card.get_panel_orientation(selected_plane->plane_id)) {
+            case DRM_MODE_ROTATE_270:
+              BOOST_LOG(debug) << "Detected panel orientation at 90, swapping width and height.";
+              width = viewport.height;
+              height = viewport.width;
+              break;
+            case DRM_MODE_ROTATE_90:
+            case DRM_MODE_ROTATE_180:
+              BOOST_LOG(warning) << "Panel orientation is unsupported, screen capture may not work correctly.";
+              break;
+          }
+
+          offset_x = viewport.offset_x;
+          offset_y = viewport.offset_y;
+        } else {
+          BOOST_LOG(warning) << "Couldn't find crtc_id, this shouldn't have happened :\\"sv;
+          width = selected_crtc->width;
+          height = selected_crtc->height;
+          offset_x = selected_crtc->x;
+          offset_y = selected_crtc->y;
+        }
+
+        plane_id = selected_plane->plane_id;
+        crtc_id = selected_plane->crtc_id;
+        crtc_index = selected_card.get_crtc_index_by_id(selected_plane->crtc_id);
+        card_path = best_candidate->card_path;
+        plane_type_name = best_candidate->plane_type_name;
+        connector_id = best_candidate->connector_id;
+        connector_name = best_candidate->connector_name;
+
+        if (connector_id) {
+          BOOST_LOG(info) << "Found connector ID ["sv << *connector_id << ']';
+          auto connector_props = selected_card.connector_props(*connector_id);
+          hdr_metadata_blob_id = selected_card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
+        }
+
+        BOOST_LOG(info) << "STREAM_DIAG kms capture selected"
+                        << " drm_device="sv << card_path
+                        << " connector="sv << (connector_name.empty() ? "unknown" : connector_name)
+                        << " connector_id="sv << (connector_id ? std::to_string(*connector_id) : std::string {"<missing>"})
+                        << " crtc_id="sv << crtc_id
+                        << " crtc_index="sv << crtc_index
+                        << " plane_id="sv << plane_id
+                        << " plane_type="sv << plane_type_name
+                        << " framebuffer_id="sv << selected_fb->fb_id
+                        << " width="sv << selected_fb->width
+                        << " height="sv << selected_fb->height
+                        << " pixel_format="sv << util::view(selected_fb->pixel_format)
+                        << " modifier="sv << selected_fb->modifier
+                        << " pitch0="sv << selected_fb->pitches[0];
+
+        this->card = std::move(selected_card);
 
       // Neatly break from nested for loop
       break_loop:
