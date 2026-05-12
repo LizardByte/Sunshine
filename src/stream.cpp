@@ -168,6 +168,20 @@ namespace stream {
     return enabled;
   }
 
+  bool stream_diag_ignore_control_timeout_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_IGNORE_CONTROL_TIMEOUT");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
+  }
+
   std::string_view stream_diag_video_peer_mode() {
     auto value = std::getenv("SUNSHINE_STREAM_DIAG_VIDEO_PEER_MODE");
     if (value && *value) {
@@ -535,6 +549,10 @@ namespace stream {
       std::atomic_bool control_connect_probe_peer_created {false};
       std::atomic_bool control_connect_data_zero_fallback_used {false};
       std::atomic_uint64_t control_encrypted_packets_received {0};
+      std::atomic_bool ignore_control_timeout_active {false};
+      std::atomic_bool ignore_control_timeout_expired {false};
+      std::chrono::steady_clock::time_point ignore_control_timeout_until {};
+      std::chrono::steady_clock::time_point ignore_control_timeout_next_log {};
     } stream_diag;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -569,7 +587,17 @@ namespace stream {
                     << " accept_control_connect_data_zero="sv << stream_diag_accept_control_connect_data_zero_enabled()
                     << " control_connect_data_zero_fallback_used="sv << session->stream_diag.control_connect_data_zero_fallback_used.load()
                     << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                    << " ignore_control_timeout="sv << stream_diag_ignore_control_timeout_enabled()
+                    << " ignore_control_timeout_active="sv << session->stream_diag.ignore_control_timeout_active.load()
+                    << " ignore_control_timeout_expired="sv << session->stream_diag.ignore_control_timeout_expired.load()
                     << " audio_raised_alone_blocks_video_or_control=0";
+  }
+
+  bool stream_diag_video_started_or_promoted(session_t *session) {
+    return session->stream_diag.video_ping_ready.load() &&
+           (session->stream_diag.video_udp_sent.load() > 0 ||
+            session->stream_diag.audio_peer_video_promoted.load() ||
+            session->stream_diag.rtsp_client_port_video_promoted.load());
   }
 
   /**
@@ -1582,6 +1610,81 @@ namespace stream {
 
           if (now > session->pingTimeout) {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
+            const auto ignore_timeout_conditions_met =
+              stream_diag_ignore_control_timeout_enabled() &&
+              session->stream_diag.audio_ping_ready.load() &&
+              stream_diag_video_started_or_promoted(session) &&
+              !session->stream_diag.control_peer_ready.load();
+            if (ignore_timeout_conditions_met) {
+              if (!session->stream_diag.ignore_control_timeout_active.exchange(true)) {
+                session->stream_diag.ignore_control_timeout_until = now + 30s;
+                session->stream_diag.ignore_control_timeout_next_log = now;
+                BOOST_LOG(warning) << "STREAM_DIAG control timeout ignored begin"
+                                   << " launch_session_id="sv << session->launch_session_id
+                                   << " reason=diagnostic_ignore_control_timeout"
+                                   << " hold_ms=30000"
+                                   << " remote="sv << address
+                                   << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                                   << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                                   << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                                   << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                                   << " session_state="sv << static_cast<int>(session::state(*session))
+                                   << " rtsp_active_sessions="sv << rtsp_stream::session_count()
+                                   << " process_running="sv << (proc::proc.running() != 0)
+                                   << " rtsp_tcp_observation=request_scoped_connections_watch_for_new_rtsp_logs";
+              }
+
+              if (now < session->stream_diag.ignore_control_timeout_until) {
+                if (now >= session->stream_diag.ignore_control_timeout_next_log) {
+                  auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(session->stream_diag.ignore_control_timeout_until - now).count();
+                  BOOST_LOG(warning) << "STREAM_DIAG control timeout ignored keepalive"
+                                     << " launch_session_id="sv << session->launch_session_id
+                                     << " remaining_ms="sv << remaining_ms
+                                     << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                                     << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                                     << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                                     << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                                     << " session_state="sv << static_cast<int>(session::state(*session))
+                                     << " rtsp_active_sessions="sv << rtsp_stream::session_count()
+                                     << " process_running="sv << (proc::proc.running() != 0)
+                                     << " moonlight_rtsp_tcp_status=not_directly_observable_from_control_thread";
+                  session->stream_diag.ignore_control_timeout_next_log = now + 1s;
+                }
+
+                session->pingTimeout = now + 1s;
+              } else {
+                session->stream_diag.ignore_control_timeout_expired.store(true);
+                BOOST_LOG(error) << "STREAM_DIAG control timeout ignored expired"
+                                 << " launch_session_id="sv << session->launch_session_id
+                                 << " held_ms=30000"
+                                 << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                                 << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                                 << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                                 << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                                 << " session_state="sv << static_cast<int>(session::state(*session))
+                                 << " rtsp_active_sessions="sv << rtsp_stream::session_count()
+                                 << " process_running="sv << (proc::proc.running() != 0);
+              }
+            } else if (stream_diag_ignore_control_timeout_enabled()) {
+              BOOST_LOG(warning) << "STREAM_DIAG control timeout ignore conditions not met"
+                                 << " launch_session_id="sv << session->launch_session_id
+                                 << " audio_ping_ready="sv << session->stream_diag.audio_ping_ready.load()
+                                 << " video_started_or_promoted="sv << stream_diag_video_started_or_promoted(session)
+                                 << " video_ping_ready="sv << session->stream_diag.video_ping_ready.load()
+                                 << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                                 << " audio_peer_video_promoted="sv << session->stream_diag.audio_peer_video_promoted.load()
+                                 << " rtsp_client_port_video_promoted="sv << session->stream_diag.rtsp_client_port_video_promoted.load()
+                                 << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load();
+            }
+
+            if (ignore_timeout_conditions_met && now < session->stream_diag.ignore_control_timeout_until) {
+              if (!session->control.peer) {
+                has_session_awaiting_peer = true;
+              }
+              ++pos;
+              continue;
+            }
+
             BOOST_LOG(error) << "STREAM_DIAG control ping timeout"
                              << " channel=CONTROL"
                              << " launch_session_id="sv << session->launch_session_id
@@ -1599,6 +1702,9 @@ namespace stream {
                              << " control_connect_data_zero_fallback_used="sv << session->stream_diag.control_connect_data_zero_fallback_used.load()
                              << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
                              << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                             << " ignore_control_timeout="sv << stream_diag_ignore_control_timeout_enabled()
+                             << " ignore_control_timeout_active="sv << session->stream_diag.ignore_control_timeout_active.load()
+                             << " ignore_control_timeout_expired="sv << session->stream_diag.ignore_control_timeout_expired.load()
                              << " configured_ping_timeout_ms="sv << config::stream.ping_timeout.count()
                              << " audio_raised_alone_blocks_video_or_control=0";
             stream_diag_log_ready_state("ready state at control ping timeout", session, "CONTROL"sv);
@@ -2794,6 +2900,7 @@ namespace stream {
                       << " experimental_reuse_audio_peer="sv << stream_diag_reuse_audio_peer_enabled()
                       << " experimental_control_connect_client="sv << stream_diag_control_connect_client_enabled()
                       << " accept_control_connect_data_zero="sv << stream_diag_accept_control_connect_data_zero_enabled()
+                      << " ignore_control_timeout="sv << stream_diag_ignore_control_timeout_enabled()
                       << " audio_and_video_waiters_independent=1"
                       << " audio_raised_alone_blocks_video_or_control=0";
 

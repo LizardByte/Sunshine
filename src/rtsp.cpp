@@ -13,6 +13,7 @@ extern "C" {
 #include <array>
 #include <cctype>
 #include <charconv>
+#include <cstdlib>
 #include <format>
 #include <limits>
 #include <optional>
@@ -202,6 +203,20 @@ namespace rtsp_stream {
 
   std::string rtsp_optional_port_to_string(const std::optional<std::uint16_t> &port) {
     return port ? std::to_string(*port) : "<missing>"s;
+  }
+
+  bool rtsp_diag_no_control_setup_response_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_NO_CONTROL_SETUP_RESPONSE");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
   }
 
   std::string rtsp_message_to_string(PRTSP_MESSAGE msg) {
@@ -496,6 +511,11 @@ namespace rtsp_stream {
 
       if (ec) {
         BOOST_LOG(error) << "RTSP: handle_read_plaintext(): Couldn't read from tcp socket: "sv << ec.message();
+        BOOST_LOG(warning) << "STREAM_DIAG RTSP TCP read ended"
+                           << " session_id="sv << (socket->session ? socket->session->id : 0)
+                           << " error="sv << ec.message()
+                           << " bytes="sv << bytes
+                           << " observation=client_or_server_closed_rtsp_tcp";
 
         boost::system::error_code ec;
         socket->sock.close(ec);
@@ -534,6 +554,11 @@ namespace rtsp_stream {
     }
 
     void handle_data(msg_t &&req) {
+      BOOST_LOG(info) << "STREAM_DIAG RTSP TCP request dispatch"
+                      << " session_id="sv << session->id
+                      << " command="sv << req->message.request.command
+                      << " target="sv << req->message.request.target
+                      << " observation=rtsp_tcp_alive_for_request";
       handle_data_fn(sock, *session, std::move(req));
     }
 
@@ -592,6 +617,8 @@ namespace rtsp_stream {
     }
 
     void handle_msg(tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+      auto command = std::string {req->message.request.command ? req->message.request.command : ""};
+      auto target = std::string {req->message.request.target ? req->message.request.target : ""};
       auto func = _map_cmd_cb.find(req->message.request.command);
       if (func != std::end(_map_cmd_cb)) {
         func->second(this, sock, session, std::move(req));
@@ -601,6 +628,13 @@ namespace rtsp_stream {
 
       boost::system::error_code ec;
       sock.shutdown(boost::asio::socket_base::shutdown_type::shutdown_both, ec);
+      BOOST_LOG(info) << "STREAM_DIAG RTSP TCP request complete"
+                      << " session_id="sv << session.id
+                      << " command="sv << command
+                      << " target="sv << target
+                      << " server_shutdown_socket=1"
+                      << " shutdown_error="sv << ec.message()
+                      << " observation=rtsp_tcp_is_request_scoped";
     }
 
     void handle_accept(const boost::system::error_code &ec) {
@@ -1035,6 +1069,7 @@ namespace rtsp_stream {
 
       return;
     }
+    const auto no_control_setup_response = type == "control"sv && rtsp_diag_no_control_setup_response_enabled();
 
     seqn.next = &session_option;
 
@@ -1051,7 +1086,16 @@ namespace rtsp_stream {
 
     // Send identifiers that will be echoed in the other connections
     auto connect_data = std::to_string(session.control_connect_data);
-    if (type == "control"sv) {
+    if (type == "control"sv && no_control_setup_response) {
+      BOOST_LOG(warning) << "STREAM_DIAG RTSP SETUP control diagnostic response"
+                         << " session_id="sv << session.id
+                         << " stream_id="sv << stream_id
+                         << " action=omit_X_SS_Connect_Data"
+                         << " no_control_setup_response=1"
+                         << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
+                         << " expected_connect_data="sv << session.control_connect_data
+                         << " expected_effect=client_may_skip_control_enet";
+    } else if (type == "control"sv) {
       payload_option.option = const_cast<char *>("X-SS-Connect-Data");
       payload_option.content = connect_data.data();
     } else {
@@ -1059,7 +1103,9 @@ namespace rtsp_stream {
       payload_option.content = session.av_ping_payload.data();
     }
 
-    port_option.next = &payload_option;
+    port_option.next = no_control_setup_response ? nullptr : &payload_option;
+    auto payload_option_name = payload_option.option ? payload_option.option : "<omitted>";
+    auto payload_option_value = payload_option.content ? payload_option.content : "<omitted>";
 
     BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP parsed"
                     << " session_id="sv << session.id
@@ -1070,8 +1116,9 @@ namespace rtsp_stream {
                     << " x_gs_client_port_source="sv << client_port.source
                     << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
                     << " client_rtcp_port="sv << rtsp_optional_port_to_string(client_port.rtcp)
-                    << " payload_option="sv << payload_option.option
-                    << " payload_value="sv << payload_option.content;
+                    << " no_control_setup_response="sv << no_control_setup_response
+                    << " payload_option="sv << payload_option_name
+                    << " payload_value="sv << payload_option_value;
 
     BOOST_LOG(info) << "STREAM_DIAG RTSP SETUP response"
                     << " session_id="sv << session.id
@@ -1082,6 +1129,7 @@ namespace rtsp_stream {
                     << " x_gs_client_port_source="sv << client_port.source
                     << " client_rtp_port="sv << rtsp_optional_port_to_string(client_port.rtp)
                     << " client_rtcp_port="sv << rtsp_optional_port_to_string(client_port.rtcp)
+                    << " no_control_setup_response="sv << no_control_setup_response
                     << std::endl
                     << "---BEGIN STREAM_DIAG RTSP SETUP RESPONSE---"sv << std::endl
                     << rtsp_response_to_string(200, "OK", &seqn, {})
