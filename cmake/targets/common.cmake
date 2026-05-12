@@ -54,20 +54,31 @@ else()
 endif()
 
 #WebUI build
-find_program(NPM npm REQUIRED)
+if(NOT SWITCHDESK_SKIP_WEBUI)
+    find_program(NPM npm REQUIRED)
 
-set(NPM_INSTALL_FLAGS "--ignore-scripts")
-if (NPM_OFFLINE)
-    set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
+    set(NPM_INSTALL_FLAGS "--ignore-scripts")
+    if (NPM_OFFLINE)
+        set(NPM_INSTALL_FLAGS "${NPM_INSTALL_FLAGS} --offline")
+    endif()
+
+    add_custom_target(web-ui ALL
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Installing NPM Dependencies and Building the Web UI"
+            COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" install ${NPM_INSTALL_FLAGS}
+            COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
+            COMMAND_EXPAND_LISTS
+            VERBATIM)
+else()
+    message(STATUS "SWITCHDESK_SKIP_WEBUI=ON: using vendored web UI assets from vendored/web-ui/")
+    add_custom_target(web-ui ALL
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            COMMENT "Copying vendored web UI assets to build output"
+            COMMAND "${CMAKE_COMMAND}" -E copy_directory
+                    "${CMAKE_SOURCE_DIR}/vendored/web-ui"
+                    "${NPM_ASSETS_DIR}/assets/web"
+            VERBATIM)
 endif()
-
-add_custom_target(web-ui ALL
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        COMMENT "Installing NPM Dependencies and Building the Web UI"
-        COMMAND "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" install ${NPM_INSTALL_FLAGS}
-        COMMAND "${CMAKE_COMMAND}" -E env "SUNSHINE_BUILD_HOMEBREW=${NPM_BUILD_HOMEBREW}" "SUNSHINE_SOURCE_ASSETS_DIR=${NPM_SOURCE_ASSETS_DIR}" "SUNSHINE_ASSETS_DIR=${NPM_ASSETS_DIR}" "$<$<BOOL:${WIN32}>:cmd;/C>" "${NPM}" run build  # cmake-lint: disable=C0301
-        COMMAND_EXPAND_LISTS
-        VERBATIM)
 
 # docs
 if(BUILD_DOCS)

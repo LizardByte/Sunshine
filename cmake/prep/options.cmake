@@ -17,6 +17,7 @@ option(BUILD_WERROR "Enable -Werror flag." OFF)
 option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
+option(SWITCHDESK_SKIP_WEBUI "Skip the npm/Vite web UI build and use vendored prebuilt assets from vendored/web-ui/ instead." OFF)
 
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
