@@ -553,6 +553,10 @@ namespace stream {
       std::atomic_bool ignore_control_timeout_expired {false};
       std::chrono::steady_clock::time_point ignore_control_timeout_until {};
       std::chrono::steady_clock::time_point ignore_control_timeout_next_log {};
+      std::atomic_bool force_announce_success_active {false};
+      std::atomic_bool force_announce_success_expired {false};
+      std::chrono::steady_clock::time_point force_announce_success_until {};
+      std::chrono::steady_clock::time_point force_announce_success_next_log {};
     } stream_diag;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -590,6 +594,8 @@ namespace stream {
                     << " ignore_control_timeout="sv << stream_diag_ignore_control_timeout_enabled()
                     << " ignore_control_timeout_active="sv << session->stream_diag.ignore_control_timeout_active.load()
                     << " ignore_control_timeout_expired="sv << session->stream_diag.ignore_control_timeout_expired.load()
+                    << " force_announce_success_active="sv << session->stream_diag.force_announce_success_active.load()
+                    << " force_announce_success_expired="sv << session->stream_diag.force_announce_success_expired.load()
                     << " audio_raised_alone_blocks_video_or_control=0";
   }
 
@@ -1607,6 +1613,39 @@ namespace stream {
           }
 
           auto session = *pos;
+
+          if (session->stream_diag.force_announce_success_active.load() &&
+              !session->stream_diag.control_peer_ready.load()) {
+            if (now < session->stream_diag.force_announce_success_until) {
+              if (now >= session->stream_diag.force_announce_success_next_log) {
+                auto remaining_ms = std::chrono::duration_cast<std::chrono::milliseconds>(session->stream_diag.force_announce_success_until - now).count();
+                BOOST_LOG(warning) << "STREAM_DIAG force announce success keepalive"
+                                   << " launch_session_id="sv << session->launch_session_id
+                                   << " remaining_ms="sv << remaining_ms
+                                   << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                                   << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                                   << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                                   << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                                   << " session_state="sv << static_cast<int>(session::state(*session))
+                                   << " rtsp_active_sessions="sv << rtsp_stream::session_count()
+                                   << " process_running="sv << (proc::proc.running() != 0);
+                session->stream_diag.force_announce_success_next_log = now + 1s;
+              }
+
+              session->pingTimeout = now + 1s;
+            } else if (!session->stream_diag.force_announce_success_expired.exchange(true)) {
+              BOOST_LOG(error) << "STREAM_DIAG force announce success expired"
+                               << " launch_session_id="sv << session->launch_session_id
+                               << " held_ms=30000"
+                               << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                               << " audio_udp_received="sv << session->stream_diag.audio_udp_received.load()
+                               << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                               << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                               << " session_state="sv << static_cast<int>(session::state(*session))
+                               << " rtsp_active_sessions="sv << rtsp_stream::session_count()
+                               << " process_running="sv << (proc::proc.running() != 0);
+            }
+          }
 
           if (now > session->pingTimeout) {
             auto address = session->control.peer ? platf::from_sockaddr((sockaddr *) &session->control.peer->address.address) : session->control.expected_peer_address;
@@ -2813,6 +2852,38 @@ namespace stream {
 
     state_e state(session_t &session) {
       return session.state.load(std::memory_order_relaxed);
+    }
+
+    diag_snapshot_t diag_snapshot(session_t &session) {
+      return {
+        session.state.load(std::memory_order_relaxed),
+        session.stream_diag.audio_ping_ready.load(),
+        session.stream_diag.video_ping_ready.load(),
+        session.stream_diag.control_peer_ready.load(),
+        stream_diag_video_started_or_promoted(&session),
+        session.stream_diag.audio_peer_video_promoted.load(),
+        session.stream_diag.rtsp_client_port_video_promoted.load(),
+        session.stream_diag.video_udp_sent.load(),
+        session.stream_diag.audio_udp_received.load(),
+        session.stream_diag.control_encrypted_packets_received.load(),
+      };
+    }
+
+    void diag_force_announce_success_hold(session_t &session) {
+      auto now = std::chrono::steady_clock::now();
+      session.stream_diag.force_announce_success_active.store(true);
+      session.stream_diag.force_announce_success_expired.store(false);
+      session.stream_diag.force_announce_success_until = now + 30s;
+      session.stream_diag.force_announce_success_next_log = now;
+      session.pingTimeout = now + 1s;
+      BOOST_LOG(warning) << "STREAM_DIAG force announce success hold armed"
+                         << " launch_session_id="sv << session.launch_session_id
+                         << " hold_ms=30000"
+                         << " video_udp_sent="sv << session.stream_diag.video_udp_sent.load()
+                         << " audio_udp_received="sv << session.stream_diag.audio_udp_received.load()
+                         << " control_peer_ready="sv << session.stream_diag.control_peer_ready.load()
+                         << " control_encrypted_packets_received="sv << session.stream_diag.control_encrypted_packets_received.load()
+                         << " session_state="sv << static_cast<int>(state(session));
     }
 
     void stop(session_t &session) {

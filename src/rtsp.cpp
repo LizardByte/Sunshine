@@ -11,6 +11,7 @@ extern "C" {
 
 // standard includes
 #include <array>
+#include <chrono>
 #include <cctype>
 #include <charconv>
 #include <cstdlib>
@@ -19,6 +20,7 @@ extern "C" {
 #include <optional>
 #include <set>
 #include <sstream>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 
@@ -217,6 +219,53 @@ namespace rtsp_stream {
     }();
 
     return enabled;
+  }
+
+  bool rtsp_diag_ignore_control_timeout_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_IGNORE_CONTROL_TIMEOUT");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
+  }
+
+  bool rtsp_diag_force_announce_success_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_FORCE_ANNOUNCE_SUCCESS");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
+  }
+
+  void rtsp_log_announce_session_state(std::string_view marker, std::uint32_t session_id, const std::shared_ptr<stream::session_t> &stream_session, std::string_view return_condition, std::chrono::steady_clock::time_point announce_start) {
+    const auto snapshot = stream::session::diag_snapshot(*stream_session);
+    const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - announce_start);
+    BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE "sv << marker
+                    << " session_id="sv << session_id
+                    << " duration_ms="sv << duration.count()
+                    << " return_condition="sv << return_condition
+                    << " session_state="sv << static_cast<int>(snapshot.state)
+                    << " audio_ping_ready="sv << snapshot.audio_ping_ready
+                    << " video_ping_ready="sv << snapshot.video_ping_ready
+                    << " control_peer_ready="sv << snapshot.control_peer_ready
+                    << " video_started_or_promoted="sv << snapshot.video_started_or_promoted
+                    << " audio_peer_video_promoted="sv << snapshot.audio_peer_video_promoted
+                    << " rtsp_client_port_video_promoted="sv << snapshot.rtsp_client_port_video_promoted
+                    << " video_udp_sent="sv << snapshot.video_udp_sent
+                    << " audio_udp_received="sv << snapshot.audio_udp_received
+                    << " control_encrypted_packets_received="sv << snapshot.control_encrypted_packets_received;
   }
 
   std::string rtsp_message_to_string(PRTSP_MESSAGE msg) {
@@ -1139,6 +1188,7 @@ namespace rtsp_stream {
   }
 
   void cmd_announce(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
+    const auto announce_start = std::chrono::steady_clock::now();
     OPTION_ITEM option {};
 
     // I know these string literals will not be modified
@@ -1148,6 +1198,12 @@ namespace rtsp_stream {
     option.content = const_cast<char *>(seqn_str.c_str());
 
     std::string_view payload {req->payload, (size_t) req->payloadLength};
+    BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE begin"
+                    << " session_id="sv << session.id
+                    << " sequence="sv << req->sequenceNumber
+                    << " payload_bytes="sv << payload.size()
+                    << " ignore_control_timeout="sv << rtsp_diag_ignore_control_timeout_enabled()
+                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled();
 
     std::vector<std::string_view> lines;
 
@@ -1353,15 +1409,85 @@ namespace rtsp_stream {
     auto stream_session = stream::session::alloc(config, session);
     server->insert(stream_session);
 
-    if (stream::session::start(*stream_session, sock.remote_endpoint().address().to_string())) {
+    auto remote_address = sock.remote_endpoint().address().to_string();
+    auto start_call_begin = std::chrono::steady_clock::now();
+    BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE calling stream session start"
+                    << " session_id="sv << session.id
+                    << " remote_address="sv << remote_address
+                    << " ignore_control_timeout="sv << rtsp_diag_ignore_control_timeout_enabled()
+                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled();
+
+    auto start_result = stream::session::start(*stream_session, remote_address);
+    auto start_call_duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_call_begin);
+    BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE stream session start returned"
+                    << " session_id="sv << session.id
+                    << " result="sv << start_result
+                    << " duration_ms="sv << start_call_duration.count();
+    rtsp_log_announce_session_state("state after stream start", session.id, stream_session, start_result ? "stream_session_start_failed"sv : "stream_session_start_ok"sv, announce_start);
+
+    if (start_result) {
       BOOST_LOG(error) << "Failed to start a streaming session"sv;
 
+      rtsp_log_announce_session_state("returning failure", session.id, stream_session, "stream_session_start_failed"sv, announce_start);
       server->remove(stream_session);
       respond(sock, session, &option, 500, "Internal Server Error", req->sequenceNumber, {});
       return;
     }
 
+    auto return_condition = "normal_success_after_stream_session_start"sv;
+    if (rtsp_diag_force_announce_success_enabled()) {
+      stream::session::diag_force_announce_success_hold(*stream_session);
+      return_condition = "force_announce_success_immediate"sv;
+      BOOST_LOG(warning) << "STREAM_DIAG force announce success returning immediately"
+                         << " session_id="sv << session.id
+                         << " duration_ms="sv << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - announce_start).count()
+                         << " hold_ms=30000";
+    } else if (rtsp_diag_ignore_control_timeout_enabled()) {
+      BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE readiness wait begin"
+                      << " session_id="sv << session.id
+                      << " wait_condition=audio_ready_and_video_started_or_control_ready"
+                      << " max_wait_ms=3000"
+                      << " control_required=0";
+      auto wait_begin = std::chrono::steady_clock::now();
+      auto wait_deadline = wait_begin + 3s;
+      stream::session::diag_snapshot_t snapshot {};
+      while (std::chrono::steady_clock::now() < wait_deadline) {
+        snapshot = stream::session::diag_snapshot(*stream_session);
+        if (snapshot.control_peer_ready ||
+            (snapshot.audio_ping_ready && snapshot.video_started_or_promoted)) {
+          break;
+        }
+        std::this_thread::sleep_for(50ms);
+      }
+
+      snapshot = stream::session::diag_snapshot(*stream_session);
+      auto wait_duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - wait_begin);
+      BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE readiness wait end"
+                      << " session_id="sv << session.id
+                      << " duration_ms="sv << wait_duration.count()
+                      << " audio_ping_ready="sv << snapshot.audio_ping_ready
+                      << " video_started_or_promoted="sv << snapshot.video_started_or_promoted
+                      << " control_peer_ready="sv << snapshot.control_peer_ready
+                      << " video_udp_sent="sv << snapshot.video_udp_sent
+                      << " control_encrypted_packets_received="sv << snapshot.control_encrypted_packets_received;
+
+      if (!snapshot.control_peer_ready && snapshot.audio_ping_ready && snapshot.video_started_or_promoted) {
+        return_condition = "ignore_control_timeout_audio_video_ready"sv;
+        BOOST_LOG(warning) << "STREAM_DIAG announce returning early due to ignore_control_timeout"
+                           << " session_id="sv << session.id
+                           << " audio_ping_ready="sv << snapshot.audio_ping_ready
+                           << " video_started_or_promoted="sv << snapshot.video_started_or_promoted
+                           << " control_peer_ready="sv << snapshot.control_peer_ready;
+      } else if (snapshot.control_peer_ready) {
+        return_condition = "control_ready"sv;
+      } else {
+        return_condition = "ignore_control_timeout_wait_elapsed"sv;
+      }
+    }
+
+    rtsp_log_announce_session_state("returning response", session.id, stream_session, return_condition, announce_start);
     respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
+    rtsp_log_announce_session_state("response sent", session.id, stream_session, return_condition, announce_start);
   }
 
   void cmd_play(rtsp_server_t *server, tcp::socket &sock, launch_session_t &session, msg_t &&req) {
