@@ -4,6 +4,9 @@
  */
 #pragma once
 
+// standard includes
+#include <cstdint>
+
 // local includes
 #include "input.h"
 #include "platform/common.h"
@@ -327,6 +330,26 @@ namespace video {
 
   using packet_t = std::unique_ptr<packet_raw_t>;
 
+  struct stream_diag_frame_stats_t {
+    bool valid = false;
+    std::uint64_t capture_frames = 0;
+    std::uint64_t encoded_frames = 0;
+    int width = 0;
+    int height = 0;
+    int pixel_pitch = 0;
+    int row_pitch = 0;
+    double avg_luma = 0.0;
+    double avg_r = 0.0;
+    double avg_g = 0.0;
+    double avg_b = 0.0;
+    int min_sample = 0;
+    int max_sample = 0;
+    std::uint64_t nonblack_samples = 0;
+    std::uint64_t total_samples = 0;
+    bool all_black = false;
+    bool nearly_static = false;
+  };
+
   struct hdr_info_raw_t {
     explicit hdr_info_raw_t(bool enabled):
         enabled {enabled},
@@ -351,6 +374,8 @@ namespace video {
     config_t config,
     void *channel_data
   );
+
+  stream_diag_frame_stats_t stream_diag_snapshot(void *channel_data);
 
   bool validate_encoder(encoder_t &encoder, bool expect_failure);
 

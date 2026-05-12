@@ -5,9 +5,14 @@
 // standard includes
 #include <array>
 #include <atomic>
+#include <algorithm>
 #include <bitset>
+#include <cmath>
+#include <cstdlib>
 #include <list>
+#include <mutex>
 #include <thread>
+#include <unordered_map>
 
 // lib includes
 #include <boost/pointer_cast.hpp>
@@ -42,6 +47,211 @@ using namespace std::literals;
 namespace video {
 
   namespace {
+    std::mutex stream_diag_frame_stats_mutex;
+    std::unordered_map<void *, stream_diag_frame_stats_t> stream_diag_frame_stats_by_channel;
+
+    bool stream_diag_test_pattern_enabled() {
+      static const bool enabled = [] {
+        auto value = std::getenv("SUNSHINE_STREAM_DIAG_TEST_PATTERN");
+        if (!value) {
+          return false;
+        }
+        std::string_view flag {value};
+        return flag != "0"sv && flag != "false"sv && flag != "FALSE"sv;
+      }();
+      return enabled;
+    }
+
+    std::string_view stream_diag_img_format(const platf::img_t &img) {
+      if (img.pixel_pitch == 4) {
+        return "BGR0/BGRA-assumed"sv;
+      }
+      if (img.pixel_pitch == 3) {
+        return "BGR-assumed"sv;
+      }
+      return "unknown"sv;
+    }
+
+    stream_diag_frame_stats_t stream_diag_sample_frame(const platf::img_t &img) {
+      stream_diag_frame_stats_t stats {};
+      stats.width = img.width;
+      stats.height = img.height;
+      stats.pixel_pitch = img.pixel_pitch;
+      stats.row_pitch = img.row_pitch;
+
+      if (!img.data || img.width <= 0 || img.height <= 0 || img.pixel_pitch < 3) {
+        return stats;
+      }
+
+      const auto row_pitch = img.row_pitch > 0 ? img.row_pitch : img.width * img.pixel_pitch;
+      const int samples_x = std::min(img.width, 16);
+      const int samples_y = std::min(img.height, 16);
+      if (samples_x <= 0 || samples_y <= 0) {
+        return stats;
+      }
+
+      std::uint64_t sum_r = 0;
+      std::uint64_t sum_g = 0;
+      std::uint64_t sum_b = 0;
+      int min_sample = 255;
+      int max_sample = 0;
+      std::uint64_t nonblack = 0;
+      std::uint64_t total = 0;
+
+      for (int sy = 0; sy < samples_y; ++sy) {
+        const auto y = ((sy * 2 + 1) * img.height) / (samples_y * 2);
+        const auto *row = img.data + (static_cast<std::size_t>(y) * row_pitch);
+        for (int sx = 0; sx < samples_x; ++sx) {
+          const auto x = ((sx * 2 + 1) * img.width) / (samples_x * 2);
+          const auto *pixel = row + (static_cast<std::size_t>(x) * img.pixel_pitch);
+          const int b = pixel[0];
+          const int g = pixel[1];
+          const int r = pixel[2];
+
+          sum_r += r;
+          sum_g += g;
+          sum_b += b;
+          min_sample = std::min({min_sample, r, g, b});
+          max_sample = std::max({max_sample, r, g, b});
+          if (r > 8 || g > 8 || b > 8) {
+            ++nonblack;
+          }
+          ++total;
+        }
+      }
+
+      if (total == 0) {
+        return stats;
+      }
+
+      stats.valid = true;
+      stats.avg_r = static_cast<double>(sum_r) / static_cast<double>(total);
+      stats.avg_g = static_cast<double>(sum_g) / static_cast<double>(total);
+      stats.avg_b = static_cast<double>(sum_b) / static_cast<double>(total);
+      stats.avg_luma = (0.2126 * stats.avg_r) + (0.7152 * stats.avg_g) + (0.0722 * stats.avg_b);
+      stats.min_sample = min_sample;
+      stats.max_sample = max_sample;
+      stats.nonblack_samples = nonblack;
+      stats.total_samples = total;
+      stats.all_black = nonblack == 0 || max_sample <= 8;
+
+      return stats;
+    }
+
+    void stream_diag_note_captured_frame(void *channel_data, const platf::img_t &img) {
+      if (!channel_data) {
+        return;
+      }
+
+      std::scoped_lock lock {stream_diag_frame_stats_mutex};
+      auto &stats = stream_diag_frame_stats_by_channel[channel_data];
+      const auto previous = stats;
+      auto sampled = stream_diag_sample_frame(img);
+
+      sampled.capture_frames = previous.capture_frames + 1;
+      sampled.encoded_frames = previous.encoded_frames;
+      if (sampled.valid && previous.valid) {
+        sampled.nearly_static =
+          std::abs(sampled.avg_luma - previous.avg_luma) < 0.5 &&
+          sampled.min_sample == previous.min_sample &&
+          sampled.max_sample == previous.max_sample &&
+          sampled.nonblack_samples == previous.nonblack_samples;
+      }
+
+      stats = sampled;
+
+      if (stats.capture_frames <= 60) {
+        BOOST_LOG(info) << "STREAM_DIAG capture frame="sv << stats.capture_frames
+                        << " width="sv << stats.width
+                        << " height="sv << stats.height
+                        << " format="sv << stream_diag_img_format(img)
+                        << " pixel_pitch="sv << stats.pixel_pitch
+                        << " row_pitch="sv << stats.row_pitch
+                        << " avg_luma="sv << stats.avg_luma
+                        << " avg_rgb="sv << stats.avg_r << ',' << stats.avg_g << ',' << stats.avg_b
+                        << " min="sv << stats.min_sample
+                        << " max="sv << stats.max_sample
+                        << " nonblack="sv << stats.nonblack_samples
+                        << " total_samples="sv << stats.total_samples
+                        << " all_black="sv << stats.all_black
+                        << " nearly_static="sv << stats.nearly_static;
+      }
+    }
+
+    void stream_diag_note_encoded_frame(void *channel_data) {
+      if (!channel_data) {
+        return;
+      }
+
+      std::scoped_lock lock {stream_diag_frame_stats_mutex};
+      ++stream_diag_frame_stats_by_channel[channel_data].encoded_frames;
+    }
+
+    void stream_diag_apply_test_pattern(platf::img_t &img, int64_t frame_nr) {
+      if (!stream_diag_test_pattern_enabled()) {
+        return;
+      }
+
+      static std::atomic_bool logged_enabled {false};
+      if (!logged_enabled.exchange(true)) {
+        BOOST_LOG(warning) << "STREAM_DIAG test pattern enabled"sv;
+      }
+
+      if (!img.data || img.width <= 0 || img.height <= 0 || img.pixel_pitch < 3) {
+        BOOST_LOG(warning) << "STREAM_DIAG test pattern skipped"
+                           << " frame="sv << frame_nr
+                           << " reason=no_cpu_image_data"
+                           << " width="sv << img.width
+                           << " height="sv << img.height
+                           << " pixel_pitch="sv << img.pixel_pitch
+                           << " row_pitch="sv << img.row_pitch;
+        return;
+      }
+
+      static constexpr std::array<std::array<std::uint8_t, 3>, 8> colors {{
+        {{255, 32, 32}},
+        {{255, 180, 32}},
+        {{255, 255, 32}},
+        {{32, 255, 64}},
+        {{32, 220, 255}},
+        {{32, 64, 255}},
+        {{180, 32, 255}},
+        {{255, 32, 180}},
+      }};
+
+      const auto row_pitch = img.row_pitch > 0 ? img.row_pitch : img.width * img.pixel_pitch;
+      const int phase = static_cast<int>((frame_nr * 11) % std::max(1, img.width));
+
+      for (int y = 0; y < img.height; ++y) {
+        auto *row = img.data + (static_cast<std::size_t>(y) * row_pitch);
+        for (int x = 0; x < img.width; ++x) {
+          const int shifted_x = (x + phase) % std::max(1, img.width);
+          const int bar = (shifted_x * static_cast<int>(colors.size())) / std::max(1, img.width);
+          const bool checker = (((x + phase) / 96) ^ (y / 96) ^ static_cast<int>(frame_nr / 8)) & 1;
+          const auto &rgb = colors[bar % colors.size()];
+          auto *pixel = row + (static_cast<std::size_t>(x) * img.pixel_pitch);
+
+          const auto scale = checker ? 255 : 128;
+          const auto r = static_cast<std::uint8_t>((rgb[0] * scale) / 255);
+          const auto g = static_cast<std::uint8_t>((rgb[1] * scale) / 255);
+          const auto b = static_cast<std::uint8_t>((rgb[2] * scale) / 255);
+
+          pixel[0] = b;
+          pixel[1] = g;
+          pixel[2] = r;
+          if (img.pixel_pitch > 3) {
+            pixel[3] = 255;
+          }
+        }
+      }
+
+      if (frame_nr <= 60 || frame_nr % 120 == 0) {
+        BOOST_LOG(info) << "STREAM_DIAG test pattern frame="sv << frame_nr
+                        << " width="sv << img.width
+                        << " height="sv << img.height;
+      }
+    }
+
     /**
      * @brief Check if we can allow probing for the encoders.
      * @return True if there should be no issues with the probing, false if we should prevent it.
@@ -71,6 +281,20 @@ namespace video {
       return false;
     }
   }  // namespace
+
+  stream_diag_frame_stats_t stream_diag_snapshot(void *channel_data) {
+    if (!channel_data) {
+      return {};
+    }
+
+    std::scoped_lock lock {stream_diag_frame_stats_mutex};
+    auto it = stream_diag_frame_stats_by_channel.find(channel_data);
+    if (it == std::end(stream_diag_frame_stats_by_channel)) {
+      return {};
+    }
+
+    return it->second;
+  }
 
   void free_ctx(AVCodecContext *ctx) {
     avcodec_free_context(&ctx);
@@ -2104,6 +2328,8 @@ namespace video {
       if (!requested_idr_frame || images->peek()) {
         if (auto img = images->pop(max_frametime)) {
           frame_timestamp = img->frame_timestamp;
+          stream_diag_note_captured_frame(channel_data, *img);
+          stream_diag_apply_test_pattern(*img, frame_nr);
           if (session->convert(*img)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
@@ -2117,6 +2343,7 @@ namespace video {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
       }
+      stream_diag_note_encoded_frame(channel_data);
 
       session->request_normal_frame();
 
@@ -2361,11 +2588,15 @@ namespace video {
             ctx->idr_events->pop();
           }
 
-          if (frame_captured && pos->session->convert(*img)) {
-            BOOST_LOG(error) << "Could not convert image"sv;
-            ctx->shutdown_event->raise(true);
+          if (frame_captured) {
+            stream_diag_note_captured_frame(ctx->channel_data, *img);
+            stream_diag_apply_test_pattern(*img, ctx->frame_nr);
+            if (pos->session->convert(*img)) {
+              BOOST_LOG(error) << "Could not convert image"sv;
+              ctx->shutdown_event->raise(true);
 
-            continue;
+              continue;
+            }
           }
 
           std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
@@ -2379,6 +2610,7 @@ namespace video {
 
             continue;
           }
+          stream_diag_note_encoded_frame(ctx->channel_data);
 
           pos->session->request_normal_frame();
 

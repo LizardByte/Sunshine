@@ -557,6 +557,7 @@ namespace stream {
       std::atomic_bool force_announce_success_expired {false};
       std::chrono::steady_clock::time_point force_announce_success_until {};
       std::chrono::steady_clock::time_point force_announce_success_next_log {};
+      std::chrono::steady_clock::time_point video_summary_next_log {};
     } stream_diag;
 
     safe::mail_raw_t::event_t<bool> shutdown_event;
@@ -604,6 +605,33 @@ namespace stream {
            (session->stream_diag.video_udp_sent.load() > 0 ||
             session->stream_diag.audio_peer_video_promoted.load() ||
             session->stream_diag.rtsp_client_port_video_promoted.load());
+  }
+
+  void stream_diag_log_video_summary(session_t *session, std::chrono::steady_clock::time_point now) {
+    if (now < session->stream_diag.video_summary_next_log) {
+      return;
+    }
+
+    auto frame_stats = video::stream_diag_snapshot(session);
+    BOOST_LOG(info) << "STREAM_DIAG video summary"
+                    << " launch_session_id="sv << session->launch_session_id
+                    << " video_udp_sent="sv << session->stream_diag.video_udp_sent.load()
+                    << " encoded_frames="sv << frame_stats.encoded_frames
+                    << " capture_frames="sv << frame_stats.capture_frames
+                    << " latest_frame_valid="sv << frame_stats.valid
+                    << " latest_frame_width="sv << frame_stats.width
+                    << " latest_frame_height="sv << frame_stats.height
+                    << " latest_frame_avg_luma="sv << frame_stats.avg_luma
+                    << " latest_frame_min="sv << frame_stats.min_sample
+                    << " latest_frame_max="sv << frame_stats.max_sample
+                    << " latest_frame_nonblack="sv << frame_stats.nonblack_samples
+                    << " latest_frame_total_samples="sv << frame_stats.total_samples
+                    << " latest_frame_all_black="sv << frame_stats.all_black
+                    << " latest_frame_nearly_static="sv << frame_stats.nearly_static
+                    << " control_peer_ready="sv << session->stream_diag.control_peer_ready.load()
+                    << " control_encrypted_packets_received="sv << session->stream_diag.control_encrypted_packets_received.load()
+                    << " session_state="sv << static_cast<int>(session::state(*session));
+    session->stream_diag.video_summary_next_log = now + 1s;
   }
 
   /**
@@ -1613,6 +1641,7 @@ namespace stream {
           }
 
           auto session = *pos;
+          stream_diag_log_video_summary(session, now);
 
           if (session->stream_diag.force_announce_success_active.load() &&
               !session->stream_diag.control_peer_ready.load()) {

@@ -244,6 +244,11 @@ namespace platf {
       return DRM_MODE_CONNECTOR_Unknown;
     }
 
+    std::string connector_name(std::uint32_t type, std::uint32_t index) {
+      auto name = drmModeGetConnectorTypeName(type);
+      return std::string {name ? name : "UNKNOWN"} + "-" + std::to_string(index);
+    }
+
     class plane_it_t: public round_robin_util::it_wrap_t<plane_t::element_type, plane_it_t> {
     public:
       plane_it_t(int fd, std::uint32_t *plane_p, std::uint32_t *end):
@@ -758,6 +763,11 @@ namespace platf {
             plane_id = plane->plane_id;
             crtc_id = plane->crtc_id;
             crtc_index = card.get_crtc_index_by_id(plane->crtc_id);
+            card_path = entry.path().generic_string();
+
+            auto plane_props = card.plane_props(plane->plane_id);
+            auto plane_type_value = card.prop_value_by_name(plane_props, "type"sv);
+            plane_type_name = std::string {kms::plane_type(plane_type_value.value_or(0))};
 
             // Find the connector for this CRTC
             kms::conn_type_count_t conn_type_count;
@@ -766,11 +776,27 @@ namespace platf {
                 BOOST_LOG(info) << "Found connector ID ["sv << connector.connector_id << ']';
 
                 connector_id = connector.connector_id;
+                connector_name = kms::connector_name(connector.type, connector.index);
 
                 auto connector_props = card.connector_props(*connector_id);
                 hdr_metadata_blob_id = card.prop_value_by_name(connector_props, "HDR_OUTPUT_METADATA"sv);
               }
             }
+
+            BOOST_LOG(info) << "STREAM_DIAG kms capture selected"
+                            << " drm_device="sv << card_path
+                            << " connector="sv << (connector_name.empty() ? "unknown" : connector_name)
+                            << " connector_id="sv << (connector_id ? std::to_string(*connector_id) : std::string {"<missing>"})
+                            << " crtc_id="sv << crtc_id
+                            << " crtc_index="sv << crtc_index
+                            << " plane_id="sv << plane_id
+                            << " plane_type="sv << plane_type_name
+                            << " framebuffer_id="sv << fb->fb_id
+                            << " width="sv << fb->width
+                            << " height="sv << fb->height
+                            << " pixel_format="sv << util::view(fb->pixel_format)
+                            << " modifier="sv << fb->modifier
+                            << " pitch0="sv << fb->pitches[0];
 
             this->card = std::move(card);
             goto break_loop;
@@ -1121,6 +1147,24 @@ namespace platf {
         sd->modifier = fb->modifier;
         sd->fourcc = fb->pixel_format;
 
+        if (stream_diag_kms_frames_logged < 60) {
+          ++stream_diag_kms_frames_logged;
+          BOOST_LOG(info) << "STREAM_DIAG kms frame"
+                          << " frame="sv << stream_diag_kms_frames_logged
+                          << " drm_device="sv << card_path
+                          << " connector="sv << (connector_name.empty() ? "unknown" : connector_name)
+                          << " connector_id="sv << (connector_id ? std::to_string(*connector_id) : std::string {"<missing>"})
+                          << " crtc_id="sv << crtc_id
+                          << " plane_id="sv << plane_id
+                          << " plane_type="sv << plane_type_name
+                          << " framebuffer_id="sv << fb->fb_id
+                          << " width="sv << fb->width
+                          << " height="sv << fb->height
+                          << " pixel_format="sv << util::view(fb->pixel_format)
+                          << " modifier="sv << fb->modifier
+                          << " pitch0="sv << fb->pitches[0];
+        }
+
         if (
           fb->width != img_width ||
           fb->height != img_height
@@ -1145,6 +1189,10 @@ namespace platf {
       int plane_id;
       int crtc_id;
       int crtc_index;
+      std::string card_path;
+      std::string connector_name;
+      std::string plane_type_name;
+      std::uint64_t stream_diag_kms_frames_logged = 0;
 
       std::optional<uint32_t> connector_id;
       std::optional<uint64_t> hdr_metadata_blob_id;
