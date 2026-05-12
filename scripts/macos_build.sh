@@ -98,6 +98,8 @@ function run_step_cmake() {
     "-DBUILD_TESTS=${build_tests}"
     "-DBUILD_WERROR=ON"
     "-DCMAKE_BUILD_TYPE=${build_type}"
+    "-DCMAKE_CXX_STANDARD=23"
+    "-DICU_ROOT=$(brew --prefix icu4c@78 2>/dev/null)"
     "-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3 2>/dev/null)"
     "-DOpus_ROOT_DIR=$(brew --prefix opus 2>/dev/null)"
     "-DSUNSHINE_ENABLE_TRAY=ON"
