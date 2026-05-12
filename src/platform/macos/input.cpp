@@ -36,7 +36,6 @@ namespace platf {
     CGEventSourceRef source {};
 
     // keyboard related stuff
-    CGEventRef kb_event {};
     CGEventFlags kb_flags {};
 
     // mouse related stuff
@@ -256,12 +255,19 @@ const KeyCodeMap kKeyCodesMap[] = {
     }
 
     auto macos_input = ((macos_input_t *) input.get());
-    auto event = macos_input->kb_event;
+    CGEventRef event = nullptr;
 
     if (key == kVK_Shift || key == kVK_RightShift ||
         key == kVK_Command || key == kVK_RightCommand ||
         key == kVK_Option || key == kVK_RightOption ||
         key == kVK_Control || key == kVK_RightControl) {
+      event = CGEventCreate(macos_input->source);
+      if (!event) {
+        return;
+      }
+
+      CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, key);
+
       CGEventFlags mask;
 
       switch (key) {
@@ -285,13 +291,19 @@ const KeyCodeMap kKeyCodesMap[] = {
 
       macos_input->kb_flags = release ? macos_input->kb_flags & ~mask : macos_input->kb_flags | mask;
       CGEventSetType(event, kCGEventFlagsChanged);
-      CGEventSetFlags(event, macos_input->kb_flags);
     } else {
-      CGEventSetIntegerValueField(event, kCGKeyboardEventKeycode, key);
+      event = CGEventCreateKeyboardEvent(macos_input->source, key, !release);
+      if (!event) {
+        return;
+      }
+
       CGEventSetType(event, release ? kCGEventKeyUp : kCGEventKeyDown);
     }
 
+    CGEventSetFlags(event, macos_input->kb_flags);
     CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+
   }
 
   void unicode(input_t &input, char *utf8, int size) {
@@ -358,6 +370,8 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventSetDoubleValueField(event, kCGMouseEventDeltaX, deltaX);
     CGEventSetDoubleValueField(event, kCGMouseEventDeltaY, deltaY);
 
+    // Inject modifier flags into mouse events so that shift+click and similar combinations work correctly.
+    CGEventSetFlags(event, macos_input->kb_flags);
     CGEventPost(kCGHIDEventTap, event);
     // For why this is here, see:
     // https://stackoverflow.com/questions/15194409/simulated-mouseevent-not-working-properly-osx
@@ -555,7 +569,6 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     macos_input->source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
 
-    macos_input->kb_event = CGEventCreate(macos_input->source);
     macos_input->kb_flags = 0;
 
     macos_input->mouse_event = CGEventCreate(macos_input->source);
@@ -572,7 +585,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     const auto *input = static_cast<macos_input_t *>(p);
 
     CFRelease(input->source);
-    CFRelease(input->kb_event);
     CFRelease(input->mouse_event);
 
     delete input;
