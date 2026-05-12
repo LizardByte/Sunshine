@@ -249,6 +249,20 @@ namespace rtsp_stream {
     return enabled;
   }
 
+  bool rtsp_diag_force_announce_success_immediate_enabled() {
+    static const bool enabled = []() {
+      auto value = std::getenv("SUNSHINE_STREAM_DIAG_FORCE_ANNOUNCE_SUCCESS_IMMEDIATE");
+      if (!value) {
+        return false;
+      }
+
+      std::string_view text {value};
+      return text == "1"sv || text == "true"sv || text == "TRUE"sv || text == "yes"sv || text == "on"sv;
+    }();
+
+    return enabled;
+  }
+
   void rtsp_log_announce_session_state(std::string_view marker, std::uint32_t session_id, const std::shared_ptr<stream::session_t> &stream_session, std::string_view return_condition, std::chrono::steady_clock::time_point announce_start) {
     const auto snapshot = stream::session::diag_snapshot(*stream_session);
     const auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - announce_start);
@@ -1203,7 +1217,8 @@ namespace rtsp_stream {
                     << " sequence="sv << req->sequenceNumber
                     << " payload_bytes="sv << payload.size()
                     << " ignore_control_timeout="sv << rtsp_diag_ignore_control_timeout_enabled()
-                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled();
+                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled()
+                    << " force_announce_success_immediate="sv << rtsp_diag_force_announce_success_immediate_enabled();
 
     std::vector<std::string_view> lines;
 
@@ -1410,12 +1425,55 @@ namespace rtsp_stream {
     server->insert(stream_session);
 
     auto remote_address = sock.remote_endpoint().address().to_string();
+    if (rtsp_diag_force_announce_success_immediate_enabled()) {
+      stream::session::diag_force_announce_success_hold(*stream_session);
+      rtsp_log_announce_session_state("true immediate prepared", session.id, stream_session, "force_announce_success_immediate_pre_start"sv, announce_start);
+
+      std::thread {
+        [server, stream_session, remote_address, session_id = session.id, announce_start]() {
+          platf::set_thread_name("rtsp::diagAnnounceStart");
+          auto start_call_begin = std::chrono::steady_clock::now();
+          BOOST_LOG(warning) << "STREAM_DIAG true immediate ANNOUNCE background stream start begin"
+                             << " session_id="sv << session_id
+                             << " remote_address="sv << remote_address;
+
+          auto start_result = stream::session::start(*stream_session, remote_address);
+          auto start_call_duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_call_begin);
+          BOOST_LOG(warning) << "STREAM_DIAG true immediate ANNOUNCE background stream start returned"
+                             << " session_id="sv << session_id
+                             << " result="sv << start_result
+                             << " duration_ms="sv << start_call_duration.count();
+          rtsp_log_announce_session_state("true immediate background start returned", session_id, stream_session, start_result ? "background_stream_session_start_failed"sv : "background_stream_session_start_ok"sv, announce_start);
+
+          if (start_result) {
+            BOOST_LOG(error) << "STREAM_DIAG true immediate ANNOUNCE background stream start failed"
+                             << " session_id="sv << session_id;
+            server->remove(stream_session);
+            return;
+          }
+
+          stream::session::diag_force_announce_success_hold(*stream_session);
+        }
+      }.detach();
+
+      rtsp_log_announce_session_state("true immediate returning response", session.id, stream_session, "force_announce_success_immediate_response_before_start_return"sv, announce_start);
+      respond(sock, session, &option, 200, "OK", req->sequenceNumber, {});
+      auto response_duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - announce_start);
+      BOOST_LOG(warning) << "STREAM_DIAG true immediate ANNOUNCE response sent"
+                         << " session_id="sv << session.id
+                         << " duration_ms="sv << response_duration.count()
+                         << " target_duration_ms_under=500";
+      rtsp_log_announce_session_state("true immediate response sent", session.id, stream_session, "force_announce_success_immediate_response_sent"sv, announce_start);
+      return;
+    }
+
     auto start_call_begin = std::chrono::steady_clock::now();
     BOOST_LOG(info) << "STREAM_DIAG ANNOUNCE calling stream session start"
                     << " session_id="sv << session.id
                     << " remote_address="sv << remote_address
                     << " ignore_control_timeout="sv << rtsp_diag_ignore_control_timeout_enabled()
-                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled();
+                    << " force_announce_success="sv << rtsp_diag_force_announce_success_enabled()
+                    << " force_announce_success_immediate="sv << rtsp_diag_force_announce_success_immediate_enabled();
 
     auto start_result = stream::session::start(*stream_session, remote_address);
     auto start_call_duration = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start_call_begin);
