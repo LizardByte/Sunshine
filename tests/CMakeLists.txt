@@ -151,8 +151,6 @@ endforeach()
 # Ensure locale files are synchronized before building the test executable
 add_dependencies(${PROJECT_NAME} sync_locale_files)
 
-set_target_properties(${PROJECT_NAME} PROPERTIES CXX_STANDARD 23)
-
 # Build the list of libraries to link
 set(TEST_LINK_LIBRARIES
     ${SUNSHINE_EXTERNAL_LIBRARIES}
