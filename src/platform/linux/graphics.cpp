@@ -31,6 +31,21 @@ extern "C" {
 #define fourcc_code(a, b, c, d) ((std::uint32_t) (a) | ((std::uint32_t) (b) << 8) | ((std::uint32_t) (c) << 16) | ((std::uint32_t) (d) << 24))
 #define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) & 0x00ffffffffffffffULL))
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
+#ifndef DRM_FORMAT_XRGB8888
+  #define DRM_FORMAT_XRGB8888 fourcc_code('X', 'R', '2', '4')
+#endif
+
+#ifndef DRM_FORMAT_ARGB8888
+  #define DRM_FORMAT_ARGB8888 fourcc_code('A', 'R', '2', '4')
+#endif
+
+#ifndef GL_TEXTURE_EXTERNAL_OES
+  #define GL_TEXTURE_EXTERNAL_OES 0x8D65
+#endif
+
+#ifndef GL_TEXTURE_RECTANGLE
+  #define GL_TEXTURE_RECTANGLE 0x84F5
+#endif
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
@@ -565,6 +580,11 @@ namespace egl {
     return flag != "0"sv && flag != "false"sv && flag != "FALSE"sv && flag != "no"sv && flag != "NO"sv;
   }
 
+  std::string_view stream_diag_env_value(const char *name) {
+    const auto *value = std::getenv(name);
+    return value ? std::string_view {value} : std::string_view {};
+  }
+
   const char *stream_diag_env_or_unset(const char *name) {
     const auto *value = std::getenv(name);
     return value ? value : "<unset>";
@@ -583,6 +603,19 @@ namespace egl {
   bool stream_diag_should_log(std::atomic_uint64_t &counter) {
     const auto count = counter.fetch_add(1) + 1;
     return count <= 60 || count % 120 == 0;
+  }
+
+  std::string_view stream_diag_texture_target_to_string(GLenum target) {
+    switch (target) {
+      case GL_TEXTURE_2D:
+        return "GL_TEXTURE_2D"sv;
+      case GL_TEXTURE_EXTERNAL_OES:
+        return "GL_TEXTURE_EXTERNAL_OES"sv;
+      case GL_TEXTURE_RECTANGLE:
+        return "GL_TEXTURE_RECTANGLE"sv;
+      default:
+        return "UNKNOWN"sv;
+    }
   }
 
   bool stream_diag_drain_gl_errors(const std::string_view &prefix, GLenum *first_error = nullptr) {
@@ -656,12 +689,10 @@ namespace egl {
    * @param surface The surface descriptor.
    * @return Vector of EGL attributes.
    */
-  std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+  std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface, std::uint32_t import_fourcc, bool include_modifier, const std::string_view &attempt_label) {
     static std::atomic_uint64_t attr_log_counter {0};
 
     std::vector<EGLAttrib> attribs;
-    const bool omit_linear_modifier = stream_diag_env_enabled("SUNSHINE_STREAM_DIAG_OMIT_LINEAR_MODIFIER");
-    const bool include_modifier = surface.modifier != DRM_FORMAT_MOD_INVALID && !(omit_linear_modifier && surface.modifier == 0);
     const bool log_this = stream_diag_should_log(attr_log_counter);
 
     int fd_count = 0;
@@ -673,15 +704,17 @@ namespace egl {
 
     if (log_this) {
       BOOST_LOG(info) << "STREAM_DIAG egl dmabuf attribs"
+                      << " attempt="sv << attempt_label
                       << " width="sv << surface.width
                       << " height="sv << surface.height
-                      << " fourcc="sv << stream_diag_fourcc_to_string(surface.fourcc)
-                      << " fourcc_hex=0x"sv << util::hex(surface.fourcc).to_string_view()
+                      << " original_fourcc="sv << stream_diag_fourcc_to_string(surface.fourcc)
+                      << " original_fourcc_hex=0x"sv << util::hex(surface.fourcc).to_string_view()
+                      << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                      << " import_fourcc_hex=0x"sv << util::hex(import_fourcc).to_string_view()
                       << " fd_count="sv << fd_count
                       << " modifier="sv << surface.modifier
                       << " modifier_hex=0x"sv << util::hex(surface.modifier).to_string_view()
-                      << " include_modifiers="sv << include_modifier
-                      << " omit_linear_modifier_env="sv << omit_linear_modifier;
+                      << " include_modifiers="sv << include_modifier;
     }
 
     attribs.emplace_back(EGL_WIDTH);
@@ -689,7 +722,7 @@ namespace egl {
     attribs.emplace_back(EGL_HEIGHT);
     attribs.emplace_back(surface.height);
     attribs.emplace_back(EGL_LINUX_DRM_FOURCC_EXT);
-    attribs.emplace_back(surface.fourcc);
+    attribs.emplace_back(import_fourcc);
 
     for (auto x = 0; x < 4; ++x) {
       auto fd = surface.fds[x];
@@ -727,65 +760,420 @@ namespace egl {
     return attribs;
   }
 
-  std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
-    auto attribs = surface_descriptor_to_egl_attribs(xrgb);
-    static std::atomic_uint64_t import_log_counter {0};
-    const bool log_this = stream_diag_should_log(import_log_counter);
+  bool surface_default_include_modifier(const surface_descriptor_t &surface) {
+    const bool omit_linear_modifier = stream_diag_env_enabled("SUNSHINE_STREAM_DIAG_OMIT_LINEAR_MODIFIER");
+    return surface.modifier != DRM_FORMAT_MOD_INVALID && !(omit_linear_modifier && surface.modifier == 0);
+  }
+
+  GLenum stream_diag_import_target_from_env() {
+    const auto target = stream_diag_env_value("SUNSHINE_STREAM_DIAG_IMPORT_TARGET");
+    if (target.empty() || target == "2d"sv || target == "2D"sv) {
+      return GL_TEXTURE_2D;
+    }
+    if (target == "external"sv || target == "EXTERNAL"sv) {
+      return GL_TEXTURE_EXTERNAL_OES;
+    }
+    if (target == "rectangle"sv || target == "RECTANGLE"sv) {
+      return GL_TEXTURE_RECTANGLE;
+    }
+
+    BOOST_LOG(warning) << "STREAM_DIAG unsupported SUNSHINE_STREAM_DIAG_IMPORT_TARGET="sv << target
+                       << " supported=2d,external,rectangle; using GL_TEXTURE_2D"sv;
+    return GL_TEXTURE_2D;
+  }
+
+  std::uint32_t stream_diag_import_fourcc_from_env(std::uint32_t original_fourcc) {
+    const auto override = stream_diag_env_value("SUNSHINE_STREAM_DIAG_IMPORT_FOURCC_OVERRIDE");
+    if (override.empty()) {
+      return original_fourcc;
+    }
+
+    if (override == "AR24"sv && original_fourcc == DRM_FORMAT_XRGB8888) {
+      BOOST_LOG(warning) << "STREAM_DIAG import fourcc override active"
+                         << " original_fourcc="sv << stream_diag_fourcc_to_string(original_fourcc)
+                         << " import_fourcc=AR24"sv;
+      return DRM_FORMAT_ARGB8888;
+    }
+
+    BOOST_LOG(warning) << "STREAM_DIAG import fourcc override skipped"
+                       << " requested="sv << override
+                       << " original_fourcc="sv << stream_diag_fourcc_to_string(original_fourcc)
+                       << " supported_override=AR24_for_XR24"sv;
+    return original_fourcc;
+  }
+
+  std::optional<gl::program_t> make_import_blit_program(GLenum source_target) {
+    constexpr std::string_view vertex_shader_300_es {
+      R"(#version 300 es
+#ifdef GL_ES
+precision mediump float;
+#endif
+out vec2 tex;
+void main()
+{
+  float idHigh = float(gl_VertexID >> 1);
+  float idLow = float(gl_VertexID & int(1));
+  float x = idHigh * 4.0 - 1.0;
+  float y = idLow * 4.0 - 1.0;
+  float u = idHigh * 2.0;
+  float v = idLow * 2.0;
+  gl_Position = vec4(x, y, 0.0, 1.0);
+  tex = vec2(u, v);
+}
+)"
+    };
+
+    constexpr std::string_view vertex_shader_330 {
+      R"(#version 330 core
+out vec2 tex;
+void main()
+{
+  float idHigh = float(gl_VertexID >> 1);
+  float idLow = float(gl_VertexID & int(1));
+  float x = idHigh * 4.0 - 1.0;
+  float y = idLow * 4.0 - 1.0;
+  float u = idHigh * 2.0;
+  float v = idLow * 2.0;
+  gl_Position = vec4(x, y, 0.0, 1.0);
+  tex = vec2(u, v);
+}
+)"
+    };
+
+    constexpr std::string_view external_fragment_shader {
+      R"(#version 300 es
+#extension GL_OES_EGL_image_external_essl3 : require
+#ifdef GL_ES
+precision mediump float;
+#endif
+uniform samplerExternalOES image;
+in vec2 tex;
+layout(location = 0) out vec4 color;
+void main()
+{
+  color = texture(image, tex);
+}
+)"
+    };
+
+    constexpr std::string_view rectangle_fragment_shader {
+      R"(#version 330 core
+uniform sampler2DRect image;
+uniform vec2 source_size;
+in vec2 tex;
+out vec4 color;
+void main()
+{
+  color = texture(image, tex * source_size);
+}
+)"
+    };
+
+    const auto vertex_source = source_target == GL_TEXTURE_RECTANGLE ? vertex_shader_330 : vertex_shader_300_es;
+    const auto fragment_source = source_target == GL_TEXTURE_RECTANGLE ? rectangle_fragment_shader : external_fragment_shader;
+
+    auto vertex = gl::shader_t::compile(vertex_source, GL_VERTEX_SHADER);
+    stream_diag_drain_gl_errors("STREAM_DIAG import blit vertex shader compile"sv);
+    if (vertex.has_right()) {
+      BOOST_LOG(error) << "STREAM_DIAG import blit vertex shader failed target="sv
+                       << stream_diag_texture_target_to_string(source_target)
+                       << " error="sv << vertex.right();
+      return std::nullopt;
+    }
+
+    auto fragment = gl::shader_t::compile(fragment_source, GL_FRAGMENT_SHADER);
+    stream_diag_drain_gl_errors("STREAM_DIAG import blit fragment shader compile"sv);
+    if (fragment.has_right()) {
+      BOOST_LOG(error) << "STREAM_DIAG import blit fragment shader failed target="sv
+                       << stream_diag_texture_target_to_string(source_target)
+                       << " error="sv << fragment.right();
+      return std::nullopt;
+    }
+
+    auto program = gl::program_t::link(vertex.left(), fragment.left());
+    stream_diag_drain_gl_errors("STREAM_DIAG import blit program link"sv);
+    if (program.has_right()) {
+      BOOST_LOG(error) << "STREAM_DIAG import blit program link failed target="sv
+                       << stream_diag_texture_target_to_string(source_target)
+                       << " error="sv << program.right();
+      return std::nullopt;
+    }
+
+    return std::move(program.left());
+  }
+
+  bool blit_imported_texture_to_2d(GLenum source_target, GLuint source_texture, GLuint output_texture, int width, int height, const std::string_view &attempt_label) {
+    auto program = make_import_blit_program(source_target);
+    if (!program) {
+      return false;
+    }
+
+    auto framebuf = gl::frame_buf_t::make(1);
+    framebuf.bind(&output_texture, &output_texture + 1);
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, framebuf[0]);
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+    gl::ctx.DrawBuffers(1, &attachment);
+
+    const auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
+    BOOST_LOG(info) << "STREAM_DIAG import blit framebuffer"
+                    << " attempt="sv << attempt_label
+                    << " source_target="sv << stream_diag_texture_target_to_string(source_target)
+                    << " source_texture="sv << source_texture
+                    << " output_texture="sv << output_texture
+                    << " framebuffer="sv << framebuf[0]
+                    << " completeness=0x"sv << util::hex(status).to_string_view();
+
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+      gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+      return false;
+    }
+
+    stream_diag_drain_gl_errors("STREAM_DIAG import blit before draw"sv);
+    gl::ctx.ActiveTexture(GL_TEXTURE0);
+    gl::ctx.BindTexture(source_target, source_texture);
+    gl::ctx.UseProgram(program->handle());
+
+    const auto image_uniform = gl::ctx.GetUniformLocation(program->handle(), "image");
+    if (image_uniform >= 0) {
+      gl::ctx.Uniform1i(image_uniform, 0);
+    }
+
+    if (source_target == GL_TEXTURE_RECTANGLE) {
+      const auto source_size_uniform = gl::ctx.GetUniformLocation(program->handle(), "source_size");
+      if (source_size_uniform >= 0) {
+        gl::ctx.Uniform2f(source_size_uniform, static_cast<float>(width), static_cast<float>(height));
+      }
+    }
+
+    gl::ctx.Viewport(0, 0, width, height);
+    gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+
+    GLenum first_error = GL_NO_ERROR;
+    const bool had_error = stream_diag_drain_gl_errors("STREAM_DIAG import blit after draw"sv, &first_error);
+    gl::ctx.BindTexture(source_target, 0);
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (had_error) {
+      BOOST_LOG(error) << "STREAM_DIAG import blit failed"
+                       << " attempt="sv << attempt_label
+                       << " source_target="sv << stream_diag_texture_target_to_string(source_target)
+                       << " gl_error=0x"sv << util::hex(first_error).to_string_view();
+      return false;
+    }
+
+    BOOST_LOG(info) << "STREAM_DIAG import blit succeeded"
+                    << " attempt="sv << attempt_label
+                    << " source_target="sv << stream_diag_texture_target_to_string(source_target)
+                    << " source_texture="sv << source_texture
+                    << " output_texture="sv << output_texture;
+    return true;
+  }
+
+  bool configure_import_texture(GLenum target) {
+    gl::ctx.TexParameteri(target, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    gl::ctx.TexParameteri(target, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    gl::ctx.TexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    gl::ctx.TexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    return !stream_diag_drain_gl_errors("STREAM_DIAG configure import texture"sv);
+  }
+
+  std::optional<rgb_t> try_import_source_attempt(display_t::pointer egl_display, const surface_descriptor_t &source, std::uint32_t import_fourcc, bool include_modifier, GLenum texture_target, const std::string_view &attempt_label) {
+    auto attribs = surface_descriptor_to_egl_attribs(source, import_fourcc, include_modifier, attempt_label);
+    EGLImage image = eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data());
+    if (!image) {
+      const auto egl_error = eglGetError();
+      BOOST_LOG(error) << "STREAM_DIAG import attempt eglCreateImage failed"
+                       << " attempt="sv << attempt_label
+                       << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                       << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                       << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                       << " include_modifiers="sv << include_modifier
+                       << " modifier="sv << source.modifier
+                       << " pitch0="sv << source.pitches[0]
+                       << " egl_error=0x"sv << util::hex(egl_error).to_string_view();
+      return std::nullopt;
+    }
+
+    BOOST_LOG(info) << "STREAM_DIAG import attempt eglCreateImage succeeded"
+                    << " attempt="sv << attempt_label
+                    << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                    << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                    << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                    << " include_modifiers="sv << include_modifier
+                    << " modifier="sv << source.modifier
+                    << " pitch0="sv << source.pitches[0]
+                    << " width="sv << source.width
+                    << " height="sv << source.height;
+
+    if (!gl::egl_image_target_texture_2d()) {
+      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
+      eglDestroyImage(egl_display, image);
+      return std::nullopt;
+    }
+
+    if (texture_target == GL_TEXTURE_2D) {
+      rgb_t rgb {
+        egl_display,
+        image,
+        gl::tex_t::make(1)
+      };
+
+      gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+      stream_diag_drain_gl_errors("STREAM_DIAG import_source before glEGLImageTargetTexture2DOES"sv);
+      gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
+
+      GLenum first_error = GL_NO_ERROR;
+      const bool import_gl_error = stream_diag_drain_gl_errors("STREAM_DIAG import_source after glEGLImageTargetTexture2DOES"sv, &first_error);
+      if (import_gl_error) {
+        BOOST_LOG(error) << "STREAM_DIAG import_source glEGLImageTargetTexture2DOES failed"
+                         << " attempt="sv << attempt_label
+                         << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                         << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                         << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                         << " modifier="sv << source.modifier
+                         << " modifier_hex=0x"sv << util::hex(source.modifier).to_string_view()
+                         << " include_modifiers="sv << include_modifier
+                         << " pitch0="sv << source.pitches[0]
+                         << " width="sv << source.width
+                         << " height="sv << source.height
+                         << " gl_error=0x"sv << util::hex(first_error).to_string_view();
+        gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+        return std::nullopt;
+      }
+
+      BOOST_LOG(info) << "STREAM_DIAG import attempt glEGLImageTargetTexture2DOES succeeded"
+                      << " attempt="sv << attempt_label
+                      << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                      << " texture="sv << rgb->tex[0]
+                      << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                      << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc);
+
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+      return std::move(rgb);
+    }
+
+    GLuint import_texture = 0;
+    gl::ctx.GenTextures(1, &import_texture);
+    gl::ctx.BindTexture(texture_target, import_texture);
+    configure_import_texture(texture_target);
+
+    stream_diag_drain_gl_errors("STREAM_DIAG import_source alt target before glEGLImageTargetTexture2DOES"sv);
+    gl::egl_image_target_texture_2d()(texture_target, image);
+
+    GLenum first_error = GL_NO_ERROR;
+    const bool import_gl_error = stream_diag_drain_gl_errors("STREAM_DIAG import_source alt target after glEGLImageTargetTexture2DOES"sv, &first_error);
+    if (import_gl_error) {
+      BOOST_LOG(error) << "STREAM_DIAG import_source glEGLImageTargetTexture2DOES failed"
+                       << " attempt="sv << attempt_label
+                       << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                       << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                       << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                       << " modifier="sv << source.modifier
+                       << " include_modifiers="sv << include_modifier
+                       << " pitch0="sv << source.pitches[0]
+                       << " width="sv << source.width
+                       << " height="sv << source.height
+                       << " gl_error=0x"sv << util::hex(first_error).to_string_view();
+      gl::ctx.BindTexture(texture_target, 0);
+      gl::ctx.DeleteTextures(1, &import_texture);
+      eglDestroyImage(egl_display, image);
+      return std::nullopt;
+    }
+
+    BOOST_LOG(info) << "STREAM_DIAG import attempt glEGLImageTargetTexture2DOES succeeded"
+                    << " attempt="sv << attempt_label
+                    << " target="sv << stream_diag_texture_target_to_string(texture_target)
+                    << " texture="sv << import_texture
+                    << " original_fourcc="sv << stream_diag_fourcc_to_string(source.fourcc)
+                    << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc);
 
     rgb_t rgb {
-      egl_display,
-      eglCreateImage(egl_display, EGL_NO_CONTEXT, EGL_LINUX_DMA_BUF_EXT, nullptr, attribs.data()),
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
       gl::tex_t::make(1)
     };
 
-    if (!rgb->xrgb8) {
-      BOOST_LOG(error) << "Couldn't import RGB Image: "sv << util::hex(eglGetError()).to_string_view();
-
-      return std::nullopt;
-    }
-
     gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    if (!gl::egl_image_target_texture_2d()) {
-      BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
-      return std::nullopt;
-    }
-
-    stream_diag_drain_gl_errors("STREAM_DIAG import_source before glEGLImageTargetTexture2DOES"sv);
-    gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
-
-    GLenum first_error = GL_NO_ERROR;
-    const bool import_gl_error = stream_diag_drain_gl_errors("STREAM_DIAG import_source after glEGLImageTargetTexture2DOES"sv, &first_error);
-    if (import_gl_error) {
-      if (first_error == GL_INVALID_OPERATION) {
-        BOOST_LOG(error) << "STREAM_DIAG import_source glEGLImageTargetTexture2DOES failed"
-                         << " target=GL_TEXTURE_2D"
-                         << " fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
-                         << " fourcc_hex=0x"sv << util::hex(xrgb.fourcc).to_string_view()
-                         << " modifier="sv << xrgb.modifier
-                         << " modifier_hex=0x"sv << util::hex(xrgb.modifier).to_string_view()
-                         << " pitch0="sv << xrgb.pitches[0]
-                         << " width="sv << xrgb.width
-                         << " height="sv << xrgb.height;
-      }
-
-      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
-      return std::nullopt;
-    }
-
-    if (log_this) {
-      BOOST_LOG(info) << "STREAM_DIAG import_source succeeded"
-                      << " texture="sv << rgb->tex[0]
-                      << " width="sv << xrgb.width
-                      << " height="sv << xrgb.height
-                      << " fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
-                      << " modifier="sv << xrgb.modifier
-                      << " pitch0="sv << xrgb.pitches[0];
-    }
-
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, source.width, source.height);
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
-    gl_drain_errors;
+    const bool blit_ok = blit_imported_texture_to_2d(texture_target, import_texture, rgb->tex[0], source.width, source.height, attempt_label);
+    gl::ctx.BindTexture(texture_target, 0);
+    gl::ctx.DeleteTextures(1, &import_texture);
+    eglDestroyImage(egl_display, image);
 
+    if (!blit_ok) {
+      return std::nullopt;
+    }
+
+    return std::move(rgb);
+  }
+
+  std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
+    if (stream_diag_env_enabled("SUNSHINE_STREAM_DIAG_TRY_IMPORT_MATRIX")) {
+      if (xrgb.fourcc != DRM_FORMAT_XRGB8888) {
+        BOOST_LOG(warning) << "STREAM_DIAG import matrix skipped"
+                           << " reason=source_fourcc_not_XR24"
+                           << " original_fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc);
+      } else {
+        struct import_attempt_t {
+          std::string_view label;
+          std::uint32_t fourcc;
+          GLenum target;
+          bool include_modifier;
+        };
+
+        const import_attempt_t attempts[] {
+          {"matrix.XR24.2D.modifier"sv, DRM_FORMAT_XRGB8888, GL_TEXTURE_2D, xrgb.modifier != DRM_FORMAT_MOD_INVALID},
+          {"matrix.XR24.2D.no_modifier"sv, DRM_FORMAT_XRGB8888, GL_TEXTURE_2D, false},
+          {"matrix.AR24.2D.no_modifier"sv, DRM_FORMAT_ARGB8888, GL_TEXTURE_2D, false},
+          {"matrix.XR24.external.no_modifier"sv, DRM_FORMAT_XRGB8888, GL_TEXTURE_EXTERNAL_OES, false},
+          {"matrix.AR24.external.no_modifier"sv, DRM_FORMAT_ARGB8888, GL_TEXTURE_EXTERNAL_OES, false},
+        };
+
+        for (const auto &attempt : attempts) {
+          auto rgb = try_import_source_attempt(egl_display, xrgb, attempt.fourcc, attempt.include_modifier, attempt.target, attempt.label);
+          if (rgb) {
+            BOOST_LOG(warning) << "STREAM_DIAG import matrix selected successful path"
+                               << " attempt="sv << attempt.label
+                               << " original_fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                               << " import_fourcc="sv << stream_diag_fourcc_to_string(attempt.fourcc)
+                               << " target="sv << stream_diag_texture_target_to_string(attempt.target)
+                               << " include_modifiers="sv << attempt.include_modifier;
+            return rgb;
+          }
+        }
+
+        BOOST_LOG(error) << "STREAM_DIAG import matrix failed all attempts"
+                         << " original_fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                         << " width="sv << xrgb.width
+                         << " height="sv << xrgb.height
+                         << " modifier="sv << xrgb.modifier
+                         << " pitch0="sv << xrgb.pitches[0];
+        return std::nullopt;
+      }
+    }
+
+    const auto import_fourcc = stream_diag_import_fourcc_from_env(xrgb.fourcc);
+    const auto import_target = stream_diag_import_target_from_env();
+    const bool include_modifier = surface_default_include_modifier(xrgb);
+
+    std::string attempt_label {"env."};
+    attempt_label += stream_diag_fourcc_to_string(import_fourcc);
+    attempt_label += '.';
+    attempt_label += std::string {stream_diag_texture_target_to_string(import_target)};
+    attempt_label += include_modifier ? ".modifier" : ".no_modifier";
+
+    auto rgb = try_import_source_attempt(egl_display, xrgb, import_fourcc, include_modifier, import_target, attempt_label);
+    if (rgb) {
+      BOOST_LOG(info) << "STREAM_DIAG import_source selected successful path"
+                      << " attempt="sv << attempt_label
+                      << " original_fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                      << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                      << " target="sv << stream_diag_texture_target_to_string(import_target)
+                      << " include_modifiers="sv << include_modifier;
+    }
     return rgb;
   }
 
@@ -830,8 +1218,8 @@ namespace egl {
   }
 
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
-    auto y_attribs = surface_descriptor_to_egl_attribs(y);
-    auto uv_attribs = surface_descriptor_to_egl_attribs(uv);
+    auto y_attribs = surface_descriptor_to_egl_attribs(y, y.fourcc, surface_default_include_modifier(y), "target.y"sv);
+    auto uv_attribs = surface_descriptor_to_egl_attribs(uv, uv.fourcc, surface_default_include_modifier(uv), "target.uv"sv);
 
     nv12_t nv12 {
       egl_display,
