@@ -2,6 +2,13 @@ cmake_minimum_required(VERSION 3.20)
 
 project(sunshine_tools)
 
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(NOT DEFINED CMAKE_CUDA_STANDARD)
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+endif()
+
 include_directories(
         "${CMAKE_SOURCE_DIR}"
         "${FFMPEG_INCLUDE_DIRS}"  # this is included only for logging
