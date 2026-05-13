@@ -29,6 +29,10 @@ namespace platf {
   int nv12_zero_device::convert(platf::img_t &img) {
     auto *av_img = (av_img_t *) &img;
 
+    if (!av_img->pixel_buffer || !av_img->pixel_buffer->buf) {
+      return -1;
+    }
+
     // Release any existing CVPixelBuffer previously retained for encoding
     av_buffer_unref(&av_frame->buf[0]);
 
