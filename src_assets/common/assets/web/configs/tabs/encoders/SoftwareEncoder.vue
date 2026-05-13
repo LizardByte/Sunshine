@@ -55,6 +55,7 @@ const config = ref(props.config)
       <label for="sw_aq_strength" class="form-label">{{ $t('config.sw_aq_strength') }}</label>
       <input id="sw_aq_strength" type="number" class="form-control" v-model.number="config.sw_aq_strength" min="0" max="2" step="0.1">
       <div class="form-text">{{ $t('config.sw_aq_strength_desc') }}</div>
+      <div class="form-text text-warning">{{ $t('config.sw_aq_svt_hint') }}</div>
     </div>
   </div>
 </template>
