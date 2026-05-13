@@ -80,7 +80,7 @@ namespace platf {
   static int make_dummy_img(img_t *img, int width, int height, OSType pixel_format, std::string_view backend_name) {
     CVPixelBufferRef pixel_buffer = nullptr;
     NSDictionary *attrs = @{
-      (NSString *) kCVPixelBufferIOSurfacePropertiesKey: @{},
+      (NSString *) kCVPixelBufferIOSurfacePropertiesKey: @ {},
     };
 
     auto status = CVPixelBufferCreate(

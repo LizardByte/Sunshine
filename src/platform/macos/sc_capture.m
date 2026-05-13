@@ -63,7 +63,10 @@ API_AVAILABLE(macos(12.3))
     }
 
     dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(
-      DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+      DISPATCH_QUEUE_SERIAL,
+      QOS_CLASS_USER_INITIATED,
+      DISPATCH_QUEUE_PRIORITY_HIGH
+    );
     self.videoQueue = dispatch_queue_create("dev.lizardbyte.sunshine.sckVideoQueue", qos);
 
     dispatch_semaphore_t initSemaphore = dispatch_semaphore_create(0);
@@ -251,8 +254,8 @@ API_AVAILABLE(macos(12.3))
 #pragma mark - SCStreamOutput
 
 - (void)stream:(SCStream *)stream
-    didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
-                   ofType:(SCStreamOutputType)type {
+  didOutputSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                 ofType:(SCStreamOutputType)type {
   if (type != SCStreamOutputTypeScreen) {
     return;
   }
