@@ -381,7 +381,6 @@
     "sw_aq_mode_3": "auto-variance AQ with dark scene bias (x264 only)",
     "sw_aq_strength": "SW AQ Strength",
     "sw_aq_strength_desc": "Adaptive quantization strength (0.0 to 2.0). Higher values result in more aggressive quantization adjustments. Defaults to 1.0.",
-    "sw_aq_svt_hint": "Note: aq-strength and aq_mode=3 are not supported by SVT-AV1.",
     "system_tray": "Enable system tray",
     "system_tray_desc": "Show icon in system tray and display desktop notifications",
     "touchpad_as_ds4": "Emulate a DS4 gamepad if the client gamepad reports a touchpad is present",

@@ -375,7 +375,6 @@
     "sw_aq_mode_3": "auto-variance AQ with dark scene bias - 自动方差+暗场偏置（仅 x264）",
     "sw_aq_strength": "SW AQ 强度",
     "sw_aq_strength_desc": "自适应量化强度（0.0–2.0）。数值越大量化调整越激进。默认 1.0。注意：SVT-AV1 不支持此参数。",
-    "sw_aq_svt_hint": "注意：aq-strength 和 aq_mode=3 不被 SVT-AV1 支持。",
     "system_tray": "启用系统托盘",
     "system_tray_desc": "在系统托盘显示图标并显示桌面通知",
     "touchpad_as_ds4": "如果客户端报告游戏手柄存在触摸板，则模拟一个 DS4 游戏手柄",
