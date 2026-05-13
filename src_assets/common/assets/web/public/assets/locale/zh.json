@@ -368,7 +368,7 @@
     "sw_tune_stillimage": "stillimage -- 适用于类似幻灯片的内容",
     "sw_tune_zerolatency": "zerolatency -- 适用于快速编码和低延迟串流（默认值）",
     "sw_aq_mode": "SW AQ 模式",
-    "sw_aq_mode_desc": "软件编码器自适应量化模式。默认值为 auto-variance。注意：模式 3 仅 x264 支持；SVT-AV1 不支持 aq-strength。",
+    "sw_aq_mode_desc": "软件编码器自适应量化模式。默认值为 auto-variance。",
     "sw_aq_mode_0": "disabled - 禁用",
     "sw_aq_mode_1": "variance AQ - 方差（时域）",
     "sw_aq_mode_2": "auto-variance AQ - 自动方差（默认）",
