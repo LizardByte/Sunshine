@@ -167,7 +167,6 @@ class Sunshine < Formula
   def base_cmake_args
     args = %W[
       -DBUILD_WERROR=ON
-      -DCMAKE_CXX_STANDARD=23
       -DCMAKE_INSTALL_PREFIX=#{prefix}
       -DGLAD_SKIP_PIP_INSTALL=ON
       -DHOMEBREW_ALLOW_FETCHCONTENT=ON
