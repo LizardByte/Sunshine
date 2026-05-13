@@ -1155,9 +1155,21 @@ void main()
       }
     }
 
+    const bool explicit_fourcc_override = !stream_diag_env_value("SUNSHINE_STREAM_DIAG_IMPORT_FOURCC_OVERRIDE").empty();
+    const bool explicit_import_target = !stream_diag_env_value("SUNSHINE_STREAM_DIAG_IMPORT_TARGET").empty();
     const auto import_fourcc = stream_diag_import_fourcc_from_env(xrgb.fourcc);
-    const auto import_target = stream_diag_import_target_from_env();
-    const bool include_modifier = surface_default_include_modifier(xrgb);
+    auto import_target = stream_diag_import_target_from_env();
+    auto include_modifier = surface_default_include_modifier(xrgb);
+
+    if (!explicit_fourcc_override && !explicit_import_target && xrgb.fourcc == DRM_FORMAT_XRGB8888) {
+      import_target = GL_TEXTURE_EXTERNAL_OES;
+      include_modifier = false;
+      BOOST_LOG(warning) << "STREAM_DIAG defaulting XR24 KMS import to GL_TEXTURE_EXTERNAL_OES with no modifier attrs"
+                         << " original_fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                         << " import_fourcc="sv << stream_diag_fourcc_to_string(import_fourcc)
+                         << " modifier="sv << xrgb.modifier
+                         << " pitch0="sv << xrgb.pitches[0];
+    }
 
     std::string attempt_label {"env."};
     attempt_label += stream_diag_fourcc_to_string(import_fourcc);
