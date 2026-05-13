@@ -254,6 +254,8 @@ namespace egl {
     );
 
   rgb_t create_blank(platf::img_t &img);
+  bool diagnostic_gpu_solid_color_enabled();
+  rgb_t create_diagnostic_solid_color(platf::img_t &img);
 
   std::optional<nv12_t> import_target(
     display_t::pointer egl_display,

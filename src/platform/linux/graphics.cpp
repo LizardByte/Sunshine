@@ -3,7 +3,11 @@
  * @brief Definitions for graphics related functions.
  */
 // standard includes
+#include <array>
+#include <atomic>
+#include <cstdlib>
 #include <fcntl.h>
+#include <string>
 
 // local includes
 #include "graphics.h"
@@ -551,13 +555,134 @@ namespace egl {
     return {};
   }
 
+  bool stream_diag_env_enabled(const char *name) {
+    const auto *value = std::getenv(name);
+    if (!value) {
+      return false;
+    }
+
+    const std::string_view flag {value};
+    return flag != "0"sv && flag != "false"sv && flag != "FALSE"sv && flag != "no"sv && flag != "NO"sv;
+  }
+
+  const char *stream_diag_env_or_unset(const char *name) {
+    const auto *value = std::getenv(name);
+    return value ? value : "<unset>";
+  }
+
+  std::string stream_diag_fourcc_to_string(std::uint32_t fourcc) {
+    std::string text;
+    text.resize(4);
+    for (int i = 0; i < 4; ++i) {
+      const auto ch = static_cast<char>((fourcc >> (i * 8)) & 0xFF);
+      text[i] = (ch >= 32 && ch <= 126) ? ch : '.';
+    }
+    return text;
+  }
+
+  bool stream_diag_should_log(std::atomic_uint64_t &counter) {
+    const auto count = counter.fetch_add(1) + 1;
+    return count <= 60 || count % 120 == 0;
+  }
+
+  bool stream_diag_drain_gl_errors(const std::string_view &prefix, GLenum *first_error = nullptr) {
+    bool had_error = false;
+    GLenum err;
+    while ((err = gl::ctx.GetError()) != GL_NO_ERROR) {
+      if (!had_error && first_error) {
+        *first_error = err;
+      }
+      had_error = true;
+      BOOST_LOG(error) << "GL: "sv << prefix << ": ["sv << util::hex(err).to_string_view() << ']';
+    }
+    return had_error;
+  }
+
+  std::optional<std::array<GLfloat, 4>> stream_diag_color_from_env(const char *name) {
+    const auto *value = std::getenv(name);
+    if (!value) {
+      return std::nullopt;
+    }
+
+    const std::string_view color {value};
+    if (color == "red"sv) {
+      return std::array<GLfloat, 4> {1.0f, 0.0f, 0.0f, 1.0f};
+    }
+    if (color == "magenta"sv) {
+      return std::array<GLfloat, 4> {1.0f, 0.0f, 1.0f, 1.0f};
+    }
+
+    BOOST_LOG(warning) << "STREAM_DIAG unsupported diagnostic color "sv << name << '=' << color
+                       << " supported=red,magenta"sv;
+    return std::nullopt;
+  }
+
+  rgb_t create_solid_color_texture(platf::img_t &img, const std::array<GLfloat, 4> &color) {
+    rgb_t rgb {
+      EGL_NO_DISPLAY,
+      EGL_NO_IMAGE,
+      gl::tex_t::make(1)
+    };
+
+    gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
+    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
+    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+
+    auto framebuf = gl::frame_buf_t::make(1);
+    framebuf.bind(&rgb->tex[0], &rgb->tex[0] + 1);
+
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, framebuf[0]);
+    const auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE) {
+      BOOST_LOG(error) << "STREAM_DIAG diagnostic solid texture framebuffer incomplete status=0x"sv
+                       << util::hex(status).to_string_view()
+                       << " texture="sv << rgb->tex[0]
+                       << " width="sv << img.width
+                       << " height="sv << img.height;
+    }
+
+    GLenum attachment = GL_COLOR_ATTACHMENT0;
+    gl::ctx.DrawBuffers(1, &attachment);
+    gl::ctx.ClearBufferfv(GL_COLOR, 0, color.data());
+    gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    stream_diag_drain_gl_errors("STREAM_DIAG create_solid_color_texture"sv);
+
+    return rgb;
+  }
+
   /**
    * @brief Get EGL attributes for eglCreateImage() to import the provided surface.
    * @param surface The surface descriptor.
    * @return Vector of EGL attributes.
    */
   std::vector<EGLAttrib> surface_descriptor_to_egl_attribs(const surface_descriptor_t &surface) {
+    static std::atomic_uint64_t attr_log_counter {0};
+
     std::vector<EGLAttrib> attribs;
+    const bool omit_linear_modifier = stream_diag_env_enabled("SUNSHINE_STREAM_DIAG_OMIT_LINEAR_MODIFIER");
+    const bool include_modifier = surface.modifier != DRM_FORMAT_MOD_INVALID && !(omit_linear_modifier && surface.modifier == 0);
+    const bool log_this = stream_diag_should_log(attr_log_counter);
+
+    int fd_count = 0;
+    for (auto fd : surface.fds) {
+      if (fd >= 0) {
+        ++fd_count;
+      }
+    }
+
+    if (log_this) {
+      BOOST_LOG(info) << "STREAM_DIAG egl dmabuf attribs"
+                      << " width="sv << surface.width
+                      << " height="sv << surface.height
+                      << " fourcc="sv << stream_diag_fourcc_to_string(surface.fourcc)
+                      << " fourcc_hex=0x"sv << util::hex(surface.fourcc).to_string_view()
+                      << " fd_count="sv << fd_count
+                      << " modifier="sv << surface.modifier
+                      << " modifier_hex=0x"sv << util::hex(surface.modifier).to_string_view()
+                      << " include_modifiers="sv << include_modifier
+                      << " omit_linear_modifier_env="sv << omit_linear_modifier;
+    }
 
     attribs.emplace_back(EGL_WIDTH);
     attribs.emplace_back(surface.width);
@@ -581,7 +706,16 @@ namespace egl {
       attribs.emplace_back(plane_attr.pitch);
       attribs.emplace_back(surface.pitches[x]);
 
-      if (surface.modifier != DRM_FORMAT_MOD_INVALID) {
+      if (log_this) {
+        BOOST_LOG(info) << "STREAM_DIAG egl dmabuf plane"
+                        << " index="sv << x
+                        << " fd="sv << fd
+                        << " offset="sv << surface.offsets[x]
+                        << " pitch="sv << surface.pitches[x]
+                        << " modifier_included="sv << include_modifier;
+      }
+
+      if (include_modifier) {
         attribs.emplace_back(plane_attr.lo);
         attribs.emplace_back(surface.modifier & 0xFFFFFFFF);
         attribs.emplace_back(plane_attr.hi);
@@ -595,6 +729,8 @@ namespace egl {
 
   std::optional<rgb_t> import_source(display_t::pointer egl_display, const surface_descriptor_t &xrgb) {
     auto attribs = surface_descriptor_to_egl_attribs(xrgb);
+    static std::atomic_uint64_t import_log_counter {0};
+    const bool log_this = stream_diag_should_log(import_log_counter);
 
     rgb_t rgb {
       egl_display,
@@ -613,7 +749,38 @@ namespace egl {
       BOOST_LOG(error) << "glEGLImageTargetTexture2DOES is not available; cannot import RGB DMA-BUF"sv;
       return std::nullopt;
     }
+
+    stream_diag_drain_gl_errors("STREAM_DIAG import_source before glEGLImageTargetTexture2DOES"sv);
     gl::egl_image_target_texture_2d()(GL_TEXTURE_2D, rgb->xrgb8);
+
+    GLenum first_error = GL_NO_ERROR;
+    const bool import_gl_error = stream_diag_drain_gl_errors("STREAM_DIAG import_source after glEGLImageTargetTexture2DOES"sv, &first_error);
+    if (import_gl_error) {
+      if (first_error == GL_INVALID_OPERATION) {
+        BOOST_LOG(error) << "STREAM_DIAG import_source glEGLImageTargetTexture2DOES failed"
+                         << " target=GL_TEXTURE_2D"
+                         << " fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                         << " fourcc_hex=0x"sv << util::hex(xrgb.fourcc).to_string_view()
+                         << " modifier="sv << xrgb.modifier
+                         << " modifier_hex=0x"sv << util::hex(xrgb.modifier).to_string_view()
+                         << " pitch0="sv << xrgb.pitches[0]
+                         << " width="sv << xrgb.width
+                         << " height="sv << xrgb.height;
+      }
+
+      gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
+      return std::nullopt;
+    }
+
+    if (log_this) {
+      BOOST_LOG(info) << "STREAM_DIAG import_source succeeded"
+                      << " texture="sv << rgb->tex[0]
+                      << " width="sv << xrgb.width
+                      << " height="sv << xrgb.height
+                      << " fourcc="sv << stream_diag_fourcc_to_string(xrgb.fourcc)
+                      << " modifier="sv << xrgb.modifier
+                      << " pitch0="sv << xrgb.pitches[0];
+    }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
 
@@ -622,33 +789,44 @@ namespace egl {
     return rgb;
   }
 
+  bool diagnostic_gpu_solid_color_enabled() {
+    return stream_diag_color_from_env("SUNSHINE_STREAM_DIAG_GPU_SOLID_COLOR").has_value();
+  }
+
+  rgb_t create_diagnostic_solid_color(platf::img_t &img) {
+    static std::atomic_bool logged_enabled {false};
+    const auto color = stream_diag_color_from_env("SUNSHINE_STREAM_DIAG_GPU_SOLID_COLOR")
+                         .value_or(std::array<GLfloat, 4> {1.0f, 0.0f, 1.0f, 1.0f});
+
+    if (!logged_enabled.exchange(true)) {
+      BOOST_LOG(warning) << "STREAM_DIAG GPU solid color source active"
+                         << " color="sv << stream_diag_env_or_unset("SUNSHINE_STREAM_DIAG_GPU_SOLID_COLOR")
+                         << " width="sv << img.width
+                         << " height="sv << img.height;
+    }
+
+    return create_solid_color_texture(img, color);
+  }
+
   /**
    * @brief Create a black RGB texture of the specified image size.
    * @param img The image to use for texture sizing.
    * @return The new RGB texture.
    */
   rgb_t create_blank(platf::img_t &img) {
-    rgb_t rgb {
-      EGL_NO_DISPLAY,
-      EGL_NO_IMAGE,
-      gl::tex_t::make(1)
-    };
+    const auto color = stream_diag_color_from_env("SUNSHINE_STREAM_DIAG_BLANK_COLOR");
+    if (color) {
+      static std::atomic_bool logged_blank_color {false};
+      if (!logged_blank_color.exchange(true)) {
+        BOOST_LOG(warning) << "STREAM_DIAG create_blank diagnostic color active"
+                           << " color="sv << stream_diag_env_or_unset("SUNSHINE_STREAM_DIAG_BLANK_COLOR")
+                           << " width="sv << img.width
+                           << " height="sv << img.height;
+      }
+      return create_solid_color_texture(img, *color);
+    }
 
-    gl::ctx.BindTexture(GL_TEXTURE_2D, rgb->tex[0]);
-    gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, img.width, img.height);
-    gl::ctx.BindTexture(GL_TEXTURE_2D, 0);
-
-    auto framebuf = gl::frame_buf_t::make(1);
-    framebuf.bind(&rgb->tex[0], &rgb->tex[0] + 1);
-
-    GLenum attachment = GL_COLOR_ATTACHMENT0;
-    gl::ctx.DrawBuffers(1, &attachment);
-    const GLuint rgb_black[] = {0, 0, 0, 0};
-    gl::ctx.ClearBufferuiv(GL_COLOR, 0, rgb_black);
-
-    gl_drain_errors;
-
-    return rgb;
+    return create_solid_color_texture(img, {0.0f, 0.0f, 0.0f, 1.0f});
   }
 
   std::optional<nv12_t> import_target(display_t::pointer egl_display, std::array<file_t, nv12_img_t::num_fds> &&fds, const surface_descriptor_t &y, const surface_descriptor_t &uv) {
@@ -1024,7 +1202,23 @@ namespace egl {
   }
 
   int sws_t::convert(gl::frame_buf_t &fb) {
+    static std::atomic_uint64_t convert_log_counter {0};
+    const bool log_this = stream_diag_should_log(convert_log_counter);
+
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
+
+    if (log_this) {
+      BOOST_LOG(info) << "STREAM_DIAG rgb_to_yuv begin"
+                      << " source_texture="sv << loaded_texture
+                      << " framebuffer0="sv << fb[0]
+                      << " framebuffer1="sv << fb[1]
+                      << " in_width="sv << in_width
+                      << " in_height="sv << in_height
+                      << " out_width="sv << out_width
+                      << " out_height="sv << out_height
+                      << " offsetX="sv << offsetX
+                      << " offsetY="sv << offsetY;
+    }
 
     GLenum attachments[] {
       GL_COLOR_ATTACHMENT0,
@@ -1035,17 +1229,33 @@ namespace egl {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
 
-#ifndef NDEBUG
       auto status = gl::ctx.CheckFramebufferStatus(GL_FRAMEBUFFER);
+      if (log_this) {
+        GLint target_texture = 0;
+        gl::ctx.GetFramebufferAttachmentParameteriv(GL_FRAMEBUFFER, attachments[x], GL_FRAMEBUFFER_ATTACHMENT_OBJECT_NAME, &target_texture);
+        BOOST_LOG(info) << "STREAM_DIAG rgb_to_yuv framebuffer"
+                        << " plane="sv << x
+                        << " framebuffer="sv << fb[x]
+                        << " target_texture="sv << target_texture
+                        << " completeness=0x"sv << util::hex(status).to_string_view();
+      }
+
       if (status != GL_FRAMEBUFFER_COMPLETE) {
         BOOST_LOG(error) << "Pass "sv << x << ": CheckFramebufferStatus() --> [0x"sv << util::hex(status).to_string_view() << ']';
+#ifndef NDEBUG
         return -1;
-      }
 #endif
+      }
 
+      if (log_this) {
+        stream_diag_drain_gl_errors("STREAM_DIAG rgb_to_yuv before draw"sv);
+      }
       gl::ctx.UseProgram(program[x].handle());
       gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
+      if (log_this) {
+        stream_diag_drain_gl_errors("STREAM_DIAG rgb_to_yuv after draw"sv);
+      }
     }
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, 0);

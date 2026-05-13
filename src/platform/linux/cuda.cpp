@@ -381,7 +381,12 @@ namespace cuda {
     int convert(platf::img_t &img) override {
       auto &descriptor = (egl::img_descriptor_t &) img;
 
-      if (descriptor.sequence == 0) {
+      if (egl::diagnostic_gpu_solid_color_enabled()) {
+        if (descriptor.sequence > sequence || rgb->tex.size() == 0) {
+          sequence = descriptor.sequence;
+          rgb = egl::create_diagnostic_solid_color(img);
+        }
+      } else if (descriptor.sequence == 0) {
         // For dummy images, use a blank RGB texture instead of importing a DMA-BUF
         rgb = egl::create_blank(img);
       } else if (descriptor.sequence > sequence) {
