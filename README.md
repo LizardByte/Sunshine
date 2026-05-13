@@ -276,6 +276,13 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
         <td>➖</td>
         <td>➖</td>
     </tr>
+    <tr>
+        <td>KWin Screencast</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>➖</td>
+        <td>➖</td>
+    </tr>
 </table>
 
 <table>
@@ -317,6 +324,13 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     </tr>
     <tr>
         <td>XDG Desktop Portal</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+    </tr>
+    <tr>
+        <td>KWin Screencast</td>
         <td>✅</td>
         <td>✅</td>
         <td>✅</td>

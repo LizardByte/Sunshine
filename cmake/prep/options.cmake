@@ -18,6 +18,7 @@ option(SUNSHINE_CONFIGURE_ONLY "Configure special files only, then exit." OFF)
 
 option(SUNSHINE_ENABLE_TRAY "Enable system tray icon." ON)
 
+option(SUNSHINE_SYSTEM_VULKAN_HEADERS "Use system installation of vulkan-headers rather than the submodule." OFF)
 option(SUNSHINE_SYSTEM_WAYLAND_PROTOCOLS "Use system installation of wayland-protocols rather than the submodule." OFF)
 
 if(APPLE)
@@ -64,6 +65,8 @@ elseif(UNIX)  # Linux
             "Enable building wayland specific code." ON)
     option(SUNSHINE_ENABLE_X11
             "Enable X11 grab if available." ON)
+    option(SUNSHINE_ENABLE_KWIN
+            "Enable KWin ScreenCast grab if available" ON)
     option(SUNSHINE_ENABLE_PORTAL
             "Enable XDG portal grab if available" ON)
 endif()

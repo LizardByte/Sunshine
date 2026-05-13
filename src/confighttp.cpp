@@ -1793,11 +1793,15 @@ namespace confighttp {
     server.config.address = net::get_bind_address(address_family);
     server.config.port = port_https;
 
+    // Store bind address for logging, use "localhost" as fallback for wildcard addresses
+    const auto bind_addr = server.config.address;
+    const auto display_addr = config::sunshine.bind_address.empty() ? "localhost"sv : std::string_view {bind_addr};
+
     auto accept_and_run = [&](auto *server) {
       try {
         platf::set_thread_name("confighttp::tcp");
-        server->start([](const unsigned short port) {
-          BOOST_LOG(info) << "Configuration UI available at [https://localhost:"sv << port << "]";
+        server->start([&display_addr](const unsigned short port) {
+          BOOST_LOG(info) << "Configuration UI available at [https://"sv << display_addr << ":" << port << "]";
         });
       } catch (boost::system::system_error &err) {
         // It's possible the exception gets thrown after calling server->stop() from a different thread

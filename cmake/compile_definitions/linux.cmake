@@ -76,8 +76,8 @@ if(CUDA_FOUND)
     add_compile_definitions(SUNSHINE_BUILD_CUDA)
 endif()
 
-# libdrm is required for both DRM (KMS) and Wayland
-if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_WAYLAND})
+# libdrm is required for DRM (KMS), KWin ScreenCast and Wayland
+if(${SUNSHINE_ENABLE_DRM} OR ${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_WAYLAND})
     find_package(LIBDRM REQUIRED)
 else()
     set(LIBDRM_FOUND OFF)
@@ -122,8 +122,14 @@ endif()
 
 # vulkan video encoding (via FFmpeg)
 if(${SUNSHINE_ENABLE_VULKAN})
-    # use Vulkan headers from build-deps submodule (system headers may be too old, e.g. Ubuntu 22.04)
-    set(VULKAN_HEADERS_DIR "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/Vulkan-Headers/include")
+    if(NOT SUNSHINE_SYSTEM_VULKAN_HEADERS)
+        # use Vulkan headers from build-deps submodule (system headers may be too old, e.g. Ubuntu 22.04)
+        set(VULKAN_HEADERS_DIR "${CMAKE_SOURCE_DIR}/third-party/build-deps/third-party/FFmpeg/Vulkan-Headers/include")
+    else()
+        find_package(VulkanHeaders REQUIRED)
+        get_target_property(VULKAN_HEADERS_DIR Vulkan::Headers INTERFACE_INCLUDE_DIRECTORIES)
+    endif()
+
     if(NOT EXISTS "${VULKAN_HEADERS_DIR}/vulkan/vulkan.h")
         message(FATAL_ERROR "Vulkan headers not found in build-deps submodule")
     endif()
@@ -243,7 +249,7 @@ if(GIO_FOUND)
 endif()
 
 # Pipewire
-if(${SUNSHINE_ENABLE_PORTAL})
+if(${SUNSHINE_ENABLE_KWIN} OR ${SUNSHINE_ENABLE_PORTAL})
     pkg_check_modules(PIPEWIRE libpipewire-0.3 REQUIRED)
 else()
     set(PIPEWIRE_FOUND OFF)
@@ -264,13 +270,27 @@ if(PIPEWIRE_FOUND AND GIO_FOUND AND ${SUNSHINE_ENABLE_PORTAL})
             "${CMAKE_SOURCE_DIR}/src/platform/linux/portalgrab.cpp")
 endif()
 
+# KWin ScreenCast (direct Wayland protocol, bypasses portal)
+set(KWIN_FOUND OFF)
+if(PIPEWIRE_FOUND AND WAYLAND_FOUND AND ${SUNSHINE_ENABLE_KWIN})
+    set(KWIN_FOUND ON)
+    add_compile_definitions(SUNSHINE_BUILD_KWIN)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" kde-output-order-v1)
+    GEN_WAYLAND("${CMAKE_SOURCE_DIR}/third-party/plasma-wayland-protocols/src/protocols" "" zkde-screencast-unstable-v1)
+    list(APPEND PLATFORM_TARGET_FILES
+            "${CMAKE_SOURCE_DIR}/src/platform/linux/kwingrab.cpp")
+elseif(${SUNSHINE_ENABLE_KWIN} AND NOT WAYLAND_FOUND)
+    message(FATAL_ERROR "SUNSHINE_ENABLE_KWIN requires SUNSHINE_ENABLE_WAYLAND — KWin capture disabled")
+endif()
+
 if(NOT ${CUDA_FOUND}
-        AND NOT ${WAYLAND_FOUND}
-        AND NOT ${X11_FOUND}
-        AND NOT ${PORTAL_FOUND}
         AND NOT (${LIBDRM_FOUND} AND ${LIBCAP_FOUND})
-        AND NOT ${LIBVA_FOUND})
-    message(FATAL_ERROR "Couldn't find either cuda, libva, pipewire, wayland, x11, or (libdrm and libcap)")
+        AND NOT ${LIBVA_FOUND}
+        AND NOT ${KWIN_FOUND}
+        AND NOT ${PORTAL_FOUND}
+        AND NOT ${WAYLAND_FOUND}
+        AND NOT ${X11_FOUND})
+    message(FATAL_ERROR "Couldn't find either cuda, (libdrm and libcap), libva, kwin, pipewire, portal, wayland or x11")
 endif()
 
 # tray icon
