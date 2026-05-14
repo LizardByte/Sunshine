@@ -303,7 +303,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     CGEventSetFlags(event, macos_input->kb_flags);
     CGEventPost(kCGHIDEventTap, event);
     CFRelease(event);
-
   }
 
   void unicode(input_t &input, char *utf8, int size) {
