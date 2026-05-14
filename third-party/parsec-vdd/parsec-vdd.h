@@ -32,15 +32,18 @@
 #include <setupapi.h>
 #include <cfgmgr32.h>
 
+#ifdef __cplusplus
+#include <array>
+#include <utility>
+#include <vector>
+#endif
+
 #ifdef _MSC_VER
 #pragma comment(lib, "cfgmgr32.lib")
 #pragma comment(lib, "setupapi.lib")
 #endif
 
 #ifdef __cplusplus
-
-#include <vector>
-
 namespace parsec_vdd
 {
 
@@ -66,23 +69,25 @@ enum class DeviceStatus {
  */
 static DeviceStatus DetermineDeviceStatus(ULONG devStatus, ULONG devProblemNum)
 {
+    using enum DeviceStatus;
+
     if ((devStatus & (DN_DRIVER_LOADED | DN_STARTED)) != 0)
-        return DeviceStatus::OK;
+        return OK;
 
     if ((devStatus & DN_HAS_PROBLEM) == 0)
-        return DeviceStatus::UNKNOWN;
+        return UNKNOWN;
 
     switch (devProblemNum)
     {
     case CM_PROB_NEED_RESTART:
-        return DeviceStatus::RESTART_REQUIRED;
+        return RESTART_REQUIRED;
     case CM_PROB_DISABLED:
     case CM_PROB_HARDWARE_DISABLED:
-        return DeviceStatus::DISABLED;
+        return DISABLED;
     case CM_PROB_DISABLED_SERVICE:
-        return DeviceStatus::DISABLED_SERVICE;
+        return DISABLED_SERVICE;
     default:
-        return (devProblemNum == CM_PROB_FAILED_POST_START) ? DeviceStatus::DRIVER_ERROR : DeviceStatus::UNKNOWN_PROBLEM;
+        return (devProblemNum == CM_PROB_FAILED_POST_START) ? DRIVER_ERROR : UNKNOWN_PROBLEM;
     }
 }
 
@@ -92,7 +97,7 @@ static DeviceStatus DetermineDeviceStatus(ULONG devStatus, ULONG devProblemNum)
  */
 static bool MatchHardwareId(LPCSTR propBuffer, DWORD requiredSize, const char *deviceId)
 {
-    for (LPCSTR cp = propBuffer; cp && *cp != 0 && cp < (LPCSTR)(propBuffer + requiredSize); cp += lstrlenA(cp) + 1)
+    for (LPCSTR cp = propBuffer; cp && *cp != 0 && cp < propBuffer + requiredSize; cp += lstrlenA(cp) + 1)
     {
         if (lstrcmpA(deviceId, cp) == 0)
             return true;
@@ -109,13 +114,15 @@ static bool MatchHardwareId(LPCSTR propBuffer, DWORD requiredSize, const char *d
 */
 static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceId)
 {
+    using enum DeviceStatus;
+
     SP_DEVINFO_DATA devInfoData;
     ZeroMemory(&devInfoData, sizeof(SP_DEVINFO_DATA));
     devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
 
     if (auto devInfo = SetupDiGetClassDevsA(classGuid, nullptr, nullptr, DIGCF_PRESENT); devInfo != INVALID_HANDLE_VALUE)
     {
-        DeviceStatus status = DeviceStatus::NOT_INSTALLED;
+        DeviceStatus status = NOT_INSTALLED;
         BOOL foundProp = FALSE;
 
         for (UINT deviceIndex = 0; SetupDiEnumDeviceInfo(devInfo, deviceIndex, &devInfoData); ++deviceIndex)
@@ -140,8 +147,8 @@ static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceI
 
             if (!MatchHardwareId((LPCSTR)propBuffer.data(), requiredSize, deviceId))
             {
-                status = DeviceStatus::NOT_INSTALLED;
-                break;
+                status = NOT_INSTALLED;
+                continue;
             }
 
             foundProp = TRUE;
@@ -150,22 +157,23 @@ static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceI
 
             if (CM_Get_DevNode_Status(&devStatus, &devProblemNum, devInfoData.DevInst, 0) != CR_SUCCESS)
             {
-                status = DeviceStatus::NOT_INSTALLED;
-                break;
+                status = NOT_INSTALLED;
             }
-
-            status = DetermineDeviceStatus(devStatus, devProblemNum);
+            else
+            {
+                status = DetermineDeviceStatus(devStatus, devProblemNum);
+            }
             break;
         }
 
         if (!foundProp && GetLastError() != 0)
-            status = DeviceStatus::NOT_INSTALLED;
+            status = NOT_INSTALLED;
 
         SetupDiDestroyDeviceInfoList(devInfo);
         return status;
     }
 
-    return DeviceStatus::INACCESSIBLE;
+    return INACCESSIBLE;
 }
 
 /**
@@ -178,7 +186,7 @@ static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceI
 */
 static HANDLE OpenDeviceHandle(const GUID *interfaceGuid)
 {
-    HANDLE handle = INVALID_HANDLE_VALUE;
+    auto handle = INVALID_HANDLE_VALUE;
 
     if (auto devInfo = SetupDiGetClassDevsA(interfaceGuid,
             nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE); devInfo != INVALID_HANDLE_VALUE)
@@ -205,10 +213,10 @@ static HANDLE OpenDeviceHandle(const GUID *interfaceGuid)
                     OPEN_EXISTING,
                     FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING | FILE_FLAG_OVERLAPPED | FILE_FLAG_WRITE_THROUGH,
                     nullptr);
-
-                if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
-                    break;
             }
+
+            if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+                break;
         }
 
         SetupDiDestroyDeviceInfoList(devInfo);
@@ -502,8 +510,7 @@ static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const BYTE *data, size_t 
     if (vdd == nullptr || vdd == INVALID_HANDLE_VALUE)
         return -1;
 
-    BYTE InBuffer[32];
-    ZeroMemory(InBuffer, sizeof(InBuffer));
+    std::array<BYTE, 32> InBuffer{};
 
     OVERLAPPED Overlapped;
     ZeroMemory(&Overlapped, sizeof(OVERLAPPED));
@@ -512,10 +519,10 @@ static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const BYTE *data, size_t 
     DWORD NumberOfBytesTransferred = 0;
 
     if (data != nullptr && size > 0)
-        memcpy(InBuffer, data, (size < sizeof(InBuffer)) ? size : sizeof(InBuffer));
+        memcpy(InBuffer.data(), data, (size < InBuffer.size()) ? size : InBuffer.size());
 
     Overlapped.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
-    DeviceIoControl(vdd, (DWORD)code, InBuffer, sizeof(InBuffer), &OutBuffer, sizeof(DWORD), nullptr, &Overlapped);
+    DeviceIoControl(vdd, std::to_underlying(code), InBuffer.data(), static_cast<DWORD>(InBuffer.size()), &OutBuffer, sizeof(DWORD), nullptr, &Overlapped);
 
     if (!GetOverlappedResultEx(vdd, &Overlapped, &NumberOfBytesTransferred, 5000, FALSE))
     {

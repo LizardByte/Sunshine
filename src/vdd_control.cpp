@@ -25,6 +25,7 @@
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 // lib includes
 #include <d3d11.h>
@@ -159,7 +160,7 @@ namespace vdd {
     // Query driver status — informational; non-OK is logged but not fatal.
     auto status = QueryDeviceStatus(&VDD_CLASS_GUID, VDD_HARDWARE_ID);
     if (status != DeviceStatus::OK) {
-      BOOST_LOG(warning) << "VDD: Driver not ready (status="sv << (int)status << ')' << std::endl;
+      BOOST_LOG(warning) << "VDD: Driver not ready (status="sv << std::to_underlying(status) << ')' << std::endl;
     }
 
     // The real gate: open the device handle. Driver might be usable despite
