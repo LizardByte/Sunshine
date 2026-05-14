@@ -235,6 +235,11 @@
               "dd_config_revert_delay": 3000,
               "dd_config_revert_on_disconnect": "disabled",
               "dd_mode_remapping": {"mixed": [], "resolution_only": [], "refresh_rate_only": []},
+              "vdd_enabled": "false",
+              "vdd_width": "1920",
+              "vdd_height": "1080",
+              "vdd_refresh_rate": "144",
+              "vdd_display_count": "0",
               "max_bitrate": 0,
               "minimum_fps_target": 0
             },
@@ -363,9 +368,14 @@
         const options = [];
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(key => {
+            const i18nKey = 'config.' + key;
+            const translated = this.$t(i18nKey);
+            const label = translated !== i18nKey
+              ? translated
+              : key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase());
             options.push({
               key: key,
-              label: key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase()),
+              label: label,
               tab: tab.name,
               tabId: tab.id
             });

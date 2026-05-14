@@ -48,6 +48,7 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
+  #include "vdd_control.h"
 
 using namespace std::literals;
 
@@ -99,6 +100,36 @@ namespace system_tray {
     lifetime::exit_sunshine(0, true);
   }
 
+#ifdef _WIN32
+  static void ensure_vdd_initialized() {
+    if (!vdd::is_initialized()) {
+      if (!vdd::init()) {
+        BOOST_LOG(warning) << "VDD: Failed to initialize driver from tray"sv;
+      }
+    }
+  }
+
+  void tray_vdd_add_cb([[maybe_unused]] struct tray_menu *item) {
+    ensure_vdd_initialized();
+    BOOST_LOG(info) << "VDD: Adding virtual display from tray"sv;
+    vdd::add_display(config::video.vdd.virtual_display_width,
+                     config::video.vdd.virtual_display_height,
+                     config::video.vdd.virtual_display_refresh_rate);
+  }
+
+  void tray_vdd_remove_cb([[maybe_unused]] struct tray_menu *item) {
+    ensure_vdd_initialized();
+    BOOST_LOG(info) << "VDD: Removing last virtual display from tray"sv;
+    vdd::remove_last_display();
+  }
+
+  void tray_vdd_remove_all_cb([[maybe_unused]] struct tray_menu *item) {
+    ensure_vdd_initialized();
+    BOOST_LOG(info) << "VDD: Removing all virtual displays from tray"sv;
+    vdd::remove_all_displays();
+  }
+#endif
+
   // Tray menu
   static struct tray tray = {
     .icon = TRAY_ICON,
@@ -117,8 +148,16 @@ namespace system_tray {
              {.text = nullptr}
            }},
         {.text = "-"},
-  // Currently display device settings are only supported on Windows
+  // Currently display device settings and VDD are only supported on Windows
   #ifdef _WIN32
+        {.text = "Virtual Display",
+         .submenu =
+           (struct tray_menu[]) {
+             {.text = "Add Virtual Display", .cb = tray_vdd_add_cb},
+             {.text = "Remove Last", .cb = tray_vdd_remove_cb},
+             {.text = "Remove All", .cb = tray_vdd_remove_all_cb},
+             {.text = nullptr}
+           }},
         {.text = "Reset Display Device Config", .cb = tray_reset_display_device_config_cb},
   #endif
         {.text = "Restart", .cb = tray_restart_cb},

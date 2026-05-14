@@ -25,6 +25,7 @@
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
+#include "vdd_control.h"
 #include "video.h"
 
 extern "C" {
@@ -315,6 +316,9 @@ int main(int argc, char *argv[]) {
       system_tray::end_tray();
     }
 
+#ifdef _WIN32
+    vdd::destroy();
+#endif
     display_device_deinit_guard = nullptr;
   });
 
@@ -335,6 +339,9 @@ int main(int argc, char *argv[]) {
       system_tray::end_tray();
     }
 
+#ifdef _WIN32
+    vdd::destroy();
+#endif
     display_device_deinit_guard = nullptr;
   });
 
@@ -352,6 +359,37 @@ int main(int argc, char *argv[]) {
   if (!platf_deinit_guard) {
     BOOST_LOG(error) << "Platform failed to initialize"sv;
   }
+
+#ifdef _WIN32
+  // Initialize VDD (Parsec Virtual Display Driver) if enabled
+  if (config::video.vdd.virtual_display_enabled) {
+    if (vdd::init()) {
+      if (vdd::need_virtual_display()) {
+        BOOST_LOG(info) << "No physical display detected - creating virtual display"sv;
+        vdd::add_display(
+          config::video.vdd.virtual_display_width,
+          config::video.vdd.virtual_display_height,
+          config::video.vdd.virtual_display_refresh_rate);
+      } else {
+        // Restore persisted virtual displays
+        int count = config::video.vdd.virtual_display_count;
+        if (count > 0) {
+          BOOST_LOG(info) << "Restoring "sv << count << " persisted virtual display(s)"sv;
+          for (int i = 0; i < count; ++i) {
+            vdd::add_display(
+              config::video.vdd.virtual_display_width,
+              config::video.vdd.virtual_display_height,
+              config::video.vdd.virtual_display_refresh_rate);
+          }
+        } else {
+          BOOST_LOG(info) << "Physical display detected, VDD ready for manual use"sv;
+        }
+      }
+    } else {
+      BOOST_LOG(warning) << "VDD driver not available - virtual displays disabled"sv;
+    }
+  }
+#endif
 
   auto proc_deinit_guard = proc::init();
   if (!proc_deinit_guard) {
