@@ -59,6 +59,11 @@ enum class DeviceStatus {
     NOT_INSTALLED       // Driver is not installed
 };
 
+/**
+ * @brief Map Windows CM device-status flags to a DeviceStatus enum value.
+ * @param devStatus      The DN_* status flags from CM_Get_DevNode_Status.
+ * @param devProblemNum  The CM_PROB_* problem number.
+ */
 static DeviceStatus DetermineDeviceStatus(ULONG devStatus, ULONG devProblemNum)
 {
     if ((devStatus & (DN_DRIVER_LOADED | DN_STARTED)) != 0)
@@ -81,6 +86,10 @@ static DeviceStatus DetermineDeviceStatus(ULONG devStatus, ULONG devProblemNum)
     }
 }
 
+/**
+ * @brief Walk a REG_MULTI_SZ buffer looking for a matching hardware ID.
+ * @return true if deviceId is found among the null-terminated strings.
+ */
 static bool MatchHardwareId(LPCSTR propBuffer, DWORD requiredSize, const char *deviceId)
 {
     for (LPCSTR cp = propBuffer; cp && *cp != 0 && cp < (LPCSTR)(propBuffer + requiredSize); cp += lstrlenA(cp) + 1)

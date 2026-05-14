@@ -122,6 +122,13 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 }
 
 #ifdef _WIN32
+  /**
+   * @brief Restore virtual displays from the persisted count in config.
+   *
+   * Called during startup when a physical display already exists. Reads
+   * virtual_display_count from config and re-creates that many displays
+   * at the configured default resolution/refresh.
+   */
   static void restore_persisted_virtual_displays() {
     int count = config::video.vdd.virtual_display_count;
     if (count > 0) {
