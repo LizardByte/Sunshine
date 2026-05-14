@@ -152,6 +152,14 @@ namespace config {
       workarounds_t wa;
     } dd;
 
+    struct {
+      bool virtual_display_enabled;  ///< Enable virtual display creation when no display detected
+      int virtual_display_width;     ///< Virtual display width
+      int virtual_display_height;    ///< Virtual display height
+      int virtual_display_refresh_rate;  ///< Virtual display refresh rate
+      int virtual_display_count;     ///< Number of persisted virtual displays to restore on startup
+    } vdd;
+
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client
     double minimum_fps_target;  ///< Lowest framerate that will be used when streaming. Range 0-1000, 0 = half of client's requested framerate.
   };
