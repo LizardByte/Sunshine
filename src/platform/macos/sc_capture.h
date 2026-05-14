@@ -14,8 +14,6 @@ API_AVAILABLE(macos(12.3))
 
 #define kMaxDisplays 32
 
-typedef bool (^VideoFrameCallbackBlock)(CMSampleBufferRef);
-
 @property (nonatomic, assign) CGDirectDisplayID displayID;
 @property (nonatomic, assign) int frameRate;
 @property (nonatomic, assign) OSType pixelFormat;
@@ -23,13 +21,15 @@ typedef bool (^VideoFrameCallbackBlock)(CMSampleBufferRef);
 @property (nonatomic, assign) int frameHeight;
 
 @property (nonatomic, strong) SCStream *stream;
+@property (nonatomic, strong) SCContentFilter *contentFilter;
+@property (nonatomic, strong) SCStreamConfiguration *streamConfiguration;
 @property (nonatomic, strong) SCShareableContent *shareableContent;
 @property (nonatomic, strong) dispatch_queue_t videoQueue;
 
-@property (nonatomic, copy) VideoFrameCallbackBlock videoCallback;
 @property (nonatomic, strong) dispatch_semaphore_t captureSignal;
+@property (nonatomic, strong) dispatch_semaphore_t frameSignal;
 @property (nonatomic, assign) BOOL stopping;
-@property (nonatomic, assign) CMSampleBufferRef lastValidSampleBuffer;
+@property (nonatomic, assign) CMSampleBufferRef latestSampleBuffer;
 
 + (BOOL)isAvailable;
 + (NSArray<NSDictionary *> *)displayNames;
@@ -39,7 +39,9 @@ typedef bool (^VideoFrameCallbackBlock)(CMSampleBufferRef);
                       frameRate:(int)frameRate;
 
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
-- (dispatch_semaphore_t)captureVideo:(VideoFrameCallbackBlock)videoCallback;
+- (dispatch_semaphore_t)captureVideo;
+- (CMSampleBufferRef)copyLatestSampleBuffer;
+- (CMSampleBufferRef)copyScreenshotSampleBuffer;
 - (void)stopCapture;
 
 @end

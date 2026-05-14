@@ -7,6 +7,33 @@
 API_AVAILABLE(macos(12.3))
 @implementation SCCapture
 
+static BOOL isCompleteScreenFrame(CMSampleBufferRef sampleBuffer) {
+  if (!CMSampleBufferIsValid(sampleBuffer)) {
+    return NO;
+  }
+
+  CFArrayRef attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, NO);
+  if (!attachmentsArray || CFArrayGetCount(attachmentsArray) == 0) {
+    return NO;
+  }
+
+  CFDictionaryRef attachments = (CFDictionaryRef) CFArrayGetValueAtIndex(attachmentsArray, 0);
+  if (!attachments) {
+    return NO;
+  }
+
+  NSNumber *status = (NSNumber *) CFDictionaryGetValue(attachments, SCStreamFrameInfoStatus);
+  if (!status) {
+    return NO;
+  }
+
+  return status.integerValue == SCFrameStatusComplete;
+}
+
+static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
+  return sampleBuffer && CMSampleBufferIsValid(sampleBuffer) && CMSampleBufferGetImageBuffer(sampleBuffer);
+}
+
 + (BOOL)isAvailable {
   if (@available(macOS 12.3, *)) {
     return YES;
@@ -145,7 +172,7 @@ API_AVAILABLE(macos(12.3))
   return nil;
 }
 
-- (dispatch_semaphore_t)captureVideo:(VideoFrameCallbackBlock)videoCallback {
+- (dispatch_semaphore_t)captureVideo {
   @synchronized(self) {
     if (self.stream) {
       dispatch_semaphore_t stopSem = dispatch_semaphore_create(0);
@@ -156,9 +183,14 @@ API_AVAILABLE(macos(12.3))
       self.stream = nil;
     }
 
+    if (self.latestSampleBuffer) {
+      CFRelease(self.latestSampleBuffer);
+      self.latestSampleBuffer = NULL;
+    }
+
     self.stopping = NO;
-    self.videoCallback = videoCallback;
     self.captureSignal = dispatch_semaphore_create(0);
+    self.frameSignal = dispatch_semaphore_create(0);
 
     SCDisplay *display = [self findDisplayWithIDRetrying:self.displayID];
     if (!display) {
@@ -167,6 +199,8 @@ API_AVAILABLE(macos(12.3))
     }
 
     SCContentFilter *filter = [[SCContentFilter alloc] initWithDisplay:display excludingWindows:@[]];
+    self.contentFilter = filter;
+    [filter release];
 
     SCStreamConfiguration *config = [[SCStreamConfiguration alloc] init];
     config.width = self.frameWidth;
@@ -175,9 +209,13 @@ API_AVAILABLE(macos(12.3))
     config.pixelFormat = self.pixelFormat;
     config.queueDepth = 5;
     config.showsCursor = YES;
+    self.streamConfiguration = config;
+    [config release];
 
     NSError *error = nil;
-    self.stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:self];
+    SCStream *stream = [[SCStream alloc] initWithFilter:self.contentFilter configuration:self.streamConfiguration delegate:self];
+    self.stream = stream;
+    [stream release];
 
     if (!self.stream) {
       NSLog(@"[SCCapture] Failed to create SCStream");
@@ -205,6 +243,10 @@ API_AVAILABLE(macos(12.3))
     dispatch_semaphore_wait(startSemaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
 
     if (!startSuccess) {
+      self.captureSignal = nil;
+      self.frameSignal = nil;
+      self.contentFilter = nil;
+      self.streamConfiguration = nil;
       return nil;
     }
 
@@ -212,8 +254,59 @@ API_AVAILABLE(macos(12.3))
   }
 }
 
+- (CMSampleBufferRef)copyLatestSampleBuffer {
+  @synchronized(self) {
+    CMSampleBufferRef sampleBuffer = self.latestSampleBuffer;
+    self.latestSampleBuffer = NULL;
+    return sampleBuffer;
+  }
+}
+
+- (CMSampleBufferRef)copyScreenshotSampleBuffer {
+  if (@available(macOS 14.0, *)) {
+    SCContentFilter *filter = nil;
+    SCStreamConfiguration *config = nil;
+
+    @synchronized(self) {
+      if (self.stopping || !self.contentFilter || !self.streamConfiguration) {
+        return NULL;
+      }
+
+      filter = [self.contentFilter retain];
+      config = [self.streamConfiguration retain];
+    }
+
+    dispatch_semaphore_t screenshotSemaphore = dispatch_semaphore_create(0);
+    __block BOOL timedOut = NO;
+    __block CMSampleBufferRef screenshotSampleBuffer = NULL;
+
+    [SCScreenshotManager captureSampleBufferWithFilter:filter
+                                         configuration:config
+                                     completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
+                                       if (!timedOut && !error && isUsableImageSampleBuffer(sampleBuffer)) {
+                                         screenshotSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
+                                       }
+
+                                       dispatch_semaphore_signal(screenshotSemaphore);
+                                     }];
+
+    if (dispatch_semaphore_wait(screenshotSemaphore, dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC)) != 0) {
+      timedOut = YES;
+    }
+
+    [filter release];
+    [config release];
+
+    return screenshotSampleBuffer;
+  }
+
+  return NULL;
+}
+
 - (void)stopCapture {
   @synchronized(self) {
+    self.stopping = YES;
+
     if (self.stream) {
       dispatch_semaphore_t stopSemaphore = dispatch_semaphore_create(0);
 
@@ -228,16 +321,20 @@ API_AVAILABLE(macos(12.3))
       self.stream = nil;
     }
 
-    if (self.captureSignal) {
-      dispatch_semaphore_signal(self.captureSignal);
-      self.captureSignal = nil;
+    self.contentFilter = nil;
+    self.streamConfiguration = nil;
+
+    if (self.latestSampleBuffer) {
+      CFRelease(self.latestSampleBuffer);
+      self.latestSampleBuffer = NULL;
     }
 
-    self.videoCallback = nil;
+    if (self.frameSignal) {
+      dispatch_semaphore_signal(self.frameSignal);
+    }
 
-    if (self.lastValidSampleBuffer) {
-      CFRelease(self.lastValidSampleBuffer);
-      self.lastValidSampleBuffer = NULL;
+    if (self.captureSignal) {
+      dispatch_semaphore_signal(self.captureSignal);
     }
   }
 }
@@ -246,6 +343,9 @@ API_AVAILABLE(macos(12.3))
 
 - (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
   NSLog(@"[SCCapture] Stream stopped with error: %@", error.localizedDescription);
+  if (self.frameSignal) {
+    dispatch_semaphore_signal(self.frameSignal);
+  }
   if (self.captureSignal) {
     dispatch_semaphore_signal(self.captureSignal);
   }
@@ -260,32 +360,28 @@ API_AVAILABLE(macos(12.3))
     return;
   }
 
-  CVPixelBufferRef pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer);
-  if (!pixelBuffer) {
-    @synchronized(self) {
-      if (self.lastValidSampleBuffer && !self.stopping && self.videoCallback) {
-        self.videoCallback(self.lastValidSampleBuffer);
-      }
-    }
+  if (!isCompleteScreenFrame(sampleBuffer)) {
+    return;
+  }
+
+  if (!isUsableImageSampleBuffer(sampleBuffer)) {
     return;
   }
 
   @synchronized(self) {
-    if (self.lastValidSampleBuffer) {
-      CFRelease(self.lastValidSampleBuffer);
+    if (self.stopping) {
+      return;
     }
-    self.lastValidSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
-  }
 
-  if (self.stopping) {
-    return;
-  }
+    BOOL shouldSignal = self.latestSampleBuffer == NULL;
+    if (self.latestSampleBuffer) {
+      CFRelease(self.latestSampleBuffer);
+    }
+    self.latestSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
 
-  if (self.videoCallback && !self.videoCallback(sampleBuffer)) {
-    self.stopping = YES;
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-      [self stopCapture];
-    });
+    if (shouldSignal && self.frameSignal) {
+      dispatch_semaphore_signal(self.frameSignal);
+    }
   }
 }
 

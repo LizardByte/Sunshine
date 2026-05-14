@@ -16,6 +16,7 @@
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 #import "src/platform/macos/sc_capture.h"
+#include "src/utility.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 #define AVMediaType AVMediaType_FFmpeg
@@ -26,6 +27,7 @@ namespace fs = std::filesystem;
 
 namespace platf {
   using namespace std::literals;
+  static constexpr auto SCKIT_SCREENSHOT_POLL_INTERVAL_NS = NSEC_PER_SEC / 60;
 
   static bool process_frame(CMSampleBufferRef sampleBuffer, img_t *img) {
     auto pixel_buffer = CMSampleBufferGetImageBuffer(sampleBuffer);
@@ -265,31 +267,51 @@ namespace platf {
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      auto signal = [sc_capture captureVideo:^(CMSampleBufferRef sampleBuffer) {
-        std::shared_ptr<img_t> img_out;
-        if (!pull_free_image_cb(img_out)) {
-          return false;
-        }
-
-        if (!process_frame(sampleBuffer, img_out.get())) {
-          return true;
-        }
-
-        if (!push_captured_image_cb(std::move(img_out), true)) {
-          return false;
-        }
-
-        return true;
-      }];
-
+      auto signal = [sc_capture captureVideo];
       if (!signal) {
         BOOST_LOG(error) << "SCCapture failed to start video capture"sv;
         return capture_e::error;
       }
 
-      while (dispatch_semaphore_wait(signal, dispatch_time(DISPATCH_TIME_NOW, 1 * NSEC_PER_SEC)) != 0) {
-        std::shared_ptr<img_t> probe_img;
-        if (!pull_free_image_cb(probe_img)) {
+      auto frame_signal = sc_capture.frameSignal;
+
+      while (true) {
+        auto frame_status = dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_SCREENSHOT_POLL_INTERVAL_NS));
+        if (dispatch_semaphore_wait(signal, DISPATCH_TIME_NOW) == 0) {
+          break;
+        }
+
+        CMSampleBufferRef sampleBuffer = nullptr;
+        if (frame_status == 0) {
+          sampleBuffer = [sc_capture copyLatestSampleBuffer];
+        } else {
+          sampleBuffer = [sc_capture copyScreenshotSampleBuffer];
+        }
+
+        if (!sampleBuffer) {
+          std::shared_ptr<img_t> probe_img;
+          if (!pull_free_image_cb(probe_img)) {
+            [sc_capture stopCapture];
+            break;
+          }
+          continue;
+        }
+
+        auto release_sample_buffer = util::fail_guard([sampleBuffer]() {
+          CFRelease(sampleBuffer);
+        });
+
+        std::shared_ptr<img_t> img_out;
+        if (!pull_free_image_cb(img_out)) {
+          [sc_capture stopCapture];
+          break;
+        }
+
+        if (!process_frame(sampleBuffer, img_out.get())) {
+          continue;
+        }
+
+        if (!push_captured_image_cb(std::move(img_out), true)) {
           [sc_capture stopCapture];
           break;
         }
