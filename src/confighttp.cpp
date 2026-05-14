@@ -1603,13 +1603,11 @@ namespace confighttp {
 
     nlohmann::json output_tree;
 
-    if (!vdd::is_initialized()) {
-      if (!vdd::init()) {
-        output_tree["status"] = false;
-        output_tree["error"] = "VDD driver not available";
-        send_response(response, output_tree);
-        return;
-      }
+    if (!vdd::is_initialized() && !vdd::init()) {
+      output_tree["status"] = false;
+      output_tree["error"] = "VDD driver not available";
+      send_response(response, output_tree);
+      return;
     }
 
     try {
@@ -1645,9 +1643,9 @@ namespace confighttp {
         output_tree["index"] = idx;
       } else {
         output_tree["success"] = false;
-        output_tree["error"] = "VDD driver returned error (idx=" + std::to_string(idx) + "). Check Sunshine logs for details.";
+        output_tree["error"] = std::format("VDD driver returned error (idx={}). Check Sunshine logs for details.", idx);
       }
-    } catch (const std::exception &e) {
+    } catch (const nlohmann::json::exception &e) {
       output_tree["status"] = false;
       output_tree["error"] = e.what();
     }
@@ -1697,7 +1695,7 @@ namespace confighttp {
 
       output_tree["status"] = result;
       output_tree["success"] = result;
-    } catch (const std::exception &e) {
+    } catch (const nlohmann::json::exception &e) {
       output_tree["status"] = false;
       output_tree["error"] = e.what();
     }

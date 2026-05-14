@@ -43,9 +43,9 @@ const isValidResolution = computed(() => {
 
 watch(() => props.config, (cfg) => {
   if (cfg) {
-    customWidth.value = parseInt(cfg.vdd_width) || 1920
-    customHeight.value = parseInt(cfg.vdd_height) || 1080
-    customHz.value = parseInt(cfg.vdd_refresh_rate) || 144
+    customWidth.value = Number.parseInt(cfg.vdd_width) || 1920
+    customHeight.value = Number.parseInt(cfg.vdd_height) || 1080
+    customHz.value = Number.parseInt(cfg.vdd_refresh_rate) || 144
   }
 }, { immediate: true })
 
@@ -59,7 +59,7 @@ const fetchStatus = async () => {
       vddStatus.value = data
     }
   } catch (e) {
-    errorMsg.value = t('config.vdd_fetch_error')
+    errorMsg.value = t('config.vdd_fetch_error') + ': ' + e.message
   } finally {
     isLoading.value = false
   }
@@ -118,7 +118,7 @@ const removeDisplay = async (index) => {
       errorMsg.value = data.error || t('config.vdd_remove_error')
     }
   } catch (e) {
-    errorMsg.value = t('config.vdd_remove_error')
+    errorMsg.value = t('config.vdd_remove_error') + ': ' + e.message
   }
 }
 
@@ -135,7 +135,7 @@ const removeAllDisplays = async () => {
       errorMsg.value = data.error || t('config.vdd_remove_all_error')
     }
   } catch (e) {
-    errorMsg.value = t('config.vdd_remove_all_error')
+    errorMsg.value = t('config.vdd_remove_all_error') + ': ' + e.message
   }
 }
 
@@ -176,7 +176,7 @@ onMounted(() => {
               <!-- VDD Settings -->
               <div class="row mb-3">
                 <div class="col-md-6">
-                  <label class="form-label">{{ $t('config.vdd_driver_status') }}</label>
+                  <p class="form-label mb-0">{{ $t('config.vdd_driver_status') }}</p>
                   <p class="mb-0">
                     <span :class="vddStatus.driver_ok ? 'text-success' : 'text-danger'">
                       {{ vddStatus.driver_ok ? $t('config.vdd_connected') : $t('config.vdd_not_connected') }}
@@ -185,7 +185,7 @@ onMounted(() => {
                   </p>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">{{ $t('config.vdd_active_displays') }}</label>
+                  <p class="form-label mb-0">{{ $t('config.vdd_active_displays') }}</p>
                   <p class="mb-0">
                     <strong>{{ vddStatus.display_count }}</strong>
                     <button class="btn btn-sm btn-outline-secondary ms-2" @click="fetchStatus" :disabled="isLoading">
@@ -197,7 +197,7 @@ onMounted(() => {
 
               <!-- Resolution presets -->
               <div class="mb-2">
-                <label class="form-label">{{ $t('config.vdd_presets') }}</label>
+                <p class="form-label mb-0">{{ $t('config.vdd_presets') }}</p>
                 <div class="d-flex gap-1 flex-wrap">
                   <button v-for="p in presets" :key="p.label"
                           class="btn btn-sm btn-outline-secondary"
@@ -210,18 +210,18 @@ onMounted(() => {
               <!-- Custom resolution inputs -->
               <div class="row mb-3 g-2 align-items-end">
                 <div class="col-auto">
-                  <label class="form-label">{{ $t('config.vdd_input_width') }}</label>
-                  <input type="number" class="form-control form-control-sm"
+                  <label class="form-label" for="vdd-width">{{ $t('config.vdd_input_width') }}</label>
+                  <input id="vdd-width" type="number" class="form-control form-control-sm"
                          v-model.number="customWidth" min="320" max="7680" style="width: 90px">
                 </div>
                 <div class="col-auto">
-                  <label class="form-label">{{ $t('config.vdd_input_height') }}</label>
-                  <input type="number" class="form-control form-control-sm"
+                  <label class="form-label" for="vdd-height">{{ $t('config.vdd_input_height') }}</label>
+                  <input id="vdd-height" type="number" class="form-control form-control-sm"
                          v-model.number="customHeight" min="240" max="4320" style="width: 90px">
                 </div>
                 <div class="col-auto">
-                  <label class="form-label">{{ $t('config.vdd_input_hz') }}</label>
-                  <input type="number" class="form-control form-control-sm"
+                  <label class="form-label" for="vdd-hz">{{ $t('config.vdd_input_hz') }}</label>
+                  <input id="vdd-hz" type="number" class="form-control form-control-sm"
                          v-model.number="customHz" min="30" max="240" style="width: 80px">
                 </div>
               </div>

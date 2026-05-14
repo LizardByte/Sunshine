@@ -121,6 +121,23 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
 
+#ifdef _WIN32
+  static void restore_persisted_virtual_displays() {
+    int count = config::video.vdd.virtual_display_count;
+    if (count > 0) {
+      BOOST_LOG(info) << "Restoring "sv << count << " persisted virtual display(s)"sv;
+      for (int i = 0; i < count; ++i) {
+        vdd::add_display(
+          config::video.vdd.virtual_display_width,
+          config::video.vdd.virtual_display_height,
+          config::video.vdd.virtual_display_refresh_rate);
+      }
+    } else {
+      BOOST_LOG(info) << "Physical display detected, VDD ready for manual use"sv;
+    }
+  }
+#endif
+
 int main(int argc, char *argv[]) {
 #ifdef __APPLE__
   // Bundle assets are referenced relative to the executable
@@ -371,19 +388,7 @@ int main(int argc, char *argv[]) {
           config::video.vdd.virtual_display_height,
           config::video.vdd.virtual_display_refresh_rate);
       } else {
-        // Restore persisted virtual displays
-        int count = config::video.vdd.virtual_display_count;
-        if (count > 0) {
-          BOOST_LOG(info) << "Restoring "sv << count << " persisted virtual display(s)"sv;
-          for (int i = 0; i < count; ++i) {
-            vdd::add_display(
-              config::video.vdd.virtual_display_width,
-              config::video.vdd.virtual_display_height,
-              config::video.vdd.virtual_display_refresh_rate);
-          }
-        } else {
-          BOOST_LOG(info) << "Physical display detected, VDD ready for manual use"sv;
-        }
+        restore_persisted_virtual_displays();
       }
     } else {
       BOOST_LOG(warning) << "VDD driver not available - virtual displays disabled"sv;

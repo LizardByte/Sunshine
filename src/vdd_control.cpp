@@ -1,6 +1,13 @@
 /**
  * @file src/vdd_control.cpp
- * @brief Definitions for Parsec Virtual Display Driver control.
+ * @brief Parsec Virtual Display Driver (VDD) control — wraps the parsec-vdd
+ *        kernel driver to create and manage virtual displays on Windows.
+ *
+ * The VDD driver requires a periodic keepalive ping (<= 100 ms) or it tears
+ * down all virtual displays. Adding a display resets every existing VDD
+ * display to the driver default EDID, so we re-apply stored resolutions.
+ * After VddAddDisplay, the new device name is found by diffing the set of
+ * known names because Windows enumeration order does not match creation order.
  */
 
 #ifdef _WIN32
@@ -52,7 +59,10 @@ namespace vdd {
     std::atomic<bool> g_keepalive_running{false};       // NOSONAR -- runtime state flag
     std::atomic<bool> g_initialized{false};             // NOSONAR -- runtime state flag
 
-    // Track VDD driver indices and device names for displays created by this session
+    // Three parallel vectors: element N in each refers to the same display.
+    // g_vdd_indices[N]  — VDD driver-level index
+    // g_vdd_device_names[N] — Windows device name (e.g. \\.\DISPLAY4)
+    // g_vdd_configs[N]  — intended resolution / refresh rate
     std::vector<int> g_vdd_indices;                     // NOSONAR -- runtime collection
     std::vector<std::string> g_vdd_device_names;        // NOSONAR -- runtime collection
     struct VddDisplayConfig { int width; int height; int hz; };
@@ -60,13 +70,14 @@ namespace vdd {
 
     /**
      * @brief Persist the current display count to the config file.
+     *
+     * Edits only the vdd_display_count line in-place; preserves user comments,
+     * blank lines, and option ordering.
      */
     void persist_display_count() {
       auto content = file_handler::read_file(config::sunshine.config_file.c_str());
       auto new_value = std::to_string(g_vdd_indices.size());
 
-      // Update the vdd_display_count line in-place to preserve
-      // comments, blank lines, and option ordering.
       std::string line;
       std::stringstream result;
       bool found = false;
@@ -87,6 +98,7 @@ namespace vdd {
         line.clear();
       }
 
+      // Key not in config yet — append it.
       if (!found) {
         result << "vdd_display_count = "sv << new_value << '\n';
       }
@@ -123,11 +135,11 @@ namespace vdd {
    * Uses multiple detection methods for robustness.
    */
   static bool is_vdd_display(const DISPLAY_DEVICEA &dd) {
-    // Method 1: Check DeviceID for PSCCDD0 (hardware ID)
+    // Dual detection: DeviceID (hardware ID) is most reliable;
+    // DeviceString (adapter name) catches older driver builds.
     if (dd.DeviceID[0] != '\0' && std::string_view(dd.DeviceID).contains("PSCCDD0")) {
       return true;
     }
-    // Method 2: Check DeviceString for Parsec adapter name
     if (std::string_view(dd.DeviceString).contains("Parsec")) {
       return true;
     }
@@ -144,13 +156,14 @@ namespace vdd {
       return true;
     }
 
-    // Check if driver is installed
+    // Query driver status — informational; non-OK is logged but not fatal.
     auto status = QueryDeviceStatus(&VDD_CLASS_GUID, VDD_HARDWARE_ID);
-    if (status != DEVICE_OK) {
+    if (status != DeviceStatus::OK) {
       BOOST_LOG(warning) << "VDD: Driver not ready (status="sv << (int)status << ')' << std::endl;
     }
 
-    // Try to open handle regardless - driver might be usable
+    // The real gate: open the device handle. Driver might be usable despite
+    // a non-OK status above (e.g. restart-required is often still functional).
     HANDLE handle = OpenDeviceHandle(&VDD_ADAPTER_GUID);
     if (handle == INVALID_HANDLE_VALUE || handle == nullptr) {
       BOOST_LOG(warning) << "VDD: Failed to open device handle - driver may not be installed"sv << std::endl;
@@ -199,22 +212,21 @@ namespace vdd {
   }
 
   DriverStatus get_driver_status() {
-    using enum DriverStatus;
     auto status = QueryDeviceStatus(&VDD_CLASS_GUID, VDD_HARDWARE_ID);
     switch (status) {
-      case DEVICE_OK:
-        return OK;
-      case DEVICE_NOT_INSTALLED:
-        return NOT_INSTALLED;
-      case DEVICE_DISABLED:
-      case DEVICE_DISABLED_SERVICE:
-        return DISABLED;
-      case DEVICE_RESTART_REQUIRED:
-        return RESTART_REQUIRED;
-      case DEVICE_INACCESSIBLE:
-        return INACCESSIBLE;
+      case DeviceStatus::OK:
+        return DriverStatus::OK;
+      case DeviceStatus::NOT_INSTALLED:
+        return DriverStatus::NOT_INSTALLED;
+      case DeviceStatus::DISABLED:
+      case DeviceStatus::DISABLED_SERVICE:
+        return DriverStatus::DISABLED;
+      case DeviceStatus::RESTART_REQUIRED:
+        return DriverStatus::RESTART_REQUIRED;
+      case DeviceStatus::INACCESSIBLE:
+        return DriverStatus::INACCESSIBLE;
       default:
-        return UNKNOWN;
+        return DriverStatus::UNKNOWN;
     }
   }
 
@@ -229,14 +241,15 @@ namespace vdd {
       return "(unknown)"s;
     }
 
-    // The version IOCTL returns (major << 16) | minor
+    // Version packed as (major << 16) | minor, e.g. 0x002D0000 for v0.45.
     int major = (minor >> 16) & 0xFFFF;
     int minor_ver = minor & 0xFFFF;
     return std::format("{}.{}", major, minor_ver);
   }
 
   bool need_virtual_display() {
-    // Count physical (non-VDD) DXGI outputs
+    // Used by main() to decide whether to auto-create a fallback virtual
+    // display when no physical monitor is attached (headless system).
     int physical_count = enumerate_displays(false);
     BOOST_LOG(info) << "VDD: Physical displays detected: "sv << physical_count << std::endl;
     return physical_count == 0;
@@ -288,7 +301,8 @@ namespace vdd {
       BOOST_LOG(warning) << "VDD: Requested mode "sv << width << 'x' << height << '@' << hz
                         << "Hz not accepted (error="sv << ret << "), enumerating supported modes"sv << std::endl;
 
-      // Fallback: enumerate supported modes and pick the closest match.
+      // Requested mode may not be in the EDID list. Enumerate supported
+      // modes and pick the closest match by weighted distance.
       int best_idx = -1;
       int best_score = 99999999;
       int actual_w = 0;
@@ -367,7 +381,8 @@ namespace vdd {
 
     BOOST_LOG(info) << "VDD: Added display #"sv << idx << " ("sv << width << 'x' << height << '@' << hz << "Hz)"sv << std::endl;
 
-    // After VDD adds the display, wait briefly for Windows to detect it
+    // Windows needs ~500 ms to enumerate the new display and assign a
+    // device name; without this the name-diff below will miss it.
     std::this_thread::sleep_for(500ms);
 
     // Find the newly added VDD display by diffing against tracked device names.
@@ -401,9 +416,8 @@ namespace vdd {
     // Apply the requested display mode (with fallback enumeration)
     apply_display_mode(new_device_name, width, height, hz);
 
-    // Re-apply stored resolutions to all previously created displays.
-    // VddAddDisplay + VddUpdate can reset existing VDD displays to the
-    // driver's default EDID mode, so we must restore them.
+    // VddAddDisplay resets all existing VDD displays to the driver default
+    // EDID. Restore each display's stored resolution if it has changed.
     {
       std::scoped_lock lock(g_handle_mutex);
       for (size_t n = 0; n + 1 < g_vdd_device_names.size(); ++n) {
@@ -540,7 +554,9 @@ namespace vdd {
       if (pos != std::string::npos) {
         try {
           display_info.identifier = std::stoi(display_info.device_name.substr(pos + 7));
-        } catch (const std::exception &) {
+        } catch (const std::invalid_argument &) {
+          display_info.identifier = static_cast<int>(n) + 1;
+        } catch (const std::out_of_range &) {
           display_info.identifier = static_cast<int>(n) + 1;
         }
       } else {
@@ -572,6 +588,8 @@ namespace vdd {
       return;
     }
 
+    // VDD has a ~100 ms watchdog — without a periodic ping it unplugs
+    // all displays. 50 ms gives comfortable margin.
     g_keepalive_thread = std::make_unique<std::jthread>([]() {
       platf::set_thread_name("vdd_keepalive");
       BOOST_LOG(info) << "VDD: Keepalive thread started"sv << std::endl;

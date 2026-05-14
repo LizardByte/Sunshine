@@ -38,12 +38,184 @@
 #endif
 
 #ifdef __cplusplus
+
+#include <vector>
+
 namespace parsec_vdd
 {
-#endif
 
 // Device helper.
 //////////////////////////////////////////////////
+
+enum class DeviceStatus {
+    OK = 0,             // Ready to use
+    INACCESSIBLE,       // Inaccessible
+    UNKNOWN,            // Unknown status
+    UNKNOWN_PROBLEM,    // Unknown problem
+    DISABLED,           // Device is disabled
+    DRIVER_ERROR,       // Device encountered error
+    RESTART_REQUIRED,   // Must restart PC to use (could ignore but would have issue)
+    DISABLED_SERVICE,   // Service is disabled
+    NOT_INSTALLED       // Driver is not installed
+};
+
+static DeviceStatus DetermineDeviceStatus(ULONG devStatus, ULONG devProblemNum)
+{
+    if ((devStatus & (DN_DRIVER_LOADED | DN_STARTED)) != 0)
+        return DeviceStatus::OK;
+
+    if ((devStatus & DN_HAS_PROBLEM) == 0)
+        return DeviceStatus::UNKNOWN;
+
+    switch (devProblemNum)
+    {
+    case CM_PROB_NEED_RESTART:
+        return DeviceStatus::RESTART_REQUIRED;
+    case CM_PROB_DISABLED:
+    case CM_PROB_HARDWARE_DISABLED:
+        return DeviceStatus::DISABLED;
+    case CM_PROB_DISABLED_SERVICE:
+        return DeviceStatus::DISABLED_SERVICE;
+    default:
+        return (devProblemNum == CM_PROB_FAILED_POST_START) ? DeviceStatus::DRIVER_ERROR : DeviceStatus::UNKNOWN_PROBLEM;
+    }
+}
+
+static bool MatchHardwareId(LPCSTR propBuffer, DWORD requiredSize, const char *deviceId)
+{
+    for (LPCSTR cp = propBuffer; cp && *cp != 0 && cp < (LPCSTR)(propBuffer + requiredSize); cp += lstrlenA(cp) + 1)
+    {
+        if (lstrcmpA(deviceId, cp) == 0)
+            return true;
+    }
+    return false;
+}
+
+/**
+* Query the driver status.
+*
+* @param classGuid The GUID of the class.
+* @param deviceId The device/hardware ID of the driver.
+* @return DeviceStatus
+*/
+static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceId)
+{
+    SP_DEVINFO_DATA devInfoData;
+    ZeroMemory(&devInfoData, sizeof(SP_DEVINFO_DATA));
+    devInfoData.cbSize = sizeof(SP_DEVINFO_DATA);
+
+    if (auto devInfo = SetupDiGetClassDevsA(classGuid, nullptr, nullptr, DIGCF_PRESENT); devInfo != INVALID_HANDLE_VALUE)
+    {
+        DeviceStatus status = DeviceStatus::NOT_INSTALLED;
+        BOOL foundProp = FALSE;
+
+        for (UINT deviceIndex = 0; SetupDiEnumDeviceInfo(devInfo, deviceIndex, &devInfoData); ++deviceIndex)
+        {
+            DWORD requiredSize = 0;
+            SetupDiGetDeviceRegistryPropertyA(devInfo, &devInfoData,
+                SPDRP_HARDWAREID, nullptr, nullptr, 0, &requiredSize);
+
+            if (requiredSize == 0)
+                continue;
+
+            std::vector<BYTE> propBuffer(requiredSize);
+            DWORD regDataType = 0;
+
+            if (!SetupDiGetDeviceRegistryPropertyA(devInfo, &devInfoData,
+                    SPDRP_HARDWAREID, &regDataType, propBuffer.data(),
+                    requiredSize, &requiredSize))
+                continue;
+
+            if (regDataType != REG_SZ && regDataType != REG_MULTI_SZ)
+                continue;
+
+            if (!MatchHardwareId((LPCSTR)propBuffer.data(), requiredSize, deviceId))
+            {
+                status = DeviceStatus::NOT_INSTALLED;
+                break;
+            }
+
+            foundProp = TRUE;
+            ULONG devStatus = 0;
+            ULONG devProblemNum = 0;
+
+            if (CM_Get_DevNode_Status(&devStatus, &devProblemNum, devInfoData.DevInst, 0) != CR_SUCCESS)
+            {
+                status = DeviceStatus::NOT_INSTALLED;
+                break;
+            }
+
+            status = DetermineDeviceStatus(devStatus, devProblemNum);
+            break;
+        }
+
+        if (!foundProp && GetLastError() != 0)
+            status = DeviceStatus::NOT_INSTALLED;
+
+        SetupDiDestroyDeviceInfoList(devInfo);
+        return status;
+    }
+
+    return DeviceStatus::INACCESSIBLE;
+}
+
+/**
+* Obtain the device handle.
+* Returns nullptr or INVALID_HANDLE_VALUE if fails, otherwise a valid handle.
+* Should call CloseDeviceHandle to close this handle after use.
+*
+* @param interfaceGuid The adapter/interface GUID of the target device.
+* @return HANDLE
+*/
+static HANDLE OpenDeviceHandle(const GUID *interfaceGuid)
+{
+    HANDLE handle = INVALID_HANDLE_VALUE;
+
+    if (auto devInfo = SetupDiGetClassDevsA(interfaceGuid,
+            nullptr, nullptr, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE); devInfo != INVALID_HANDLE_VALUE)
+    {
+        SP_DEVICE_INTERFACE_DATA devInterface;
+        ZeroMemory(&devInterface, sizeof(SP_DEVICE_INTERFACE_DATA));
+        devInterface.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+
+        for (DWORD i = 0; SetupDiEnumDeviceInterfaces(devInfo, nullptr, interfaceGuid, i, &devInterface); ++i)
+        {
+            DWORD detailSize = 0;
+            SetupDiGetDeviceInterfaceDetailA(devInfo, &devInterface, nullptr, 0, &detailSize, nullptr);
+
+            std::vector<BYTE> detailBuffer(detailSize);
+            auto *detail = (SP_DEVICE_INTERFACE_DETAIL_DATA_A *)detailBuffer.data();
+            detail->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_A);
+
+            if (SetupDiGetDeviceInterfaceDetailA(devInfo, &devInterface, detail, detailSize, &detailSize, nullptr))
+            {
+                handle = CreateFileA(detail->DevicePath,
+                    GENERIC_READ | GENERIC_WRITE,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    nullptr,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING | FILE_FLAG_OVERLAPPED | FILE_FLAG_WRITE_THROUGH,
+                    nullptr);
+
+                if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+                    break;
+            }
+        }
+
+        SetupDiDestroyDeviceInfoList(devInfo);
+    }
+
+    return handle;
+}
+
+/* Release the device handle */
+static void CloseDeviceHandle(HANDLE handle)
+{
+    if (handle != nullptr && handle != INVALID_HANDLE_VALUE)
+        CloseHandle(handle);
+}
+
+#else  // __cplusplus not defined — C fallback
 
 typedef enum {
     DEVICE_OK = 0,             // Ready to use
@@ -57,13 +229,6 @@ typedef enum {
     DEVICE_NOT_INSTALLED       // Driver is not installed
 } DeviceStatus;
 
-/**
-* Query the driver status.
-*
-* @param classGuid The GUID of the class.
-* @param deviceId The device/hardware ID of the driver.
-* @return DeviceStatus
-*/
 static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceId)
 {
     DeviceStatus status = DEVICE_INACCESSIBLE;
@@ -174,14 +339,6 @@ static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceI
     return status;
 }
 
-/**
-* Obtain the device handle.
-* Returns NULL or INVALID_HANDLE_VALUE if fails, otherwise a valid handle.
-* Should call CloseDeviceHandle to close this handle after use.
-*
-* @param interfaceGuid The adapter/interface GUID of the target device.
-* @return HANDLE
-*/
 static HANDLE OpenDeviceHandle(const GUID *interfaceGuid)
 {
     HANDLE handle = INVALID_HANDLE_VALUE;
@@ -227,43 +384,19 @@ static HANDLE OpenDeviceHandle(const GUID *interfaceGuid)
     return handle;
 }
 
-/* Release the device handle */
 static void CloseDeviceHandle(HANDLE handle)
 {
     if (handle != NULL && handle != INVALID_HANDLE_VALUE)
         CloseHandle(handle);
 }
 
-// Parsec VDD core.
-//////////////////////////////////////////////////
-
-// Display name info.
-static const char *VDD_DISPLAY_ID = "PSCCDD0";      // You will see it in registry (HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY)
-static const char *VDD_DISPLAY_NAME = "ParsecVDA";  // You will see it in the [Advanced display settings] tab.
-
-// Apdater GUID to obtain the device handle.
-// {00b41627-04c4-429e-a26e-0265cf50c8fa}
-static const GUID VDD_ADAPTER_GUID = { 0x00b41627, 0x04c4, 0x429e, { 0xa2, 0x6e, 0x02, 0x65, 0xcf, 0x50, 0xc8, 0xfa } };
-static const char *VDD_ADAPTER_NAME = "Parsec Virtual Display Adapter";
-
-// Class and hwid to query device status.
-// {4d36e968-e325-11ce-bfc1-08002be10318}
-static const GUID VDD_CLASS_GUID = { 0x4d36e968, 0xe325, 0x11ce, { 0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18 } };
-static const char *VDD_HARDWARE_ID = "Root\\Parsec\\VDA";
-
-// Actually up to 16 devices could be created per adapter
-//  so just use a half to avoid plugging lag.
-static const int VDD_MAX_DISPLAYS = 8;
-
-// Core IoControl codes, see usage below.
 typedef enum {
-    VDD_IOCTL_ADD     = 0x0022e004, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 1, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
-    VDD_IOCTL_REMOVE  = 0x0022a008, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 2, METHOD_BUFFERED, FILE_WRITE_ACCESS)
-    VDD_IOCTL_UPDATE  = 0x0022a00c, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 3, METHOD_BUFFERED, FILE_WRITE_ACCESS)
-    VDD_IOCTL_VERSION = 0x0022e010  // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 4, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+    VDD_IOCTL_ADD     = 0x0022e004,
+    VDD_IOCTL_REMOVE  = 0x0022a008,
+    VDD_IOCTL_UPDATE  = 0x0022a00c,
+    VDD_IOCTL_VERSION = 0x0022e010
 } VddCtlCode;
 
-// Generic DeviceIoControl for all IoControl codes.
 static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const void *data, size_t size)
 {
     if (vdd == NULL || vdd == INVALID_HANDLE_VALUE)
@@ -296,6 +429,97 @@ static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const void *data, size_t 
     return OutBuffer;
 }
 
+static int VddVersion(HANDLE vdd)
+{
+    int minor = VddIoControl(vdd, VDD_IOCTL_VERSION, NULL, 0);
+    return minor;
+}
+
+static void VddUpdate(HANDLE vdd)
+{
+    VddIoControl(vdd, VDD_IOCTL_UPDATE, NULL, 0);
+}
+
+static int VddAddDisplay(HANDLE vdd)
+{
+    int idx = VddIoControl(vdd, VDD_IOCTL_ADD, NULL, 0);
+    VddUpdate(vdd);
+    return idx;
+}
+
+static void VddRemoveDisplay(HANDLE vdd, int index)
+{
+    UINT16 indexData = ((index & 0xFF) << 8) | ((index >> 8) & 0xFF);
+    VddIoControl(vdd, VDD_IOCTL_REMOVE, &indexData, sizeof(indexData));
+    VddUpdate(vdd);
+}
+
+#endif  // __cplusplus
+
+// Parsec VDD core.
+//////////////////////////////////////////////////
+
+// Display name info.
+static const char * const VDD_DISPLAY_ID = "PSCCDD0";      // You will see it in registry (HKLM\SYSTEM\CurrentControlSet\Enum\DISPLAY)
+static const char * const VDD_DISPLAY_NAME = "ParsecVDA";  // You will see it in the [Advanced display settings] tab.
+
+// Apdater GUID to obtain the device handle.
+// {00b41627-04c4-429e-a26e-0265cf50c8fa}
+static const GUID VDD_ADAPTER_GUID = { 0x00b41627, 0x04c4, 0x429e, { 0xa2, 0x6e, 0x02, 0x65, 0xcf, 0x50, 0xc8, 0xfa } };
+static const char * const VDD_ADAPTER_NAME = "Parsec Virtual Display Adapter";
+
+// Class and hwid to query device status.
+// {4d36e968-e325-11ce-bfc1-08002be10318}
+static const GUID VDD_CLASS_GUID = { 0x4d36e968, 0xe325, 0x11ce, { 0xbf, 0xc1, 0x08, 0x00, 0x2b, 0xe1, 0x03, 0x18 } };
+static const char * const VDD_HARDWARE_ID = "Root\\Parsec\\VDA";
+
+// Actually up to 16 devices could be created per adapter
+//  so just use a half to avoid plugging lag.
+static const int VDD_MAX_DISPLAYS = 8;
+
+#ifdef __cplusplus
+
+// Core IoControl codes, see usage below.
+enum class VddCtlCode : DWORD {
+    ADD     = 0x0022e004, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 1, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+    REMOVE  = 0x0022a008, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 2, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+    UPDATE  = 0x0022a00c, // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 3, METHOD_BUFFERED, FILE_WRITE_ACCESS)
+    VERSION = 0x0022e010  // CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800 + 4, METHOD_BUFFERED, FILE_READ_ACCESS | FILE_WRITE_ACCESS)
+};
+
+// Generic DeviceIoControl for all IoControl codes.
+static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const BYTE *data, size_t size)
+{
+    if (vdd == nullptr || vdd == INVALID_HANDLE_VALUE)
+        return -1;
+
+    BYTE InBuffer[32];
+    ZeroMemory(InBuffer, sizeof(InBuffer));
+
+    OVERLAPPED Overlapped;
+    ZeroMemory(&Overlapped, sizeof(OVERLAPPED));
+
+    DWORD OutBuffer = 0;
+    DWORD NumberOfBytesTransferred = 0;
+
+    if (data != nullptr && size > 0)
+        memcpy(InBuffer, data, (size < sizeof(InBuffer)) ? size : sizeof(InBuffer));
+
+    Overlapped.hEvent = CreateEventA(nullptr, TRUE, FALSE, nullptr);
+    DeviceIoControl(vdd, (DWORD)code, InBuffer, sizeof(InBuffer), &OutBuffer, sizeof(DWORD), nullptr, &Overlapped);
+
+    if (!GetOverlappedResultEx(vdd, &Overlapped, &NumberOfBytesTransferred, 5000, FALSE))
+    {
+        CloseHandle(Overlapped.hEvent);
+        return -1;
+    }
+
+    if (Overlapped.hEvent != nullptr)
+        CloseHandle(Overlapped.hEvent);
+
+    return OutBuffer;
+}
+
 /**
 * Query VDD minor version.
 *
@@ -304,7 +528,7 @@ static DWORD VddIoControl(HANDLE vdd, VddCtlCode code, const void *data, size_t 
 */
 static int VddVersion(HANDLE vdd)
 {
-    int minor = VddIoControl(vdd, VDD_IOCTL_VERSION, NULL, 0);
+    int minor = VddIoControl(vdd, VddCtlCode::VERSION, nullptr, 0);
     return minor;
 }
 
@@ -317,7 +541,7 @@ static int VddVersion(HANDLE vdd)
 */
 static void VddUpdate(HANDLE vdd)
 {
-    VddIoControl(vdd, VDD_IOCTL_UPDATE, NULL, 0);
+    VddIoControl(vdd, VddCtlCode::UPDATE, nullptr, 0);
 }
 
 /**
@@ -328,7 +552,7 @@ static void VddUpdate(HANDLE vdd)
 */
 static int VddAddDisplay(HANDLE vdd)
 {
-    int idx = VddIoControl(vdd, VDD_IOCTL_ADD, NULL, 0);
+    int idx = VddIoControl(vdd, VddCtlCode::ADD, nullptr, 0);
     VddUpdate(vdd);
 
     return idx;
@@ -345,12 +569,12 @@ static void VddRemoveDisplay(HANDLE vdd, int index)
     // 16-bit BE index
     UINT16 indexData = ((index & 0xFF) << 8) | ((index >> 8) & 0xFF);
 
-    VddIoControl(vdd, VDD_IOCTL_REMOVE, &indexData, sizeof(indexData));
+    VddIoControl(vdd, VddCtlCode::REMOVE, (const BYTE *)&indexData, sizeof(indexData));
     VddUpdate(vdd);
 }
 
-#ifdef __cplusplus
-}
-#endif
+}  // namespace parsec_vdd
 
-#endif
+#endif  // __cplusplus
+
+#endif  // __PARSEC_VDD_H
