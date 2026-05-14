@@ -4,6 +4,25 @@ install(TARGETS sunshine RUNTIME DESTINATION "." COMPONENT application)
 # Hardening: include zlib1.dll (loaded via LoadLibrary() in openssl's libcrypto.a)
 install(FILES "${ZLIB}" DESTINATION "." COMPONENT application)
 
+# Bundle MinGW/MSYS2 runtime DLLs that cannot be statically linked (e.g. ICU from boost_locale)
+if(MINGW)
+    cmake_path(GET CMAKE_CXX_COMPILER PARENT_PATH _MINGW_BIN_DIR)
+    file(GLOB _MINGW_RUNTIME_DLLS
+        "${_MINGW_BIN_DIR}/libgcc_s_seh-*.dll"
+        "${_MINGW_BIN_DIR}/libstdc++-6.dll"
+        "${_MINGW_BIN_DIR}/libwinpthread-1.dll"
+        "${_MINGW_BIN_DIR}/libicudt*.dll"
+        "${_MINGW_BIN_DIR}/libicuin*.dll"
+        "${_MINGW_BIN_DIR}/libicuuc*.dll"
+    )
+    if(_MINGW_RUNTIME_DLLS)
+        message(STATUS "Bundling MinGW runtime DLLs: ${_MINGW_RUNTIME_DLLS}")
+        install(FILES ${_MINGW_RUNTIME_DLLS} DESTINATION "." COMPONENT application)
+    else()
+        message(WARNING "No MinGW runtime DLLs found in ${_MINGW_BIN_DIR}")
+    endif()
+endif()
+
 # ARM64: include minhook-detours DLL (shared library for ARM64)
 if(NOT CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64" AND DEFINED _MINHOOK_DLL)
     install(FILES "${_MINHOOK_DLL}" DESTINATION "." COMPONENT application)
