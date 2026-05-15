@@ -7,6 +7,9 @@
 // local includes
 #include "src/platform/common.h"
 
+// standard includes
+#include <unordered_set>
+
 // platform includes
 #include <VideoToolbox/VideoToolbox.h>
 
@@ -38,15 +41,18 @@ namespace platf {
     util::safe_ptr<AVFrame, free_frame> av_frame;
     VTPixelTransferSessionRef transfer_session {};
     CVPixelBufferPoolRef pixel_buffer_pool {};
+    OSType output_pixel_format {};
     OSType pool_pixel_format {};
     int pool_width {};
     int pool_height {};
     bool resize_capture {};
+    std::unordered_set<const void *> black_surfaces;
 
     int attach_pixel_buffer(CVPixelBufferRef pixel_buffer);
     CVPixelBufferRef copy_scaled_pixel_buffer(CVPixelBufferRef pixel_buffer);
     int ensure_pixel_buffer_pool(OSType pixel_format);
     int ensure_transfer_session();
+    int prefill_black(CVPixelBufferRef pixel_buffer);
   };
 
 }  // namespace platf

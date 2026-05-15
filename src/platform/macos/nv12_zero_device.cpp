@@ -4,8 +4,12 @@
  */
 // standard includes
 #include <CoreFoundation/CoreFoundation.h>
+#include <cstddef>
 #include <cstdint>
 #include <utility>
+
+// platform includes
+#include <CoreVideo/CVPixelBufferIOSurface.h>
 
 // local includes
 #include "src/logging.h"
@@ -63,6 +67,7 @@ namespace platf {
       CFRelease(pixel_buffer_pool);
       pixel_buffer_pool = nullptr;
     }
+    black_surfaces.clear();
 
     auto width = av_frame->width;
     auto height = av_frame->height;
@@ -131,20 +136,87 @@ namespace platf {
       return -1;
     }
 
-    VTSessionSetProperty(transfer_session, kVTPixelTransferPropertyKey_ScalingMode, kVTScalingMode_Normal);
+    VTSessionSetProperty(transfer_session, kVTPixelTransferPropertyKey_ScalingMode, kVTScalingMode_CropSourceToCleanAperture);
     VTSessionSetProperty(transfer_session, kVTPixelTransferPropertyKey_RealTime, kCFBooleanTrue);
     VTSessionSetProperty(transfer_session, kVTPixelTransferPropertyKey_DownsamplingMode, kVTDownsamplingMode_Average);
 
     return 0;
   }
 
-  CVPixelBufferRef nv12_zero_device::copy_scaled_pixel_buffer(CVPixelBufferRef pixel_buffer) {
-    if (CVPixelBufferGetWidth(pixel_buffer) == av_frame->width && CVPixelBufferGetHeight(pixel_buffer) == av_frame->height) {
-      return (CVPixelBufferRef) CFRetain(pixel_buffer);
+  int nv12_zero_device::prefill_black(CVPixelBufferRef pixel_buffer) {
+    auto surface = CVPixelBufferGetIOSurface(pixel_buffer);
+    if (surface && black_surfaces.find(surface) != black_surfaces.end()) {
+      return 0;
     }
 
     auto pixel_format = CVPixelBufferGetPixelFormatType(pixel_buffer);
-    if (ensure_pixel_buffer_pool(pixel_format) || ensure_transfer_session()) {
+    AVPixelFormat av_pixel_format;
+    switch (pixel_format) {
+      case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+        av_pixel_format = AV_PIX_FMT_NV12;
+        break;
+      case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+        av_pixel_format = AV_PIX_FMT_P010;
+        break;
+      default:
+        av_pixel_format = AV_PIX_FMT_NONE;
+        break;
+    }
+
+    if (av_pixel_format == AV_PIX_FMT_NONE) {
+      BOOST_LOG(error) << "Unsupported pixel format for VideoToolbox black fill: " << pixel_format;
+      return -1;
+    }
+
+    auto status = CVPixelBufferLockBaseAddress(pixel_buffer, 0);
+    if (status != kCVReturnSuccess) {
+      BOOST_LOG(error) << "Failed to lock VideoToolbox pixel transfer buffer: " << status;
+      return -1;
+    }
+
+    uint8_t *data[4] {};
+    ptrdiff_t linesize[4] {};
+    auto plane_count = CVPixelBufferGetPlaneCount(pixel_buffer);
+    for (size_t plane = 0; plane < plane_count && plane < 4; ++plane) {
+      data[plane] = static_cast<uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, plane));
+      linesize[plane] = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, plane);
+    }
+
+    if (plane_count < 2 || !data[0] || !data[1]) {
+      CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
+      BOOST_LOG(error) << "VideoToolbox pixel transfer buffer has no writable YUV planes";
+      return -1;
+    }
+
+    auto result = av_image_fill_black(
+      data,
+      linesize,
+      av_pixel_format,
+      AVCOL_RANGE_MPEG,
+      static_cast<int>(CVPixelBufferGetWidth(pixel_buffer)),
+      static_cast<int>(CVPixelBufferGetHeight(pixel_buffer))
+    );
+    CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
+
+    if (result < 0) {
+      BOOST_LOG(error) << "Failed to black-fill VideoToolbox pixel transfer buffer: " << result;
+      return -1;
+    }
+
+    if (surface) {
+      black_surfaces.insert(surface);
+    }
+
+    return 0;
+  }
+
+  CVPixelBufferRef nv12_zero_device::copy_scaled_pixel_buffer(CVPixelBufferRef pixel_buffer) {
+    auto source_pixel_format = CVPixelBufferGetPixelFormatType(pixel_buffer);
+    if (source_pixel_format == output_pixel_format && CVPixelBufferGetWidth(pixel_buffer) == av_frame->width && CVPixelBufferGetHeight(pixel_buffer) == av_frame->height) {
+      return (CVPixelBufferRef) CFRetain(pixel_buffer);
+    }
+
+    if (ensure_pixel_buffer_pool(output_pixel_format) || ensure_transfer_session()) {
       return nullptr;
     }
 
@@ -154,6 +226,48 @@ namespace platf {
       BOOST_LOG(error) << "Failed to create VideoToolbox pixel transfer buffer: " << status;
       return nullptr;
     }
+
+    if (prefill_black(scaled_pixel_buffer)) {
+      CVPixelBufferRelease(scaled_pixel_buffer);
+      return nullptr;
+    }
+
+    auto width_scale = (double) av_frame->width / (double) CVPixelBufferGetWidth(pixel_buffer);
+    auto height_scale = (double) av_frame->height / (double) CVPixelBufferGetHeight(pixel_buffer);
+    auto scale = width_scale < height_scale ? width_scale : height_scale;
+    auto clean_width = (double) CVPixelBufferGetWidth(pixel_buffer) * scale;
+    auto clean_height = (double) CVPixelBufferGetHeight(pixel_buffer) * scale;
+    double zero = 0.0;
+    CFNumberRef clean_width_number = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &clean_width);
+    CFNumberRef clean_height_number = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &clean_height);
+    CFNumberRef clean_horizontal_offset = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &zero);
+    CFNumberRef clean_vertical_offset = CFNumberCreate(kCFAllocatorDefault, kCFNumberDoubleType, &zero);
+    const void *clean_keys[] = {
+      kCVImageBufferCleanApertureWidthKey,
+      kCVImageBufferCleanApertureHeightKey,
+      kCVImageBufferCleanApertureHorizontalOffsetKey,
+      kCVImageBufferCleanApertureVerticalOffsetKey,
+    };
+    const void *clean_values[] = {
+      clean_width_number,
+      clean_height_number,
+      clean_horizontal_offset,
+      clean_vertical_offset,
+    };
+    CFDictionaryRef clean_aperture = CFDictionaryCreate(
+      kCFAllocatorDefault,
+      clean_keys,
+      clean_values,
+      4,
+      &kCFTypeDictionaryKeyCallBacks,
+      &kCFTypeDictionaryValueCallBacks
+    );
+    VTSessionSetProperty(transfer_session, kVTPixelTransferPropertyKey_DestinationCleanAperture, clean_aperture);
+    CFRelease(clean_aperture);
+    CFRelease(clean_vertical_offset);
+    CFRelease(clean_horizontal_offset);
+    CFRelease(clean_height_number);
+    CFRelease(clean_width_number);
 
     status = VTPixelTransferSessionTransferImage(transfer_session, pixel_buffer, scaled_pixel_buffer);
     if (status != noErr) {
@@ -193,7 +307,8 @@ namespace platf {
   }
 
   int nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn, bool resize_capture) {
-    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+    output_pixel_format = pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange;
+    pixel_format_fn(display, output_pixel_format);
 
     this->display = display;
     this->resolution_fn = std::move(resolution_fn);
