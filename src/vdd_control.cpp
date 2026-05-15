@@ -104,8 +104,7 @@ namespace vdd {
 
         // Trim leading whitespace for key matching
         std::string_view sv(line);
-        auto start = sv.find_first_not_of(" \t");
-        if (start != std::string_view::npos) sv = sv.substr(start);
+        if (auto start = sv.find_first_not_of(" \t"); start != std::string_view::npos) sv = sv.substr(start);
 
         if (sv.starts_with("vdd_display_count =") || sv == "vdd_display_count") {
           result << "vdd_display_count = "sv << count_str << '\n';

@@ -148,7 +148,7 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
           }
           return;
         }
-      } catch (const std::exception &e) {
+      } catch (const nlohmann::json::parse_error &e) {
         BOOST_LOG(warning) << "Failed to parse vdd_display_configs: "sv << e.what();
       }
     }
