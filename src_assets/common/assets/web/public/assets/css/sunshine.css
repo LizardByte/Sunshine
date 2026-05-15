@@ -802,6 +802,7 @@ body {
     color: var(--navbar-text-muted) !important;
     font-weight: 500;
     padding: 0.5rem 1rem !important;
+    min-height: calc(1.5em + 1rem);
     border-radius: var(--radius-md);
     transition: all var(--transition-fast);
     display: flex;
