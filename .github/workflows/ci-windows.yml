@@ -240,10 +240,54 @@ jobs:
           ninja -C build
           echo "::remove-matcher owner=gcc::"
 
+      - name: Check Windows linkage
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+
+          binaries=(
+            build/sunshine.exe
+            build/tools/audio-info.exe
+            build/tools/dxgi-info.exe
+            build/tools/sunshinesvc.exe
+            build/tests/test_sunshine.exe
+          )
+
+          unexpected_deps=""
+          for binary in "${binaries[@]}"; do
+            echo "::group::ldd ${binary}"
+            if ! linkage="$(ldd "${binary}")"; then
+              echo "${linkage}"
+              exit 1
+            fi
+            echo "${linkage}"
+            echo "::endgroup::"
+
+            unexpected_for_binary="$(awk '
+              BEGIN { IGNORECASE = 1 }
+              $1 == "zlib1.dll" { next }
+              $1 ~ /^minhook-detours\..*\.dll$/ { next }
+              $1 ~ /^api-ms-win-/ { next }
+              $1 ~ /^ext-ms-win-/ { next }
+              $0 ~ /=>[[:space:]]+not found/ { print }
+              $0 ~ /=>[[:space:]]+\/(clangarm64|clang64|mingw32|mingw64|ucrt64)\/bin\// { print }
+            ' <<< "${linkage}")"
+
+            if [[ -n "${unexpected_for_binary}" ]]; then
+              unexpected_deps="${unexpected_deps}"$'\n'"${binary}:"$'\n'"${unexpected_for_binary}"
+            fi
+          done
+
+          if [[ -n "${unexpected_deps}" ]]; then
+            echo "Unexpected non-packaged runtime dependencies were found:"
+            echo "${unexpected_deps}"
+            exit 1
+          fi
+
       - name: Sign Windows executables
         # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
         if: inputs.publish_release == 'true' && inputs.azure_signing_account != '' && matrix.name != 'Windows-ARM64'
-        uses: azure/trusted-signing-action@b443cf8ea4124818d2ea9f043cba29fc3ec47b16  # v1.2.0
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82  # v2.0.0
         with:
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -279,7 +323,7 @@ jobs:
       - name: Sign Windows installers
         # ARM64 is not currently supported, see https://github.com/Azure/artifact-signing-action/issues/92
         if: inputs.publish_release == 'true' && inputs.azure_signing_account != '' && matrix.name != 'Windows-ARM64'
-        uses: azure/trusted-signing-action@b443cf8ea4124818d2ea9f043cba29fc3ec47b16  # v1.2.0
+        uses: azure/trusted-signing-action@c7ab2a863ab5f9a846ddb8265964877ef296ee82  # v2.0.0
         with:
           azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
           azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
