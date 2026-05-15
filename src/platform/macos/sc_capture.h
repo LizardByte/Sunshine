@@ -24,10 +24,10 @@ API_AVAILABLE(macos(12.3))
 @property (nonatomic, strong) SCContentFilter *contentFilter;
 @property (nonatomic, strong) SCStreamConfiguration *streamConfiguration;
 @property (nonatomic, strong) SCShareableContent *shareableContent;
-@property (nonatomic, strong) dispatch_queue_t videoQueue;
+@property (nonatomic, assign) dispatch_queue_t videoQueue;
 
-@property (nonatomic, strong) dispatch_semaphore_t captureSignal;
-@property (nonatomic, strong) dispatch_semaphore_t frameSignal;
+@property (nonatomic, assign) dispatch_semaphore_t captureSignal;
+@property (nonatomic, assign) dispatch_semaphore_t frameSignal;
 @property (nonatomic, assign) BOOL stopping;
 @property (nonatomic, assign) CMSampleBufferRef latestSampleBuffer;
 
@@ -41,7 +41,7 @@ API_AVAILABLE(macos(12.3))
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
 - (dispatch_semaphore_t)captureVideo;
 - (CMSampleBufferRef)copyLatestSampleBuffer;
-- (CMSampleBufferRef)copyScreenshotSampleBuffer;
+- (void)requestScreenshotSampleBuffer;
 - (void)stopCapture;
 
 @end

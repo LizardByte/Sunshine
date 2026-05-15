@@ -272,8 +272,21 @@ namespace platf {
         BOOST_LOG(error) << "SCCapture failed to start video capture"sv;
         return capture_e::error;
       }
+      dispatch_retain(signal);
 
       auto frame_signal = sc_capture.frameSignal;
+      if (!frame_signal) {
+        BOOST_LOG(error) << "SCCapture failed to create frame signal"sv;
+        dispatch_release(signal);
+        [sc_capture stopCapture];
+        return capture_e::error;
+      }
+      dispatch_retain(frame_signal);
+
+      auto release_signals = util::fail_guard([signal, frame_signal]() {
+        dispatch_release(frame_signal);
+        dispatch_release(signal);
+      });
 
       while (true) {
         auto frame_status = dispatch_semaphore_wait(frame_signal, dispatch_time(DISPATCH_TIME_NOW, SCKIT_SCREENSHOT_POLL_INTERVAL_NS));
@@ -281,14 +294,13 @@ namespace platf {
           break;
         }
 
-        CMSampleBufferRef sampleBuffer = nullptr;
-        if (frame_status == 0) {
-          sampleBuffer = [sc_capture copyLatestSampleBuffer];
-        } else {
-          sampleBuffer = [sc_capture copyScreenshotSampleBuffer];
-        }
+        CMSampleBufferRef sampleBuffer = [sc_capture copyLatestSampleBuffer];
 
         if (!sampleBuffer) {
+          if (frame_status != 0) {
+            [sc_capture requestScreenshotSampleBuffer];
+          }
+
           std::shared_ptr<img_t> probe_img;
           if (!pull_free_image_cb(probe_img)) {
             [sc_capture stopCapture];
@@ -332,7 +344,9 @@ namespace platf {
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(sc_capture), pix_fmt, setResolution, setPixelFormat);
+        // SCK's scaler visibly softens even small upscales. Capture at native resolution
+        // and let VideoToolbox resize into the encoder-sized CVPixelBuffer instead.
+        device->init(static_cast<void *>(sc_capture), pix_fmt, setResolution, setPixelFormat, false);
 
         return device;
       } else {

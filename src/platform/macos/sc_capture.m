@@ -4,35 +4,57 @@
  */
 #import "sc_capture.h"
 
-API_AVAILABLE(macos(12.3))
-@implementation SCCapture
+static SCShareableContent *copyShareableContent(void) {
+  __block SCShareableContent *shareableContent = nil;
+  dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
+  [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
+    if (error) {
+      NSLog(@"[SCCapture] Failed to get shareable content: %@", error.localizedDescription);
+    } else {
+      shareableContent = [content retain];
+    }
+
+    dispatch_semaphore_signal(semaphore);
+  }];
+
+  dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+  dispatch_release(semaphore);
+
+  return shareableContent;
+}
 
 static BOOL isCompleteScreenFrame(CMSampleBufferRef sampleBuffer) {
-  if (!CMSampleBufferIsValid(sampleBuffer)) {
-    return NO;
+  if (sampleBuffer && CMSampleBufferIsValid(sampleBuffer)) {
+    CFArrayRef attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, NO);
+    if (attachmentsArray && CFArrayGetCount(attachmentsArray) > 0) {
+      CFDictionaryRef attachments = (CFDictionaryRef) CFArrayGetValueAtIndex(attachmentsArray, 0);
+      NSNumber *status = (NSNumber *) CFDictionaryGetValue(attachments, SCStreamFrameInfoStatus);
+      return status && status.integerValue == SCFrameStatusComplete;
+    }
   }
 
-  CFArrayRef attachmentsArray = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, NO);
-  if (!attachmentsArray || CFArrayGetCount(attachmentsArray) == 0) {
-    return NO;
-  }
-
-  CFDictionaryRef attachments = (CFDictionaryRef) CFArrayGetValueAtIndex(attachmentsArray, 0);
-  if (!attachments) {
-    return NO;
-  }
-
-  NSNumber *status = (NSNumber *) CFDictionaryGetValue(attachments, SCStreamFrameInfoStatus);
-  if (!status) {
-    return NO;
-  }
-
-  return status.integerValue == SCFrameStatusComplete;
+  return NO;
 }
 
 static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
   return sampleBuffer && CMSampleBufferIsValid(sampleBuffer) && CMSampleBufferGetImageBuffer(sampleBuffer);
 }
+
+API_AVAILABLE(macos(12.3))
+@interface SCCapture ()
+
+@property (nonatomic, assign) BOOL screenshotInFlight;
+
+- (void)finishScreenshotSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                               error:(NSError *)error
+                              filter:(SCContentFilter *)filter
+                       configuration:(SCStreamConfiguration *)config;
+
+@end
+
+API_AVAILABLE(macos(12.3))
+@implementation SCCapture
 
 + (BOOL)isAvailable {
   if (@available(macOS 12.3, *)) {
@@ -67,6 +89,7 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
       return screen.localizedName;
     }
   }
+
   return nil;
 }
 
@@ -96,30 +119,28 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
     );
     self.videoQueue = dispatch_queue_create("dev.lizardbyte.sunshine.sckVideoQueue", qos);
 
-    dispatch_semaphore_t initSemaphore = dispatch_semaphore_create(0);
-    __block BOOL initSuccess = NO;
-
-    [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
-      if (error) {
-        NSLog(@"[SCCapture] Failed to get shareable content: %@", error.localizedDescription);
-      } else {
-        self.shareableContent = content;
-        initSuccess = YES;
-      }
-      dispatch_semaphore_signal(initSemaphore);
-    }];
-
-    dispatch_semaphore_wait(initSemaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
-
-    if (!initSuccess) {
+    SCShareableContent *content = copyShareableContent();
+    if (!content) {
+      [self release];
       return nil;
     }
+
+    self.shareableContent = content;
+    [content release];
   }
+
   return self;
 }
 
 - (void)dealloc {
   [self stopCapture];
+  self.shareableContent = nil;
+
+  if (self.videoQueue) {
+    dispatch_release(self.videoQueue);
+    self.videoQueue = NULL;
+  }
+
   [super dealloc];
 }
 
@@ -134,6 +155,7 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
       return display;
     }
   }
+
   return nil;
 }
 
@@ -147,54 +169,97 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
     NSLog(@"[SCCapture] Display %u not found in SCShareableContent, refreshing (attempt %d/3)", displayID, attempt);
     [NSThread sleepForTimeInterval:1.0];
 
-    dispatch_semaphore_t sem = dispatch_semaphore_create(0);
-    __block BOOL success = NO;
+    SCShareableContent *content = copyShareableContent();
+    if (!content) {
+      continue;
+    }
 
-    [SCShareableContent getShareableContentWithCompletionHandler:^(SCShareableContent *content, NSError *error) {
-      if (!error && content) {
-        self.shareableContent = content;
-        success = YES;
-      }
-      dispatch_semaphore_signal(sem);
-    }];
+    self.shareableContent = content;
+    [content release];
 
-    dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
-
-    if (success) {
-      display = [self findDisplayWithID:displayID];
-      if (display) {
-        NSLog(@"[SCCapture] Found display %u after refresh", displayID);
-        return display;
-      }
+    display = [self findDisplayWithID:displayID];
+    if (display) {
+      NSLog(@"[SCCapture] Found display %u after refresh", displayID);
+      return display;
     }
   }
 
   return nil;
 }
 
+- (void)releaseCaptureSignals {
+  if (self.frameSignal) {
+    dispatch_semaphore_signal(self.frameSignal);
+    dispatch_release(self.frameSignal);
+    self.frameSignal = NULL;
+  }
+
+  if (self.captureSignal) {
+    dispatch_semaphore_signal(self.captureSignal);
+    dispatch_release(self.captureSignal);
+    self.captureSignal = NULL;
+  }
+}
+
+- (void)stopCurrentStream {
+  if (!self.stream) {
+    return;
+  }
+
+  dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+
+  [self.stream stopCaptureWithCompletionHandler:^(NSError *error) {
+    if (error) {
+      NSLog(@"[SCCapture] Error stopping capture: %@", error.localizedDescription);
+    }
+
+    dispatch_semaphore_signal(semaphore);
+  }];
+
+  dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+  dispatch_release(semaphore);
+  self.stream = nil;
+}
+
+- (void)clearLatestSampleBuffer {
+  if (self.latestSampleBuffer) {
+    CFRelease(self.latestSampleBuffer);
+    self.latestSampleBuffer = NULL;
+  }
+}
+
+- (void)storeSampleBuffer:(CMSampleBufferRef)sampleBuffer {
+  @synchronized(self) {
+    if (self.stopping) {
+      return;
+    }
+
+    BOOL shouldSignal = self.latestSampleBuffer == NULL;
+
+    [self clearLatestSampleBuffer];
+    self.latestSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
+
+    if (shouldSignal && self.frameSignal) {
+      dispatch_semaphore_signal(self.frameSignal);
+    }
+  }
+}
+
 - (dispatch_semaphore_t)captureVideo {
   @synchronized(self) {
-    if (self.stream) {
-      dispatch_semaphore_t stopSem = dispatch_semaphore_create(0);
-      [self.stream stopCaptureWithCompletionHandler:^(NSError *error) {
-        dispatch_semaphore_signal(stopSem);
-      }];
-      dispatch_semaphore_wait(stopSem, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
-      self.stream = nil;
-    }
-
-    if (self.latestSampleBuffer) {
-      CFRelease(self.latestSampleBuffer);
-      self.latestSampleBuffer = NULL;
-    }
+    [self stopCurrentStream];
+    [self clearLatestSampleBuffer];
+    [self releaseCaptureSignals];
 
     self.stopping = NO;
+    self.screenshotInFlight = NO;
     self.captureSignal = dispatch_semaphore_create(0);
     self.frameSignal = dispatch_semaphore_create(0);
 
     SCDisplay *display = [self findDisplayWithIDRetrying:self.displayID];
     if (!display) {
       NSLog(@"[SCCapture] Display not found after retries: %u", self.displayID);
+      [self releaseCaptureSignals];
       return nil;
     }
 
@@ -209,6 +274,10 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
     config.pixelFormat = self.pixelFormat;
     config.queueDepth = 5;
     config.showsCursor = YES;
+    if (@available(macOS 14.0, *)) {
+      config.captureResolution = SCCaptureResolutionBest;
+      config.preservesAspectRatio = YES;
+    }
     self.streamConfiguration = config;
     [config release];
 
@@ -219,15 +288,22 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
 
     if (!self.stream) {
       NSLog(@"[SCCapture] Failed to create SCStream");
+      self.contentFilter = nil;
+      self.streamConfiguration = nil;
+      [self releaseCaptureSignals];
       return nil;
     }
 
     if (![self.stream addStreamOutput:self type:SCStreamOutputTypeScreen sampleHandlerQueue:self.videoQueue error:&error]) {
       NSLog(@"[SCCapture] Failed to add video output: %@", error.localizedDescription);
+      self.stream = nil;
+      self.contentFilter = nil;
+      self.streamConfiguration = nil;
+      [self releaseCaptureSignals];
       return nil;
     }
 
-    dispatch_semaphore_t startSemaphore = dispatch_semaphore_create(0);
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
     __block BOOL startSuccess = NO;
 
     [self.stream startCaptureWithCompletionHandler:^(NSError *error) {
@@ -237,16 +313,18 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
         NSLog(@"[SCCapture] Capture started successfully");
         startSuccess = YES;
       }
-      dispatch_semaphore_signal(startSemaphore);
+
+      dispatch_semaphore_signal(semaphore);
     }];
 
-    dispatch_semaphore_wait(startSemaphore, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC));
+    dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+    dispatch_release(semaphore);
 
     if (!startSuccess) {
-      self.captureSignal = nil;
-      self.frameSignal = nil;
+      self.stream = nil;
       self.contentFilter = nil;
       self.streamConfiguration = nil;
+      [self releaseCaptureSignals];
       return nil;
     }
 
@@ -262,80 +340,57 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
   }
 }
 
-- (CMSampleBufferRef)copyScreenshotSampleBuffer {
+- (void)finishScreenshotSampleBuffer:(CMSampleBufferRef)sampleBuffer
+                               error:(NSError *)error
+                              filter:(SCContentFilter *)filter
+                       configuration:(SCStreamConfiguration *)config {
+  @synchronized(self) {
+    self.screenshotInFlight = NO;
+  }
+
+  if (!error && isUsableImageSampleBuffer(sampleBuffer)) {
+    [self storeSampleBuffer:sampleBuffer];
+  }
+
+  [filter release];
+  [config release];
+}
+
+- (void)requestScreenshotSampleBuffer {
   if (@available(macOS 14.0, *)) {
     SCContentFilter *filter = nil;
     SCStreamConfiguration *config = nil;
 
     @synchronized(self) {
-      if (self.stopping || !self.contentFilter || !self.streamConfiguration) {
-        return NULL;
+      if (self.stopping || self.screenshotInFlight || !self.contentFilter || !self.streamConfiguration) {
+        return;
       }
 
+      self.screenshotInFlight = YES;
       filter = [self.contentFilter retain];
       config = [self.streamConfiguration retain];
     }
 
-    dispatch_semaphore_t screenshotSemaphore = dispatch_semaphore_create(0);
-    __block BOOL timedOut = NO;
-    __block CMSampleBufferRef screenshotSampleBuffer = NULL;
-
     [SCScreenshotManager captureSampleBufferWithFilter:filter
                                          configuration:config
                                      completionHandler:^(CMSampleBufferRef sampleBuffer, NSError *error) {
-                                       if (!timedOut && !error && isUsableImageSampleBuffer(sampleBuffer)) {
-                                         screenshotSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
-                                       }
-
-                                       dispatch_semaphore_signal(screenshotSemaphore);
+                                       [self finishScreenshotSampleBuffer:sampleBuffer error:error filter:filter configuration:config];
                                      }];
-
-    if (dispatch_semaphore_wait(screenshotSemaphore, dispatch_time(DISPATCH_TIME_NOW, 500 * NSEC_PER_MSEC)) != 0) {
-      timedOut = YES;
-    }
-
-    [filter release];
-    [config release];
-
-    return screenshotSampleBuffer;
   }
-
-  return NULL;
 }
 
 - (void)stopCapture {
   @synchronized(self) {
     self.stopping = YES;
+    self.screenshotInFlight = NO;
 
-    if (self.stream) {
-      dispatch_semaphore_t stopSemaphore = dispatch_semaphore_create(0);
-
-      [self.stream stopCaptureWithCompletionHandler:^(NSError *error) {
-        if (error) {
-          NSLog(@"[SCCapture] Error stopping capture: %@", error.localizedDescription);
-        }
-        dispatch_semaphore_signal(stopSemaphore);
-      }];
-
-      dispatch_semaphore_wait(stopSemaphore, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
-      self.stream = nil;
-    }
+    [self stopCurrentStream];
 
     self.contentFilter = nil;
     self.streamConfiguration = nil;
 
-    if (self.latestSampleBuffer) {
-      CFRelease(self.latestSampleBuffer);
-      self.latestSampleBuffer = NULL;
-    }
-
-    if (self.frameSignal) {
-      dispatch_semaphore_signal(self.frameSignal);
-    }
-
-    if (self.captureSignal) {
-      dispatch_semaphore_signal(self.captureSignal);
-    }
+    [self clearLatestSampleBuffer];
+    [self releaseCaptureSignals];
   }
 }
 
@@ -343,9 +398,11 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
 
 - (void)stream:(SCStream *)stream didStopWithError:(NSError *)error {
   NSLog(@"[SCCapture] Stream stopped with error: %@", error.localizedDescription);
+
   if (self.frameSignal) {
     dispatch_semaphore_signal(self.frameSignal);
   }
+
   if (self.captureSignal) {
     dispatch_semaphore_signal(self.captureSignal);
   }
@@ -368,21 +425,7 @@ static BOOL isUsableImageSampleBuffer(CMSampleBufferRef sampleBuffer) {
     return;
   }
 
-  @synchronized(self) {
-    if (self.stopping) {
-      return;
-    }
-
-    BOOL shouldSignal = self.latestSampleBuffer == NULL;
-    if (self.latestSampleBuffer) {
-      CFRelease(self.latestSampleBuffer);
-    }
-    self.latestSampleBuffer = (CMSampleBufferRef) CFRetain(sampleBuffer);
-
-    if (shouldSignal && self.frameSignal) {
-      dispatch_semaphore_signal(self.frameSignal);
-    }
-  }
+  [self storeSampleBuffer:sampleBuffer];
 }
 
 @end
