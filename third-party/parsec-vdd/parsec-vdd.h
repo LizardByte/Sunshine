@@ -153,9 +153,8 @@ static DeviceStatus QueryDeviceStatus(const GUID *classGuid, const char *deviceI
 
             foundProp = TRUE;
             ULONG devStatus = 0;
-            ULONG devProblemNum = 0;
 
-            if (CM_Get_DevNode_Status(&devStatus, &devProblemNum, devInfoData.DevInst, 0) != CR_SUCCESS)
+            if (ULONG devProblemNum = 0; CM_Get_DevNode_Status(&devStatus, &devProblemNum, devInfoData.DevInst, 0) != CR_SUCCESS)
             {
                 status = NOT_INSTALLED;
             }
