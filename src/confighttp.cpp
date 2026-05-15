@@ -1057,17 +1057,24 @@ namespace confighttp {
     ss << request->content.rdbuf();
     try {
       // TODO: Input Validation
-      std::stringstream config_stream;
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
+
+      // Merge into existing config: read current file, update with POST values,
+      // write back. This preserves keys (like vdd_display_configs) that are
+      // managed outside the web UI.
+      auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
       for (const auto &[k, v] : input_tree.items()) {
         if (v.is_null() || (v.is_string() && v.get<std::string>().empty())) {
+          vars.erase(k);
           continue;
         }
+        vars[k] = v.is_string() ? v.get<std::string>() : v.dump();
+      }
 
-        // v.dump() will dump valid json, which we do not want for strings in the config, right now
-        // we should migrate the config file to straight JSON and get rid of all this nonsense
-        config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
+      std::stringstream config_stream;
+      for (const auto &[k, v] : vars) {
+        config_stream << k << " = " << v << '\n';
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
       output_tree["status"] = true;
