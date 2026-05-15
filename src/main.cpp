@@ -28,7 +28,7 @@
 #include "process.h"
 #include "system_tray.h"
 #include "upnp.h"
-#include "vdd_control.h"
+#include "platform/windows/vdd_control.h"
 #include "video.h"
 
 extern "C" {

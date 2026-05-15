@@ -40,7 +40,7 @@
 #include "network.h"
 
 #ifdef _WIN32
-  #include "vdd_control.h"
+  #include "platform/windows/vdd_control.h"
 #endif
 #include "nvhttp.h"
 #include "platform/common.h"

@@ -48,7 +48,7 @@
   #include "platform/common.h"
   #include "process.h"
   #include "src/entry_handler.h"
-  #include "vdd_control.h"
+  #include "platform/windows/vdd_control.h"
 
 using namespace std::literals;
 

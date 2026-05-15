@@ -1,5 +1,5 @@
 /**
- * @file src/vdd_control.h
+ * @file src/platform/windows/vdd_control.h
  * @brief Declarations for Parsec Virtual Display Driver control.
  */
 #pragma once

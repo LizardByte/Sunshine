@@ -1,5 +1,5 @@
 /**
- * @file src/vdd_control.cpp
+ * @file src/platform/windows/vdd_control.cpp
  * @brief Parsec Virtual Display Driver (VDD) control — wraps the parsec-vdd
  *        kernel driver to create and manage virtual displays on Windows.
  *
@@ -32,10 +32,10 @@
 #include <dxgi1_6.h>
 
 // local includes
-#include "config.h"
-#include "file_handler.h"
-#include "logging.h"
-#include "platform/common.h"
+#include "src/config.h"
+#include "src/file_handler.h"
+#include "src/logging.h"
+#include "src/platform/common.h"
 
 // parsec-vdd core header
 #include <parsec-vdd/parsec-vdd.h>
