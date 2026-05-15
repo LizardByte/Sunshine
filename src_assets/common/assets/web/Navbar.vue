@@ -53,10 +53,10 @@
               <ThemeToggle/>
             </li>
             <li class="nav-item dropdown">
-              <a class="nav-link dropdown-toggle" href="#" id="navbarUserMenu" role="button"
-                 data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu" title="User menu">
+              <button class="nav-link dropdown-toggle" type="button" id="navbarUserMenu"
+                      data-bs-toggle="dropdown" aria-expanded="false" aria-label="User menu" title="User menu">
                 <CircleUserRound :size="18" class="icon"></CircleUserRound>
-              </a>
+              </button>
               <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarUserMenu">
                 <li>
                   <a class="dropdown-item d-flex align-items-center" href="./password">
@@ -104,7 +104,7 @@ export default {
     console.log("Header mounted!")
   },
   mounted() {
-    const currentPath = window.location.pathname.replace(/\/$/, '') || '/'
+    const currentPath = globalThis.location.pathname.replace(/\/$/, '') || '/'
     const links = document.querySelectorAll('.navbar-sunshine a[href]')
 
     for (const link of links) {
@@ -113,7 +113,7 @@ export default {
         continue
       }
 
-      const linkPath = new URL(href, window.location.href).pathname.replace(/\/$/, '') || '/'
+      const linkPath = new URL(href, globalThis.location.href).pathname.replace(/\/$/, '') || '/'
       if (linkPath !== currentPath) {
         continue
       }
@@ -124,10 +124,10 @@ export default {
   methods: {
     logout() {
       const cacheBuster = Date.now().toString()
-      const logoutPageUrl = new URL('/logout', window.location.href)
+      const logoutPageUrl = new URL('/logout', globalThis.location.href)
       const request = new XMLHttpRequest()
       const finish = () => {
-        window.location.replace(logoutPageUrl.toString())
+        globalThis.location.replace(logoutPageUrl.toString())
       }
 
       request.open('GET', '/', true, 'sunshine-logout', cacheBuster)
