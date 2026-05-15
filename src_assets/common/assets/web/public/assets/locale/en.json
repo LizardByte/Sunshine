@@ -426,6 +426,7 @@
     "configuration": "Configuration",
     "featured": "Featured Apps",
     "home": "Home",
+    "logout": "Log Out",
     "password": "Change Password",
     "pin": "PIN",
     "theme_auto": "Auto",
@@ -445,6 +446,11 @@
     "theme_sunshine": "Sunshine",
     "toggle_theme": "Theme",
     "troubleshoot": "Troubleshooting"
+  },
+  "logout": {
+    "logged_out": "Logged Out",
+    "logged_out_desc": "You have successfully logged out.",
+    "login": "Log In"
   },
   "password": {
     "confirm_password": "Confirm Password",

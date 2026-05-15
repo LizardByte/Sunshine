@@ -70,6 +70,7 @@ export default defineConfig({
                 config: resolve(assetsSrcPath, 'config.html'),
                 featured: resolve(assetsSrcPath, 'featured.html'),
                 index: resolve(assetsSrcPath, 'index.html'),
+                logout: resolve(assetsSrcPath, 'logout.html'),
                 password: resolve(assetsSrcPath, 'password.html'),
                 pin: resolve(assetsSrcPath, 'pin.html'),
                 troubleshooting: resolve(assetsSrcPath, 'troubleshooting.html'),
