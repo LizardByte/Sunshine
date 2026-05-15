@@ -530,6 +530,7 @@ namespace config {
       1080,   // virtual_display_height
       144,    // virtual_display_refresh_rate
       0,      // virtual_display_count
+      {},     // virtual_display_configs
     },  // vdd
 
     0,  // max_bitrate
@@ -1204,6 +1205,7 @@ namespace config {
     int_f(vars, "vdd_height", video.vdd.virtual_display_height);
     int_f(vars, "vdd_refresh_rate", video.vdd.virtual_display_refresh_rate);
     int_f(vars, "vdd_display_count", video.vdd.virtual_display_count);
+    string_f(vars, "vdd_display_configs", video.vdd.virtual_display_configs);
     {
       int value = 0;
       int_between_f(vars, "dd_wa_hdr_toggle_delay", value, {0, 3000});

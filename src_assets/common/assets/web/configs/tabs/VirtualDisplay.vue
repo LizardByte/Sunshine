@@ -195,6 +195,16 @@ onMounted(() => {
                 </div>
               </div>
 
+              <!-- VDD auto-start toggle -->
+              <div class="mb-3 form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="vdd-enabled"
+                       v-model="config.vdd_enabled">
+                <label class="form-check-label" for="vdd-enabled">
+                  {{ $t('config.vdd_enabled') }}
+                </label>
+              </div>
+              <p class="text-muted small ms-1">{{ $t('config.vdd_enabled_desc') }}</p>
+
               <!-- Resolution presets -->
               <div class="mb-2">
                 <p class="form-label mb-0">{{ $t('config.vdd_presets') }}</p>

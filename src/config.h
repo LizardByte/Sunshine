@@ -158,6 +158,7 @@ namespace config {
       int virtual_display_height;    ///< Virtual display height
       int virtual_display_refresh_rate;  ///< Virtual display refresh rate
       int virtual_display_count;     ///< Number of persisted virtual displays to restore on startup
+      std::string virtual_display_configs;  ///< Persisted virtual display configurations (JSON array)
     } vdd;
 
     int max_bitrate;  // Maximum bitrate, sets ceiling in kbps for bitrate requested from client

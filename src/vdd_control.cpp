@@ -70,18 +70,30 @@ namespace vdd {
     std::vector<VddDisplayConfig> g_vdd_configs;        // NOSONAR -- runtime collection
 
     /**
-     * @brief Persist the current display count to the config file.
+     * @brief Persist display count and individual configurations to the config file.
      *
-     * Edits only the vdd_display_count line in-place; preserves user comments,
-     * blank lines, and option ordering.
+     * In-place edit of vdd_display_count and vdd_display_configs lines;
+     * preserves comments, blank lines, and option ordering.
      */
     void persist_display_count() {
       auto content = file_handler::read_file(config::sunshine.config_file.c_str());
-      auto new_value = std::to_string(g_vdd_indices.size());
+      auto count_str = std::to_string(g_vdd_indices.size());
+
+      // Build JSON array of individual display configs
+      std::string configs_json = "[";
+      for (size_t i = 0; i < g_vdd_configs.size(); ++i) {
+        if (i > 0) configs_json += ',';
+        configs_json += std::format(R"({{"w":{},"h":{},"hz":{}}})",
+                                     g_vdd_configs[i].width,
+                                     g_vdd_configs[i].height,
+                                     g_vdd_configs[i].hz);
+      }
+      configs_json += ']';
 
       std::string line;
       std::stringstream result;
-      bool found = false;
+      bool found_count = false;
+      bool found_configs = false;
 
       for (size_t i = 0; i <= content.size(); ++i) {
         bool at_end = (i == content.size());
@@ -89,9 +101,18 @@ namespace vdd {
           line += content[i];
           continue;
         }
-        if (!line.empty() && line.rfind("vdd_display_count", 0) == 0) {
-          result << "vdd_display_count = "sv << new_value << '\n';
-          found = true;
+
+        // Trim leading whitespace for key matching
+        std::string_view sv(line);
+        auto start = sv.find_first_not_of(" \t");
+        if (start != std::string_view::npos) sv = sv.substr(start);
+
+        if (sv.starts_with("vdd_display_count =") || sv == "vdd_display_count") {
+          result << "vdd_display_count = "sv << count_str << '\n';
+          found_count = true;
+        } else if (sv.starts_with("vdd_display_configs =") || sv == "vdd_display_configs") {
+          result << "vdd_display_configs = "sv << configs_json << '\n';
+          found_configs = true;
         } else {
           result << line;
           if (!at_end) result << '\n';
@@ -99,9 +120,11 @@ namespace vdd {
         line.clear();
       }
 
-      // Key not in config yet — append it.
-      if (!found) {
-        result << "vdd_display_count = "sv << new_value << '\n';
+      if (!found_count) {
+        result << "vdd_display_count = "sv << count_str << '\n';
+      }
+      if (!found_configs) {
+        result << "vdd_display_configs = "sv << configs_json << '\n';
       }
 
       file_handler::write_file(config::sunshine.config_file.c_str(), result.str());

@@ -9,6 +9,9 @@
 #include <fstream>
 #include <iostream>
 
+// lib includes
+#include <nlohmann/json.hpp>
+
 #ifdef __APPLE__
   #include <mach-o/dyld.h>
 #endif
@@ -123,13 +126,34 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 
 #ifdef _WIN32
   /**
-   * @brief Restore virtual displays from the persisted count in config.
+   * @brief Restore virtual displays from persisted config.
    *
    * Called during startup when a physical display already exists. Reads
-   * virtual_display_count from config and re-creates that many displays
-   * at the configured default resolution/refresh.
+   * vdd_display_configs (JSON array) from config and re-creates each
+   * display at its previously saved resolution/refresh. Falls back to
+   * the count-based approach with default config values if JSON is empty.
    */
   static void restore_persisted_virtual_displays() {
+    const auto &json_str = config::video.vdd.virtual_display_configs;
+    if (!json_str.empty()) {
+      try {
+        auto configs = nlohmann::json::parse(json_str);
+        if (configs.is_array() && !configs.empty()) {
+          BOOST_LOG(info) << "Restoring "sv << configs.size() << " persisted virtual display(s) with saved configs"sv;
+          for (const auto &cfg : configs) {
+            int w = cfg.value("w", config::video.vdd.virtual_display_width);
+            int h = cfg.value("h", config::video.vdd.virtual_display_height);
+            int hz = cfg.value("hz", config::video.vdd.virtual_display_refresh_rate);
+            vdd::add_display(w, h, hz);
+          }
+          return;
+        }
+      } catch (const std::exception &e) {
+        BOOST_LOG(warning) << "Failed to parse vdd_display_configs: "sv << e.what();
+      }
+    }
+
+    // Fallback: restore by count with default resolution
     int count = config::video.vdd.virtual_display_count;
     if (count > 0) {
       BOOST_LOG(info) << "Restoring "sv << count << " persisted virtual display(s)"sv;
