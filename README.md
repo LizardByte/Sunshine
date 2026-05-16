@@ -378,13 +378,13 @@ LizardByte has the full documentation hosted on [Read the Docs](https://docs.liz
     </tr>
     <tr>
         <td rowspan="6">OS</td>
-        <td>FreeBSD: 14.3+</td>
+        <td>FreeBSD: 14.4+</td>
     </tr>
     <tr>
         <td>Linux/Debian: 13+ (trixie)</td>
     </tr>
     <tr>
-        <td>Linux/Fedora: 41+</td>
+        <td>Linux/Fedora: 43+</td>
     </tr>
     <tr>
         <td>Linux/Ubuntu: 22.04+ (jammy)</td>

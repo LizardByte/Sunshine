@@ -199,10 +199,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: FreeBSD-14.3-amd64
+          - name: FreeBSD-amd64
             coverage: true
             pr: true
-          - name: FreeBSD-14.3-aarch64
+          - name: FreeBSD-aarch64
             coverage: true
             pr: false
           - name: Linux-AppImage

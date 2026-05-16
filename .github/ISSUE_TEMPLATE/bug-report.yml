@@ -84,6 +84,7 @@ body:
       label: Package
       description: The package you installed
       options:
+        - FreeBSD
         - Linux - AppImage
         - Linux - AUR (Third Party)
         - Linux - deb
@@ -93,7 +94,6 @@ body:
         - Linux - Homebrew
         - Linux - LizardByte/pacman-repo
         - Linux - nixpkgs (Third Party)
-        - Linux - pkg.tar.zst
         - Linux - solus (Third Party)
         - Linux - Unraid (Third Party)
         - macOS - dmg
@@ -148,9 +148,9 @@ body:
         - AVCaptureScreen (macOS)
         - KMS (Linux)
         - NvFBC (Linux)
-        - wlroots (Linux)
-        - X11 (Linux)
-        - XDG Portal Grab (Linux)
+        - wlroots (FreeBSD/Linux)
+        - X11 (FreeBSD/Linux)
+        - XDG Portal Grab (FreeBSD/Linux)
         - Desktop Duplication API (Windows)
         - Windows.Graphics.Capture (Windows)
     validations:
