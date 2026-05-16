@@ -1332,6 +1332,52 @@ namespace rtsp_stream {
       return;
     }
 
+    // Structured client-request log for HDR/codec negotiation diagnosis.
+    // The previous symptom on the live VM was AV1 8-bit Rec.601 even
+    // though the display was scanning out HDR PQ via the NVIDIA private
+    // path. Print every field that feeds video::colorspace_from_client_config
+    // and the codec/pix_fmt selection so it's obvious which signal is
+    // wrong when it's wrong.
+    {
+      const char *codec_name = (config.monitor.videoFormat == 0) ? "H.264" :
+                               (config.monitor.videoFormat == 1) ? "HEVC" :
+                               (config.monitor.videoFormat == 2) ? "AV1" :
+                                                                   "?";
+      BOOST_LOG(info) << "Client video request: codec="sv << codec_name
+                      << " (videoFormat="sv << config.monitor.videoFormat << ')'
+                      << " dynamicRangeMode="sv << config.monitor.dynamicRange
+                      << " encoderCscMode="sv << config.monitor.encoderCscMode
+                      << " (csc>>1="sv << (config.monitor.encoderCscMode >> 1)
+                      << ",fullrange="sv << (config.monitor.encoderCscMode & 0x1) << ')'
+                      << " chromaSamplingType="sv << config.monitor.chromaSamplingType
+                      << " session.enable_hdr="sv << (session.enable_hdr ? "yes"sv : "no"sv)
+                      << " active_hevc_mode="sv << video::active_hevc_mode
+                      << " active_av1_mode="sv << video::active_av1_mode;
+    }
+
+    // Propagate launch_session.enable_hdr -> config.monitor.dynamicRange.
+    //
+    // The HTTP /launch handler parses Moonlight's `hdrMode=` query arg
+    // into launch_session->enable_hdr, but that flag was only ever used
+    // to drive display HDR state. Meanwhile the encode pipeline reads
+    // config.monitor.dynamicRange from a *separate* RTSP arg
+    // (x-nv-video[0].dynamicRangeMode). When Moonlight thinks the server
+    // only advertises Main8 (because active_av1_mode<3), it sends
+    // dynamicRangeMode=0 even though the user enabled HDR on the client.
+    // If session.enable_hdr is true (HTTP hdrMode=1 was received), force
+    // the encode pipeline to take the 10-bit branch.
+    if (session.enable_hdr && config.monitor.dynamicRange == 0) {
+      BOOST_LOG(info) << "Client HTTP launch set hdrMode=1 but RTSP dynamicRangeMode=0; forcing config.monitor.dynamicRange=1 so encode pipeline takes the 10-bit BT.2020 PQ branch."sv;
+      config.monitor.dynamicRange = 1;
+    }
+    {
+      auto force_env = std::getenv("SUNSHINE_FORCE_AV1_HDR10");
+      if (force_env && std::string_view(force_env) == "1" && config.monitor.dynamicRange == 0) {
+        BOOST_LOG(info) << "SUNSHINE_FORCE_AV1_HDR10=1 and RTSP dynamicRangeMode=0; forcing config.monitor.dynamicRange=1. The Moonlight client must actually be able to decode 10-bit at the chosen codec or the stream will fail at the client side - this override is an operator/testing knob, not a default."sv;
+        config.monitor.dynamicRange = 1;
+      }
+    }
+
     // When using stereo audio, the audio quality is (strangely) indicated by whether the Host field
     // in the RTSP message matches a local interface's IP address. Fortunately, Moonlight always sends
     // 0.0.0.0 when it wants low quality, so it is easy to check without enumerating interfaces.

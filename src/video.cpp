@@ -2422,6 +2422,11 @@ namespace video {
 
     {
       auto encoder_name = encoder.codec_from_config(config).name;
+      const char *codec_name = (config.videoFormat == 0) ? "H.264" :
+                               (config.videoFormat == 1) ? "HEVC" :
+                               (config.videoFormat == 2) ? "AV1" :
+                                                            "?";
+      auto pix_fmt_name = platf::from_pix_fmt(pix_fmt);
 
       BOOST_LOG(info) << "Creating encoder " << logging::bracket(encoder_name);
 
@@ -2434,6 +2439,22 @@ namespace video {
       BOOST_LOG(info) << "Color coding: " << color_coding;
       BOOST_LOG(info) << "Color depth: " << colorspace.bit_depth << "-bit";
       BOOST_LOG(info) << "Color range: " << (colorspace.full_range ? "JPEG" : "MPEG");
+      // Spell out the entire encode-selection decision so a future
+      // SDR-fallback regression names itself in the journal: the
+      // requested codec, the requested dynamicRange, whether the display
+      // reported HDR (is_hdr_display), the resolved colorspace, the bit
+      // depth, the encoder pix_fmt (NV12 vs P010 vs yuv420p10le etc.).
+      BOOST_LOG(info) << "Encode selection: codec="sv << codec_name
+                      << " (videoFormat="sv << config.videoFormat << ')'
+                      << " client_dynamicRange="sv << config.dynamicRange
+                      << " is_hdr_display="sv << (disp.is_hdr() ? "yes"sv : "no"sv)
+                      << " selected_colorspace="sv << color_coding
+                      << " selected_bit_depth="sv << colorspace.bit_depth << "-bit"sv
+                      << " selected_pix_fmt="sv << pix_fmt_name
+                      << " chromaSamplingType="sv << config.chromaSamplingType;
+      if (config.dynamicRange && colorspace.colorspace != colorspace_e::bt2020) {
+        BOOST_LOG(warning) << "Client requested HDR (dynamicRange=" << config.dynamicRange << ") but selected colorspace is not BT.2020 PQ. Likely cause: disp.is_hdr() returned false. On the NVIDIA private HDR path, ensure NV_CRTC_REGAMMA_TF=PQ and/or NV_INPUT_COLORSPACE=BT.2100 PQ are set on the active CRTC/plane.";
+      }
     }
 
     if (dynamic_cast<const encoder_platform_formats_avcodec *>(encoder.platform_formats.get())) {
@@ -3206,6 +3227,41 @@ namespace video {
     if (active_av1_mode == 0) {
       active_av1_mode = encoder.av1[encoder_t::PASSED] ? (encoder.av1[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
     }
+
+    // CloudDeploy override. The user-config av1_mode/hevc_mode value "2"
+    // means "codec enabled, HDR not forced", which clamps the advertised
+    // ServerCodecModeSupport to SCM_AV1_MAIN8 / SCM_HEVC_MAIN8 only - even
+    // when the encoder probe just confirmed DYNAMIC_RANGE = supported.
+    // Moonlight then sees an SDR-only server, never requests
+    // dynamicRangeMode=1, and the stream falls to AV1 Main8 / Rec.601.
+    // When SUNSHINE_FORCE_AV1_HDR10=1 is set and the probe shows DR
+    // support, bump 2 -> 3 so SCM_AV1_MAIN10 / SCM_HEVC_MAIN10 is
+    // advertised. This is the lever CloudDeploy flips on ENABLE_HDR=1
+    // when it cannot edit sunshine.conf to set av1_mode=0 (auto).
+    {
+      auto force_env = std::getenv("SUNSHINE_FORCE_AV1_HDR10");
+      bool force = (force_env && std::string_view(force_env) == "1");
+      if (force) {
+        BOOST_LOG(info) << "SUNSHINE_FORCE_AV1_HDR10=1: examining HEVC/AV1 Main10 advertisement"sv;
+        if (active_hevc_mode == 2 && encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+          BOOST_LOG(info) << "SUNSHINE_FORCE_AV1_HDR10: bumping active_hevc_mode 2 -> 3 (encoder ["sv << encoder.name << "] supports HEVC Main10)"sv;
+          active_hevc_mode = 3;
+        } else if (active_hevc_mode == 2) {
+          BOOST_LOG(warning) << "SUNSHINE_FORCE_AV1_HDR10: leaving active_hevc_mode=2 (encoder ["sv << encoder.name << "] HEVC DYNAMIC_RANGE probe = false)"sv;
+        }
+        if (active_av1_mode == 2 && encoder.av1[encoder_t::DYNAMIC_RANGE]) {
+          BOOST_LOG(info) << "SUNSHINE_FORCE_AV1_HDR10: bumping active_av1_mode 2 -> 3 (encoder ["sv << encoder.name << "] supports AV1 Main10)"sv;
+          active_av1_mode = 3;
+        } else if (active_av1_mode == 2) {
+          BOOST_LOG(warning) << "SUNSHINE_FORCE_AV1_HDR10: leaving active_av1_mode=2 (encoder ["sv << encoder.name << "] AV1 DYNAMIC_RANGE probe = false)"sv;
+        }
+      }
+    }
+
+    BOOST_LOG(info) << "Encoder probe results: active_hevc_mode="sv << active_hevc_mode
+                    << " active_av1_mode="sv << active_av1_mode
+                    << " hevc_dr_supported="sv << (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? "yes"sv : "no"sv)
+                    << " av1_dr_supported="sv << (encoder.av1[encoder_t::DYNAMIC_RANGE] ? "yes"sv : "no"sv);
 
     return 0;
   }

@@ -1192,7 +1192,73 @@ namespace platf {
         return 0;
       }
 
+      // Returns true when an NVIDIA private HDR/PQ path is active on the
+      // selected CRTC or primary plane. The CloudDeploy patched KWin
+      // intentionally leaves the connector HDR_OUTPUT_METADATA blob at 0
+      // (the standard atomic-check path is rejected by NVIDIA on the
+      // forced/headless virtual output) and instead writes:
+      //
+      //   CRTC NV_CRTC_REGAMMA_TF        = PQ
+      //   primary plane NV_INPUT_COLORSPACE = BT.2100 PQ
+      //   primary plane NV_PLANE_DEGAMMA_TF = PQ
+      //
+      // Without this detection, kmsgrab's is_hdr() returns false even
+      // though the scanout is HDR PQ, and the video::colorspace pipeline
+      // falls back to SDR. We treat either NV_CRTC_REGAMMA_TF==PQ on the
+      // active CRTC OR NV_INPUT_COLORSPACE==BT.2100 PQ on the active
+      // primary plane as sufficient evidence of NVIDIA private HDR.
+      bool nvidia_private_hdr_active() {
+        auto find_enum_value = [](const drmModePropertyRes &prop, std::initializer_list<std::string_view> wanted) -> std::optional<std::uint64_t> {
+          for (int i = 0; i < prop.count_enums; ++i) {
+            std::string_view ename = prop.enums[i].name;
+            for (auto w : wanted) {
+              if (ename == w) {
+                return static_cast<std::uint64_t>(prop.enums[i].value);
+              }
+            }
+          }
+          return std::nullopt;
+        };
+
+        auto enum_prop_matches = [&](const std::vector<std::pair<prop_t, std::uint64_t>> &props, std::string_view prop_name, std::initializer_list<std::string_view> wanted_enum) -> bool {
+          for (auto &[prop, val] : props) {
+            if (!prop || prop->name != prop_name) {
+              continue;
+            }
+            auto want = find_enum_value(*prop, wanted_enum);
+            if (want && *want == val) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        if (crtc_id > 0) {
+          auto cps = card.crtc_props(static_cast<std::uint32_t>(crtc_id));
+          if (enum_prop_matches(cps, "NV_CRTC_REGAMMA_TF"sv, {"PQ"sv})) {
+            BOOST_LOG(info) << "is_hdr: NVIDIA private HDR via NV_CRTC_REGAMMA_TF=PQ on CRTC "sv << crtc_id;
+            return true;
+          }
+        }
+        if (plane_id > 0) {
+          auto pps = card.plane_props(static_cast<std::uint32_t>(plane_id));
+          if (enum_prop_matches(pps, "NV_INPUT_COLORSPACE"sv, {"BT.2100 PQ"sv, "BT2100 PQ"sv})) {
+            BOOST_LOG(info) << "is_hdr: NVIDIA private HDR via NV_INPUT_COLORSPACE=BT.2100 PQ on plane "sv << plane_id;
+            return true;
+          }
+        }
+        return false;
+      }
+
       bool is_hdr() {
+        // Check NVIDIA private HDR/PQ path first - the CloudDeploy patched
+        // KWin uses it instead of the standard connector HDR_OUTPUT_METADATA
+        // blob, so we must accept it as HDR even when hdr_metadata_blob_id
+        // is 0.
+        if (nvidia_private_hdr_active()) {
+          return true;
+        }
+
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
           return false;
         }
@@ -1241,6 +1307,18 @@ namespace platf {
       bool get_hdr_metadata(SS_HDR_METADATA &metadata) {
         // This performs all the metadata validation
         if (!is_hdr()) {
+          return false;
+        }
+
+        // is_hdr() can now return true for the NVIDIA private HDR path
+        // (no HDR_OUTPUT_METADATA blob; NV_CRTC_REGAMMA_TF=PQ +
+        // NV_INPUT_COLORSPACE=BT.2100 PQ instead). In that case we have
+        // no per-frame infoframe metadata to return - the encode pipeline
+        // still gets bt2020 PQ colorspace from video_colorspace, but
+        // hdr_info->enabled stays false (the client decodes from
+        // VUI/sequence header bt2020+SMPTE2084 rather than per-frame).
+        if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
+          BOOST_LOG(info) << "get_hdr_metadata: HDR active via NVIDIA private path; no per-frame metadata available (encode pipeline will use BT.2020 PQ from VUI)";
           return false;
         }
 
