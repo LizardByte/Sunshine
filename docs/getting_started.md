@@ -35,12 +35,12 @@ See [Docker](../DOCKER_README.md) for more information.
 
    | Architecture  | Package                                                                                                                                |
    |---------------|----------------------------------------------------------------------------------------------------------------------------------------|
-   | amd64/x86_64  | [Sunshine-FreeBSD-14.3-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
-   | arm64/aarch64 | [Sunshine-FreeBSD-14.3-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
+   | amd64/x86_64  | [Sunshine-FreeBSD-14.4-amd64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-amd64.pkg)     |
+   | arm64/aarch64 | [Sunshine-FreeBSD-14.4-aarch64.pkg](https://github.com/LizardByte/Sunshine/releases/latest/download/Sunshine-FreeBSD-14.3-aarch64.pkg) |
 
 2. Open terminal and run the following command.
    ```sh
-   sudo pkg install ./Sunshine-FreeBSD-14.3-{arch}.pkg
+   sudo pkg install ./Sunshine-FreeBSD-14.4-{arch}.pkg
    ```
 
 #### Uninstall

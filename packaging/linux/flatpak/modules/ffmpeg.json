@@ -8,8 +8,8 @@
   "sources": [
     {
       "type": "file",
-      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.508.175015/Linux-x86_64-ffmpeg.tar.gz",
-      "sha256": "2bae3b4fd3c13b2b731b5bc90e888cc535216e85b499b8405d23508eaa589924",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.516.30821/Linux-x86_64-ffmpeg.tar.gz",
+      "sha256": "c32319fcc2867befe8ff3ae26b4d3a58378c3a9c1bfef9029c9969321c3bc6ec",
       "dest-filename": "ffmpeg.tar.gz",
       "only-arches": [
         "x86_64"
@@ -23,8 +23,8 @@
     },
     {
       "type": "file",
-      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.508.175015/Linux-aarch64-ffmpeg.tar.gz",
-      "sha256": "ea2c9f70cbe0d95493bef8fa44ad5b528d333c251c0b9588fe9dd31f347ff66c",
+      "url": "https://github.com/LizardByte/build-deps/releases/download/v2026.516.30821/Linux-aarch64-ffmpeg.tar.gz",
+      "sha256": "10b6c9440ba6178ec3b944f6c6f697253497cad5196d23a2d32d335daae0062e",
       "dest-filename": "ffmpeg.tar.gz",
       "only-arches": [
         "aarch64"
