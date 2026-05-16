@@ -1542,7 +1542,6 @@ namespace confighttp {
     send_response(response, output_tree);
   }
 
-#ifdef _WIN32
   /**
    * @brief Get the VDD virtual display status.
    * @param response The HTTP response object.
@@ -1551,6 +1550,13 @@ namespace confighttp {
    * @api_examples{/api/vdd/status| GET| null}
    */
   void getVddStatus(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
     if (!authenticate(response, request)) {
       return;
     }
@@ -1594,6 +1600,13 @@ namespace confighttp {
    * @api_examples{/api/vdd/add| POST| {"width": 1920, "height": 1080, "hz": 144}}
    */
   void addVddDisplay(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1668,6 +1681,13 @@ namespace confighttp {
    * @api_examples{/api/vdd/remove| POST| {"index": 0}}
    */
   void removeVddDisplay(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
     if (!check_content_type(response, request, "application/json")) {
       return;
     }
@@ -1718,6 +1738,13 @@ namespace confighttp {
    * @api_examples{/api/vdd/remove-all| POST| null}
    */
   void removeAllVddDisplays(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
     if (!authenticate(response, request)) {
       return;
     }
@@ -1747,7 +1774,6 @@ namespace confighttp {
 
     send_response(response, output_tree);
   }
-#endif
 
   /**
    * @brief Checks whether a directory entry qualifies as an executable file.
@@ -2003,12 +2029,10 @@ namespace confighttp {
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
 
-#ifdef _WIN32
     server.resource["^/api/vdd/status$"]["GET"] = getVddStatus;
     server.resource["^/api/vdd/add$"]["POST"] = addVddDisplay;
     server.resource["^/api/vdd/remove$"]["POST"] = removeVddDisplay;
     server.resource["^/api/vdd/remove-all$"]["POST"] = removeAllVddDisplays;
-#endif
 
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
