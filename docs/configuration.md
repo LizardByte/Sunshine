@@ -1396,12 +1396,6 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
-<div class="alert alert-info" role="alert">
-    <strong>Acknowledgement:</strong> The virtual display feature is powered by the
-    <a href="https://github.com/nomi-san/parsec-vdd" target="_blank">Parsec Virtual Display Driver</a>
-    created by <a href="https://github.com/nomi-san" target="_blank">nomi-san</a>.
-</div>
-
 ### vdd_enabled
 
 <table>
