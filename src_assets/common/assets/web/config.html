@@ -368,14 +368,9 @@
         const options = [];
         this.tabs.forEach(tab => {
           Object.keys(tab.options).forEach(key => {
-            const i18nKey = 'config.' + key;
-            const translated = this.$t(i18nKey);
-            const label = translated === i18nKey
-              ? key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase())
-              : translated;
             options.push({
               key: key,
-              label: label,
+              label: key.replaceAll('_', ' ').replaceAll(/\b\w/g, l => l.toUpperCase()),
               tab: tab.name,
               tabId: tab.id
             });

@@ -5,8 +5,10 @@
 // standard includes
 #include <codecvt>
 #include <csignal>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <iostream>
 
 // lib includes
@@ -20,6 +22,7 @@
 #include "confighttp.h"
 #include "display_device.h"
 #include "entry_handler.h"
+#include "file_handler.h"
 #include "globals.h"
 #include "httpcommon.h"
 #include "logging.h"
@@ -129,12 +132,26 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
    * @brief Restore virtual displays from persisted config.
    *
    * Called during startup when a physical display already exists. Reads
-   * vdd_display_configs (JSON array) from config and re-creates each
-   * display at its previously saved resolution/refresh. Falls back to
-   * the count-based approach with default config values if JSON is empty.
+   * vdd_display_configs (JSON array line) directly from the Sunshine config
+   * file and re-creates each display at its previously saved resolution/refresh.
+   * Falls back to the count-based approach with default config values if the
+   * JSON line is missing or empty.
    */
   static void restore_persisted_virtual_displays() {
-    const auto &json_str = config::video.vdd.virtual_display_configs;
+    // Read vdd_display_configs directly from the config file (it is not a
+    // user-configurable option and is intentionally not registered in config.cpp).
+    std::string json_str;
+    if (auto content = file_handler::read_file(config::sunshine.config_file.c_str()); !content.empty()) {
+      std::istringstream stream(content);
+      std::string line;
+      while (std::getline(stream, line)) {
+        if (line.starts_with("vdd_display_configs = ")) {
+          json_str = line.substr(std::strlen("vdd_display_configs = "));
+          break;
+        }
+      }
+    }
+
     if (!json_str.empty()) {
       try {
         auto configs = nlohmann::json::parse(json_str);

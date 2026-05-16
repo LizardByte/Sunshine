@@ -445,8 +445,7 @@ TEST_F(ConfigConsistencyTest, AllConfigOptionsExistInAllFiles) {
 
   // Options that are internal/special and shouldn't be in UI/docs
   const std::set<std::string, std::less<>> internalOptions = {
-    "flags",  // Internal config flags, not user-configurable
-    "vdd_display_configs"  // Automatically managed by VDD persistence
+    "flags"  // Internal config flags, not user-configurable
   };
 
   std::vector<std::string> missingFromFiles;
@@ -628,8 +627,7 @@ TEST_F(ConfigConsistencyTest, TestFrameworkDetectsMissingOptions) {
 
   // Options that are internal/special and shouldn't be in UI/docs
   std::set<std::string, std::less<>> internalOptions = {
-    "flags",  // Internal config flags, not user-configurable
-    "vdd_display_configs"  // Automatically managed by VDD persistence
+    "flags"  // Internal config flags, not user-configurable
   };
 
   std::vector<std::string> missingFromFiles;
