@@ -46,6 +46,48 @@ using namespace std::literals;
 
 namespace video {
 
+  void populate_default_hdr10_metadata(SS_HDR_METADATA &m) {
+    // BT.2020 primaries (CIE xy, normalized to 50000 per the Sunshine
+    // protocol extension in moonlight-common-c/Limelight.h):
+    //   R = 0.708, 0.292
+    //   G = 0.170, 0.797
+    //   B = 0.131, 0.046
+    m.displayPrimaries[0].x = static_cast<std::uint16_t>(0.708f * 50000.0f);
+    m.displayPrimaries[0].y = static_cast<std::uint16_t>(0.292f * 50000.0f);
+    m.displayPrimaries[1].x = static_cast<std::uint16_t>(0.170f * 50000.0f);
+    m.displayPrimaries[1].y = static_cast<std::uint16_t>(0.797f * 50000.0f);
+    m.displayPrimaries[2].x = static_cast<std::uint16_t>(0.131f * 50000.0f);
+    m.displayPrimaries[2].y = static_cast<std::uint16_t>(0.046f * 50000.0f);
+    // D65 white point.
+    m.whitePoint.x = static_cast<std::uint16_t>(0.3127f * 50000.0f);
+    m.whitePoint.y = static_cast<std::uint16_t>(0.3290f * 50000.0f);
+    // Display luminance:
+    //   max  = 1000 nits  (matches a typical mid-range HDR monitor)
+    //   min  = 0.005 nits = 50 in 1/10000-nit units
+    m.maxDisplayLuminance = 1000;
+    m.minDisplayLuminance = 50;
+    // Content light: virtual-headless host has no real source-side
+    // statistics to draw from; use HDR10 sane defaults so the bitstream
+    // carries plausible values rather than zero (zero gets the badge
+    // wrong on some decoders).
+    m.maxContentLightLevel = 1000;
+    m.maxFrameAverageLightLevel = 400;
+    m.maxFullFrameLuminance = 1000;
+  }
+
+  bool synthesize_hdr10_metadata_enabled() {
+    auto env_is_true = [](const char *name) {
+      const char *v = std::getenv(name);
+      if (!v) {
+        return false;
+      }
+      std::string_view sv {v};
+      return sv == "1" || sv == "true" || sv == "TRUE" || sv == "yes" || sv == "YES";
+    };
+    return env_is_true("SUNSHINE_SYNTHESIZE_HDR10_METADATA") ||
+           env_is_true("SUNSHINE_FORCE_AV1_HDR10");
+  }
+
   namespace {
     std::mutex stream_diag_frame_stats_mutex;
     std::unordered_map<void *, stream_diag_frame_stats_t> stream_diag_frame_stats_by_channel;
@@ -2154,10 +2196,26 @@ namespace video {
     frame->colorspace = ctx->colorspace;
     frame->chroma_location = ctx->chroma_sample_location;
 
-    // Attach HDR metadata to the AVFrame
+    // Attach HDR metadata to the AVFrame. Only the libavcodec encoder
+    // path reads this side data; the native NVENC path (used on the
+    // CloudDeploy NVIDIA stack) instead programs colorPrimaries /
+    // transferCharacteristics / matrixCoefficients directly on the AV1
+    // format_config in nvenc_base::create_encoder. Both paths share the
+    // same SS_HDR_METADATA source, so the synthesized-fallback logic
+    // here keeps libavcodec consumers (vaapi/sw HDR builds) consistent
+    // with native NVENC.
     if (colorspace_is_hdr(colorspace)) {
       SS_HDR_METADATA hdr_metadata;
-      if (disp->get_hdr_metadata(hdr_metadata)) {
+      bool have_metadata = disp->get_hdr_metadata(hdr_metadata);
+      bool synthesized = false;
+      if (!have_metadata && synthesize_hdr10_metadata_enabled()) {
+        hdr_metadata = {};
+        populate_default_hdr10_metadata(hdr_metadata);
+        have_metadata = true;
+        synthesized = true;
+        BOOST_LOG(info) << "Attaching SYNTHESIZED HDR10 mastering/content-light metadata to AVFrame side data (display reported no metadata; SUNSHINE_SYNTHESIZE_HDR10_METADATA / SUNSHINE_FORCE_AV1_HDR10 active)"sv;
+      }
+      if (have_metadata) {
         auto mdm = av_mastering_display_metadata_create_side_data(frame.get());
 
         mdm->display_primaries[0][0] = av_make_q(hdr_metadata.displayPrimaries[0].x, 50000);
@@ -2176,14 +2234,22 @@ namespace video {
         mdm->has_luminance = hdr_metadata.maxDisplayLuminance != 0 ? 1 : 0;
         mdm->has_primaries = hdr_metadata.displayPrimaries[0].x != 0 ? 1 : 0;
 
+        BOOST_LOG(info) << "Attached AVMasteringDisplayMetadata to frame ("sv
+                        << (synthesized ? "synthesized"sv : "display-sourced"sv)
+                        << "): has_primaries="sv << (int) mdm->has_primaries
+                        << " has_luminance="sv << (int) mdm->has_luminance
+                        << " maxLum="sv << hdr_metadata.maxDisplayLuminance
+                        << " minLum/10000="sv << hdr_metadata.minDisplayLuminance;
+
         if (hdr_metadata.maxContentLightLevel != 0 || hdr_metadata.maxFrameAverageLightLevel != 0) {
           auto clm = av_content_light_metadata_create_side_data(frame.get());
 
           clm->MaxCLL = hdr_metadata.maxContentLightLevel;
           clm->MaxFALL = hdr_metadata.maxFrameAverageLightLevel;
+          BOOST_LOG(info) << "Attached AVContentLightMetadata to frame: MaxCLL="sv << clm->MaxCLL << " MaxFALL="sv << clm->MaxFALL;
         }
       } else {
-        BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+        BOOST_LOG(error) << "AVFrame HDR side data: colorspace is HDR but display returned no mastering metadata and synthesis is disabled. Set SUNSHINE_SYNTHESIZE_HDR10_METADATA=1 to attach HDR10 defaults.";
       }
     }
 
@@ -2483,13 +2549,29 @@ namespace video {
     // absolute mouse coordinates require that the dimensions of the screen are known
     ctx.touch_port_events->raise(make_port(disp, ctx.config));
 
-    // Update client with our current HDR display state
+    // Update client with our current HDR display state.
+    //
+    // The Moonlight client overlay reads its "HDR/SDR" badge from the
+    // Sunshine control packet control_hdr_mode_t.enabled (see
+    // stream::send_hdr_mode). So even if the encoded bitstream itself
+    // carries BT.2020+SMPTE2084 (AV1 sequence header / HEVC VUI), the
+    // overlay shows SDR whenever this flag stays false.
     hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
     if (colorspace_is_hdr(encode_device->colorspace)) {
       if (disp->get_hdr_metadata(hdr_info->metadata)) {
         hdr_info->enabled = true;
+        BOOST_LOG(info) << "HDR control message (sync session): enabled=1 with mastering metadata from display (maxDisplayLuminance="sv << hdr_info->metadata.maxDisplayLuminance << " nits, MaxCLL="sv << hdr_info->metadata.maxContentLightLevel << ", MaxFALL="sv << hdr_info->metadata.maxFrameAverageLightLevel << ")"sv;
+      } else if (synthesize_hdr10_metadata_enabled()) {
+        // Display didn't report mastering metadata (NVIDIA private path
+        // or capture backend without a metadata API). Synthesize sane
+        // defaults so the control message flips Moonlight's overlay to
+        // HDR and the bitstream-side metadata is internally consistent.
+        hdr_info->metadata = {};
+        populate_default_hdr10_metadata(hdr_info->metadata);
+        hdr_info->enabled = true;
+        BOOST_LOG(info) << "HDR control message (sync session): enabled=1 with SYNTHESIZED HDR10 defaults (display reported no metadata; SUNSHINE_SYNTHESIZE_HDR10_METADATA / SUNSHINE_FORCE_AV1_HDR10 active)"sv;
       } else {
-        BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+        BOOST_LOG(error) << "HDR control message (sync session): colorspace is HDR but display returned no mastering metadata and synthesis is disabled. Moonlight overlay will stay SDR. Set SUNSHINE_SYNTHESIZE_HDR10_METADATA=1 to enable defaults.";
       }
     }
     ctx.hdr_events->raise(std::move(hdr_info));
@@ -2754,13 +2836,24 @@ namespace video {
       // absolute mouse coordinates require that the dimensions of the screen are known
       touch_port_event->raise(make_port(display.get(), config));
 
-      // Update client with our current HDR display state
+      // Update client with our current HDR display state. See the
+      // matching sync-session block above for the rationale: the
+      // Moonlight overlay reads from control_hdr_mode_t.enabled, so
+      // this flag must flip true (with at least placeholder metadata)
+      // even when the display backend can't surface real mastering
+      // values.
       hdr_info_t hdr_info = std::make_unique<hdr_info_raw_t>(false);
       if (colorspace_is_hdr(encode_device->colorspace)) {
         if (display->get_hdr_metadata(hdr_info->metadata)) {
           hdr_info->enabled = true;
+          BOOST_LOG(info) << "HDR control message (async session): enabled=1 with mastering metadata from display (maxDisplayLuminance="sv << hdr_info->metadata.maxDisplayLuminance << " nits, MaxCLL="sv << hdr_info->metadata.maxContentLightLevel << ", MaxFALL="sv << hdr_info->metadata.maxFrameAverageLightLevel << ")"sv;
+        } else if (synthesize_hdr10_metadata_enabled()) {
+          hdr_info->metadata = {};
+          populate_default_hdr10_metadata(hdr_info->metadata);
+          hdr_info->enabled = true;
+          BOOST_LOG(info) << "HDR control message (async session): enabled=1 with SYNTHESIZED HDR10 defaults (display reported no metadata; SUNSHINE_SYNTHESIZE_HDR10_METADATA / SUNSHINE_FORCE_AV1_HDR10 active)"sv;
         } else {
-          BOOST_LOG(error) << "Couldn't get display hdr metadata when colorspace selection indicates it should have one";
+          BOOST_LOG(error) << "HDR control message (async session): colorspace is HDR but display returned no mastering metadata and synthesis is disabled. Moonlight overlay will stay SDR. Set SUNSHINE_SYNTHESIZE_HDR10_METADATA=1 to enable defaults.";
         }
       }
       hdr_event->raise(std::move(hdr_info));

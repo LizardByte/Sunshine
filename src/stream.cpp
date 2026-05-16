@@ -1473,7 +1473,18 @@ namespace stream {
       return -1;
     }
 
-    BOOST_LOG(debug) << "Sent HDR mode: " << hdr_info->enabled;
+    // INFO-level: this is the control packet Moonlight's overlay reads
+    // to label the stream as HDR/SDR. If a stream is internally HDR but
+    // Moonlight still shows SDR, this log line is the diagnostic anchor.
+    BOOST_LOG(info) << "Sent HDR mode control packet to Moonlight: enabled="sv << (int) hdr_info->enabled
+                    << " maxDisplayLuminance="sv << hdr_info->metadata.maxDisplayLuminance << " nits"sv
+                    << " minDisplayLuminance="sv << hdr_info->metadata.minDisplayLuminance << "/10000 nits"sv
+                    << " MaxCLL="sv << hdr_info->metadata.maxContentLightLevel
+                    << " MaxFALL="sv << hdr_info->metadata.maxFrameAverageLightLevel
+                    << " primaries[R]=("sv << hdr_info->metadata.displayPrimaries[0].x << ','
+                    << hdr_info->metadata.displayPrimaries[0].y << ')'
+                    << " whitePoint=("sv << hdr_info->metadata.whitePoint.x << ','
+                    << hdr_info->metadata.whitePoint.y << ')';
     return 0;
   }
 

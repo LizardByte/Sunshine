@@ -1312,13 +1312,37 @@ namespace platf {
 
         // is_hdr() can now return true for the NVIDIA private HDR path
         // (no HDR_OUTPUT_METADATA blob; NV_CRTC_REGAMMA_TF=PQ +
-        // NV_INPUT_COLORSPACE=BT.2100 PQ instead). In that case we have
-        // no per-frame infoframe metadata to return - the encode pipeline
-        // still gets bt2020 PQ colorspace from video_colorspace, but
-        // hdr_info->enabled stays false (the client decodes from
-        // VUI/sequence header bt2020+SMPTE2084 rather than per-frame).
+        // NV_INPUT_COLORSPACE=BT.2100 PQ instead). In that case the
+        // standard connector HDR metadata blob is intentionally absent
+        // (the CloudDeploy patched KWin never sets it because NVIDIA's
+        // atomic check rejects the standard path on the forced/headless
+        // virtual output - this is by design, see the comment on
+        // nvidia_private_hdr_active above).
+        //
+        // Without HDR mastering metadata, the Moonlight client overlay
+        // stays "SDR" even when the bitstream itself carries BT.2020 +
+        // SMPTE2084 in the AV1 sequence header / HEVC VUI: Moonlight
+        // derives the overlay state from the Sunshine control packet
+        // control_hdr_mode_t.enabled, which only gets set to 1 if
+        // get_hdr_metadata() returns true (see video::make_synced_session
+        // and video::capture_async in src/video.cpp).
+        //
+        // When SUNSHINE_SYNTHESIZE_HDR10_METADATA=1 (or the bundled
+        // SUNSHINE_FORCE_AV1_HDR10=1 flag), synthesize HDR10 static
+        // metadata defaults so the control packet, the AVFrame side
+        // data, and the bitstream all carry consistent HDR signaling.
         if (!hdr_metadata_blob_id || *hdr_metadata_blob_id == 0) {
-          BOOST_LOG(info) << "get_hdr_metadata: HDR active via NVIDIA private path; no per-frame metadata available (encode pipeline will use BT.2020 PQ from VUI)";
+          if (video::synthesize_hdr10_metadata_enabled()) {
+            metadata = {};
+            video::populate_default_hdr10_metadata(metadata);
+            BOOST_LOG(info) << "HDR metadata fallback: standard DRM HDR_OUTPUT_METADATA blob is 0 on NVIDIA private HDR path; synthesizing HDR10 static metadata defaults (BT.2020 primaries, D65 white point, max="sv
+                            << metadata.maxDisplayLuminance << " nits, min="sv
+                            << metadata.minDisplayLuminance << "/10000 nits, MaxCLL="sv
+                            << metadata.maxContentLightLevel << ", MaxFALL="sv
+                            << metadata.maxFrameAverageLightLevel << ")"sv;
+            return true;
+          }
+          BOOST_LOG(info) << "get_hdr_metadata: HDR active via NVIDIA private path but standard DRM HDR_OUTPUT_METADATA blob is 0. Set SUNSHINE_SYNTHESIZE_HDR10_METADATA=1 (or SUNSHINE_FORCE_AV1_HDR10=1) to synthesize defaults so Moonlight's HDR overlay reflects the stream state. Without the override, the bitstream still carries BT.2020+SMPTE2084 in the sequence header, but Moonlight's control-protocol HDR signal stays disabled."sv;
           return false;
         }
 

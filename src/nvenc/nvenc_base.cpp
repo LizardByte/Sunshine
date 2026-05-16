@@ -422,6 +422,27 @@ namespace nvenc {
 
     init_params.encodeConfig = &enc_config;
 
+    // Diagnostic snapshot of the colour configuration the NVENC encoder
+    // is being initialised with. The Moonlight client overlay reads its
+    // HDR/SDR badge primarily from Sunshine's control_hdr_mode_t packet,
+    // but if the bitstream-side colour config doesn't match (BT.2020 +
+    // SMPTE2084 + limited range for HDR10), some clients fall back to
+    // SDR rendering even after seeing the control flag. Log the actual
+    // values so a future regression is immediately visible.
+    {
+      auto videoFormat_name = client_config.videoFormat == 0 ? "H.264"sv :
+                              client_config.videoFormat == 1 ? "HEVC"sv :
+                              client_config.videoFormat == 2 ? "AV1"sv :
+                                                               "?"sv;
+      BOOST_LOG(info) << "NvEnc color-config: codec="sv << videoFormat_name
+                      << " primaries="sv << colorspace.primaries
+                      << " transfer="sv << colorspace.tranfer_function
+                      << " matrix="sv << colorspace.matrix
+                      << " full_range="sv << (int) colorspace.full_range
+                      << " bit_depth="sv << (buffer_is_10bit() ? "10"sv : "8"sv)
+                      << " yuv444="sv << (buffer_is_yuv444() ? "yes"sv : "no"sv);
+    }
+
     if (nvenc_failed(nvenc->nvEncInitializeEncoder(encoder, &init_params))) {
       BOOST_LOG(error) << "NvEnc: NvEncInitializeEncoder() failed: " << last_nvenc_error_string;
       return false;

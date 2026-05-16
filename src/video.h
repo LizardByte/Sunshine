@@ -364,6 +364,41 @@ namespace video {
 
   using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
 
+  /**
+   * @brief Populate `metadata` with safe HDR10 static metadata defaults.
+   *
+   * Used as a fallback on capture paths where the host display does not
+   * expose HDR10 mastering display metadata (CIE primaries, white point,
+   * peak/min luminance) and/or content light metadata (MaxCLL/MaxFALL)
+   * via the standard system APIs. The CloudDeploy patched KWin NVIDIA
+   * private HDR path is the motivating case: HDR_OUTPUT_METADATA blob is
+   * intentionally 0 (the standard atomic-check path is rejected by the
+   * NVIDIA driver on the forced-headless virtual output), but the
+   * scanout is genuine HDR PQ via NV_CRTC_REGAMMA_TF / NV_INPUT_COLORSPACE.
+   *
+   * Defaults written:
+   *   primaries     = BT.2020 (R,G,B)
+   *   white point   = D65
+   *   max luminance = 1000 nits
+   *   min luminance = 0.005 nits  (= 50 in 1/10000-nit units)
+   *   MaxCLL        = 1000
+   *   MaxFALL       = 400
+   *   maxFullFrame  = 1000
+   */
+  void populate_default_hdr10_metadata(SS_HDR_METADATA &metadata);
+
+  /**
+   * @brief Returns true when synthesized HDR10 fallback metadata is allowed.
+   *
+   * Reads two env vars (either being "1" enables fallback):
+   *   SUNSHINE_SYNTHESIZE_HDR10_METADATA   - preferred explicit knob
+   *   SUNSHINE_FORCE_AV1_HDR10             - already used to bump
+   *                                          active_av1_mode/hevc_mode to 3;
+   *                                          implies metadata synthesis
+   *                                          for symmetry.
+   */
+  bool synthesize_hdr10_metadata_enabled();
+
   extern int active_hevc_mode;
   extern int active_av1_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
