@@ -357,7 +357,8 @@ namespace egl {
   public:
     static std::optional<sws_t> make_nv12(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
     static std::optional<sws_t> make_yuv444(int in_width, int in_height, int out_width, int out_height, gl::tex_t &&tex);
-    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format);
+
+    static std::optional<sws_t> make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format, bool is_yuv444);
 
     // Convert the loaded image into the first two framebuffers
     int convert_nv12(gl::frame_buf_t &fb);
@@ -369,7 +370,7 @@ namespace egl {
     int draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444);
 
     // Make an area of the image black
-    int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format);
+    int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444);
 
     void load_ram(platf::img_t &img);
     void load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture, bool is_yuv444);
