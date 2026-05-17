@@ -3,7 +3,10 @@
  * @brief Definitions for macOS input handling.
  */
 // standard includes
+#include <algorithm>
 #include <chrono>
+#include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <thread>
 
@@ -30,6 +33,10 @@ constexpr std::chrono::milliseconds MULTICLICK_DELAY_MS(500);
 namespace platf {
   using namespace std::literals;
 
+  constexpr int WHEEL_DELTA = 120;
+  constexpr double DEFAULT_SCROLLWHEEL_SCALING = 0.3125;
+  constexpr int DEFAULT_SCROLL_LINES_PER_DETENT = 5;
+
   struct macos_input_t {
   public:
     CGDirectDisplayID display {};
@@ -42,6 +49,8 @@ namespace platf {
 
     // mouse related stuff
     CGEventRef mouse_event {};  // mouse event source
+    double scrollwheel_scaling {DEFAULT_SCROLLWHEEL_SCALING};
+    int scroll_lines_per_detent {DEFAULT_SCROLL_LINES_PER_DETENT};
     bool mouse_down[3] {};  // mouse button status
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
   };
@@ -485,20 +494,63 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->last_mouse_event[mac_button][release] = now;
   }
 
+  int get_scroll_lines_per_detent(double &scrollwheel_scaling) {
+    double scale = DEFAULT_SCROLLWHEEL_SCALING;
+    const auto value = CFPreferencesCopyValue(CFSTR("com.apple.scrollwheel.scaling"), kCFPreferencesAnyApplication, kCFPreferencesCurrentUser, kCFPreferencesAnyHost);
+    if (value) {
+      if (CFGetTypeID(value) == CFNumberGetTypeID()) {
+        CFNumberGetValue(static_cast<CFNumberRef>(value), kCFNumberDoubleType, &scale);
+      } else if (CFGetTypeID(value) == CFStringGetTypeID()) {
+        scale = CFStringGetDoubleValue(static_cast<CFStringRef>(value));
+      }
+      CFRelease(value);
+    }
+
+    if (!std::isfinite(scale)) {
+      scale = DEFAULT_SCROLLWHEEL_SCALING;
+    }
+
+    scrollwheel_scaling = scale;
+
+    // com.apple.scrollwheel.scaling stores the Mouse scroll speed slider position, not
+    // the scroll multiplier itself. The slider is 0..1 and Apple's default is 0.3125,
+    // so anchor 0 at one line per wheel detent and 0.3125 at five lines.
+    const auto scroll_scale = std::clamp(scale, 0.0, 1.0);
+    constexpr double lines_per_scroll_scale = (DEFAULT_SCROLL_LINES_PER_DETENT - 1.0) / DEFAULT_SCROLLWHEEL_SCALING;
+
+    return std::max(1, static_cast<int>(std::ceil(1.0 + scroll_scale * lines_per_scroll_scale)));
+  }
+
+  int scroll_pixels(const macos_input_t *macos_input, const int high_res_distance) {
+    const auto source_pixels_per_line = CGEventSourceGetPixelsPerLine(macos_input->source);
+    const auto pixels_per_line = source_pixels_per_line > 0 ? static_cast<int>(source_pixels_per_line + 0.5) : 10;
+    const auto scaled_pixels = static_cast<int64_t>(high_res_distance) * std::max(1, pixels_per_line) * std::max(1, macos_input->scroll_lines_per_detent);
+
+    return static_cast<int>(scaled_pixels / WHEEL_DELTA);
+  }
+
+  void post_scroll(input_t &input, const int wheelY, const int wheelX) {
+    if (wheelY == 0 && wheelX == 0) {
+      return;
+    }
+
+    const auto macos_input = static_cast<macos_input_t *>(input.get());
+    CGEventRef event = CGEventCreateScrollWheelEvent(macos_input->source, kCGScrollEventUnitPixel, 2, wheelY, wheelX);
+    if (!event) {
+      return;
+    }
+
+    CGEventSetIntegerValueField(event, kCGScrollWheelEventIsContinuous, 1);
+    CGEventPost(kCGHIDEventTap, event);
+    CFRelease(event);
+  }
+
   void scroll(input_t &input, const int high_res_distance) {
-    int wheelY = high_res_distance / 120;
-    int wheelX = 0;
-    CGEventRef upEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 2, wheelY, wheelX);
-    CGEventPost(kCGHIDEventTap, upEvent);
-    CFRelease(upEvent);
+    post_scroll(input, scroll_pixels(static_cast<macos_input_t *>(input.get()), high_res_distance), 0);
   }
 
   void hscroll(input_t &input, int high_res_distance) {
-    int wheelY = 0;
-    int wheelX = high_res_distance / 120;
-    CGEventRef upEvent = CGEventCreateScrollWheelEvent(nullptr, kCGScrollEventUnitLine, 2, wheelY, wheelX);
-    CGEventPost(kCGHIDEventTap, upEvent);
-    CFRelease(upEvent);
+    post_scroll(input, 0, scroll_pixels(static_cast<macos_input_t *>(input.get()), high_res_distance));
   }
 
   /**
@@ -592,6 +644,7 @@ const KeyCodeMap kKeyCodesMap[] = {
 
     macos_input->source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
     macos_input->keyboard_source = CGEventSourceCreate(kCGEventSourceStatePrivate);
+    macos_input->scroll_lines_per_detent = get_scroll_lines_per_detent(macos_input->scrollwheel_scaling);
 
     macos_input->kb_flags = 0;
 
@@ -600,6 +653,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     macos_input->mouse_down[1] = false;
     macos_input->mouse_down[2] = false;
 
+    BOOST_LOG(debug) << "macOS scroll speed: com.apple.scrollwheel.scaling="sv << macos_input->scrollwheel_scaling << ", lines per detent="sv << macos_input->scroll_lines_per_detent << ", pixels per line="sv << CGEventSourceGetPixelsPerLine(macos_input->source);
     BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimension: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
 
     return result;
