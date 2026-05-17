@@ -292,6 +292,13 @@ namespace cuda {
     return -1;
   }
 
+  struct cu_resources {
+    registered_resource_t y_res;
+    registered_resource_t u_res;
+    registered_resource_t v_res;
+    registered_resource_t uv_res;
+  };
+
   class gl_cuda_vram_t: public platf::avcodec_encode_device_t {
   public:
     /**
@@ -402,12 +409,12 @@ namespace cuda {
       cuda_ctx->stream = stream.get();
 
       if (is_yuv444) {
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res,yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&u_res,yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&v_res,yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res,yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.u_res,yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.v_res,yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
       } else {
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
       }
       return 0;
     }
@@ -447,7 +454,7 @@ namespace cuda {
         sws.convert_yuv444(yuv444->buf);
 
         // Map the GL textures to read for CUDA
-        std::array<CUgraphicsResource, 3> resources = {{y_res.get(), u_res.get(), v_res.get()}};
+        std::array<CUgraphicsResource, 3> resources = {{cu_res.y_res.get(), cu_res.u_res.get(), cu_res.v_res.get()}};
         CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
 
         // Copy from the GL textures to the target CUDA frame
@@ -473,7 +480,7 @@ namespace cuda {
         sws.convert_nv12(nv12->buf);
 
         // Map the GL textures to read for CUDA
-        std::array<CUgraphicsResource, 2> resources = {{y_res.get(), uv_res.get()}};
+        std::array<CUgraphicsResource, 2> resources = {{cu_res.y_res.get(), cu_res.uv_res.get()}};
         CU_CHECK(cdf->cuGraphicsMapResources(resources.size(), resources.data(), stream.get()), "Couldn't map GL textures in CUDA");
 
         // Copy from the GL textures to the target CUDA frame
@@ -525,10 +532,7 @@ namespace cuda {
     std::uint64_t sequence;
     egl::rgb_t rgb;
 
-    registered_resource_t y_res;
-    registered_resource_t u_res;
-    registered_resource_t v_res;
-    registered_resource_t uv_res;
+    cu_resources cu_res;
 
     int offset_x;
     int offset_y;
