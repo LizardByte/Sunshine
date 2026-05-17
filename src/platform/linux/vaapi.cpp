@@ -369,7 +369,7 @@ namespace va {
         return -1;
       }
 
-      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, hw_frames_ctx->sw_format);
+      auto sws_opt = egl::sws_t::make(width, height, frame->width, frame->height, hw_frames_ctx->sw_format, false);
       if (!sws_opt) {
         return -1;
       }

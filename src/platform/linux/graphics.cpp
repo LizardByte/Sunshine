@@ -1011,7 +1011,7 @@ namespace egl {
 
     auto color_p = video::color_vectors_from_colorspace({video::colorspace_e::rec601, false, 8}, true);
 
-    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), true);
+    int pipeline = configure_sws_pipeline(sws, color_p, std::move(tex), false);
     if (pipeline < 0) {
       return std::nullopt;
     }
@@ -1124,7 +1124,7 @@ namespace egl {
     return sws;
   }
 
-  int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, AVPixelFormat format) {
+  int sws_t::blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444) {
     auto f = [&]() {
       std::swap(offsetX_, this->offsetX);
       std::swap(offsetY_, this->offsetY);
@@ -1134,13 +1134,13 @@ namespace egl {
 
     f();
     auto fg = util::fail_guard(f);
-    if (format == AV_PIX_FMT_YUV444P) {
+    if (is_yuv444) {
       return convert_yuv444(fb);
     }
     return convert_nv12(fb);
   }
 
-  std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format) {
+  std::optional<sws_t> sws_t::make(int in_width, int in_height, int out_width, int out_height, AVPixelFormat format, bool is_yuv444) {
     GLint gl_format;
 
     // Decide the bit depth format of the backing texture based the target frame format
@@ -1171,7 +1171,7 @@ namespace egl {
     gl::ctx.BindTexture(GL_TEXTURE_2D, tex[0]);
     gl::ctx.TexStorage2D(GL_TEXTURE_2D, 1, gl_format, in_width, in_height);
 
-    if (format == AV_PIX_FMT_YUV444P) {
+    if (is_yuv444) {
       return make_yuv444(in_width, in_height, out_width, out_height, std::move(tex));
     }
     return make_nv12(in_width, in_height, out_width, out_height, std::move(tex));

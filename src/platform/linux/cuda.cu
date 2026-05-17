@@ -217,7 +217,7 @@ namespace cuda {
     dstY1[1] = calcY(rgb_rb, color_matrix) * 245.0f;  // 245.0f is a magic number to ensure slight changes in luminosity are more visible
   }
 
-  __global__ void RGBA_to_YUV444_packed(
+  __global__ void RGBA_to_YUV444(
     cudaTextureObject_t srcImage,
     std::uint8_t *dstY,
     std::uint8_t *dstU,
@@ -363,11 +363,11 @@ namespace cuda {
     return std::make_optional<sws_t>(in_width, in_height, out_width, out_height, pitch, props.maxThreadsPerMultiProcessor / props.maxBlocksPerMultiProcessor, std::move(ptr));
   }
 
-  int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream) {
-    return convert(Y, UV, pitchY, pitchUV, texture, stream, viewport);
+  int sws_t::convert_nv12(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream) {
+    return convert_nv12(Y, UV, pitchY, pitchUV, texture, stream, viewport);
   }
 
-  int sws_t::convert(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport) {
+  int sws_t::convert_nv12(std::uint8_t *Y, std::uint8_t *UV, std::uint32_t pitchY, std::uint32_t pitchUV, cudaTextureObject_t texture, stream_t::pointer stream, const viewport_t &viewport) {
     int threadsX = viewport.width / 2;
     int threadsY = viewport.height / 2;
 
@@ -392,12 +392,12 @@ namespace cuda {
     dim3 block(threadsPerBlock);
     dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-    RGBA_to_YUV444_packed<<<grid, block, 0, stream>>>(
+    RGBA_to_YUV444<<<grid, block, 0, stream>>>(
         texture, Y, U, V, pitch, scale, viewport,
         (cuda_color_t *) color_matrix.get()
     );
 
-    return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_YUV444_planar failed");
+    return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_YUV444 failed");
   }
 
   void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
