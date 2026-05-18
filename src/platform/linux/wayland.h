@@ -294,6 +294,7 @@ namespace wl {
     std::string name;  ///< xdg-output name used for display selection.
     std::string description;  ///< xdg-output description used for logs and UI.
     platf::touch_port_t viewport;  ///< Logical monitor bounds used to scale absolute input.
+    bool has_current_mode {false};  ///< Whether wl-output has reported its current pixel mode.
     wl_output_listener wl_listener;  ///< Callback table for wl-output events.
     zxdg_output_v1_listener xdg_listener;  ///< Callback table for xdg-output events.
   };
