@@ -18,8 +18,8 @@ jobs:
     env:
       APP_ID: dev.lizardbyte.app.Sunshine
       MATRIX_ARCH: ${{ matrix.arch }}
-      NODE_VERSION: "20"
-      PLATFORM_VERSION: "24.08"
+      NODE_VERSION: "24"
+      PLATFORM_VERSION: "25.08"
     permissions:
       contents: read
     runs-on: ${{ matrix.runner }}
