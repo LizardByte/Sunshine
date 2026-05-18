@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="auto">
+
+<head>
+  <%- header %>
+</head>
+
+<body id="app" v-cloak>
+  <Navbar></Navbar>
+  <div id="content" class="container">
+    <div class="d-flex justify-content-between align-items-center my-4">
+      <h1 class="mb-0">{{ $t('sessions.title') }}</h1>
+      <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="autoRefresh" v-model="autoRefresh" @change="toggleAutoRefresh">
+          <label class="form-check-label" for="autoRefresh">{{ $t('sessions.auto_refresh') }}</label>
+        </div>
+        <button class="btn btn-outline-primary" @click="fetchSessions" :disabled="loading">
+          <i class="fas fa-sync" :class="{ 'fa-spin': loading }"></i>
+          {{ $t('sessions.refresh') }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div v-if="loading && sessions.length === 0" class="text-center my-5">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+    </div>
+
+    <!-- No sessions -->
+    <div v-else-if="sessions.length === 0" class="alert alert-info my-4">
+      <i class="fas fa-info-circle me-2"></i>
+      {{ $t('sessions.no_sessions') }}
+    </div>
+
+    <!-- Sessions table -->
+    <div v-else class="card">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>{{ $t('sessions.client') }}</th>
+              <th>{{ $t('sessions.ip_address') }}</th>
+              <th>{{ $t('sessions.duration') }}</th>
+              <th>{{ $t('sessions.actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="session in sessions" :key="session.id">
+              <td>
+                <i class="fas fa-desktop me-2 text-primary"></i>
+                {{ session.client_name }}
+              </td>
+              <td>{{ session.ip_address }}</td>
+              <td>{{ formatDuration(session.duration_seconds) }}</td>
+              <td>
+                <button class="btn btn-danger btn-sm" @click="confirmDisconnect(session)">
+                  <i class="fas fa-plug-circle-xmark me-1"></i>
+                  {{ $t('sessions.disconnect') }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Success alert -->
+    <div v-if="successMessage" class="alert alert-success alert-dismissible fade show mt-3" role="alert">
+      <i class="fas fa-check-circle me-2"></i>
+      {{ successMessage }}
+      <button type="button" class="btn-close" @click="successMessage = null"></button>
+    </div>
+
+    <!-- Error alert -->
+    <div v-if="errorMessage" class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+      <i class="fas fa-exclamation-triangle me-2"></i>
+      {{ errorMessage }}
+      <button type="button" class="btn-close" @click="errorMessage = null"></button>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" ref="confirmModal">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">{{ $t('sessions.confirm_disconnect_title') }}</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <p>{{ $t('sessions.confirm_disconnect') }} <strong>{{ sessionToDisconnect?.client_name }}</strong>?</p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ $t('sessions.cancel') }}</button>
+            <button type="button" class="btn btn-danger" @click="disconnectSession" :disabled="disconnecting">
+              <span v-if="disconnecting" class="spinner-border spinner-border-sm me-1"></span>
+              {{ $t('sessions.disconnect') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+
+<script type="module">
+  import { createApp } from 'vue'
+  import { initApp } from './init'
+  import Navbar from './Navbar.vue'
+  import { Modal } from 'bootstrap/dist/js/bootstrap'
+
+  let app = createApp({
+    components: {
+      Navbar
+    },
+    data() {
+      return {
+        sessions: [],
+        loading: true,
+        autoRefresh: true,
+        refreshInterval: null,
+        sessionToDisconnect: null,
+        disconnecting: false,
+        successMessage: null,
+        errorMessage: null,
+        modal: null
+      }
+    },
+    async created() {
+      await this.fetchSessions();
+      this.startAutoRefresh();
+    },
+    beforeUnmount() {
+      this.stopAutoRefresh();
+    },
+    mounted() {
+      // Initialize Bootstrap modal
+      this.modal = new Modal(this.$refs.confirmModal);
+    },
+    methods: {
+      async fetchSessions() {
+        this.loading = true;
+        try {
+          const response = await fetch('./api/sessions');
+          const data = await response.json();
+          if (data.status) {
+            this.sessions = data.sessions || [];
+            this.errorMessage = null;  // Clear any previous error on success
+          } else {
+            this.errorMessage = 'Failed to fetch sessions';
+          }
+        } catch (e) {
+          console.error('Error fetching sessions:', e);
+          this.errorMessage = 'Error fetching sessions';
+        }
+        this.loading = false;
+      },
+      formatDuration(seconds) {
+        if (seconds < 60) {
+          return `${seconds}s`;
+        } else if (seconds < 3600) {
+          const mins = Math.floor(seconds / 60);
+          const secs = seconds % 60;
+          return `${mins}m ${secs}s`;
+        } else {
+          const hours = Math.floor(seconds / 3600);
+          const mins = Math.floor((seconds % 3600) / 60);
+          return `${hours}h ${mins}m`;
+        }
+      },
+      confirmDisconnect(session) {
+        this.sessionToDisconnect = session;
+        this.modal.show();
+      },
+      async disconnectSession() {
+        if (!this.sessionToDisconnect) return;
+
+        this.disconnecting = true;
+        try {
+          const response = await fetch('./api/sessions/disconnect', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ session_id: this.sessionToDisconnect.id })
+          });
+          const data = await response.json();
+
+          this.modal.hide();
+
+          if (data.status) {
+            this.successMessage = this.$t('sessions.disconnected');
+            await this.fetchSessions();
+          } else {
+            this.errorMessage = this.$t('sessions.disconnect_error');
+          }
+        } catch (e) {
+          console.error('Error disconnecting session:', e);
+          this.modal.hide();
+          this.errorMessage = this.$t('sessions.disconnect_error');
+        }
+        this.disconnecting = false;
+        this.sessionToDisconnect = null;
+
+        // Clear messages after 5 seconds
+        setTimeout(() => {
+          this.successMessage = null;
+          this.errorMessage = null;
+        }, 5000);
+      },
+      toggleAutoRefresh() {
+        if (this.autoRefresh) {
+          this.startAutoRefresh();
+        } else {
+          this.stopAutoRefresh();
+        }
+      },
+      startAutoRefresh() {
+        if (this.refreshInterval) {
+          clearInterval(this.refreshInterval);
+        }
+        this.refreshInterval = setInterval(() => {
+          this.fetchSessions();
+        }, 5000);
+      },
+      stopAutoRefresh() {
+        if (this.refreshInterval) {
+          clearInterval(this.refreshInterval);
+          this.refreshInterval = null;
+        }
+      }
+    }
+  });
+
+  initApp(app);
+</script>
