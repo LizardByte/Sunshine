@@ -13,10 +13,20 @@
       <p>{{ $t('apps.applications_desc') }}</p>
     </div>
 
-    <!-- Search toolbar -->
+    <!-- Actions toolbar -->
     <div class="apps-toolbar d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3"
          v-if="apps && apps.length > 0">
-      <!-- Freeform search box -->
+      <!-- Sort by name toggle -->
+      <button class="btn btn-outline-secondary" type="button" @click="toggleSort"
+              :class="{ active: sortMode !== 'default' }"
+              :aria-pressed="sortMode !== 'default'"
+              :title="$t('apps.sort_by_name') + ': ' + sortModeLabel">
+        <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1"></arrow-up-down>
+        <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1"></arrow-up>
+        <arrow-down v-else :size="16" class="icon me-1"></arrow-down>
+        {{ $t('apps.sort_by_name') }}
+      </button>
+      <!-- Search box -->
       <div class="input-group">
         <span class="input-group-text">
           <search :size="16" class="icon"></search>
@@ -506,7 +516,10 @@
   import { apiFetch } from './fetch_utils'
   import { Modal } from 'bootstrap/dist/js/bootstrap'
   import {
+    ArrowDown,
     ArrowRight,
+    ArrowUp,
+    ArrowUpDown,
     Check,
     Edit,
     FileText,
@@ -530,7 +543,10 @@
     components: {
       Navbar,
       Checkbox,
+      ArrowDown,
       ArrowRight,
+      ArrowUp,
+      ArrowUpDown,
       Check,
       Edit,
       FileText,
@@ -552,7 +568,6 @@
     data() {
       return {
         apps: [],
-        searchQuery: "",
         showEditForm: false,
         editForm: null,
         detachedCmd: "",
@@ -571,6 +586,8 @@
         fileBrowserError: "",
         fileBrowserSelectedPath: "",
         fileBrowserTypedPath: "",
+        searchQuery: "",
+        sortMode: "default",
       };
     },
     computed: {
@@ -584,7 +601,28 @@
           );
         }
 
+        if (this.sortMode !== "default") {
+          list.sort((a, b) => {
+            const result = (a.app.name || "").localeCompare(
+              b.app.name || "", undefined, { sensitivity: "base" }
+            );
+            return this.sortMode === "asc" 
+              ? result 
+              : -result;
+          });
+        }
+
         return list;
+      },
+      sortModeLabel() {
+        switch (this.sortMode) {
+          case "asc":
+            return this.$t("apps.sort_ascending");
+          case "desc":
+            return this.$t("apps.sort_descending");
+          default:
+            return this.$t("apps.sort_default");
+        }
       },
     },
     created() {
@@ -866,7 +904,15 @@
       },
       resetSearchQuery() {
         this.searchQuery = "";
-      }
+      },
+      toggleSort() {
+        if (this.sortMode === "default") 
+          this.sortMode = "asc";
+        else if (this.sortMode === "asc") 
+          this.sortMode = "desc";
+        else 
+          this.sortMode = "default";
+      },
     },
   });
 
