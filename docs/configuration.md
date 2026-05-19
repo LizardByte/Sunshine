@@ -1753,6 +1753,67 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### packetsize
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Limit the packetsize to avoid fragmentation on a low MTU link.
+            @note{This helps avoid packet loss and micro-stutter on a layer 2 VPN with
+            clients that cannot configure this value, e.g. Moonlight for Android/iOS.
+            }
+            @tip{To discover the optimal value:
+            <ul>
+                <li>Send ping to the server with don't fragment flag (DF)</li>
+                <li>Find the size of the largest replay, and subtract 16</li>
+                <li>Monitor the traffic to ensure no fragmentation</li>
+            </ul>
+            If using a VPN tunnel:
+            <ul>
+                <li>Set MTU on the TUN/TAP interface, and</li>
+                <li>Ensure no fragmentation both inside and outside the tunnel</li>
+                <li>Max UDP size = MTU size - 28</li>
+                <li>`packetsize` = max UDP size - 16</li>
+                <li>Monitor the traffic to ensure no fragmentation</li>
+            </ul>
+            Sample calculation for OpenVPN layer 2, using IPv4:
+            <ul>
+                <li>1428 bytes for max ICMP/UDP size outside the tunnel</li>
+                <li>Subtract the OpenVPN overhead: 24 bytes (may vary)</li>
+                <li>1404 bytes for Ethernet inside the tunnel</li>
+                <li>Subtract the Ethernet header: 14 bytes</li>
+                <li>1390 bytes for MTU inside the tunnel</li>
+                <li>Subtract the IPv4 header: 20 bytes</li>
+                <li>Subtract the UDP header: 8 bytes</li>
+                <li>1362 bytes for UDP payload</li>
+                <li>Subtract: 16 bytes</li>
+                <li>1346 bytes for `packetsize`</li>
+            </ul>
+            }
+            @warning{Reduce the bitrate when using low values.
+            Values larger than 1456 require jumbo frames.
+            }
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Range</td>
+        <td colspan="2">0, 200-65535</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            packetsize = 1346
+            @endcode</td>
+    </tr>
+</table>
+
 ## Config Files
 
 ### file_apps
