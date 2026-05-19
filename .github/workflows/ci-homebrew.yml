@@ -161,14 +161,6 @@ jobs:
           # testing
           cat ./homebrew/sunshine.rb
 
-      - name: Upload Artifacts
-        if: matrix.release
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: build-Homebrew
-          path: homebrew/
-          if-no-files-found: error
-
       - name: Setup Xvfb
         if: matrix.release != true && runner.os == 'Linux'
         run: |
@@ -210,6 +202,25 @@ jobs:
           if-no-files-found: error
 
       - name: Patch homebrew formula
+        # remove version from formula as it's not necessary for release versions
+        # don't run this on macOS, as the sed command fails
+        if: matrix.release
+        run: |
+          # variables
+          formula_file="homebrew/sunshine.rb"
+
+          # remove the formula version
+          sed -i '/^  version .*$/d' $formula_file
+
+      - name: Upload Artifacts
+        if: matrix.release
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: build-Homebrew
+          path: homebrew/
+          if-no-files-found: error
+
+      - name: Patch homebrew formula (Beta)
         # create beta version of the formula
         # don't run this on macOS, as the sed command fails
         if: matrix.release
@@ -223,7 +234,6 @@ jobs:
           # update the formula
           sed -i 's/class Sunshine < Formula/class SunshineBeta < Formula/' $formula_file
           sed -i 's/conflicts_with "sunshine-beta"/conflicts_with "sunshine"/' $formula_file
-          sed -i '/^  version .*$/d' $formula_file
 
           # update livecheck to check for latest stable or pre-release
           # shellcheck disable=SC1004
@@ -238,10 +248,6 @@ jobs:
                   match[1]\
                 end\
               end' $formula_file
-
-          # print new file
-          echo "New formula:"
-          cat $formula_file
 
       - name: Upload Artifacts (Beta)
         if: matrix.release

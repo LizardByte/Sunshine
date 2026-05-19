@@ -28,7 +28,6 @@ to be created before making a stable release. Below are the instructions for con
 
        - LizardByte Discord
        - r/LizardByte subreddit
-       - Twitter
        - Facebook
 
    - Update changelog in [changelog](https://github.com/LizardByte/Sunshine/tree/changelog) branch
@@ -42,3 +41,5 @@ to be created before making a stable release. Below are the instructions for con
      via a PR (we DO NOT have merge control)
    - Build the new version in [stable copr repo](https://copr.fedorainfracloud.org/coprs/lizardbyte/stable/)
    - Send release notification to Moonlight Discord server
+
+6. X (Twitter) API is no longer free, so we must manually post the release there.

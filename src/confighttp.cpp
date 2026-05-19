@@ -882,7 +882,10 @@ namespace confighttp {
       output_tree["status"] = nvhttp::set_client_enabled(uuid, enabled);
 
       if (!enabled && output_tree["status"]) {
-        rtsp_stream::terminate_sessions();
+        auto cert = nvhttp::get_cert_by_uuid(uuid);
+        if (!cert.empty()) {
+          rtsp_stream::terminate_sessions_by_cert(cert);
+        }
 
         if (rtsp_stream::session_count() == 0 && proc::proc.running() > 0) {
           proc::proc.terminate();

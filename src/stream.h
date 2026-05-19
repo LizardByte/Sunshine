@@ -51,5 +51,6 @@ namespace stream {
     void stop(session_t &session);
     void join(session_t &session);
     state_e state(session_t &session);
+    const std::string &client_cert(session_t &session);
   }  // namespace session
 }  // namespace stream

@@ -10,11 +10,11 @@
   "type": "module",
   "dependencies": {
     "bootstrap": "5.3.8",
-    "date-fns": "4.1.0",
+    "date-fns": "4.2.1",
     "lucide-vue-next": "1.0.0",
-    "marked": "18.0.3",
+    "marked": "18.0.4",
     "vue": "3.5.34",
-    "vue-i18n": "11.4.2",
+    "vue-i18n": "11.4.4",
     "vue3-simple-icons": "16.10.0"
   },
   "devDependencies": {
