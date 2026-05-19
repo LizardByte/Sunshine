@@ -602,10 +602,12 @@
         }
 
         if (this.sortMode !== "default") {
+          // Apps can be created without a name, so we compare name || ""
           list.sort((a, b) => {
             const result = (a.app.name || "").localeCompare(
               b.app.name || "", undefined, { sensitivity: "base" }
             );
+            // localeCompare returns 0 if the strings are equal, a negative value if a < b, and a positive value if a > b
             return this.sortMode === "asc" 
               ? result 
               : -result;
@@ -906,6 +908,7 @@
         this.searchQuery = "";
       },
       toggleSort() {
+        // Sorting goes default -> ascending -> descending -> default
         if (this.sortMode === "default") 
           this.sortMode = "asc";
         else if (this.sortMode === "asc") 
