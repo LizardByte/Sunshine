@@ -656,10 +656,7 @@ namespace egl {
   const float uv_black[] = {0.5f, 0.5f, 0.5f, 0.5f};
 
   void nv12_bind_framebuffers(nv12_t &nv12) {
-    constexpr std::array<GLenum, 2> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1
-    }};
+    constexpr std::array<GLenum, 2> attachments {{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1}};
 
     for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, nv12->buf[x]);
@@ -673,12 +670,7 @@ namespace egl {
   }
 
   void yuv44_bind_framebuffers(yuv444_t &yuv444) {
-
-    constexpr std::array<GLenum, 3> attachments {{
-      GL_COLOR_ATTACHMENT0,
-      GL_COLOR_ATTACHMENT1,
-      GL_COLOR_ATTACHMENT2
-    }};
+    constexpr std::array<GLenum, 3> attachments {{GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2}};
 
     for (size_t x = 0; x < attachments.size(); ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, yuv444->buf[x]);
@@ -730,7 +722,10 @@ namespace egl {
   std::optional<yuv444_t> import_target_yuv444(
     display_t::pointer egl_display,
     std::array<file_t, yuv444_img_t::num_fds> &&fds,
-    const surface_descriptor_t &y, const surface_descriptor_t &u, const surface_descriptor_t &v) {
+    const surface_descriptor_t &y,
+    const surface_descriptor_t &u,
+    const surface_descriptor_t &v
+  ) {
     auto y_attribs = surface_descriptor_to_egl_attribs(y);
     auto u_attribs = surface_descriptor_to_egl_attribs(u);
     auto v_attribs = surface_descriptor_to_egl_attribs(v);
@@ -817,7 +812,6 @@ namespace egl {
   }
 
   std::optional<yuv444_t> create_yuv444_target(int width, int height, AVPixelFormat format) {
-
     yuv444_t yuv444 {
       EGL_NO_DISPLAY,
       EGL_NO_IMAGE,
@@ -939,7 +933,7 @@ namespace egl {
     auto width_i = 1.0f / sws.out_width;
 
     {
-      constexpr std::array<const char*, 5> sources {{
+      constexpr std::array<const char *, 5> sources {{
         SUNSHINE_SHADERS_DIR "/ConvertUV.frag",
         SUNSHINE_SHADERS_DIR "/ConvertUV.vert",
         SUNSHINE_SHADERS_DIR "/ConvertY.frag",
@@ -1043,7 +1037,7 @@ namespace egl {
     sws.offsetY = offsetY_f;
 
     {
-      constexpr std::array<const char*, 5> sources {{
+      constexpr std::array<const char *, 5> sources {{
         SUNSHINE_SHADERS_DIR "/Scene.vert",
         SUNSHINE_SHADERS_DIR "/ConvertV.frag",
         SUNSHINE_SHADERS_DIR "/ConvertU.frag",
@@ -1246,7 +1240,7 @@ namespace egl {
     }
   }
 
-  int sws_t::draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444) {
+  int sws_t::draw_programs_to_buffers(GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444) {
     for (int x = 0; x < count; ++x) {
       gl::ctx.BindFramebuffer(GL_FRAMEBUFFER, fb[x]);
       gl::ctx.DrawBuffers(1, &attachments[x]);
@@ -1262,7 +1256,7 @@ namespace egl {
       int sizeCoef = is_yuv444 ? 1 : x + 1;
 
       gl::ctx.UseProgram(program[x].handle());
-      gl::ctx.Viewport(offsetX/sizeCoef, offsetY/sizeCoef, out_width/sizeCoef, out_height/sizeCoef);
+      gl::ctx.Viewport(offsetX / sizeCoef, offsetY / sizeCoef, out_width / sizeCoef, out_height / sizeCoef);
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
     }
     return 0;

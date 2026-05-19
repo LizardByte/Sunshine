@@ -1633,7 +1633,6 @@ namespace video {
     }
 
     if (config.chromaSamplingType == 1) {
-
       if (!video_format[encoder_t::YUV444]) {
         BOOST_LOG(error) << video_format.name << ": YUV 4:4:4 not supported"sv;
         return nullptr;
@@ -1645,12 +1644,10 @@ namespace video {
       }
 
     } else {
-
       if (config.dynamicRange && !video_format[encoder_t::DYNAMIC_RANGE]) {
         BOOST_LOG(error) << video_format.name << ": dynamic range not supported"sv;
         return nullptr;
       }
-
     }
 
     auto codec = avcodec_find_encoder_by_name(video_format.name.c_str());
@@ -3044,20 +3041,28 @@ namespace video {
       active_hevc_mode = 1;
       if (encoder.hevc[encoder_t::PASSED]) {
         active_hevc_mode = 2;
-        if (encoder.hevc[encoder_t::DYNAMIC_RANGE]) active_hevc_mode += 1;
-        if (encoder.hevc[encoder_t::DYNAMIC_RANGE_YUV444]) active_hevc_mode += 2;
+        if (encoder.hevc[encoder_t::DYNAMIC_RANGE]) {
+          active_hevc_mode += 1;
+        }
+        if (encoder.hevc[encoder_t::DYNAMIC_RANGE_YUV444]) {
+          active_hevc_mode += 2;
+        }
       }
-      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_HEVC_MODE: "sv<<active_hevc_mode;
+      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_HEVC_MODE: "sv << active_hevc_mode;
     }
 
     if (active_av1_mode == 0) {
       active_av1_mode = 1;
       if (encoder.av1[encoder_t::PASSED]) {
         active_av1_mode = 2;
-        if (encoder.av1[encoder_t::DYNAMIC_RANGE]) active_av1_mode += 1;
-        if (encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444]) active_av1_mode += 2;
+        if (encoder.av1[encoder_t::DYNAMIC_RANGE]) {
+          active_av1_mode += 1;
+        }
+        if (encoder.av1[encoder_t::DYNAMIC_RANGE_YUV444]) {
+          active_av1_mode += 2;
+        }
       }
-      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_AV1_MODE: "sv<<active_av1_mode;
+      BOOST_LOG(debug) << "ENCODER STATUS ACTIVE_AV1_MODE: "sv << active_av1_mode;
     }
 
     return 0;

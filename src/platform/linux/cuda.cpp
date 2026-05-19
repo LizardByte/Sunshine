@@ -122,7 +122,7 @@ namespace cuda {
       auto hwframe_ctx = (AVHWFramesContext *) hw_frames_ctx->data;
 
       if (hwframe_ctx->sw_format != AV_PIX_FMT_NV12 &&
-        hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+          hwframe_ctx->sw_format != AV_PIX_FMT_YUV444P) {
         BOOST_LOG(error) << "cuda::cuda_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
@@ -210,7 +210,6 @@ namespace cuda {
   class cuda_ram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
-
       if (is_yuv444) {
         return sws.load_ram(img, tex.array) || sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(tex), stream.get());
       }
@@ -238,7 +237,6 @@ namespace cuda {
   class cuda_vram_t: public cuda_t {
   public:
     int convert(platf::img_t &img) override {
-
       if (is_yuv444) {
         return sws.convert_yuv444(frame->data[0], frame->data[1], frame->data[2], frame->linesize[0], tex_obj(((img_t *) &img)->tex), stream.get());
       }
@@ -363,7 +361,7 @@ namespace cuda {
       auto hw_frames_ctx = (AVHWFramesContext *) hw_frames_ctx_buf->data;
 
       if (hw_frames_ctx->sw_format != AV_PIX_FMT_NV12 &&
-        hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P) {
+          hw_frames_ctx->sw_format != AV_PIX_FMT_YUV444P) {
         BOOST_LOG(error) << "cuda::gl_cuda_vram_t doesn't support any format other than AV_PIX_FMT_NV12 and AV_PIX_FMT_YUV444P"sv;
         return -1;
       }
@@ -409,9 +407,9 @@ namespace cuda {
       cuda_ctx->stream = stream.get();
 
       if (is_yuv444) {
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res,yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.u_res,yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
-        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.v_res,yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, yuv444->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.u_res, yuv444->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register U texture");
+        CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.v_res, yuv444->tex[2], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register V texture");
       } else {
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.y_res, nv12->tex[0], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register Y plane texture");
         CU_CHECK(cdf->cuGraphicsGLRegisterImage(&cu_res.uv_res, nv12->tex[1], GL_TEXTURE_2D, CU_GRAPHICS_REGISTER_FLAGS_READ_ONLY), "Couldn't register UV plane texture");
@@ -447,9 +445,8 @@ namespace cuda {
       auto fmt_desc = av_pix_fmt_desc_get(sw_format);
 
       sws.load_vram(descriptor, offset_x, offset_y, rgb->tex[0], is_yuv444);
-      
-       if (is_yuv444) {
 
+      if (is_yuv444) {
         // Perform the color conversion and scaling in GL
         sws.convert_yuv444(yuv444->buf);
 
@@ -475,7 +472,6 @@ namespace cuda {
         CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
 
       } else {
-
         // Perform the color conversion and scaling in GL
         sws.convert_nv12(nv12->buf);
 
@@ -499,9 +495,8 @@ namespace cuda {
         }
         // Unmap the textures to allow modification from GL again
         CU_CHECK(cdf->cuGraphicsUnmapResources(resources.size(), resources.data(), stream.get()), "Couldn't unmap GL textures from CUDA");
-
       }
-      
+
       return 0;
     }
 
