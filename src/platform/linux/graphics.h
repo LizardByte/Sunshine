@@ -242,16 +242,16 @@ namespace egl {
 
   KITTY_USING_MOVE_T(yuv444_t, yuv444_img_t, , {
     if (el.r8) {
-       eglDestroyImage(el.display, el.r8);
-     }
+      eglDestroyImage(el.display, el.r8);
+    }
 
-     if (el.g8) {
-       eglDestroyImage(el.display, el.g8);
-     }
+    if (el.g8) {
+      eglDestroyImage(el.display, el.g8);
+    }
 
-     if (el.b8) {
-       eglDestroyImage(el.display, el.b8);
-     }
+    if (el.b8) {
+      eglDestroyImage(el.display, el.b8);
+    }
   });
 
   KITTY_USING_MOVE_T(ctx_t, (std::tuple<display_t::pointer, EGLContext>), , {
@@ -367,7 +367,7 @@ namespace egl {
     int convert_yuv444(gl::frame_buf_t &fb);
 
     // Draw loaded image by programs to frame buffers
-    int draw_programs_to_buffers (GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444);
+    int draw_programs_to_buffers(GLenum attachments[], gl::frame_buf_t &fb, int count, bool is_yuv444);
 
     // Make an area of the image black
     int blank(gl::frame_buf_t &fb, int offsetX_, int offsetY_, int width, int height, bool is_yuv444);
