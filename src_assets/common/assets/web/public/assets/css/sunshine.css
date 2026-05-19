@@ -1712,6 +1712,14 @@ p {
     align-items: center;
 }
 
+.apps-toolbar .input-group {
+    max-width: 18rem;
+}
+
+.apps-toolbar .btn-outline-secondary {
+    border: 1px solid var(--color-border);
+}
+
 /* ==========================================================================
    Featured Apps Page Styles
    ========================================================================== */

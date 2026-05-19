@@ -13,14 +13,29 @@
       <p>{{ $t('apps.applications_desc') }}</p>
     </div>
 
+    <!-- Search toolbar -->
+    <div class="apps-toolbar d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3"
+         v-if="apps && apps.length > 0">
+      <!-- Freeform search box -->
+      <div class="input-group">
+        <span class="input-group-text">
+          <search :size="16" class="icon"></search>
+        </span>
+        <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+        <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
+          <x :size="16" class="icon"></x>
+        </button>
+      </div>
+    </div>
+
     <!-- Apps Grid -->
-    <div class="row g-3" v-if="apps && apps.length > 0">
-      <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="(app,i) in apps" :key="i">
+    <div class="row g-3" v-if="displayedApps.length > 0">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="{ app, index } in displayedApps" :key="index">
         <div class="card app-card h-100">
           <div class="app-poster-container">
             <img
               v-if="app['image-path']"
-              :src="'/api/covers/' + i"
+              :src="'/api/covers/' + index"
               class="app-poster"
               :alt="app.name"
               @error="handleImageError"
@@ -42,16 +57,23 @@
               </div>
             </div>
             <div class="mt-auto d-flex gap-2">
-              <button class="btn btn-sm btn-primary flex-fill" @click="editApp(i)">
+              <button class="btn btn-sm btn-primary flex-fill" @click="editApp(index)">
                 <edit :size="16" class="icon"></edit>
                 {{ $t('apps.edit') }}
               </button>
-              <button class="btn btn-sm btn-danger" @click="showDeleteForm(i)">
+              <button class="btn btn-sm btn-danger" @click="showDeleteForm(index)">
                 <trash-2 :size="16" class="icon"></trash-2>
               </button>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- No search results -->
+    <div v-else-if="apps && apps.length > 0" class="card">
+      <div class="card-body text-center py-5">
+        <p class="text-muted">{{ $t('apps.no_search_results') }}</p>
       </div>
     </div>
 
@@ -530,6 +552,7 @@
     data() {
       return {
         apps: [],
+        searchQuery: "",
         showEditForm: false,
         editForm: null,
         detachedCmd: "",
@@ -549,6 +572,20 @@
         fileBrowserSelectedPath: "",
         fileBrowserTypedPath: "",
       };
+    },
+    computed: {
+      displayedApps() {
+        let list = this.apps.map((app, index) => ({ app, index }));
+
+        const query = this.searchQuery.trim().toLowerCase();
+        if (query) {
+          list = list.filter(({ app }) =>
+            (app.name || "").toLowerCase().includes(query)
+          );
+        }
+
+        return list;
+      },
     },
     created() {
       fetch("./api/apps")
@@ -826,6 +863,9 @@
         if (placeholder && placeholder.classList.contains('app-poster-placeholder')) {
           placeholder.style.display = 'flex';
         }
+      },
+      resetSearchQuery() {
+        this.searchQuery = "";
       }
     },
   });
