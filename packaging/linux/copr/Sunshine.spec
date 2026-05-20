@@ -30,6 +30,7 @@ BuildRequires: libcap-devel
 BuildRequires: libcurl-devel
 BuildRequires: libdrm-devel
 BuildRequires: libevdev-devel
+BuildRequires: libnotify-devel >= 0.8.0
 BuildRequires: libva-devel
 BuildRequires: libX11-devel
 BuildRequires: libxcb-devel
@@ -152,6 +153,7 @@ BuildRequires: libqt6-qtsvg-devel
 %global cuda_dir %{_builddir}/cuda
 
 # Common runtime requirements
+Requires: libnotify >= 0.8.0
 Requires: miniupnpc >= 2.2.4
 Requires: which >= 2.21
 
@@ -191,12 +193,10 @@ Requires: libvulkan1
 %endif
 %if 0%{?suse_version} <= 1699
 # OpenSUSE Leap: built with Qt5
-Requires: libQt5DBus5
 Requires: libQt5Svg5
 Requires: libQt5Widgets5
 %else
 # OpenSUSE Tumbleweed: built with Qt6
-Requires: libQt6DBus6
 Requires: libQt6Svg6
 Requires: libQt6Widgets6
 %endif

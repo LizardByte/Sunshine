@@ -283,6 +283,7 @@ function add_arch_deps() {
     'libdrm'
     'libevdev'
     'libmfx'
+    'libnotify'
     'libpulse'
     'libva'
     'libx11'
@@ -343,6 +344,7 @@ function add_debian_based_deps() {
     "libevdev-dev"
     "libgbm-dev"
     "libminiupnpc-dev"
+    "libnotify-dev"
     "libnuma-dev"
     "libopus-dev"
     "libpipewire-0.3-dev"
@@ -448,6 +450,7 @@ function add_fedora_deps() {
     "libcurl-devel"
     "libdrm-devel"
     "libevdev-devel"
+    "libnotify-devel"
     "libX11-devel"  # X11
     "libxcb-devel"  # X11
     "libXcursor-devel"  # X11

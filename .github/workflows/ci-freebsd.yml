@@ -106,6 +106,7 @@ jobs:
               devel/evdev-proto \
               devel/git \
               devel/libevdev \
+              devel/libnotify \
               devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
               devel/ninja \
               devel/pkgconf \

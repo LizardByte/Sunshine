@@ -74,6 +74,7 @@ class Sunshine < Formula
     depends_on "libcap"
     depends_on "libdrm"
     depends_on "libice"
+    depends_on "libnotify"
     depends_on "libsm"
     depends_on "libva"
     depends_on "libx11"

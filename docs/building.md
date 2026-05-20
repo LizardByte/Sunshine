@@ -27,6 +27,7 @@ pkg install -y \
   devel/evdev-proto \
   devel/git \
   devel/libevdev \
+  devel/libnotify \
   devel/ninja \
   devel/pkgconf \
   devel/qt6-base \
