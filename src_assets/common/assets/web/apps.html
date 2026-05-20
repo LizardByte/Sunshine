@@ -629,9 +629,9 @@
       appCountLabel() {
         const total = this.apps.length;
         const shown = this.displayedApps.length;
-        return shown !== total 
-          ? `${shown} / ${total}` 
-          : `${total}`;
+        return shown === total
+          ? `${total}`
+          : `${shown} / ${total}`;
       },
     },
     created() {
