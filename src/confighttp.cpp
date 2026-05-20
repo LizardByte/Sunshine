@@ -1486,8 +1486,8 @@ namespace confighttp {
     nlohmann::json output_tree;
 
 #ifdef _WIN32
-    // Get the path to the vigembus installer
-    const std::filesystem::path installer_path = platf::appdata().parent_path() / "scripts" / "vigembus_installer.exe";
+    // Get the path to the packaged ViGEmBus installer.
+    const std::filesystem::path installer_path = platf::appdata().parent_path() / "third-party" / "vigembus_installer.exe";
 
     if (!std::filesystem::exists(installer_path)) {
       output_tree["status"] = false;
