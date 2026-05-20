@@ -608,8 +608,8 @@
               b.app.name || "", undefined, { sensitivity: "base" }
             );
             // localeCompare returns 0 if the strings are equal, a negative value if a < b, and a positive value if a > b
-            return this.sortMode === "asc" 
-              ? result 
+            return this.sortMode === "asc"
+              ? result
               : -result;
           });
         }
@@ -916,11 +916,11 @@
       },
       toggleSort() {
         // Sorting goes default -> ascending -> descending -> default
-        if (this.sortMode === "default") 
+        if (this.sortMode === "default")
           this.sortMode = "asc";
-        else if (this.sortMode === "asc") 
+        else if (this.sortMode === "asc")
           this.sortMode = "desc";
-        else 
+        else
           this.sortMode = "default";
       },
     },
