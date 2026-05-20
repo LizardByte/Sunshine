@@ -9,7 +9,7 @@
   <Navbar></Navbar>
   <div class="container">
     <div class="my-4">
-      <h1>{{ $t('apps.applications_title') }}</h1>
+      <h1>{{ $t('apps.applications_title') }}<span v-if="apps.length"> ({{ appCountLabel }})</span></h1>
       <p>{{ $t('apps.applications_desc') }}</p>
     </div>
 
@@ -625,6 +625,13 @@
           default:
             return this.$t("apps.sort_default");
         }
+      },
+      appCountLabel() {
+        const total = this.apps.length;
+        const shown = this.displayedApps.length;
+        return shown !== total 
+          ? `${shown} / ${total}` 
+          : `${total}`;
       },
     },
     created() {
