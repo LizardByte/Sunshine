@@ -173,6 +173,13 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>
     </div>
 
+    <!-- Packet Size Limit -->
+    <div class="mb-3">
+      <label for="packetsize" class="form-label">{{ $t('config.packetsize') }}</label>
+      <input type="number" min="0" max="65535" class="form-control" id="packetsize" placeholder="0" v-model="config.packetsize" />
+      <div class="form-text">{{ $t('config.packetsize_desc') }}</div>
+    </div>
+
   </div>
 </template>
 
