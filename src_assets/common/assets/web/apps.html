@@ -9,18 +9,43 @@
   <Navbar></Navbar>
   <div class="container">
     <div class="my-4">
-      <h1>{{ $t('apps.applications_title') }}</h1>
+      <h1>{{ $t('apps.applications_title') }}<span v-if="apps.length"> ({{ appCountLabel }})</span></h1>
       <p>{{ $t('apps.applications_desc') }}</p>
     </div>
 
+    <!-- Actions toolbar -->
+    <div class="apps-toolbar d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3"
+         v-if="apps && apps.length > 0">
+      <!-- Sort by name toggle -->
+      <button class="btn btn-outline-secondary" type="button" @click="toggleSort"
+              :class="{ active: sortMode !== 'default' }"
+              :aria-pressed="sortMode !== 'default'"
+              :title="$t('apps.sort_by_name') + ': ' + sortModeLabel">
+        <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1"></arrow-up-down>
+        <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1"></arrow-up>
+        <arrow-down v-else :size="16" class="icon me-1"></arrow-down>
+        {{ $t('apps.sort_by_name') }}
+      </button>
+      <!-- Search box -->
+      <div class="input-group">
+        <span class="input-group-text">
+          <search :size="16" class="icon"></search>
+        </span>
+        <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+        <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
+          <x :size="16" class="icon"></x>
+        </button>
+      </div>
+    </div>
+
     <!-- Apps Grid -->
-    <div class="row g-3" v-if="apps && apps.length > 0">
-      <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="(app,i) in apps" :key="i">
+    <div class="row g-3" v-if="displayedApps.length > 0">
+      <div class="col-12 col-sm-6 col-md-4 col-lg-3" v-for="{ app, index } in displayedApps" :key="index">
         <div class="card app-card h-100">
           <div class="app-poster-container">
             <img
               v-if="app['image-path']"
-              :src="'/api/covers/' + i"
+              :src="'/api/covers/' + index"
               class="app-poster"
               :alt="app.name"
               @error="handleImageError"
@@ -42,16 +67,23 @@
               </div>
             </div>
             <div class="mt-auto d-flex gap-2">
-              <button class="btn btn-sm btn-primary flex-fill" @click="editApp(i)">
+              <button class="btn btn-sm btn-primary flex-fill" @click="editApp(index)">
                 <edit :size="16" class="icon"></edit>
                 {{ $t('apps.edit') }}
               </button>
-              <button class="btn btn-sm btn-danger" @click="showDeleteForm(i)">
+              <button class="btn btn-sm btn-danger" @click="showDeleteForm(index)">
                 <trash-2 :size="16" class="icon"></trash-2>
               </button>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- No search results -->
+    <div v-else-if="apps && apps.length > 0" class="card">
+      <div class="card-body text-center py-5">
+        <p class="text-muted">{{ $t('apps.no_search_results') }}</p>
       </div>
     </div>
 
@@ -484,7 +516,10 @@
   import { apiFetch } from './fetch_utils'
   import { Modal } from 'bootstrap/dist/js/bootstrap'
   import {
+    ArrowDown,
     ArrowRight,
+    ArrowUp,
+    ArrowUpDown,
     Check,
     Edit,
     FileText,
@@ -508,7 +543,10 @@
     components: {
       Navbar,
       Checkbox,
+      ArrowDown,
       ArrowRight,
+      ArrowUp,
+      ArrowUpDown,
       Check,
       Edit,
       FileText,
@@ -548,7 +586,53 @@
         fileBrowserError: "",
         fileBrowserSelectedPath: "",
         fileBrowserTypedPath: "",
+        searchQuery: "",
+        sortMode: "default",
       };
+    },
+    computed: {
+      displayedApps() {
+        let list = this.apps.map((app, index) => ({ app, index }));
+
+        const query = this.searchQuery.trim().toLowerCase();
+        if (query) {
+          list = list.filter(({ app }) =>
+            (app.name || "").toLowerCase().includes(query)
+          );
+        }
+
+        if (this.sortMode !== "default") {
+          // Apps can be created without a name, so we compare name || ""
+          list.sort((a, b) => {
+            const result = (a.app.name || "").localeCompare(
+              b.app.name || "", undefined, { sensitivity: "base" }
+            );
+            // localeCompare returns 0 if the strings are equal, a negative value if a < b, and a positive value if a > b
+            return this.sortMode === "asc"
+              ? result
+              : -result;
+          });
+        }
+
+        return list;
+      },
+      sortModeLabel() {
+        switch (this.sortMode) {
+          case "asc":
+            return this.$t("apps.sort_ascending");
+          case "desc":
+            return this.$t("apps.sort_descending");
+          default:
+            return this.$t("apps.sort_default");
+        }
+      },
+      appCountLabel() {
+        const total = this.apps.length;
+        const shown = this.displayedApps.length;
+        return shown === total
+          ? `${total}`
+          : `${shown} / ${total}`;
+      },
     },
     created() {
       fetch("./api/apps")
@@ -826,7 +910,19 @@
         if (placeholder && placeholder.classList.contains('app-poster-placeholder')) {
           placeholder.style.display = 'flex';
         }
-      }
+      },
+      resetSearchQuery() {
+        this.searchQuery = "";
+      },
+      toggleSort() {
+        // Sorting goes default -> ascending -> descending -> default
+        if (this.sortMode === "default")
+          this.sortMode = "asc";
+        else if (this.sortMode === "asc")
+          this.sortMode = "desc";
+        else
+          this.sortMode = "default";
+      },
     },
   });
 
