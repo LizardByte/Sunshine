@@ -1713,7 +1713,8 @@ p {
 }
 
 .apps-toolbar .input-group {
-    max-width: 18rem;
+    width: 15rem;
+    max-width: 100%;
 }
 
 .apps-toolbar .btn-outline-secondary {
