@@ -14,27 +14,37 @@
     </div>
 
     <!-- Actions toolbar -->
-    <div class="apps-toolbar d-flex flex-wrap justify-content-end align-items-center gap-2 mb-3"
-         v-if="apps && apps.length > 0">
-      <!-- Sort by name toggle -->
-      <button class="btn btn-outline-secondary" type="button" @click="toggleSort"
-              :class="{ active: sortMode !== 'default' }"
-              :aria-pressed="sortMode !== 'default'"
-              :title="$t('apps.sort_by_name') + ': ' + sortModeLabel">
-        <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1"></arrow-up-down>
-        <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1"></arrow-up>
-        <arrow-down v-else :size="16" class="icon me-1"></arrow-down>
-        {{ $t('apps.sort_by_name') }}
-      </button>
-      <!-- Search box -->
-      <div class="input-group">
-        <span class="input-group-text">
-          <search :size="16" class="icon"></search>
-        </span>
-        <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
-        <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
-          <x :size="16" class="icon"></x>
+    <div class="apps-toolbar d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <!-- Left side actions -->
+      <div class="d-flex align-items-center gap-2">
+        <!-- Add new application -->
+        <button class="btn btn-primary" @click="newApp">
+          <layers-plus :size="18" class="icon"></layers-plus>
+          {{ $t('apps.add_new') }}
         </button>
+      </div>
+      <!-- Right side actions -->
+      <div class="d-flex align-items-center gap-2" v-if="apps && apps.length > 0">
+        <!-- Sort by name toggle -->
+        <button class="btn btn-outline-secondary text-nowrap" type="button" @click="toggleSort"
+                :class="{ active: sortMode !== 'default' }"
+                :aria-pressed="sortMode !== 'default'"
+                :title="$t('apps.sort_by_name') + ': ' + sortModeLabel">
+          <arrow-up-down v-if="sortMode === 'default'" :size="16" class="icon me-1"></arrow-up-down>
+          <arrow-up v-else-if="sortMode === 'asc'" :size="16" class="icon me-1"></arrow-up>
+          <arrow-down v-else :size="16" class="icon me-1"></arrow-down>
+          {{ $t('apps.sort_by_name') }}
+        </button>
+        <!-- Search box -->
+        <div class="input-group">
+          <span class="input-group-text">
+            <search :size="16" class="icon"></search>
+          </span>
+          <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
+          <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
+            <x :size="16" class="icon"></x>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -431,12 +441,6 @@
           </button>
         </div>
       </div>
-    </div>
-    <div class="mt-4" v-else>
-      <button class="btn btn-primary" @click="newApp">
-        <layers-plus :size="18" class="icon"></layers-plus>
-        {{ $t('apps.add_new') }}
-      </button>
     </div>
 
     <!-- Shared file browser modal -->
