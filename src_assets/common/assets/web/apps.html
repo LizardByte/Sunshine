@@ -55,7 +55,7 @@
           <div class="app-poster-container">
             <img
               v-if="app['image-path']"
-              :src="'/api/covers/' + index + '?v=' + encodeURIComponent(app['image-path'])"  
+              :src="'/api/covers/' + index + '?v=' + encodeURIComponent(app['image-path'])"
               class="app-poster"
               :alt="app.name"
               @error="handleImageError"
@@ -111,7 +111,7 @@
         <div class="modal-content" v-if="editForm">
           <div class="modal-header">
             <h5 class="modal-title" id="appEditModalLabel">
-              {{ editForm.index === -1 ? $t('apps.add_new') : $t('apps.edit') }}
+              {{ editModalTitle }}
             </h5>
             <button type="button" class="btn-close" @click="closeEditModal"
               :aria-label="$t('_common.close')"></button>
@@ -687,6 +687,18 @@
         return shown === total
           ? `${total}`
           : `${shown} / ${total}`;
+      },
+      editModalTitle() {
+        if (!this.editForm) {
+          return "";
+        }
+        const action = this.editForm.index === -1
+          ? this.$t("apps.add_new")
+          : this.$t("apps.edit");
+
+        return this.editForm.name
+          ? `${action}: ${this.editForm.name}`
+          : action;
       },
     },
     created() {
