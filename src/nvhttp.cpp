@@ -144,6 +144,9 @@ namespace nvhttp {
   client_t client_root;
   std::atomic<uint32_t> session_id_counter;
 
+  // Set by TLS verify callback, read by launch/resume handler (single-threaded HTTPS server)
+  std::string last_verified_client_cert;  // NOSONAR(cpp:S5421) - intentionally mutable global
+
   using args_t = SimpleWeb::CaseInsensitiveMultimap;
   using resp_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Response>;
   using req_https_t = std::shared_ptr<typename SimpleWeb::ServerBase<SunshineHTTPS>::Request>;
@@ -326,6 +329,7 @@ namespace nvhttp {
       launch_session->rtsp_iv_counter = 0;
     }
     launch_session->rtsp_url_scheme = launch_session->rtsp_cipher ? "rtspenc://"s : "rtsp://"s;
+    launch_session->client_cert = last_verified_client_cert;
 
     // Generate the unique identifiers for this connection that we will send later during RTSP handshake
     unsigned char raw_payload[8];
@@ -1141,6 +1145,7 @@ namespace nvhttp {
         return verified;
       }
 
+      last_verified_client_cert = pem;
       verified = 1;
 
       return verified;
@@ -1253,6 +1258,15 @@ namespace nvhttp {
       }
     }
     return false;
+  }
+
+  std::string get_cert_by_uuid(const std::string_view uuid) {
+    for (const auto &named_cert : client_root.named_devices) {
+      if (named_cert.uuid == uuid) {
+        return named_cert.cert;
+      }
+    }
+    return {};
   }
 
   bool is_client_enabled(const std::string_view cert_pem) {
