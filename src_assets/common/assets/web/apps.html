@@ -81,7 +81,7 @@
                 <edit :size="16" class="icon"></edit>
                 {{ $t('apps.edit') }}
               </button>
-              <button class="btn btn-sm btn-danger" @click="showDeleteForm(index)">
+              <button class="btn btn-sm btn-danger" @click="showDeleteModal(index)">
                 <trash-2 :size="16" class="icon"></trash-2>
               </button>
             </div>
@@ -455,6 +455,32 @@
       </div>
     </div>
 
+    <!-- Delete confirmation modal -->
+    <div class="modal fade" ref="deleteModal" tabindex="-1" aria-labelledby="appDeleteModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" v-if="deleteTarget">
+          <div class="modal-header">
+            <h5 class="modal-title" id="appDeleteModalLabel">{{ $t('apps.delete_title') }}</h5>
+            <button type="button" class="btn-close" @click="closeDeleteModal"
+              :aria-label="$t('_common.close')"></button>
+          </div>
+          <div class="modal-body">
+            {{ $t('apps.delete_confirm', { name: deleteTarget.name }) }}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" @click="closeDeleteModal">
+              <x :size="18" class="icon"></x>
+              {{ $t('_common.cancel') }}
+            </button>
+            <button type="button" class="btn btn-danger" @click="confirmDelete">
+              <trash-2 :size="18" class="icon"></trash-2>
+              {{ $t('apps.delete') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Shared file browser modal -->
     <div class="modal fade" ref="fileBrowserModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable modal-fullscreen-md-down">
@@ -604,6 +630,7 @@
         fileBrowserTypedPath: "",
         searchQuery: "",
         sortMode: "default",
+        deleteTarget: null,
         version: null,
         githubVersion: null,
       };
@@ -723,20 +750,25 @@
         }
         this.openEditModal();
       },
-      showDeleteForm(id) {
-        let resp = confirm(
-          "Are you sure to delete " + this.apps[id].name + "?"
-        );
-        if (resp) {
-          apiFetch("./api/apps/" + id, {
-            method: "DELETE",
-            headers: {
-              "Content-Type": "application/json"
-            },
-          }).then((r) => {
-            if (r.status === 200) document.location.reload();
-          });
-        }
+      showDeleteModal(id) {
+        this.deleteTarget = { index: id, name: this.apps[id].name };
+        this.$nextTick(() => {
+          Modal.getOrCreateInstance(this.$refs.deleteModal).show();
+        });
+      },
+      closeDeleteModal() {
+        const modal = Modal.getInstance(this.$refs.deleteModal);
+        if (modal) modal.hide();
+      },
+      confirmDelete() {
+        apiFetch("./api/apps/" + this.deleteTarget.index, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json"
+          },
+        }).then((r) => {
+          if (r.status === 200) document.location.reload();
+        });
       },
       addPrepCmd() {
         let template = {
