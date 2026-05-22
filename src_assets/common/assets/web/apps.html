@@ -55,7 +55,7 @@
           <div class="app-poster-container">
             <img
               v-if="app['image-path']"
-              :src="'/api/covers/' + index"
+              :src="'/api/covers/' + index + '?v=' + encodeURIComponent(app['image-path'])"  
               class="app-poster"
               :alt="app.name"
               @error="handleImageError"
@@ -690,12 +690,7 @@
       },
     },
     created() {
-      fetch("./api/apps")
-        .then((r) => r.json())
-        .then((r) => {
-          console.log(r);
-          this.apps = r.apps;
-        });
+      this.loadApps();
 
       fetch("./api/config")
         .then(r => r.json())
@@ -760,6 +755,13 @@
         const modal = Modal.getInstance(this.$refs.deleteModal);
         if (modal) modal.hide();
       },
+      loadApps() {
+        return fetch("./api/apps")
+          .then((r) => r.json())
+          .then((r) => {
+            this.apps = r.apps;
+          });
+      },
       confirmDelete() {
         apiFetch("./api/apps/" + this.deleteTarget.index, {
           method: "DELETE",
@@ -767,7 +769,11 @@
             "Content-Type": "application/json"
           },
         }).then((r) => {
-          if (r.status === 200) document.location.reload();
+          if (r.status === 200) {
+            // re-fetch the grid instead of reloading the whole page now
+            this.closeDeleteModal();
+            this.loadApps();
+          }
         });
       },
       addPrepCmd() {
@@ -969,7 +975,10 @@
           },
           body: JSON.stringify(this.editForm),
         }).then((r) => {
-          if (r.status === 200) document.location.reload();
+          if (r.status === 200) {
+            this.closeEditModal();
+            this.loadApps();
+          }
         });
       },
       handleImageError(event) {
