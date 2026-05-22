@@ -682,6 +682,11 @@ body {
 .modal-header,
 .modal-footer {
     border-color: var(--color-border) !important;
+    background-color: var(--color-surface-raised) !important;
+}
+
+.modal-header {
+    border-bottom: 2px solid var(--color-primary) !important;
 }
 
 .list-group-item {

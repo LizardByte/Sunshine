@@ -465,7 +465,9 @@
               :aria-label="$t('_common.close')"></button>
           </div>
           <div class="modal-body">
-            {{ $t('apps.delete_confirm', { name: deleteTarget.name }) }}
+            <i18n-t keypath="apps.delete_confirm" tag="span">
+              <template #name><strong>{{ deleteTarget.name }}</strong></template>
+            </i18n-t>
           </div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" @click="closeDeleteModal">
