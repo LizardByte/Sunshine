@@ -8,11 +8,13 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <format>
 #include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <thread>
 
 // platform includes
@@ -22,26 +24,6 @@
 #include <IOKit/hidsystem/IOLLEvent.h>
 #include <mach/mach.h>
 
-// IOHIDUserDevice forward declarations (header absent in Command Line Tools SDK)
-extern "C" {
-  typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
-  extern IOHIDUserDeviceRef IOHIDUserDeviceCreate(CFAllocatorRef allocator, CFDictionaryRef properties);
-  extern void IOHIDUserDeviceScheduleWithRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
-  extern void IOHIDUserDeviceUnscheduleFromRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
-  extern IOReturn IOHIDUserDeviceHandleReport(IOHIDUserDeviceRef device, uint8_t *report, CFIndex reportLength);
-}
-
-#define kIOHIDPrimaryUsagePageKey "PrimaryUsagePage"
-#define kIOHIDPrimaryUsageKey "PrimaryUsage"
-#define kIOHIDReportDescriptorKey "ReportDescriptor"
-#define kIOHIDManufacturerKey "Manufacturer"
-#define kIOHIDProductKey "Product"
-#define kIOHIDVendorIDKey "VendorID"
-#define kIOHIDProductIDKey "ProductID"
-
-#define kHIDPage_GenericDesktop 0x01
-#define kHIDUsage_GD_GamePad 0x05
-
 // local includes
 #include "src/display_device.h"
 #include "src/input.h"
@@ -49,6 +31,18 @@ extern "C" {
 #include "src/platform/common.h"
 #include "src/platform/macos/input_gamepad.h"
 #include "src/utility.h"
+
+// IOHIDUserDevice forward declarations (header absent in Command Line Tools SDK).
+// Declared after the includes so every #include stays grouped at the top of the file.
+// The IOKit HID property-key strings ("Product", "VendorID", etc.) are likewise
+// absent from the CLT SDK, so they are passed inline at the call sites below.
+extern "C" {
+  typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
+  extern IOHIDUserDeviceRef IOHIDUserDeviceCreate(CFAllocatorRef allocator, CFDictionaryRef properties);
+  extern void IOHIDUserDeviceScheduleWithRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
+  extern void IOHIDUserDeviceUnscheduleFromRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
+  extern IOReturn IOHIDUserDeviceHandleReport(IOHIDUserDeviceRef device, uint8_t *report, CFIndex reportLength);
+}
 
 /**
  * @brief Delay for a double click, in milliseconds.
@@ -113,7 +107,7 @@ static const uint8_t kGamepadHIDDescriptor[] = {
   0x81,
   0x03,  //   Input: Const
 
-  // D-pad as HAT switch (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW, 8=null)
+  // D-pad as a HAT switch (directions run clockwise from North; value eight means centered)
   0x05,
   0x01,  //   Usage Page: Generic Desktop
   0x09,
@@ -186,7 +180,7 @@ struct macos_gamepad_t {
   IOHIDUserDeviceRef hid_device = nullptr;
   platf::gamepad_hid_report_t report {};
   CFRunLoopRef run_loop = nullptr;  // run loop of the dedicated HID thread
-  std::thread run_loop_thread;  // owns the dedicated HID run-loop thread
+  std::jthread run_loop_thread;  // owns the dedicated HID run-loop thread
 
   macos_gamepad_t() = default;
 
@@ -255,8 +249,7 @@ namespace platf {
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
 
     // gamepad related stuff
-    static constexpr int MAX_GAMEPADS = platf::MAX_GAMEPADS;
-    std::array<std::unique_ptr<macos_gamepad_t>, MAX_GAMEPADS> gamepads {};
+    std::array<std::unique_ptr<macos_gamepad_t>, platf::MAX_GAMEPADS> gamepads {};
     // Guards the gamepads array. alloc_gamepad / free_gamepad / gamepad_update
     // can run on different threads (e.g. the control stream and task_pool
     // workers — the back→home button emulation calls gamepad_update from a
@@ -552,30 +545,23 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
-  /**
-   * @brief Creates a virtual HID gamepad for the given slot.
-   *
-   * The macOS virtual gamepad is currently input-only: it emulates a single
-   * fixed device (a Razer Serval) and reports buttons/axes to the OS, but does
-   * not consume @p metadata or post anything to @p feedback_queue. As a result
-   * none of the feedback features other platforms support — rumble, trigger
-   * rumble, RGB LED, adaptive triggers, motion/battery (see gamepad_feedback_e
-   * and the inputtino/ViGEm backends) — are implemented here. The descriptor
-   * also has no output report, so OS-side SET_REPORTs (e.g. rumble) are not
-   * received. Wiring these up would require an output report in
-   * kGamepadHIDDescriptor plus a SET_REPORT callback on the run loop.
-   *
-   * @param input The global input context.
-   * @param id The gamepad ID (globalIndex used as the slot).
-   * @param metadata Controller metadata from the client (currently unused).
-   * @param feedback_queue The queue for posting messages back to the client (currently unused).
-   * @return 0 on success, -1 on failure.
-   */
+  // Creates a virtual HID gamepad for the given slot (documented in
+  // src/platform/common.h, the shared platf:: interface).
+  //
+  // The macOS virtual gamepad is currently input-only: it emulates a single
+  // fixed device (a Razer Serval) and reports buttons/axes to the OS, but does
+  // not consume the arrival metadata or post anything to the feedback queue. As
+  // a result none of the feedback features other platforms support — rumble,
+  // trigger rumble, RGB LED, adaptive triggers, motion/battery (see
+  // gamepad_feedback_e and the inputtino/ViGEm backends) — are implemented here.
+  // The descriptor also has no output report, so OS-side SET_REPORTs (e.g.
+  // rumble) are not received. Wiring these up would require an output report in
+  // kGamepadHIDDescriptor plus a SET_REPORT callback on the run loop.
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
     auto *macos_input = static_cast<macos_input_t *>(input.get());
     const int nr = id.globalIndex;
 
-    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+    if (nr < 0 || nr >= platf::MAX_GAMEPADS) {
       BOOST_LOG(error) << "alloc_gamepad: slot " << nr << " out of range";
       return -1;
     }
@@ -588,7 +574,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     // free_gamepad takes gamepads_mutex itself, so don't hold it across this.
     bool occupied;
     {
-      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      std::scoped_lock lock(macos_input->gamepads_mutex);
       occupied = static_cast<bool>(macos_input->gamepads[nr]);
     }
     if (occupied) {
@@ -612,20 +598,20 @@ const KeyCodeMap kKeyCodesMap[] = {
       CFRelease(num);
     };
 
-    set_int32(CFSTR(kIOHIDPrimaryUsagePageKey), kHIDPage_GenericDesktop);
-    set_int32(CFSTR(kIOHIDPrimaryUsageKey), kHIDUsage_GD_GamePad);
+    set_int32(CFSTR("PrimaryUsagePage"), 0x01);  // Generic Desktop usage page
+    set_int32(CFSTR("PrimaryUsage"), 0x05);  // Gamepad usage
 
     // Embed the HID report descriptor
     CFDataRef descriptor = CFDataCreate(kCFAllocatorDefault, kGamepadHIDDescriptor, sizeof(kGamepadHIDDescriptor));
-    CFDictionarySetValue(props, CFSTR(kIOHIDReportDescriptorKey), descriptor);
+    CFDictionarySetValue(props, CFSTR("ReportDescriptor"), descriptor);
     CFRelease(descriptor);
 
     // Vendor/product identity — see the kGamepadHIDDescriptor comment for why
     // we emulate a Razer Serval (0x1532/0x0900).
-    CFDictionarySetValue(props, CFSTR(kIOHIDManufacturerKey), CFSTR("Razer"));
-    CFDictionarySetValue(props, CFSTR(kIOHIDProductKey), CFSTR("Razer Serval"));
-    set_int32(CFSTR(kIOHIDVendorIDKey), 0x1532);  // Razer
-    set_int32(CFSTR(kIOHIDProductIDKey), 0x0900);  // Serval
+    CFDictionarySetValue(props, CFSTR("Manufacturer"), CFSTR("Razer"));
+    CFDictionarySetValue(props, CFSTR("Product"), CFSTR("Razer Serval"));
+    set_int32(CFSTR("VendorID"), 0x1532);  // Razer
+    set_int32(CFSTR("ProductID"), 0x0900);  // Serval
 
     IOHIDUserDeviceRef device = IOHIDUserDeviceCreate(kCFAllocatorDefault, props);
     CFRelease(props);
@@ -647,19 +633,19 @@ const KeyCodeMap kKeyCodesMap[] = {
     gp->report.report_id = 1;
     gp->report.hat = 8;  // null state (no D-pad direction)
 
-    // Spinning up the thread (or, in the worst case, taking the lock) can throw
+    // Spinning up the thread (or taking the lock) can throw std::system_error
     // under resource exhaustion. Callers only inspect the return code, so
-    // translate any failure into -1 rather than letting it escape. If we throw
+    // translate that failure into -1 rather than letting it escape. If we throw
     // here, gp's destructor releases the device (and joins the thread if it was
     // already started), so nothing leaks.
     try {
       std::promise<CFRunLoopRef> rl_promise;
       auto rl_future = rl_promise.get_future();
 
-      gp->run_loop_thread = std::thread([device, nr, promise = std::move(rl_promise)]() mutable {
+      gp->run_loop_thread = std::jthread([device, nr, promise = std::move(rl_promise)]() mutable {
         // Name the thread so it's identifiable in Console/Instruments/lldb
-        // (repo convention; up to MAX_GAMEPADS of these can exist at once).
-        set_thread_name("gamepad::hid[" + std::to_string(nr) + "]");
+        // (repo convention; up to platf::MAX_GAMEPADS of these can exist at once).
+        set_thread_name(std::format("gamepad::hid[{}]", nr));
         CFRunLoopRef rl = CFRunLoopGetCurrent();
         IOHIDUserDeviceScheduleWithRunLoop(device, rl, kCFRunLoopDefaultMode);
         promise.set_value(rl);  // hand run loop ref back to alloc_gamepad
@@ -683,9 +669,9 @@ const KeyCodeMap kKeyCodesMap[] = {
       // assignment therefore never destroys a live device, i.e. never joins a
       // run-loop thread while holding the lock — the one thing free_gamepad
       // takes care to avoid.
-      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      std::scoped_lock lock(macos_input->gamepads_mutex);
       macos_input->gamepads[nr] = std::move(gp);
-    } catch (const std::exception &e) {
+    } catch (const std::system_error &e) {
       BOOST_LOG(error) << "alloc_gamepad: failed to start HID run-loop thread for slot " << nr << ": " << e.what();
       return -1;
     }
@@ -694,14 +680,10 @@ const KeyCodeMap kKeyCodesMap[] = {
     return 0;
   }
 
-  /**
-   * @brief Destroys the virtual HID gamepad in the given slot.
-   * @param input The global input context.
-   * @param nr The global gamepad slot index.
-   */
+  // Destroys the virtual HID gamepad in the given slot (documented in src/platform/common.h).
   void free_gamepad(input_t &input, int nr) {
     auto *macos_input = static_cast<macos_input_t *>(input.get());
-    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+    if (nr < 0 || nr >= platf::MAX_GAMEPADS) {
       return;
     }
 
@@ -711,7 +693,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     // (that would block gamepad_update for the whole teardown).
     std::unique_ptr<macos_gamepad_t> doomed;
     {
-      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      std::scoped_lock lock(macos_input->gamepads_mutex);
       doomed = std::move(macos_input->gamepads[nr]);
     }
 
@@ -734,6 +716,47 @@ const KeyCodeMap kKeyCodesMap[] = {
    */
   static int16_t negate_axis(int16_t v) {
     return v == INT16_MIN ? INT16_MAX : static_cast<int16_t>(-v);
+  }
+
+  /**
+   * @brief Computes the HID HAT-switch value for the current D-pad button state.
+   *
+   * The HAT encodes eight directions running clockwise from North; a value of
+   * eight means centered. Opposing presses (e.g. up and down together) cancel.
+   *
+   * @param buttonFlags The Moonlight button bitmask.
+   * @return The HAT value: zero through seven for a direction, eight for centered.
+   */
+  static uint8_t compute_dpad_hat(std::uint32_t buttonFlags) {
+    const bool up = buttonFlags & DPAD_UP;
+    const bool down = buttonFlags & DPAD_DOWN;
+    const bool left = buttonFlags & DPAD_LEFT;
+    const bool right = buttonFlags & DPAD_RIGHT;
+    if (up && !down) {
+      if (right) {
+        return 1;  // NE
+      }
+      if (left) {
+        return 7;  // NW
+      }
+      return 0;  // N
+    }
+    if (down && !up) {
+      if (right) {
+        return 3;  // SE
+      }
+      if (left) {
+        return 5;  // SW
+      }
+      return 4;  // S
+    }
+    if (right && !left) {
+      return 2;  // E
+    }
+    if (left && !right) {
+      return 6;  // W
+    }
+    return 8;  // centered
   }
 
   gamepad_hid_report_t map_gamepad_state_to_hid_report(const gamepad_state_t &gamepad_state) {
@@ -779,24 +802,7 @@ const KeyCodeMap kKeyCodesMap[] = {
       report.buttons |= (1 << 10);  // b10 RS
     }
 
-    // D-pad as HAT switch: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW 8=null
-    {
-      const bool up = gamepad_state.buttonFlags & DPAD_UP;
-      const bool down = gamepad_state.buttonFlags & DPAD_DOWN;
-      const bool left = gamepad_state.buttonFlags & DPAD_LEFT;
-      const bool right = gamepad_state.buttonFlags & DPAD_RIGHT;
-      uint8_t hat = 8;  // null (no direction)
-      if (up && !down) {
-        hat = right ? 1 : (left ? 7 : 0);  // NE / NW / N
-      } else if (down && !up) {
-        hat = right ? 3 : (left ? 5 : 4);  // SE / SW / S
-      } else if (right && !left) {
-        hat = 2;  // E
-      } else if (left && !right) {
-        hat = 6;  // W
-      }
-      report.hat = hat;
-    }
+    report.hat = compute_dpad_hat(gamepad_state.buttonFlags);
 
     // Sticks: pass through as-is (-32768..32767); Y axes are negated to match
     // HID convention where up is the negative direction.
@@ -814,20 +820,12 @@ const KeyCodeMap kKeyCodesMap[] = {
     return report;
   }
 
-  /**
-   * @brief Sends a gamepad state update as a HID report.
-   *
-   * Maps the Moonlight button flags and axis values from @p gamepad_state into
-   * the packed HID report (see map_gamepad_state_to_hid_report) and submits it
-   * to the virtual device.
-   *
-   * @param input The global input context.
-   * @param nr The global gamepad slot index.
-   * @param gamepad_state The current gamepad state from the client.
-   */
+  // Sends a gamepad state update as a HID report (documented in src/platform/common.h):
+  // maps the Moonlight button flags and axis values into the packed HID report
+  // (see map_gamepad_state_to_hid_report) and submits it to the virtual device.
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     auto *macos_input = static_cast<macos_input_t *>(input.get());
-    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+    if (nr < 0 || nr >= platf::MAX_GAMEPADS) {
       return;
     }
 
@@ -835,7 +833,7 @@ const KeyCodeMap kKeyCodesMap[] = {
     // and destroying the device between the null-check and HandleReport. The
     // HID submission is a fast syscall, and updates for a single gamepad are
     // serial anyway, so this does not throttle the input path.
-    std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+    std::scoped_lock lock(macos_input->gamepads_mutex);
     if (!macos_input->gamepads[nr]) {
       return;
     }
@@ -1083,29 +1081,17 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Unimplemented feature - platform_caps::pen_touch
   }
 
-  /**
-   * @brief Sends a gamepad touch event to the OS.
-   * @param input The global input context.
-   * @param touch The touch event.
-   */
+  // Sends a gamepad touch event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
     // Unimplemented feature - platform_caps::controller_touch
   }
 
-  /**
-   * @brief Sends a gamepad motion event to the OS.
-   * @param input The global input context.
-   * @param motion The motion event.
-   */
+  // Sends a gamepad motion event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
     // Unimplemented
   }
 
-  /**
-   * @brief Sends a gamepad battery event to the OS.
-   * @param input The global input context.
-   * @param battery The battery event.
-   */
+  // Sends a gamepad battery event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
     // Unimplemented
   }
