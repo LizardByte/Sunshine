@@ -104,8 +104,19 @@
       </div>
     </div>
 
-    <div class="edit-form card mt-4" v-if="showEditForm">
-      <div class="card-body">
+    <!-- Edit / Add Application modal -->
+    <div class="modal fade" ref="editModal" tabindex="-1" aria-labelledby="appEditModalLabel"
+         aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
+        <div class="modal-content" v-if="editForm">
+          <div class="modal-header">
+            <h5 class="modal-title" id="appEditModalLabel">
+              {{ editForm.index === -1 ? $t('apps.add_new') : $t('apps.edit') }}
+            </h5>
+            <button type="button" class="btn-close" @click="closeEditModal"
+              :aria-label="$t('_common.close')"></button>
+          </div>
+          <div class="modal-body">
         <!-- Application Name -->
         <div class="mb-3">
           <label for="appName" class="form-label">{{ $t('apps.app_name') }}</label>
@@ -294,76 +305,12 @@
               @click="browseFor('file', 'file_browser.select_file', editForm['image-path'], v => editForm['image-path'] = v)">
               <folder-open :size="18" class="icon"></folder-open>
             </button>
-            <button class="btn btn-secondary" type="button" data-bs-toggle="modal" data-bs-target="#coverFinderModal"
-              @click="showCoverFinder">
+            <button class="btn btn-secondary" type="button" @click="showCoverFinder">
               <search :size="18" class="icon"></search>
               {{ $t('apps.find_cover') }}
             </button>
           </div>
           <div id="appImagePathHelp" class="form-text">{{ $t('apps.image_desc') }}</div>
-        </div>
-
-        <!-- Cover Finder Modal -->
-        <div class="modal fade" id="coverFinderModal" tabindex="-1" aria-labelledby="coverFinderModalLabel" aria-hidden="true" ref="coverFinderModal">
-          <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title" id="coverFinderModalLabel">
-                  <span v-if="coverSearching">{{ $t('apps.searching_covers') }}</span>
-                  <span v-else-if="coverCandidates.length > 0">{{ $t('apps.covers_found') }} ({{ coverCandidates.length }})</span>
-                  <span v-else>{{ $t('apps.no_covers_found') }}</span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <div class="modal-body">
-                <div class="mb-3">
-                  <div class="input-group">
-                    <input
-                      type="text"
-                      class="form-control"
-                      v-model="coverSearchQuery"
-                      :placeholder="editForm.name"
-                      @keyup.enter="performCoverSearch"
-                    />
-                    <button class="btn btn-primary" type="button" @click="performCoverSearch">
-                      <search :size="18" class="icon"></search>
-                      {{ $t('_common.search') }}
-                    </button>
-                  </div>
-                  <div class="form-text mt-2">
-                    <b>{{ $t('_common.note') }}</b> {{ $t('apps.cover_search_hint') }}
-                    <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB</a>
-                  </div>
-                </div>
-                <div class="cover-results" :class="{ busy: coverFinderBusy }">
-                  <div class="row">
-                    <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
-                      <div class="cover-container">
-                        <div class="spinner-border" role="status">
-                          <span class="visually-hidden">{{ $t('apps.loading') }}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div v-for="(cover,i) in coverCandidates" :key="'i'" class="col-12 col-sm-6 col-lg-3 mb-3"
-                      @click="useCover(cover)">
-                      <div class="cover-container result">
-                        <img class="rounded" :src="cover.url" />
-                      </div>
-                      <label class="d-block text-nowrap text-center text-truncate">
-                        {{cover.name}}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                  <x :size="18" class="icon"></x>
-                  {{ $t('_common.cancel') }}
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
         <div class="env-hint alert alert-info">
           <div class="form-text">
@@ -429,16 +376,81 @@
               :href="`${documentationBaseUrl}/md_docs_2app__examples.html`"
               target="_blank">{{ $t('_common.see_more') }}</a></div>
         </div>
-        <!-- Save buttons -->
-        <div class="d-flex">
-          <button @click="showEditForm = false" class="btn btn-secondary m-2">
-            <x :size="18" class="icon"></x>
-            {{ $t('_common.cancel') }}
-          </button>
-          <button class="btn btn-primary m-2" @click="save">
-            <save :size="18" class="icon"></save>
-            {{ $t('_common.save') }}
-          </button>
+          </div>
+          <!-- Save buttons -->
+          <div class="modal-footer">
+            <button @click="closeEditModal" class="btn btn-secondary">
+              <x :size="18" class="icon"></x>
+              {{ $t('_common.cancel') }}
+            </button>
+            <button class="btn btn-primary" @click="save">
+              <save :size="18" class="icon"></save>
+              {{ $t('_common.save') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cover Finder modal -->
+    <div class="modal fade" id="coverFinderModal" tabindex="-1" aria-labelledby="coverFinderModalLabel" aria-hidden="true" ref="coverFinderModal">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="coverFinderModalLabel">
+              <span v-if="coverSearching">{{ $t('apps.searching_covers') }}</span>
+              <span v-else-if="coverCandidates.length > 0">{{ $t('apps.covers_found') }} ({{ coverCandidates.length }})</span>
+              <span v-else>{{ $t('apps.no_covers_found') }}</span>
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <div class="input-group">
+                <input
+                  type="text"
+                  class="form-control"
+                  v-model="coverSearchQuery"
+                  :placeholder="editForm?.name"
+                  @keyup.enter="performCoverSearch"
+                />
+                <button class="btn btn-primary" type="button" @click="performCoverSearch">
+                  <search :size="18" class="icon"></search>
+                  {{ $t('_common.search') }}
+                </button>
+              </div>
+              <div class="form-text mt-2">
+                <b>{{ $t('_common.note') }}</b> {{ $t('apps.cover_search_hint') }}
+                <a href="https://www.igdb.com/" target="_blank" rel="noopener noreferrer">IGDB</a>
+              </div>
+            </div>
+            <div class="cover-results" :class="{ busy: coverFinderBusy }">
+              <div class="row">
+                <div v-if="coverSearching" class="col-12 col-sm-6 col-lg-4 mb-3">
+                  <div class="cover-container">
+                    <div class="spinner-border" role="status">
+                      <span class="visually-hidden">{{ $t('apps.loading') }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div v-for="(cover,i) in coverCandidates" :key="'i'" class="col-12 col-sm-6 col-lg-3 mb-3"
+                  @click="useCover(cover)">
+                  <div class="cover-container result">
+                    <img class="rounded" :src="cover.url" />
+                  </div>
+                  <label class="d-block text-nowrap text-center text-truncate">
+                    {{cover.name}}
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+              <x :size="18" class="icon"></x>
+              {{ $t('_common.cancel') }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -573,7 +585,6 @@
     data() {
       return {
         apps: [],
-        showEditForm: false,
         editForm: null,
         detachedCmd: "",
         coverSearching: false,
@@ -688,7 +699,7 @@
           "image-path": ""
         };
         this.editForm.index = -1;
-        this.showEditForm = true;
+        this.openEditModal();
       },
       editApp(id) {
         this.editForm = JSON.parse(JSON.stringify(this.apps[id]));
@@ -711,7 +722,7 @@
         if (this.editForm["exit-timeout"] === undefined) {
           this.editForm["exit-timeout"] = 5;
         }
-        this.showEditForm = true;
+        this.openEditModal();
       },
       showDeleteForm(id) {
         let resp = confirm(
@@ -750,6 +761,8 @@
         // Reset search state
         this.coverCandidates = [];
         this.coverSearchQuery = "";
+
+        this.showStacked(this.$refs.coverFinderModal);
 
         // Perform initial search with app name
         this.performCoverSearch();
@@ -848,7 +861,7 @@
         this.fileBrowserTypedPath = startPath || '';
         this.fileBrowserError = '';
         this.fileBrowserNavigate(startPath || '');
-        Modal.getOrCreateInstance(this.$refs.fileBrowserModal).show();
+        this.showStacked(this.$refs.fileBrowserModal);
       },
       fileBrowserClose() {
         const modal = Modal.getInstance(this.$refs.fileBrowserModal);
@@ -947,6 +960,32 @@
           this.sortMode = "desc";
         else
           this.sortMode = "default";
+      },
+      openEditModal() {
+        // Use $nextTick because if the edit version of the modal is created too early, it breaks...
+        this.$nextTick(() => {
+          Modal.getOrCreateInstance(this.$refs.editModal).show();
+        });
+      },
+      closeEditModal() {
+        const modal = Modal.getInstance(this.$refs.editModal);
+        if (modal) modal.hide();
+      },
+      // We need to update the z-index since bootstrap gives all modals the same z-index
+      // Fixes the stacking issue of modals (cover finder / file browser)
+      showStacked(modalEl) {
+        modalEl.addEventListener('show.bs.modal', () => {
+          const openCount = document.querySelectorAll('.modal.show').length;
+          const z = 1055 + (openCount + 1) * 20;
+          modalEl.style.zIndex = z;
+
+          requestAnimationFrame(() => {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            const backdrop = backdrops[backdrops.length - 1];
+            if (backdrop) backdrop.style.zIndex = z - 10;
+          });
+        }, { once: true });
+        Modal.getOrCreateInstance(modalEl).show();
       },
     },
   });
