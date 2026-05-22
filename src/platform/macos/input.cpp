@@ -180,7 +180,7 @@ struct macos_gamepad_t {
   IOHIDUserDeviceRef hid_device = nullptr;
   platf::gamepad_hid_report_t report {};
   CFRunLoopRef run_loop = nullptr;  // run loop of the dedicated HID thread
-  std::jthread run_loop_thread;  // owns the dedicated HID run-loop thread
+  std::thread run_loop_thread;  // NOSONAR(cpp:S6168) - std::jthread is unavailable on the older macOS / AppleClang libc++ we support; owns the HID run-loop thread
 
   macos_gamepad_t() = default;
 
@@ -642,7 +642,7 @@ const KeyCodeMap kKeyCodesMap[] = {
       std::promise<CFRunLoopRef> rl_promise;
       auto rl_future = rl_promise.get_future();
 
-      gp->run_loop_thread = std::jthread([device, nr, promise = std::move(rl_promise)]() mutable {
+      gp->run_loop_thread = std::thread([device, nr, promise = std::move(rl_promise)]() mutable {  // NOSONAR(cpp:S6168) - std::jthread is unavailable on the older macOS / AppleClang libc++ we support
         // Name the thread so it's identifiable in Console/Instruments/lldb
         // (repo convention; up to platf::MAX_GAMEPADS of these can exist at once).
         set_thread_name(std::format("gamepad::hid[{}]", nr));
