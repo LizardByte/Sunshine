@@ -4,10 +4,15 @@
  */
 // standard includes
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <future>
 #include <iostream>
+#include <memory>
+#include <mutex>
+#include <string>
 #include <thread>
 
 // platform includes
@@ -17,11 +22,32 @@
 #include <IOKit/hidsystem/IOLLEvent.h>
 #include <mach/mach.h>
 
+// IOHIDUserDevice forward declarations (header absent in Command Line Tools SDK)
+extern "C" {
+  typedef struct __IOHIDUserDevice *IOHIDUserDeviceRef;
+  extern IOHIDUserDeviceRef IOHIDUserDeviceCreate(CFAllocatorRef allocator, CFDictionaryRef properties);
+  extern void IOHIDUserDeviceScheduleWithRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
+  extern void IOHIDUserDeviceUnscheduleFromRunLoop(IOHIDUserDeviceRef device, CFRunLoopRef runLoop, CFStringRef runLoopMode);
+  extern IOReturn IOHIDUserDeviceHandleReport(IOHIDUserDeviceRef device, uint8_t *report, CFIndex reportLength);
+}
+
+#define kIOHIDPrimaryUsagePageKey "PrimaryUsagePage"
+#define kIOHIDPrimaryUsageKey "PrimaryUsage"
+#define kIOHIDReportDescriptorKey "ReportDescriptor"
+#define kIOHIDManufacturerKey "Manufacturer"
+#define kIOHIDProductKey "Product"
+#define kIOHIDVendorIDKey "VendorID"
+#define kIOHIDProductIDKey "ProductID"
+
+#define kHIDPage_GenericDesktop 0x01
+#define kHIDUsage_GD_GamePad 0x05
+
 // local includes
 #include "src/display_device.h"
 #include "src/input.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/macos/input_gamepad.h"
 #include "src/utility.h"
 
 /**
@@ -29,6 +55,180 @@
  * @todo Make this configurable.
  */
 constexpr std::chrono::milliseconds MULTICLICK_DELAY_MS(500);
+
+// Gamepad HID report descriptor — emulates a Razer Serval (VID 0x1532 /
+// PID 0x0900, an Android/PC Bluetooth gamepad).
+//
+// Why the Razer Serval?
+//   - It has a built-in SDL GameControllerDB entry with ANALOG triggers
+//     (lefttrigger:a5, righttrigger:a4) — so SDL/Wine/Steam auto-recognize it
+//     as a proper gamepad (is_gamepad=1) without any user setup.
+//   - Its VID 0x1532 (Razer) is never claimed by SDL's HIDAPI driver, so an
+//     IOHIDUserDevice with this identity is fully visible and readable by all
+//     consumers: IOKit, SDL, native Steam, Wine DirectInput, and winexinput.
+//   - True XInput PIDs (Xbox 0x045E, etc.) are claimed by HIDAPI / ignored by
+//     the IOKit backend; Logitech XInput PIDs share the same problem. The Serval
+//     PID is pure generic HID — never intercepted.
+//   - 11 buttons, HAT d-pad, 6 analog axes: maps cleanly onto a standard gamepad.
+//
+// Button order matches the Serval's SDL entry:
+//   b0=A b1=B b2=X b3=Y b4=LB b5=RB b6=Back b7=Start b8=Guide b9=LS b10=RS
+// D-pad is a HAT switch (the standard way — not individual buttons).
+// Axis HID usages are assigned so SDL's usage-sorted axis indices match the
+// Serval's SDL mapping (leftx:a0 lefty:a1 rightx:a2 righty:a3 rt:a4 lt:a5):
+//   X(0x30)→LX=a0  Y(0x31)→LY=a1  Z(0x32)→RX=a2
+//   Rx(0x33)→RY=a3  Ry(0x34)→RT=a4  Rz(0x35)→LT=a5
+static const uint8_t kGamepadHIDDescriptor[] = {
+  0x05,
+  0x01,  // Usage Page: Generic Desktop
+  0x09,
+  0x05,  // Usage: Gamepad
+  0xA1,
+  0x01,  // Collection: Application
+  0x85,
+  0x01,  //   Report ID: 1
+
+  // Buttons 1-11: A, B, X, Y, LB, RB, Back, Start, Guide, LS, RS
+  0x05,
+  0x09,  //   Usage Page: Button
+  0x19,
+  0x01,  //   Usage Minimum: 1
+  0x29,
+  0x0B,  //   Usage Maximum: 11
+  0x15,
+  0x00,  //   Logical Minimum: 0
+  0x25,
+  0x01,  //   Logical Maximum: 1
+  0x75,
+  0x01,  //   Report Size: 1 bit
+  0x95,
+  0x0B,  //   Report Count: 11
+  0x81,
+  0x02,  //   Input: Data, Variable, Absolute
+  // Padding: 5 bits to fill the 2nd byte
+  0x75,
+  0x01,
+  0x95,
+  0x05,
+  0x81,
+  0x03,  //   Input: Const
+
+  // D-pad as HAT switch (0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW, 8=null)
+  0x05,
+  0x01,  //   Usage Page: Generic Desktop
+  0x09,
+  0x39,  //   Usage: Hat switch
+  0x15,
+  0x00,  //   Logical Minimum: 0
+  0x25,
+  0x07,  //   Logical Maximum: 7
+  0x35,
+  0x00,  //   Physical Minimum: 0 degrees
+  0x46,
+  0x3B,
+  0x01,  //   Physical Maximum: 315 degrees
+  0x65,
+  0x14,  //   Unit: Degrees
+  0x75,
+  0x04,  //   Report Size: 4 bits
+  0x95,
+  0x01,  //   Report Count: 1
+  0x81,
+  0x42,  //   Input: Data, Variable, Absolute, Null State
+  // Padding: 4 bits
+  0x65,
+  0x00,  //   Unit: None
+  0x75,
+  0x04,
+  0x95,
+  0x01,
+  0x81,
+  0x03,  //   Input: Const
+
+  // Axes: LS X/Y, RS X/Y, RT, LT (6 × 16-bit signed).
+  // Usage codes are chosen so SDL's usage-sorted indices yield:
+  //   X(0x30)=a0=LX  Y(0x31)=a1=LY  Z(0x32)=a2=RX
+  //   Rx(0x33)=a3=RY  Ry(0x34)=a4=RT  Rz(0x35)=a5=LT
+  // This matches the Serval's SDL entry: leftx:a0 lefty:a1 rightx:a2 righty:a3
+  //   righttrigger:a4 lefttrigger:a5
+  0x09,
+  0x30,  //   Usage: X   → Left Stick X  (a0)
+  0x09,
+  0x31,  //   Usage: Y   → Left Stick Y  (a1)
+  0x09,
+  0x32,  //   Usage: Z   → Right Stick X (a2)
+  0x09,
+  0x33,  //   Usage: Rx  → Right Stick Y (a3)
+  0x09,
+  0x34,  //   Usage: Ry  → Right Trigger (a4)
+  0x09,
+  0x35,  //   Usage: Rz  → Left Trigger  (a5)
+  0x16,
+  0x00,
+  0x80,  //   Logical Minimum: -32768
+  0x26,
+  0xFF,
+  0x7F,  //   Logical Maximum: 32767
+  0x75,
+  0x10,  //   Report Size: 16 bits
+  0x95,
+  0x06,  //   Report Count: 6
+  0x81,
+  0x02,  //   Input: Data, Variable, Absolute
+  0xC0  // End Collection
+};
+
+// gamepad_hid_report_t (the HID report layout matching kGamepadHIDDescriptor)
+// and the state→report mapping live in input_gamepad.h so the mapping can be
+// unit-tested without a real IOHIDUserDevice.
+
+struct macos_gamepad_t {
+  IOHIDUserDeviceRef hid_device = nullptr;
+  platf::gamepad_hid_report_t report {};
+  CFRunLoopRef run_loop = nullptr;  // run loop of the dedicated HID thread
+  std::thread run_loop_thread;  // owns the dedicated HID run-loop thread
+
+  macos_gamepad_t() = default;
+
+  // Non-copyable / non-movable: the destructor joins a thread that captures
+  // `this`-owned state, so the object must stay put for its whole lifetime.
+  macos_gamepad_t(const macos_gamepad_t &) = delete;
+  macos_gamepad_t &operator=(const macos_gamepad_t &) = delete;
+
+  /**
+   * @brief Tears down the virtual device: stops the run loop, joins its thread,
+   *        then releases the HID device.
+   *
+   * Keeping cleanup in the destructor (rather than only in free_gamepad) means
+   * the device and its thread are released no matter how the object dies —
+   * including when the whole macos_input_t is torn down at shutdown.
+   *
+   * The stop request is *enqueued* on the run loop via CFRunLoopPerformBlock
+   * instead of calling CFRunLoopStop directly. CFRunLoopStop only takes effect
+   * if the loop is already running; if free happens right after alloc, the stop
+   * could land before CFRunLoopRun() starts and be lost, hanging the thread
+   * forever. A queued block instead runs as soon as the loop spins up and stops
+   * it from the inside, which is race-free. The device is released only after
+   * the thread has joined, so the thread never touches a freed device.
+   */
+  ~macos_gamepad_t() {
+    if (run_loop) {
+      CFRunLoopPerformBlock(run_loop, kCFRunLoopDefaultMode, ^{
+        CFRunLoopStop(CFRunLoopGetCurrent());
+      });
+      CFRunLoopWakeUp(run_loop);
+    }
+    if (run_loop_thread.joinable()) {
+      run_loop_thread.join();
+    }
+    if (run_loop) {
+      CFRelease(run_loop);  // balance the CFRetain in alloc_gamepad
+    }
+    if (hid_device) {
+      CFRelease(hid_device);
+    }
+  }
+};
 
 namespace platf {
   using namespace std::literals;
@@ -53,6 +253,16 @@ namespace platf {
     int scroll_lines_per_detent {DEFAULT_SCROLL_LINES_PER_DETENT};
     bool mouse_down[3] {};  // mouse button status
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
+
+    // gamepad related stuff
+    static constexpr int MAX_GAMEPADS = platf::MAX_GAMEPADS;
+    std::array<std::unique_ptr<macos_gamepad_t>, MAX_GAMEPADS> gamepads {};
+    // Guards the gamepads array. alloc_gamepad / free_gamepad / gamepad_update
+    // can run on different threads (e.g. the control stream and task_pool
+    // workers — the back→home button emulation calls gamepad_update from a
+    // delayed task while a session teardown may push free_gamepad), so all
+    // access to the array is serialized.
+    std::mutex gamepads_mutex;
   };
 
   // A struct to hold a Windows keycode to Mac virtual keycode mapping.
@@ -342,17 +552,307 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
+  /**
+   * @brief Creates a virtual HID gamepad for the given slot.
+   *
+   * The macOS virtual gamepad is currently input-only: it emulates a single
+   * fixed device (a Razer Serval) and reports buttons/axes to the OS, but does
+   * not consume @p metadata or post anything to @p feedback_queue. As a result
+   * none of the feedback features other platforms support — rumble, trigger
+   * rumble, RGB LED, adaptive triggers, motion/battery (see gamepad_feedback_e
+   * and the inputtino/ViGEm backends) — are implemented here. The descriptor
+   * also has no output report, so OS-side SET_REPORTs (e.g. rumble) are not
+   * received. Wiring these up would require an output report in
+   * kGamepadHIDDescriptor plus a SET_REPORT callback on the run loop.
+   *
+   * @param input The global input context.
+   * @param id The gamepad ID (globalIndex used as the slot).
+   * @param metadata Controller metadata from the client (currently unused).
+   * @param feedback_queue The queue for posting messages back to the client (currently unused).
+   * @return 0 on success, -1 on failure.
+   */
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
-    BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
-    return -1;
+    auto *macos_input = static_cast<macos_input_t *>(input.get());
+    const int nr = id.globalIndex;
+
+    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+      BOOST_LOG(error) << "alloc_gamepad: slot " << nr << " out of range";
+      return -1;
+    }
+
+    // If this slot is already occupied (e.g. the client re-sends a controller
+    // arrival without an intervening removal, or on reconnect), release the
+    // previous device first. Otherwise the old IOHIDUserDevice and its dedicated
+    // run-loop thread leak — overwriting gamepads[nr] does not stop that thread,
+    // so the stale virtual device stays registered with the HID system.
+    // free_gamepad takes gamepads_mutex itself, so don't hold it across this.
+    bool occupied;
+    {
+      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      occupied = static_cast<bool>(macos_input->gamepads[nr]);
+    }
+    if (occupied) {
+      BOOST_LOG(warning) << "alloc_gamepad: slot " << nr << " already occupied; releasing previous device";
+      free_gamepad(input, nr);
+    }
+
+    // Build device properties
+    CFMutableDictionaryRef props = CFDictionaryCreateMutable(
+      kCFAllocatorDefault,
+      0,
+      &kCFTypeDictionaryKeyCallBacks,
+      &kCFTypeDictionaryValueCallBacks
+    );
+
+    // Helper: create a CFNumber, set it on props, then release our reference
+    // (the dictionary retains its own copy via kCFTypeDictionaryValueCallBacks).
+    auto set_int32 = [&](CFStringRef key, int32_t value) {
+      CFNumberRef num = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &value);
+      CFDictionarySetValue(props, key, num);
+      CFRelease(num);
+    };
+
+    set_int32(CFSTR(kIOHIDPrimaryUsagePageKey), kHIDPage_GenericDesktop);
+    set_int32(CFSTR(kIOHIDPrimaryUsageKey), kHIDUsage_GD_GamePad);
+
+    // Embed the HID report descriptor
+    CFDataRef descriptor = CFDataCreate(kCFAllocatorDefault, kGamepadHIDDescriptor, sizeof(kGamepadHIDDescriptor));
+    CFDictionarySetValue(props, CFSTR(kIOHIDReportDescriptorKey), descriptor);
+    CFRelease(descriptor);
+
+    // Vendor/product identity — see the kGamepadHIDDescriptor comment for why
+    // we emulate a Razer Serval (0x1532/0x0900).
+    CFDictionarySetValue(props, CFSTR(kIOHIDManufacturerKey), CFSTR("Razer"));
+    CFDictionarySetValue(props, CFSTR(kIOHIDProductKey), CFSTR("Razer Serval"));
+    set_int32(CFSTR(kIOHIDVendorIDKey), 0x1532);  // Razer
+    set_int32(CFSTR(kIOHIDProductIDKey), 0x0900);  // Serval
+
+    IOHIDUserDeviceRef device = IOHIDUserDeviceCreate(kCFAllocatorDefault, props);
+    CFRelease(props);
+
+    if (!device) {
+      BOOST_LOG(error) << "alloc_gamepad: IOHIDUserDeviceCreate failed for slot " << nr;
+      return -1;
+    }
+
+    // Sunshine's main thread runs Boost.Asio, not a CFRunLoop, so scheduling
+    // on CFRunLoopGetMain() would leave the device with an unspun run loop.
+    // Spin a dedicated thread that schedules the device on its own CFRunLoop
+    // and keeps it running. Use a promise to hand the run loop ref back so the
+    // destructor can stop it cleanly. The thread is owned by macos_gamepad_t
+    // and joined in its destructor, so `device` stays valid for the thread's
+    // whole lifetime (it is CFRelease'd only after the join).
+    auto gp = std::make_unique<macos_gamepad_t>();
+    gp->hid_device = device;
+    gp->report.report_id = 1;
+    gp->report.hat = 8;  // null state (no D-pad direction)
+
+    // Spinning up the thread (or, in the worst case, taking the lock) can throw
+    // under resource exhaustion. Callers only inspect the return code, so
+    // translate any failure into -1 rather than letting it escape. If we throw
+    // here, gp's destructor releases the device (and joins the thread if it was
+    // already started), so nothing leaks.
+    try {
+      std::promise<CFRunLoopRef> rl_promise;
+      auto rl_future = rl_promise.get_future();
+
+      gp->run_loop_thread = std::thread([device, nr, promise = std::move(rl_promise)]() mutable {
+        // Name the thread so it's identifiable in Console/Instruments/lldb
+        // (repo convention; up to MAX_GAMEPADS of these can exist at once).
+        set_thread_name("gamepad::hid[" + std::to_string(nr) + "]");
+        CFRunLoopRef rl = CFRunLoopGetCurrent();
+        IOHIDUserDeviceScheduleWithRunLoop(device, rl, kCFRunLoopDefaultMode);
+        promise.set_value(rl);  // hand run loop ref back to alloc_gamepad
+        CFRunLoopRun();  // blocks until the destructor's queued block stops it
+        IOHIDUserDeviceUnscheduleFromRunLoop(device, rl, kCFRunLoopDefaultMode);
+      });
+
+      // Wait until the thread has scheduled the device, then take our own
+      // reference on its run loop. CFRunLoopGetCurrent() (used inside the
+      // thread) returns a non-owning reference tied to the thread's lifetime;
+      // retaining here keeps the run loop valid for the destructor even in the
+      // unlikely event the thread exits early (e.g. CFRunLoopRun returns with
+      // no source).
+      CFRunLoopRef rl = rl_future.get();
+      CFRetain(rl);
+      gp->run_loop = rl;
+
+      // The slot is empty here: alloc runs on the single control-stream thread
+      // and global ids are unique, so no other thread fills nr while we're in
+      // this function (and the "occupied" case above already freed it). The
+      // assignment therefore never destroys a live device, i.e. never joins a
+      // run-loop thread while holding the lock — the one thing free_gamepad
+      // takes care to avoid.
+      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      macos_input->gamepads[nr] = std::move(gp);
+    } catch (const std::exception &e) {
+      BOOST_LOG(error) << "alloc_gamepad: failed to start HID run-loop thread for slot " << nr << ": " << e.what();
+      return -1;
+    }
+
+    BOOST_LOG(info) << "alloc_gamepad: created virtual gamepad in slot " << nr;
+    return 0;
   }
 
+  /**
+   * @brief Destroys the virtual HID gamepad in the given slot.
+   * @param input The global input context.
+   * @param nr The global gamepad slot index.
+   */
   void free_gamepad(input_t &input, int nr) {
-    BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
+    auto *macos_input = static_cast<macos_input_t *>(input.get());
+    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+      return;
+    }
+
+    // Detach the device from the slot under the lock so the slot reads as empty
+    // immediately, then let it destruct *outside* the lock. ~macos_gamepad_t()
+    // joins the run-loop thread, which we must not do while holding the mutex
+    // (that would block gamepad_update for the whole teardown).
+    std::unique_ptr<macos_gamepad_t> doomed;
+    {
+      std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+      doomed = std::move(macos_input->gamepads[nr]);
+    }
+
+    if (doomed) {
+      doomed.reset();  // stops the run loop, joins its thread, releases the HID device
+      BOOST_LOG(info) << "free_gamepad: released slot " << nr;
+    }
   }
 
+  /**
+   * @brief Negates a signed 16-bit axis value without overflowing.
+   *
+   * A plain unary minus on INT16_MIN (-32768) would produce +32768, which is
+   * not representable as int16_t and wraps back to -32768 — leaving a
+   * fully-deflected stick stuck at the wrong extreme. Clamp that one case to
+   * INT16_MAX so the negation stays monotonic across the whole range.
+   *
+   * @param v The axis value to negate.
+   * @return -v, clamped to the int16_t range.
+   */
+  static int16_t negate_axis(int16_t v) {
+    return v == INT16_MIN ? INT16_MAX : static_cast<int16_t>(-v);
+  }
+
+  gamepad_hid_report_t map_gamepad_state_to_hid_report(const gamepad_state_t &gamepad_state) {
+    gamepad_hid_report_t report {};
+    report.report_id = 1;
+
+    // Buttons (bits 0-10 → HID buttons 1-11). Order matches the Razer Serval's
+    // SDL GameControllerDB entry so SDL/Steam/Wine auto-map correctly:
+    //   b0=A b1=B b2=X b3=Y b4=LB b5=RB b6=Back b7=Start b8=Guide b9=LS b10=RS
+    // (SDL Serval mapping: a:b0, b:b1, x:b2, y:b3, leftshoulder:b4,
+    //  rightshoulder:b5, back:b6, start:b7, guide:b8, leftstick:b9, rightstick:b10)
+    if (gamepad_state.buttonFlags & A) {
+      report.buttons |= (1 << 0);  // b0  A
+    }
+    if (gamepad_state.buttonFlags & B) {
+      report.buttons |= (1 << 1);  // b1  B
+    }
+    if (gamepad_state.buttonFlags & X) {
+      report.buttons |= (1 << 2);  // b2  X
+    }
+    if (gamepad_state.buttonFlags & Y) {
+      report.buttons |= (1 << 3);  // b3  Y
+    }
+    if (gamepad_state.buttonFlags & LEFT_BUTTON) {
+      report.buttons |= (1 << 4);  // b4  LB
+    }
+    if (gamepad_state.buttonFlags & RIGHT_BUTTON) {
+      report.buttons |= (1 << 5);  // b5  RB
+    }
+    if (gamepad_state.buttonFlags & BACK) {
+      report.buttons |= (1 << 6);  // b6  Back
+    }
+    if (gamepad_state.buttonFlags & START) {
+      report.buttons |= (1 << 7);  // b7  Start
+    }
+    if (gamepad_state.buttonFlags & HOME) {
+      report.buttons |= (1 << 8);  // b8  Guide
+    }
+    if (gamepad_state.buttonFlags & LEFT_STICK) {
+      report.buttons |= (1 << 9);  // b9  LS
+    }
+    if (gamepad_state.buttonFlags & RIGHT_STICK) {
+      report.buttons |= (1 << 10);  // b10 RS
+    }
+
+    // D-pad as HAT switch: 0=N 1=NE 2=E 3=SE 4=S 5=SW 6=W 7=NW 8=null
+    {
+      const bool up = gamepad_state.buttonFlags & DPAD_UP;
+      const bool down = gamepad_state.buttonFlags & DPAD_DOWN;
+      const bool left = gamepad_state.buttonFlags & DPAD_LEFT;
+      const bool right = gamepad_state.buttonFlags & DPAD_RIGHT;
+      uint8_t hat = 8;  // null (no direction)
+      if (up && !down) {
+        hat = right ? 1 : (left ? 7 : 0);  // NE / NW / N
+      } else if (down && !up) {
+        hat = right ? 3 : (left ? 5 : 4);  // SE / SW / S
+      } else if (right && !left) {
+        hat = 2;  // E
+      } else if (left && !right) {
+        hat = 6;  // W
+      }
+      report.hat = hat;
+    }
+
+    // Sticks: pass through as-is (-32768..32767); Y axes are negated to match
+    // HID convention where up is the negative direction.
+    // Triggers: scale 0..255 → full signed range -32768..32767 so SDL reads
+    // them as a full-range axis (rest = -32768 → SDL_GameController 0; full =
+    // 32767 → 32767). Sending 0..32767 made the axis idle at the midpoint,
+    // which SDL reported as a half-pressed trigger.
+    report.left_x = gamepad_state.lsX;
+    report.left_y = negate_axis(gamepad_state.lsY);
+    report.right_x = gamepad_state.rsX;
+    report.right_y = negate_axis(gamepad_state.rsY);
+    report.l2 = static_cast<int16_t>((gamepad_state.lt / 255.0f) * 65535.0f - 32768.0f);
+    report.r2 = static_cast<int16_t>((gamepad_state.rt / 255.0f) * 65535.0f - 32768.0f);
+
+    return report;
+  }
+
+  /**
+   * @brief Sends a gamepad state update as a HID report.
+   *
+   * Maps the Moonlight button flags and axis values from @p gamepad_state into
+   * the packed HID report (see map_gamepad_state_to_hid_report) and submits it
+   * to the virtual device.
+   *
+   * @param input The global input context.
+   * @param nr The global gamepad slot index.
+   * @param gamepad_state The current gamepad state from the client.
+   */
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-    BOOST_LOG(info) << "gamepad: Gamepad not yet implemented for MacOS."sv;
+    auto *macos_input = static_cast<macos_input_t *>(input.get());
+    if (nr < 0 || nr >= macos_input_t::MAX_GAMEPADS) {
+      return;
+    }
+
+    // Hold the lock for the whole update: it keeps free_gamepad from detaching
+    // and destroying the device between the null-check and HandleReport. The
+    // HID submission is a fast syscall, and updates for a single gamepad are
+    // serial anyway, so this does not throttle the input path.
+    std::lock_guard<std::mutex> lock(macos_input->gamepads_mutex);
+    if (!macos_input->gamepads[nr]) {
+      return;
+    }
+
+    auto &gp = *macos_input->gamepads[nr];
+    gp.report = map_gamepad_state_to_hid_report(gamepad_state);
+
+    // Send the HID report
+    IOReturn ret = IOHIDUserDeviceHandleReport(
+      gp.hid_device,
+      reinterpret_cast<uint8_t *>(&gp.report),
+      sizeof(gp.report)
+    );
+
+    if (ret != kIOReturnSuccess) {
+      BOOST_LOG(warning) << "gamepad_update: IOHIDUserDeviceHandleReport failed: " << ret;
+    }
   }
 
   // returns current mouse location:
@@ -637,10 +1137,17 @@ const KeyCodeMap kKeyCodesMap[] = {
       }
     }
 
-    // Input coordinates are based on the virtual resolution not the physical, so we need the scaling factor
+    // Input coordinates are based on the virtual resolution not the physical, so we need the scaling factor.
+    // CGDisplayCopyDisplayMode can return null (e.g. no/asleep display on a headless host or CI runner);
+    // fall back to 1.0 rather than dereferencing/CFRelease-ing null.
     const CGDisplayModeRef mode = CGDisplayCopyDisplayMode(macos_input->display);
-    macos_input->displayScaling = ((CGFloat) CGDisplayPixelsWide(macos_input->display)) / ((CGFloat) CGDisplayModeGetPixelWidth(mode));
-    CFRelease(mode);
+    if (mode) {
+      macos_input->displayScaling = ((CGFloat) CGDisplayPixelsWide(macos_input->display)) / ((CGFloat) CGDisplayModeGetPixelWidth(mode));
+      CFRelease(mode);
+    } else {
+      macos_input->displayScaling = 1.0;
+      BOOST_LOG(warning) << "input(): CGDisplayCopyDisplayMode returned null; defaulting display scaling to 1.0"sv;
+    }
 
     macos_input->source = CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
     macos_input->keyboard_source = CGEventSourceCreate(kCGEventSourceStatePrivate);
@@ -670,8 +1177,8 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    static std::vector gamepads {
-      supported_gamepad_t {"", false, "gamepads.macos_not_implemented"}
+    static std::vector<supported_gamepad_t> gamepads {
+      supported_gamepad_t {"XInput", true, ""}
     };
 
     return gamepads;
