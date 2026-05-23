@@ -30,7 +30,7 @@ jobs:
             dist: 22.04
     steps:
       - name: More space
-        uses: LizardByte/actions/actions/more_space@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
+        uses: LizardByte/actions/actions/more_space@70ea74cf7148e9284359fd8694b3d8829122ee7d  # v2026.522.121358
         with:
           analyze-space-savings: true
           clean-all: true

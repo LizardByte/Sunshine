@@ -52,7 +52,7 @@ jobs:
     steps:
       - name: More space
         if: runner.os == 'Linux'
-        uses: LizardByte/actions/actions/more_space@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
+        uses: LizardByte/actions/actions/more_space@70ea74cf7148e9284359fd8694b3d8829122ee7d  # v2026.522.121358
         with:
           analyze-space-savings: true
           clean-all: true
@@ -177,7 +177,7 @@ jobs:
       - name: Validate Homebrew Formula
         id: test
         if: matrix.release != true
-        uses: LizardByte/actions/actions/release_homebrew@4125866b7b655a6fe038b0e22a43a4c5d259af79  # v2026.417.35446
+        uses: LizardByte/actions/actions/release_homebrew@70ea74cf7148e9284359fd8694b3d8829122ee7d  # v2026.522.121358
         with:
           actionlint_config: "---\n# empty config"
           formula_file: ${{ github.workspace }}/homebrew/sunshine.rb
