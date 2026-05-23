@@ -1861,7 +1861,7 @@ namespace platf::dxgi {
           amf_uint64 version;
           auto result = fnAMFQueryVersion(&version);
           if (result == AMF_OK) {
-            if (config.videoFormat == 2 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
+            if (config.videoFormat == video::SUNSHINE_FORMAT_AV1 && version < AMF_MAKE_FULL_VERSION(1, 4, 30, 0)) {
               // AMF 1.4.30 adds ultra low latency mode for AV1. Don't use AV1 on earlier versions.
               // This corresponds to driver version 23.5.2 (23.10.01.45) or newer.
               BOOST_LOG(warning) << "AV1 encoding is disabled on AMF version "sv
@@ -1898,7 +1898,7 @@ namespace platf::dxgi {
         return false;
       }
       if (config.chromaSamplingType == 1) {
-        if (config.videoFormat == 0 || config.videoFormat == 2) {
+        if (config.videoFormat == video::SUNSHINE_FORMAT_H264 || config.videoFormat == video::SUNSHINE_FORMAT_AV1) {
           // QSV doesn't support 4:4:4 in H.264 or AV1
           return false;
         }

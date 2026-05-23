@@ -770,6 +770,11 @@ namespace nvhttp {
 
     const uint32_t codec_mode_flags = get_codec_mode_flags();
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
+    if (video::active_prores_mode > 0) {
+      tree.put("root.SunshineExperimentalProRes", "1");
+      tree.put("root.SunshineExperimentalProResVideoFormat", video::SUNSHINE_FORMAT_PRORES);
+      tree.put("root.SunshineExperimentalProResProfile", config::video.prores_profile);
+    }
 
     if (!config::nvhttp.external_ip.empty()) {
       tree.put("root.ExternalIP", config::nvhttp.external_ip);

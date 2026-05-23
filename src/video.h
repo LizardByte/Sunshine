@@ -19,6 +19,25 @@ struct AVPacket;
 
 namespace video {
 
+  inline constexpr int SUNSHINE_FORMAT_H264 = 0;
+  inline constexpr int SUNSHINE_FORMAT_HEVC = 1;
+  inline constexpr int SUNSHINE_FORMAT_AV1 = 2;
+  inline constexpr int SUNSHINE_FORMAT_PRORES = 3;
+  inline constexpr std::size_t SUNSHINE_FORMAT_COUNT = 4;
+
+  static_assert(SUNSHINE_FORMAT_H264 == 0);
+  static_assert(SUNSHINE_FORMAT_HEVC == 1);
+  static_assert(SUNSHINE_FORMAT_AV1 == 2);
+  static_assert(SUNSHINE_FORMAT_PRORES == 3);
+
+  inline bool is_known_video_format(int video_format) {
+    return video_format >= SUNSHINE_FORMAT_H264 && video_format <= SUNSHINE_FORMAT_PRORES;
+  }
+
+  inline bool is_video_format_enabled_by_prores_gate(int video_format, int prores_mode) {
+    return video_format != SUNSHINE_FORMAT_PRORES || prores_mode > 0;
+  }
+
   /* Encoding configuration requested by remote client */
   struct config_t {
     int width;  // Video width in pixels
@@ -34,7 +53,7 @@ namespace video {
        SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
     int encoderCscMode;
 
-    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
+    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1, 3 - ProRes experimental
 
     /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
@@ -191,18 +210,21 @@ namespace video {
     codec_t av1;
     codec_t hevc;
     codec_t h264;
+    codec_t prores;
 
     const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {
         default:
           BOOST_LOG(error) << "Unknown video format " << config.videoFormat << ", falling back to H.264";
           // fallthrough
-        case 0:
+        case SUNSHINE_FORMAT_H264:
           return h264;
-        case 1:
+        case SUNSHINE_FORMAT_HEVC:
           return hevc;
-        case 2:
+        case SUNSHINE_FORMAT_AV1:
           return av1;
+        case SUNSHINE_FORMAT_PRORES:
+          return prores;
       }
     }
 
@@ -345,8 +367,9 @@ namespace video {
 
   extern int active_hevc_mode;
   extern int active_av1_mode;
+  extern int active_prores_mode;
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
-  extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
+  extern std::array<bool, SUNSHINE_FORMAT_COUNT> last_encoder_probe_supported_yuv444_for_codec;
 
   void capture(
     safe::mail_t mail,

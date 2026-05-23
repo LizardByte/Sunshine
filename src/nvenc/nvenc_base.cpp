@@ -453,10 +453,11 @@ namespace nvenc {
     }
 
     {
-      auto video_format_string = client_config.videoFormat == 0 ? "H.264 " :
-                                 client_config.videoFormat == 1 ? "HEVC " :
-                                 client_config.videoFormat == 2 ? "AV1 " :
-                                                                  " ";
+      auto video_format_string = client_config.videoFormat == video::SUNSHINE_FORMAT_H264   ? "H.264 " :
+                                 client_config.videoFormat == video::SUNSHINE_FORMAT_HEVC   ? "HEVC " :
+                                 client_config.videoFormat == video::SUNSHINE_FORMAT_AV1    ? "AV1 " :
+                                 client_config.videoFormat == video::SUNSHINE_FORMAT_PRORES ? "ProRes " :
+                                                                                              " ";
       std::string extra;
       if (init_params.enableEncodeAsync) {
         extra += " async";
