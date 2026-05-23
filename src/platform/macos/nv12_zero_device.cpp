@@ -56,7 +56,31 @@ namespace platf {
   }
 
   int nv12_zero_device::init(void *display, pix_fmt_e pix_fmt, resolution_fn_t resolution_fn, const pixel_format_fn_t &pixel_format_fn) {
-    pixel_format_fn(display, pix_fmt == pix_fmt_e::nv12 ? kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange : kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange);
+    // Map the abstract pix_fmt_e to the matching CVPixelBufferType. The
+    // 4:2:0 BiPlanar formats (NV12 / P010) cover H.264 / HEVC / AV1; the
+    // 4:4:4 BiPlanar formats (NV24 / P410) cover ProRes (422 profiles via
+    // encoder-internal downsample, 4444 profiles natively).
+    using enum pix_fmt_e;
+    OSType cv_format;
+    switch (pix_fmt) {
+      case nv12:
+        cv_format = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange;
+        break;
+      case nv24:
+        cv_format = kCVPixelFormatType_444YpCbCr8BiPlanarVideoRange;
+        break;
+      case p410:
+        cv_format = kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange;
+        break;
+      case p010:
+      default:
+        // p010 is the historical 10-bit 4:2:0 path; the default fall-through
+        // matches it because display.mm::make_avcodec_encode_device is the
+        // source of truth for which pix_fmt values reach this method.
+        cv_format = kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange;
+        break;
+    }
+    pixel_format_fn(display, cv_format);
 
     this->display = display;
     this->resolution_fn = std::move(resolution_fn);

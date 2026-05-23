@@ -4,7 +4,14 @@
  */
 #include "../tests_common.h"
 
+#include <src/config.h>
 #include <src/video.h>
+
+static_assert(video::SUNSHINE_FORMAT_H264 == 0);
+static_assert(video::SUNSHINE_FORMAT_HEVC == 1);
+static_assert(video::SUNSHINE_FORMAT_AV1 == 2);
+static_assert(video::SUNSHINE_FORMAT_PRORES == 3);
+static_assert(video::SUNSHINE_FORMAT_COUNT == 4);
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
@@ -44,6 +51,78 @@ INSTANTIATE_TEST_SUITE_P(
     return std::string(info.param->name);
   }
 );
+
+/**
+ * @brief Test fixture that snapshots ProRes-related global config state on
+ *        SetUp, restores it on TearDown, and explicitly establishes the
+ *        documented default values inside the test body.
+ *
+ * Using a fixture (rather than per-test manual save/restore) means every
+ * test starts from the documented defaults regardless of the order in
+ * which tests run or whether earlier tests fail mid-body. This closes the
+ * ordering / early-return flakiness the reviewer flagged.
+ */
+struct ProResConfigTest: testing::Test {
+  void SetUp() override {
+    saved_mode_ = config::video.prores_mode;
+    saved_profile_ = config::video.prores_profile;
+    // Establish the documented defaults explicitly for every test.
+    config::video.prores_mode = 0;
+    config::video.prores_profile = "lt";
+  }
+
+  void TearDown() override {
+    config::video.prores_mode = saved_mode_;
+    config::video.prores_profile = saved_profile_;
+  }
+
+private:
+  int saved_mode_ = 0;
+  std::string saved_profile_;
+};
+
+TEST_F(ProResConfigTest, DefaultsDisabled) {
+  EXPECT_EQ(config::video.prores_mode, 0);
+  EXPECT_EQ(config::video.prores_profile, "lt");
+}
+
+TEST_F(ProResConfigTest, ParsesExplicitModeAndProfile) {
+  config::apply_config({
+    {"prores_mode", "1"},
+    {"prores_profile", "hq"},
+  });
+
+  EXPECT_EQ(config::video.prores_mode, 1);
+  EXPECT_EQ(config::video.prores_profile, "hq");
+}
+
+TEST_F(ProResConfigTest, NormalizesInvalidValues) {
+  config::apply_config({
+    {"prores_mode", "9"},
+    {"prores_profile", "bad_profile"},
+  });
+
+  EXPECT_EQ(config::video.prores_mode, 0);
+  EXPECT_EQ(config::video.prores_profile, "lt");
+}
+
+TEST(ProResProtocolGateTest, KnownFormatsIncludeExperimentalProRes) {
+  EXPECT_TRUE(video::is_known_video_format(video::SUNSHINE_FORMAT_H264));
+  EXPECT_TRUE(video::is_known_video_format(video::SUNSHINE_FORMAT_HEVC));
+  EXPECT_TRUE(video::is_known_video_format(video::SUNSHINE_FORMAT_AV1));
+  EXPECT_TRUE(video::is_known_video_format(video::SUNSHINE_FORMAT_PRORES));
+  EXPECT_FALSE(video::is_known_video_format(video::SUNSHINE_FORMAT_PRORES + 1));
+}
+
+TEST(ProResProtocolGateTest, ProResRequestsAreRejectedWhenDisabled) {
+  EXPECT_TRUE(video::is_video_format_enabled_by_prores_gate(video::SUNSHINE_FORMAT_H264, 0));
+  EXPECT_FALSE(video::is_video_format_enabled_by_prores_gate(video::SUNSHINE_FORMAT_PRORES, 0));
+}
+
+TEST(ProResProtocolGateTest, ProResRequestsAreAcceptedWhenEnabled) {
+  EXPECT_TRUE(video::is_video_format_enabled_by_prores_gate(video::SUNSHINE_FORMAT_PRORES, 1));
+  EXPECT_TRUE(video::is_video_format_enabled_by_prores_gate(video::SUNSHINE_FORMAT_PRORES, 2));
+}
 
 TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup

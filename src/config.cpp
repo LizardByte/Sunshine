@@ -350,6 +350,25 @@ namespace config {
 
   }  // namespace vt
 
+  namespace prores {
+
+    std::string profile_from_view(const std::string_view profile) {
+#define _CONVERT_(x) \
+  if (profile == #x##sv) \
+  return #x
+      _CONVERT_(proxy);
+      _CONVERT_(lt);
+      _CONVERT_(standard);
+      _CONVERT_(hq);
+      _CONVERT_(4444);
+      _CONVERT_(xq);
+#undef _CONVERT_
+      BOOST_LOG(warning) << "config: unknown prores_profile value: " << profile;
+      return "lt";
+    }
+
+  }  // namespace prores
+
   namespace sw {
     int svtav1_preset_from_view(const std::string_view &preset) {
 #define _CONVERT_(x, y) \
@@ -454,6 +473,8 @@ namespace config {
 
     0,  // hevc_mode
     0,  // av1_mode
+    0,  // prores_mode
+    "lt"s,  // prores_profile
 
     2,  // min_threads
     {
@@ -1101,6 +1122,8 @@ namespace config {
     int_f(vars, "qp", video.qp);
     int_between_f(vars, "hevc_mode", video.hevc_mode, {0, 3});
     int_between_f(vars, "av1_mode", video.av1_mode, {0, 3});
+    int_between_f(vars, "prores_mode", video.prores_mode, {0, 2});
+    generic_f(vars, "prores_profile", video.prores_profile, prores::profile_from_view);
     int_f(vars, "min_threads", video.min_threads);
     string_f(vars, "sw_preset", video.sw.sw_preset);
     if (!video.sw.sw_preset.empty()) {

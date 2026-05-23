@@ -736,34 +736,39 @@ namespace nvhttp {
     }
 
     uint32_t codec_mode_flags = SCM_H264;
-    if (video::last_encoder_probe_supported_yuv444_for_codec[0]) {
+    if (video::last_encoder_probe_supported_yuv444_for_codec[video::SUNSHINE_FORMAT_H264]) {
       codec_mode_flags |= SCM_H264_HIGH8_444;
     }
     if (video::active_hevc_mode >= 2) {
       codec_mode_flags |= SCM_HEVC;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+      if (video::last_encoder_probe_supported_yuv444_for_codec[video::SUNSHINE_FORMAT_HEVC]) {
         codec_mode_flags |= SCM_HEVC_REXT8_444;
       }
     }
     if (video::active_hevc_mode >= 3) {
       codec_mode_flags |= SCM_HEVC_MAIN10;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[1]) {
+      if (video::last_encoder_probe_supported_yuv444_for_codec[video::SUNSHINE_FORMAT_HEVC]) {
         codec_mode_flags |= SCM_HEVC_REXT10_444;
       }
     }
     if (video::active_av1_mode >= 2) {
       codec_mode_flags |= SCM_AV1_MAIN8;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+      if (video::last_encoder_probe_supported_yuv444_for_codec[video::SUNSHINE_FORMAT_AV1]) {
         codec_mode_flags |= SCM_AV1_HIGH8_444;
       }
     }
     if (video::active_av1_mode >= 3) {
       codec_mode_flags |= SCM_AV1_MAIN10;
-      if (video::last_encoder_probe_supported_yuv444_for_codec[2]) {
+      if (video::last_encoder_probe_supported_yuv444_for_codec[video::SUNSHINE_FORMAT_AV1]) {
         codec_mode_flags |= SCM_AV1_HIGH10_444;
       }
     }
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
+    if (video::active_prores_mode > 0) {
+      tree.put("root.SunshineExperimentalProRes", "1");
+      tree.put("root.SunshineExperimentalProResVideoFormat", video::SUNSHINE_FORMAT_PRORES);
+      tree.put("root.SunshineExperimentalProResProfile", config::video.prores_profile);
+    }
 
     if (!config::nvhttp.external_ip.empty()) {
       tree.put("root.ExternalIP", config::nvhttp.external_ip);

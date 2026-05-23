@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added disabled-by-default experimental macOS ProRes VideoToolbox encoder
+  plumbing for custom clients. This is Sunshine-side protocol and encoder
+  support only and does not add stock Moonlight ProRes decoder compatibility.
+
 @htmlonly
 <script type="module" src="https://md-block.verou.me/md-block.js"></script>
 <md-block
