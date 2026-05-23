@@ -545,9 +545,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(info) << "unicode: Unicode input not yet implemented for MacOS."sv;
   }
 
-  // Creates a virtual HID gamepad for the given slot (documented in
-  // src/platform/common.h, the shared platf:: interface).
-  //
   // The macOS virtual gamepad is currently input-only: it emulates a single
   // fixed device (a Razer Serval) and reports buttons/axes to the OS, but does
   // not consume the arrival metadata or post anything to the feedback queue. As
@@ -680,7 +677,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     return 0;
   }
 
-  // Destroys the virtual HID gamepad in the given slot (documented in src/platform/common.h).
   void free_gamepad(input_t &input, int nr) {
     auto *macos_input = static_cast<macos_input_t *>(input.get());
     if (nr < 0 || nr >= platf::MAX_GAMEPADS) {
@@ -820,9 +816,6 @@ const KeyCodeMap kKeyCodesMap[] = {
     return report;
   }
 
-  // Sends a gamepad state update as a HID report (documented in src/platform/common.h):
-  // maps the Moonlight button flags and axis values into the packed HID report
-  // (see map_gamepad_state_to_hid_report) and submits it to the virtual device.
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
     auto *macos_input = static_cast<macos_input_t *>(input.get());
     if (nr < 0 || nr >= platf::MAX_GAMEPADS) {
@@ -1081,17 +1074,14 @@ const KeyCodeMap kKeyCodesMap[] = {
     // Unimplemented feature - platform_caps::pen_touch
   }
 
-  // Sends a gamepad touch event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_touch(input_t &input, const gamepad_touch_t &touch) {
     // Unimplemented feature - platform_caps::controller_touch
   }
 
-  // Sends a gamepad motion event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_motion(input_t &input, const gamepad_motion_t &motion) {
     // Unimplemented
   }
 
-  // Sends a gamepad battery event to the OS (documented in src/platform/common.h). Unimplemented on macOS.
   void gamepad_battery(input_t &input, const gamepad_battery_t &battery) {
     // Unimplemented
   }
