@@ -37,13 +37,13 @@
         </button>
         <!-- Search box -->
         <div class="input-group">
-          <span class="input-group-text">
-            <search :size="16" class="icon"></search>
-          </span>
           <input type="text" class="form-control" v-model="searchQuery" :placeholder="$t('apps.search_placeholder')" />
           <button v-if="searchQuery" class="btn btn-outline-secondary" type="button" @click="resetSearchQuery" :aria-label="$t('_common.close')">
             <x :size="16" class="icon"></x>
           </button>
+          <span v-else class="input-group-text">
+            <search :size="16" class="icon"></search>
+          </span>
         </div>
       </div>
     </div>
@@ -55,7 +55,7 @@
           <div class="app-poster-container">
             <img
               v-if="app['image-path']"
-              :src="'/api/covers/' + index + '?v=' + encodeURIComponent(app['image-path'])"
+              :src="'/api/covers/' + index"
               class="app-poster"
               :alt="app.name"
               @error="handleImageError"
@@ -107,7 +107,7 @@
     <!-- Edit / Add Application modal -->
     <div class="modal fade" ref="editModal" tabindex="-1" aria-labelledby="appEditModalLabel"
          aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-md-down">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable modal-fullscreen-lg-down">
         <div class="modal-content" v-if="editForm">
           <div class="modal-header">
             <h5 class="modal-title" id="appEditModalLabel">
@@ -783,11 +783,7 @@
             "Content-Type": "application/json"
           },
         }).then((r) => {
-          if (r.status === 200) {
-            // re-fetch the grid instead of reloading the whole page now
-            this.closeDeleteModal();
-            this.loadApps();
-          }
+          if (r.status === 200) document.location.reload();
         });
       },
       addPrepCmd() {
@@ -989,10 +985,7 @@
           },
           body: JSON.stringify(this.editForm),
         }).then((r) => {
-          if (r.status === 200) {
-            this.closeEditModal();
-            this.loadApps();
-          }
+          if (r.status === 200) document.location.reload();
         });
       },
       handleImageError(event) {

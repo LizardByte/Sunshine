@@ -685,10 +685,6 @@ body {
     background-color: var(--color-surface-raised) !important;
 }
 
-.modal-header {
-    border-bottom: 2px solid var(--color-primary) !important;
-}
-
 .list-group-item {
     background-color: var(--color-surface) !important;
     border-color: var(--color-border) !important;
@@ -1718,8 +1714,7 @@ p {
 }
 
 .apps-toolbar .input-group {
-    width: 15rem;
-    max-width: 100%;
+    width: 14rem;
 }
 
 .apps-toolbar .btn-outline-secondary {
