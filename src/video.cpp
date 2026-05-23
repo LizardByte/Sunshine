@@ -119,6 +119,26 @@ namespace video {
 
   }  // namespace qsv
 
+  int prores_profile_from_config() {
+    const auto &profile = config::video.prores_profile;
+    if (profile == "proxy"sv) {
+      return AV_PROFILE_PRORES_PROXY;
+    }
+    if (profile == "standard"sv) {
+      return AV_PROFILE_PRORES_STANDARD;
+    }
+    if (profile == "hq"sv) {
+      return AV_PROFILE_PRORES_HQ;
+    }
+    if (profile == "4444"sv) {
+      return AV_PROFILE_PRORES_4444;
+    }
+    if (profile == "xq"sv) {
+      return AV_PROFILE_PRORES_XQ;
+    }
+    return AV_PROFILE_PRORES_LT;
+  }
+
   util::Either<avcodec_buffer_t, int> dxgi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int> vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
@@ -513,6 +533,7 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
+    {},
     PARALLEL_ENCODING | REF_FRAMES_INVALIDATION | YUV444_SUPPORT | ASYNC_TEARDOWN  // flags
   };
 #elif !defined(__APPLE__)
@@ -610,6 +631,7 @@ namespace video {
       {},  // Fallback options
       "h264_nvenc"s,
     },
+    {},
     PARALLEL_ENCODING
   };
 #endif
@@ -720,6 +742,7 @@ namespace video {
       },
       "h264_qsv"s,
     },
+    {},
     PARALLEL_ENCODING | CBR_WITH_VBR | RELAXED_COMPLIANCE | NO_RC_BUF_LIMIT | YUV444_SUPPORT
   };
 
@@ -826,6 +849,7 @@ namespace video {
       },
       "h264_amf"s,
     },
+    {},
     PARALLEL_ENCODING
   };
 
@@ -883,6 +907,7 @@ namespace video {
       {},  // Fallback options
       "h264_mf"s,
     },
+    {},
     PARALLEL_ENCODING | FIXED_GOP_SIZE  // MF encoder doesn't support on-demand IDR frames
   };
 #endif
@@ -954,6 +979,7 @@ namespace video {
       {},  // Fallback options
       "libx264"s,
     },
+    {},
     H264_ONLY | PARALLEL_ENCODING | ALWAYS_REPROBE | YUV444_SUPPORT
   };
 
@@ -1011,6 +1037,7 @@ namespace video {
       {},  // Fallback options
       "h264_vaapi"s,
     },
+    {},
     // RC buffer size will be set in platform code if supported
     LIMITED_GOP_SIZE | PARALLEL_ENCODING | NO_RC_BUF_LIMIT
   };
@@ -1082,6 +1109,7 @@ namespace video {
       {},  // Fallback options
       "h264_vulkan"s,
     },
+    {},
     LIMITED_GOP_SIZE | PARALLEL_ENCODING
   };
   #endif  // SUNSHINE_BUILD_VULKAN
@@ -1151,6 +1179,20 @@ namespace video {
       },
       "h264_videotoolbox"s,
     },
+    {
+      // Common options
+      {
+        {"allow_sw"s, 0},
+        {"realtime"s, 1},
+        {"profile"s, &config::video.prores_profile},
+      },
+      {},  // SDR-specific options
+      {},  // HDR-specific options
+      {},  // YUV444 SDR-specific options
+      {},  // YUV444 HDR-specific options
+      {},  // Fallback options
+      "prores_videotoolbox"s,
+    },
     DEFAULT
   };
 #endif
@@ -1179,8 +1221,9 @@ namespace video {
   static encoder_t *chosen_encoder;
   int active_hevc_mode;
   int active_av1_mode;
+  int active_prores_mode;
   bool last_encoder_probe_supported_ref_frames_invalidation = false;
-  std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec = {};
+  std::array<bool, SUNSHINE_FORMAT_COUNT> last_encoder_probe_supported_yuv444_for_codec = {};
 
   void reset_display(std::shared_ptr<platf::display_t> &disp, const platf::mem_type_e &type, const std::string &display_name, const config_t &config) {
     // We try this twice, in case we still get an error on reinitialization
@@ -1675,13 +1718,13 @@ namespace video {
       }
 
       switch (config.videoFormat) {
-        case 0:
+        case SUNSHINE_FORMAT_H264:
           // 10-bit h264 encoding is not supported by our streaming protocol
           assert(!config.dynamicRange);
           ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_H264_HIGH_444_PREDICTIVE : AV_PROFILE_H264_HIGH;
           break;
 
-        case 1:
+        case SUNSHINE_FORMAT_HEVC:
           if (config.chromaSamplingType == 1) {
             // HEVC uses the same RExt profile for both 8 and 10 bit YUV 4:4:4 encoding
             ctx->profile = AV_PROFILE_HEVC_REXT;
@@ -1690,10 +1733,14 @@ namespace video {
           }
           break;
 
-        case 2:
+        case SUNSHINE_FORMAT_AV1:
           // AV1 supports both 8 and 10 bit encoding with the same Main profile
           // but YUV 4:4:4 sampling requires High profile
           ctx->profile = (config.chromaSamplingType == 1) ? AV_PROFILE_AV1_HIGH : AV_PROFILE_AV1_MAIN;
+          break;
+
+        case SUNSHINE_FORMAT_PRORES:
+          ctx->profile = prores_profile_from_config();
           break;
       }
 
@@ -1877,7 +1924,7 @@ namespace video {
       }
 
       if (!(encoder.flags & NO_RC_BUF_LIMIT)) {
-        if (!hardware && (ctx->slices > 1 || config.videoFormat == 1)) {
+        if (!hardware && (ctx->slices > 1 || config.videoFormat == SUNSHINE_FORMAT_HEVC)) {
           // Use a larger rc_buffer_size for software encoding when slices are enabled,
           // because libx264 can severely degrade quality if the buffer is too small.
           // libx265 encounters this issue more frequently, so always scale the
@@ -1989,7 +2036,7 @@ namespace video {
       std::move(encode_device_final),
 
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
-      config.videoFormat <= 1 ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0
+      config.videoFormat <= SUNSHINE_FORMAT_HEVC ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0
     );
 
     return session;
@@ -2598,9 +2645,9 @@ namespace video {
     int flag = 0;
 
     // This check only applies for H.264 and HEVC
-    if (config.videoFormat <= 1) {
+    if (config.videoFormat <= SUNSHINE_FORMAT_HEVC) {
       if (auto packet_avcodec = dynamic_cast<packet_raw_avcodec *>(packet.get())) {
-        if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
+        if (cbs::validate_sps(packet_avcodec->av_packet, config.videoFormat == SUNSHINE_FORMAT_HEVC ? AV_CODEC_ID_H265 : AV_CODEC_ID_H264)) {
           flag |= VUI_PARAMS;
         }
       } else {
@@ -2623,10 +2670,12 @@ namespace video {
 
     auto test_hevc = active_hevc_mode >= 2 || (active_hevc_mode == 0 && !(encoder.flags & H264_ONLY));
     auto test_av1 = active_av1_mode >= 2 || (active_av1_mode == 0 && !(encoder.flags & H264_ONLY));
+    auto test_prores = active_prores_mode > 0;
 
     encoder.h264.capabilities.set();
     encoder.hevc.capabilities.set();
     encoder.av1.capabilities.set();
+    encoder.prores.capabilities.set();
 
     // First, test encoder viability
     config_t config_max_ref_frames {1920, 1080, 60, 6000, 1000, 1, 1, 1, 0, 0, 0};
@@ -2666,8 +2715,8 @@ namespace video {
     encoder.h264[encoder_t::PASSED] = true;
 
     if (test_hevc) {
-      config_max_ref_frames.videoFormat = 1;
-      config_autoselect.videoFormat = 1;
+      config_max_ref_frames.videoFormat = SUNSHINE_FORMAT_HEVC;
+      config_autoselect.videoFormat = SUNSHINE_FORMAT_HEVC;
 
       if (disp->is_codec_supported(encoder.hevc.name, config_autoselect)) {
         auto max_ref_frames_hevc = validate_config(disp, encoder, config_max_ref_frames);
@@ -2694,8 +2743,8 @@ namespace video {
     }
 
     if (test_av1) {
-      config_max_ref_frames.videoFormat = 2;
-      config_autoselect.videoFormat = 2;
+      config_max_ref_frames.videoFormat = SUNSHINE_FORMAT_AV1;
+      config_autoselect.videoFormat = SUNSHINE_FORMAT_AV1;
 
       if (disp->is_codec_supported(encoder.av1.name, config_autoselect)) {
         auto max_ref_frames_av1 = validate_config(disp, encoder, config_max_ref_frames);
@@ -2719,6 +2768,26 @@ namespace video {
     } else {
       // Clear all cap bits for AV1 if we didn't probe it
       encoder.av1.capabilities.reset();
+    }
+
+    if (test_prores) {
+      config_max_ref_frames.videoFormat = SUNSHINE_FORMAT_PRORES;
+      config_autoselect.videoFormat = SUNSHINE_FORMAT_PRORES;
+
+      if (disp->is_codec_supported(encoder.prores.name, config_autoselect)) {
+        auto max_ref_frames_prores = validate_config(disp, encoder, config_max_ref_frames);
+        auto autoselect_prores = max_ref_frames_prores >= 0 ?
+                                   max_ref_frames_prores :
+                                   validate_config(disp, encoder, config_autoselect);
+
+        encoder.prores[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_prores >= 0;
+        encoder.prores[encoder_t::PASSED] = max_ref_frames_prores >= 0 || autoselect_prores >= 0;
+      } else {
+        BOOST_LOG(info) << "Encoder ["sv << encoder.prores.name << "] is not supported on this GPU"sv;
+        encoder.prores.capabilities.reset();
+      }
+    } else {
+      encoder.prores.capabilities.reset();
     }
 
     // Test HDR and YUV444 support
@@ -2772,8 +2841,9 @@ namespace video {
       // HDR is not supported with H.264. Don't bother even trying it.
       encoder.h264[encoder_t::DYNAMIC_RANGE] = false;
 
-      test_hdr_and_yuv444(encoder.hevc, 1);
-      test_hdr_and_yuv444(encoder.av1, 2);
+      test_hdr_and_yuv444(encoder.hevc, SUNSHINE_FORMAT_HEVC);
+      test_hdr_and_yuv444(encoder.av1, SUNSHINE_FORMAT_AV1);
+      test_hdr_and_yuv444(encoder.prores, SUNSHINE_FORMAT_PRORES);
     }
 
     encoder.h264[encoder_t::VUI_PARAMETERS] = encoder.h264[encoder_t::VUI_PARAMETERS] && !config::sunshine.flags[config::flag::FORCE_VIDEO_HEADER_REPLACE];
@@ -2808,6 +2878,8 @@ namespace video {
     chosen_encoder = nullptr;
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
+    active_prores_mode = config::video.prores_mode;
+    const bool require_prores = active_prores_mode >= 2;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints = [&](encoder_t *encoder) {
@@ -2826,6 +2898,11 @@ namespace video {
       } else if (active_av1_mode == 2 && !encoder->av1[encoder_t::PASSED]) {
         BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support AV1 on this system"sv;
         active_av1_mode = 0;
+      }
+
+      if (active_prores_mode > 0 && !encoder->prores[encoder_t::PASSED]) {
+        BOOST_LOG(warning) << "Encoder ["sv << encoder->name << "] does not support experimental ProRes on this system"sv;
+        active_prores_mode = 0;
       }
     };
 
@@ -2859,7 +2936,7 @@ namespace video {
     BOOST_LOG(info) << "// Testing for available encoders, this may generate errors. You can safely ignore those errors. //"sv;
 
     // If we haven't found an encoder yet, but we want one with specific codec support, search for that now.
-    if (chosen_encoder == nullptr && (active_hevc_mode >= 2 || active_av1_mode >= 2)) {
+    if (chosen_encoder == nullptr && (active_hevc_mode >= 2 || active_av1_mode >= 2 || require_prores)) {
       KITTY_WHILE_LOOP(auto pos = std::begin(encoder_list), pos != std::end(encoder_list), {
         auto encoder = *pos;
 
@@ -2870,7 +2947,9 @@ namespace video {
         }
 
         // Skip it if it doesn't support the specified codec at all
-        if ((active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) || (active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED])) {
+        if ((active_hevc_mode >= 2 && !encoder->hevc[encoder_t::PASSED]) ||
+            (active_av1_mode >= 2 && !encoder->av1[encoder_t::PASSED]) ||
+            (require_prores && !encoder->prores[encoder_t::PASSED])) {
           pos++;
           continue;
         }
@@ -2886,7 +2965,7 @@ namespace video {
       });
 
       if (chosen_encoder == nullptr) {
-        BOOST_LOG(error) << "Couldn't find any working encoder that meets HEVC/AV1 requirements"sv;
+        BOOST_LOG(error) << "Couldn't find any working encoder that meets HEVC/AV1/forced-ProRes requirements"sv;
       }
     }
 
@@ -2930,12 +3009,14 @@ namespace video {
     auto &encoder = *chosen_encoder;
 
     last_encoder_probe_supported_ref_frames_invalidation = (encoder.flags & REF_FRAMES_INVALIDATION);
-    last_encoder_probe_supported_yuv444_for_codec[0] = encoder.h264[encoder_t::PASSED] &&
-                                                       encoder.h264[encoder_t::YUV444];
-    last_encoder_probe_supported_yuv444_for_codec[1] = encoder.hevc[encoder_t::PASSED] &&
-                                                       encoder.hevc[encoder_t::YUV444];
-    last_encoder_probe_supported_yuv444_for_codec[2] = encoder.av1[encoder_t::PASSED] &&
-                                                       encoder.av1[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[SUNSHINE_FORMAT_H264] = encoder.h264[encoder_t::PASSED] &&
+                                                                          encoder.h264[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[SUNSHINE_FORMAT_HEVC] = encoder.hevc[encoder_t::PASSED] &&
+                                                                          encoder.hevc[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[SUNSHINE_FORMAT_AV1] = encoder.av1[encoder_t::PASSED] &&
+                                                                         encoder.av1[encoder_t::YUV444];
+    last_encoder_probe_supported_yuv444_for_codec[SUNSHINE_FORMAT_PRORES] = encoder.prores[encoder_t::PASSED] &&
+                                                                            encoder.prores[encoder_t::YUV444];
 
     BOOST_LOG(debug) << "------  h264 ------"sv;
     for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
@@ -2967,12 +3048,27 @@ namespace video {
       BOOST_LOG(info) << "Found AV1 encoder: "sv << encoder.av1.name << " ["sv << encoder.name << ']';
     }
 
+    if (encoder.prores[encoder_t::PASSED]) {
+      BOOST_LOG(debug) << "------ prores -----"sv;
+      for (int x = 0; x < encoder_t::MAX_FLAGS; ++x) {
+        auto flag = (encoder_t::flag_e) x;
+        BOOST_LOG(debug) << encoder_t::from_flag(flag) << (encoder.prores[flag] ? ": supported"sv : ": unsupported"sv);
+      }
+      BOOST_LOG(debug) << "-------------------"sv;
+
+      BOOST_LOG(info) << "Found ProRes encoder: "sv << encoder.prores.name << " ["sv << encoder.name << ']';
+    }
+
     if (active_hevc_mode == 0) {
       active_hevc_mode = encoder.hevc[encoder_t::PASSED] ? (encoder.hevc[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
     }
 
     if (active_av1_mode == 0) {
       active_av1_mode = encoder.av1[encoder_t::PASSED] ? (encoder.av1[encoder_t::DYNAMIC_RANGE] ? 3 : 2) : 1;
+    }
+
+    if (active_prores_mode > 0 && !encoder.prores[encoder_t::PASSED]) {
+      active_prores_mode = 0;
     }
 
     return 0;

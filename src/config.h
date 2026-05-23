@@ -31,6 +31,7 @@ namespace config {
   };
 
   void log_config_settings(const std::unordered_map<std::string, std::string> &vars, bool save);
+  void apply_config(std::unordered_map<std::string, std::string> &&vars);
 
   struct video_t {
     // ffmpeg params
@@ -38,6 +39,8 @@ namespace config {
 
     int hevc_mode;
     int av1_mode;
+    int prores_mode;
+    std::string prores_profile;
 
     int min_threads;  // Minimum number of threads/slices for CPU encoding
 

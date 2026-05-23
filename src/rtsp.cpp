@@ -815,6 +815,12 @@ namespace rtsp_stream {
       ss << "a=rtpmap:98 AV1/90000"sv << std::endl;
     }
 
+    if (video::active_prores_mode > 0) {
+      ss << "a=x-sunshine-prores:1"sv << std::endl;
+      ss << "a=x-sunshine-prores-profile:"sv << config::video.prores_profile << std::endl;
+      ss << "a=rtpmap:99 prores/90000"sv << std::endl;
+    }
+
     if (!session.surround_params.empty()) {
       // If we have our own surround parameters, advertise them twice first
       ss << "a=fmtp:97 surround-params="sv << session.surround_params << std::endl;
@@ -1115,15 +1121,34 @@ namespace rtsp_stream {
       config.monitor.bitrate = (int) configuredBitrateKbps;
     }
 
-    if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {
+    if (video::active_prores_mode == 2 && config.monitor.videoFormat != video::SUNSHINE_FORMAT_PRORES) {
+      BOOST_LOG(warning) << "Forcing experimental ProRes because prores_mode is 2"sv;
+      config.monitor.videoFormat = video::SUNSHINE_FORMAT_PRORES;
+    }
+
+    if (!video::is_known_video_format(config.monitor.videoFormat)) {
+      BOOST_LOG(warning) << "Client requested unknown video format "sv << config.monitor.videoFormat;
+
+      respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+      return;
+    }
+
+    if (config.monitor.videoFormat == video::SUNSHINE_FORMAT_HEVC && video::active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;
     }
 
-    if (config.monitor.videoFormat == 2 && video::active_av1_mode == 1) {
+    if (config.monitor.videoFormat == video::SUNSHINE_FORMAT_AV1 && video::active_av1_mode == 1) {
       BOOST_LOG(warning) << "AV1 is disabled, yet the client requested AV1"sv;
+
+      respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
+      return;
+    }
+
+    if (!video::is_video_format_enabled_by_prores_gate(config.monitor.videoFormat, video::active_prores_mode)) {
+      BOOST_LOG(warning) << "Experimental ProRes is disabled, yet the client requested ProRes"sv;
 
       respond(sock, session, &option, 400, "BAD REQUEST", req->sequenceNumber, {});
       return;

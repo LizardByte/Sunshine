@@ -2124,6 +2124,44 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### prores_mode
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Allows custom clients to request experimental macOS ProRes VideoToolbox video streams.
+            @warning{This does not add stock Moonlight client decoder support and should remain disabled unless
+            a custom client is explicitly being tested.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            0
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            prores_mode = 1
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="3">Choices</td>
+        <td>0</td>
+        <td>disabled</td>
+    </tr>
+    <tr>
+        <td>1</td>
+        <td>accept an explicit ProRes request from a custom client</td>
+    </tr>
+    <tr>
+        <td>2</td>
+        <td>force ProRes for local development sessions</td>
+    </tr>
+</table>
+
 ### capture
 
 <table>
@@ -3001,6 +3039,55 @@ editing the `conf` file in a text editor. Use the examples as reference.
         <td colspan="2">@code{}
             vt_realtime = enabled
             @endcode</td>
+    </tr>
+</table>
+
+### prores_profile
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            Sets the FFmpeg `prores_videotoolbox` profile when experimental ProRes is enabled.
+            @note{This option only applies when using macOS.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            lt
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            prores_profile = hq
+            @endcode</td>
+    </tr>
+    <tr>
+        <td rowspan="6">Choices</td>
+        <td>proxy</td>
+        <td>ProRes 422 Proxy</td>
+    </tr>
+    <tr>
+        <td>lt</td>
+        <td>ProRes 422 LT</td>
+    </tr>
+    <tr>
+        <td>standard</td>
+        <td>ProRes 422</td>
+    </tr>
+    <tr>
+        <td>hq</td>
+        <td>ProRes 422 HQ</td>
+    </tr>
+    <tr>
+        <td>4444</td>
+        <td>ProRes 4444</td>
+    </tr>
+    <tr>
+        <td>xq</td>
+        <td>ProRes 4444 XQ</td>
     </tr>
 </table>
 
