@@ -9,3 +9,5 @@ the build directory.
 The project uses gtest as a test framework.
 
 Always follow the style guidelines defined in .clang-format for c/c++ code.
+
+When adding localization do not update any language other than `en`. This also means to exclude en-US or other variants.

@@ -416,7 +416,7 @@
             <pre>sh -c "displayplacer "id:&lt;screenId&gt; res:${SUNSHINE_CLIENT_WIDTH}x${SUNSHINE_CLIENT_HEIGHT} hz:${SUNSHINE_CLIENT_FPS} scaling:on origin:(0,0) degree:0""</pre>
           </div>
           <div class="form-text"><a
-              href="https://docs.lizardbyte.dev/projects/sunshine/latest/md_docs_2app__examples.html"
+              :href="`${documentationBaseUrl}/md_docs_2app__examples.html`"
               target="_blank">{{ $t('_common.see_more') }}</a></div>
         </div>
         <!-- Save buttons -->
@@ -514,6 +514,7 @@
   import Navbar from './Navbar.vue'
   import Checkbox from './Checkbox.vue'
   import { apiFetch } from './fetch_utils'
+  import SunshineVersion from './sunshine_version'
   import { Modal } from 'bootstrap/dist/js/bootstrap'
   import {
     ArrowDown,
@@ -588,9 +589,21 @@
         fileBrowserTypedPath: "",
         searchQuery: "",
         sortMode: "default",
+        version: null,
+        githubVersion: null,
       };
     },
     computed: {
+      installedVersionNotStable() {
+        if (!this.githubVersion || !this.version) {
+          return false;
+        }
+        return this.version.isGreater(this.githubVersion);
+      },
+      documentationBaseUrl() {
+        const docsVersion = this.installedVersionNotStable ? 'master' : 'latest'
+        return `https://docs.lizardbyte.dev/projects/sunshine/${docsVersion}`
+      },
       displayedApps() {
         let list = this.apps.map((app, index) => ({ app, index }));
 
@@ -644,7 +657,15 @@
 
       fetch("./api/config")
         .then(r => r.json())
-        .then(r => this.platform = r.platform);
+        .then(r => {
+          this.platform = r.platform;
+          this.version = new SunshineVersion(null, r.version);
+        });
+
+      fetch("https://api.github.com/repos/LizardByte/Sunshine/releases/latest")
+        .then((r) => r.json())
+        .then((r) => this.githubVersion = new SunshineVersion(r, null))
+        .catch((e) => console.error(e));
     },
     methods: {
       newApp() {
