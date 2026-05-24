@@ -478,6 +478,7 @@
     "warning_msg": "Make sure you have access to the client you are pairing with. This software can give total control to your computer, so be careful!"
   },
   "resource_card": {
+    "documentation": "Documentation",
     "github_discussions": "GitHub Discussions",
     "legal": "Legal",
     "legal_desc": "By continuing to use this software you agree to the terms and conditions in the following documents.",

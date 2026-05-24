@@ -478,6 +478,7 @@
     "warning_msg": "Assurez-vous que vous avez accès au client avec lequel vous appariez. Ce logiciel peut donner un contrôle total à votre ordinateur, alors soyez prudent !"
   },
   "resource_card": {
+    "documentation": "Documentation",
     "github_discussions": "Discussions GitHub",
     "legal": "Légal",
     "legal_desc": "En continuant à utiliser ce logiciel, vous acceptez les termes et conditions des documents suivants.",

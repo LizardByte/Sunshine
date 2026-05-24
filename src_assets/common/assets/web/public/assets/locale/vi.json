@@ -478,6 +478,7 @@
     "warning_msg": "Đảm bảo bạn có quyền truy cập vào máy tính mà bạn đang kết nối. Phần mềm này có thể cho phép kiểm soát hoàn toàn máy tính của bạn, vì vậy hãy cẩn thận!"
   },
   "resource_card": {
+    "documentation": "Tài liệu",
     "github_discussions": "Thảo luận trên GitHub",
     "legal": "Pháp lý",
     "legal_desc": "Bằng cách tiếp tục sử dụng phần mềm này, bạn đồng ý với các điều khoản và điều kiện được quy định trong các tài liệu sau đây.",

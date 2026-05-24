@@ -478,6 +478,7 @@
     "warning_msg": "Certifique-se de que você tem acesso ao cliente com o qual está emparelhando. Este software pode dar controle total ao seu computador, então tenha cuidado!"
   },
   "resource_card": {
+    "documentation": "Documentação",
     "github_discussions": "GitHub Discussions",
     "legal": "Informações",
     "legal_desc": "Ao continuar a usar este software, você concorda com os termos e condições nos seguintes documentos.",

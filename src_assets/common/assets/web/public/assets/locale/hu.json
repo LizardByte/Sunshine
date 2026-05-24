@@ -478,6 +478,7 @@
     "warning_msg": "Győződj meg róla, hogy hozzáférsz ahhoz a klienshez, amivel párosítasz. Ez a szoftver teljes kontrollt adhat a számítógéped felett, szóval légy óvatos!"
   },
   "resource_card": {
+    "documentation": "Dokumentáció",
     "github_discussions": "GitHub Discussions",
     "legal": "Jogi",
     "legal_desc": "A szoftver további használatával elfogadod a feltételeket a következő dokumentumokban.",

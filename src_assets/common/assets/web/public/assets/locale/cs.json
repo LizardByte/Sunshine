@@ -478,6 +478,7 @@
     "warning_msg": "Ujistěte se, že máte přístup ke klientovi, se kterým se párujete. Tento software může dát počítači úplnou kontrolu, proto buďte opatrní!"
   },
   "resource_card": {
+    "documentation": "Dokumentace",
     "github_discussions": "Diskuse na GitHubu",
     "legal": "Právní předpisy",
     "legal_desc": "Dalším používáním tohoto softwaru souhlasíte s podmínkami uvedenými v následujících dokumentech.",
