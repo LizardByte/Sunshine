@@ -478,6 +478,7 @@
     "warning_msg": "Upewnij się, że masz dostęp do klienta, z którym się łączysz. To oprogramowanie może dać całkowitą kontrolę nad komputerem, więc bądź ostrożny!"
   },
   "resource_card": {
+    "documentation": "Dokumentacja",
     "github_discussions": "Dyskusje GitHub",
     "legal": "Legal",
     "legal_desc": "Kontynuując korzystanie z tego oprogramowania, użytkownik wyraża zgodę na warunki określone w poniższych dokumentach.",
