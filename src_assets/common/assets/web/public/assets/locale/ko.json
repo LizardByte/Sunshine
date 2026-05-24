@@ -478,6 +478,7 @@
     "warning_msg": "페어링하려는 클라이언트에 대한 액세스 권한이 있는지 확인하세요. 이 소프트웨어는 컴퓨터를 완전히 제어할 수 있으므로 주의하세요! "
   },
   "resource_card": {
+    "documentation": "문서",
     "github_discussions": "GitHub 토론",
     "legal": "법률",
     "legal_desc": "이 소프트웨어를 계속 사용함으로써 귀하는 다음 문서의 이용 약관에 동의하게 됩니다.",
