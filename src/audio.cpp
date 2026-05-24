@@ -167,7 +167,12 @@ namespace audio {
     }
 
     // Prefer the virtual sink if host playback is disabled or there's no other sink
-    if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty())) {
+    // CloudDeploy v3: when audio_sink is explicitly configured, the user
+    // has chosen the capture sink intentionally; do not override with the
+    // hard-coded virtual null sinks based on HOST_AUDIO. This is what stops
+    // app audio playing into one sink while Sunshine captures from another
+    // during a Moonlight session (persistent CloudDeploy 7.1 sink stays default).
+    if (ref->sink.null && (!config.flags[config_t::HOST_AUDIO] || sink->empty()) && config::audio.sink.empty()) {
       auto &null = *ref->sink.null;
       switch (stream.channelCount) {
         case 2:
