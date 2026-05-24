@@ -39,7 +39,7 @@ pkg install -y \
   ports-mgmt/pkg \
   security/openssl \
   shells/bash \
-  www/npm \
+  www/npm-node22 \
   x11/libX11 \
   x11/libxcb \
   x11/libXfixes \
