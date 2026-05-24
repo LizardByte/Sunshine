@@ -478,6 +478,7 @@
     "warning_msg": "Assicurati di avere accesso al client con cui stai accoppiando. Questo software può dare il controllo totale al tuo computer, quindi fai attenzione!"
   },
   "resource_card": {
+    "documentation": "Documentazione",
     "github_discussions": "Discussioni di GitHub",
     "legal": "Info legali",
     "legal_desc": "Continuando a utilizzare questo software si accettano i termini e le condizioni riportati nei seguenti documenti.",
