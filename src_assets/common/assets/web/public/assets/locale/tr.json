@@ -478,6 +478,7 @@
     "warning_msg": "Eşleştirdiğiniz istemciye erişiminiz olduğundan emin olun. Bu yazılım bilgisayarınıza tam kontrol sağlayabilir, bu yüzden dikkatli olun!"
   },
   "resource_card": {
+    "documentation": "Dokümantasyon",
     "github_discussions": "GitHub Tartışmaları",
     "legal": "Yasal",
     "legal_desc": "Bu yazılımı kullanmaya devam ederek aşağıdaki belgelerde yer alan hüküm ve koşulları kabul etmiş olursunuz.",
