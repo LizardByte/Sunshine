@@ -478,6 +478,7 @@
     "warning_msg": "ペアリングするクライアントにアクセスできることを確認してください。このソフトウェアは、あなたのコンピュータを完全にコントロールすることができますので、注意してください！"
   },
   "resource_card": {
+    "documentation": "ドキュメント",
     "github_discussions": "GitHub Discussions",
     "legal": "Legal",
     "legal_desc": "このソフトウェアの使用を継続することにより、以下のドキュメントの利用規約に同意したことになります。",
