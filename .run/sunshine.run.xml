@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="sunshine" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="port=37989 sunshine_name=CLion-$ModuleName$-$CMakeCurrentProfileName$" REDIRECT_INPUT="false" ELEVATE="false" USE_EXTERNAL_CONSOLE="false" EMULATE_TERMINAL="false" PASS_PARENT_ENVS_2="true" PROJECT_NAME="Sunshine" TARGET_NAME="sunshine" CONFIG_NAME="Release" RUN_TARGET_PROJECT_NAME="Sunshine" RUN_TARGET_NAME="sunshine">
+    <method v="2">
+      <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />
+    </method>
+  </configuration>
+</component>
