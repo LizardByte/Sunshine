@@ -478,6 +478,7 @@
     "warning_msg": "请确保您可以掌控您正在配对的客户端。该软件可以完全控制您的计算机，请务必小心！"
   },
   "resource_card": {
+    "documentation": "文件",
     "github_discussions": "Github 讨论区",
     "legal": "法律声明",
     "legal_desc": "继续使用本软件即表示您同意以下文档中的条款和条件。",
