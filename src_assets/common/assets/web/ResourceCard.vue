@@ -50,7 +50,7 @@ import {
   BookOpen,
   FileText,
   Globe,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import SimpleIcon from './SimpleIcon.vue'
 
 export default {

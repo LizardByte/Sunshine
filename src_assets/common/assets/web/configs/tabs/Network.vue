@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import {
   Info,
   TriangleAlert,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
