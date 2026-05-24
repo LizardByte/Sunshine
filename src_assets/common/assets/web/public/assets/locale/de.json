@@ -478,6 +478,7 @@
     "warning_msg": "Stelle sicher, dass Du Zugriff auf das Gerät hat, welches du verbinden möchtest. Sei vorsichtig, denn diese Software ermöglicht vollständige Kontrolle über deinen Computer!"
   },
   "resource_card": {
+    "documentation": "Dokumentation",
     "github_discussions": "GitHub Discussions",
     "legal": "Rechtlich",
     "legal_desc": "Durch die weitere Verwendung dieser Software erklärst Du dich mit den Nutzungsbedingungen in den folgenden Dokumenten einverstanden.",
