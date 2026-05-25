@@ -3,6 +3,7 @@
  * @brief Vulkan-native encoder: DMA-BUF -> Vulkan compute (RGB->YUV) -> Vulkan Video encode.
  *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
  */
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <drm_fourcc.h>
@@ -289,10 +290,12 @@ namespace vk {
       // Preserve aspect ratio: fit src into dst, center with black bars.
       // UV plane is subsampled 2x, so keep effective size and offset even.
       float scalar = std::min((float) frame->width / width, (float) frame->height / height);
-      int32_t eff_w = ((int32_t) (width * scalar)) & ~1;
-      int32_t eff_h = ((int32_t) (height * scalar)) & ~1;
+      int32_t eff_w = std::min<int32_t>(((int32_t) (width * scalar)) & ~1, frame->width & ~1);
+      int32_t eff_h = std::min<int32_t>(((int32_t) (height * scalar)) & ~1, frame->height & ~1);
       int32_t dst_off_x = ((frame->width - eff_w) / 2) & ~1;
       int32_t dst_off_y = ((frame->height - eff_h) / 2) & ~1;
+      eff_w = std::min(eff_w, (frame->width - dst_off_x) & ~1);
+      eff_h = std::min(eff_h, (frame->height - dst_off_y) & ~1);
 
       // Fill push constants
       push.src_offset[0] = offset_x;

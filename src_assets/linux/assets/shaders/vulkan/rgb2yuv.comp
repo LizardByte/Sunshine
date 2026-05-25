@@ -40,9 +40,8 @@ void main() {
   ivec2 d = pos - pc.dst_offset;
   if (d.x < 0 || d.y < 0 || d.x >= pc.dst_size.x || d.y >= pc.dst_size.y) {
     // Outside the aspect-fit viewport: write encoded black.
-    // range_y/range_uv are (1,0) placeholders in Sunshine; the encoded
-    // offset is baked into color_vec_*.w (y_add / uv_add). For RGB=(0,0,0)
-    // the shader output reduces to color_vec_*.w, so write that directly.
+    // Use the same conversion formula as RGB=(0,0,0), where the dot product
+    // is zero and the encoded value is color_vec_*.w adjusted by range_*.
     float y_black = pc.color_vec_y.w * pc.range_y.x + pc.range_y.y;
     float u_black = pc.color_vec_u.w * pc.range_uv.x + pc.range_uv.y;
     float v_black = pc.color_vec_v.w * pc.range_uv.x + pc.range_uv.y;
