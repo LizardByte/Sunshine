@@ -91,7 +91,6 @@ class Sunshine < Formula
     depends_on "pango"
     depends_on "pipewire"
     depends_on "pulseaudio"
-    depends_on "qt@6"
     depends_on "qtbase"
     depends_on "qtsvg"
     depends_on "shaderc"
