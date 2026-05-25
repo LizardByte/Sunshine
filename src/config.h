@@ -36,8 +36,10 @@ namespace config {
     // ffmpeg params
     int qp;  // higher == more compression and less quality
 
-    int hevc_mode;
-    int av1_mode;
+    int hevc_mode;  ///< HEVC codec advertisement mode.
+    int av1_mode;  ///< AV1 codec advertisement mode.
+    int mpeg2_mode;  ///< MPEG-2 codec advertisement mode.
+    int h263p_mode;  ///< H.263+ codec advertisement mode.
 
     int min_threads;  // Minimum number of threads/slices for CPU encoding
 
