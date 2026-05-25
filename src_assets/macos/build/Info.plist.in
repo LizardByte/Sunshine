@@ -18,8 +18,17 @@
   <string>@PROJECT_VERSION@</string>
   <key>CFBundleIconFile</key>
   <string>sunshine.icns</string>
+  <!--
+    Categorise as a game so gamepolicyd (macOS 14+) treats this process
+    as game-related and does not deprioritise its encoder/capture threads
+    when the streamed game has Game Mode active. Sunshine itself cannot
+    *trigger* Game Mode because it is LSUIElement (no Dock icon, never
+    frontmost), but being recognised as game-eligible means the OS keeps
+    Sunshine on game-priority scheduling alongside the actual game it is
+    streaming, instead of throttling it as a generic background utility.
+  -->
   <key>LSApplicationCategoryType</key>
-  <string>public.app-category.utilities</string>
+  <string>public.app-category.games</string>
   <key>LSUIElement</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
