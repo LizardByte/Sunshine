@@ -301,7 +301,15 @@ namespace platf {
         av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
 
         return std::make_unique<avcodec_encode_device_t>();
-      } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
+      } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010 ||
+                 pix_fmt == pix_fmt_e::nv24 || pix_fmt == pix_fmt_e::p410) {
+        // nv12 / p010 are 4:2:0 BiPlanar (8 / 10 bit); nv24 / p410 are the
+        // 4:4:4 BiPlanar equivalents required by prores_videotoolbox for
+        // ProRes 422 profiles (encoder downsamples internally) and ProRes
+        // 4444 (native). nv12_zero_device is format-agnostic at the wrap
+        // layer — it sets the capture-side CVPixelBufferType and then wraps
+        // frames for AV_PIX_FMT_VIDEOTOOLBOX, so the same device handles all
+        // four.
         auto device = std::make_unique<nv12_zero_device>();
 
         device->init((void *) av_capture, pix_fmt, setResolution, setPixelFormat);
