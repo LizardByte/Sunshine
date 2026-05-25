@@ -15,7 +15,17 @@ struct CaptureSession {
 
 static const int kMaxDisplays = 32;
 
-@interface AVVideo: NSObject <AVCaptureVideoDataOutputSampleBufferDelegate>
+typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
+
+/**
+ * @brief Shared interface for macOS screen capture backends.
+ *
+ * Both the legacy AVCaptureScreenInput-based implementation (AVVideo) and
+ * the modern ScreenCaptureKit-based implementation (SCVideo) conform to
+ * this protocol so display.mm can hold either behind a single pointer
+ * type and branch on macOS version at construction.
+ */
+@protocol SunshineVideoCapture <NSObject>
 
 @property (nonatomic, assign) CGDirectDisplayID displayID;
 @property (nonatomic, assign) CMTime minFrameDuration;
@@ -23,7 +33,18 @@ static const int kMaxDisplays = 32;
 @property (nonatomic, assign) int frameWidth;
 @property (nonatomic, assign) int frameHeight;
 
-typedef bool (^FrameCallbackBlock)(CMSampleBufferRef);
+- (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight;
+- (dispatch_semaphore_t)capture:(FrameCallbackBlock)frameCallback;
+
+@end
+
+@interface AVVideo: NSObject <AVCaptureVideoDataOutputSampleBufferDelegate, SunshineVideoCapture>
+
+@property (nonatomic, assign) CGDirectDisplayID displayID;
+@property (nonatomic, assign) CMTime minFrameDuration;
+@property (nonatomic, assign) OSType pixelFormat;
+@property (nonatomic, assign) int frameWidth;
+@property (nonatomic, assign) int frameHeight;
 
 @property (nonatomic, assign) AVCaptureSession *session;
 @property (nonatomic, assign) NSMapTable<AVCaptureConnection *, AVCaptureVideoDataOutput *> *videoOutputs;

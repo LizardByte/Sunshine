@@ -35,6 +35,7 @@ list(APPEND SUNSHINE_EXTERNAL_LIBRARIES
         ${CORE_MEDIA_LIBRARY}
         ${CORE_VIDEO_LIBRARY}
         ${FOUNDATION_LIBRARY}
+        ${SCREEN_CAPTURE_KIT_LIBRARY}
         ${VIDEO_TOOLBOX_LIBRARY})
 
 set(APPLE_PLIST_TEMPLATE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/build/Info.plist.in")
@@ -55,6 +56,16 @@ set(PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/nv12_zero_device.h"
         "${CMAKE_SOURCE_DIR}/src/platform/macos/publish.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sc_video.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sc_video.m"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.c"
         "${CMAKE_SOURCE_DIR}/third-party/TPCircularBuffer/TPCircularBuffer.h"
         ${APPLE_PLIST_FILE})
+
+# sc_video.m is written against ARC for clarity (SCK APIs are async/
+# block-heavy and benefit from ARC). The rest of the macOS Obj-C
+# sources remain MRC; objects flowing across the boundary follow the
+# standard +1-retain alloc/init convention so both modes interoperate.
+set_source_files_properties(
+        "${CMAKE_SOURCE_DIR}/src/platform/macos/sc_video.m"
+        PROPERTIES COMPILE_FLAGS "-fobjc-arc")
