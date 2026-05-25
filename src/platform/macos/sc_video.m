@@ -51,6 +51,10 @@ API_AVAILABLE(macos(12.3))
 @implementation SCVideo
 
 - (instancetype)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate {
+  return [self initWithDisplay:displayID frameRate:frameRate hdrAllowed:NO];
+}
+
+- (instancetype)initWithDisplay:(CGDirectDisplayID)displayID frameRate:(int)frameRate hdrAllowed:(BOOL)hdrAllowed {
   self = [super init];
   if (!self) {
     return nil;
@@ -59,6 +63,7 @@ API_AVAILABLE(macos(12.3))
   self.displayID = displayID;
   self.minFrameDuration = CMTimeMake(1, frameRate);
   self.pixelFormat = kCVPixelFormatType_32BGRA;
+  self.hdrAllowed = hdrAllowed;
 
   // Prefer the active display mode's pixel dimensions; fall back to
   // CGDisplayBounds if no mode is currently set (e.g., during display
@@ -218,9 +223,19 @@ API_AVAILABLE(macos(12.3))
   // 12.3-13.x SCK still honours a requested 10-bit pixel format, but
   // the OS won't tag buffers with BT.2020 PQ metadata automatically;
   // downstream code falls back to Sunshine's existing colorspace logic.
+  //
+  // Gating: EDR is only enabled when BOTH (a) the chosen pixel format
+  // is 10-bit, AND (b) the session was actually negotiated as HDR
+  // (`hdrAllowed`). The pixel format on its own is necessary but not
+  // sufficient — a 10-bit format may be selected for codec reasons
+  // (e.g., a ProRes profile) without the client ever requesting HDR
+  // ingest, and silently emitting BT.2020 PQ-tagged buffers into a
+  // stream the control plane describes as SDR causes the decoder to
+  // tone-map undefined content. Defaulting hdrAllowed to NO keeps the
+  // legacy/SDR semantics intact when callers don't opt in.
 #if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
   if (@available(macOS 14.0, *)) {
-    if ([SCVideo pixelFormatIsHighBitDepth:pixelFormat]) {
+    if (self.hdrAllowed && [SCVideo pixelFormatIsHighBitDepth:pixelFormat]) {
       // hdrLocalDisplay matches the host display's HDR characteristics,
       // which is what we want for game-streaming: stream what the user
       // would see locally, including the local panel's PQ peak luminance.
