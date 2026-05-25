@@ -58,17 +58,6 @@ const config = ref(props.config)
       <div class="form-text">{{ $t('config.av1_mode_desc') }}</div>
     </div>
 
-    <!-- Experimental ProRes Support -->
-    <div class="mb-3" v-if="platform === 'macos'">
-      <label for="prores_mode" class="form-label">{{ $t('config.prores_mode') }}</label>
-      <select id="prores_mode" class="form-select" v-model="config.prores_mode">
-        <option value="0">{{ $t('config.prores_mode_0') }}</option>
-        <option value="1">{{ $t('config.prores_mode_1') }}</option>
-        <option value="2">{{ $t('config.prores_mode_2') }}</option>
-      </select>
-      <div class="form-text">{{ $t('config.prores_mode_desc') }}</div>
-    </div>
-
     <!-- Capture -->
     <div class="mb-3" v-if="platform !== 'macos'">
       <label for="capture" class="form-label">{{ $t('config.capture') }}</label>
