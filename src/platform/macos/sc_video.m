@@ -134,6 +134,10 @@ API_AVAILABLE(macos(12.3))
   self.streamConfig.queueDepth = 6;  // SCK docs recommend 3-8
   self.streamConfig.showsCursor = YES;
 
+  // If the initial pixel format is already a 10-bit format, flip on EDR
+  // immediately so the very first sample buffer carries HDR metadata.
+  [self applyDynamicRangeForPixelFormat:self.pixelFormat];
+
   self.stream = [[SCStream alloc] initWithFilter:self.filter
                                    configuration:self.streamConfig
                                         delegate:self];
@@ -181,6 +185,55 @@ API_AVAILABLE(macos(12.3))
   return self;
 }
 
+/**
+ * @brief Whether a CVPixelBuffer OSType denotes a 10-bit (or wider) format.
+ *
+ * Returning YES is the signal that the capture surface is HDR-capable; we
+ * use it to drive SCStreamConfiguration.captureDynamicRange on macOS 14+
+ * so SCK emits BT.2020 PQ-tagged buffers instead of 10-bit Rec.709.
+ */
++ (BOOL)pixelFormatIsHighBitDepth:(OSType)pixelFormat {
+  switch (pixelFormat) {
+    case kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange:
+    case kCVPixelFormatType_420YpCbCr10BiPlanarFullRange:
+    case kCVPixelFormatType_422YpCbCr10BiPlanarVideoRange:
+    case kCVPixelFormatType_422YpCbCr10BiPlanarFullRange:
+    case kCVPixelFormatType_444YpCbCr10BiPlanarVideoRange:
+    case kCVPixelFormatType_444YpCbCr10BiPlanarFullRange:
+    case kCVPixelFormatType_ARGB2101010LEPacked:
+    case kCVPixelFormatType_64ARGB:
+    case kCVPixelFormatType_64RGBALE:
+      return YES;
+    default:
+      return NO;
+  }
+}
+
+- (void)applyDynamicRangeForPixelFormat:(OSType)pixelFormat {
+  // captureDynamicRange / SCCaptureDynamicRange* are macOS 14 (Sonoma)
+  // SDK symbols. The compile-time guard ensures this block is preprocessed
+  // away entirely when building against an older SDK that lacks the
+  // declarations; the runtime @available guard prevents using the
+  // symbols at runtime on pre-14 systems even with a newer SDK. On
+  // 12.3-13.x SCK still honours a requested 10-bit pixel format, but
+  // the OS won't tag buffers with BT.2020 PQ metadata automatically;
+  // downstream code falls back to Sunshine's existing colorspace logic.
+#if defined(__MAC_OS_X_VERSION_MAX_ALLOWED) && __MAC_OS_X_VERSION_MAX_ALLOWED >= 140000
+  if (@available(macOS 14.0, *)) {
+    if ([SCVideo pixelFormatIsHighBitDepth:pixelFormat]) {
+      // hdrLocalDisplay matches the host display's HDR characteristics,
+      // which is what we want for game-streaming: stream what the user
+      // would see locally, including the local panel's PQ peak luminance.
+      self.streamConfig.captureDynamicRange = SCCaptureDynamicRangeHDRLocalDisplay;
+    } else {
+      self.streamConfig.captureDynamicRange = SCCaptureDynamicRangeSDR;
+    }
+  }
+#else
+  (void) pixelFormat;
+#endif
+}
+
 - (void)setFrameWidth:(int)frameWidth frameHeight:(int)frameHeight {
   _frameWidth = frameWidth;
   _frameHeight = frameHeight;
@@ -197,6 +250,7 @@ API_AVAILABLE(macos(12.3))
 
   if (self.streamConfig) {
     self.streamConfig.pixelFormat = pixelFormat;
+    [self applyDynamicRangeForPixelFormat:pixelFormat];
     [self applyConfigurationIfRunning];
   }
 }
