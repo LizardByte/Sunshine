@@ -37,6 +37,17 @@ const config = ref(props.config)
               v-model="config.vt_realtime"
               default="true"
     ></Checkbox>
+
+    <!-- Experimental ProRes Support -->
+    <div class="mb-3">
+      <label for="prores_mode" class="form-label">{{ $t('config.prores_mode') }}</label>
+      <select id="prores_mode" class="form-select" v-model="config.prores_mode">
+        <option value="0">{{ $t('config.prores_mode_0') }}</option>
+        <option value="1">{{ $t('config.prores_mode_1') }}</option>
+        <option value="2">{{ $t('config.prores_mode_2') }}</option>
+      </select>
+      <div class="form-text">{{ $t('config.prores_mode_desc') }}</div>
+    </div>
     <div class="mb-3">
       <label for="prores_profile" class="form-label">{{ $t('config.prores_profile') }}</label>
       <select id="prores_profile" class="form-select" v-model="config.prores_profile">
