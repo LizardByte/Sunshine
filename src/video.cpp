@@ -1124,8 +1124,15 @@ namespace video {
       AV_PIX_FMT_VIDEOTOOLBOX,
       AV_PIX_FMT_NV12,
       AV_PIX_FMT_P010,
-      AV_PIX_FMT_NONE,
-      AV_PIX_FMT_NONE,
+      // YUV 4:4:4 BiPlanar formats are required by prores_videotoolbox: the
+      // 422 family (proxy / lt / standard / hq) wants 4:2:2 or higher chroma
+      // and the 4444 family wants 4:4:4 natively. Feeding 4:4:4 P410 lets
+      // the encoder downsample to the chosen 422 profile internally. H.264
+      // and HEVC VideoToolbox will simply fail the 4:4:4 probe on Apple
+      // Silicon (hardware encoder is 4:2:0 only for those codecs) and the
+      // capability bit stays false for them, which is correct.
+      AV_PIX_FMT_NV24,
+      AV_PIX_FMT_P410,
       vt_init_avcodec_hardware_input_buffer
     ),
     {
@@ -1193,7 +1200,13 @@ namespace video {
       {},  // Fallback options
       "prores_videotoolbox"s,
     },
-    DEFAULT
+    // YUV444_SUPPORT enables the 4:4:4 probe path; only ProRes 4444 /
+    // 4444 XQ profiles consume it natively on macOS but the flag is
+    // per-encoder family rather than per-codec, so H.264 / HEVC will
+    // probe at 4:4:4 too and fall through with their YUV444 capability
+    // bit set false (Apple Silicon's hardware H.264/HEVC encoder is
+    // 4:2:0 only).
+    YUV444_SUPPORT
   };
 #endif
 
@@ -2771,17 +2784,55 @@ namespace video {
     }
 
     if (test_prores) {
-      config_max_ref_frames.videoFormat = SUNSHINE_FORMAT_PRORES;
-      config_autoselect.videoFormat = SUNSHINE_FORMAT_PRORES;
+      // ProRes profiles are intrinsically 10-bit (proxy / lt / standard / hq)
+      // or 12-bit (4444 / 4444 XQ) — there is no 8-bit ProRes input path in
+      // the FFmpeg encoder. Probe with dynamicRange = 1 so validate_config
+      // feeds the 10-bit pix_fmt (P010) to prores_videotoolbox rather than
+      // the 8-bit NV12 the H.264/HEVC probes use; otherwise the encoder
+      // legitimately refuses to open and PASSED stays false even though the
+      // downstream HDR probe would have succeeded.
+      config_t prores_max_ref_frames = config_max_ref_frames;
+      config_t prores_autoselect = config_autoselect;
+      prores_max_ref_frames.videoFormat = SUNSHINE_FORMAT_PRORES;
+      prores_autoselect.videoFormat = SUNSHINE_FORMAT_PRORES;
+      prores_max_ref_frames.dynamicRange = 1;
+      prores_autoselect.dynamicRange = 1;
+      // encoderCscMode = 3 (full range, BT.709) — prores_videotoolbox rejects
+      // the BT.601 colorspace the default SDR config carries (encoderCscMode
+      // = 1) even at 10-bit, because ProRes was never intended for SD content.
+      // BT.709 matches what test_hdr_and_yuv444 already uses for HDR probes
+      // and what the encoder actually expects. dynamicRange = 1 above promotes
+      // the color_trc to PQ where supported by the VT compression session;
+      // otherwise the encoder keeps BT.709 SDR tags, which it also accepts.
+      prores_max_ref_frames.encoderCscMode = 3;
+      prores_autoselect.encoderCscMode = 3;
+      // chromaSamplingType = 1 (4:4:4) selects the P410 pix_fmt slot.
+      // prores_videotoolbox's supported input pix_fmt list does not include
+      // 4:2:0 BiPlanar formats (P010) for any profile — the 422 family
+      // (proxy / lt / standard / hq) wants 4:2:2 or higher chroma, and the
+      // 4444 family wants 4:4:4 natively. Feeding 4:4:4 P410 lets the
+      // encoder downsample to the selected profile internally; feeding
+      // P010 makes it refuse to open with "Couldn't open".
+      prores_max_ref_frames.chromaSamplingType = 1;
+      prores_autoselect.chromaSamplingType = 1;
 
-      if (disp->is_codec_supported(encoder.prores.name, config_autoselect)) {
-        auto max_ref_frames_prores = validate_config(disp, encoder, config_max_ref_frames);
+      if (disp->is_codec_supported(encoder.prores.name, prores_autoselect)) {
+        auto max_ref_frames_prores = validate_config(disp, encoder, prores_max_ref_frames);
         auto autoselect_prores = max_ref_frames_prores >= 0 ?
                                    max_ref_frames_prores :
-                                   validate_config(disp, encoder, config_autoselect);
+                                   validate_config(disp, encoder, prores_autoselect);
 
         encoder.prores[encoder_t::REF_FRAMES_RESTRICT] = max_ref_frames_prores >= 0;
         encoder.prores[encoder_t::PASSED] = max_ref_frames_prores >= 0 || autoselect_prores >= 0;
+
+        // Any ProRes probe that succeeds inherently uses 10-bit input, so
+        // promote DYNAMIC_RANGE here. test_hdr_and_yuv444 below gates on
+        // PASSED and only sets DYNAMIC_RANGE itself; setting it eagerly here
+        // makes the encoder's capability advertisement consistent for clients
+        // that opt into ProRes via prores_mode > 0.
+        if (encoder.prores[encoder_t::PASSED]) {
+          encoder.prores[encoder_t::DYNAMIC_RANGE] = true;
+        }
       } else {
         BOOST_LOG(info) << "Encoder ["sv << encoder.prores.name << "] is not supported on this GPU"sv;
         encoder.prores.capabilities.reset();
@@ -3266,6 +3317,10 @@ namespace video {
         return platf::pix_fmt_e::nv12;
       case AV_PIX_FMT_P010:
         return platf::pix_fmt_e::p010;
+      case AV_PIX_FMT_NV24:
+        return platf::pix_fmt_e::nv24;
+      case AV_PIX_FMT_P410:
+        return platf::pix_fmt_e::p410;
       default:
         return platf::pix_fmt_e::unknown;
     }
