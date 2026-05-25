@@ -53,15 +53,41 @@ else()
                 RESULT_VARIABLE GIT_IS_DIRTY
                 OUTPUT_STRIP_TRAILING_WHITESPACE
         )
+        # Derive a date-stamped version from the HEAD commit's UTC date so that
+        # local builds use the same YYYY.M[M]DD.H[H]MMSS scheme that CI emits via
+        # BUILD_VERSION. Without this, PROJECT_VERSION stays at the project()
+        # default of 0.0.0 and the web UI mis-classifies the build as ancient,
+        # triggering a spurious "new stable version available" banner.
+        execute_process(
+                COMMAND ${CMAKE_COMMAND} -E env "TZ=UTC"
+                        ${GIT_EXECUTABLE} log -1
+                        --format=%cd --date=format-local:%Y.%-m%d.%-H%M%S HEAD
+                OUTPUT_VARIABLE GIT_COMMIT_DATE_VERSION
+                RESULT_VARIABLE GIT_COMMIT_DATE_ERROR_CODE
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
         if(NOT GIT_DESCRIBE_ERROR_CODE)
             MESSAGE("Sunshine Branch: ${GIT_DESCRIBE_BRANCH}")
-            if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
-                set(PROJECT_VERSION ${PROJECT_VERSION}-${GIT_DESCRIBE_VERSION})
-                MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
-            endif()
-            if(GIT_IS_DIRTY)
-                set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
-                MESSAGE("Git tree is dirty!")
+            if(NOT GIT_COMMIT_DATE_ERROR_CODE AND GIT_COMMIT_DATE_VERSION MATCHES "^[0-9]+\\.[0-9]+\\.[0-9]+$")
+                set(PROJECT_VERSION ${GIT_COMMIT_DATE_VERSION})
+                MESSAGE("Sunshine Version (from commit date): ${PROJECT_VERSION}")
+                if(GIT_IS_DIRTY)
+                    # Dot-separated trailing parts keep buildVersionIsDirty()
+                    # in the web UI (which checks split('.').length === 5) accurate.
+                    set(PROJECT_VERSION ${PROJECT_VERSION}.${GIT_DESCRIBE_VERSION}.dirty)
+                    MESSAGE("Git tree is dirty!")
+                endif()
+            else()
+                # Fallback to the historical 0.0.0-sha[-dirty] form if git
+                # couldn't produce a parseable commit date for any reason.
+                if(NOT GIT_DESCRIBE_BRANCH STREQUAL "master")
+                    set(PROJECT_VERSION ${PROJECT_VERSION}-${GIT_DESCRIBE_VERSION})
+                    MESSAGE("Sunshine Version: ${GIT_DESCRIBE_VERSION}")
+                endif()
+                if(GIT_IS_DIRTY)
+                    set(PROJECT_VERSION ${PROJECT_VERSION}-dirty)
+                    MESSAGE("Git tree is dirty!")
+                endif()
             endif()
         else()
             MESSAGE(ERROR ": Got git error while fetching tags: ${GIT_DESCRIBE_ERROR_CODE}")
