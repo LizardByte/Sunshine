@@ -191,7 +191,7 @@ namespace wl {
   }
 
   void interface_t::dmabuf_modifier(zwp_linux_dmabuf_v1 *zwp_linux_dmabuf, uint32_t format, uint32_t modifier_hi, uint32_t modifier_lo) {
-    uint64_t modifier = ((uint64_t)modifier_hi << 32) | modifier_lo;
+    uint64_t modifier = ((uint64_t) modifier_hi << 32) | modifier_lo;
     supported_modifiers[format].push_back(modifier);
   }
 
