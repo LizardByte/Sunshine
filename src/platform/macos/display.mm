@@ -414,8 +414,14 @@ namespace platf {
     // deprecated in macOS 13 and is hardcoded to 8-bit BGRA). Fall back to
     // the legacy AVCaptureScreenInput path on older macOS.
     if (@available(macOS 12.3, *)) {
-      BOOST_LOG(info) << "Using ScreenCaptureKit capture backend"sv;
-      display->av_capture = [[SCVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
+      // hdrAllowed reflects the negotiated `enable_hdr` for this session
+      // (rtsp.cpp maps `x-nv-video[0].dynamicRangeMode` into config.dynamicRange).
+      // SCK uses this together with the chosen pixel format depth to decide
+      // whether to flip captureDynamicRange to HDRLocalDisplay; neither
+      // condition alone is sufficient. See sc_video.m::applyDynamicRangeForPixelFormat:.
+      const BOOL hdr_allowed = config.dynamicRange ? YES : NO;
+      BOOST_LOG(info) << "Using ScreenCaptureKit capture backend (HDR "sv << (hdr_allowed ? "allowed" : "blocked") << ")"sv;
+      display->av_capture = [[SCVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate hdrAllowed:hdr_allowed];
     } else {
       BOOST_LOG(info) << "Using legacy AVCaptureScreenInput capture backend"sv;
       display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
