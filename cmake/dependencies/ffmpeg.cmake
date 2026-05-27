@@ -173,3 +173,58 @@ else()
 endif()
 
 set(FFMPEG_INCLUDE_DIRS "${FFMPEG_PREPARED_BINARIES}/include")
+
+# Sunshine's src/cbs.cpp uses libavcodec's INTERNAL headers (cbs_h264.h,
+# cbs_h2645.h, h2645_parse.h, etc.) which FFmpeg's `make install` does
+# not export. Stage the needed internal headers into the dist include
+# tree alongside the public ones. Done at configure time so subsequent
+# rebuilds don't pay the cost. Limited to a known-good list so we don't
+# shadow system headers (FFmpeg has its own "thread.h", "internal.h",
+# etc. that collide with libc++ when the entire source tree is on the
+# include path).
+get_filename_component(_FFMPEG_BINARY_PARENT "${FFMPEG_PREPARED_BINARIES}" DIRECTORY)
+set(_FFMPEG_SOURCE_CANDIDATES
+    "${_FFMPEG_BINARY_PARENT}/FFmpeg/FFmpeg"
+    "${CMAKE_SOURCE_DIR}/third-party/build-deps/build-prores-vt/FFmpeg/FFmpeg"
+)
+foreach(_candidate ${_FFMPEG_SOURCE_CANDIDATES})
+    if(EXISTS "${_candidate}/libavcodec/h2645_parse.h")
+        set(_FFMPEG_INTERNAL_HEADERS
+            libavcodec/h2645_parse.h
+            libavcodec/h2645_sei.h
+            libavcodec/h264_sei.h
+            libavcodec/hevc/sei.h
+            libavcodec/sei.h
+            libavcodec/cbs.h
+            libavcodec/cbs_internal.h
+            libavcodec/cbs_sei.h
+            libavcodec/get_bits.h
+            libavcodec/golomb.h
+            libavcodec/mathops.h
+            libavcodec/mpegutils.h
+            libavcodec/vlc.h
+            libavutil/attributes_internal.h
+            libavutil/internal.h
+            libavutil/thread.h
+            libavutil/timer.h
+            libavutil/reverse.h
+            libavutil/libm.h
+            libavutil/cpu_internal.h
+        )
+        foreach(_hdr ${_FFMPEG_INTERNAL_HEADERS})
+            if(EXISTS "${_candidate}/${_hdr}" AND NOT EXISTS "${FFMPEG_PREPARED_BINARIES}/include/${_hdr}")
+                get_filename_component(_hdr_dir "${FFMPEG_PREPARED_BINARIES}/include/${_hdr}" DIRECTORY)
+                file(MAKE_DIRECTORY "${_hdr_dir}")
+                configure_file("${_candidate}/${_hdr}" "${FFMPEG_PREPARED_BINARIES}/include/${_hdr}" COPYONLY)
+            endif()
+        endforeach()
+        # ffbuild/config.h is needed by libavutil/internal.h. Stage it
+        # at the include-path root so the relative #include "config.h"
+        # from mathops.h finds it.
+        if(EXISTS "${_candidate}/ffbuild/config.h" AND NOT EXISTS "${FFMPEG_PREPARED_BINARIES}/include/config.h")
+            configure_file("${_candidate}/ffbuild/config.h" "${FFMPEG_PREPARED_BINARIES}/include/config.h" COPYONLY)
+        endif()
+        message(STATUS "Sunshine cbs.cpp: staged FFmpeg internal headers from ${_candidate}")
+        break()
+    endif()
+endforeach()

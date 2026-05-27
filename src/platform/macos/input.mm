@@ -1,6 +1,11 @@
 /**
- * @file src/platform/macos/input.cpp
+ * @file src/platform/macos/input.mm
  * @brief Definitions for macOS input handling.
+ *
+ * Compiled as Objective-C++ (was input.cpp) so the gamepad path can
+ * hold a strong reference to HIDGamepad — the virtual IOHIDUserDevice
+ * wrapper in hid_gamepad.{h,m} — without going through a C bridge.
+ * Mouse/keyboard injection paths are unchanged.
  */
 // standard includes
 #include <algorithm>
@@ -22,6 +27,7 @@
 #include "src/input.h"
 #include "src/logging.h"
 #include "src/platform/common.h"
+#include "src/platform/macos/hid_gamepad.h"
 #include "src/utility.h"
 
 /**
@@ -36,6 +42,14 @@ namespace platf {
   constexpr int WHEEL_DELTA = 120;
   constexpr double DEFAULT_SCROLLWHEEL_SCALING = 0.3125;
   constexpr int DEFAULT_SCROLL_LINES_PER_DETENT = 5;
+
+  // MAX_GAMEPADS comes from src/platform/common.h (currently 16, matching
+  // Windows ViGEm + Linux uinput backends). Each slot owns one
+  // IOHIDUserDevice-backed virtual gamepad. HID device creation can only
+  // succeed when the user has booted with AMFI bypassed
+  // (`sudo nvram boot-args="amfi_get_out_of_my_way=1"`); otherwise
+  // alloc_gamepad reports failure and the gamepad is unsupported for
+  // this session.
 
   struct macos_input_t {
   public:
@@ -53,6 +67,13 @@ namespace platf {
     int scroll_lines_per_detent {DEFAULT_SCROLL_LINES_PER_DETENT};
     bool mouse_down[3] {};  // mouse button status
     std::chrono::steady_clock::steady_clock::time_point last_mouse_event[3][2];  // timestamp of last mouse events
+
+    // gamepad related stuff. Each slot is either nil (free) or holds an
+    // HIDGamepad whose underlying IOHIDUserDevice is currently published.
+    // Probed once at input() construction so the alloc path doesn't pay
+    // the IOHIDUserDeviceCreate cost on every connect attempt.
+    HIDGamepad *gamepads[MAX_GAMEPADS] {};
+    bool hid_gamepad_available {};
   };
 
   // A struct to hold a Windows keycode to Mac virtual keycode mapping.
@@ -343,16 +364,59 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   int alloc_gamepad(input_t &input, const gamepad_id_t &id, const gamepad_arrival_t &metadata, feedback_queue_t feedback_queue) {
-    BOOST_LOG(info) << "alloc_gamepad: Gamepad not yet implemented for MacOS."sv;
+    auto macos_input = static_cast<macos_input_t *>(input.get());
+    if (!macos_input->hid_gamepad_available) {
+      BOOST_LOG(warning) << "alloc_gamepad: IOHIDUserDevice virtual gamepad not available. Boot with `nvram boot-args=\"amfi_get_out_of_my_way=1\"` to enable host-side gamepad support on macOS."sv;
+      return -1;
+    }
+
+    // Find a free slot. globalIndex from the protocol is advisory; we
+    // assign the lowest free slot ourselves so a disconnect/reconnect
+    // sequence reliably reuses the same IOHIDUserDevice slot.
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+      if (macos_input->gamepads[i] != nil) {
+        continue;
+      }
+
+      HIDGamepad *pad = [[HIDGamepad alloc] initWithIndex:i];
+      if (![pad createDevice]) {
+        [pad release];
+        BOOST_LOG(error) << "alloc_gamepad: HIDGamepad createDevice failed for slot "sv << i;
+        return -1;
+      }
+
+      macos_input->gamepads[i] = pad;
+      BOOST_LOG(info) << "alloc_gamepad: slot "sv << i << " allocated (IOHIDUserDevice virtual gamepad)"sv;
+      return i;
+    }
+
+    BOOST_LOG(warning) << "alloc_gamepad: no free gamepad slots (max "sv << MAX_GAMEPADS << ")"sv;
     return -1;
   }
 
   void free_gamepad(input_t &input, int nr) {
-    BOOST_LOG(info) << "free_gamepad: Gamepad not yet implemented for MacOS."sv;
+    auto macos_input = static_cast<macos_input_t *>(input.get());
+    if (nr < 0 || nr >= MAX_GAMEPADS || macos_input->gamepads[nr] == nil) {
+      return;
+    }
+    [macos_input->gamepads[nr] disconnect];
+    [macos_input->gamepads[nr] release];
+    macos_input->gamepads[nr] = nil;
+    BOOST_LOG(info) << "free_gamepad: slot "sv << nr << " released"sv;
   }
 
   void gamepad_update(input_t &input, int nr, const gamepad_state_t &gamepad_state) {
-    BOOST_LOG(info) << "gamepad: Gamepad not yet implemented for MacOS."sv;
+    auto macos_input = static_cast<macos_input_t *>(input.get());
+    if (nr < 0 || nr >= MAX_GAMEPADS || macos_input->gamepads[nr] == nil) {
+      return;
+    }
+    [macos_input->gamepads[nr] updateState:gamepad_state.buttonFlags
+                                leftStickX:gamepad_state.lsX
+                                leftStickY:gamepad_state.lsY
+                               rightStickX:gamepad_state.rsX
+                               rightStickY:gamepad_state.rsY
+                               leftTrigger:gamepad_state.lt
+                              rightTrigger:gamepad_state.rt];
   }
 
   // returns current mouse location:
@@ -656,11 +720,33 @@ const KeyCodeMap kKeyCodesMap[] = {
     BOOST_LOG(debug) << "macOS scroll speed: com.apple.scrollwheel.scaling="sv << macos_input->scrollwheel_scaling << ", lines per detent="sv << macos_input->scroll_lines_per_detent << ", pixels per line="sv << CGEventSourceGetPixelsPerLine(macos_input->source);
     BOOST_LOG(debug) << "Display "sv << macos_input->display << ", pixel dimension: " << CGDisplayPixelsWide(macos_input->display) << "x"sv << CGDisplayPixelsHigh(macos_input->display);
 
+    // Probe HIDGamepad availability once at startup. The probe attempts
+    // an IOHIDUserDevice creation; it succeeds iff AMFI was disabled at
+    // boot (`nvram boot-args="amfi_get_out_of_my_way=1"`). Subsequent
+    // alloc_gamepad calls reuse this flag rather than re-probing.
+    macos_input->hid_gamepad_available = [HIDGamepad isAvailable] == YES;
+    if (macos_input->hid_gamepad_available) {
+      BOOST_LOG(info) << "IOHIDUserDevice virtual gamepad support is available — host-side gamepad will be advertised to clients"sv;
+    } else {
+      BOOST_LOG(info) << "IOHIDUserDevice virtual gamepad not available (AMFI enabled). To enable host-side gamepad support: `sudo nvram boot-args=\"amfi_get_out_of_my_way=1\"` and reboot"sv;
+    }
+
     return result;
   }
 
   void freeInput(void *p) {
-    const auto *input = static_cast<macos_input_t *>(p);
+    auto *input = static_cast<macos_input_t *>(p);
+
+    // Release any still-allocated virtual gamepads. Each disconnect
+    // tears down the IOHIDUserDevice synchronously (bounded 2s
+    // semaphore wait inside HIDGamepad::disconnect).
+    for (int i = 0; i < MAX_GAMEPADS; i++) {
+      if (input->gamepads[i] != nil) {
+        [input->gamepads[i] disconnect];
+        [input->gamepads[i] release];
+        input->gamepads[i] = nil;
+      }
+    }
 
     CFRelease(input->source);
     CFRelease(input->keyboard_source);
@@ -670,10 +756,19 @@ const KeyCodeMap kKeyCodesMap[] = {
   }
 
   std::vector<supported_gamepad_t> &supported_gamepads(input_t *input) {
-    static std::vector gamepads {
-      supported_gamepad_t {"", false, "gamepads.macos_not_implemented"}
-    };
-
+    // The two distinct states we report: AMFI-disabled (IOHIDUserDevice
+    // works → virtual gamepad available) vs AMFI-enabled (will refuse to
+    // create the device). The string keys plug into the web UI's
+    // translation table; only the first matters since stock Moonlight
+    // doesn't pass a gamepad type, it just calls alloc_gamepad and the
+    // host decides.
+    static bool initialized = false;
+    static std::vector<supported_gamepad_t> gamepads;
+    if (!initialized) {
+      const BOOL hid_ok = [HIDGamepad isAvailable];
+      gamepads.push_back({"hid", true, hid_ok ? "gamepads.macos_hid" : "gamepads.macos_amfi_required"});
+      initialized = true;
+    }
     return gamepads;
   }
 
@@ -682,6 +777,12 @@ const KeyCodeMap kKeyCodesMap[] = {
    * @return Capability flags.
    */
   platform_caps::caps_t get_capabilities() {
+    // The IOHIDUserDevice-backed virtual gamepad we expose is a basic
+    // Xbox-style controller (16 buttons, hat, 2 triggers, 4 stick axes
+    // — see hid_gamepad.m's report descriptor). We do not expose a
+    // controller touchpad, gyro, or pen/touch surface, so no capability
+    // flags are set; the standard buttons+sticks+triggers are implied
+    // by alloc_gamepad succeeding.
     return 0;
   }
 }  // namespace platf
