@@ -2968,7 +2968,14 @@ namespace video {
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
     active_prores_mode = config::video.prores_mode;
-    const bool require_prores = active_prores_mode >= 2;
+    // Bind `require_prores` to the user-configured value, NOT to the
+    // mutable `active_prores_mode` global. `adjust_encoder_constraints`
+    // below may demote `active_prores_mode` to 0 when no encoder supports
+    // ProRes; reading from the immutable config source keeps the
+    // "user explicitly asked for forced ProRes" intent intact across that
+    // demotion, so we can fail loudly instead of silently picking a
+    // non-ProRes encoder.
+    const bool require_prores = config::video.prores_mode >= 2;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints_hevc = [&](encoder_t *encoder) {
