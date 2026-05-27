@@ -763,6 +763,12 @@ namespace nvhttp {
         codec_mode_flags |= SCM_AV1_HIGH10_444;
       }
     }
+    if (video::active_mpeg2_mode >= 2) {
+      codec_mode_flags |= SCM_MPEG2;
+    }
+    if (video::active_h263p_mode == 2) {
+      codec_mode_flags |= SCM_H263P;
+    }
     tree.put("root.ServerCodecModeSupport", codec_mode_flags);
 
     if (!config::nvhttp.external_ip.empty()) {

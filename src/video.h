@@ -18,6 +18,16 @@ extern "C" {
 struct AVPacket;
 
 namespace video {
+  /**
+   * @brief Video stream format identifiers used by GameStream setup.
+   */
+  enum video_format_e {
+    format_h264 = 0,  ///< H.264 High profile.
+    format_hevc = 1,  ///< HEVC Main/Main10 profile.
+    format_av1 = 2,  ///< AV1 Main/Main10 profile.
+    format_mpeg2 = 3,  ///< MPEG-2/H.262 video.
+    format_h263p = 4,  ///< H.263+ video.
+  };
 
   /* Encoding configuration requested by remote client */
   struct config_t {
@@ -34,7 +44,7 @@ namespace video {
        SDR encoding colorspace (encoderCscMode >> 1) : 0 - BT.601, 1 - BT.709, 2 - BT.2020 */
     int encoderCscMode;
 
-    int videoFormat;  // 0 - H.264, 1 - HEVC, 2 - AV1
+    int videoFormat;  // video_format_e
 
     /* Encoding color depth (bit depth): 0 - 8-bit, 1 - 10-bit
        HDR encoding activates when color depth is higher than 8-bit and the display which is being captured is operating in HDR mode */
@@ -189,18 +199,24 @@ namespace video {
     codec_t av1;
     codec_t hevc;
     codec_t h264;
+    codec_t mpeg2;
+    codec_t h263p;
 
     const codec_t &codec_from_config(const config_t &config) const {
       switch (config.videoFormat) {
         default:
           BOOST_LOG(error) << "Unknown video format " << config.videoFormat << ", falling back to H.264";
           // fallthrough
-        case 0:
+        case format_h264:
           return h264;
-        case 1:
+        case format_hevc:
           return hevc;
-        case 2:
+        case format_av1:
           return av1;
+        case format_mpeg2:
+          return mpeg2;
+        case format_h263p:
+          return h263p;
       }
     }
 
@@ -341,8 +357,10 @@ namespace video {
 
   using hdr_info_t = std::unique_ptr<hdr_info_raw_t>;
 
-  extern int active_hevc_mode;
-  extern int active_av1_mode;
+  extern int active_hevc_mode;  ///< Active HEVC codec advertisement mode.
+  extern int active_av1_mode;  ///< Active AV1 codec advertisement mode.
+  extern int active_mpeg2_mode;  ///< Active MPEG-2 codec advertisement mode.
+  extern int active_h263p_mode;  ///< Active H.263+ codec advertisement mode.
   extern bool last_encoder_probe_supported_ref_frames_invalidation;
   extern std::array<bool, 3> last_encoder_probe_supported_yuv444_for_codec;  // 0 - H.264, 1 - HEVC, 2 - AV1
 

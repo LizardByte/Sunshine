@@ -454,6 +454,8 @@ namespace config {
 
     0,  // hevc_mode
     0,  // av1_mode
+    0,  // mpeg2_mode
+    0,  // h263p_mode
 
     2,  // min_threads
     {
@@ -1101,6 +1103,8 @@ namespace config {
     int_f(vars, "qp", video.qp);
     int_between_f(vars, "hevc_mode", video.hevc_mode, {0, 3});
     int_between_f(vars, "av1_mode", video.av1_mode, {0, 3});
+    int_between_f(vars, "mpeg2_mode", video.mpeg2_mode, {0, 2});
+    int_between_f(vars, "h263p_mode", video.h263p_mode, {0, 2});
     int_f(vars, "min_threads", video.min_threads);
     string_f(vars, "sw_preset", video.sw.sw_preset);
     if (!video.sw.sw_preset.empty()) {
