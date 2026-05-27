@@ -7,11 +7,11 @@
 #include <src/config.h>
 #include <src/video.h>
 
-static_assert(video::SUNSHINE_FORMAT_H264 == 0);
-static_assert(video::SUNSHINE_FORMAT_HEVC == 1);
-static_assert(video::SUNSHINE_FORMAT_AV1 == 2);
-static_assert(video::SUNSHINE_FORMAT_PRORES == 3);
-static_assert(video::SUNSHINE_FORMAT_COUNT == 4);
+// SUNSHINE_FORMAT_* enumerator-value invariants are asserted next to the
+// definitions in src/video.h:28-31; not duplicated here. The COUNT
+// sentinel is the test-relevant invariant — it gates is_known_video_format
+// and must follow PRORES.
+static_assert(video::SUNSHINE_FORMAT_COUNT == video::SUNSHINE_FORMAT_PRORES + 1);
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
