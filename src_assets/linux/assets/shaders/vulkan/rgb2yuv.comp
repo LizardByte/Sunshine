@@ -15,7 +15,9 @@ layout(push_constant) uniform PushConstants {
   vec2 range_uv;
   ivec2 src_offset;
   ivec2 src_size;
-  ivec2 dst_size;
+  ivec2 dst_offset;  // top-left of the aspect-preserved viewport
+  ivec2 dst_size;  // effective viewport (src after aspect-fit)
+  ivec2 dst_full_size;  // full encoder frame size
   ivec2 cursor_pos;
   ivec2 cursor_size;  // w=0 means no cursor
   int y_invert;
@@ -32,13 +34,27 @@ vec3 blend_cursor(vec3 rgb, ivec2 pos) {
 
 void main() {
   ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
-  if (pos.x >= pc.dst_size.x || pos.y >= pc.dst_size.y)
+  if (pos.x >= pc.dst_full_size.x || pos.y >= pc.dst_full_size.y)
     return;
+
+  ivec2 d = pos - pc.dst_offset;
+  if (d.x < 0 || d.y < 0 || d.x >= pc.dst_size.x || d.y >= pc.dst_size.y) {
+    // Outside the aspect-fit viewport: write encoded black.
+    // Use the same conversion formula as RGB=(0,0,0), where the dot product
+    // is zero and the encoded value is color_vec_*.w adjusted by range_*.
+    float y_black = pc.color_vec_y.w * pc.range_y.x + pc.range_y.y;
+    float u_black = pc.color_vec_u.w * pc.range_uv.x + pc.range_uv.y;
+    float v_black = pc.color_vec_v.w * pc.range_uv.x + pc.range_uv.y;
+    imageStore(y_out, pos, vec4(y_black, 0, 0, 0));
+    if ((pos.x & 1) == 0 && (pos.y & 1) == 0)
+      imageStore(uv_out, pos >> 1, vec4(u_black, v_black, 0, 0));
+    return;
+  }
 
   vec2 inv_tex = 1.0 / vec2(textureSize(rgb_in, 0));
   vec2 scale = vec2(pc.src_size) / vec2(pc.dst_size);
 
-  vec2 uv = (vec2(pc.src_offset) + (vec2(pos) + 0.5) * scale) * inv_tex;
+  vec2 uv = (vec2(pc.src_offset) + (vec2(d) + 0.5) * scale) * inv_tex;
   if (pc.y_invert != 0)
     uv.y = 1.0 - uv.y;
   vec3 rgb = texture(rgb_in, uv).rgb;
