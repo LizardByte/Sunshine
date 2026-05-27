@@ -41,7 +41,6 @@ API_AVAILABLE(macos(12.3))
 @property (nonatomic, copy) FrameCallbackBlock currentCallback;
 @property (nonatomic, strong) dispatch_semaphore_t currentSignal;
 @property (nonatomic, assign) BOOL streamRunning;
-@property (nonatomic, assign) BOOL streamOutputAdded;
 
 @end
 
@@ -161,7 +160,6 @@ API_AVAILABLE(macos(12.3))
     NSLog(@"SCVideo: addStreamOutput failed: %@", outputError);
     return nil;
   }
-  self.streamOutputAdded = YES;
 
   // Start the stream once. Frames begin flowing immediately on the
   // sampleQueue; sample-handler delivery is a no-op until the first
@@ -320,12 +318,26 @@ API_AVAILABLE(macos(12.3))
 - (void)dealloc {
   BOOL running;
   SCStream *stream;
+  dispatch_semaphore_t pendingSignal;
   @synchronized(self) {
     running = self.streamRunning;
     stream = self.stream;
+    pendingSignal = self.currentSignal;
     self.streamRunning = NO;
     self.currentCallback = nil;
+    self.currentSignal = nil;
   }
+
+  // Unblock any caller still waiting on the semaphore that -capture:
+  // returned. Without this, if the stream stops without triggering
+  // -stream:didStopWithError: (or the delegate callback can't be
+  // delivered during teardown), the waiting thread would stall
+  // forever. Signalling after clearing currentCallback means the
+  // caller wakes up to observe their callback was cleared and exits.
+  if (pendingSignal) {
+    dispatch_semaphore_signal(pendingSignal);
+  }
+
   if (running && stream) {
     // Best-effort synchronous stop with a bounded wait so a
     // misbehaving SCK doesn't hang teardown.
