@@ -370,28 +370,35 @@ const KeyCodeMap kKeyCodesMap[] = {
       return -1;
     }
 
-    // Find a free slot. globalIndex from the protocol is advisory; we
-    // assign the lowest free slot ourselves so a disconnect/reconnect
-    // sequence reliably reuses the same IOHIDUserDevice slot.
-    for (int i = 0; i < MAX_GAMEPADS; i++) {
-      if (macos_input->gamepads[i] != nil) {
-        continue;
-      }
-
-      HIDGamepad *pad = [[HIDGamepad alloc] initWithIndex:i];
-      if (![pad createDevice]) {
-        [pad release];
-        BOOST_LOG(error) << "alloc_gamepad: HIDGamepad createDevice failed for slot "sv << i;
-        return -1;
-      }
-
-      macos_input->gamepads[i] = pad;
-      BOOST_LOG(info) << "alloc_gamepad: slot "sv << i << " allocated (IOHIDUserDevice virtual gamepad)"sv;
-      return i;
+    // The platform interface expects alloc_gamepad to return 0 on
+    // success (per the docstring in src/platform/common.h:831).
+    // src/input.cpp dispatches subsequent free_gamepad / gamepad_update
+    // by id.globalIndex (Sunshine allocates that index from a bitmask
+    // before calling us), so we key our HIDGamepad slots on the same
+    // index. Returning a slot >0 here would be treated as failure by
+    // `if (platf::alloc_gamepad(...))` in src/input.cpp:897.
+    const int slot = id.globalIndex;
+    if (slot < 0 || slot >= MAX_GAMEPADS) {
+      BOOST_LOG(error) << "alloc_gamepad: invalid globalIndex "sv << slot
+                       << " (must be in [0, "sv << MAX_GAMEPADS << "))"sv;
+      return -1;
+    }
+    if (macos_input->gamepads[slot] != nil) {
+      BOOST_LOG(warning) << "alloc_gamepad: slot "sv << slot
+                         << " already allocated; refusing to clobber"sv;
+      return -1;
     }
 
-    BOOST_LOG(warning) << "alloc_gamepad: no free gamepad slots (max "sv << MAX_GAMEPADS << ")"sv;
-    return -1;
+    HIDGamepad *pad = [[HIDGamepad alloc] initWithIndex:slot];
+    if (![pad createDevice]) {
+      [pad release];
+      BOOST_LOG(error) << "alloc_gamepad: HIDGamepad createDevice failed for slot "sv << slot;
+      return -1;
+    }
+
+    macos_input->gamepads[slot] = pad;
+    BOOST_LOG(info) << "alloc_gamepad: slot "sv << slot << " allocated (IOHIDUserDevice virtual gamepad)"sv;
+    return 0;
   }
 
   void free_gamepad(input_t &input, int nr) {
@@ -765,8 +772,18 @@ const KeyCodeMap kKeyCodesMap[] = {
     static bool initialized = false;
     static std::vector<supported_gamepad_t> gamepads;
     if (!initialized) {
+      // is_enabled mirrors the actual probe result. When AMFI is still
+      // enabled, alloc_gamepad will always return -1, so report this
+      // entry as disabled (with a translation key the web UI can
+      // surface to explain why) rather than offering a controller type
+      // that will immediately fail. Matches the pattern Linux uses
+      // when uinput isn't available.
       const BOOL hid_ok = [HIDGamepad isAvailable];
-      gamepads.push_back({"hid", true, hid_ok ? "gamepads.macos_hid" : "gamepads.macos_amfi_required"});
+      gamepads.push_back({
+        "hid",
+        hid_ok ? true : false,
+        hid_ok ? "gamepads.macos_hid" : "gamepads.macos_amfi_required",
+      });
       initialized = true;
     }
     return gamepads;

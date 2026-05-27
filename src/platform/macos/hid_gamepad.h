@@ -1,8 +1,12 @@
 /**
  * @file src/platform/macos/hid_gamepad.h
  * @brief Virtual HID gamepad via IOHIDUserDevice for macOS.
- * @details Creates a system-wide virtual gamepad that macOS Game Controller
- *          framework recognizes. Requires SIP to be disabled.
+ * @details Creates a system-wide virtual gamepad that macOS Game
+ *          Controller framework, SDL, Steam, and raw IOKit HID
+ *          consumers all recognize as a real USB controller. Requires
+ *          AMFI to be bypassed at boot via
+ *          `nvram boot-args="amfi_get_out_of_my_way=1"`. SIP can remain
+ *          on; the relevant subsystem is AMFI, not SIP.
  */
 #pragma once
 
@@ -34,7 +38,9 @@ typedef struct __attribute__((packed)) {
 
 /**
  * Probes whether IOHIDUserDevice virtual gamepads can be created.
- * Returns NO when SIP is enabled (device creation fails).
+ * Returns NO when AMFI is enabled — the entitlement check refuses
+ * IOHIDUserDeviceCreateWithProperties without the AMFI bypass boot
+ * flag in place.
  */
 + (BOOL)isAvailable;
 

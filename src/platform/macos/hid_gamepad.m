@@ -1,9 +1,15 @@
 /**
  * @file src/platform/macos/hid_gamepad.m
  * @brief Virtual HID gamepad implementation via IOHIDUserDevice.
- * @details Creates a virtual Xbox-style gamepad recognized by macOS Game Controller framework.
- *          Requires SIP to be disabled for IOHIDUserDevice creation to succeed
- *          (bypasses com.apple.developer.hid.virtual.device entitlement check).
+ * @details Creates a virtual Xbox-style gamepad recognized by macOS Game
+ *          Controller framework, SDL, Steam, and apps consuming raw IOKit
+ *          HID. Requires AMFI to be bypassed at boot via
+ *          `nvram boot-args="amfi_get_out_of_my_way=1"` (and a reboot);
+ *          without that, IOHIDUserDeviceCreateWithProperties refuses to
+ *          publish the device because the
+ *          com.apple.developer.hid.virtual.device entitlement check
+ *          fails. SIP can remain enabled — AMFI is the relevant
+ *          subsystem, not SIP.
  */
 #import "hid_gamepad.h"
 #import <IOKit/hidsystem/IOHIDUserDevice.h>
