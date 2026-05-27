@@ -31,7 +31,10 @@ namespace video {
   static_assert(SUNSHINE_FORMAT_PRORES == 3);
 
   inline bool is_known_video_format(int video_format) {
-    return video_format >= SUNSHINE_FORMAT_H264 && video_format <= SUNSHINE_FORMAT_PRORES;
+    // Express the upper bound via SUNSHINE_FORMAT_COUNT so adding a future
+    // codec is purely a matter of bumping the enum — no need to remember
+    // to update this predicate.
+    return video_format >= SUNSHINE_FORMAT_H264 && video_format < SUNSHINE_FORMAT_COUNT;
   }
 
   inline bool is_video_format_enabled_by_prores_gate(int video_format, int prores_mode) {

@@ -1169,12 +1169,16 @@ namespace video {
     },
     {
       // Common options
+      // Note: max_ref_frames is intentionally omitted for H.264 because
+      // VideoToolbox on Apple Silicon produces all-IDR output when
+      // ReferenceBufferCount=1 is set for H.264, causing massive bandwidth
+      // inflation (~3x) and frame drops. HEVC and AV1 are unaffected and
+      // retain max_ref_frames=1. See LizardByte/Sunshine#5013.
       {
         {"allow_sw"s, &config::video.vt.vt_allow_sw},
         {"require_sw"s, &config::video.vt.vt_require_sw},
         {"realtime"s, &config::video.vt.vt_realtime},
         {"prio_speed"s, 1},
-        {"max_ref_frames"s, 1},
       },
       {},  // SDR-specific options
       {},  // HDR-specific options
@@ -2930,7 +2934,14 @@ namespace video {
     active_hevc_mode = config::video.hevc_mode;
     active_av1_mode = config::video.av1_mode;
     active_prores_mode = config::video.prores_mode;
-    const bool require_prores = active_prores_mode >= 2;
+    // Bind `require_prores` to the user-configured value, NOT to the
+    // mutable `active_prores_mode` global. `adjust_encoder_constraints`
+    // below may demote `active_prores_mode` to 0 when no encoder supports
+    // ProRes; reading from the immutable config source keeps the
+    // "user explicitly asked for forced ProRes" intent intact across that
+    // demotion, so we can fail loudly instead of silently picking a
+    // non-ProRes encoder.
+    const bool require_prores = config::video.prores_mode >= 2;
     last_encoder_probe_supported_ref_frames_invalidation = false;
 
     auto adjust_encoder_constraints = [&](encoder_t *encoder) {
