@@ -15,8 +15,8 @@ layout(push_constant) uniform PushConstants {
   vec2 range_uv;
   ivec2 src_offset;
   ivec2 src_size;
-  ivec2 dst_offset;     // top-left of the aspect-preserved viewport
-  ivec2 dst_size;       // effective viewport (src after aspect-fit)
+  ivec2 dst_offset;  // top-left of the aspect-preserved viewport
+  ivec2 dst_size;  // effective viewport (src after aspect-fit)
   ivec2 dst_full_size;  // full encoder frame size
   ivec2 cursor_pos;
   ivec2 cursor_size;  // w=0 means no cursor
