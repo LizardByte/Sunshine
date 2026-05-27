@@ -16,7 +16,6 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
-#include "src/platform/macos/av_video.h"
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
 #include "src/platform/macos/sc_video.h"
@@ -212,7 +211,7 @@ namespace platf {
   }  // namespace
 
   struct av_display_t: public display_t {
-    id<SunshineVideoCapture> av_capture {};
+    SCVideo *av_capture {};
     CGDirectDisplayID display_id {};
     IOPMAssertionID display_sleep_assertion {kIOPMNullAssertionID};
 
@@ -305,7 +304,7 @@ namespace platf {
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init((__bridge void *) av_capture, pix_fmt, setResolution, setPixelFormat);
+        device->init((void *) av_capture, pix_fmt, setResolution, setPixelFormat);
 
         return device;
       } else {
@@ -362,11 +361,11 @@ namespace platf {
      * height --> the intended capture height
      */
     static void setResolution(void *display, int width, int height) {
-      [(__bridge id<SunshineVideoCapture>) display setFrameWidth:width frameHeight:height];
+      [(SCVideo *) display setFrameWidth:width frameHeight:height];
     }
 
     static void setPixelFormat(void *display, OSType pixelFormat) {
-      ((__bridge id<SunshineVideoCapture>) display).pixelFormat = pixelFormat;
+      ((SCVideo *) display).pixelFormat = pixelFormat;
     }
   };
 
@@ -387,7 +386,7 @@ namespace platf {
     BOOST_LOG(info) << "Detecting displays"sv;
     log_display_environment_diagnostics();
 
-    auto display_array = [AVVideo displayNames];
+    auto display_array = [SCVideo displayNames];
     bool matched_configured_display = display_name.empty();
     for (NSDictionary *item in display_array) {
       NSNumber *display_id = item[@"id"];
@@ -410,22 +409,19 @@ namespace platf {
     log_display_diagnostic(display->display_id, "selected for AVFoundation capture");
     BOOST_LOG(info) << "Configuring selected display ("sv << display->display_id << ") to stream"sv;
 
-    // Prefer ScreenCaptureKit on macOS 12.3+ (AVCaptureScreenInput was
-    // deprecated in macOS 13 and is hardcoded to 8-bit BGRA). Fall back to
-    // the legacy AVCaptureScreenInput path on older macOS.
-    if (@available(macOS 12.3, *)) {
-      // hdrAllowed reflects the negotiated `enable_hdr` for this session
-      // (rtsp.cpp maps `x-nv-video[0].dynamicRangeMode` into config.dynamicRange).
-      // SCK uses this together with the chosen pixel format depth to decide
-      // whether to flip captureDynamicRange to HDRLocalDisplay; neither
-      // condition alone is sufficient. See sc_video.m::applyDynamicRangeForPixelFormat:.
-      const BOOL hdr_allowed = config.dynamicRange ? YES : NO;
-      BOOST_LOG(info) << "Using ScreenCaptureKit capture backend (HDR "sv << (hdr_allowed ? "allowed" : "blocked") << ")"sv;
-      display->av_capture = [[SCVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate hdrAllowed:hdr_allowed];
-    } else {
-      BOOST_LOG(info) << "Using legacy AVCaptureScreenInput capture backend"sv;
-      display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
-    }
+    // ScreenCaptureKit is the only capture backend Sunshine ships on macOS;
+    // the deployment target (14.2) is well above SCK's minimum (12.3) so
+    // there is no @available branch and no legacy AVCaptureScreenInput
+    // fallback to maintain.
+    //
+    // hdrAllowed reflects the negotiated `enable_hdr` for this session
+    // (rtsp.cpp maps `x-nv-video[0].dynamicRangeMode` into config.dynamicRange).
+    // SCK uses this together with the chosen pixel format depth to decide
+    // whether to flip captureDynamicRange to HDRLocalDisplay; neither
+    // condition alone is sufficient. See sc_video.m::applyDynamicRangeForPixelFormat:.
+    const BOOL hdr_allowed = config.dynamicRange ? YES : NO;
+    BOOST_LOG(info) << "Using ScreenCaptureKit capture backend (HDR "sv << (hdr_allowed ? "allowed" : "blocked") << ")"sv;
+    display->av_capture = [[SCVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate hdrAllowed:hdr_allowed];
 
     if (!display->av_capture) {
       BOOST_LOG(error) << "Video setup failed."sv;
@@ -444,7 +440,7 @@ namespace platf {
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
     __block std::vector<std::string> display_names;
 
-    auto display_array = [AVVideo displayNames];
+    auto display_array = [SCVideo displayNames];
 
     display_names.reserve([display_array count]);
     [display_array enumerateObjectsUsingBlock:^(NSDictionary *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {
