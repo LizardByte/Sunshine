@@ -1,12 +1,9 @@
 /**
  * @file src/platform/macos/sc_video.m
- * @brief ScreenCaptureKit-based video capture for macOS 12.3+.
- *
- * Drop-in replacement for the legacy AVCaptureScreenInput path in
- * av_video.m. This first-pass implementation preserves the original
- * pixel format (BGRA8) and selection semantics; HDR / 10-bit pixel
- * format selection and EDR color metadata propagation are layered on
- * top in subsequent commits.
+ * @brief ScreenCaptureKit-based video capture. Sole macOS capture
+ * backend; Sunshine's deployment target (14.2) is well above the SCK
+ * minimum (12.3) so the legacy AVCaptureScreenInput-based AVVideo
+ * implementation has been retired.
  *
  * Lifecycle: the underlying SCStream is started exactly once during
  * -initWithDisplay:frameRate: and stopped exactly once during -dealloc.
@@ -93,7 +90,7 @@ API_AVAILABLE(macos(12.3))
 
   // SCK content enumeration is async; block (with a bounded timeout)
   // until we have the SCDisplay matching the requested CGDirectDisplayID
-  // so this initializer remains synchronous (matching AVVideo's contract).
+  // so this initializer remains synchronous: callers are not yet block-aware.
   __block SCDisplay *selectedDisplay = nil;
   __block NSError *enumerationError = nil;
   dispatch_semaphore_t ready = dispatch_semaphore_create(0);
@@ -414,6 +411,39 @@ API_AVAILABLE(macos(12.3))
   if (signal) {
     dispatch_semaphore_signal(signal);
   }
+}
+
+#pragma mark - Display enumeration
+
+// Active-display upper bound. We just need a buffer size that comfortably
+// exceeds any plausible attached-display count.
+static const int kMaxDisplays = 32;
+
++ (NSString *)getDisplayName:(CGDirectDisplayID)displayID {
+  for (NSScreen *screen in [NSScreen screens]) {
+    if ([screen.deviceDescription[@"NSScreenNumber"] isEqualToNumber:[NSNumber numberWithUnsignedInt:displayID]]) {
+      return screen.localizedName;
+    }
+  }
+  return nil;
+}
+
++ (NSArray<NSDictionary *> *)displayNames {
+  CGDirectDisplayID displays[kMaxDisplays];
+  uint32_t count = 0;
+  if (CGGetActiveDisplayList(kMaxDisplays, displays, &count) != kCGErrorSuccess) {
+    return @[];
+  }
+
+  NSMutableArray *result = [NSMutableArray array];
+  for (uint32_t i = 0; i < count; i++) {
+    [result addObject:@{
+      @"id": [NSNumber numberWithUnsignedInt:displays[i]],
+      @"name": [NSString stringWithFormat:@"%u", displays[i]],
+      @"displayName": [SCVideo getDisplayName:displays[i]] ?: [NSString stringWithFormat:@"Display %u", displays[i]],
+    }];
+  }
+  return [NSArray arrayWithArray:result];
 }
 
 @end
