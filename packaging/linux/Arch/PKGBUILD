@@ -116,7 +116,7 @@ fi
 
 prepare() {
     cd "$pkgname"
-    git submodule update --recursive --init
+    git submodule update --recursive --init --depth 1
 }
 
 build() {
