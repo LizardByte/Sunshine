@@ -711,7 +711,7 @@
       },
       showDeleteForm(id) {
         let resp = confirm(
-          "Are you sure to delete " + this.apps[id].name + "?"
+          "Are you sure you want to delete " + this.apps[id].name + "?"
         );
         if (resp) {
           apiFetch("./api/apps/" + id, {
