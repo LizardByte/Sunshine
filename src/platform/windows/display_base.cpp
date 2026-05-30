@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <cmath>
+#include <set>
 #include <thread>
 
 // platform includes
@@ -458,10 +459,51 @@ namespace platf::dxgi {
       }
 
       {
-        // We aren't calling MH_Uninitialize(), but that's okay because this hook lasts for the life of the process
-        MH_Initialize();
-        MH_CreateHookApi(L"win32u.dll", "NtGdiDdDDIGetCachedHybridQueryValue", (void *) NtGdiDdDDIGetCachedHybridQueryValueHook, nullptr);
-        MH_EnableHook(MH_ALL_HOOKS);
+        // The hybrid GPU workaround hooks NtGdiDdDDIGetCachedHybridQueryValue to prevent
+        // DXGI output reparenting that breaks DDA on multi-GPU systems. On single-GPU
+        // systems, this hook is unnecessary and can cause crashes on some Windows builds
+        // (e.g., Windows 11 24H2 build 29558+) where dxgi.dll doesn't handle the spoofed
+        // GPU preference state correctly, resulting in an access violation.
+        bool needs_hybrid_workaround = false;
+        {
+          IDXGIFactory1 *probe_factory = nullptr;
+          if (SUCCEEDED(CreateDXGIFactory1(IID_IDXGIFactory1, (void **) &probe_factory))) {
+            // Count unique physical GPUs by VendorId+DeviceId.
+            // DXGI can present the same physical GPU as multiple logical adapters
+            // (e.g., cross-adapter copies), so we deduplicate.
+            std::set<std::pair<UINT, UINT>> unique_gpus;
+            IDXGIAdapter1 *probe_adapter = nullptr;
+            for (int i = 0; probe_factory->EnumAdapters1(i, &probe_adapter) != DXGI_ERROR_NOT_FOUND; ++i) {
+              DXGI_ADAPTER_DESC1 desc;
+              probe_adapter->GetDesc1(&desc);
+              if (!(desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)) {
+                unique_gpus.emplace(desc.VendorId, desc.DeviceId);
+              }
+              probe_adapter->Release();
+            }
+            probe_factory->Release();
+            needs_hybrid_workaround = unique_gpus.size() > 1;
+            if (!needs_hybrid_workaround) {
+              BOOST_LOG(info) << "Single GPU detected, skipping hybrid GPU output reparenting workaround"sv;
+            }
+          }
+        }
+
+        if (needs_hybrid_workaround) {
+          // We aren't calling MH_Uninitialize(), but that's okay because this hook lasts for the life of the process
+          auto mh_status = MH_Initialize();
+          if (mh_status == MH_OK || mh_status == MH_ERROR_ALREADY_INITIALIZED) {
+            mh_status = MH_CreateHookApi(L"win32u.dll", "NtGdiDdDDIGetCachedHybridQueryValue", (void *) NtGdiDdDDIGetCachedHybridQueryValueHook, nullptr);
+            if (mh_status == MH_OK) {
+              MH_EnableHook(MH_ALL_HOOKS);
+              BOOST_LOG(info) << "Installed hybrid GPU output reparenting workaround"sv;
+            } else {
+              BOOST_LOG(warning) << "Failed to hook NtGdiDdDDIGetCachedHybridQueryValue (MH status: "sv << mh_status << "), skipping hybrid GPU workaround"sv;
+            }
+          } else {
+            BOOST_LOG(warning) << "Failed to initialize MinHook (MH status: "sv << mh_status << "), skipping hybrid GPU workaround"sv;
+          }
+        }
       }
     });
 
