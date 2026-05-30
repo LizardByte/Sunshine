@@ -169,6 +169,7 @@
     "coder_cabac": "cabac -- context adaptive binary arithmetic coding - higher quality",
     "coder_cavlc": "cavlc -- context adaptive variable-length coding - faster decode",
     "configuration": "Configuration",
+    "configuration_desc": "Configure Sunshine's host settings to match your streaming setup.",
     "controller": "Enable Gamepad Input",
     "controller_desc": "Allows guests to control the host system with a gamepad / controller",
     "credentials_file": "Credentials File",
