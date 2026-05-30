@@ -614,6 +614,30 @@ editing the `conf` file in a text editor. Use the examples as reference.
     </tr>
 </table>
 
+### key_leftalt_to_key_cmd
+
+<table>
+    <tr>
+        <td>Description</td>
+        <td colspan="2">
+            On macOS, map the Left Alt key from Moonlight to the left Command key. This can be useful when the client cannot send the Windows key directly.
+            @caution{Applies to macOS only.}
+        </td>
+    </tr>
+    <tr>
+        <td>Default</td>
+        <td colspan="2">@code{}
+            disabled
+            @endcode</td>
+    </tr>
+    <tr>
+        <td>Example</td>
+        <td colspan="2">@code{}
+            key_leftalt_to_key_cmd = enabled
+            @endcode</td>
+    </tr>
+</table>
+
 ### mouse
 
 <table>

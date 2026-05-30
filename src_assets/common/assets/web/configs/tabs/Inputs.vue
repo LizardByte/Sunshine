@@ -155,6 +155,15 @@ const config = ref(props.config)
               default="false"
     ></Checkbox>
 
+    <!-- Mapping Key AltLeft to Key Command -->
+    <Checkbox v-if="config.keyboard === 'enabled' && platform === 'macos'"
+              class="mb-3"
+              id="key_leftalt_to_key_cmd"
+              locale-prefix="config"
+              v-model="config.key_leftalt_to_key_cmd"
+              default="false"
+    ></Checkbox>
+
     <!-- Enable Mouse Input -->
     <hr>
     <Checkbox class="mb-3"
