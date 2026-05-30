@@ -110,6 +110,7 @@ jobs:
               devel/llvm${{ env.FREEBSD_CLANG_VERSION }} \
               devel/ninja \
               devel/pkgconf \
+              devel/uv \
               devel/qt6-base \
               ftp/curl \
               graphics/libdrm \
@@ -138,12 +139,11 @@ jobs:
 
             # setup python
             ln -s /usr/local/bin/python3.14 /usr/local/bin/python
-            python -m ensurepip
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            # install glad deps and gcvor
-            python -m pip install ".[glad,test]"
+            uv sync --locked --group glad --group test --python /usr/local/bin/python3.14 \
+              --no-python-downloads --no-install-project
 
             # fix git safe.directory issues
             git config --global --add safe.directory "*"
@@ -170,6 +170,8 @@ jobs:
             -DBUILD_WERROR=OFF \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DGLAD_SKIP_PIP_INSTALL=ON \
+            -DPython_EXECUTABLE="${GITHUB_WORKSPACE}/.venv/bin/python" \
             -DSUNSHINE_ASSETS_DIR=share/assets \
             -DSUNSHINE_EXECUTABLE_PATH=/usr/local/bin/sunshine \
             -DSUNSHINE_ENABLE_CUDA=OFF \
@@ -253,7 +255,7 @@ jobs:
         shell: freebsd {0}
         run: |
           cd "${GITHUB_WORKSPACE}/build"
-          python -m gcovr . -r ../src \
+          uv run --locked --no-sync python -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

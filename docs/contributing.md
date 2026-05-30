@@ -127,24 +127,24 @@ any of the following paths are modified.
 - 'src/**'
 ```
 
-When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the python dependencies in the `./pyproject.toml` file. You can install this with
-the following command.
+When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python and
+uv are required for this, along with the Python dependencies in the `./pyproject.toml` file. You can install these
+with the following command.
 
 ```bash
-python -m pip install ".[locale]"
+uv sync --only-group locale
 ```
 
 Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash
-  python ./scripts/_locale.py --extract --init --update
+  uv run --no-sync python ./scripts/_locale.py --extract --init --update
   ```
 
 * Compile
   ```bash
-  python ./scripts/_locale.py --compile
+  uv run --no-sync python ./scripts/_locale.py --compile
   ```
 
 > [!IMPORTANT]
@@ -166,7 +166,7 @@ find ./ -iname *.cpp -o -iname *.h -iname *.m -iname *.mm | xargs clang-format -
 
 Option 2 (will modify files):
 ```bash
-python ./scripts/update_clang_format.py
+uv run --only-group lint python ./scripts/update_clang_format.py
 ```
 
 #### Unit Testing

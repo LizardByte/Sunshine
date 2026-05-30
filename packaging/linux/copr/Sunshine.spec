@@ -4,6 +4,7 @@
 %global build_version 0
 %global branch 0
 %global commit 0
+%global sunshine_python_version 3.14
 
 %undefine _hardened_build
 
@@ -68,11 +69,10 @@ BuildRequires: nodejs-npm
 BuildRequires: numactl-devel
 BuildRequires: opus-devel
 BuildRequires: pulseaudio-libs-devel
-BuildRequires: python3-jinja2
-BuildRequires: python3-setuptools
 BuildRequires: qt6-qtbase-devel
 BuildRequires: qt6-qtsvg-devel
 BuildRequires: systemd-udev
+BuildRequires: uv
 %{?sysusers_requires_compat}
 # for unit tests
 BuildRequires: xorg-x11-server-Xvfb
@@ -243,6 +243,18 @@ cmake_args=(
   "-DSUNSHINE_PUBLISHER_ISSUE_URL=https://app.lizardbyte.dev/support"
 )
 
+%if 0%{?fedora}
+# uv installs Python and glad's Python dependencies into .venv before CMake runs.
+cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
+cmake_args+=("-DPython_EXECUTABLE=%{_builddir}/Sunshine/.venv/bin/python")
+%endif
+
+%if 0%{?suse_version}
+# Use the Python interpreter that owns the python311-Jinja2/python311-setuptools BuildRequires.
+cmake_args+=("-DGLAD_SKIP_PIP_INSTALL=ON")
+cmake_args+=("-DPython_EXECUTABLE=/usr/bin/python3.11")
+%endif
+
 export CC=gcc-%{gcc_version}
 export CXX=g++-%{gcc_version}
 
@@ -358,6 +370,14 @@ cmake_args+=("-DSUNSHINE_ENABLE_VULKAN=OFF")
 
 # cmake
 cd %{_builddir}/Sunshine
+%if 0%{?fedora}
+uv python install %{sunshine_python_version}
+uv sync \
+  --locked \
+  --only-group glad \
+  --python %{sunshine_python_version} \
+  --no-install-project
+%endif
 echo "cmake args:"
 echo "${cmake_args[@]}"
 cmake "${cmake_args[@]}"
