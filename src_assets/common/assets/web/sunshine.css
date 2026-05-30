@@ -363,6 +363,55 @@
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
 }
 
+/* Catppuccin Mocha - https://github.com/catppuccin/catppuccin */
+[data-theme="mocha"] {
+    --color-primary: #cba6f7;
+    --color-primary-hover: #d5b8f9;
+    --color-primary-light: #3c2e5c;
+    --color-accent: #f5c2e7;
+    --color-accent-hover: #f7ceec;
+    --color-accent-light: #4a2e44;
+    --color-success: #a6e3a1;
+    --color-success-hover: #b8e9b4;
+    --color-success-light: #1e3d24;
+    --color-danger: #f38ba8;
+    --color-danger-hover: #f5a2b9;
+    --color-danger-light: #4a2230;
+    --color-warning: #f9e2af;
+    --color-warning-hover: #fae8bf;
+    --color-warning-light: #41391f;
+    --color-info: #89b4fa;
+    --color-info-hover: #a1c3fb;
+    --color-info-light: #1e2e4a;
+
+    --color-on-primary: #1e1e2e;
+    --color-on-success: #1e1e2e;
+    --color-on-danger: #1e1e2e;
+    --color-on-info: #1e1e2e;
+
+    --color-bg-base: #1e1e2e;
+    --color-bg-subtle: #313244;
+    --color-bg-muted: #45475a;
+    --color-surface: #313244;
+    --color-surface-raised: #45475a;
+
+    --color-border: #585b70;
+    --color-border-strong: #6c7086;
+
+    --color-text-base: #cdd6f4;
+    --color-text-muted: #a6adc8;
+    --color-text-subtle: #7f849c;
+
+    --navbar-bg: #cba6f7;
+    --navbar-text: #1e1e2e;
+    --navbar-text-muted: rgba(30, 30, 46, 0.75);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+}
+
 /* ==========================================================================
    Light Themes
    ========================================================================== */
@@ -721,6 +770,45 @@
     --navbar-bg: #CFCFDE;
     --navbar-text: #1F1F1F;
     --navbar-text-muted: rgba(31, 31, 31, 0.7);
+}
+
+/* Catppuccin Latte - https://github.com/catppuccin/catppuccin */
+[data-theme="latte"] {
+    --color-primary: #8839ef;
+    --color-primary-hover: #7430cb;
+    --color-primary-light: #ede1fd;
+    --color-accent: #ea76cb;
+    --color-accent-hover: #ce68b3;
+    --color-accent-light: #fbe4f5;
+    --color-success: #40a02b;
+    --color-success-hover: #368825;
+    --color-success-light: #dcefd5;
+    --color-danger: #d20f39;
+    --color-danger-hover: #b30d30;
+    --color-danger-light: #f7d6dd;
+    --color-warning: #df8e1d;
+    --color-warning-hover: #be7919;
+    --color-warning-light: #f8ecd3;
+    --color-info: #1e66f5;
+    --color-info-hover: #1a57d0;
+    --color-info-light: #d7e2fd;
+
+    --color-bg-base: #e6e9ef;
+    --color-bg-subtle: #dce0e8;
+    --color-bg-muted: #ccd0da;
+    --color-surface: #eff1f5;
+    --color-surface-raised: #eff1f5;
+
+    --color-border: #ccd0da;
+    --color-border-strong: #acb0be;
+
+    --color-text-base: #4c4f69;
+    --color-text-muted: #6c6f85;
+    --color-text-subtle: #8c8fa1;
+
+    --navbar-bg: #8839ef;
+    --navbar-text: #ffffff;
+    --navbar-text-muted: rgba(255, 255, 255, 0.85);
 }
 
 /* ==========================================================================

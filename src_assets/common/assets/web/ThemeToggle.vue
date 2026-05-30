@@ -4,6 +4,7 @@ import { onMounted } from 'vue'
 import {
   CloudMoon,
   CloudRain,
+  Coffee,
   Contrast,
   Droplet,
   Flame,
@@ -11,6 +12,7 @@ import {
   Flower2,
   Ghost,
   Layers,
+  Milk,
   MonitorSmartphone,
   Moon,
   Mountain,
@@ -58,6 +60,10 @@ onMounted(() => {
           <Ghost :size="18" class="theme-icon icon"></Ghost>
           {{ $t('navbar.theme_dracula') }}
         </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="mocha" aria-pressed="false">
+          <Coffee :size="18" class="theme-icon icon"></Coffee>
+          {{ $t('navbar.theme_mocha') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
           <Layers :size="18" class="theme-icon icon"></Layers>
           {{ $t('navbar.theme_slate') }}
@@ -89,6 +95,10 @@ onMounted(() => {
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="alucard" aria-pressed="false">
           <Droplet :size="18" class="theme-icon icon"></Droplet>
           {{ $t('navbar.theme_alucard') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="latte" aria-pressed="false">
+          <Milk :size="18" class="theme-icon icon"></Milk>
+          {{ $t('navbar.theme_latte') }}
         </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="indigo" aria-pressed="false">
           <Sparkles :size="18" class="theme-icon icon"></Sparkles>
