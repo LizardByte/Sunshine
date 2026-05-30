@@ -85,7 +85,7 @@
     --color-text-muted: #adb5bd;
     --color-text-subtle: #6c757d;
 
-    --navbar-bg: #ffc400;
+    --navbar-bg: linear-gradient(135deg, #ffc400 0%, #ff9d00 100%);
     --navbar-text: #594400;
     --navbar-text-muted: #7f6100;
 
@@ -358,9 +358,9 @@
     --color-text-muted: #6272A4;
     --color-text-subtle: #6272A4;
 
-    --navbar-bg: linear-gradient(135deg, #282A36 0%, #2D3140 50%, #343746 100%);
-    --navbar-text: #F8F8F2;
-    --navbar-text-muted: rgba(248, 248, 242, 0.7);
+    --navbar-bg: linear-gradient(135deg, #A98FD8 0%, #C792BB 100%);
+    --navbar-text: #282A36;
+    --navbar-text-muted: rgba(40, 42, 54, 0.7);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
@@ -407,7 +407,7 @@
     --color-text-muted: #a6adc8;
     --color-text-subtle: #7f849c;
 
-    --navbar-bg: #cba6f7;
+    --navbar-bg: linear-gradient(135deg, #c9aae8 0%, #e3bdd8 100%);
     --navbar-text: #1e1e2e;
     --navbar-text-muted: rgba(30, 30, 46, 0.75);
 
@@ -505,7 +505,7 @@
     --color-text-muted: #6c757d;
     --color-text-subtle: #adb5bd;
 
-    --navbar-bg: #ffc400;
+    --navbar-bg: linear-gradient(135deg, #ffc400 0%, #ff9d00 100%);
     --navbar-text: #594400;
     --navbar-text-muted: #7f6100;
 }
@@ -820,9 +820,9 @@
     --color-text-muted: #6C664B;
     --color-text-subtle: #6C664B;
 
-    --navbar-bg: linear-gradient(135deg, #F7F7F7 0%, #F2F1F8 60%, #ECEAF6 100%);
-    --navbar-text: #1F1F1F;
-    --navbar-text-muted: rgba(31, 31, 31, 0.7);
+    --navbar-bg: linear-gradient(135deg, #6A5AA8 0%, #8A4F77 100%);
+    --navbar-text: #ffffff;
+    --navbar-text-muted: rgba(255, 255, 255, 0.85);
 }
 
 /* Catppuccin Latte - https://github.com/catppuccin/catppuccin */
@@ -859,7 +859,7 @@
     --color-text-muted: #6c6f85;
     --color-text-subtle: #8c8fa1;
 
-    --navbar-bg: #8839ef;
+    --navbar-bg: linear-gradient(135deg, #7b47d0 0%, #4257c2 100%);
     --navbar-text: #ffffff;
     --navbar-text-muted: rgba(255, 255, 255, 0.85);
 }
