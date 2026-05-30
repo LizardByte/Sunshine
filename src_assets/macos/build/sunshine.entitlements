@@ -15,7 +15,7 @@
       development builds, sign the .app with these entitlements and run with
       AMFI relaxed (see docs/building.md, "macOS code signing & entitlements").
     -->
-    <key>com.apple.hid.manager.user-access-device</key>
+    <key>com.apple.developer.hid.virtual.device</key>
     <true/>
 </dict>
 </plist>

@@ -236,7 +236,7 @@ ninja -C build
 
 ### macOS code signing & entitlements
 The macOS virtual gamepad publishes a virtual HID device via `IOHIDUserDeviceCreate`,
-which requires the `com.apple.hid.manager.user-access-device` entitlement. Builds that
+which requires the `com.apple.developer.hid.virtual.device` entitlement. Builds that
 don't carry it (Homebrew, unsigned PR/CI builds) still run normally — `IOHIDUserDeviceCreate`
 fails, the gamepad is simply unavailable, and the rest of Sunshine is unaffected. AMFI only
 terminates Sunshine when a build *declares* this restricted entitlement under a signature

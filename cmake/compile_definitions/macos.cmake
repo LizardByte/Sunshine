@@ -43,7 +43,7 @@ set(APPLE_PLIST_FILE "${CMAKE_BINARY_DIR}/Info.plist")
 configure_file("${APPLE_PLIST_TEMPLATE}" "${APPLE_PLIST_FILE}" @ONLY)
 
 # Code-signing entitlements (used by the .app codesign step in
-# cmake/packaging/macos.cmake). Grants com.apple.hid.manager.user-access-device
+# cmake/packaging/macos.cmake). Grants com.apple.developer.hid.virtual.device
 # for the virtual HID gamepad in src/platform/macos/input.cpp.
 set(APPLE_ENTITLEMENTS_FILE "${SUNSHINE_SOURCE_ASSETS_DIR}/macos/build/sunshine.entitlements")
 

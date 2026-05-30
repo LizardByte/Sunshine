@@ -82,7 +82,7 @@ else()
           endif()
 
           # Sign the app last. The --entitlements file grants
-          # com.apple.hid.manager.user-access-device, required by the virtual
+          # com.apple.developer.hid.virtual.device, required by the virtual
           # HID gamepad (src/platform/macos/input.cpp). This is an Apple-
           # restricted entitlement: the signing identity must be authorized for
           # it by Apple, or notarization/AMFI will reject the build.
