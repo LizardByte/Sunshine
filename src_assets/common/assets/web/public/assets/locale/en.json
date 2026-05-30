@@ -50,6 +50,8 @@
     "covers_found": "Covers Found",
     "cover_search_hint": "Search names should match IGDB naming conventions.",
     "delete": "Delete",
+    "delete_confirm": "Are you sure you want to delete {name}?",
+    "delete_title": "Delete Application",
     "detached_cmds": "Detached Commands",
     "detached_cmds_add": "Add Detached Command",
     "detached_cmds_desc": "A list of commands to be run in the background.",
