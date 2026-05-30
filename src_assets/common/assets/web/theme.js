@@ -81,16 +81,30 @@ export const showActiveTheme = (theme, focus = false) => {
     }
 }
 
+const applyTheme = theme => {
+    setStoredTheme(theme)
+    setTheme(theme)
+    showActiveTheme(theme, true)
+}
+
+const pickRandomTheme = () => {
+    const current = getStoredTheme()
+    const values = Array.from(document.querySelectorAll('[data-bs-theme-value]'))
+        .map(el => el.getAttribute('data-bs-theme-value'))
+        .filter(value => value !== 'auto' && value !== current)
+    return values[Math.floor(Math.random() * values.length)]
+}
+
 export function setupThemeToggleListener() {
     document.querySelectorAll('[data-bs-theme-value]')
         .forEach(toggle => {
-            toggle.addEventListener('click', () => {
-                const theme = toggle.getAttribute('data-bs-theme-value')
-                setStoredTheme(theme)
-                setTheme(theme)
-                showActiveTheme(theme, true)
-            })
+            toggle.addEventListener('click', () => applyTheme(toggle.getAttribute('data-bs-theme-value')))
         })
+
+    const randomToggle = document.querySelector('#bd-theme-random')
+    if (randomToggle) {
+        randomToggle.addEventListener('click', () => applyTheme(pickRandomTheme()))
+    }
 
     showActiveTheme(getPreferredTheme(), false)
 }
