@@ -50,6 +50,8 @@
     "covers_found": "Cubiertas encontradas",
     "cover_search_hint": "Los nombres de búsqueda deben coincidir con las convenciones de nomenclatura del IGDB.",
     "delete": "Eliminar",
+    "delete_confirm": "¿Está seguro que desea eliminar {name}?",
+    "delete_title": "Eliminar aplicación",
     "detached_cmds": "Comandos separados",
     "detached_cmds_add": "Añadir comando separado",
     "detached_cmds_desc": "Una lista de comandos a ejecutar en segundo plano.",
