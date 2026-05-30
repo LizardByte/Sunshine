@@ -27,7 +27,10 @@
 <script type="module">
   import { createApp } from 'vue'
   import { initApp } from './init'
+  import { loadAutoTheme } from './theme'
   import { LogIn } from '@lucide/vue'
+
+  loadAutoTheme();
 
   const app = createApp({
     components: {
