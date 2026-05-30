@@ -19,6 +19,7 @@ const darkThemes = new Set([
     'mocha',
     'moonlight',
     'nord',
+    'rose-pine',
     'slate',
 ])
 

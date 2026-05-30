@@ -95,43 +95,48 @@
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
 }
 
-/* Ember Theme - Warm dark with orange/red accents */
+/* Ember Theme - https://github.com/ember-theme/ember */
 [data-theme="ember"] {
-    --color-primary: #F97316;
-    --color-primary-hover: #FB923C;
-    --color-primary-light: #7C2D12;
-    --color-accent: #EF4444;
-    --color-accent-hover: #F87171;
-    --color-accent-light: #7F1D1D;
-    --color-success: #34D399;
-    --color-success-hover: #6EE7B7;
-    --color-success-light: #064E3B;
-    --color-danger: #DC2626;
-    --color-danger-hover: #EF4444;
-    --color-danger-light: #7F1D1D;
-    --color-warning: #F59E0B;
-    --color-warning-hover: #FBBF24;
-    --color-warning-light: #78350F;
-    --color-info: #60A5FA;
-    --color-info-hover: #93C5FD;
-    --color-info-light: #1E3A8A;
+    --color-primary: #E08060;
+    --color-primary-hover: #E7A088;
+    --color-primary-light: #452217;
+    --color-accent: #C09058;
+    --color-accent-hover: #CEA87E;
+    --color-accent-light: #392A18;
+    --color-success: #8A9868;
+    --color-success-hover: #9DAB7C;
+    --color-success-light: #292E1F;
+    --color-danger: #B07878;
+    --color-danger-hover: #C28E8E;
+    --color-danger-light: #381E1E;
+    --color-warning: #C8B468;
+    --color-warning-hover: #D9C98C;
+    --color-warning-light: #393318;
+    --color-info: #7890A0;
+    --color-info-hover: #92AAB9;
+    --color-info-light: #1F2B33;
 
-    --color-bg-base: #1C1917;
-    --color-bg-subtle: #292524;
-    --color-bg-muted: #44403C;
-    --color-surface: #292524;
-    --color-surface-raised: #44403C;
+    --color-on-primary: #282418;
+    --color-on-success: #282418;
+    --color-on-danger: #282418;
+    --color-on-info: #282418;
 
-    --color-border: #57534E;
-    --color-border-strong: #78716C;
+    --color-bg-base: #1C1B19;
+    --color-bg-subtle: #242320;
+    --color-bg-muted: #33302B;
+    --color-surface: #242320;
+    --color-surface-raised: #33302B;
 
-    --color-text-base: #FEF3C7;
-    --color-text-muted: #FDE68A;
-    --color-text-subtle: #FCD34D;
+    --color-border: #45413B;
+    --color-border-strong: #5C574F;
 
-    --navbar-bg: linear-gradient(135deg, #7C2D12 0%, #9A3412 50%, #C2410C 100%);
-    --navbar-text: #FEF3C7;
-    --navbar-text-muted: rgba(254, 243, 199, 0.8);
+    --color-text-base: #D8D0C0;
+    --color-text-muted: #B0A48D;
+    --color-text-subtle: #93866C;
+
+    --navbar-bg: linear-gradient(135deg, #D06A4C 0%, #C87D52 50%, #C09058 100%);
+    --navbar-text: #282418;
+    --navbar-text-muted: rgba(40, 36, 24, 0.72);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
@@ -405,6 +410,54 @@
     --navbar-bg: #cba6f7;
     --navbar-text: #1e1e2e;
     --navbar-text-muted: rgba(30, 30, 46, 0.75);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+}
+
+/* Rosé Pine Theme - https://rosepinetheme.com */
+[data-theme="rose-pine"] {
+    --color-primary: #c4a7e7;
+    --color-primary-hover: #d0b8ec;
+    --color-primary-light: #2e2640;
+    --color-accent: #ebbcba;
+    --color-accent-hover: #efc9c8;
+    --color-accent-light: #3a2b2f;
+    --color-success: #31748f;
+    --color-success-hover: #3a87a5;
+    --color-success-light: #1b2e36;
+    --color-danger: #eb6f92;
+    --color-danger-hover: #ef85a3;
+    --color-danger-light: #3a2530;
+    --color-warning: #f6c177;
+    --color-warning-hover: #f8cd90;
+    --color-warning-light: #3a3020;
+    --color-info: #9ccfd8;
+    --color-info-hover: #b0d8df;
+    --color-info-light: #1f2e30;
+
+    --color-on-primary: #191724;
+    --color-on-danger: #191724;
+    --color-on-info: #191724;
+
+    --color-bg-base: #191724;
+    --color-bg-subtle: #1f1d2e;
+    --color-bg-muted: #26233a;
+    --color-surface: #1f1d2e;
+    --color-surface-raised: #26233a;
+
+    --color-border: #403d52;
+    --color-border-strong: #524f67;
+
+    --color-text-base: #e0def4;
+    --color-text-muted: #908caa;
+    --color-text-subtle: #6e6a86;
+
+    --navbar-bg: linear-gradient(135deg, #c4a7e7 0%, #ebbcba 100%);
+    --navbar-text: #191724;
+    --navbar-text-muted: rgba(25, 23, 36, 0.75);
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
@@ -807,6 +860,86 @@
     --color-text-subtle: #8c8fa1;
 
     --navbar-bg: #8839ef;
+    --navbar-text: #ffffff;
+    --navbar-text-muted: rgba(255, 255, 255, 0.85);
+}
+
+/* Ember Light Theme - https://github.com/ember-theme/ember */
+[data-theme="ember-light"] {
+    --color-primary: #B84C30;
+    --color-primary-hover: #993F28;
+    --color-primary-light: #F1DDD5;
+    --color-accent: #946030;
+    --color-accent-hover: #7B5028;
+    --color-accent-light: #ECE0D1;
+    --color-success: #4A6830;
+    --color-success-hover: #3D5628;
+    --color-success-light: #DDE5D3;
+    --color-danger: #905050;
+    --color-danger-hover: #784242;
+    --color-danger-light: #ECDCDC;
+    --color-warning: #7A6820;
+    --color-warning-hover: #65561B;
+    --color-warning-light: #EBE5D0;
+    --color-info: #3A6080;
+    --color-info-hover: #30506A;
+    --color-info-light: #D8E0E8;
+
+    --color-on-warning: #fff;
+
+    --color-bg-base: #E6DAC4;
+    --color-bg-subtle: #DCCFB6;
+    --color-bg-muted: #CEBF9F;
+    --color-surface: #F2EAD9;
+    --color-surface-raised: #F2EAD9;
+
+    --color-border: #CABD9C;
+    --color-border-strong: #A89C7A;
+
+    --color-text-base: #282418;
+    --color-text-muted: #6C664B;
+    --color-text-subtle: #8A8264;
+
+    --navbar-bg: linear-gradient(135deg, #B84C30 0%, #A5562C 50%, #946030 100%);
+    --navbar-text: #FFFFFF;
+    --navbar-text-muted: rgba(255, 255, 255, 0.85);
+}
+
+/* Rosé Pine Dawn Theme - https://rosepinetheme.com */
+[data-theme="rose-pine-dawn"] {
+    --color-primary: #907aa9;
+    --color-primary-hover: #7d6795;
+    --color-primary-light: #ece5f0;
+    --color-accent: #d7827e;
+    --color-accent-hover: #c66f6b;
+    --color-accent-light: #f7e6e4;
+    --color-success: #286983;
+    --color-success-hover: #20586e;
+    --color-success-light: #d6e4e9;
+    --color-danger: #b4637a;
+    --color-danger-hover: #9d5269;
+    --color-danger-light: #f1dde2;
+    --color-warning: #ea9d34;
+    --color-warning-hover: #d18a26;
+    --color-warning-light: #fbedd4;
+    --color-info: #56949f;
+    --color-info-hover: #487e88;
+    --color-info-light: #ddeaec;
+
+    --color-bg-base: #faf4ed;
+    --color-bg-subtle: #f2e9e1;
+    --color-bg-muted: #e9ded3;
+    --color-surface: #fffaf3;
+    --color-surface-raised: #fffaf3;
+
+    --color-border: #dfdad9;
+    --color-border-strong: #cecacd;
+
+    --color-text-base: #575279;
+    --color-text-muted: #797593;
+    --color-text-subtle: #9893a5;
+
+    --navbar-bg: linear-gradient(135deg, #907aa9 0%, #d7827e 100%);
     --navbar-text: #ffffff;
     --navbar-text-muted: rgba(255, 255, 255, 0.85);
 }
