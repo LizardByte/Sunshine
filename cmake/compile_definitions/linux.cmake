@@ -89,22 +89,18 @@ endif()
 if(LIBDRM_FOUND)
     include_directories(SYSTEM ${LIBDRM_INCLUDE_DIRS})
     list(APPEND PLATFORM_LIBRARIES ${LIBDRM_LIBRARIES})
+    if(${SUNSHINE_ENABLE_DRM})
+        add_compile_definitions(SUNSHINE_BUILD_DRM)
+        list(APPEND PLATFORM_TARGET_FILES
+                "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
+        list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
+    endif()
 endif()
 
-# drm
-if(${SUNSHINE_ENABLE_DRM})
-    find_package(LIBCAP REQUIRED)
-else()
-    set(LIBCAP_FOUND OFF)
-endif()
-if(LIBDRM_FOUND AND LIBCAP_FOUND)
-    add_compile_definitions(SUNSHINE_BUILD_DRM)
-    include_directories(SYSTEM ${LIBCAP_INCLUDE_DIRS})
-    list(APPEND PLATFORM_LIBRARIES ${LIBCAP_LIBRARIES})
-    list(APPEND PLATFORM_TARGET_FILES
-            "${CMAKE_SOURCE_DIR}/src/platform/linux/kmsgrab.cpp")
-    list(APPEND SUNSHINE_DEFINITIONS EGL_NO_X11=1)
-endif()
+# Capabilities
+find_package(LIBCAP REQUIRED)
+include_directories(SYSTEM ${LIBCAP_INCLUDE_DIRS})
+list(APPEND PLATFORM_LIBRARIES ${LIBCAP_LIBRARIES})
 
 # evdev
 include(dependencies/libevdev_Sunshine)
