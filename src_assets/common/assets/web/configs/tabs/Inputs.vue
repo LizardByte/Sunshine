@@ -181,6 +181,15 @@ const config = ref(props.config)
               v-model="config.native_pen_touch"
               default="true"
     ></Checkbox>
+
+    <!-- WLR Virtual Mouse (Linux/Wayland only) -->
+    <Checkbox v-if="platform === 'linux'"
+              class="mb-3"
+              id="wlr_virtual_mouse"
+              locale-prefix="config"
+              v-model="config.wlr_virtual_mouse"
+              default="false"
+    ></Checkbox>
   </div>
 </template>
 
