@@ -1978,6 +1978,12 @@ p {
 
 .theme-menu-full {
     grid-column: 1 / -1;
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.theme-menu-full .dropdown-item {
+    flex: 1;
 }
 
 .theme-menu .dropdown-header {

@@ -16,6 +16,7 @@ import {
   MonitorSmartphone,
   Moon,
   Mountain,
+  Shuffle,
   Sparkles,
   Sprout,
   Sun,
@@ -50,6 +51,10 @@ onMounted(() => {
         <button type="button" class="dropdown-item d-flex align-items-center active" data-bs-theme-value="auto" aria-pressed="true">
           <MonitorSmartphone :size="18" class="theme-icon icon"></MonitorSmartphone>
           {{ $t('navbar.theme_auto') }}
+        </button>
+        <button type="button" id="bd-theme-random" class="dropdown-item d-flex align-items-center">
+          <Shuffle :size="18" class="theme-icon icon"></Shuffle>
+          {{ $t('navbar.theme_random') }}
         </button>
       </li>
       <!-- Dark Themes -->
