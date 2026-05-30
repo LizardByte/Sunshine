@@ -1060,6 +1060,8 @@ p {
 }
 
 .btn-primary {
+    --bs-btn-active-bg: var(--color-primary-hover);
+    --bs-btn-active-border-color: var(--color-primary-hover);
     background-color: var(--color-primary);
     color: white;
 }
@@ -1099,6 +1101,16 @@ p {
     color: white;
 }
 
+.btn-info {
+    background-color: var(--color-info);
+    color: white;
+}
+
+.btn-info:hover {
+    background-color: var(--color-info-hover);
+    color: white;
+}
+
 .btn-secondary {
     background-color: var(--color-bg-muted);
     color: var(--color-text-base);
@@ -1107,6 +1119,18 @@ p {
 .btn-secondary:hover {
     background-color: var(--color-border-strong);
     color: var(--color-text-base);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--color-primary);
+    --bs-btn-border-color: var(--color-primary);
+    --bs-btn-hover-color: white;
+    --bs-btn-hover-bg: var(--color-primary);
+    --bs-btn-hover-border-color: var(--color-primary);
+    --bs-btn-active-color: white;
+    --bs-btn-active-bg: var(--color-primary);
+    --bs-btn-active-border-color: var(--color-primary);
+    border: 1px solid var(--color-primary);
 }
 
 /* Align SVG icons inside buttons. */
