@@ -54,8 +54,8 @@ modules:
   - "modules/ffmpeg.json"
 
   # Python PyPI build-time dependencies (e.g. jinja2 for glad generator).
-  # glad-dependencies.json is generated at CI time by flatpak-pip-generator and
-  # placed alongside the manifest in the build directory.
+  # glad-dependencies.json is generated from uv.lock at CI time by flatpak-pip-generator
+  # and placed alongside the manifest in the build directory.
   - "glad-dependencies.json"
 
   - name: sunshine

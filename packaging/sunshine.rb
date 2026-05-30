@@ -147,7 +147,7 @@ class Sunshine < Formula
     # Install jinja2 (required by the glad OpenGL/EGL loader generator) into a
     # temporary virtualenv. We pass its Python path to cmake via Python_EXECUTABLE
     # so glad uses the venv Python that has jinja2, and set GLAD_SKIP_PIP_INSTALL=ON
-    # to prevent cmake from trying to pip-install again.
+    # to prevent cmake from trying to install Python dependencies again.
     # Follows https://docs.brew.sh/Formula-Cookbook#python-dependencies
     venv = virtualenv_create(buildpath/"venv", "python3")
     venv.pip_install resources

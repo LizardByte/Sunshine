@@ -41,6 +41,9 @@ on:
       AZURE_TENANT_ID:
         required: false
 
+env:
+  PYTHON_VERSION: '3.14'
+
 jobs:
   build_windows:
     name: ${{ matrix.name }}
@@ -198,18 +201,20 @@ jobs:
         id: setup-python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Python Path
-        id: python-path
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Sync Python tools
         shell: msys2 {0}
+        env:
+          MSYS2_PATH_TYPE: inherit
+          UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          # replace backslashes with double backslashes
-          python_path=$(echo "${{ steps.setup-python.outputs.python-path }}" | sed 's/\\/\\\\/g')
-
-          # step output
-          echo "python-path=${python_path}"
-          echo "python-path=${python_path}" >> "${GITHUB_OUTPUT}"
+          uv sync --locked --only-group test --no-python-downloads --no-install-project
 
       - name: Build Windows
         shell: msys2 {0}
@@ -359,9 +364,10 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         shell: msys2 {0}
         working-directory: build
+        env:
+          MSYS2_PATH_TYPE: inherit
         run: |
-          ${{ steps.python-path.outputs.python-path }} -m pip install "..[test]"
-          ${{ steps.python-path.outputs.python-path }} -m gcovr . -r ../src \
+          uv run --locked --no-sync python -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
