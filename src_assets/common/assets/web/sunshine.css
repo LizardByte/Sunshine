@@ -37,6 +37,12 @@
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+    --color-on-primary: #fff;
+    --color-on-success: #fff;
+    --color-on-danger: #fff;
+    --color-on-info: #fff;
+    --color-on-warning: #1a1a1a;
 }
 
 /* ==========================================================================
@@ -63,6 +69,8 @@
     --color-info: #0dcaf0;
     --color-info-hover: #3dd5f3;
     --color-info-light: #032830;
+
+    --color-on-info: #1a1a1a;
 
     --color-bg-base: #212529;
     --color-bg-subtle: #2c3034;
@@ -328,6 +336,10 @@
     --color-info-hover: #ABF0FE;
     --color-info-light: #173B43;
 
+    --color-on-primary: #282A36;
+    --color-on-success: #282A36;
+    --color-on-info: #282A36;
+
     --color-bg-base: #282A36;
     --color-bg-subtle: #343746;
     --color-bg-muted: #424450;
@@ -375,6 +387,8 @@
     --color-info: #0dcaf0;
     --color-info-hover: #31d2f2;
     --color-info-light: #cff4fc;
+
+    --color-on-info: #1a1a1a;
 
     --color-bg-base: #ffffff;
     --color-bg-subtle: #f8f9fa;
@@ -633,6 +647,7 @@
     --color-primary: #F59E0B;
     --color-primary-hover: #D97706;
     --color-primary-light: #FEF3C7;
+    --color-on-primary: #1a1a1a;
     --color-accent: #FB923C;
     --color-accent-hover: #F97316;
     --color-accent-light: #FFEDD5;
@@ -1069,52 +1084,52 @@ p {
     --bs-btn-active-bg: var(--color-primary-hover);
     --bs-btn-active-border-color: var(--color-primary-hover);
     background-color: var(--color-primary);
-    color: white;
+    color: var(--color-on-primary);
 }
 
 .btn-primary:hover {
     background-color: var(--color-primary-hover);
-    color: white;
+    color: var(--color-on-primary);
 }
 
 .btn-success {
     background-color: var(--color-success);
-    color: white;
+    color: var(--color-on-success);
 }
 
 .btn-success:hover {
     background-color: var(--color-success-hover);
-    color: white;
+    color: var(--color-on-success);
 }
 
 .btn-danger {
     background-color: var(--color-danger);
-    color: white;
+    color: var(--color-on-danger);
 }
 
 .btn-danger:hover {
     background-color: var(--color-danger-hover);
-    color: white;
+    color: var(--color-on-danger);
 }
 
 .btn-warning {
     background-color: var(--color-warning);
-    color: white;
+    color: var(--color-on-warning);
 }
 
 .btn-warning:hover {
     background-color: var(--color-warning-hover);
-    color: white;
+    color: var(--color-on-warning);
 }
 
 .btn-info {
     background-color: var(--color-info);
-    color: white;
+    color: var(--color-on-info);
 }
 
 .btn-info:hover {
     background-color: var(--color-info-hover);
-    color: white;
+    color: var(--color-on-info);
 }
 
 .btn-secondary {
@@ -1185,7 +1200,7 @@ p {
 }
 
 .input-group-text {
-    background-color: var(--color-bg-muted);
+    background-color: var(--color-surface);
     border: 1px solid var(--color-border);
     color: var(--color-text-muted);
 }
