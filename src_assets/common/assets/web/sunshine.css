@@ -1177,7 +1177,7 @@ p {
 
 .form-control,
 .form-select {
-    background-color: var(--color-surface);
+    background-color: var(--color-bg-base);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: 0.625rem 0.875rem;
@@ -1189,7 +1189,7 @@ p {
 .form-select:focus {
     border-color: var(--color-primary);
     box-shadow: 0 0 0 3px var(--color-primary-light);
-    background-color: var(--color-surface);
+    background-color: var(--color-bg-base);
     color: var(--color-text-base);
 }
 
@@ -1199,7 +1199,7 @@ p {
 }
 
 .input-group-text {
-    background-color: var(--color-surface);
+    background-color: var(--color-bg-base);
     border: 1px solid var(--color-border);
     color: var(--color-text-muted);
 }
