@@ -17,8 +17,11 @@ import {
   Moon,
   Mountain,
   Sparkles,
+  Sprout,
   Sun,
   Sunrise,
+  Sunset,
+  TreePine,
   Trees,
   Waves,
 } from '@lucide/vue'
@@ -64,21 +67,25 @@ onMounted(() => {
           <Coffee :size="18" class="theme-icon icon"></Coffee>
           {{ $t('navbar.theme_mocha') }}
         </button>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
-          <Layers :size="18" class="theme-icon icon"></Layers>
-          {{ $t('navbar.theme_slate') }}
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ember" aria-pressed="false">
+          <Flame :size="18" class="theme-icon icon"></Flame>
+          {{ $t('navbar.theme_ember') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="rose-pine" aria-pressed="false">
+          <TreePine :size="18" class="theme-icon icon"></TreePine>
+          {{ $t('navbar.theme_rose_pine') }}
         </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="moonlight" aria-pressed="false">
           <CloudMoon :size="18" class="theme-icon icon"></CloudMoon>
           {{ $t('navbar.theme_moonlight') }}
         </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
+          <Layers :size="18" class="theme-icon icon"></Layers>
+          {{ $t('navbar.theme_slate') }}
+        </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="midnight" aria-pressed="false">
           <CloudRain :size="18" class="theme-icon icon"></CloudRain>
           {{ $t('navbar.theme_midnight') }}
-        </button>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ember" aria-pressed="false">
-          <Flame :size="18" class="theme-icon icon"></Flame>
-          {{ $t('navbar.theme_ember') }}
         </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="nord" aria-pressed="false">
           <Mountain :size="18" class="theme-icon icon"></Mountain>
@@ -100,13 +107,21 @@ onMounted(() => {
           <Milk :size="18" class="theme-icon icon"></Milk>
           {{ $t('navbar.theme_latte') }}
         </button>
-        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="indigo" aria-pressed="false">
-          <Sparkles :size="18" class="theme-icon icon"></Sparkles>
-          {{ $t('navbar.theme_indigo') }}
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ember-light" aria-pressed="false">
+          <Sunset :size="18" class="theme-icon icon"></Sunset>
+          {{ $t('navbar.theme_ember_light') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="rose-pine-dawn" aria-pressed="false">
+          <Sprout :size="18" class="theme-icon icon"></Sprout>
+          {{ $t('navbar.theme_rose_pine_dawn') }}
         </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="sunshine" aria-pressed="false">
           <Sunrise :size="18" class="theme-icon icon"></Sunrise>
           {{ $t('navbar.theme_sunshine') }}
+        </button>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="indigo" aria-pressed="false">
+          <Sparkles :size="18" class="theme-icon icon"></Sparkles>
+          {{ $t('navbar.theme_indigo') }}
         </button>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="ocean" aria-pressed="false">
           <Waves :size="18" class="theme-icon icon"></Waves>
