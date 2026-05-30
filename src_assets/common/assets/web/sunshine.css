@@ -1410,6 +1410,22 @@ p {
 }
 
 /* ==========================================================================
+   Toolbar Styles
+   ========================================================================== */
+
+.toolbar {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: var(--spacing-md);
+}
+
+.apps-toolbar .input-group {
+    width: 14rem;
+}
+
+/* ==========================================================================
    Form Styles
    ========================================================================== */
 
@@ -2118,10 +2134,6 @@ p {
     margin-bottom: 0.25rem;
     display: flex;
     align-items: center;
-}
-
-.apps-toolbar .input-group {
-    width: 14rem;
 }
 
 /* ==========================================================================
