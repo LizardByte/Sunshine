@@ -6,6 +6,7 @@
 
 // standard includes
 #include <chrono>
+#include <string_view>
 
 // local includes
 #include "input.h"
@@ -39,6 +40,29 @@ namespace video {
     int chromaSamplingType;  ///< Chroma sampling type: 0 = 4:2:0, 1 = 4:4:4.
     int enableIntraRefresh;  ///< Intra refresh setting: 0 = disabled, 1 = enabled.
   };
+
+  namespace amf {
+
+    /**
+     * @brief Enumerates supported coder options for the AMF encoder.
+     */
+    enum class coder_e : int {
+      auto_ = 0,  ///< Select the coder based on the H.264 profile.
+      cabac = 1,  ///< CABAC entropy coding.
+      cavlc = 2,  ///< CAVLC entropy coding.
+    };
+
+  }  // namespace amf
+
+  /**
+   * @brief Select the effective FFmpeg H.264 profile for an encoder configuration.
+   *
+   * @param encoder_name FFmpeg encoder name selected for the stream.
+   * @param config Encoding configuration requested by the remote client.
+   * @param amd_coder Configured AMF entropy-coder value.
+   * @return FFmpeg H.264 profile applied to the codec context.
+   */
+  int select_h264_profile(std::string_view encoder_name, const config_t &config, int amd_coder);
 
   /**
    * @brief Map an FFmpeg hardware device type to Sunshine's memory type.

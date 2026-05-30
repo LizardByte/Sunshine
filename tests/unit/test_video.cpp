@@ -2,9 +2,19 @@
  * @file tests/unit/test_video.cpp
  * @brief Test src/video.*.
  */
+// test includes
 #include "../tests_common.h"
 
+// standard includes
+#include <algorithm>
+#include <tuple>
+#include <utility>
+
+// local includes
+#include <src/config.h>
 #include <src/video.h>
+
+using namespace std::literals;
 
 struct EncoderTest: PlatformTestSuite, testing::WithParamInterface<video::encoder_t *> {
   void SetUp() override {
@@ -49,6 +59,41 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(EncoderTest, ValidateEncoder) {
   // todo:: test something besides fixture setup
 }
+
+/**
+ * @brief Parameterized coverage for effective H.264 profile selection.
+ */
+struct H264ProfileTest: testing::TestWithParam<std::tuple<std::string_view, video::amf::coder_e, int, int>> {};
+
+TEST_P(H264ProfileTest, SelectProfile) {
+  const auto &[encoder_name, coder, chroma_sampling_type, expected_profile] = GetParam();
+  video::config_t config {};
+  config.chromaSamplingType = chroma_sampling_type;
+
+  EXPECT_EQ(expected_profile, video::select_h264_profile(encoder_name, config, std::to_underlying(coder)));
+}
+
+INSTANTIATE_TEST_SUITE_P(
+  H264ProfileTests,
+  H264ProfileTest,
+  testing::Values(
+    std::make_tuple("h264_amf"sv, video::amf::coder_e::auto_, 0, AV_PROFILE_H264_HIGH),
+    std::make_tuple("h264_amf"sv, video::amf::coder_e::cabac, 0, AV_PROFILE_H264_HIGH),
+    std::make_tuple("h264_amf"sv, video::amf::coder_e::cavlc, 0, AV_PROFILE_H264_CONSTRAINED_BASELINE),
+    std::make_tuple("h264_amf"sv, video::amf::coder_e::cavlc, 1, AV_PROFILE_H264_HIGH_444_PREDICTIVE),
+    std::make_tuple("h264_nvenc"sv, video::amf::coder_e::cavlc, 0, AV_PROFILE_H264_HIGH)
+  )
+);
+
+#ifdef _WIN32
+TEST(AmfH264OptionsTest, CoderUsesConfiguredValue) {
+  const auto coder_option = std::ranges::find(video::amdvce.h264.common_options, "coder"sv, &video::encoder_t::option_t::name);
+
+  ASSERT_NE(video::amdvce.h264.common_options.end(), coder_option);
+  ASSERT_TRUE(std::holds_alternative<int *>(coder_option->value));
+  EXPECT_EQ(&config::video.amd.amd_coder, std::get<int *>(coder_option->value));
+}
+#endif
 
 struct FramerateX100Test: BaseTest, testing::WithParamInterface<std::tuple<std::int32_t, AVRational>> {};
 
