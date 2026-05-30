@@ -16,6 +16,7 @@ const darkThemes = new Set([
     'dracula',
     'ember',
     'midnight',
+    'mocha',
     'moonlight',
     'nord',
     'slate',
