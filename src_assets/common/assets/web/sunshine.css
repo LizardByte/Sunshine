@@ -358,7 +358,7 @@
     --color-text-muted: #6272A4;
     --color-text-subtle: #6272A4;
 
-    --navbar-bg: #44475A;
+    --navbar-bg: linear-gradient(135deg, #282A36 0%, #2D3140 50%, #343746 100%);
     --navbar-text: #F8F8F2;
     --navbar-text-muted: rgba(248, 248, 242, 0.7);
 
@@ -820,7 +820,7 @@
     --color-text-muted: #6C664B;
     --color-text-subtle: #6C664B;
 
-    --navbar-bg: #CFCFDE;
+    --navbar-bg: linear-gradient(135deg, #F7F7F7 0%, #F2F1F8 60%, #ECEAF6 100%);
     --navbar-text: #1F1F1F;
     --navbar-text-muted: rgba(31, 31, 31, 0.7);
 }
