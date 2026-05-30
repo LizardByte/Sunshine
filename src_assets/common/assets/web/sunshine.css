@@ -2037,23 +2037,8 @@ p {
         box-shadow: none;
     }
     20%, 80% {
-        background-color: rgba(255, 215, 0, 0.4);
-        box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.6);
-    }
-}
-
-[data-bs-theme="dark"] .config-search-highlight {
-    animation: highlightPulseDark 5s ease-in-out;
-}
-
-@keyframes highlightPulseDark {
-    0%, 100% {
-        background-color: transparent;
-        box-shadow: none;
-    }
-    20%, 80% {
-        background-color: rgba(255, 215, 0, 0.3);
-        box-shadow: 0 0 0 4px rgba(255, 215, 0, 0.5);
+        background-color: color-mix(in srgb, var(--color-warning) 35%, transparent);
+        box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-warning) 55%, transparent);
     }
 }
 
