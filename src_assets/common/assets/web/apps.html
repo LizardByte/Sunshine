@@ -402,7 +402,7 @@
               <span v-else-if="coverCandidates.length > 0">{{ $t('apps.covers_found') }} ({{ coverCandidates.length }})</span>
               <span v-else>{{ $t('apps.no_covers_found') }}</span>
             </h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" :aria-label="$t('_common.close')"></button>
           </div>
           <div class="modal-body">
             <div class="mb-3">
