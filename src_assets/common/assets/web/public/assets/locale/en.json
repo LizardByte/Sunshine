@@ -444,6 +444,8 @@
     "theme_dracula": "Dracula",
     "theme_ember": "Ember",
     "theme_forest": "Forest",
+    "theme_group_dark": "Dark Themes",
+    "theme_group_light": "Light Themes",
     "theme_indigo": "Indigo",
     "theme_lavender": "Lavender",
     "theme_light": "Light",
