@@ -50,6 +50,8 @@
     "covers_found": "Nalezené obaly",
     "cover_search_hint": "Názvy vyhledávání by měly odpovídat konvencím IGDB pro pojmenování.",
     "delete": "Vymazat",
+    "delete_confirm": "Jste si jisti, že chcete odstranit {name}?",
+    "delete_title": "Odstranit aplikaci",
     "detached_cmds": "Oddělené příkazy",
     "detached_cmds_add": "Přidat oddělený příkaz",
     "detached_cmds_desc": "Seznam příkazů, které mají být spuštěny na pozadí.",
