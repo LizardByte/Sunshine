@@ -1139,6 +1139,18 @@ p {
     border: 1px solid var(--color-primary);
 }
 
+.btn-outline-secondary {
+    --bs-btn-color: var(--color-text-muted);
+    --bs-btn-border-color: var(--color-border);
+    --bs-btn-hover-color: var(--color-text-base);
+    --bs-btn-hover-bg: var(--color-bg-muted);
+    --bs-btn-hover-border-color: var(--color-border-strong);
+    --bs-btn-active-color: var(--color-text-base);
+    --bs-btn-active-bg: var(--color-bg-muted);
+    --bs-btn-active-border-color: var(--color-border-strong);
+    border: 1px solid var(--color-border);
+}
+
 /* Align SVG icons inside buttons. */
 .btn .icon,
 .btn svg {
@@ -1170,6 +1182,12 @@ p {
 .form-control::placeholder {
     color: var(--color-text-subtle);
     opacity: 0.7;
+}
+
+.input-group-text {
+    background-color: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    color: var(--color-text-muted);
 }
 
 .form-label {
@@ -1861,16 +1879,6 @@ p {
 
 .apps-toolbar .input-group {
     width: 14rem;
-}
-
-.apps-toolbar .btn-outline-secondary {
-    border: 1px solid var(--color-border);
-}
-
-.apps-toolbar .btn-outline-secondary.active {
-    background-color: var(--color-bg-muted);
-    border-color: var(--color-border-strong);
-    color: var(--color-text-base);
 }
 
 /* ==========================================================================
