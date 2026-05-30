@@ -13,6 +13,7 @@ export const getPreferredTheme = () => {
 // Define which themes are dark (for Bootstrap compatibility)
 const darkThemes = new Set([
     'dark',
+    'dracula',
     'ember',
     'midnight',
     'moonlight',
