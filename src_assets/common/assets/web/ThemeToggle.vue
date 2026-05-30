@@ -5,9 +5,11 @@ import {
   CloudMoon,
   CloudRain,
   Contrast,
+  Droplet,
   Flame,
   Flower,
   Flower2,
+  Ghost,
   Layers,
   MonitorSmartphone,
   Moon,
@@ -54,6 +56,12 @@ onMounted(() => {
         </button>
       </li>
       <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="dracula" aria-pressed="false">
+          <Ghost :size="18" class="theme-icon icon"></Ghost>
+          {{ $t('navbar.theme_dracula') }}
+        </button>
+      </li>
+      <li>
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="slate" aria-pressed="false">
           <Layers :size="18" class="theme-icon icon"></Layers>
           {{ $t('navbar.theme_slate') }}
@@ -89,6 +97,12 @@ onMounted(() => {
         <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="light" aria-pressed="false">
           <Sun :size="18" class="theme-icon icon"></Sun>
           {{ $t('navbar.theme_light') }}
+        </button>
+      </li>
+      <li>
+        <button type="button" class="dropdown-item d-flex align-items-center" data-bs-theme-value="alucard" aria-pressed="false">
+          <Droplet :size="18" class="theme-icon icon"></Droplet>
+          {{ $t('navbar.theme_alucard') }}
         </button>
       </li>
       <li>

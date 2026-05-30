@@ -307,6 +307,50 @@
     --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3);
 }
 
+/* Dracula Theme - https://draculatheme.com */
+[data-theme="dracula"] {
+    --color-primary: #BD93F9;
+    --color-primary-hover: #CFB0FB;
+    --color-primary-light: #3A2D5C;
+    --color-accent: #FFB86C;
+    --color-accent-hover: #FFCB93;
+    --color-accent-light: #43331D;
+    --color-success: #50FA7B;
+    --color-success-hover: #74FB97;
+    --color-success-light: #143D24;
+    --color-danger: #FF5555;
+    --color-danger-hover: #FF7B7B;
+    --color-danger-light: #43201F;
+    --color-warning: #F1FA8C;
+    --color-warning-hover: #F5FCA8;
+    --color-warning-light: #3F421F;
+    --color-info: #8BE9FD;
+    --color-info-hover: #ABF0FE;
+    --color-info-light: #173B43;
+
+    --color-bg-base: #282A36;
+    --color-bg-subtle: #343746;
+    --color-bg-muted: #424450;
+    --color-surface: #343746;
+    --color-surface-raised: #424450;
+
+    --color-border: #44475A;
+    --color-border-strong: #6272A4;
+
+    --color-text-base: #F8F8F2;
+    --color-text-muted: #6272A4;
+    --color-text-subtle: #6272A4;
+
+    --navbar-bg: #44475A;
+    --navbar-text: #F8F8F2;
+    --navbar-text-muted: rgba(248, 248, 242, 0.7);
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.6), 0 2px 4px -1px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.5);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 10px 10px -5px rgba(0, 0, 0, 0.5);
+}
+
 /* ==========================================================================
    Light Themes
    ========================================================================== */
@@ -621,6 +665,45 @@
     --navbar-bg: linear-gradient(135deg, #F59E0B 0%, #FB923C 50%, #FBBF24 100%);
     --navbar-text: #FFFFFF;
     --navbar-text-muted: rgba(255, 255, 255, 0.9);
+}
+
+/* Alucard Theme - https://draculatheme.com */
+[data-theme="alucard"] {
+    --color-primary: #644AC9;
+    --color-primary-hover: #5239B0;
+    --color-primary-light: #E0DAF6;
+    --color-accent: #A34D14;
+    --color-accent-hover: #874010;
+    --color-accent-light: #F0E1D4;
+    --color-success: #14710A;
+    --color-success-hover: #0F5A07;
+    --color-success-light: #D5E6D2;
+    --color-danger: #CB3A2A;
+    --color-danger-hover: #B02E20;
+    --color-danger-light: #F4DAD6;
+    --color-warning: #846E15;
+    --color-warning-hover: #6B5910;
+    --color-warning-light: #EAE5CE;
+    --color-info: #036A96;
+    --color-info-hover: #02597D;
+    --color-info-light: #D2E4EC;
+
+    --color-bg-base: #FFFBEB;
+    --color-bg-subtle: #ECE9DF;
+    --color-bg-muted: #DEDCCF;
+    --color-surface: #EFEDDC;
+    --color-surface-raised: #EFEDDC;
+
+    --color-border: #CFCFDE;
+    --color-border-strong: #6C664B;
+
+    --color-text-base: #1F1F1F;
+    --color-text-muted: #6C664B;
+    --color-text-subtle: #6C664B;
+
+    --navbar-bg: #CFCFDE;
+    --navbar-text: #1F1F1F;
+    --navbar-text-muted: rgba(31, 31, 31, 0.7);
 }
 
 /* ==========================================================================
