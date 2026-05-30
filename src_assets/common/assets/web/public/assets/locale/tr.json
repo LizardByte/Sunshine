@@ -50,6 +50,8 @@
     "covers_found": "Kapaklar Bulundu",
     "cover_search_hint": "Arama adları IGDB adlandırma kurallarına uygun olmalıdır.",
     "delete": "Sil",
+    "delete_confirm": "{name} adresini silmek istediğinizden emin misiniz?",
+    "delete_title": "Başvuru Silme",
     "detached_cmds": "Müstakil Komutlar",
     "detached_cmds_add": "Müstakil Komut Ekleme",
     "detached_cmds_desc": "Arka planda çalıştırılacak komutların bir listesi.",

@@ -50,6 +50,8 @@
     "covers_found": "Talált borítók",
     "cover_search_hint": "A keresési neveknek meg kell felelniük az IGDB elnevezési konvencióknak.",
     "delete": "Törlés",
+    "delete_confirm": "Biztos, hogy törölni akarja a {name} címet?",
+    "delete_title": "Alkalmazás törlése",
     "detached_cmds": "Háttérben futó parancsok",
     "detached_cmds_add": "Háttérben futó parancs hozzáadása",
     "detached_cmds_desc": "A háttérben futtatandó parancsok listája.",

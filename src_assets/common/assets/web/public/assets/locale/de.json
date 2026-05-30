@@ -50,6 +50,8 @@
     "covers_found": "Cover gefunden",
     "cover_search_hint": "Suchnamen sollten mit IGDB-Namenskonventionen übereinstimmen.",
     "delete": "Löschen",
+    "delete_confirm": "Sind Sie sicher, dass Sie {name} löschen möchten?",
+    "delete_title": "Anwendung löschen",
     "detached_cmds": "Getrennte Befehle",
     "detached_cmds_add": "Separiertes Kommando hinzufügen",
     "detached_cmds_desc": "Eine Liste von Befehlen, die im Hintergrund ausgeführt werden sollen.",
