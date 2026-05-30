@@ -8,7 +8,10 @@
 <body id="app" v-cloak>
   <Navbar></Navbar>
   <div class="container">
-    <h1 class="my-4">{{ $t('config.configuration') }}</h1>
+    <div class="my-4">
+      <h1>{{ $t('config.configuration') }}</h1>
+      <p>{{ $t('config.configuration_desc') }}</p>
+    </div>
 
     <!-- Search Bar with Autocomplete -->
     <div class="mb-3">
