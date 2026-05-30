@@ -50,6 +50,8 @@
     "covers_found": "找到的封面",
     "cover_search_hint": "搜索名称应匹配IGDB命名协议。",
     "delete": "删除",
+    "delete_confirm": "您确定要删除 {name} 吗？",
+    "delete_title": "删除应用程序",
     "detached_cmds": "独立命令",
     "detached_cmds_add": "添加独立命令",
     "detached_cmds_desc": "要在后台运行的命令列表。",
