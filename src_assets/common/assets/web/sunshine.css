@@ -223,22 +223,22 @@
 [data-theme="nord"] {
     --color-primary: #5E81AC;
     --color-primary-hover: #81A1C1;
-    --color-primary-light: #D8DEE9;
+    --color-primary-light: #434C5E;
     --color-accent: #88C0D0;
     --color-accent-hover: #8FBCBB;
-    --color-accent-light: #ECEFF4;
+    --color-accent-light: #434C5E;
     --color-success: #A3BE8C;
     --color-success-hover: #B8D4A3;
-    --color-success-light: #E5E9F0;
+    --color-success-light: #434C5E;
     --color-danger: #BF616A;
     --color-danger-hover: #D08770;
-    --color-danger-light: #E5E9F0;
+    --color-danger-light: #434C5E;
     --color-warning: #EBCB8B;
     --color-warning-hover: #F0D9A6;
-    --color-warning-light: #ECEFF4;
+    --color-warning-light: #434C5E;
     --color-info: #5E81AC;
     --color-info-hover: #81A1C1;
-    --color-info-light: #D8DEE9;
+    --color-info-light: #434C5E;
 
     --color-bg-base: #2E3440;
     --color-bg-subtle: #3B4252;
