@@ -1396,6 +1396,20 @@ p {
 }
 
 /* ==========================================================================
+   Badge Styles
+   ========================================================================== */
+
+.badge.bg-primary {
+    background-color: var(--color-primary) !important;
+    color: var(--color-on-primary) !important;
+}
+
+.badge.bg-secondary {
+    background-color: var(--color-bg-muted) !important;
+    color: var(--color-text-base) !important;
+}
+
+/* ==========================================================================
    Form Styles
    ========================================================================== */
 
