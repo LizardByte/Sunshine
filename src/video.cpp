@@ -119,6 +119,16 @@ namespace video {
 
   }  // namespace qsv
 
+  namespace amf {
+
+    enum class coder_e : int {
+      auto_ = 0,
+      cabac = 1,
+      cavlc = 2,
+    };
+
+  }  // namespace amf
+
   util::Either<avcodec_buffer_t, int> dxgi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int> vaapi_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
   util::Either<avcodec_buffer_t, int> cuda_init_avcodec_hardware_input_buffer(platf::avcodec_encode_device_t *);
@@ -814,9 +824,22 @@ namespace video {
         {"rc"s, &config::video.amd.amd_rc_h264},
         {"usage"s, &config::video.amd.amd_usage_h264},
         {"vbaq"s, &config::video.amd.amd_vbaq},
+        {"coder"s, &config::video.amd.amd_coder},
         {"enforce_hrd"s, &config::video.amd.amd_enforce_hrd},
       },
-      {},  // SDR-specific options
+      {
+        // SDR-specific options
+        {"profile"s, [](const config_t &) {
+           switch (config::video.amd.amd_coder) {
+             case (int) amf::coder_e::cavlc:
+               return "constrained_baseline"s;
+             case (int) amf::coder_e::cabac:
+               return "high"s;
+             default:
+               return "main"s;
+           }
+         }},
+      },
       {},  // HDR-specific options
       {},  // YUV444 SDR-specific options
       {},  // YUV444 HDR-specific options
