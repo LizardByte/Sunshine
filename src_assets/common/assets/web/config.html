@@ -171,7 +171,7 @@
     Volume2,
   } from '@lucide/vue'
 
-  const ENCODER_TAB_IDS = ["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"];
+  const ENCODER_TAB_IDS = new Set(["nv", "amd", "qsv", "vaapi", "vt", "vulkan", "sw"]);
 
   const app = createApp({
     components: {
@@ -386,10 +386,10 @@
     },
     computed: {
       generalTabs() {
-        return this.tabs.filter(tab => !ENCODER_TAB_IDS.includes(tab.id));
+        return this.tabs.filter(tab => !ENCODER_TAB_IDS.has(tab.id));
       },
       encoderTabs() {
-        return this.tabs.filter(tab => ENCODER_TAB_IDS.includes(tab.id));
+        return this.tabs.filter(tab => ENCODER_TAB_IDS.has(tab.id));
       },
       allConfigOptions() {
         const options = [];
