@@ -12,6 +12,9 @@ on:
         required: true
         type: string
 
+env:
+  PYTHON_VERSION: '3.14'
+
 jobs:
   build_linux_flatpak:
     name: ${{ matrix.arch }}
@@ -49,12 +52,22 @@ jobs:
         id: python
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
-          python-version: '3.14'
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Sync Python tools
+        run: |
+          uv sync --locked --only-group flatpak \
+            --python "${PYTHON_VERSION}" \
+            --no-python-downloads \
+            --no-install-project
 
       - name: Setup Dependencies Linux Flatpak
         run: |
-          python -m pip install ".[flatpak]"
-
           sudo apt-get update -y
           sudo apt-get install -y \
             cmake \
@@ -75,7 +88,7 @@ jobs:
 
       - name: flatpak node generator
         # https://github.com/flatpak/flatpak-builder-tools/blob/master/node/README.md
-        run: flatpak-node-generator npm package-lock.json
+        run: uv run --locked --no-sync python -m flatpak_node_generator npm package-lock.json
 
       - name: Debug generated-sources.json
         run: cat generated-sources.json
@@ -83,14 +96,24 @@ jobs:
       - name: flatpak pip generator
         # generates glad-dependencies.json for PyPI build-time dependencies (e.g. jinja2 for glad)
         run: |
-          python \
+          uv export \
+            --quiet \
+            --locked \
+            --only-group glad \
+            --no-emit-project \
+            --no-emit-local \
+            --no-header \
+            --output-file glad-requirements.txt
+
+          uv run --locked --no-sync python \
             ./packaging/linux/flatpak/deps/flatpak-builder-tools/pip/flatpak-pip-generator.py \
             --runtime="org.kde.Sdk//${KDE_PLATFORM_VERSION}" \
             --output glad-dependencies \
             --build-only \
-            --requirements-file=./third-party/glad/requirements.txt
+            --requirements-file=glad-requirements.txt
 
           # Copy generated pip sources into build dir alongside the manifest
+          mkdir -p build
           cp glad-dependencies.json build/
 
       - name: Cache Flatpak build

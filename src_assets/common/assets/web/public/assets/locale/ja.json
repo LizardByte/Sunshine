@@ -50,6 +50,8 @@
     "covers_found": "カバー画像が見つかりました",
     "cover_search_hint": "検索名はIGDBの命名規則に一致する必要があります。",
     "delete": "削除",
+    "delete_confirm": "{name} を削除してもよろしいですか？",
+    "delete_title": "アプリケーションの削除",
     "detached_cmds": "切り離されたコマンド",
     "detached_cmds_add": "別のコマンドを追加",
     "detached_cmds_desc": "バックグラウンドで実行するコマンドのリスト。",

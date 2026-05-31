@@ -50,6 +50,8 @@
     "covers_found": "Hittade omslag",
     "cover_search_hint": "Söknamn bör matcha IGDB namngivningskonventioner.",
     "delete": "Radera",
+    "delete_confirm": "Är du säker på att du vill radera {name}?",
+    "delete_title": "Ta bort program",
     "detached_cmds": "Fristående kommandon",
     "detached_cmds_add": "Lägg till fristående kommando",
     "detached_cmds_desc": "En lista över kommandon som ska köras i bakgrunden.",

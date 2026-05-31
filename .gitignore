@@ -53,5 +53,7 @@ node_modules/
 .DS_Store
 
 # Python
+*.egg-info/
 *.pyc
+.venv/
 venv/

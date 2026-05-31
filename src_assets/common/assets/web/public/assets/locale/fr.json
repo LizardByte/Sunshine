@@ -50,6 +50,8 @@
     "covers_found": "Jaquettes trouvées",
     "cover_search_hint": "Les noms de recherche doivent correspondre aux conventions de nommage IGDB.",
     "delete": "Supprimer",
+    "delete_confirm": "Êtes-vous sûr de vouloir supprimer {name}?",
+    "delete_title": "Supprimer l'application",
     "detached_cmds": "Commandes détachées",
     "detached_cmds_add": "Ajouter une commande détachée",
     "detached_cmds_desc": "Une liste de commandes à exécuter en arrière-plan.",

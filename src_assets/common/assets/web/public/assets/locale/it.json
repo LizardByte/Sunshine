@@ -50,6 +50,8 @@
     "covers_found": "Copertine trovate",
     "cover_search_hint": "I nomi di ricerca dovrebbero corrispondere alle convenzioni di nomi IGDB.",
     "delete": "Cancella",
+    "delete_confirm": "Sei sicuro di voler eliminare {name}?",
+    "delete_title": "Elimina Applicazione",
     "detached_cmds": "Comandi Separati",
     "detached_cmds_add": "Aggiungi comando separato",
     "detached_cmds_desc": "Un elenco di comandi da eseguire in background.",

@@ -50,6 +50,8 @@
     "covers_found": "找到封面圖片",
     "cover_search_hint": "搜尋名稱應符合 IGDB 的命名慣例。",
     "delete": "刪除",
+    "delete_confirm": "您確定要刪除 {name}?",
+    "delete_title": "刪除應用程式",
     "detached_cmds": "獨立指令",
     "detached_cmds_add": "新增獨立指令",
     "detached_cmds_desc": "在背景執行的指令清單。",

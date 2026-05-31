@@ -147,7 +147,7 @@ class Sunshine < Formula
     # Install jinja2 (required by the glad OpenGL/EGL loader generator) into a
     # temporary virtualenv. We pass its Python path to cmake via Python_EXECUTABLE
     # so glad uses the venv Python that has jinja2, and set GLAD_SKIP_PIP_INSTALL=ON
-    # to prevent cmake from trying to pip-install again.
+    # to prevent cmake from trying to install Python dependencies again.
     # Follows https://docs.brew.sh/Formula-Cookbook#python-dependencies
     venv = virtualenv_create(buildpath/"venv", "python3")
     venv.pip_install resources
@@ -174,6 +174,7 @@ class Sunshine < Formula
       -DSUNSHINE_PUBLISHER_WEBSITE='https://app.lizardbyte.dev'
       -DSUNSHINE_PUBLISHER_ISSUE_URL='https://app.lizardbyte.dev/support'
     ]
+    args << "-DSUNSHINE_EXECUTABLE_PATH=#{opt_bin}/sunshine" if OS.linux?
     # Point cmake at the venv Python that has jinja2 installed (set up in setup_build_environment)
     args << "-DPython_EXECUTABLE=#{@glad_python}" if @glad_python
     args
@@ -281,7 +282,8 @@ class Sunshine < Formula
   end
 
   service do
-    run [opt_bin/"sunshine", "~/.config/sunshine/sunshine.conf"]
+    run [opt_bin/"sunshine", "~/.config/sunshine/sunshine.conf"] if OS.mac?
+    name linux: "app-@PROJECT_FQDN@" if OS.linux?
   end
 
   def post_install

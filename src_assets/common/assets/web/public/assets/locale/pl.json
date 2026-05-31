@@ -50,6 +50,8 @@
     "covers_found": "Znalezione okładki",
     "cover_search_hint": "Nazwy wyszukiwań powinny być zgodne z konwencjami nazewnictwa IGDB.",
     "delete": "Usuń",
+    "delete_confirm": "Czy na pewno chcesz usunąć {name}?",
+    "delete_title": "Usuń aplikację",
     "detached_cmds": "Polecenia odłączone",
     "detached_cmds_add": "Dodaj odłączone polecenie",
     "detached_cmds_desc": "Lista poleceń uruchamianych w tle.",

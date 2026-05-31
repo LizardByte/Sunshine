@@ -50,6 +50,8 @@
     "covers_found": "Capas encontradas",
     "cover_search_hint": "Pesquisar nomes devem corresponder a convenções de nomenclatura IGDB.",
     "delete": "Excluir",
+    "delete_confirm": "Tem certeza que deseja excluir {name}?",
+    "delete_title": "Excluir aplicativo",
     "detached_cmds": "Comandos destacados",
     "detached_cmds_add": "Adicionar comando destacado",
     "detached_cmds_desc": "Uma lista de comandos a serem executados em segundo plano.",

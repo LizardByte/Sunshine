@@ -50,6 +50,8 @@
     "covers_found": "커버 발견",
     "cover_search_hint": "검색 이름은 IGDB 명명 규칙과 일치해야 합니다.",
     "delete": "삭제",
+    "delete_confirm": "{name} 을 삭제하시겠습니까?",
+    "delete_title": "애플리케이션 삭제",
     "detached_cmds": "분리된 명령",
     "detached_cmds_add": "분리된 명령 추가",
     "detached_cmds_desc": "백그라운드에서 실행할 명령어 입니다.",
