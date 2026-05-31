@@ -1,4 +1,11 @@
-$(document).ready(function(){
-    // remove the widgetbot-crate
-    $("widgetbot-crate").remove()
-});
+function removeWidgetbotCrates() {
+    document.querySelectorAll("widgetbot-crate").forEach(function (crate) {
+        crate.remove()
+    })
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", removeWidgetbotCrates)
+} else {
+    removeWidgetbotCrates()
+}

@@ -1,11 +1,38 @@
 // projects section script
 
 // get project container
-let container = document.getElementById("project-container")
+let container
 let org_name = "LizardByte"
 let base_url = `https://app.${org_name.toLowerCase()}.dev`
 let cache_repo = "dashboard"
 
+
+function onDocumentReady(callback) {
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", callback)
+        return
+    }
+
+    callback()
+}
+
+function fetchWithNoCache(url, options = {}) {
+    return fetch(url, {
+        ...options,
+        cache: "no-store",
+    })
+}
+
+function fetchJson(url) {
+    return fetchWithNoCache(url)
+        .then(function (response) {
+            if (!response.ok) {
+                throw new Error(`Request failed for ${url}: ${response.status}`)
+            }
+
+            return response.json()
+        })
+}
 
 function shouldProcessRepo(repo) {
     if (repo['archived'] === true) return false;
@@ -64,16 +91,13 @@ function createCardBody(repo) {
 }
 
 function loadCommitActivity(repo, card_footer) {
-    $.ajax({
-        url: `${base_url}/${cache_repo}/github/commitActivity/${repo['name']}.json`,
-        type: "GET",
-        dataType: "json",
-        success: function (commitActivity) {
+    fetchJson(`${base_url}/${cache_repo}/github/commitActivity/${repo['name']}.json`)
+        .then(function (commitActivity) {
             let activity_container = document.createElement("div")
             activity_container.className = "commit-activity-graph mt-2 mb-2 mx-3"
             activity_container.style.cssText = "display: flex; gap: 2px; height: 32px; align-items: flex-end;"
 
-            let maxCommits = Math.max(...commitActivity.map(week => week.total))
+            let maxCommits = Math.max(...commitActivity.map(week => week.total), 0)
 
             for (let week of commitActivity) {
                 let bar = document.createElement("div")
@@ -94,11 +118,10 @@ function loadCommitActivity(repo, card_footer) {
             }
 
             card_footer.insertBefore(activity_container, card_footer.firstChild)
-        },
-        error: function() {
+        })
+        .catch(function () {
             console.log(`No commit activity data available for ${repo['name']}`)
-        }
-    })
+        })
 }
 
 function createRepoDataRow(repo, card_footer, banner_link, card_title_link) {
@@ -116,14 +139,14 @@ function createRepoDataRow(repo, card_footer, banner_link, card_title_link) {
     github_link_image.className = "fa-fw fa-brands fa-github"
     github_link.prepend(github_link_image)
 
-    $.ajax({
-        url: `${base_url}/${repo['name']}/`,
-        type: "GET",
-        success: function () {
+    fetchWithNoCache(`${base_url}/${repo['name']}/`)
+        .then(function (response) {
+            if (!response.ok) return
+
             banner_link.href = `${base_url}/${repo['name']}/`
             card_title_link.href = `${base_url}/${repo['name']}/`
-        },
-    })
+        })
+        .catch(function () {})
 
     let star_link = document.createElement("a")
     star_link.className = "nav-link nav-link-sm project-nav-link ms-3 crowdin-ignore"
@@ -184,11 +207,8 @@ function addDocsLink(repo, readthedocs, repo_data_row) {
 }
 
 function loadLanguageIcons(repo, card_footer) {
-    $.ajax({
-        url: `${base_url}/${cache_repo}/github/languages/${repo['name']}.json`,
-        type: "GET",
-        dataType: "json",
-        success: function (languages) {
+    fetchJson(`${base_url}/${cache_repo}/github/languages/${repo['name']}.json`)
+        .then(function (languages) {
             let language_data_row = document.createElement("div")
             language_data_row.className = "card-group p-3 align-items-center"
             card_footer.appendChild(language_data_row)
@@ -202,8 +222,8 @@ function loadLanguageIcons(repo, card_footer) {
                 language_icon.title = language
                 language_data_row.append(language_icon)
             }
-        }
-    });
+        })
+        .catch(function () {})
 }
 
 function buildRepoCard(repo, readthedocs) {
@@ -234,37 +254,32 @@ function buildRepoCard(repo, readthedocs) {
 
 
 // create project cards
-$(document).ready(function(){
-    // Set cache = false for all jquery ajax requests.
-    $.ajaxSetup({
-        cache: false,
-    });
+onDocumentReady(function () {
+    container = document.getElementById("project-container")
+    if (!container) return
 
-    // get readthedocs projects
-    let readthedocs = []
-    $.ajax({
-        url: `${base_url}/${cache_repo}/readthedocs/projects.json`,
-        type: "GET",
-        dataType: "json",
-        success: function (data) {
-            for (let item in data) {
-                readthedocs.push(data[item])
-            }
-        }
-    });
+    let readthedocsRequest = fetchJson(`${base_url}/${cache_repo}/readthedocs/projects.json`)
+        .then(function (data) {
+            return Object.values(data)
+        })
+        .catch(function (error) {
+            console.log("No ReadTheDocs project data available", error)
+            return []
+        })
 
-    $.ajax({
-        url: `${base_url}/${cache_repo}/github/repos.json`,
-        type: "GET",
-        dataType:"json",
-        success: function (result) {
+    let reposRequest = fetchJson(`${base_url}/${cache_repo}/github/repos.json`)
+
+    Promise.all([readthedocsRequest, reposRequest])
+        .then(function ([readthedocs, result]) {
             let sorted = result.sort(globalThis.rankingSorter("stargazers_count", "name"))
 
-            for(let repo in sorted) {
-                if (shouldProcessRepo(sorted[repo])) {
-                    buildRepoCard(sorted[repo], readthedocs)
+            for (let repo of sorted) {
+                if (shouldProcessRepo(repo)) {
+                    buildRepoCard(repo, readthedocs)
                 }
             }
-        }
-    });
-});
+        })
+        .catch(function (error) {
+            console.error("Error loading project data:", error)
+        })
+})
