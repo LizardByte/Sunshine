@@ -271,9 +271,13 @@ img {
 }
 
 .navbar-custom .navbar-nav .nav-item {
-  text-transform: uppercase;
   font-size: 0.8125rem;
   letter-spacing: 0.0625rem;
+}
+
+.navbar-custom .navbar-nav .nav-link,
+.navbar-custom .navbar-nav .dropdown-menu .dropdown-item {
+  text-transform: uppercase;
 }
 
 .navbar-custom .navbar-nav .nav-link {

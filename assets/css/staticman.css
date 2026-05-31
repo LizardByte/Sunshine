@@ -156,14 +156,14 @@
 /* ==========================================================================
  PRINT STYLES
  ========================================================================== */
-.staticman-comments @media print {
+@media print {
   /*
    Hide the following elements on print
    ========================================================================== */
-.staticman-comments [hidden] {
+  .staticman-comments [hidden] {
     display: none;
   }
-.staticman-comments .masthead, .staticman-comments .toc, .staticman-comments .page__share, .staticman-comments .page__related, .staticman-comments .pagination, .staticman-comments .ads, .staticman-comments .page__footer, .staticman-comments .page__comments-form, .staticman-comments .author__avatar, .staticman-comments .author__content, .staticman-comments .author__urls-wrapper, .staticman-comments .nav__list, .staticman-comments .sidebar, .staticman-comments .adsbygoogle {
+  .staticman-comments .masthead, .staticman-comments .toc, .staticman-comments .page__share, .staticman-comments .page__related, .staticman-comments .pagination, .staticman-comments .ads, .staticman-comments .page__footer, .staticman-comments .page__comments-form, .staticman-comments .author__avatar, .staticman-comments .author__content, .staticman-comments .author__urls-wrapper, .staticman-comments .nav__list, .staticman-comments .sidebar, .staticman-comments .adsbygoogle {
     display: none !important;
     height: 1px !important;
   }
