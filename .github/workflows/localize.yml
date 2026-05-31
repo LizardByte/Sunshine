@@ -38,7 +38,7 @@ jobs:
 
       - name: Sync Python tools
         run: |
-          uv sync --locked --only-group locale \
+          uv sync --frozen --only-group locale \
             --python "${PYTHON_VERSION}" \
             --no-python-downloads \
             --no-install-project
@@ -62,7 +62,7 @@ jobs:
           echo "NEW_FILE=${new_file}" >> "${GITHUB_ENV}"
 
           # extract the new strings
-          uv run --locked --no-sync python ./scripts/_locale.py --extract
+          uv run --frozen --no-sync python ./scripts/_locale.py --extract
 
       - name: git diff
         if: env.NEW_FILE == 'false'
