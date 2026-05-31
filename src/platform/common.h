@@ -633,12 +633,43 @@ namespace platf {
   void restart();
 
   /**
+   * @brief Get an environment variable.
+   * @param name The name of the environment variable.
+   * @param value Reference to write the env variable value into.
+   * @return true if parameter value was updated, false if the environment variable didn't exist
+   */
+  bool get_env(const std::string &name, std::string &value);
+
+  /**
    * @brief Set an environment variable.
    * @param name The name of the environment variable.
    * @param value The value to set the environment variable to.
    * @return 0 on success, non-zero on failure.
    */
   int set_env(const std::string &name, const std::string &value);
+
+  /**
+   * @brief Append string to an environment variable if it does not already contain it.
+   * @param name The name of the environment variable.
+   * @param value The value to set the environment variable to.
+   * @param separator Optional separator for the new value if it is not the first one (default: "")
+   * @return 0 on success, non-zero on failure.
+   */
+  inline int append_env(const std::string &name, const std::string &value, const std::string &separator = "") {
+    // This function is platform-independent and just uses other plaf:: functions so we can implement it inline
+    std::string old_value;
+    get_env(name, old_value);
+    if (old_value.contains(value)) {
+      // Value is already part of the string. Return success.
+      return 0;
+    }
+    if (old_value.empty()) {
+      // Environment variable does not exist or is empty. Just set it.
+      return set_env(name, value);
+    }
+    // Append to previous non-empty value with separator
+    return set_env(name, old_value + separator + value);
+  }
 
   /**
    * @brief Unset an environment variable.

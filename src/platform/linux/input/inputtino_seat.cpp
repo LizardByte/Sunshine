@@ -7,16 +7,14 @@
 
 // local includes
 #include "inputtino_seat.h"
+#include "src/platform/common.h"
 
 namespace platf::inputtino_seat {
 
   std::string get_target_seat() {
-    if (const char *seat = std::getenv("XDG_SEAT")) {
-      if (seat[0] != '\0') {
-        return seat;
-      }
+    if (std::string seat; platf::get_env("XDG_SEAT", seat) && !seat.empty()) {
+      return seat;
     }
-
     return {};
   }
 
