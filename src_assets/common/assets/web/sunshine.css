@@ -1425,6 +1425,10 @@ p {
     width: 14rem;
 }
 
+.config-search {
+    flex: 0 1 28rem;
+}
+
 /* ==========================================================================
    Form Styles
    ========================================================================== */
@@ -1551,12 +1555,94 @@ p {
     padding-bottom: var(--spacing-3xl);
 }
 
+.config-layout {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--spacing-lg);
+}
+
+.config-nav {
+    flex: 0 0 15rem;
+    position: sticky;
+    top: var(--spacing-lg);
+}
+
+.config-nav-list {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+}
+
+.config-nav-list .nav-link {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-md);
+    border-radius: var(--radius-md);
+    color: var(--color-text-muted);
+    font-weight: 600;
+    transition: all var(--transition-fast);
+}
+
+.config-nav-list .nav-link:hover {
+    color: var(--color-text-base);
+    background-color: var(--color-bg-subtle);
+}
+
+.config-nav-list .nav-link.active {
+    color: var(--color-on-primary);
+    background-color: var(--color-primary);
+}
+
+.config-nav-heading {
+    margin: var(--spacing-md) var(--spacing-md) var(--spacing-xs);
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-subtle);
+}
+
+.config-content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.config-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    margin-top: var(--spacing-lg);
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--color-border);
+}
+
+.config-actions .btn {
+    width: 100%;
+    justify-content: center;
+}
+
 .config-page {
     padding: var(--spacing-xl);
     background-color: var(--color-surface);
     border: 1px solid var(--color-border);
-    border-top: none;
-    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+    border-radius: var(--radius-lg);
+}
+
+@media (max-width: 768px) {
+    .config-layout {
+        flex-direction: column;
+    }
+
+    .config-nav {
+        position: static;
+        flex-basis: auto;
+        width: 100%;
+    }
+
+    .config-nav-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
 }
 
 /* ==========================================================================
