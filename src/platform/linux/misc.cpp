@@ -179,24 +179,22 @@ namespace platf {
     std::call_once(migration_flag, []() {
       bool found = false;
       bool migrate_config = true;
-      const char *dir;
-      const char *homedir;
-      const char *migrate_envvar;
+      std::string homedir;  // NOSONAR(cpp:S6010) - For get_env this needs to be a std::string reference
 
       // Get the home directory
-      if ((homedir = getenv("HOME")) == nullptr || strlen(homedir) == 0) {
+      if (!get_env("HOME", homedir) || homedir.empty()) {
         // If HOME is empty or not set, use the current user's home directory
         homedir = getpwuid(geteuid())->pw_dir;
       }
 
       // May be set if running under a systemd service with the ConfigurationDirectory= option set.
-      if ((dir = getenv("CONFIGURATION_DIRECTORY")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; get_env("CONFIGURATION_DIRECTORY", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
       // Otherwise, follow the XDG base directory specification:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-      if (!found && (dir = getenv("XDG_CONFIG_HOME")) != nullptr && strlen(dir) > 0) {
+      if (std::string dir; !found && get_env("XDG_CONFIG_HOME", dir) && !dir.empty()) {
         found = true;
         config_path = fs::path(dir) / "sunshine"sv;
       }
@@ -207,8 +205,7 @@ namespace platf {
       }
 
       // migrate from the old config location if necessary
-      migrate_envvar = getenv("SUNSHINE_MIGRATE_CONFIG");
-      if (migrate_config && found && migrate_envvar && strcmp(migrate_envvar, "1") == 0) {
+      if (std::string migrate_envvar; migrate_config && found && get_env("SUNSHINE_MIGRATE_CONFIG", migrate_envvar) && (migrate_envvar == "1")) {
         std::error_code ec;
         fs::path old_config_path = fs::path(homedir) / ".config/sunshine"sv;
         if (old_config_path != config_path && fs::exists(old_config_path, ec)) {
@@ -365,7 +362,9 @@ namespace platf {
    */
   void open_url(const std::string &url) {
     // set working dir to user home directory
-    auto working_dir = boost::filesystem::path(std::getenv("HOME"));
+    std::string homedir;
+    get_env("HOME", homedir);
+    auto working_dir = boost::filesystem::path(homedir);
     std::string cmd = R"(xdg-open ")" + url + R"(")";
 
     boost::process::v1::environment _env = boost::this_process::environment();
@@ -507,18 +506,28 @@ namespace platf {
   }
 
   /**
-   * @brief Read an environment variable as an optional string.
+   * @brief Read an environment variable as std::string.
    *
-   * @param name Human-readable name to assign.
-   * @return Environment variable value, or an empty string when unset.
+   * @param name Environment variable name
+   * @param value Environment variable value out/return parameter
+   * @return true if the environment variable was store in value parameter, false otherwise
    */
-  std::string get_env(const std::string &name) {
-    if (const auto value = getenv(name.c_str()); value != nullptr) {
-      return value;
+  bool get_env(const std::string &name, std::string &value) {
+    const auto value_ = getenv(name.c_str());  // NOSONAR(cpp:S1874) - _dupenv_s is only available on WIN32
+    if (value_ == nullptr) {
+      return false;
     }
-    return "";
+    value = std::string(value_);
+    return true;
   }
 
+  /**
+   * @brief Set an environment variable to a specified value
+   *
+   * @param name Environment variable name
+   * @param value Environment variable value
+   * @return 0 if environment variable was successfully set
+   */
   int set_env(const std::string &name, const std::string &value) {
     return setenv(name.c_str(), value.c_str(), 1);
   }
@@ -526,18 +535,24 @@ namespace platf {
   /**
    * @brief Append a value to a separator-delimited environment variable.
    *
-   * @param name Human-readable name to assign.
+   * @param name Environment variable name
    * @param value Entry to add when it is not already present.
    * @param separator Character used to join or split the value.
-   * @return Result from updating the environment variable.
+   * @return 0 if environment variable was successfully appended
    */
   int append_env(const std::string &name, const std::string &value, const std::string &separator) {
-    if (const std::string old_value = get_env(name); !old_value.contains(value)) {
+    if (std::string old_value; get_env(name, old_value) && !old_value.contains(value)) {
       return set_env(name, old_value.empty() ? value : old_value + separator + value);
     }
     return 0;
   }
 
+  /**
+   * @brief Unset an environment variable
+   *
+   * @param name Environment variable name
+   * @return 0 if environment variable was successfully unset
+   */
   int unset_env(const std::string &name) {
     return unsetenv(name.c_str());
   }
@@ -1279,13 +1294,13 @@ namespace platf {
 
     window_system = window_system_e::NONE;
 #ifdef SUNSHINE_BUILD_WAYLAND
-    if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; get_env("WAYLAND_DISPLAY", v)) {
       window_system = window_system_e::WAYLAND;
     }
 #endif
 #if defined(SUNSHINE_BUILD_X11) || defined(SUNSHINE_BUILD_CUDA)
-    if (std::getenv("DISPLAY") && window_system != window_system_e::WAYLAND) {
-      if (std::getenv("WAYLAND_DISPLAY")) {
+    if (std::string v; get_env("DISPLAY", v) && window_system != window_system_e::WAYLAND) {
+      if (get_env("WAYLAND_DISPLAY", v)) {
         BOOST_LOG(warning) << "Wayland detected, yet sunshine will use X11 for screencasting, screencasting will only work on XWayland applications"sv;
       }
 

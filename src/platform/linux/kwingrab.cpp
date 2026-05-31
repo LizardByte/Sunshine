@@ -55,7 +55,8 @@ namespace kwin {
      * @return True when KWin reports that the permission system is disabled.
      */
     static bool is_permission_system_deactivated() {
-      return getenvstr("KWIN_WAYLAND_NO_PERMISSION_CHECKS") == "1";
+      std::string v;
+      return platf::get_env("KWIN_WAYLAND_NO_PERMISSION_CHECKS", v) && v == "1";
     }
 
     /**
@@ -160,17 +161,9 @@ namespace kwin {
     static inline bool initialized = false;
     static inline bool create_file = true;
 
-    static std::string getenvstr(std::string const &key) {
-      char const *val = std::getenv(key.c_str());
-      if (!val) {
-        return "";
-      }
-      return val;
-    }
-
     static std::filesystem::path get_home_dir() {
       // Check HOME environment variable
-      if (std::string homedir = getenvstr("HOME"); !homedir.empty()) {
+      if (std::string homedir; platf::get_env("HOME", homedir) && !homedir.empty()) {
         return homedir;
       }
       // Fall back to home directory from NSS passwd
@@ -182,7 +175,7 @@ namespace kwin {
       // Follow the XDG base directory specification for user data home:
       // https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
       std::filesystem::path xdg_data_home;
-      if (std::string dir = getenvstr("XDG_DATA_HOME"); !dir.empty()) {
+      if (std::string dir; platf::get_env("XDG_DATA_HOME", dir) && !dir.empty()) {
         xdg_data_home = std::filesystem::path(dir);
       } else {
         const auto homedir = get_home_dir();
@@ -222,7 +215,7 @@ namespace kwin {
     static bool check_kwin_system_permissions(const std::string_view &filenameprefix, const std::string_view &executablepath) {
       // Find data dirs to check from XDG_DATA_DIRS
       std::vector<std::string> xdg_data_dirs;
-      if (const std::string e = getenvstr("XDG_DATA_DIRS"); !e.empty()) {
+      if (std::string e; platf::get_env("XDG_DATA_DIRS", e) && !e.empty()) {
         std::stringstream ss(e);
         std::string item;
 
@@ -322,13 +315,13 @@ namespace kwin {
         screencast_permission_helper_t::setup();
       }
 
-      const char *wl_name = std::getenv("WAYLAND_DISPLAY");
-      if (!wl_name) {
+      std::string wl_name;
+      if (!platf::get_env("WAYLAND_DISPLAY", wl_name)) {
         BOOST_LOG(error) << "[kwingrab] WAYLAND_DISPLAY not set"sv;
         return -1;
       }
 
-      wl_display = wl_display_connect(wl_name);
+      wl_display = wl_display_connect(wl_name.c_str());
       if (!wl_display) {
         BOOST_LOG(error) << "[kwingrab] cannot connect to Wayland display: "sv << wl_name;
         return -1;
