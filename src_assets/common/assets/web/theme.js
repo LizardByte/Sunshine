@@ -90,7 +90,7 @@ const applyTheme = theme => {
 const pickRandomTheme = () => {
     const current = getStoredTheme()
     const values = Array.from(document.querySelectorAll('[data-bs-theme-value]'))
-        .map(el => el.getAttribute('data-bs-theme-value'))
+        .map(el => el.dataset.bsThemeValue)
         .filter(value => value !== 'auto' && value !== current)
     return values[Math.floor(Math.random() * values.length)]
 }
@@ -98,7 +98,7 @@ const pickRandomTheme = () => {
 export function setupThemeToggleListener() {
     document.querySelectorAll('[data-bs-theme-value]')
         .forEach(toggle => {
-            toggle.addEventListener('click', () => applyTheme(toggle.getAttribute('data-bs-theme-value')))
+            toggle.addEventListener('click', () => applyTheme(toggle.dataset.bsThemeValue))
         })
 
     const randomToggle = document.querySelector('#bd-theme-random')
