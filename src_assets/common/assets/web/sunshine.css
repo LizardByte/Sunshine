@@ -846,6 +846,8 @@
     --color-info-hover: #1a57d0;
     --color-info-light: #d7e2fd;
 
+    --color-on-success: #1a1a1a;
+
     --color-bg-base: #e6e9ef;
     --color-bg-subtle: #dce0e8;
     --color-bg-muted: #ccd0da;
@@ -925,6 +927,9 @@
     --color-info: #56949f;
     --color-info-hover: #487e88;
     --color-info-light: #ddeaec;
+
+    --color-on-primary: #191724;
+    --color-on-info: #191724;
 
     --color-bg-base: #faf4ed;
     --color-bg-subtle: #f2e9e1;
