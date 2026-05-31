@@ -481,6 +481,7 @@
     "new_creds": "New Credentials",
     "new_username_desc": "If not specified, the username will not change",
     "password_change": "Password Change",
+    "password_change_desc": "Update the username and password used to sign in to the Sunshine web UI. You'll need to sign in again after changing them.",
     "success_msg": "Password has been changed successfully! This page will reload soon, your browser will ask you for the new credentials."
   },
   "pin": {
