@@ -92,7 +92,7 @@ const pickRandomTheme = () => {
     const values = Array.from(document.querySelectorAll('[data-bs-theme-value]'))
         .map(el => el.dataset.bsThemeValue)
         .filter(value => value !== 'auto' && value !== current)
-    return values[Math.floor(Math.random() * values.length)]  // NONSONAR(javascript:S2245) random not used for cryptography here
+    return values[Math.floor(Math.random() * values.length)]  // NOSONAR(javascript:S2245) random not used for cryptography here
 }
 
 export function setupThemeToggleListener() {
