@@ -235,6 +235,56 @@ ninja -C build
   }}
 }
 
+### macOS code signing & entitlements
+The macOS virtual gamepad publishes a virtual HID device via `IOHIDUserDeviceCreate`,
+which requires the `com.apple.developer.hid.virtual.device` entitlement. Builds that
+don't carry it (Homebrew, unsigned PR/CI builds) still run normally — `IOHIDUserDeviceCreate`
+fails, the gamepad is simply unavailable, and the rest of Sunshine is unaffected. AMFI only
+terminates Sunshine when a build *declares* this restricted entitlement under a signature
+that isn't authorized to use it (see below).
+
+The entitlements are defined in `src_assets/macos/build/sunshine.entitlements` and are
+applied automatically when the `.app` is signed (when `SHOULD_SIGN=true`).
+
+This is an Apple-**restricted** entitlement, which has two consequences:
+
+- **Official / distributed builds:** the Developer ID signing identity must be authorized
+  by Apple for this entitlement, otherwise notarization (and AMFI at runtime) will reject
+  the build.
+- **Local development (ad-hoc signed) builds:** ad-hoc signatures are not trusted to carry
+  restricted entitlements, so AMFI will still kill the process. To test the gamepad locally,
+  first sign the built `.app` with the entitlements:
+  ```bash
+  codesign --force --deep --sign - \
+    --entitlements src_assets/macos/build/sunshine.entitlements \
+    ./build/Sunshine.app
+  ```
+  Then relax AMFI enforcement so the ad-hoc binary is allowed to use the restricted
+  entitlement. AMFI is controlled by the `amfi_get_out_of_my_way=0x1` boot argument (there is
+  no `csrutil` switch for it), and setting boot arguments requires SIP to be disabled. **This
+  weakens system security and is intended for development machines only.**
+
+  - **Intel:** boot into Recovery (⌘-R), open Terminal, then:
+    ```bash
+    csrutil disable
+    nvram boot-args="amfi_get_out_of_my_way=0x1"
+    ```
+    Reboot back into macOS.
+  - **Apple Silicon:** boot into Recovery (hold the power button), set the startup disk to
+    *Reduced Security* with *"Allow user management of kernel extensions"* via Startup Security
+    Utility, then from a Recovery Terminal:
+    ```bash
+    csrutil disable
+    bputil -k    # follow the prompts to allow boot-args
+    nvram boot-args="amfi_get_out_of_my_way=0x1"
+    ```
+    Reboot back into macOS. (Exact steps vary by macOS version — consult Apple's current
+    Startup Security Utility documentation.)
+
+  When you are done developing, **revert these changes**: clear the boot argument
+  (`sudo nvram -d boot-args`) and re-enable SIP from Recovery with `csrutil enable` (and
+  restore *Full Security* on Apple Silicon).
+
 ### Remote Build
 It may be beneficial to build remotely in some cases. This will enable easier building on different operating systems.
 

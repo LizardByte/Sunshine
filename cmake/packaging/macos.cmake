@@ -81,9 +81,14 @@ else()
               endforeach()
           endif()
 
-          # Sign the app last
+          # Sign the app last. The --entitlements file grants
+          # com.apple.developer.hid.virtual.device, required by the virtual
+          # HID gamepad (src/platform/macos/input.cpp). This is an Apple-
+          # restricted entitlement: the signing identity must be authorized for
+          # it by Apple, or notarization/AMFI will reject the build.
           execute_process(COMMAND /usr/bin/codesign --verbose=2
               --sign \"${APPLE_CODESIGN_IDENTITY}\" \"\${_app}\"
+              --entitlements \"${APPLE_ENTITLEMENTS_FILE}\"
               --force --timestamp --options=runtime
               RESULT_VARIABLE rc3
           )

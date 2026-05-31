@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!--
+      Required for the virtual HID gamepad (src/platform/macos/input.cpp).
+      IOHIDUserDeviceCreate() needs this entitlement to publish a virtual
+      input device. Builds that don't carry it simply can't create the
+      gamepad (the call fails gracefully, returning NULL); the rest of
+      Sunshine is unaffected.
+
+      NOTE: this is an Apple-RESTRICTED entitlement. A Developer ID build must
+      have it authorized by Apple on the signing identity's provisioning
+      profile, otherwise notarization/AMFI will reject it. For local ad-hoc
+      development builds, sign the .app with these entitlements and run with
+      AMFI relaxed (see docs/building.md, "macOS code signing & entitlements").
+    -->
+    <key>com.apple.developer.hid.virtual.device</key>
+    <true/>
+</dict>
+</plist>

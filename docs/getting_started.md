@@ -305,9 +305,6 @@ brew uninstall sunshine
 
 ### macOS
 
-> [!IMPORTANT]
-> Sunshine on macOS is experimental. Gamepads do not work.
-
 #### DMG
 
 ##### Install
