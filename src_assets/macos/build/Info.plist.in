@@ -28,6 +28,8 @@
   <string>@CMAKE_PROJECT_NAME@ requires access to system audio to capture and stream audio output.</string>
   <key>NSScreenCaptureUsageDescription</key>
   <string>@CMAKE_PROJECT_NAME@ requires access to screen recording to capture and stream your screen content.</string>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>@CMAKE_PROJECT_NAME@ advertises itself on your local network via Bonjour so Moonlight clients can discover this host.</string>
   <key>NSBonjourServices</key>
 	<array>
 		<string>_nvstream._tcp</string>

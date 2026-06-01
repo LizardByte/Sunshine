@@ -17,7 +17,7 @@ Read our contribution guide in our organization level
   (check `template_header.html` and `template_header_main.html`).
 * The Style System is provided by [Bootstrap](https://getbootstrap.com).
 * Icons are provided by [Lucide](https://lucide.dev) and [Simple Icons](https://simpleicons.org).
-* The JS framework used by the more interactive pages is [Vus.js](https://vuejs.org).
+* The JS framework used by the more interactive pages is [Vue.js](https://vuejs.org).
 
 #### Building
 
@@ -39,7 +39,7 @@ The default language is `en` (English).
 
 @admonition{Community | We are looking for language coordinators to help approve translations.
 The goal is to have the bars above filled with green!
-If you are interesting, please reach out to us on our Discord server.}
+If you are interested, please reach out to us on our Discord server.}
 
 #### CrowdIn
 The translations occur on [CrowdIn][crowdin-url].
@@ -127,24 +127,24 @@ any of the following paths are modified.
 - 'src/**'
 ```
 
-When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python is
-required for this, along with the python dependencies in the `./pyproject.toml` file. You can install this with
-the following command.
+When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python and
+uv are required for this, along with the Python dependencies in the `./pyproject.toml` file. You can install these
+with the following command.
 
 ```bash
-python -m pip install ".[locale]"
+uv sync --only-group locale
 ```
 
 Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash
-  python ./scripts/_locale.py --extract --init --update
+  uv run --no-sync python ./scripts/_locale.py --extract --init --update
   ```
 
 * Compile
   ```bash
-  python ./scripts/_locale.py --compile
+  uv run --no-sync python ./scripts/_locale.py --compile
   ```
 
 > [!IMPORTANT]
@@ -156,17 +156,11 @@ Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed
 ### Testing
 
 #### Clang Format
-Source code is tested against the `.clang-format` file for linting errors. The workflow file responsible for clang
-format testing is `.github/workflows/cpp-clang-format-lint.yml`.
+Source code is tested against the `.clang-format` file for linting errors.
 
-Option 1:
+To apply clang-format locally (will modify files):
 ```bash
-find ./ -iname *.cpp -o -iname *.h -iname *.m -iname *.mm | xargs clang-format -i
-```
-
-Option 2 (will modify files):
-```bash
-python ./scripts/update_clang_format.py
+uv run --no-sync --only-group lint python ./scripts/update_clang_format.py
 ```
 
 #### Unit Testing

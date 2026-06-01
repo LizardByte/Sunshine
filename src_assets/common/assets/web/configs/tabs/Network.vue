@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import {
   Info,
   TriangleAlert,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 import Checkbox from "../../Checkbox.vue";
 
 const props = defineProps([
@@ -171,6 +171,13 @@ const effectivePort = computed(() => +config.value?.port ?? defaultMoonlightPort
       <label for="ping_timeout" class="form-label">{{ $t('config.ping_timeout') }}</label>
       <input type="text" class="form-control" id="ping_timeout" placeholder="10000" v-model="config.ping_timeout" />
       <div class="form-text">{{ $t('config.ping_timeout_desc') }}</div>
+    </div>
+
+    <!-- Packet Size Limit -->
+    <div class="mb-3">
+      <label for="packetsize" class="form-label">{{ $t('config.packetsize') }}</label>
+      <input type="number" min="0" max="65535" class="form-control" id="packetsize" placeholder="0" v-model="config.packetsize" />
+      <div class="form-text">{{ $t('config.packetsize_desc') }}</div>
     </div>
 
   </div>

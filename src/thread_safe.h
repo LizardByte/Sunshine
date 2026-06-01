@@ -438,7 +438,7 @@ namespace safe {
 
       if (!_count) {
         new (_object_buf.data()) element_type;
-        if (_construct(*reinterpret_cast<element_type *>(_object_buf.data()))) {
+        if (_construct(*reinterpret_cast<element_type *>(_object_buf.data())) != 0) {
           return ptr_t {nullptr};
         }
       }
