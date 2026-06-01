@@ -68,6 +68,12 @@ namespace wl {
       return current_frame == &frames[0] ? &frames[1] : &frames[0];
     }
 
+    std::uint32_t get_format() const {
+      return dmabuf_info.supported ? dmabuf_info.format : 0;
+    }
+
+    void cancel();
+
     status_e status;
     std::array<frame_t, 2> frames;
     frame_t *current_frame;
@@ -77,6 +83,10 @@ namespace wl {
     bool init_gbm();
     void cleanup_gbm();
     void create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame);
+    void destroy_frame(zwlr_screencopy_frame_v1 *frame);
+
+    zwlr_screencopy_frame_v1 *frame {nullptr};
+
 
     zwp_linux_dmabuf_v1 *dmabuf_interface {nullptr};
     const std::map<std::uint32_t, std::vector<std::uint64_t>> *supported_modifiers {nullptr};

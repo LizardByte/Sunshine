@@ -299,7 +299,7 @@ namespace wl {
     dmabuf_info.supported = false;
 
     // Create new frame
-    auto frame = zwlr_screencopy_manager_v1_capture_output(
+    frame = zwlr_screencopy_manager_v1_capture_output(
       screencopy_manager,
       blend_cursor ? 1 : 0,
       output
@@ -314,7 +314,25 @@ namespace wl {
     status = WAITING;
   }
 
+  void dmabuf_t::cancel() {
+    if (frame) {
+      zwlr_screencopy_frame_v1_destroy(frame);
+      frame = nullptr;
+    }
+    status = READY;
+  }
+
+  void dmabuf_t::destroy_frame(zwlr_screencopy_frame_v1 *f) {
+    if (f) {
+      zwlr_screencopy_frame_v1_destroy(f);
+      if (f == frame) {
+        frame = nullptr;
+      }
+    }
+  }
+
   dmabuf_t::~dmabuf_t() {
+    cancel();
     cleanup_gbm();
 
     for (auto &frame : frames) {
@@ -366,7 +384,7 @@ namespace wl {
   void dmabuf_t::create_and_copy_dmabuf(zwlr_screencopy_frame_v1 *frame) {
     if (!init_gbm()) {
       BOOST_LOG(error) << "Failed to initialize GBM"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
+      destroy_frame(frame);
       status = REINIT;
       return;
     }
@@ -385,7 +403,7 @@ namespace wl {
 
     if (!current_bo) {
       BOOST_LOG(error) << "Failed to create GBM buffer"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
+      destroy_frame(frame);
       status = REINIT;
       return;
     }
@@ -396,7 +414,7 @@ namespace wl {
       BOOST_LOG(error) << "Failed to get buffer FD"sv;
       gbm_bo_destroy(current_bo);
       current_bo = nullptr;
-      zwlr_screencopy_frame_v1_destroy(frame);
+      destroy_frame(frame);
       status = REINIT;
       return;
     }
@@ -438,11 +456,11 @@ namespace wl {
     } else if (shm_info.supported) {
       // SHM fallback would go here
       BOOST_LOG(warning) << "[wayland] SHM capture not implemented"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
+      destroy_frame(frame);
       status = REINIT;
     } else {
       BOOST_LOG(error) << "[wayland] No supported buffer types"sv;
-      zwlr_screencopy_frame_v1_destroy(frame);
+      destroy_frame(frame);
       status = REINIT;
     }
   }
@@ -476,7 +494,7 @@ namespace wl {
     self->cleanup_gbm();
 
     zwp_linux_buffer_params_v1_destroy(params);
-    zwlr_screencopy_frame_v1_destroy(frame);
+    self->destroy_frame(frame);
     self->status = REINIT;
   }
 
@@ -505,7 +523,7 @@ namespace wl {
 
     cleanup_gbm();
 
-    zwlr_screencopy_frame_v1_destroy(frame);
+    destroy_frame(frame);
     status = READY;
   }
 
@@ -518,7 +536,7 @@ namespace wl {
     auto next_frame = get_next_frame();
     next_frame->destroy();
 
-    zwlr_screencopy_frame_v1_destroy(frame);
+    destroy_frame(frame);
     status = REINIT;
   }
 

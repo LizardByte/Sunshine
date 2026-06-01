@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <thread>
+#include <drm_fourcc.h>
 
 // local includes
 #include "cuda.h"
@@ -28,6 +29,43 @@ namespace wl {
 
   class wlr_t: public platf::display_t {
   public:
+    bool is_hdr() override {
+      if (dmabuf.current_frame) {
+        auto format = dmabuf.current_frame->sd.fourcc;
+        if (format == DRM_FORMAT_XBGR2101010 || format == DRM_FORMAT_ABGR2101010 ||
+            format == DRM_FORMAT_XRGB2101010 || format == DRM_FORMAT_ARGB2101010) {
+          return true;
+        }
+      }
+      return m_is_hdr;
+    }
+
+    bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
+      if (!is_hdr()) {
+        std::memset(&metadata, 0, sizeof(metadata));
+        return false;
+      }
+
+      // Report Rec 2020 primaries
+      metadata.displayPrimaries[0].x = 0.708f * 50000;
+      metadata.displayPrimaries[0].y = 0.292f * 50000;
+      metadata.displayPrimaries[1].x = 0.170f * 50000;
+      metadata.displayPrimaries[1].y = 0.797f * 50000;
+      metadata.displayPrimaries[2].x = 0.131f * 50000;
+      metadata.displayPrimaries[2].y = 0.046f * 50000;
+      metadata.whitePoint.x = 0.3127f * 50000;
+      metadata.whitePoint.y = 0.3290f * 50000;
+
+      metadata.maxDisplayLuminance = 4000;
+      metadata.minDisplayLuminance = 1;
+
+      metadata.maxContentLightLevel = 0;
+      metadata.maxFrameAverageLightLevel = 0;
+      metadata.maxFullFrameLuminance = 0;
+
+      return true;
+    }
+
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
       // calculate frame interval we should capture at
       if (config.framerateX100 > 0) {
@@ -97,6 +135,25 @@ namespace wl {
       width = monitor->viewport.width;
       height = monitor->viewport.height;
 
+      // Query format to detect HDR capability at startup
+      dmabuf.listen(interface.screencopy_manager, interface.dmabuf_interface, &interface.supported_modifiers, output, false);
+      auto to = std::chrono::steady_clock::now() + 200ms;
+      while (dmabuf.status == dmabuf_t::WAITING && std::chrono::steady_clock::now() < to) {
+        if (!display.dispatch(10ms)) {
+          break;
+        }
+      }
+
+      {
+        auto format = dmabuf.get_format();
+        if (format == DRM_FORMAT_XBGR2101010 || format == DRM_FORMAT_ABGR2101010 ||
+            format == DRM_FORMAT_XRGB2101010 || format == DRM_FORMAT_ARGB2101010) {
+          m_is_hdr = true;
+          BOOST_LOG(info) << "[wlgrab] HDR output detected (format: 0x" << std::hex << format << std::dec << ")"sv;
+        }
+      }
+      dmabuf.cancel();
+
       this->env_width = ::wl::env_width;
       this->env_height = ::wl::env_height;
 
@@ -152,6 +209,8 @@ namespace wl {
 
       return platf::capture_e::ok;
     }
+
+    bool m_is_hdr {false};
 
     platf::mem_type_e mem_type;
 
