@@ -107,6 +107,8 @@ set(SUNSHINE_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/network.cpp"
         "${CMAKE_SOURCE_DIR}/src/network.h"
         "${CMAKE_SOURCE_DIR}/src/move_by_copy.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/vdd_control.h"
+        "${CMAKE_SOURCE_DIR}/src/platform/windows/vdd_control.cpp"
         "${CMAKE_SOURCE_DIR}/src/system_tray.cpp"
         "${CMAKE_SOURCE_DIR}/src/system_tray.h"
         "${CMAKE_SOURCE_DIR}/src/task_pool.h"
@@ -138,6 +140,7 @@ include_directories(
         BEFORE
         SYSTEM
         "${CMAKE_SOURCE_DIR}/third-party"
+        "${CMAKE_SOURCE_DIR}/third-party/parsec-vdd"
         "${CMAKE_SOURCE_DIR}/third-party/moonlight-common-c/enet/include"
         "${CMAKE_SOURCE_DIR}/third-party/nanors"
         "${CMAKE_SOURCE_DIR}/third-party/nanors/deps/obl"
