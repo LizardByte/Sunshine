@@ -420,8 +420,13 @@ namespace pipewire {
     };
 
     static void on_stream_state_changed(void *user_data, enum pw_stream_state old, enum pw_stream_state state, const char *err_msg) {
-      BOOST_LOG(debug) << "[pipewire] PipeWire stream state: " << pw_stream_state_as_string(old)
-                       << " -> " << pw_stream_state_as_string(state);
+      if (err_msg != nullptr) {
+        BOOST_LOG(info) << "[pipewire] PipeWire stream error '" << err_msg << "' on state: " << pw_stream_state_as_string(old)
+                        << " -> " << pw_stream_state_as_string(state);
+      } else {
+        BOOST_LOG(info) << "[pipewire] PipeWire stream state: " << pw_stream_state_as_string(old)
+                        << " -> " << pw_stream_state_as_string(state);
+      }
 
       auto *d = static_cast<stream_data_t *>(user_data);
 
@@ -853,18 +858,20 @@ namespace pipewire {
           case platf::capture_e::timeout:
             if (!pull_free_image_cb(img_out)) {
               // Detect if shutdown is pending
-              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> interrupt nudge";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> shutdown pending -> interrupt nudge";
               pipewire.frame_cv().notify_all();
               return platf::capture_e::interrupted;
             }
             if (!push_captured_image_cb(std::move(img_out), false)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: !push_captured_image_cb -> ok";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: timeout -> !push_captured_image_cb -> ok";
+              std::this_thread::sleep_for(100us);  // Workaround: delay OK by 100us to avoid video stream freezing
               return platf::capture_e::ok;
             }
             break;
           case platf::capture_e::ok:
             if (!push_captured_image_cb(std::move(img_out), true)) {
-              BOOST_LOG(debug) << "[pipewire] PipeWire: !push_captured_image_cb -> ok";
+              BOOST_LOG(debug) << "[pipewire] PipeWire: ok -> !push_captured_image_cb -> ok";
+              std::this_thread::sleep_for(100us);  // Workaround: delay OK by 100us to avoid video stream freezing
               return platf::capture_e::ok;
             }
             break;
