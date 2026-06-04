@@ -131,7 +131,7 @@
   type: "community"
   github: "https://github.com/GaryOderNichts/moonlight-wiiu"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@15/icons/wiiu.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@13/icons/wiiu.svg"
       alt: "Wii U"
       invert: true
   downloads:
