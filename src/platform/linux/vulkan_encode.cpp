@@ -120,6 +120,7 @@ namespace vk {
     std::array<int32_t, 2> cursor_pos;
     std::array<int32_t, 2> cursor_size;
     int32_t y_invert;
+    int32_t sdr_to_hdr;
   };
 
 // Helper to check VkResult
@@ -309,6 +310,12 @@ namespace vk {
       push.dst_full_size[0] = frame->width;
       push.dst_full_size[1] = frame->height;
       push.y_invert = descriptor.y_invert ? 1 : 0;
+
+      bool is_sdr_input = (descriptor.sd.fourcc == DRM_FORMAT_XRGB8888 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_ARGB8888 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_XBGR8888 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_ABGR8888);
+      push.sdr_to_hdr = (is_sdr_input && (colorspace.colorspace == video::colorspace_e::bt2020)) ? 1 : 0;
 
       if (descriptor.data) {
         float scale_x = (float) eff_w / width;

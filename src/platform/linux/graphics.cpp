@@ -4,6 +4,7 @@
  */
 // standard includes
 #include <fcntl.h>
+#include <drm_fourcc.h>
 
 // local includes
 #include "graphics.h"
@@ -24,9 +25,15 @@ extern "C" {
 // There aren't that many DRM_FORMAT I need to use, so define them here
 //
 // They aren't likely to change any time soon.
+#ifndef fourcc_code
 #define fourcc_code(a, b, c, d) ((std::uint32_t) (a) | ((std::uint32_t) (b) << 8) | ((std::uint32_t) (c) << 16) | ((std::uint32_t) (d) << 24))
+#endif
+#ifndef fourcc_mod_code
 #define fourcc_mod_code(vendor, val) ((((uint64_t) vendor) << 56) | ((val) & 0x00ffffffffffffffULL))
+#endif
+#ifndef DRM_FORMAT_MOD_INVALID
 #define DRM_FORMAT_MOD_INVALID fourcc_mod_code(0, ((1ULL << 56) - 1))
+#endif
 
 #if !defined(SUNSHINE_SHADERS_DIR)  // for testing this needs to be defined in cmake as we don't do an install
   #define SUNSHINE_SHADERS_DIR SUNSHINE_ASSETS_DIR "/shaders/opengl"
@@ -765,6 +772,7 @@ namespace egl {
   }
 
   void sws_t::apply_colorspace(const video::sunshine_colorspace_t &colorspace) {
+    target_is_hdr = video::colorspace_is_hdr(colorspace);
     auto color_p = video::color_vectors_from_colorspace(colorspace, true);
 
     std::string_view members[] {
@@ -958,6 +966,7 @@ namespace egl {
   }
 
   void sws_t::load_ram(platf::img_t &img) {
+    sdr_to_hdr_val = target_is_hdr ? 1 : 0;
     loaded_texture = tex[0];
 
     gl::ctx.BindTexture(GL_TEXTURE_2D, loaded_texture);
@@ -965,6 +974,12 @@ namespace egl {
   }
 
   void sws_t::load_vram(img_descriptor_t &img, int offset_x, int offset_y, int texture) {
+    bool is_sdr = (img.sd.fourcc == DRM_FORMAT_XRGB8888 ||
+                   img.sd.fourcc == DRM_FORMAT_ARGB8888 ||
+                   img.sd.fourcc == DRM_FORMAT_XBGR8888 ||
+                   img.sd.fourcc == DRM_FORMAT_ABGR8888);
+    sdr_to_hdr_val = (target_is_hdr && is_sdr) ? 1 : 0;
+
     // When only a sub-part of the image must be encoded...
     const bool copy = offset_x || offset_y || img.sd.width != in_width || img.sd.height != in_height;
     if (copy) {
@@ -1044,6 +1059,10 @@ namespace egl {
 #endif
 
       gl::ctx.UseProgram(program[x].handle());
+      auto loc_sdr_to_hdr = gl::ctx.GetUniformLocation(program[x].handle(), "sdr_to_hdr");
+      if (loc_sdr_to_hdr >= 0) {
+        gl::ctx.Uniform1i(loc_sdr_to_hdr, sdr_to_hdr_val);
+      }
       gl::ctx.Viewport(offsetX / (x + 1), offsetY / (x + 1), out_width / (x + 1), out_height / (x + 1));
       gl::ctx.DrawArrays(GL_TRIANGLES, 0, 3);
     }

@@ -355,6 +355,10 @@ namespace egl {
 
     // Store latest cursor for load_vram
     std::uint64_t serial;
+
+    // Track if target colorspace is HDR
+    bool target_is_hdr {false};
+    int sdr_to_hdr_val {0};
   };
 
   bool fail();
