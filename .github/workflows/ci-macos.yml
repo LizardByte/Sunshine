@@ -99,7 +99,10 @@ jobs:
           enable-cache: true
 
       - name: Sync Python tools
-        run: uv sync --locked --only-group test --python "${PYTHON_VERSION}" --no-python-downloads --no-install-project
+        run: |
+          uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+            --python "${PYTHON_VERSION}" \
+            --no-python-downloads --no-install-project
 
       - name: Configure
         env:
@@ -181,7 +184,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          uv run --locked --no-sync python -m gcovr . -r ../src \
+          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

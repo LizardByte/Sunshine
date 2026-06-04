@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "Sunshine"
 version = "0.0.0"
-description = "Helper scripts for Sunshine"
+description = "Python tooling for Sunshine"
 requires-python = ">=3.14"
 license = {text = "GPL-3.0-only"}
 authors = [
@@ -27,19 +27,6 @@ glad = [
 flatpak = [
     "flatpak_node_generator",
     "flatpak_pip_generator",
-]
-
-lint = [
-    "clang-format==20.*",
-    "flake8==7.3.0",
-]
-
-locale = [
-    "Babel==2.18.0",
-]
-
-test = [
-    "gcovr==8.6",
 ]
 
 [project.urls]
