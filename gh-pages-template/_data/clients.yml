@@ -3,7 +3,7 @@
   type: "official"
   github: "https://github.com/moonlight-stream/moonlight-android"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/android.svg"
       alt: "Android"
       invert: true
   downloads:
@@ -25,10 +25,10 @@
   type: "official"
   github: "https://github.com/moonlight-stream/moonlight-ios"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ios.svg"
       alt: "iOS"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/appletv.svg"
       alt: "Apple TV"
       invert: true
   downloads:
@@ -45,16 +45,16 @@
   type: "official"
   github: "https://github.com/moonlight-stream/moonlight-qt"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/linux.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/linux.svg"
       alt: "Linux"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/macos.svg"
       alt: "macOS"
       invert: true
     - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg"
       alt: "Windows"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/steam.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/steam.svg"
       alt: "Steam"
       invert: true
   downloads:
@@ -67,7 +67,7 @@
   type: "official"
   github: "https://github.com/moonlight-stream/moonlight-embedded"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/raspberrypi.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/raspberrypi.svg"
       alt: "Raspberry Pi"
       invert: true
   downloads:
@@ -93,7 +93,7 @@
   type: "community"
   github: "https://github.com/xyzz/vita-moonlight"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/playstationvita.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/playstationvita.svg"
       alt: "PlayStation Vita"
       invert: true
   downloads:
@@ -109,16 +109,16 @@
     - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/nintendo-switch.svg"
       alt: "Nintendo Switch"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/android.svg"
       alt: "Android"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/appletv.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/appletv.svg"
       alt: "Apple TV"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/ios.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/ios.svg"
       alt: "iOS"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/macos.svg"
       alt: "macOS"
       invert: true
   downloads:
@@ -157,7 +157,7 @@
   type: "community"
   github: "https://github.com/mariotaku/moonlight-tv"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/lg.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@16/icons/lg.svg"
       alt: "LG webOS TV"
       invert: true
   downloads:
