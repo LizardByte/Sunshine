@@ -673,6 +673,11 @@ namespace pipewire {
     }
 
     int init(platf::mem_type_e hwdevice_type, const std::string &display_name, const ::video::config_t &config) {
+      if (display_name.starts_with("HEADLESS") || display_name.starts_with("headless")) {
+        m_is_headless = true;
+        BOOST_LOG(info) << "[pipewire] Headless display [" << display_name << "] detected; spoofing HDR support"sv;
+      }
+
       // calculate frame interval we should capture at
       framerate = config.framerate;
       if (config.framerateX100 > 0) {
@@ -917,6 +922,10 @@ namespace pipewire {
     }
 
     bool is_hdr() override {
+      if (m_is_headless) {
+        return true;
+      }
+
       int color_primaries = shared_state->color_primaries.load();
       int transfer_function = shared_state->transfer_function.load();
 
@@ -928,10 +937,7 @@ namespace pipewire {
     }
 
     bool get_hdr_metadata(SS_HDR_METADATA &metadata) override {
-      int color_primaries = shared_state->color_primaries.load();
-      int transfer_function = shared_state->transfer_function.load();
-
-      if (color_primaries == SPA_VIDEO_COLOR_PRIMARIES_BT2020 && transfer_function == SPA_VIDEO_TRANSFER_SMPTE2084) {
+      if (m_is_headless || (shared_state->color_primaries.load() == SPA_VIDEO_COLOR_PRIMARIES_BT2020 && shared_state->transfer_function.load() == SPA_VIDEO_TRANSFER_SMPTE2084)) {
         // Report Rec 2020 primaries
         metadata.displayPrimaries[0].x = 0.708f * 50000;
         metadata.displayPrimaries[0].y = 0.292f * 50000;
@@ -1087,6 +1093,7 @@ namespace pipewire {
       return 0;
     }
 
+    bool m_is_headless = false;
     platf::mem_type_e mem_type;
     wl::display_t wl_display;
     std::array<struct dmabuf_format_info_t, MAX_DMABUF_FORMATS> dmabuf_infos;

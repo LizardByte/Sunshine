@@ -144,7 +144,10 @@ namespace wl {
         }
       }
 
-      {
+      if (monitor->name.starts_with("HEADLESS") || monitor->name.starts_with("headless")) {
+        m_is_hdr = true;
+        BOOST_LOG(info) << "[wlgrab] Headless display [" << monitor->name << "] detected; spoofing HDR support"sv;
+      } else {
         auto format = dmabuf.get_format();
         if (format == DRM_FORMAT_XBGR2101010 || format == DRM_FORMAT_ABGR2101010 ||
             format == DRM_FORMAT_XRGB2101010 || format == DRM_FORMAT_ARGB2101010) {
