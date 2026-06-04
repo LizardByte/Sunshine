@@ -51,7 +51,7 @@
     - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/macos.svg"
       alt: "macOS"
       invert: true
-    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/windows.svg"
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/windows.svg"
       alt: "Windows"
       invert: true
     - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/steam.svg"
@@ -80,7 +80,7 @@
   type: "community"
   github: "https://github.com/TheElixZammuto/moonlight-xbox"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/xbox.svg"
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/xbox.svg"
       alt: "Xbox"
       invert: true
   downloads:
@@ -106,7 +106,7 @@
   type: "community"
   github: "https://github.com/XITRIX/Moonlight-Switch"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/icons/nintendo-switch.svg"
+    - src: "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/icons/nintendo-switch.svg"
       alt: "Nintendo Switch"
       invert: true
     - src: "https://cdn.jsdelivr.net/npm/simple-icons@v14/icons/android.svg"
@@ -131,7 +131,7 @@
   type: "community"
   github: "https://github.com/GaryOderNichts/moonlight-wiiu"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/wiiu.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@13/icons/wiiu.svg"
       alt: "Wii U"
       invert: true
   downloads:
@@ -144,7 +144,7 @@
   type: "community"
   github: "https://github.com/zoeyjodon/moonlight-N3DS"
   icons:
-    - src: "https://cdn.jsdelivr.net/npm/simple-icons@v12/icons/nintendo3ds.svg"
+    - src: "https://cdn.jsdelivr.net/npm/simple-icons@13/icons/nintendo3ds.svg"
       alt: "3DS"
       invert: true
   downloads:

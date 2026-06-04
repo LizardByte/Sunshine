@@ -50,6 +50,8 @@
     "covers_found": "Capas encontradas",
     "cover_search_hint": "Pesquisar nomes devem corresponder a convenções de nomenclatura IGDB.",
     "delete": "excluir",
+    "delete_confirm": "Tem certeza que deseja excluir {name}?",
+    "delete_title": "Excluir aplicativo",
     "detached_cmds": "Comandos desanexados",
     "detached_cmds_add": "Adicionar Comando Desanexado",
     "detached_cmds_desc": "Uma lista de comandos a serem executados em segundo plano.",
@@ -478,6 +480,7 @@
     "warning_msg": "Certifique-se de que você tem acesso ao cliente com o qual está emparelhando. Este software pode dar controle total ao seu computador, então tenha cuidado!"
   },
   "resource_card": {
+    "documentation": "Documentação",
     "github_discussions": "GitHub Discussions",
     "legal": "Informações",
     "legal_desc": "Ao continuar a usar este software, você concorda com os termos e condições nos seguintes documentos.",

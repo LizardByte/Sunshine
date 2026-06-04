@@ -50,6 +50,8 @@
     "covers_found": "Copertine trovate",
     "cover_search_hint": "I nomi di ricerca dovrebbero corrispondere alle convenzioni di nomi IGDB.",
     "delete": "Cancella",
+    "delete_confirm": "Sei sicuro di voler eliminare {name}?",
+    "delete_title": "Elimina Applicazione",
     "detached_cmds": "Comandi Separati",
     "detached_cmds_add": "Aggiungi comando separato",
     "detached_cmds_desc": "Un elenco di comandi da eseguire in background.",
@@ -478,6 +480,7 @@
     "warning_msg": "Assicurati di avere accesso al client con cui stai accoppiando. Questo software può dare il controllo totale al tuo computer, quindi fai attenzione!"
   },
   "resource_card": {
+    "documentation": "Documentazione",
     "github_discussions": "Discussioni di GitHub",
     "legal": "Info legali",
     "legal_desc": "Continuando a utilizzare questo software si accettano i termini e le condizioni riportati nei seguenti documenti.",

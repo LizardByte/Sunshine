@@ -40,6 +40,7 @@ env:
   BUILD_VERSION: ${{ inputs.release_version }}
   COMMIT: ${{ inputs.release_commit }}
   MACOSX_DEPLOYMENT_TARGET: 14.2
+  PYTHON_VERSION: '3.14'
 
 jobs:
   build_dmg:
@@ -69,7 +70,7 @@ jobs:
           p12-password: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_P12_PASSWORD }}
 
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           submodules: recursive
 
@@ -86,6 +87,19 @@ jobs:
             miniupnpc \
             openssl@3 \
             opus
+
+      - name: Setup Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Sync Python tools
+        run: uv sync --locked --only-group test --python "${PYTHON_VERSION}" --no-python-downloads --no-install-project
 
       - name: Configure
         env:
@@ -167,8 +181,7 @@ jobs:
           (steps.test.outcome == 'success' || steps.test.outcome == 'failure')
         working-directory: build
         run: |
-          python -m pip install "..[test]"
-          python -m gcovr . -r ../src \
+          uv run --locked --no-sync python -m gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \

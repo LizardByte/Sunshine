@@ -5,7 +5,7 @@
     "auto": "Automatikus",
     "autodetect": "Automatikus felismerés (ajánlott)",
     "beta": "(béta)",
-    "browse": "Böngésszen a  oldalon.",
+    "browse": "Böngészés",
     "cancel": "Mégse",
     "close": "Bezárás",
     "csrf_error": "CSRF védelmi hiba",
@@ -50,6 +50,8 @@
     "covers_found": "Talált borítók",
     "cover_search_hint": "A keresési neveknek meg kell felelniük az IGDB elnevezési konvencióknak.",
     "delete": "Törlés",
+    "delete_confirm": "Biztos, hogy törölni akarja a {name} címet?",
+    "delete_title": "Alkalmazás törlése",
     "detached_cmds": "Háttérben futó parancsok",
     "detached_cmds_add": "Háttérben futó parancs hozzáadása",
     "detached_cmds_desc": "A háttérben futtatandó parancsok listája.",
@@ -89,10 +91,10 @@
     "run_as_desc": "Ez szükséges lehet néhány alkalmazásnál, amik rendszergazdai jogokat igényelnek a megfelelő futáshoz.",
     "search_placeholder": "Alkalmazások keresése...",
     "searching_covers": "Borítók keresése...",
-    "sort_ascending": "Felszálló",
+    "sort_ascending": "Növekvő",
     "sort_by_name": "Rendezés név szerint",
     "sort_default": "Alapértelmezett sorrend",
-    "sort_descending": "Leereszkedő",
+    "sort_descending": "Csökkenő",
     "wait_all": "Streamelés folytatása, amíg az összes alkalmazásfolyamat ki nem lép",
     "wait_all_desc": "Ez addig folytatja a streamelést, amíg az alkalmazás által indított összes folyamat le nem áll. Ha nincs bejelölve, a streamelés leáll amikor az első alkalmazásfolyamat kilép, még akkor is, ha más alkalmazásfolyamatok még futnak.",
     "working_dir": "Munkakönyvtár",
@@ -395,11 +397,11 @@
     "vk_rc_mode": "Rate Control",
     "vk_rc_mode_desc": "A kódolás sebességszabályozási módja. Az Auto hagyja, hogy a vezető döntsön.",
     "vk_rc_vbr": "VBR (változó bitráta)",
-    "vk_tune": "Tuning",
+    "vk_tune": "Hangolás",
     "vk_tune_desc": "Az alacsony késleltetési módok a minőség rovására csökkentik a kódolási késleltetést.",
     "vk_tune_hq": "Magas minőség (hq)",
     "vk_tune_ll": "Alacsony késleltetés (ll) (alapértelmezett)",
-    "vk_tune_ull": "Ultra alacsony késleltetés (ull)",
+    "vk_tune_ull": "Ultraalacsony késleltetés (ull)",
     "virtual_sink": "Virtuális kimenet",
     "virtual_sink_desc": "Kézileg megadható egy virtuális hangeszköz a használathoz. Ha nincs beállítva, az eszköz automatikusan kerül kiválasztásra. Erősen ajánljuk, hogy hagyd ezt a mezőt üresen az automatikus eszközválasztáshoz!",
     "virtual_sink_placeholder": "Steam streamelési hangszórók",
@@ -457,8 +459,8 @@
     "troubleshoot": "Hibaelhárítás"
   },
   "logout": {
-    "logged_out": "Kijelentkezett",
-    "logged_out_desc": "Sikeresen kijelentkezett.",
+    "logged_out": "Kijelentkezve",
+    "logged_out_desc": "Sikeresen kijelentkeztél.",
     "login": "Bejelentkezés"
   },
   "password": {
@@ -478,6 +480,7 @@
     "warning_msg": "Győződj meg róla, hogy hozzáférsz ahhoz a klienshez, amivel párosítasz. Ez a szoftver teljes kontrollt adhat a számítógéped felett, szóval légy óvatos!"
   },
   "resource_card": {
+    "documentation": "Dokumentáció",
     "github_discussions": "GitHub Discussions",
     "legal": "Jogi",
     "legal_desc": "A szoftver további használatával elfogadod a feltételeket a következő dokumentumokban.",
@@ -543,12 +546,12 @@
   },
   "file_browser": {
     "empty": "Nincs megjelenítendő elem",
-    "root": "Gyökér",
-    "select": "Válassza ki a  címet.",
-    "select_directory": "Válassza ki a könyvtárat",
-    "select_executable": "Válaszd ki a Végrehajthatót",
+    "root": "Root",
+    "select": "Kiválasztás",
+    "select_directory": "Könyvtár kiválasztása",
+    "select_executable": "Végrehajtható fájl kiválasztása",
     "select_file": "Fájl kiválasztása",
-    "title": "Böngésszen a  oldalon.",
+    "title": "Böngészés",
     "up": "Fel"
   },
   "welcome": {

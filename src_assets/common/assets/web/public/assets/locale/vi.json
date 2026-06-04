@@ -50,6 +50,8 @@
     "covers_found": "Bìa đã tìm thấy",
     "cover_search_hint": "Tên tìm kiếm phải tuân thủ các quy ước đặt tên của IGDB.",
     "delete": "Xóa",
+    "delete_confirm": "Bạn có chắc chắn muốn xóa {name} không?",
+    "delete_title": "Xóa ứng dụng",
     "detached_cmds": "Lệnh độc lập",
     "detached_cmds_add": "Thêm lệnh tách rời",
     "detached_cmds_desc": "Danh sách các lệnh cần chạy ở chế độ nền.",
@@ -478,6 +480,7 @@
     "warning_msg": "Đảm bảo bạn có quyền truy cập vào máy tính mà bạn đang kết nối. Phần mềm này có thể cho phép kiểm soát hoàn toàn máy tính của bạn, vì vậy hãy cẩn thận!"
   },
   "resource_card": {
+    "documentation": "Tài liệu",
     "github_discussions": "Thảo luận trên GitHub",
     "legal": "Pháp lý",
     "legal_desc": "Bằng cách tiếp tục sử dụng phần mềm này, bạn đồng ý với các điều khoản và điều kiện được quy định trong các tài liệu sau đây.",

@@ -17,7 +17,7 @@ import {
   Sunrise,
   Trees,
   Waves,
-} from 'lucide-vue-next'
+} from '@lucide/vue'
 
 onMounted(() => {
   loadAutoTheme()

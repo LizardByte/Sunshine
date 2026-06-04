@@ -50,6 +50,8 @@
     "covers_found": "Nalezené obaly",
     "cover_search_hint": "Názvy vyhledávání by měly odpovídat konvencím IGDB pro pojmenování.",
     "delete": "Vymazat",
+    "delete_confirm": "Jste si jisti, že chcete odstranit {name}?",
+    "delete_title": "Odstranit aplikaci",
     "detached_cmds": "Oddělené příkazy",
     "detached_cmds_add": "Přidat oddělený příkaz",
     "detached_cmds_desc": "Seznam příkazů, které mají být spuštěny na pozadí.",
@@ -478,6 +480,7 @@
     "warning_msg": "Ujistěte se, že máte přístup ke klientovi, se kterým se párujete. Tento software může dát počítači úplnou kontrolu, proto buďte opatrní!"
   },
   "resource_card": {
+    "documentation": "Dokumentace",
     "github_discussions": "Diskuse na GitHubu",
     "legal": "Právní předpisy",
     "legal_desc": "Dalším používáním tohoto softwaru souhlasíte s podmínkami uvedenými v následujících dokumentech.",

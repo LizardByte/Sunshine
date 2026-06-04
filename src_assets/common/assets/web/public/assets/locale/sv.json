@@ -50,6 +50,8 @@
     "covers_found": "Hittade omslag",
     "cover_search_hint": "Söknamn bör matcha IGDB namngivningskonventioner.",
     "delete": "Radera",
+    "delete_confirm": "Är du säker på att du vill radera {name}?",
+    "delete_title": "Ta bort program",
     "detached_cmds": "Fristående kommandon",
     "detached_cmds_add": "Lägg till fristående kommando",
     "detached_cmds_desc": "En lista över kommandon som ska köras i bakgrunden.",
@@ -478,6 +480,7 @@
     "warning_msg": "Se till att du har tillgång till klienten du parar ihop med. Denna programvara kan ge total kontroll till din dator, så var försiktig!"
   },
   "resource_card": {
+    "documentation": "Dokumentation",
     "github_discussions": "GitHub Discussions",
     "legal": "Juridisk",
     "legal_desc": "Genom att fortsätta använda denna programvara godkänner du villkoren i följande dokument.",

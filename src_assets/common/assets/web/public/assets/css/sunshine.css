@@ -682,6 +682,7 @@ body {
 .modal-header,
 .modal-footer {
     border-color: var(--color-border) !important;
+    background-color: var(--color-surface-raised) !important;
 }
 
 .list-group-item {
@@ -1713,7 +1714,7 @@ p {
 }
 
 .apps-toolbar .input-group {
-    max-width: 18rem;
+    width: 14rem;
 }
 
 .apps-toolbar .btn-outline-secondary {

@@ -3,6 +3,7 @@
  * @brief Vulkan-native encoder: DMA-BUF -> Vulkan compute (RGB->YUV) -> Vulkan Video encode.
  *        No EGL/GL dependency — all GPU work stays in a single Vulkan queue.
  */
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <drm_fourcc.h>
@@ -113,7 +114,9 @@ namespace vk {
     std::array<float, 2> range_uv;
     std::array<int32_t, 2> src_offset;
     std::array<int32_t, 2> src_size;
+    std::array<int32_t, 2> dst_offset;
     std::array<int32_t, 2> dst_size;
+    std::array<int32_t, 2> dst_full_size;
     std::array<int32_t, 2> cursor_pos;
     std::array<int32_t, 2> cursor_size;
     int32_t y_invert;
@@ -284,20 +287,34 @@ namespace vk {
         descriptors_dirty = false;
       }
 
+      // Preserve aspect ratio: fit src into dst, center with black bars.
+      // UV plane is subsampled 2x, so keep effective size and offset even.
+      float scalar = std::min((float) frame->width / width, (float) frame->height / height);
+      int32_t eff_w = std::min<int32_t>(((int32_t) (width * scalar)) & ~1, frame->width & ~1);
+      int32_t eff_h = std::min<int32_t>(((int32_t) (height * scalar)) & ~1, frame->height & ~1);
+      int32_t dst_off_x = ((frame->width - eff_w) / 2) & ~1;
+      int32_t dst_off_y = ((frame->height - eff_h) / 2) & ~1;
+      eff_w = std::min(eff_w, (frame->width - dst_off_x) & ~1);
+      eff_h = std::min(eff_h, (frame->height - dst_off_y) & ~1);
+
       // Fill push constants
       push.src_offset[0] = offset_x;
       push.src_offset[1] = offset_y;
       push.src_size[0] = width;
       push.src_size[1] = height;
-      push.dst_size[0] = frame->width;
-      push.dst_size[1] = frame->height;
+      push.dst_offset[0] = dst_off_x;
+      push.dst_offset[1] = dst_off_y;
+      push.dst_size[0] = eff_w;
+      push.dst_size[1] = eff_h;
+      push.dst_full_size[0] = frame->width;
+      push.dst_full_size[1] = frame->height;
       push.y_invert = descriptor.y_invert ? 1 : 0;
 
       if (descriptor.data) {
-        float scale_x = (float) frame->width / width;
-        float scale_y = (float) frame->height / height;
-        push.cursor_pos[0] = (int32_t) ((descriptor.x - offset_x) * scale_x);
-        push.cursor_pos[1] = (int32_t) ((descriptor.y - offset_y) * scale_y);
+        float scale_x = (float) eff_w / width;
+        float scale_y = (float) eff_h / height;
+        push.cursor_pos[0] = (int32_t) ((descriptor.x - offset_x) * scale_x) + dst_off_x;
+        push.cursor_pos[1] = (int32_t) ((descriptor.y - offset_y) * scale_y) + dst_off_y;
         push.cursor_size[0] = (int32_t) (descriptor.width * scale_x);
         push.cursor_size[1] = (int32_t) (descriptor.height * scale_y);
       } else {

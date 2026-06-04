@@ -18,14 +18,14 @@ include_guard(GLOBAL)
 #     cache before add_subdirectory() causes glad's find_package(PythonInterp) to
 #     skip its own search and reuse our interpreter directly.
 #
-# GLAD_SKIP_PIP_INSTALL is a hard override for environments where pip cannot run
+# GLAD_SKIP_PIP_INSTALL is a hard override for environments where Python dependency installs cannot run
 # at all (e.g. Flatpak, Homebrew). When OFF (the default) the code below checks
-# whether jinja2+setuptools are importable and pip-installs them if they are not.
+# whether jinja2+setuptools are importable and installs them with uv if they are not.
 # When ON the caller is responsible for supplying a Python that already has jinja2,
 # typically via -DPython_EXECUTABLE=/path/to/venv/python.
 option(GLAD_SKIP_PIP_INSTALL
-        "Hard-skip pip install of jinja2 even if it is not importable. \
-Only needed in sandboxed build environments (e.g. Flatpak, Homebrew) where pip cannot run." OFF)
+        "Hard-skip Python dependency installation for jinja2 even if it is not importable. \
+Only needed in sandboxed build environments (e.g. Flatpak, Homebrew) where Python dependency installs cannot run." OFF)
 
 if(NOT GLAD_SKIP_PIP_INSTALL)
     # glad's generator requires Python >= 3.8 (importlib.metadata) and jinja2.
@@ -115,41 +115,47 @@ if(NOT GLAD_SKIP_PIP_INSTALL)
     )
 
     if(NOT _glad_deps_import_result EQUAL 0)
-        message(STATUS "glad: jinja2 or setuptools not found in ${Python_EXECUTABLE}, installing via pip...")
+        find_program(UV_EXECUTABLE uv)
+        if(NOT UV_EXECUTABLE)
+            message(FATAL_ERROR
+                    "glad: jinja2 or setuptools not found in ${Python_EXECUTABLE}, and uv is not available.\n"
+                    "Install uv, or provide a Python interpreter with glad dependencies installed and set "
+                    "-DGLAD_SKIP_PIP_INSTALL=ON.")
+        endif()
 
-        # Some system Python installations (e.g. FreeBSD ports) ship without pip.
-        # Try to bootstrap it via ensurepip before falling back to the pip install.
+        set(_glad_python_venv "${CMAKE_BINARY_DIR}/glad-python")
+        message(STATUS "glad: jinja2 or setuptools not found in ${Python_EXECUTABLE}, installing via uv...")
         execute_process(
-                COMMAND "${Python_EXECUTABLE}" -m pip --version
-                RESULT_VARIABLE _pip_available
-                OUTPUT_QUIET ERROR_QUIET
+                COMMAND "${UV_EXECUTABLE}" venv
+                    --python "${Python_EXECUTABLE}"
+                    --no-python-downloads
+                    --allow-existing
+                    "${_glad_python_venv}"
+                COMMAND_ERROR_IS_FATAL ANY
         )
-        if(NOT _pip_available EQUAL 0)
-            message(STATUS "glad: pip not found in ${Python_EXECUTABLE}, bootstrapping via ensurepip...")
-            execute_process(
-                    COMMAND "${Python_EXECUTABLE}" -m ensurepip --upgrade
-                    RESULT_VARIABLE _ensurepip_result
-                    OUTPUT_QUIET ERROR_QUIET
-            )
-            if(NOT _ensurepip_result EQUAL 0)
-                message(FATAL_ERROR
-                        "glad: pip is not available in ${Python_EXECUTABLE} and ensurepip failed to "
-                        "bootstrap it.\nPlease install pip for your Python interpreter "
-                        "(e.g. 'pkg install py311-pip' on FreeBSD, or the python3-pip package for "
-                        "your distro) and re-run cmake.")
-            endif()
+
+        if(WIN32)
+            set(_glad_python_executable "${_glad_python_venv}/Scripts/python.exe")
+        else()
+            set(_glad_python_executable "${_glad_python_venv}/bin/python")
         endif()
 
         execute_process(
-                COMMAND "${Python_EXECUTABLE}" -m pip install
-                    --upgrade
+                COMMAND "${UV_EXECUTABLE}" pip install
+                    --python "${_glad_python_executable}"
                     --requirement "${CMAKE_SOURCE_DIR}/third-party/glad/requirements.txt"
                     "setuptools<81"
                     --quiet
                 COMMAND_ERROR_IS_FATAL ANY
         )
+
+        set(Python_EXECUTABLE "${_glad_python_executable}"  # cmake-lint: disable=C0103
+                CACHE FILEPATH "Python interpreter" FORCE)
+        set(PYTHON_EXECUTABLE "${Python_EXECUTABLE}" CACHE FILEPATH "Python interpreter for glad" FORCE)
     else()
-        message(STATUS "glad: jinja2 and setuptools already available in ${Python_EXECUTABLE}, skipping pip install")
+        message(STATUS
+                "glad: jinja2 and setuptools already available in "
+                "${Python_EXECUTABLE}, skipping Python dependency install")
     endif()
 endif()
 

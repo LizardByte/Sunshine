@@ -50,6 +50,8 @@
     "covers_found": "Znalezione okładki",
     "cover_search_hint": "Nazwy wyszukiwań powinny być zgodne z konwencjami nazewnictwa IGDB.",
     "delete": "Usuń",
+    "delete_confirm": "Czy na pewno chcesz usunąć {name}?",
+    "delete_title": "Usuń aplikację",
     "detached_cmds": "Polecenia odłączone",
     "detached_cmds_add": "Dodaj odłączone polecenie",
     "detached_cmds_desc": "Lista poleceń uruchamianych w tle.",
@@ -478,6 +480,7 @@
     "warning_msg": "Upewnij się, że masz dostęp do klienta, z którym się łączysz. To oprogramowanie może dać całkowitą kontrolę nad komputerem, więc bądź ostrożny!"
   },
   "resource_card": {
+    "documentation": "Dokumentacja",
     "github_discussions": "Dyskusje GitHub",
     "legal": "Legal",
     "legal_desc": "Kontynuując korzystanie z tego oprogramowania, użytkownik wyraża zgodę na warunki określone w poniższych dokumentach.",

@@ -138,21 +138,21 @@ and applications to Sunshine.
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
   @tab{Linux | <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
   @tab{macOS | <!-- -->
     \| Field             \| Value                                                        \|
     \|-------------------\|--------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                \|
     \| Command           \| @code{}MarsSteam@endcode                                     \|
-    \| Working Directory \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
+    \| Working Directory \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars@endcode \|
   }
   @tab{Windows | <!-- -->
     \| Field             \| Value                                                                         \|
@@ -169,19 +169,19 @@ and applications to Sunshine.
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
   @tab{Linux | <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
   @tab{macOS | <!-- -->
     \| Field             \| Value                                                                  \|
     \|-------------------\|------------------------------------------------------------------------\|
     \| Application Name  \| @code{}Surviving Mars@endcode                                          \|
-    \| Command           \| @code{}~/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
+    \| Command           \| @code{}$(HOME)/.steam/steam/SteamApps/common/Survivng Mars/MarsSteam@endcode \|
   }
   @tab{Windows | <!-- -->
     \| Field             \| Value                                                                                       \|

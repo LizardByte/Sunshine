@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Trash2 } from 'lucide-vue-next'
+import { Trash2 } from '@lucide/vue'
 import PlatformLayout from '../../../PlatformLayout.vue'
 import Checkbox from "../../../Checkbox.vue";
 

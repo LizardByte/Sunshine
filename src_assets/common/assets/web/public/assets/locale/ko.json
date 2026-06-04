@@ -50,6 +50,8 @@
     "covers_found": "커버 발견",
     "cover_search_hint": "검색 이름은 IGDB 명명 규칙과 일치해야 합니다.",
     "delete": "삭제",
+    "delete_confirm": "{name} 을 삭제하시겠습니까?",
+    "delete_title": "애플리케이션 삭제",
     "detached_cmds": "분리된 명령",
     "detached_cmds_add": "분리된 명령 추가",
     "detached_cmds_desc": "백그라운드에서 실행할 명령어 입니다.",
@@ -478,6 +480,7 @@
     "warning_msg": "페어링하려는 클라이언트에 대한 액세스 권한이 있는지 확인하세요. 이 소프트웨어는 컴퓨터를 완전히 제어할 수 있으므로 주의하세요! "
   },
   "resource_card": {
+    "documentation": "문서",
     "github_discussions": "GitHub 토론",
     "legal": "법률",
     "legal_desc": "이 소프트웨어를 계속 사용함으로써 귀하는 다음 문서의 이용 약관에 동의하게 됩니다.",

@@ -21,7 +21,7 @@
 
 <script>
 import { reactive } from 'vue'
-import { AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-vue-next'
+import { AlertCircle, AlertTriangle, CheckCircle, Info } from '@lucide/vue'
 
 /**
  * Singleton reactive notification state shared across the app instance.
@@ -57,7 +57,7 @@ function pushKey(type, messageKey, titleKey) {
 }
 
 /**
- * Map a Bootstrap color variant to its corresponding lucide-vue-next icon name.
+ * Map a Bootstrap color variant to its corresponding @lucide/vue icon name.
  *
  * @param {'danger'|'warning'|'success'|'info'} type - Bootstrap color variant.
  * @returns {string} The lucide icon component name.

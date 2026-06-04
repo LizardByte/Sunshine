@@ -50,6 +50,8 @@
     "covers_found": "找到封面圖片",
     "cover_search_hint": "搜尋名稱應符合 IGDB 的命名慣例。",
     "delete": "刪除",
+    "delete_confirm": "您確定要刪除 {name}?",
+    "delete_title": "刪除應用程式",
     "detached_cmds": "獨立指令",
     "detached_cmds_add": "新增獨立指令",
     "detached_cmds_desc": "在背景執行的指令清單。",
@@ -478,6 +480,7 @@
     "warning_msg": "請確保您可以存取要配對的用戶端。此軟體可讓對方完全控制您的電腦，請小心使用！"
   },
   "resource_card": {
+    "documentation": "文件",
     "github_discussions": "GitHub 討論區",
     "legal": "法律資訊",
     "legal_desc": "繼續使用本軟體即表示您同意下列文件中的條款和條件。",
