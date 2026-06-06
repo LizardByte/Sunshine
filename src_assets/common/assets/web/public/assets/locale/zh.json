@@ -332,7 +332,7 @@
     "packetsize_desc": "限制数据包大小，以避免在低的MTU链接上出现碎裂。 这有助于减少数据包丢失和微调停，同时通过层 2 VPN 流向无法配置此值的客户端。 Android/iOS的月亮。使用低值时降低比特率。 大于 1456 的值需要 jumbo 帧。范围：0, 200-6536。值为0将禁用限制。",
     "ping_timeout": "Ping 超时",
     "ping_timeout_desc": "关闭串流前等待 Moonlight 数据的时间（以毫秒计）",
-    "pkey": "私人密钥",
+    "pkey": "私钥",
     "pkey_desc": "用于 Web UI 和 Moonlilght 客户端配对的私钥。为了最佳兼容性，这应该是一个 RSA-2048 私钥。",
     "port": "端口",
     "port_alert_1": "Sunshine 不能使用低于1024 的端口！ ",
