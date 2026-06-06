@@ -272,13 +272,13 @@ namespace nvhttp {
     client_root = client;
   }
 
-  void add_authorized_client(const std::string &name, std::string &&cert, const std::string &client_unique_id) {
+  void add_authorized_client(const std::string &name, std::string &&cert) {
     client_t &client = client_root;
     named_cert_t named_cert;
     named_cert.name = name;
     named_cert.cert = std::move(cert);
     // Use the client's uniqueID so we can match it during session lookup
-    named_cert.uuid = client_unique_id;
+    named_cert.uuid = uuid_util::uuid_t::generate().string();
     client.named_devices.emplace_back(named_cert);
 
     if (!config::sunshine.flags[config::flag::FRESH_STATE]) {

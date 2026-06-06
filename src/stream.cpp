@@ -2085,16 +2085,6 @@ namespace stream {
       return session;
     }
 
-    /**
-     * @brief Get information about all active streaming sessions.
-     *
-     * This function retrieves a list of all currently running streaming sessions,
-     * including client name, IP address, and session start time. It looks up
-     * friendly client names from the paired clients database.
-     *
-     * @return A vector of session_info_t structures describing each active session.
-     *         Returns an empty vector if no sessions are active.
-     */
     std::vector<session_info_t> get_all_sessions() {
       std::vector<session_info_t> result;
 
