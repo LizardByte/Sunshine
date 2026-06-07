@@ -155,6 +155,41 @@ namespace cuda {
     return (dot(pixel, make_float3(vec_y)) + vec_y.w) * color_matrix->range_y.x + color_matrix->range_y.y;
   }
 
+  inline __device__ float3 sdr_to_hdr_fn(float3 color) {
+    // 1. Linearize sRGB
+    float3 linear = make_float3(
+      (color.x <= 0.04045f) ? (color.x / 12.92f) : powf((color.x + 0.055f) / 1.055f, 2.4f),
+      (color.y <= 0.04045f) ? (color.y / 12.92f) : powf((color.y + 0.055f) / 1.055f, 2.4f),
+      (color.z <= 0.04045f) ? (color.z / 12.92f) : powf((color.z + 0.055f) / 1.055f, 2.4f)
+    );
+
+    // 2. Gamut conversion (BT.709 to BT.2020)
+    float3 bt2020 = make_float3(
+      0.627402f * linear.x + 0.329292f * linear.y + 0.043306f * linear.z,
+      0.069095f * linear.x + 0.919544f * linear.y + 0.011360f * linear.z,
+      0.016394f * linear.x + 0.088028f * linear.y + 0.895578f * linear.z
+    );
+
+    // 3. Apply ST 2084 PQ curve
+    const float m1 = 2610.0f / 16384.0f;
+    const float m2 = 2523.0f / 32.0f;
+    const float c1 = 3424.0f / 4096.0f;
+    const float c2 = 2413.0f / 128.0f;
+    const float c3 = 2392.0f / 128.0f;
+
+    float3 Lp = make_float3(
+      powf(fmaxf(fminf(bt2020.x * 0.0203f, 1.0f), 0.0f), m1),
+      powf(fmaxf(fminf(bt2020.y * 0.0203f, 1.0f), 0.0f), m1),
+      powf(fmaxf(fminf(bt2020.z * 0.0203f, 1.0f), 0.0f), m1)
+    );
+
+    return make_float3(
+      powf((c1 + c2 * Lp.x) / (1.0f + c3 * Lp.x), m2),
+      powf((c1 + c2 * Lp.y) / (1.0f + c3 * Lp.y), m2),
+      powf((c1 + c2 * Lp.z) / (1.0f + c3 * Lp.z), m2)
+    );
+  }
+
   __global__ void RGBA_to_NV12(
     cudaTextureObject_t srcImage,
     std::uint8_t *dstY,
@@ -163,7 +198,8 @@ namespace cuda {
     std::uint32_t dstPitchUV,
     float scale,
     const viewport_t viewport,
-    const cuda_color_t *const color_matrix
+    const cuda_color_t *const color_matrix,
+    int sdr_to_hdr
   ) {
     int idX = (threadIdx.x + blockDim.x * blockIdx.x) * 2;
     int idY = (threadIdx.y + blockDim.y * blockIdx.y) * 2;
@@ -189,6 +225,13 @@ namespace cuda {
     float3 rgb_rt = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y));
     float3 rgb_lb = bgra_to_rgb(tex2D<float4>(srcImage, x, y + scale));
     float3 rgb_rb = bgra_to_rgb(tex2D<float4>(srcImage, x + scale, y + scale));
+
+    if (sdr_to_hdr) {
+      rgb_lt = sdr_to_hdr_fn(rgb_lt);
+      rgb_rt = sdr_to_hdr_fn(rgb_rt);
+      rgb_lb = sdr_to_hdr_fn(rgb_lb);
+      rgb_rb = sdr_to_hdr_fn(rgb_rb);
+    }
 
     float2 uv_lt = calcUV(rgb_lt, color_matrix) * 256.0f;
     float2 uv_rt = calcUV(rgb_rt, color_matrix) * 256.0f;
@@ -324,7 +367,7 @@ namespace cuda {
     dim3 block(threadsPerBlock);
     dim3 grid(div_align(threadsX, threadsPerBlock), threadsY);
 
-    RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (cuda_color_t *) color_matrix.get());
+    RGBA_to_NV12<<<grid, block, 0, stream>>>(texture, Y, UV, pitchY, pitchUV, scale, viewport, (cuda_color_t *) color_matrix.get(), sdr_to_hdr);
 
     return CU_CHECK_IGNORE(cudaGetLastError(), "RGBA_to_NV12 failed");
   }

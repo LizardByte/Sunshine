@@ -124,6 +124,7 @@ namespace cuda {
     viewport_t viewport;
 
     float scale;
+    int sdr_to_hdr {0};
   };
 }  // namespace cuda
 

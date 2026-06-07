@@ -977,7 +977,11 @@ namespace egl {
     bool is_sdr = (img.sd.fourcc == DRM_FORMAT_XRGB8888 ||
                    img.sd.fourcc == DRM_FORMAT_ARGB8888 ||
                    img.sd.fourcc == DRM_FORMAT_XBGR8888 ||
-                   img.sd.fourcc == DRM_FORMAT_ABGR8888);
+                   img.sd.fourcc == DRM_FORMAT_ABGR8888 ||
+                   img.sd.fourcc == DRM_FORMAT_XBGR2101010 ||
+                   img.sd.fourcc == DRM_FORMAT_ABGR2101010 ||
+                   img.sd.fourcc == DRM_FORMAT_XRGB2101010 ||
+                   img.sd.fourcc == DRM_FORMAT_ARGB2101010);
     sdr_to_hdr_val = (target_is_hdr && is_sdr) ? 1 : 0;
 
     // When only a sub-part of the image must be encoded...

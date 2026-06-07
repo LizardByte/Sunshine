@@ -314,7 +314,11 @@ namespace vk {
       bool is_sdr_input = (descriptor.sd.fourcc == DRM_FORMAT_XRGB8888 ||
                            descriptor.sd.fourcc == DRM_FORMAT_ARGB8888 ||
                            descriptor.sd.fourcc == DRM_FORMAT_XBGR8888 ||
-                           descriptor.sd.fourcc == DRM_FORMAT_ABGR8888);
+                           descriptor.sd.fourcc == DRM_FORMAT_ABGR8888 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_XBGR2101010 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_ABGR2101010 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_XRGB2101010 ||
+                           descriptor.sd.fourcc == DRM_FORMAT_ARGB2101010);
       push.sdr_to_hdr = (is_sdr_input && (colorspace.colorspace == video::colorspace_e::bt2020)) ? 1 : 0;
 
       if (descriptor.data) {

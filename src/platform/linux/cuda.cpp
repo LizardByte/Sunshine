@@ -155,6 +155,7 @@ namespace cuda {
 
     void apply_colorspace() override {
       sws.apply_colorspace(colorspace);
+      sws.sdr_to_hdr = video::colorspace_is_hdr(colorspace) ? 1 : 0;
 
       auto tex = tex_t::make(height, width * 4);
       if (!tex) {
