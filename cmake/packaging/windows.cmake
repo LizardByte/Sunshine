@@ -37,6 +37,17 @@ if(SUNSHINE_ENABLE_TRAY)
         if(NOT _qt_deploy_result EQUAL 0)
             message(FATAL_ERROR \"windeployqt failed: \${_qt_deploy_result}\")
         endif()
+
+        execute_process(
+                COMMAND \"${CMAKE_COMMAND}\"
+                \"-DSUNSHINE_RUNTIME_TARGET=\${_qt_deploy_dir}/sunshine.exe\"
+                \"-DSUNSHINE_RUNTIME_OUTPUT_DIR=\${_qt_deploy_dir}\"
+                -P \"${CMAKE_MODULE_PATH}/packaging/windows_runtime_deps.cmake\"
+                RESULT_VARIABLE _runtime_deploy_result
+        )
+        if(NOT _runtime_deploy_result EQUAL 0)
+            message(FATAL_ERROR \"Runtime dependency deployment failed: \${_runtime_deploy_result}\")
+        endif()
     " COMPONENT application)
 endif()
 

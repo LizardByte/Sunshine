@@ -38,6 +38,10 @@ function(sunshine_deploy_qt_runtime target_name deploy_tool)
             ${ARGN}
             --dir "$<TARGET_FILE_DIR:${target_name}>"
             "$<TARGET_FILE:${target_name}>"
+            COMMAND "${CMAKE_COMMAND}"
+            "-DSUNSHINE_RUNTIME_TARGET=$<TARGET_FILE:${target_name}>"
+            "-DSUNSHINE_RUNTIME_OUTPUT_DIR=$<TARGET_FILE_DIR:${target_name}>"
+            -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/windows_runtime_deps.cmake"
             COMMENT "Deploying Qt runtime for ${target_name}"
             VERBATIM)
 endfunction()
