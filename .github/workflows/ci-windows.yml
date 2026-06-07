@@ -108,6 +108,8 @@ jobs:
             "mingw-w64-${TOOLCHAIN}-openssl"
             "mingw-w64-${TOOLCHAIN}-opus"
             "mingw-w64-${TOOLCHAIN}-toolchain"
+            "mingw-w64-${TOOLCHAIN}-qt6-base"
+            "mingw-w64-${TOOLCHAIN}-qt6-svg"
           )
 
           if [[ "${MATRIX_MSYSTEM}" == "ucrt64" ]]; then
