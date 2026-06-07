@@ -272,14 +272,23 @@ jobs:
             echo "${linkage}"
             echo "::endgroup::"
 
-            unexpected_for_binary="$(awk '
+            binary_dir="$(dirname "${binary}")"
+            unexpected_for_binary="$(awk -v binary_dir="${binary_dir}" '
               BEGIN { IGNORECASE = 1 }
               $1 == "zlib1.dll" { next }
               $1 ~ /^minhook-detours\..*\.dll$/ { next }
               $1 ~ /^api-ms-win-/ { next }
               $1 ~ /^ext-ms-win-/ { next }
-              $0 ~ /=>[[:space:]]+not found/ { print }
-              $0 ~ /=>[[:space:]]+\/(clangarm64|clang64|mingw32|mingw64|ucrt64)\/bin\// { print }
+              $0 ~ /=>[[:space:]]+not found/ { print; next }
+              $0 ~ /=>[[:space:]]+\/(clangarm64|clang64|mingw32|mingw64|ucrt64)\/bin\// {
+                deployed_dll = binary_dir "/" $1
+                if ((getline _ < deployed_dll) >= 0) {
+                  close(deployed_dll)
+                  next
+                }
+                close(deployed_dll)
+                print
+              }
             ' <<< "${linkage}")"
 
             if [[ -n "${unexpected_for_binary}" ]]; then
