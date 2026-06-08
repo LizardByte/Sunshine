@@ -15,6 +15,7 @@ on:
 env:
   BRANCH: ${{ github.head_ref || github.ref_name }}
   BUILD_VERSION: ${{ inputs.release_version }}
+  PYTHON_VERSION: '3.14'
   COMMIT: ${{ inputs.release_commit }}
   FREEBSD_CLANG_VERSION: 19
 
@@ -73,7 +74,7 @@ jobs:
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           submodules: recursive
 
@@ -90,7 +91,7 @@ jobs:
         with:
           arch: ${{ matrix.arch }}
           cpu: ${{ steps.processor_count.outputs.PROCESSOR_COUNT }}
-          envs: 'BRANCH BUILD_VERSION COMMIT'
+          envs: 'BRANCH BUILD_VERSION COMMIT PYTHON_VERSION'
           # TODO: there is no libcap for freebsd... we need graphics/libdrm if we find a way to use libcap
           # TODO: docs are off because doxygen is too old: https://www.freshports.org/devel/doxygen/ must be >= 1.10
           prepare: |
@@ -142,7 +143,10 @@ jobs:
           release: ${{ matrix.bsd_release }}
           run: |
             set -e
-            uv sync --locked --group glad --group test --python /usr/local/bin/python3.14 \
+            uv sync --locked --only-group glad --python "/usr/local/bin/python${PYTHON_VERSION}" \
+              --no-python-downloads --no-install-project
+            uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+              --python "/usr/local/bin/python${PYTHON_VERSION}" \
               --no-python-downloads --no-install-project
 
             # fix git safe.directory issues
@@ -255,7 +259,7 @@ jobs:
         shell: freebsd {0}
         run: |
           cd "${GITHUB_WORKSPACE}/build"
-          uv run --locked --no-sync python -m gcovr . -r ../src \
+          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
