@@ -191,7 +191,7 @@ const KeyCodeMap kKeyCodesMap[] = {
   { 0xA1 /* VKEY_RSHIFT */,                    kVK_RightShift          },
   { 0xA2 /* VKEY_LCONTROL */,                  kVK_Control             },
   { 0xA3 /* VKEY_RCONTROL */,                  kVK_RightControl        },
-  { 0xA4 /* VKEY_LMENU */,                     kVK_Option              },
+  { 0xA4 /* VKEY_LMENU */,                     kVK_Command             },
   { 0xA5 /* VKEY_RMENU */,                     kVK_RightOption         },
   { 0xA6 /* VKEY_BROWSER_BACK */,              -1                      },
   { 0xA7 /* VKEY_BROWSER_FORWARD */,           -1                      },
