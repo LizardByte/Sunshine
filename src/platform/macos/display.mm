@@ -7,9 +7,9 @@
 #include "src/logging.h"
 #include "src/platform/common.h"
 #include "src/platform/macos/av_img_t.h"
-#include "src/platform/macos/av_video.h"
 #include "src/platform/macos/misc.h"
 #include "src/platform/macos/nv12_zero_device.h"
+#include "src/platform/macos/sckit_video.h"
 
 // Avoid conflict between AVFoundation and libavutil both defining AVMediaType
 #define AVMediaType AVMediaType_FFmpeg
@@ -22,15 +22,15 @@ namespace platf {
   using namespace std::literals;
 
   struct av_display_t: public display_t {
-    AVVideo *av_capture {};
+    SCKitVideo *capture_backend {};
     CGDirectDisplayID display_id {};
 
     ~av_display_t() override {
-      [av_capture release];
+      [capture_backend release];
     }
 
     capture_e capture(const push_captured_image_cb_t &push_captured_image_cb, const pull_free_image_cb_t &pull_free_image_cb, bool *cursor) override {
-      auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
+      auto signal = [capture_backend capture:^(CMSampleBufferRef sampleBuffer) {
         auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
         auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
 
@@ -56,6 +56,7 @@ namespace platf {
         img_out->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
         img_out->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
         img_out->pixel_pitch = img_out->row_pitch / img_out->width;
+        img_out->frame_timestamp = std::chrono::steady_clock::now();
 
         old_data_retainer = nullptr;
 
@@ -80,13 +81,13 @@ namespace platf {
 
     std::unique_ptr<avcodec_encode_device_t> make_avcodec_encode_device(pix_fmt_e pix_fmt) override {
       if (pix_fmt == pix_fmt_e::yuv420p) {
-        av_capture.pixelFormat = kCVPixelFormatType_32BGRA;
+        capture_backend.pixelFormat = kCVPixelFormatType_32BGRA;
 
         return std::make_unique<avcodec_encode_device_t>();
       } else if (pix_fmt == pix_fmt_e::nv12 || pix_fmt == pix_fmt_e::p010) {
         auto device = std::make_unique<nv12_zero_device>();
 
-        device->init(static_cast<void *>(av_capture), pix_fmt, setResolution, setPixelFormat);
+        device->init(static_cast<void *>(capture_backend), pix_fmt, setResolution, setPixelFormat);
 
         return device;
       } else {
@@ -96,41 +97,94 @@ namespace platf {
     }
 
     int dummy_img(img_t *img) override {
-      if (!platf::is_screen_capture_allowed()) {
-        // If we don't have the screen capture permission, this function will hang
-        // indefinitely without doing anything useful. Exit instead to avoid this.
-        // A non-zero return value indicates failure to the calling function.
+      auto av_img = (av_img_t *) img;
+      const auto width = capture_backend.frameWidth;
+      const auto height = capture_backend.frameHeight;
+      const auto pixel_format = capture_backend.pixelFormat;
+
+      CVPixelBufferRef pixel_buffer = nullptr;
+      NSDictionary *attributes = @{
+        (id) kCVPixelBufferIOSurfacePropertiesKey: @{}
+      };
+      auto status = CVPixelBufferCreate(
+        kCFAllocatorDefault,
+        width,
+        height,
+        pixel_format,
+        (CFDictionaryRef) attributes,
+        &pixel_buffer
+      );
+      if (status != kCVReturnSuccess || pixel_buffer == nullptr) {
+        BOOST_LOG(error) << "Failed to allocate macOS dummy pixel buffer: " << status;
         return 1;
       }
 
-      auto signal = [av_capture capture:^(CMSampleBufferRef sampleBuffer) {
-        auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sampleBuffer);
-        auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
+      CVPixelBufferLockBaseAddress(pixel_buffer, 0);
+      if (CVPixelBufferIsPlanar(pixel_buffer)) {
+        for (size_t plane = 0; plane < CVPixelBufferGetPlaneCount(pixel_buffer); ++plane) {
+          auto base = static_cast<uint8_t *>(CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, plane));
+          auto bytes_per_row = CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, plane);
+          auto plane_height = CVPixelBufferGetHeightOfPlane(pixel_buffer, plane);
+          memset(base, plane == 0 ? 0x00 : 0x80, bytes_per_row * plane_height);
+        }
+      } else {
+        auto base = static_cast<uint8_t *>(CVPixelBufferGetBaseAddress(pixel_buffer));
+        auto bytes_per_row = CVPixelBufferGetBytesPerRow(pixel_buffer);
+        memset(base, 0x00, bytes_per_row * height);
+      }
+      CVPixelBufferUnlockBaseAddress(pixel_buffer, 0);
 
-        auto av_img = (av_img_t *) img;
+      CMVideoFormatDescriptionRef format_description = nullptr;
+      auto cm_status = CMVideoFormatDescriptionCreateForImageBuffer(kCFAllocatorDefault, pixel_buffer, &format_description);
+      if (cm_status != noErr || format_description == nullptr) {
+        BOOST_LOG(error) << "Failed to create macOS dummy video format description: " << cm_status;
+        CVPixelBufferRelease(pixel_buffer);
+        return 1;
+      }
 
-        auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(
-          av_img->sample_buffer,
-          av_img->pixel_buffer,
-          img->data
-        );
+      CMSampleTimingInfo timing_info {};
+      timing_info.duration = kCMTimeInvalid;
+      timing_info.presentationTimeStamp = kCMTimeZero;
+      timing_info.decodeTimeStamp = kCMTimeInvalid;
 
-        av_img->sample_buffer = new_sample_buffer;
-        av_img->pixel_buffer = new_pixel_buffer;
-        img->data = new_pixel_buffer->data();
+      CMSampleBufferRef sample_buffer = nullptr;
+      cm_status = CMSampleBufferCreateReadyWithImageBuffer(
+        kCFAllocatorDefault,
+        pixel_buffer,
+        format_description,
+        &timing_info,
+        &sample_buffer
+      );
+      CFRelease(format_description);
+      CVPixelBufferRelease(pixel_buffer);
 
-        img->width = (int) CVPixelBufferGetWidth(new_pixel_buffer->buf);
-        img->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
-        img->row_pitch = (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
-        img->pixel_pitch = img->row_pitch / img->width;
+      if (cm_status != noErr || sample_buffer == nullptr) {
+        BOOST_LOG(error) << "Failed to create macOS dummy sample buffer: " << cm_status;
+        return 1;
+      }
 
-        old_data_retainer = nullptr;
+      auto new_sample_buffer = std::make_shared<av_sample_buf_t>(sample_buffer);
+      auto new_pixel_buffer = std::make_shared<av_pixel_buf_t>(new_sample_buffer->buf);
+      CFRelease(sample_buffer);
 
-        // returning false here stops capture backend
-        return false;
-      }];
+      auto old_data_retainer = std::make_shared<temp_retain_av_img_t>(
+        av_img->sample_buffer,
+        av_img->pixel_buffer,
+        img->data
+      );
 
-      dispatch_semaphore_wait(signal, DISPATCH_TIME_FOREVER);
+      av_img->sample_buffer = new_sample_buffer;
+      av_img->pixel_buffer = new_pixel_buffer;
+      img->data = new_pixel_buffer->data();
+
+      img->width = (int) CVPixelBufferGetWidth(new_pixel_buffer->buf);
+      img->height = (int) CVPixelBufferGetHeight(new_pixel_buffer->buf);
+      img->row_pitch = CVPixelBufferIsPlanar(new_pixel_buffer->buf) ?
+        (int) CVPixelBufferGetBytesPerRowOfPlane(new_pixel_buffer->buf, 0) :
+        (int) CVPixelBufferGetBytesPerRow(new_pixel_buffer->buf);
+      img->pixel_pitch = img->row_pitch / img->width;
+
+      old_data_retainer = nullptr;
 
       return 0;
     }
@@ -143,11 +197,12 @@ namespace platf {
      * height --> the intended capture height
      */
     static void setResolution(void *display, int width, int height) {
-      [static_cast<AVVideo *>(display) setFrameWidth:width frameHeight:height];
+      BOOST_LOG(info) << "ScreenCaptureKit encoder requested capture size " << width << "x" << height;
+      [static_cast<SCKitVideo *>(display) setFrameWidth:width frameHeight:height];
     }
 
     static void setPixelFormat(void *display, OSType pixelFormat) {
-      static_cast<AVVideo *>(display).pixelFormat = pixelFormat;
+      static_cast<SCKitVideo *>(display).pixelFormat = pixelFormat;
     }
   };
 
@@ -163,7 +218,7 @@ namespace platf {
     display->display_id = CGMainDisplayID();
 
     // Print all displays available with it's name and id
-    auto display_array = [AVVideo displayNames];
+    auto display_array = [SCKitVideo displayNames];
     BOOST_LOG(info) << "Detecting displays"sv;
     for (NSDictionary *item in display_array) {
       NSNumber *display_id = item[@"id"];
@@ -177,18 +232,25 @@ namespace platf {
     }
     BOOST_LOG(info) << "Configuring selected display ("sv << display->display_id << ") to stream"sv;
 
-    display->av_capture = [[AVVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
+    display->capture_backend = [[SCKitVideo alloc] initWithDisplay:display->display_id frameRate:config.framerate];
 
-    if (!display->av_capture) {
+    if (!display->capture_backend) {
       BOOST_LOG(error) << "Video setup failed."sv;
       return nullptr;
     }
 
-    display->width = display->av_capture.frameWidth;
-    display->height = display->av_capture.frameHeight;
+    display->width = display->capture_backend.frameWidth;
+    display->height = display->capture_backend.frameHeight;
     // We also need set env_width and env_height for absolute mouse coordinates
     display->env_width = display->width;
     display->env_height = display->height;
+
+    if (config.width > 0 && config.height > 0) {
+      BOOST_LOG(info) << "ScreenCaptureKit capture target for display " << display->display_id
+                      << " source=" << display->width << "x" << display->height
+                      << " client=" << config.width << "x" << config.height;
+      [display->capture_backend setFrameWidth:config.width frameHeight:config.height];
+    }
 
     return display;
   }
@@ -196,7 +258,7 @@ namespace platf {
   std::vector<std::string> display_names(mem_type_e hwdevice_type) {
     __block std::vector<std::string> display_names;
 
-    auto display_array = [AVVideo displayNames];
+    auto display_array = [SCKitVideo displayNames];
 
     display_names.reserve([display_array count]);
     [display_array enumerateObjectsUsingBlock:^(NSDictionary *_Nonnull obj, NSUInteger idx, BOOL *_Nonnull stop) {

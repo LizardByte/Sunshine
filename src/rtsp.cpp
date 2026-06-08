@@ -1025,6 +1025,31 @@ namespace rtsp_stream {
       config.monitor.width = (int) util::from_view(args.at("x-nv-video[0].clientViewportWd"sv));
       config.monitor.framerate = (int) util::from_view(args.at("x-nv-video[0].maxFPS"sv));
       config.monitor.framerateX100 = (int) util::from_view(args.at("x-nv-video[0].clientRefreshRateX100"sv));
+
+#ifdef __APPLE__
+      if (config::nvhttp.sunshine_name == "LAPTOP") {
+        auto old_width = config.monitor.width;
+        auto old_height = config.monitor.height;
+        auto old_framerate = config.monitor.framerate;
+        config.monitor.framerate = std::min(config.monitor.framerate, 60);
+        config.monitor.framerateX100 = 0;
+        BOOST_LOG(info) << "macOS stream policy [LAPTOP]: client requested "
+                        << old_width << "x" << old_height << "@" << old_framerate
+                        << ", using " << config.monitor.width << "x" << config.monitor.height
+                        << "@" << config.monitor.framerate;
+      } else if (config::nvhttp.sunshine_name == "SAMSUNG") {
+        auto old_width = config.monitor.width;
+        auto old_height = config.monitor.height;
+        auto old_framerate = config.monitor.framerate;
+        config.monitor.framerate = 120;
+        config.monitor.framerateX100 = 0;
+        BOOST_LOG(info) << "macOS stream policy [SAMSUNG]: client requested "
+                        << old_width << "x" << old_height << "@" << old_framerate
+                        << ", using " << config.monitor.width << "x" << config.monitor.height
+                        << "@" << config.monitor.framerate;
+      }
+#endif
+
       // Validate framerateX100 against framerate. Some clients (e.g. Moonlight Android) send the
       // client display's refresh rate as clientRefreshRateX100, which may differ from the requested
       // streaming framerate. Discard framerateX100 if the derived fps is not within 1% of framerate.
