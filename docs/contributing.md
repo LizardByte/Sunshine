@@ -128,23 +128,25 @@ any of the following paths are modified.
 ```
 
 When testing locally, it may be desirable to manually extract, initialize, update, and compile strings. Python and
-uv are required for this, along with the Python dependencies in the `./pyproject.toml` file. You can install these
-with the following command.
+uv are required for this, along with the Python dependencies in the `third-party/lizardbyte-common/pyproject.toml`
+file. You can install these with the following command.
 
 ```bash
-uv sync --only-group locale
+uv sync --project third-party/lizardbyte-common --locked --only-group locale --no-install-project
 ```
 
 Additionally, [xgettext](https://www.gnu.org/software/gettext) must be installed.
 
 * Extract, initialize, and update
   ```bash
-  uv run --no-sync python ./scripts/_locale.py --extract --init --update
+  uv run --project third-party/lizardbyte-common --locked --no-sync \
+    python third-party/lizardbyte-common/scripts/localize.py --root-dir . --extract --init --update
   ```
 
 * Compile
   ```bash
-  uv run --no-sync python ./scripts/_locale.py --compile
+  uv run --project third-party/lizardbyte-common --locked --no-sync \
+    python third-party/lizardbyte-common/scripts/localize.py --root-dir . --compile
   ```
 
 > [!IMPORTANT]
@@ -160,7 +162,8 @@ Source code is tested against the `.clang-format` file for linting errors.
 
 To apply clang-format locally (will modify files):
 ```bash
-uv run --no-sync --only-group lint python ./scripts/update_clang_format.py
+uv run --project third-party/lizardbyte-common --locked --only-group lint-c \
+  python third-party/lizardbyte-common/scripts/update_clang_format.py
 ```
 
 #### Unit Testing

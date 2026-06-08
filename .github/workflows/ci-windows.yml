@@ -69,7 +69,7 @@ jobs:
             toolchain: clang-aarch64
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
         with:
           submodules: recursive
 
@@ -204,7 +204,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
         with:
           enable-cache: true
 
@@ -214,7 +214,9 @@ jobs:
           MSYS2_PATH_TYPE: inherit
           UV_PYTHON: ${{ steps.setup-python.outputs.python-path }}
         run: |
-          uv sync --locked --only-group test --no-python-downloads --no-install-project
+          uv sync --project third-party/lizardbyte-common --locked --only-group test-c \
+            --no-python-downloads \
+            --no-install-project
 
       - name: Build Windows
         shell: msys2 {0}
@@ -367,7 +369,7 @@ jobs:
         env:
           MSYS2_PATH_TYPE: inherit
         run: |
-          uv run --locked --no-sync python -m gcovr . -r ../src \
+          uv run --project ../third-party/lizardbyte-common --locked --no-sync gcovr . -r ../src \
             --exclude-noncode-lines \
             --exclude-throw-branches \
             --exclude-unreachable-branches \
