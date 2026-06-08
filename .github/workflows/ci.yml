@@ -226,7 +226,7 @@ jobs:
           - name: Homebrew-macos-26
             coverage: false
             pr: true
-          - name: Homebrew-ubuntu-22.04
+          - name: Homebrew-ubuntu-24.04
             coverage: true
             pr: true
           - name: Windows-AMD64
