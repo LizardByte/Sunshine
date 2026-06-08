@@ -170,23 +170,83 @@ namespace platf::keyboard {
     }
   }
 
+  /**
+   * US-layout map of printable ASCII -> {Moonlight/Windows VK code, needs Shift}.
+   *
+   * Lets us inject printable ASCII as real US-layout keystrokes instead of the
+   * IBus/GTK "Ctrl+Shift+U + hex codepoint" entry method used below. That method
+   * is only honored by IBus-enabled apps; in Chrome, KDE, Wayland-native apps and
+   * password fields the leading Ctrl chord is interpreted as a shortcut (e.g.
+   * Ctrl+U) and corrupts/clears the target field. Mobile soft keyboards (Gboard)
+   * commit symbols like '@' as UTF-8 text, so this path is hit in normal typing.
+   */
+  static const std::map<char32_t, std::pair<short, bool>> ascii_to_vk = {
+    {U' ', {0x20, false}},
+    {U'0', {0x30, false}}, {U'1', {0x31, false}}, {U'2', {0x32, false}}, {U'3', {0x33, false}}, {U'4', {0x34, false}},
+    {U'5', {0x35, false}}, {U'6', {0x36, false}}, {U'7', {0x37, false}}, {U'8', {0x38, false}}, {U'9', {0x39, false}},
+    {U')', {0x30, true}}, {U'!', {0x31, true}}, {U'@', {0x32, true}}, {U'#', {0x33, true}}, {U'$', {0x34, true}},
+    {U'%', {0x35, true}}, {U'^', {0x36, true}}, {U'&', {0x37, true}}, {U'*', {0x38, true}}, {U'(', {0x39, true}},
+    {U'a', {0x41, false}}, {U'b', {0x42, false}}, {U'c', {0x43, false}}, {U'd', {0x44, false}}, {U'e', {0x45, false}},
+    {U'f', {0x46, false}}, {U'g', {0x47, false}}, {U'h', {0x48, false}}, {U'i', {0x49, false}}, {U'j', {0x4A, false}},
+    {U'k', {0x4B, false}}, {U'l', {0x4C, false}}, {U'm', {0x4D, false}}, {U'n', {0x4E, false}}, {U'o', {0x4F, false}},
+    {U'p', {0x50, false}}, {U'q', {0x51, false}}, {U'r', {0x52, false}}, {U's', {0x53, false}}, {U't', {0x54, false}},
+    {U'u', {0x55, false}}, {U'v', {0x56, false}}, {U'w', {0x57, false}}, {U'x', {0x58, false}}, {U'y', {0x59, false}},
+    {U'z', {0x5A, false}},
+    {U'A', {0x41, true}}, {U'B', {0x42, true}}, {U'C', {0x43, true}}, {U'D', {0x44, true}}, {U'E', {0x45, true}},
+    {U'F', {0x46, true}}, {U'G', {0x47, true}}, {U'H', {0x48, true}}, {U'I', {0x49, true}}, {U'J', {0x4A, true}},
+    {U'K', {0x4B, true}}, {U'L', {0x4C, true}}, {U'M', {0x4D, true}}, {U'N', {0x4E, true}}, {U'O', {0x4F, true}},
+    {U'P', {0x50, true}}, {U'Q', {0x51, true}}, {U'R', {0x52, true}}, {U'S', {0x53, true}}, {U'T', {0x54, true}},
+    {U'U', {0x55, true}}, {U'V', {0x56, true}}, {U'W', {0x57, true}}, {U'X', {0x58, true}}, {U'Y', {0x59, true}},
+    {U'Z', {0x5A, true}},
+    {U';', {0xBA, false}}, {U':', {0xBA, true}},
+    {U'=', {0xBB, false}}, {U'+', {0xBB, true}},
+    {U',', {0xBC, false}}, {U'<', {0xBC, true}},
+    {U'-', {0xBD, false}}, {U'_', {0xBD, true}},
+    {U'.', {0xBE, false}}, {U'>', {0xBE, true}},
+    {U'/', {0xBF, false}}, {U'?', {0xBF, true}},
+    {U'`', {0xC0, false}}, {U'~', {0xC0, true}},
+    {U'[', {0xDB, false}}, {U'{', {0xDB, true}},
+    {U'\\', {0xDC, false}}, {U'|', {0xDC, true}},
+    {U']', {0xDD, false}}, {U'}', {0xDD, true}},
+    {U'\'', {0xDE, false}}, {U'"', {0xDE, true}}
+  };
+
   void unicode(input_raw_t *raw, char *utf8, int size) {
-    if (raw->keyboard) {
-      /* Reading input text as UTF-8 */
-      auto utf8_str = boost::locale::conv::to_utf<wchar_t>(utf8, utf8 + size, "UTF-8");
-      /* Converting to UTF-32 */
-      auto utf32_str = boost::locale::conv::utf_to_utf<char32_t>(utf8_str);
-      /* To HEX string */
-      auto hex_unicode = to_hex(utf32_str);
+    if (!raw->keyboard) {
+      return;
+    }
+
+    /* Reading input text as UTF-8, then converting to UTF-32 */
+    auto utf8_str = boost::locale::conv::to_utf<wchar_t>(utf8, utf8 + size, "UTF-8");
+    auto utf32_str = boost::locale::conv::utf_to_utf<char32_t>(utf8_str);
+
+    for (const auto &codepoint : utf32_str) {
+      /* Fast path: inject printable ASCII as a real US-layout keystroke, avoiding
+         the IBus Ctrl+Shift+U method below (unsupported in many apps, where it
+         corrupts the target field). */
+      if (auto it = ascii_to_vk.find(codepoint); it != ascii_to_vk.end()) {
+        auto [vk, needs_shift] = it->second;
+        if (needs_shift) {
+          (*raw->keyboard).press(0xA0);  // LEFTSHIFT
+        }
+        (*raw->keyboard).press(vk);
+        (*raw->keyboard).release(vk);
+        if (needs_shift) {
+          (*raw->keyboard).release(0xA0);  // LEFTSHIFT
+        }
+        continue;
+      }
+
+      /* Fallback for non-ASCII (emoji, accented chars, ...): type the codepoint
+         via the IBus/GTK <CTRL>+<SHIFT>+U hex-entry method. */
+      auto hex_unicode = to_hex(std::basic_string<char32_t>(1, codepoint));
       BOOST_LOG(debug) << "Unicode, typing U+"sv << hex_unicode;
 
-      /* pressing <CTRL> + <SHIFT> + U */
       (*raw->keyboard).press(0xA2);  // LEFTCTRL
       (*raw->keyboard).press(0xA0);  // LEFTSHIFT
       (*raw->keyboard).press(0x55);  // U
       (*raw->keyboard).release(0x55);  // U
 
-      /* input each HEX character */
       for (auto &ch : hex_unicode) {
         auto key_str = "KEY_"s + ch;
         auto keycode = libevdev_event_code_from_name(EV_KEY, key_str.c_str());
@@ -199,7 +259,6 @@ namespace platf::keyboard {
         }
       }
 
-      /* releasing <SHIFT> and <CTRL> */
       (*raw->keyboard).release(0xA0);  // LEFTSHIFT
       (*raw->keyboard).release(0xA2);  // LEFTCTRL
     }
