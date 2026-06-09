@@ -45,7 +45,7 @@ jobs:
           - os_name: "macos"
             os_version: "26"
           - os_name: "ubuntu"
-            os_version: "22.04"
+            os_version: "24.04"
           - os_name: "ubuntu"
             os_version: "latest"
             release: true  # this job will only configure the formula for release, no validation
