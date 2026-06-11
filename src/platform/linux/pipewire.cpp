@@ -807,11 +807,11 @@ namespace pipewire {
       // calculate frame interval we should capture at
       framerate = config.framerate;
       delay = ::video::capture_frame_interval(config);
-      if (config.framerateX100 > 0) {
-        AVRational fps_strict = ::video::framerateX100_to_rational(config.framerateX100);
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
+      const AVRational fps = ::video::framerate_to_rational(config);
+      if (fps.den != 1) {
+        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "/" << fps.den << ", approx. " << av_q2d(fps) << " fps]";
       } else {
-        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << framerate << "fps]";
+        BOOST_LOG(info) << "[pipewire] Requested frame rate [" << fps.num << "fps]";
       }
       mem_type = hwdevice_type;
 

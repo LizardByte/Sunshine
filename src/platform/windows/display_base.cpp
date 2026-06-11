@@ -728,7 +728,7 @@ namespace platf::dxgi {
     client_frame_rate = config.framerate;
     client_frame_rate_strict = {0, 0};
     if (config.framerateX100 > 0) {
-      AVRational fps = ::video::framerateX100_to_rational(config.framerateX100);
+      const AVRational fps = ::video::framerate_to_rational(config);
       client_frame_rate_strict = DXGI_RATIONAL {static_cast<UINT>(fps.num), static_cast<UINT>(fps.den)};
     }
 
