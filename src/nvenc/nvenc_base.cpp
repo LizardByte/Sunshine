@@ -222,13 +222,9 @@ namespace nvenc {
     init_params.darWidth = encoder_params.width;
     init_params.encodeHeight = encoder_params.height;
     init_params.darHeight = encoder_params.height;
-    init_params.frameRateNum = client_config.framerate;
-    init_params.frameRateDen = 1;
-    if (client_config.framerateX100 > 0) {
-      AVRational fps = video::framerateX100_to_rational(client_config.framerateX100);
-      init_params.frameRateNum = fps.num;
-      init_params.frameRateDen = fps.den;
-    }
+    const AVRational fps = video::framerate_to_rational(client_config);
+    init_params.frameRateNum = fps.num;
+    init_params.frameRateDen = fps.den;
 
     if (client_config.videoFormat > 0 && get_encoder_cap(NV_ENC_CAPS_NUM_ENCODER_ENGINES) > 1) {
       // SFE supports HEVC/AV1 if you have more than 1 nvenc block
