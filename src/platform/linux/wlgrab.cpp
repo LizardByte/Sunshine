@@ -54,12 +54,7 @@ namespace wl {
         );
         BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << fps_strict.num << "/" << fps_strict.den << ", approx. " << av_q2d(fps_strict) << " fps]";
       } else {
-        delay = std::chrono::nanoseconds {1s} / config.framerate;
-        if (config.framerateX100 > 0) {
-          // Use exactly the requested rate if the client sent an X100 value
-          AVRational fps = ::video::framerateX100_to_rational(config.framerateX100);
-          delay = std::chrono::nanoseconds {std::chrono::nanoseconds {1s}.count() * fps.den / fps.num};
-        }
+        delay = ::video::capture_frame_interval(config);
         BOOST_LOG(info) << "[wlgrab] Requested frame rate [" << config.framerate << "fps]";
       }
 
