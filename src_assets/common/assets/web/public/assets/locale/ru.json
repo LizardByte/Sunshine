@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Вручную укажите виртуальное аудиоустройство. Если не указано, то устройство будет выбрано автоматически. Крайне рекомендуем оставить это поле пустым!",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "Кодировщик VideoToolbox",
-    "vt_realtime": "Кодирование в реальном времени через VideoToolbox",
     "vt_software": "Программное кодирование через VideoToolbox",
     "vt_software_allowed": "Разрешено",
     "vt_software_forced": "Принудительно",

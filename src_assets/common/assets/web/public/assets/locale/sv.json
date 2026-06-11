@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Ange manuellt en virtuell ljudenhet som ska användas. Om enheten inte är inställd väljs enheten automatiskt. Vi rekommenderar starkt att lämna detta fält tomt för att använda automatiskt val av enhet!",
     "virtual_sink_placeholder": "Steam-strömmande högtalare",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox Kodning i realtid",
     "vt_software": "VideoToolbox programvara kodning",
     "vt_software_allowed": "Tillåten",
     "vt_software_forced": "Tvingad",

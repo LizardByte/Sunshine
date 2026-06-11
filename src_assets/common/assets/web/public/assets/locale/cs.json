@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Ručně zadejte virtuální zvukové zařízení, které chcete použít. Pokud není nastaveno, je zařízení vybráno automaticky. Důrazně doporučujeme ponechat toto pole prázdné, chcete-li použít automatický výběr zařízení!",
     "virtual_sink_placeholder": "Streamovací reproduktory služby Steam",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox Kódování v reálném čase",
     "vt_software": "Kódování softwaru VideoToolbox",
     "vt_software_allowed": "Povoleno",
     "vt_software_forced": "Vynucené",

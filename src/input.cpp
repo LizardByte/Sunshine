@@ -449,7 +449,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_REL_MOUSE_MOVE_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin relative mouse move packet--"sv << std::endl
       << "deltaX ["sv << util::endian::big(packet->deltaX) << ']' << std::endl
       << "deltaY ["sv << util::endian::big(packet->deltaY) << ']' << std::endl
@@ -462,7 +462,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_ABS_MOUSE_MOVE_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin absolute mouse move packet--"sv << std::endl
       << "x      ["sv << util::endian::big(packet->x) << ']' << std::endl
       << "y      ["sv << util::endian::big(packet->y) << ']' << std::endl
@@ -477,7 +477,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_MOUSE_BUTTON_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin mouse button packet--"sv << std::endl
       << "action ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
       << "button ["sv << util::hex(packet->button).to_string_view() << ']' << std::endl
@@ -490,7 +490,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_SCROLL_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin mouse scroll packet--"sv << std::endl
       << "scrollAmt1 ["sv << util::endian::big(packet->scrollAmt1) << ']' << std::endl
       << "--end mouse scroll packet--"sv;
@@ -502,7 +502,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PSS_HSCROLL_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin mouse hscroll packet--"sv << std::endl
       << "scrollAmount ["sv << util::endian::big(packet->scrollAmount) << ']' << std::endl
       << "--end mouse hscroll packet--"sv;
@@ -514,7 +514,7 @@ namespace input {
    * @param packet Protocol packet being processed.
    */
   void print(PNV_KEYBOARD_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin keyboard packet--"sv << std::endl
       << "keyAction ["sv << util::hex(packet->header.magic).to_string_view() << ']' << std::endl
       << "keyCode ["sv << util::hex(packet->keyCode).to_string_view() << ']' << std::endl
@@ -530,7 +530,7 @@ namespace input {
    */
   void print(PNV_UNICODE_PACKET packet) {
     std::string text(packet->text, util::endian::big(packet->header.size) - sizeof(packet->header.magic));
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin unicode packet--"sv << std::endl
       << "text ["sv << text << ']' << std::endl
       << "--end unicode packet--"sv;
@@ -562,7 +562,7 @@ namespace input {
    * @param packet The touch packet.
    */
   void print(PSS_TOUCH_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin touch packet--"sv << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
       << "pointerId ["sv << util::hex(packet->pointerId).to_string_view() << ']' << std::endl
@@ -580,7 +580,7 @@ namespace input {
    * @param packet The pen packet.
    */
   void print(PSS_PEN_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin pen packet--"sv << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl
       << "toolType ["sv << util::hex(packet->toolType).to_string_view() << ']' << std::endl
@@ -600,7 +600,7 @@ namespace input {
    * @param packet The controller arrival packet.
    */
   void print(PSS_CONTROLLER_ARRIVAL_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin controller arrival packet--"sv << std::endl
       << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
       << "type ["sv << util::hex(packet->type).to_string_view() << ']' << std::endl
@@ -614,7 +614,7 @@ namespace input {
    * @param packet The controller touch packet.
    */
   void print(PSS_CONTROLLER_TOUCH_PACKET packet) {
-    BOOST_LOG(debug)
+    BOOST_LOG(verbose)
       << "--begin controller touch packet--"sv << std::endl
       << "controllerNumber ["sv << (uint32_t) packet->controllerNumber << ']' << std::endl
       << "eventType ["sv << util::hex(packet->eventType).to_string_view() << ']' << std::endl

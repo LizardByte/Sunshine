@@ -4,12 +4,11 @@
  */
 #pragma once
 
-// platform includes
 #include <CoreMedia/CoreMedia.h>
 #include <CoreVideo/CoreVideo.h>
 
-// local includes
 #include "src/platform/common.h"
+#include "src/platform/macos/cf_helpers.h"
 
 namespace platf {
   /**
@@ -38,19 +37,20 @@ namespace platf {
    * @brief CoreVideo pixel buffer retained by an AV image wrapper.
    */
   struct av_pixel_buf_t {
-    CVPixelBufferRef buf;  ///< Pixel buffer extracted from the sample buffer.
+    CVPixelBufferRef buf;
+    bool usingSoftwareEncode;
 
     // Constructor
-    /**
-     * @brief Lock the sample buffer's pixel buffer for read-only access.
-     *
-     * @param sb Sample buffer that owns the image data.
-     */
     explicit av_pixel_buf_t(CMSampleBufferRef sb):
-        buf(
-          CMSampleBufferGetImageBuffer(sb)
-        ) {
-      CVPixelBufferLockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
+        buf(CMSampleBufferGetImageBuffer(sb)) {
+      if (buf != nullptr) {
+        CVPixelBufferRetain(buf);
+        // BGRA pixel format means we're using software encoding and need locking
+        usingSoftwareEncode = CVPixelBufferGetPixelFormatType(buf) == kCVPixelFormatType_32BGRA;
+        if (usingSoftwareEncode) {
+          CVPixelBufferLockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
+        }
+      }
     }
 
     /**
@@ -65,7 +65,10 @@ namespace platf {
     // Destructor
     ~av_pixel_buf_t() {
       if (buf != nullptr) {
-        CVPixelBufferUnlockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
+        if (usingSoftwareEncode) {
+          CVPixelBufferUnlockBaseAddress(buf, kCVPixelBufferLock_ReadOnly);
+        }
+        CVPixelBufferRelease(buf);
       }
     }
   };

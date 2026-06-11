@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Kullanılacak sanal ses cihazını manuel olarak belirleyin. Ayarlanmamışsa, cihaz otomatik olarak seçilir. Otomatik cihaz seçimini kullanmak için bu alanı boş bırakmanızı şiddetle tavsiye ederiz!",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "VideoToolbox Kodlayıcı",
-    "vt_realtime": "VideoToolbox Gerçek Zamanlı Kodlama",
     "vt_software": "VideoToolbox Yazılım Kodlaması",
     "vt_software_allowed": "İzin verildi",
     "vt_software_forced": "Zorla",

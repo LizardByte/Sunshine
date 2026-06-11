@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Chỉ định thủ công thiết bị âm thanh ảo để sử dụng. Nếu không được thiết lập, thiết bị sẽ được chọn tự động. Chúng tôi khuyến nghị mạnh mẽ để để trống trường này để sử dụng tính năng chọn thiết bị tự động!",
     "virtual_sink_placeholder": "Loa phát trực tuyến Steam",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox Mã hóa thời gian thực",
     "vt_software": "Phần mềm VideoToolbox cho mã hóa video",
     "vt_software_allowed": "Được phép",
     "vt_software_forced": "Bắt buộc",

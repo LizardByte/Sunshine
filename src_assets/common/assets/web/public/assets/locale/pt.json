@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Especifique manualmente um dispositivo de áudio virtual para usar. Se não for definido, o dispositivo é escolhido automaticamente. Recomendamos fortemente deixar este campo em branco para usar a seleção automática de dispositivo!",
     "virtual_sink_placeholder": "Alto-falantes de streaming Steam",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "Codificação em Tempo Real VideoToolbox",
     "vt_software": "Codificação VideoToolbox Software",
     "vt_software_allowed": "Permitido",
     "vt_software_forced": "Forçado",

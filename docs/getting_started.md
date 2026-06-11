@@ -402,6 +402,9 @@ brew uninstall sunshine
 > [!IMPORTANT]
 > Sunshine on macOS is experimental. Gamepads do not work.
 
+> [!NOTE]
+> Sunshine requires macOS 12.3 (Monterey) or newer for screen capture via ScreenCaptureKit.
+
 #### DMG
 
 ##### Install

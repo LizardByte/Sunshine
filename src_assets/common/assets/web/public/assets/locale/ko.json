@@ -464,7 +464,6 @@
     "virtual_sink_desc": "사용할 가상 오디오 장치를 수동으로 지정합니다. 설정하지 않으면 자동으로 장치가 선택됩니다. 자동으로 장치를 선택할려면 이 칸을 비우는 것을 권장드립니다.",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "비디오 툴박스 코더",
-    "vt_realtime": "비디오툴박스 실시간 인코딩",
     "vt_software": "비디오툴박스 소프트웨어 인코딩",
     "vt_software_allowed": "허용됨",
     "vt_software_forced": "강제",

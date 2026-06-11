@@ -321,7 +321,7 @@ namespace platf {
   }];
   BOOST_LOG(debug) << "Configured audio output with settings: "sv << sampleRate << "Hz, "sv << (int) channels << " channels, 32-bit float"sv;
 
-  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+  dispatch_queue_attr_t qos = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INTERACTIVE, DISPATCH_QUEUE_PRIORITY_HIGH);
   dispatch_queue_t recordingQueue = dispatch_queue_create("audioSamplingQueue", qos);
 
   [audioOutput setSampleBufferDelegate:self queue:recordingQueue];

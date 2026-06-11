@@ -464,7 +464,6 @@
     "virtual_sink_desc": "手動指定要使用的虛擬音訊裝置。如果未設定，則會自動選擇裝置。我們強烈建議將此欄位留空，以使用自動裝置選擇！",
     "virtual_sink_placeholder": "Steam 串流喇叭",
     "vt_coder": "VideoToolbox 編碼器",
-    "vt_realtime": "VideoToolbox 即時編碼",
     "vt_software": "VideoToolbox 軟體編碼",
     "vt_software_allowed": "允許",
     "vt_software_forced": "強制",

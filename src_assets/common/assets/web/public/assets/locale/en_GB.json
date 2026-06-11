@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Manually specify a virtual audio device to use. If unset, the device is chosen automatically. We strongly recommend leaving this field blank to use automatic device selection!",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox Realtime Encoding",
     "vt_software": "VideoToolbox Software Encoding",
     "vt_software_allowed": "Allowed",
     "vt_software_forced": "Forced",

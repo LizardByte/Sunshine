@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Kézileg megadható egy virtuális hangeszköz a használathoz. Ha nincs beállítva, az eszköz automatikusan kerül kiválasztásra. Erősen ajánljuk, hogy hagyd ezt a mezőt üresen az automatikus eszközválasztáshoz!",
     "virtual_sink_placeholder": "Steam streamelési hangszórók",
     "vt_coder": "VideoToolbox kódoló",
-    "vt_realtime": "VideoToolbox valós idejű kódolás",
     "vt_software": "VideoToolbox szoftveres kódolás",
     "vt_software_allowed": "Engedélyezett",
     "vt_software_forced": "Kényszerített",

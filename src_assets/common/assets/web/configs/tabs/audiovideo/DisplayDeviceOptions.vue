@@ -259,6 +259,26 @@ function addRemappingEntry() {
     <template #linux>
     </template>
     <template #macos>
-    </template>
+        <!-- Disable macOS V-Sync while streaming -->
+        <Checkbox class="mb-3"
+                  id="macos_disable_vsync"
+                  locale-prefix="config"
+                  v-model="config.macos_disable_vsync"
+                  default="true"
+        ></Checkbox>
+
+        <!-- HDR Capture Dynamic Range -->
+        <div class="mb-3">
+          <label for="macos_capture_dynamic_range" class="form-label">
+            {{ $t('config.macos_capture_dynamic_range') }}
+          </label>
+          <select id="macos_capture_dynamic_range" class="form-select" v-model="config.macos_capture_dynamic_range">
+            <option value="hdr_canonical">{{ $t('config.macos_capture_dynamic_range_hdr_canonical') }}</option>
+            <option value="hdr_local">{{ $t('config.macos_capture_dynamic_range_hdr_local') }}</option>
+            <option value="sdr">{{ $t('config.macos_capture_dynamic_range_sdr') }}</option>
+          </select>
+          <div class="form-text">{{ $t('config.macos_capture_dynamic_range_desc') }}</div>
+        </div>
+      </template>
   </PlatformLayout>
 </template>

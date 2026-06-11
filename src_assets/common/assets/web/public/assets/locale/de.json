@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Legen Sie ein virtuelles Audiogerät manuell fest. Wenn nicht gesetzt, wird das Gerät automatisch ausgewählt. Wir empfehlen dringend, dieses Feld leer zu lassen, um die automatische Geräteauswahl zu verwenden!",
     "virtual_sink_placeholder": "Steam Streaming Lautsprecher",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox Echtzeit-Codierung",
     "vt_software": "VideoToolbox Software Encoding",
     "vt_software_allowed": "Zulässig",
     "vt_software_forced": "Erzwungen",

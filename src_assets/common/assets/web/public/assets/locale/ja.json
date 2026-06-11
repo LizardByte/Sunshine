@@ -464,7 +464,6 @@
     "virtual_sink_desc": "使用する仮想オーディオデバイスを手動で指定します。未設定の場合は、デバイスが自動的に選択されます。 自動デバイス選択を使用するには、このフィールドを空白のままにすることを強くお勧めします!",
     "virtual_sink_placeholder": "Steamストリーミングスピーカー",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "VideoToolbox リアルタイムエンコーディング",
     "vt_software": "VideoToolbox ソフトウェアエンコーディング",
     "vt_software_allowed": "許可",
     "vt_software_forced": "強制的に",

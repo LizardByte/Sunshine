@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Ręczne określenie używanego wirtualnego urządzenia audio. Jeśli nie jest ustawione, urządzenie zostanie wybrane automatycznie. Zdecydowanie zalecamy pozostawienie tego pola pustego, aby korzystać z automatycznego wyboru urządzenia!",
     "virtual_sink_placeholder": "Głośniki do strumieniowania Steam",
     "vt_coder": "Koder VideoToolbox",
-    "vt_realtime": "Kodowanie w czasie rzeczywistym VideoToolbox",
     "vt_software": "Kodowanie oprogramowania VideoToolbox",
     "vt_software_allowed": "Dozwolone",
     "vt_software_forced": "Wymuszone",

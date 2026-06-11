@@ -35,6 +35,10 @@
   #include <Windows.h>
 #endif
 
+#ifdef __APPLE__
+  #include "platform/macos/sck_picker.h"
+#endif
+
 // local includes
 #include "config.h"
 #include "confighttp.h"
@@ -514,20 +518,20 @@ namespace confighttp {
    * @param request The HTTP request object.
    */
   void print_req(const req_https_t &request) {
-    BOOST_LOG(debug) << "METHOD :: "sv << request->method;
-    BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+    BOOST_LOG(verbose) << "METHOD :: "sv << request->method;
+    BOOST_LOG(verbose) << "DESTINATION :: "sv << request->path;
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
+      BOOST_LOG(verbose) << name << " -- " << (name == "Authorization" ? "CREDENTIALS REDACTED" : val);
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
 
     for (auto &[name, val] : request->parse_query_string()) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(verbose) << name << " -- " << val;
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
   }
 
   /**
@@ -2127,6 +2131,57 @@ namespace confighttp {
   }
 
   /**
+   * @brief Launch the macOS ScreenCaptureKit content sharing picker for the active capture stream.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/sck-picker| POST| null}
+   */
+  void launchSckPicker(const resp_https_t &response, const req_https_t &request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    print_req(request);
+
+    nlohmann::json output_tree;
+
+#ifdef __APPLE__
+    // The picker UI opens on the host's own display, so it is only useful (and only
+    // allowed) when the Web UI is being viewed on the host itself.
+    auto address = net::addr_to_normalized_string(request->remote_endpoint().address());
+    if (net::from_address(address) != net::PC) {
+      output_tree["status"] = false;
+      output_tree["error"] = "The content picker can only be launched from localhost";
+      send_response(response, output_tree);
+      return;
+    }
+
+    if (sck_picker_available()) {
+      if (sck_present_picker()) {
+        output_tree["status"] = true;
+      } else {
+        output_tree["status"] = false;
+        output_tree["error"] = "No active capture stream. Start a Moonlight session first.";
+      }
+    } else {
+      output_tree["status"] = false;
+      output_tree["error"] = "The content picker is only available in macOS 14+.";
+    }
+#else
+    output_tree["status"] = false;
+    output_tree["error"] = "The content picker is only available on macOS";
+#endif
+
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Checks whether a directory entry qualifies as an executable file.
    * @param entry The directory entry to check.
    * @param status The cached file status for the entry.
@@ -2371,6 +2426,7 @@ namespace confighttp {
     server.resource["^/api/reset-display-device-persistence$"]["POST"] = resetDisplayDevicePersistence;
     server.resource["^/api/reset-portal-token$"]["POST"] = resetPortalToken;
     server.resource["^/api/restart$"]["POST"] = restart;
+    server.resource["^/api/sck-picker$"]["POST"] = launchSckPicker;
     server.resource["^/api/virtual-input/license$"]["GET"] = getVirtualInputLicense;
     server.resource["^/api/virtual-input/license$"]["POST"] = updateVirtualInputLicense;
     server.resource["^/api/virtual-input/status$"]["GET"] = getVirtualInputStatus;

@@ -464,7 +464,6 @@
     "virtual_sink_desc": "Spécifiez manuellement un périphérique audio virtuel à utiliser. Si non défini, le périphérique est choisi automatiquement. Nous vous recommandons fortement de laisser ce champ vide pour utiliser la sélection automatique de l'appareil !",
     "virtual_sink_placeholder": "Steam Streaming Speakers",
     "vt_coder": "VideoToolbox Coder",
-    "vt_realtime": "Encodage en temps réel de VideoToolbox",
     "vt_software": "Encodage du logiciel VideoToolbox",
     "vt_software_allowed": "Autorisé",
     "vt_software_forced": "Forcé",
