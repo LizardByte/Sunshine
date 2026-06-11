@@ -284,6 +284,22 @@ namespace video {
     }
   };
 
+  struct encoder_platform_formats_videotoolbox: encoder_platform_formats_t {
+    encoder_platform_formats_videotoolbox(
+      const platf::mem_type_e &dev_type,
+      const platf::pix_fmt_e &pix_fmt_8bit,
+      const platf::pix_fmt_e &pix_fmt_10bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_8bit,
+      const platf::pix_fmt_e &pix_fmt_yuv444_10bit
+    ) {
+      encoder_platform_formats_t::dev_type = dev_type;
+      encoder_platform_formats_t::pix_fmt_8bit = pix_fmt_8bit;
+      encoder_platform_formats_t::pix_fmt_10bit = pix_fmt_10bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_8bit = pix_fmt_yuv444_8bit;
+      encoder_platform_formats_t::pix_fmt_yuv444_10bit = pix_fmt_yuv444_10bit;
+    }
+  };
+
   /**
    * @brief Encoder name and feature flags advertised by Sunshine.
    */
@@ -340,7 +356,7 @@ namespace video {
       option_t(const option_t &) = default;
 
       std::string name;  ///< Encoder command-line option name.
-      std::variant<int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *, std::function<const std::string(const config_t &)>> value;  ///< Literal, pointer, or callback that supplies the option value.
+      std::variant<bool, int, int *, std::optional<int> *, std::function<int()>, std::string, std::string *, std::function<const std::string(const config_t &)>> value;  ///< Literal, pointer, or callback that supplies the option value.
 
       /**
        * @brief Store a named encoder option and its value source.
@@ -530,7 +546,8 @@ namespace video {
     std::vector<replace_t> *replacements = nullptr;  ///< Optional encoded-byte substitutions applied before packetization.
     void *channel_data = nullptr;  ///< Platform or protocol state carried with this packet.
     bool after_ref_frame_invalidation = false;  ///< Whether the frame follows reference-frame invalidation.
-    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp associated with the frame.
+    std::optional<std::chrono::steady_clock::time_point> capture_pacing_timestamp;  ///< Timestamp frame was captured, used for pacing.
+    std::optional<std::chrono::steady_clock::time_point> frame_timestamp;  ///< Capture timestamp before encoding, used for Host Processing Latency.
   };
 
   /**
@@ -724,6 +741,11 @@ namespace video {
    * @return 0 when a usable encoder is selected; nonzero when probing fails.
    */
   int probe_encoders();
+
+  /**
+   * @brief Anchor start point used for RTP timestamps.
+   */
+  std::chrono::steady_clock::time_point video_epoch();
 
   // Several NTSC standard refresh rates are hardcoded here, because their
   // true rate requires a denominator of 1001. ffmpeg's av_d2q() would assume it could

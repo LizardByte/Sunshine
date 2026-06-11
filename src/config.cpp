@@ -552,21 +552,28 @@ namespace config {
       return 0;
     }
 
+  }  // namespace vt
+
+  namespace macos {
     /**
-     * @brief Parse the VideoToolbox realtime encoder flag.
+     * @brief Parse the ScreenCaptureKit capture dynamic range from configuration text.
      *
-     * @param rt Real-time encoder usage selector.
+     * @param value Configuration text from the capture dynamic range setting.
      * @return Parsed enum value, or the setting-specific default when the text is unknown.
      */
-    int rt_from_view(const std::string_view &rt) {
-      if (rt == "disabled" || rt == "off" || rt == "0") {
-        return 0;
-      }
-
-      return 1;
+    video_t::capture_dynamic_range_macos_e capture_dynamic_range_from_view(const std::string_view value) {
+#ifndef DOXYGEN
+  #define _CONVERT_(x) \
+    if (value == #x##sv) \
+    return video_t::capture_dynamic_range_macos_e::x
+#endif
+      _CONVERT_(sdr);
+      _CONVERT_(hdr_canonical);
+      _CONVERT_(hdr_local);
+#undef _CONVERT_
+      return video_t::capture_dynamic_range_macos_e::hdr_canonical;  // Default to this if value is invalid
     }
-
-  }  // namespace vt
+  }  // namespace macos
 
   namespace sw {
     /**
@@ -759,10 +766,9 @@ namespace config {
     },  // amd
 
     {
-      0,
-      0,
-      1,
-      -1,
+      1,  // vt_allow_sw
+      0,  // vt_require_sw
+      -1,  // vt_coder
     },  // vt
 
     {
@@ -778,6 +784,9 @@ namespace config {
       2,  // vk.rc_mode (default: cbr)
       2,  // vk.quality (default: 2 = balanced, 1 = speed, 3 = quality)
     },
+
+    true,  // disable_vsync_macos
+    video_t::capture_dynamic_range_macos_e::hdr_canonical,  // capture_dynamic_range_macos
 
     {},  // capture
     false,  // fp16_sdr_gamma_encoded
@@ -1680,9 +1689,11 @@ namespace config {
     }
 
     int_f(vars, "vt_coder", video.vt.vt_coder, vt::coder_from_view);
+    bool_f(vars, "disable_vsync_macos", video.disable_vsync_macos);
+    generic_f(vars, "capture_dynamic_range_macos", video.capture_dynamic_range_macos, macos::capture_dynamic_range_from_view);
+
     int_f(vars, "vt_software", video.vt.vt_allow_sw, vt::allow_software_from_view);
     int_f(vars, "vt_software", video.vt.vt_require_sw, vt::force_software_from_view);
-    int_f(vars, "vt_realtime", video.vt.vt_realtime, vt::rt_from_view);
 
     std::string vaapi_quality;
     string_f(vars, "vaapi_quality", vaapi_quality);
