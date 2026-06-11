@@ -156,10 +156,24 @@ namespace wl {
     std::int32_t height,
     std::int32_t refresh
   ) {
-    viewport.width = width;
-    viewport.height = height;
-
     BOOST_LOG(info) << "[wayland] Resolution: "sv << width << 'x' << height;
+
+    // wl_output.mode is emitted for every advertised mode. Capture sizing must
+    // follow the compositor's current mode, otherwise we can latch onto a stale
+    // supported mode and force endless reinit from frame-size mismatches.
+    if (flags & WL_OUTPUT_MODE_CURRENT) {
+      viewport.width = width;
+      viewport.height = height;
+      has_current_mode = true;
+      return;
+    }
+
+    // Keep a conservative fallback for compositors that may omit the current
+    // bit during early enumeration, but never overwrite a known current mode.
+    if (!has_current_mode && viewport.width == 0 && viewport.height == 0) {
+      viewport.width = width;
+      viewport.height = height;
+    }
   }
 
   void monitor_t::listen(zxdg_output_manager_v1 *output_manager) {
