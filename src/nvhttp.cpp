@@ -939,22 +939,22 @@ namespace nvhttp {
    */
   template<class T>
   void print_req(std::shared_ptr<typename SimpleWeb::ServerBase<T>::Request> request) {
-    BOOST_LOG(debug) << "TUNNEL :: "sv << tunnel<T>::to_string;
+    BOOST_LOG(verbose) << "TUNNEL :: "sv << tunnel<T>::to_string;
 
-    BOOST_LOG(debug) << "METHOD :: "sv << request->method;
-    BOOST_LOG(debug) << "DESTINATION :: "sv << request->path;
+    BOOST_LOG(verbose) << "METHOD :: "sv << request->method;
+    BOOST_LOG(verbose) << "DESTINATION :: "sv << request->path;
 
     for (auto &[name, val] : request->header) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(verbose) << name << " -- " << val;
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
 
     for (auto &[name, val] : request->parse_query_string()) {
-      BOOST_LOG(debug) << name << " -- " << val;
+      BOOST_LOG(verbose) << name << " -- " << val;
     }
 
-    BOOST_LOG(debug) << " [--] "sv;
+    BOOST_LOG(verbose) << " [--] "sv;
   }
 
   /**
@@ -1684,7 +1684,7 @@ namespace nvhttp {
 
         X509_NAME_oneline(X509_get_subject_name(x509.get()), subject_name.data(), subject_name.size());
 
-        BOOST_LOG(debug) << subject_name.data() << " -- "sv << (verified ? "verified"sv : "denied"sv);
+        BOOST_LOG(verbose) << subject_name.data() << " -- "sv << (verified ? "verified"sv : "denied"sv);
       });
 
       std::lock_guard lock {client_auth_mutex()};
