@@ -232,6 +232,13 @@ namespace platf::dxgi {
 
     virtual bool is_hdr() override;
     virtual bool get_hdr_metadata(SS_HDR_METADATA &metadata) override;
+    // Returns true when the capture source delivers FP16 storage with already
+    // gamma-encoded (sRGB) values, as happens with Windows 11 Auto Color
+    // Management (ACM) when an SDR application is displayed on an SDR monitor.
+    // In this case the linear shader path must NOT apply ApplySRGBCurve again
+    // (otherwise highlights are doubly encoded → white-out).
+    // Distinct from is_hdr() which checks for PQ HDR (G2084).
+    bool is_source_gamma_encoded_fp16();
 
     const char *dxgi_format_to_string(DXGI_FORMAT format);
     const char *colorspace_to_string(DXGI_COLOR_SPACE_TYPE type);
