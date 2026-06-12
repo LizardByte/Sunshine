@@ -38,6 +38,10 @@
 #include "httpcommon.h"
 #include "logging.h"
 #include "network.h"
+
+#ifdef _WIN32
+  #include "platform/windows/vdd_control.h"
+#endif
 #include "nvhttp.h"
 #include "platform/common.h"
 #include "process.h"
@@ -1056,17 +1060,24 @@ namespace confighttp {
     ss << request->content.rdbuf();
     try {
       // TODO: Input Validation
-      std::stringstream config_stream;
       nlohmann::json output_tree;
       nlohmann::json input_tree = nlohmann::json::parse(ss);
+
+      // Merge into existing config: read current file, update with POST values,
+      // write back. This preserves keys (like vdd_display_configs) that are
+      // managed outside the web UI.
+      auto vars = config::parse_config(file_handler::read_file(config::sunshine.config_file.c_str()));
       for (const auto &[k, v] : input_tree.items()) {
         if (v.is_null() || (v.is_string() && v.get<std::string>().empty())) {
+          vars.erase(k);
           continue;
         }
+        vars[k] = v.is_string() ? v.get<std::string>() : v.dump();
+      }
 
-        // v.dump() will dump valid json, which we do not want for strings in the config, right now
-        // we should migrate the config file to straight JSON and get rid of all this nonsense
-        config_stream << k << " = " << (v.is_string() ? v.get<std::string>() : v.dump()) << std::endl;
+      std::stringstream config_stream;
+      for (const auto &[k, v] : vars) {
+        config_stream << k << " = " << v << '\n';
       }
       file_handler::write_file(config::sunshine.config_file.c_str(), config_stream.str());
       output_tree["status"] = true;
@@ -1535,6 +1546,239 @@ namespace confighttp {
   }
 
   /**
+   * @brief Get the VDD virtual display status.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vdd/status| GET| null}
+   */
+  void getVddStatus(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    // Auto-initialize if needed to report accurate driver status
+    if (!vdd::is_initialized()) {
+      vdd::init();
+    }
+
+    nlohmann::json output_tree;
+    output_tree["status"] = true;
+    output_tree["initialized"] = vdd::is_initialized();
+    output_tree["driver_ok"] = vdd::get_driver_status() == vdd::DriverStatus::OK;
+    output_tree["driver_version"] = vdd::get_driver_version();
+
+    auto displays = vdd::get_displays();
+    auto display_list = nlohmann::json::array();
+    for (const auto &d : displays) {
+      display_list.push_back({
+        {"index", d.index},
+        {"identifier", d.identifier},
+        {"width", d.width},
+        {"height", d.height},
+        {"hz", d.hz},
+        {"device_name", d.device_name}
+      });
+    }
+    output_tree["displays"] = display_list;
+    output_tree["display_count"] = display_list.size();
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Add a virtual display.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vdd/add| POST| {"width": 1920, "height": 1080, "hz": 144}}
+   */
+  void addVddDisplay(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    nlohmann::json output_tree;
+
+    if (!vdd::is_initialized() && !vdd::init()) {
+      output_tree["status"] = false;
+      output_tree["error"] = "VDD driver not available";
+      send_response(response, output_tree);
+      return;
+    }
+
+    try {
+      auto input = nlohmann::json::parse(request->content);
+      int width = input.value("width", 1920);
+      int height = input.value("height", 1080);
+      int hz = input.value("hz", 144);
+
+      // Validate ranges
+      if (width < 320 || width > 7680) {
+        output_tree["status"] = false;
+        output_tree["error"] = "Width must be between 320 and 7680";
+        send_response(response, output_tree);
+        return;
+      }
+      if (height < 240 || height > 4320) {
+        output_tree["status"] = false;
+        output_tree["error"] = "Height must be between 240 and 4320";
+        send_response(response, output_tree);
+        return;
+      }
+      if (hz < 30 || hz > 240) {
+        output_tree["status"] = false;
+        output_tree["error"] = "Refresh rate must be between 30 and 240";
+        send_response(response, output_tree);
+        return;
+      }
+
+      int idx = vdd::add_display(width, height, hz);
+      output_tree["status"] = idx >= 0;
+      if (idx >= 0) {
+        output_tree["success"] = true;
+        output_tree["index"] = idx;
+      } else {
+        output_tree["success"] = false;
+        output_tree["error"] = std::format("VDD driver returned error (idx={}). Check Sunshine logs for details.", idx);
+      }
+    } catch (const nlohmann::json::exception &e) {
+      output_tree["status"] = false;
+      output_tree["error"] = e.what();
+    }
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Remove a virtual display.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vdd/remove| POST| {"index": 0}}
+   */
+  void removeVddDisplay(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
+    if (!check_content_type(response, request, "application/json")) {
+      return;
+    }
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    nlohmann::json output_tree;
+
+    // Auto-initialize if needed
+    if (!vdd::is_initialized()) {
+      vdd::init();
+    }
+
+    try {
+      auto input = nlohmann::json::parse(request->content);
+      int index = input.value("index", -1);
+
+      bool result = false;
+      if (index >= 0) {
+        result = vdd::remove_display(index);
+      } else {
+        result = vdd::remove_last_display();
+      }
+
+      output_tree["status"] = result;
+      output_tree["success"] = result;
+    } catch (const nlohmann::json::exception &e) {
+      output_tree["status"] = false;
+      output_tree["error"] = e.what();
+    }
+
+    send_response(response, output_tree);
+  }
+
+  /**
+   * @brief Remove all virtual displays.
+   * @param response The HTTP response object.
+   * @param request The HTTP request object.
+   *
+   * @api_examples{/api/vdd/remove-all| POST| null}
+   */
+  void removeAllVddDisplays(const resp_https_t &response, const req_https_t &request) {
+#ifndef _WIN32
+    nlohmann::json output_tree;
+    output_tree["status"] = false;
+    output_tree["error"] = "Virtual display is only supported on Windows";
+    send_response(response, output_tree);
+    return;
+#endif
+    if (!authenticate(response, request)) {
+      return;
+    }
+
+    print_req(request);
+
+    std::string client_id = get_client_id(request);
+    if (!validate_csrf_token(response, request, client_id)) {
+      return;
+    }
+
+    nlohmann::json output_tree;
+
+    // Auto-initialize if needed
+    if (!vdd::is_initialized()) {
+      vdd::init();
+    }
+
+    if (!vdd::is_initialized()) {
+      output_tree["status"] = false;
+      output_tree["error"] = "VDD driver not available";
+    } else {
+      vdd::remove_all_displays();
+      output_tree["status"] = true;
+      output_tree["success"] = true;
+    }
+
+    send_response(response, output_tree);
+  }
+
+  /**
    * @brief Checks whether a directory entry qualifies as an executable file.
    * @param entry The directory entry to check.
    * @param status The cached file status for the entry.
@@ -1787,6 +2031,11 @@ namespace confighttp {
     server.resource["^/api/restart$"]["POST"] = restart;
     server.resource["^/api/vigembus/status$"]["GET"] = getViGEmBusStatus;
     server.resource["^/api/vigembus/install$"]["POST"] = installViGEmBus;
+
+    server.resource["^/api/vdd/status$"]["GET"] = getVddStatus;
+    server.resource["^/api/vdd/add$"]["POST"] = addVddDisplay;
+    server.resource["^/api/vdd/remove$"]["POST"] = removeVddDisplay;
+    server.resource["^/api/vdd/remove-all$"]["POST"] = removeAllVddDisplays;
 
     // static/dynamic resources
     server.resource["^/images/sunshine.ico$"]["GET"] = getFaviconImage;
