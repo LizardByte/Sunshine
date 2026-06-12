@@ -116,7 +116,9 @@ void mainThreadLoop(const std::shared_ptr<safe::event_t<bool>> &shutdown_event) 
 
   // Main thread event loop
   BOOST_LOG(info) << "Starting main loop"sv;
+#if defined SUNSHINE_TRAY && SUNSHINE_TRAY >= 1
   while (system_tray::process_tray_events() == 0);
+#endif
   BOOST_LOG(info) << "Main loop has exited"sv;
 }
 
