@@ -7,6 +7,7 @@
 #include <atomic>
 #include <bitset>
 #include <list>
+#include <map>
 #include <thread>
 
 // lib includes
@@ -30,6 +31,11 @@ extern "C" {
 #include "platform/common.h"
 #include "sync.h"
 #include "video.h"
+
+#ifdef __APPLE__
+  #include "platform/macos/av_img_t.h"
+  #include <VideoToolbox/VideoToolbox.h>
+#endif
 
 #ifdef _WIN32
 extern "C" {
@@ -305,6 +311,295 @@ namespace video {
     FIXED_GOP_SIZE = 1 << 12,  ///< Use fixed small GOP size (encoder doesn't support on-demand IDR frames)
   };
 
+#ifdef __APPLE__
+  static CFNumberRef native_vt_i32(int value) {
+    return CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &value);
+  }
+
+  static void native_vt_set_i32(VTCompressionSessionRef session, CFStringRef key, int value) {
+    auto number = native_vt_i32(value);
+    if (number) {
+      VTSessionSetProperty(session, key, number);
+      CFRelease(number);
+    }
+  }
+
+  static void native_vt_append_start_code(std::vector<uint8_t> &out) {
+    out.push_back(0x00);
+    out.push_back(0x00);
+    out.push_back(0x00);
+    out.push_back(0x01);
+  }
+
+  static void native_vt_append_parameter_sets(CMFormatDescriptionRef format, bool hevc, std::vector<uint8_t> &out, int &nal_header_length) {
+    if (!format) {
+      return;
+    }
+
+    size_t parameter_set_count = 0;
+    nal_header_length = 4;
+
+    auto append_one = [&](size_t index) {
+      const uint8_t *parameter_set = nullptr;
+      size_t parameter_set_size = 0;
+      size_t count = 0;
+      int header_length = nal_header_length;
+      OSStatus status = hevc ?
+                          CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(format, index, &parameter_set, &parameter_set_size, &count, &header_length) :
+                          CMVideoFormatDescriptionGetH264ParameterSetAtIndex(format, index, &parameter_set, &parameter_set_size, &count, &header_length);
+      if (status == noErr && parameter_set && parameter_set_size > 0) {
+        parameter_set_count = count;
+        nal_header_length = header_length > 0 ? header_length : nal_header_length;
+        native_vt_append_start_code(out);
+        out.insert(std::end(out), parameter_set, parameter_set + parameter_set_size);
+      }
+    };
+
+    append_one(0);
+    for (size_t i = 1; i < parameter_set_count; ++i) {
+      append_one(i);
+    }
+  }
+
+  static std::vector<uint8_t> native_vt_sample_to_annex_b(CMSampleBufferRef sample, bool hevc, bool keyframe) {
+    std::vector<uint8_t> out;
+    auto format = CMSampleBufferGetFormatDescription(sample);
+    int nal_header_length = 4;
+
+    if (keyframe) {
+      native_vt_append_parameter_sets(format, hevc, out, nal_header_length);
+    }
+
+    auto block = CMSampleBufferGetDataBuffer(sample);
+    if (!block) {
+      return out;
+    }
+
+    size_t block_size = CMBlockBufferGetDataLength(block);
+    std::vector<uint8_t> bytes(block_size);
+    if (CMBlockBufferCopyDataBytes(block, 0, block_size, bytes.data()) != noErr) {
+      return {};
+    }
+
+    size_t offset = 0;
+    while (offset + nal_header_length <= block_size) {
+      uint32_t nal_size = 0;
+      for (int i = 0; i < nal_header_length; ++i) {
+        nal_size = (nal_size << 8) | bytes[offset + i];
+      }
+      offset += nal_header_length;
+
+      if (nal_size == 0 || offset + nal_size > block_size) {
+        break;
+      }
+
+      native_vt_append_start_code(out);
+      out.insert(std::end(out), std::begin(bytes) + offset, std::begin(bytes) + offset + nal_size);
+      offset += nal_size;
+    }
+
+    return out;
+  }
+
+  class native_vt_encode_session_t: public encode_session_t {
+  public:
+    native_vt_encode_session_t(config_t config, sunshine_colorspace_t colorspace):
+        config {config},
+        colorspace {colorspace},
+        hevc {config.videoFormat == 1} {
+      auto codec = hevc ? kCMVideoCodecType_HEVC : kCMVideoCodecType_H264;
+
+      CFMutableDictionaryRef source_attrs = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+      if (source_attrs) {
+        auto pixel_format = kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
+        auto format_number = native_vt_i32((int) pixel_format);
+        auto width_number = native_vt_i32(config.width);
+        auto height_number = native_vt_i32(config.height);
+        CFMutableDictionaryRef io_surface = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        if (format_number) {
+          CFDictionarySetValue(source_attrs, kCVPixelBufferPixelFormatTypeKey, format_number);
+        }
+        if (width_number) {
+          CFDictionarySetValue(source_attrs, kCVPixelBufferWidthKey, width_number);
+        }
+        if (height_number) {
+          CFDictionarySetValue(source_attrs, kCVPixelBufferHeightKey, height_number);
+        }
+        if (io_surface) {
+          CFDictionarySetValue(source_attrs, kCVPixelBufferIOSurfacePropertiesKey, io_surface);
+        }
+        if (format_number) {
+          CFRelease(format_number);
+        }
+        if (width_number) {
+          CFRelease(width_number);
+        }
+        if (height_number) {
+          CFRelease(height_number);
+        }
+        if (io_surface) {
+          CFRelease(io_surface);
+        }
+      }
+
+      auto status = VTCompressionSessionCreate(
+        kCFAllocatorDefault,
+        config.width,
+        config.height,
+        codec,
+        nullptr,
+        source_attrs,
+        kCFAllocatorDefault,
+        output_callback,
+        this,
+        &session
+      );
+      if (source_attrs) {
+        CFRelease(source_attrs);
+      }
+
+      if (status != noErr || !session) {
+        BOOST_LOG(error) << "Native VideoToolbox session create failed: " << status;
+        return;
+      }
+
+      VTSessionSetProperty(session, kVTCompressionPropertyKey_RealTime, kCFBooleanTrue);
+      VTSessionSetProperty(session, kVTCompressionPropertyKey_AllowFrameReordering, kCFBooleanFalse);
+      VTSessionSetProperty(session, kVTCompressionPropertyKey_PrioritizeEncodingSpeedOverQuality, kCFBooleanTrue);
+      VTSessionSetProperty(session, kVTCompressionPropertyKey_MaximizePowerEfficiency, kCFBooleanFalse);
+      VTSessionSetProperty(session, kVTCompressionPropertyKey_ProfileLevel, hevc ? kVTProfileLevel_HEVC_Main_AutoLevel : kVTProfileLevel_H264_High_AutoLevel);
+      if (!hevc) {
+        VTSessionSetProperty(session, kVTCompressionPropertyKey_H264EntropyMode, kVTH264EntropyMode_CABAC);
+      }
+      native_vt_set_i32(session, kVTCompressionPropertyKey_AverageBitRate, config.bitrate * 1000);
+      native_vt_set_i32(session, kVTCompressionPropertyKey_ExpectedFrameRate, config.framerate);
+      native_vt_set_i32(session, kVTCompressionPropertyKey_MaxKeyFrameInterval, config.framerate * 60);
+      native_vt_set_i32(session, kVTCompressionPropertyKey_MaxFrameDelayCount, 1);
+      native_vt_set_i32(session, kVTCompressionPropertyKey_ReferenceBufferCount, 1);
+
+      status = VTCompressionSessionPrepareToEncodeFrames(session);
+      if (status != noErr) {
+        BOOST_LOG(error) << "Native VideoToolbox session prepare failed: " << status;
+        CFRelease(session);
+        session = nullptr;
+        return;
+      }
+
+      ready = true;
+      BOOST_LOG(info) << "Native VideoToolbox encoder ready codec=" << (hevc ? "hevc" : "h264")
+                      << " size=" << config.width << "x" << config.height
+                      << " fps=" << config.framerate
+                      << " bitrate=" << (config.bitrate * 1000);
+    }
+
+    ~native_vt_encode_session_t() override {
+      if (session) {
+        VTCompressionSessionCompleteFrames(session, kCMTimeIndefinite);
+        VTCompressionSessionInvalidate(session);
+        CFRelease(session);
+      }
+      if (current_pixel) {
+        CVPixelBufferRelease(current_pixel);
+      }
+    }
+
+    int convert(platf::img_t &img) override {
+      auto *av_img = dynamic_cast<platf::av_img_t *>(&img);
+      if (!av_img || !av_img->pixel_buffer || !av_img->pixel_buffer->buf) {
+        return -1;
+      }
+
+      auto new_pixel = (CVPixelBufferRef) CFRetain(av_img->pixel_buffer->buf);
+      if (current_pixel) {
+        CVPixelBufferRelease(current_pixel);
+      }
+      current_pixel = new_pixel;
+      return 0;
+    }
+
+    void request_idr_frame() override {
+      force_idr = true;
+    }
+
+    void request_normal_frame() override {
+      force_idr = false;
+    }
+
+    void invalidate_ref_frames(int64_t first_frame, int64_t last_frame) override {
+      force_idr = true;
+    }
+
+    bool is_ready() const {
+      return ready;
+    }
+
+    struct frame_ref_t {
+      native_vt_encode_session_t *owner;
+      safe::mail_raw_t::queue_t<packet_t> packets;
+      void *channel_data;
+      int64_t frame_nr;
+      std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+    };
+
+    static bool sample_is_keyframe(CMSampleBufferRef sample) {
+      CFArrayRef attachments_array = CMSampleBufferGetSampleAttachmentsArray(sample, false);
+      if (attachments_array && CFArrayGetCount(attachments_array) > 0) {
+        auto attachments = (CFDictionaryRef) CFArrayGetValueAtIndex(attachments_array, 0);
+        if (attachments && CFDictionaryContainsKey(attachments, kCMSampleAttachmentKey_NotSync)) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    static void output_callback(void *outputCallbackRefCon, void *sourceFrameRefCon, OSStatus status, VTEncodeInfoFlags flags, CMSampleBufferRef sampleBuffer) {
+      std::unique_ptr<frame_ref_t> frame_ref {static_cast<frame_ref_t *>(sourceFrameRefCon)};
+      auto *owner = static_cast<native_vt_encode_session_t *>(outputCallbackRefCon);
+      if (!owner || !frame_ref) {
+        return;
+      }
+
+      if (status != noErr || !sampleBuffer || !CMSampleBufferDataIsReady(sampleBuffer)) {
+        owner->failed_packets++;
+        BOOST_LOG(error) << "Native VideoToolbox encode callback failed status=" << status << " flags=" << flags;
+        return;
+      }
+
+      bool keyframe = sample_is_keyframe(sampleBuffer);
+      auto data = native_vt_sample_to_annex_b(sampleBuffer, owner->hevc, keyframe);
+      if (data.empty()) {
+        owner->failed_packets++;
+        BOOST_LOG(error) << "Native VideoToolbox produced an empty Annex-B frame";
+        return;
+      }
+
+      auto packet = std::make_unique<packet_raw_generic>(std::move(data), frame_ref->frame_nr, keyframe);
+      packet->channel_data = frame_ref->channel_data;
+      packet->frame_timestamp = frame_ref->frame_timestamp;
+      frame_ref->packets->raise(std::move(packet));
+      owner->output_packets++;
+      if (keyframe) {
+        owner->key_packets++;
+      }
+    }
+
+    config_t config;
+    sunshine_colorspace_t colorspace;
+    bool hevc;
+    bool ready = false;
+    bool force_idr = false;
+    VTCompressionSessionRef session = nullptr;
+    CVPixelBufferRef current_pixel = nullptr;
+
+    std::chrono::steady_clock::time_point last_rate_report {std::chrono::steady_clock::now()};
+    std::uint64_t input_frames = 0;
+    std::atomic<std::uint64_t> output_packets {0};
+    std::atomic<std::uint64_t> key_packets {0};
+    std::atomic<std::uint64_t> failed_packets {0};
+    std::chrono::steady_clock::duration encode_call_time {};
+  };
+#endif
+
   class avcodec_encode_session_t: public encode_session_t {
   public:
     avcodec_encode_session_t() = default;
@@ -380,6 +675,20 @@ namespace video {
 
     // inject sps/vps data into idr pictures
     int inject;
+
+    std::chrono::steady_clock::time_point last_rate_report {std::chrono::steady_clock::now()};
+    std::uint64_t input_frames = 0;
+    std::uint64_t output_packets = 0;
+    std::uint64_t no_output_returns = 0;
+    std::uint64_t key_packets = 0;
+    std::uint64_t pts_matches = 0;
+    std::uint64_t pts_mismatches = 0;
+    std::uint64_t duplicate_bypass_packets = 0;
+    bool duplicate_bypass_enabled = false;
+    std::map<int64_t, std::optional<std::chrono::steady_clock::time_point>> pending_frame_timestamps;
+    std::vector<uint8_t> last_non_idr_packet;
+    std::chrono::steady_clock::duration send_frame_time {};
+    std::chrono::steady_clock::duration receive_packet_time {};
   };
 
   class nvenc_encode_session_t: public encode_session_t {
@@ -1520,27 +1829,96 @@ namespace video {
     auto &sps = session.sps;
     auto &vps = session.vps;
 
+    auto log_encoder_rate = [&session] {
+      auto now = std::chrono::steady_clock::now();
+      auto elapsed = now - session.last_rate_report;
+      if (elapsed < 5s) {
+        return;
+      }
+
+      auto elapsed_seconds = std::chrono::duration<double>(elapsed).count();
+      auto avg_send_ms = session.input_frames ?
+                           std::chrono::duration<double, std::milli>(session.send_frame_time).count() / session.input_frames :
+                           0.0;
+      auto avg_receive_ms = session.output_packets ?
+                              std::chrono::duration<double, std::milli>(session.receive_packet_time).count() / session.output_packets :
+                              0.0;
+
+      BOOST_LOG(info) << "AVCodec encode rate inputs_fps=" << (session.input_frames / elapsed_seconds)
+                      << " outputs_fps=" << (session.output_packets / elapsed_seconds)
+                      << " inputs=" << session.input_frames
+                      << " outputs=" << session.output_packets
+                      << " no_output_returns=" << session.no_output_returns
+                      << " key_packets=" << session.key_packets
+                      << " pts_matches=" << session.pts_matches
+                      << " pts_mismatches=" << session.pts_mismatches
+                      << " duplicate_bypass_packets=" << session.duplicate_bypass_packets
+                      << " duplicate_bypass_enabled=" << session.duplicate_bypass_enabled
+                      << " pending_timestamps=" << session.pending_frame_timestamps.size()
+                      << " avg_send_ms=" << avg_send_ms
+                      << " avg_receive_ms=" << avg_receive_ms
+                      << " over_seconds=" << elapsed_seconds;
+
+      session.last_rate_report = now;
+      session.input_frames = 0;
+      session.output_packets = 0;
+      session.no_output_returns = 0;
+      session.key_packets = 0;
+      session.pts_matches = 0;
+      session.pts_mismatches = 0;
+      session.duplicate_bypass_packets = 0;
+      session.send_frame_time = {};
+      session.receive_packet_time = {};
+    };
+
+    if (session.duplicate_bypass_enabled && !frame_timestamp && !(frame->flags & AV_FRAME_FLAG_KEY) && !session.last_non_idr_packet.empty()) {
+      auto packet = std::make_unique<packet_raw_generic>(
+        std::vector<uint8_t>(session.last_non_idr_packet),
+        frame_nr,
+        false
+      );
+      packet->channel_data = channel_data;
+      packets->raise(std::move(packet));
+      session.duplicate_bypass_packets++;
+      session.output_packets++;
+      log_encoder_rate();
+      return 0;
+    }
+
     // send the frame to the encoder
+    auto send_start = std::chrono::steady_clock::now();
     auto ret = avcodec_send_frame(ctx.get(), frame);
+    auto send_end = std::chrono::steady_clock::now();
+    session.input_frames++;
+    session.send_frame_time += send_end - send_start;
     if (ret < 0) {
       char err_str[AV_ERROR_MAX_STRING_SIZE] {0};
       BOOST_LOG(error) << "Could not send a frame for encoding: "sv << av_make_error_string(err_str, AV_ERROR_MAX_STRING_SIZE, ret);
 
       return -1;
     }
+    session.pending_frame_timestamps[frame_nr] = frame_timestamp;
 
     while (ret >= 0) {
       auto packet = std::make_unique<packet_raw_avcodec>();
       auto av_packet = packet.get()->av_packet;
 
+      auto receive_start = std::chrono::steady_clock::now();
       ret = avcodec_receive_packet(ctx.get(), av_packet);
+      auto receive_end = std::chrono::steady_clock::now();
       if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF) {
+        session.no_output_returns++;
+        log_encoder_rate();
         return 0;
       } else if (ret < 0) {
         return ret;
       }
 
+      session.output_packets++;
+      session.receive_packet_time += receive_end - receive_start;
+
       if (av_packet->flags & AV_PKT_FLAG_KEY) {
+        session.key_packets++;
         BOOST_LOG(debug) << "Frame "sv << frame_nr << ": IDR Keyframe (AV_FRAME_FLAG_KEY)"sv;
       }
 
@@ -1573,13 +1951,28 @@ namespace video {
         );
       }
 
-      if (av_packet && av_packet->pts == frame_nr) {
-        packet->frame_timestamp = frame_timestamp;
+      auto timestamp = av_packet && av_packet->pts != AV_NOPTS_VALUE ?
+                         session.pending_frame_timestamps.find(av_packet->pts) :
+                         std::end(session.pending_frame_timestamps);
+      if (timestamp != std::end(session.pending_frame_timestamps)) {
+        session.pts_matches++;
+        packet->frame_timestamp = timestamp->second;
+        session.pending_frame_timestamps.erase(timestamp);
+      } else {
+        session.pts_mismatches++;
+      }
+      while (session.pending_frame_timestamps.size() > 256) {
+        session.pending_frame_timestamps.erase(std::begin(session.pending_frame_timestamps));
+      }
+
+      if (!(av_packet->flags & AV_PKT_FLAG_KEY)) {
+        session.last_non_idr_packet.assign(av_packet->data, av_packet->data + av_packet->size);
       }
 
       packet->replacements = &session.replacements;
       packet->channel_data = channel_data;
       packets->raise(std::move(packet));
+      log_encoder_rate();
     }
 
     return 0;
@@ -1605,12 +1998,95 @@ namespace video {
     return 0;
   }
 
+#ifdef __APPLE__
+  int encode_native_vt(int64_t frame_nr, native_vt_encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
+    if (!session.session || !session.current_pixel) {
+      BOOST_LOG(error) << "Native VideoToolbox encode requested before session/pixel buffer is ready";
+      return -1;
+    }
+
+    CFMutableDictionaryRef frame_options = nullptr;
+    if (session.force_idr) {
+      frame_options = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+      if (frame_options) {
+        CFDictionarySetValue(frame_options, kVTEncodeFrameOptionKey_ForceKeyFrame, kCFBooleanTrue);
+      }
+    }
+
+    auto *frame_ref = new native_vt_encode_session_t::frame_ref_t {
+      &session,
+      packets,
+      channel_data,
+      frame_nr,
+      frame_timestamp,
+    };
+
+    auto encode_start = std::chrono::steady_clock::now();
+    auto status = VTCompressionSessionEncodeFrame(
+      session.session,
+      session.current_pixel,
+      CMTimeMake(frame_nr, session.config.framerate),
+      kCMTimeInvalid,
+      frame_options,
+      frame_ref,
+      nullptr
+    );
+    auto encode_end = std::chrono::steady_clock::now();
+
+    if (frame_options) {
+      CFRelease(frame_options);
+    }
+
+    if (status != noErr) {
+      delete frame_ref;
+      BOOST_LOG(error) << "Native VideoToolbox encode failed status=" << status;
+      return -1;
+    }
+
+    session.input_frames++;
+    session.encode_call_time += encode_end - encode_start;
+    session.force_idr = false;
+
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = now - session.last_rate_report;
+    if (elapsed >= 5s) {
+      auto elapsed_seconds = std::chrono::duration<double>(elapsed).count();
+      auto outputs = session.output_packets.exchange(0);
+      auto keys = session.key_packets.exchange(0);
+      auto failures = session.failed_packets.exchange(0);
+      auto avg_encode_ms = session.input_frames ?
+                             std::chrono::duration<double, std::milli>(session.encode_call_time).count() / session.input_frames :
+                             0.0;
+
+      BOOST_LOG(info) << "Native VideoToolbox encode rate inputs_fps=" << (session.input_frames / elapsed_seconds)
+                      << " outputs_fps=" << (outputs / elapsed_seconds)
+                      << " inputs=" << session.input_frames
+                      << " outputs=" << outputs
+                      << " key_packets=" << keys
+                      << " failed_packets=" << failures
+                      << " avg_encode_call_ms=" << avg_encode_ms
+                      << " over_seconds=" << elapsed_seconds;
+
+      session.last_rate_report = now;
+      session.input_frames = 0;
+      session.encode_call_time = {};
+    }
+
+    return 0;
+  }
+#endif
+
   int encode(int64_t frame_nr, encode_session_t &session, safe::mail_raw_t::queue_t<packet_t> &packets, void *channel_data, std::optional<std::chrono::steady_clock::time_point> frame_timestamp) {
     if (auto avcodec_session = dynamic_cast<avcodec_encode_session_t *>(&session)) {
       return encode_avcodec(frame_nr, *avcodec_session, packets, channel_data, frame_timestamp);
     } else if (auto nvenc_session = dynamic_cast<nvenc_encode_session_t *>(&session)) {
       return encode_nvenc(frame_nr, *nvenc_session, packets, channel_data, frame_timestamp);
     }
+#ifdef __APPLE__
+    else if (auto native_vt_session = dynamic_cast<native_vt_encode_session_t *>(&session)) {
+      return encode_native_vt(frame_nr, *native_vt_session, packets, channel_data, frame_timestamp);
+    }
+#endif
 
     return -1;
   }
@@ -1995,6 +2471,10 @@ namespace video {
       // 0 ==> don't inject, 1 ==> inject for h264, 2 ==> inject for hevc
       config.videoFormat <= 1 ? (1 - (int) video_format[encoder_t::VUI_PARAMETERS]) * (1 + config.videoFormat) : 0
     );
+    session->duplicate_bypass_enabled = false;
+    BOOST_LOG(info) << "Compressed duplicate bypass "
+                    << (session->duplicate_bypass_enabled ? "enabled" : "disabled")
+                    << " for negotiated fps=" << config.framerate;
 
     return session;
   }
@@ -2008,6 +2488,17 @@ namespace video {
   }
 
   std::unique_ptr<encode_session_t> make_encode_session(platf::display_t *disp, const encoder_t &encoder, const config_t &config, int width, int height, std::unique_ptr<platf::encode_device_t> encode_device) {
+#ifdef __APPLE__
+    if (encoder.name == "videotoolbox"sv && config.videoFormat <= 1) {
+      auto session = std::make_unique<native_vt_encode_session_t>(config, encode_device->colorspace);
+      if (session->is_ready()) {
+        BOOST_LOG(info) << "Using native VideoToolbox encoder path";
+        return session;
+      }
+      BOOST_LOG(error) << "Native VideoToolbox session failed; falling back to AVCodec VideoToolbox";
+    }
+#endif
+
     if (dynamic_cast<platf::avcodec_encode_device_t *>(encode_device.get())) {
       auto avcodec_encode_device = boost::dynamic_pointer_cast<platf::avcodec_encode_device_t>(std::move(encode_device));
       return make_avcodec_encode_session(disp, encoder, config, width, height, std::move(avcodec_encode_device));
@@ -2055,7 +2546,17 @@ namespace video {
     // set max frame time based on client-requested target framerate.
     double minimum_fps_target = (config::video.minimum_fps_target > 0.0) ? config::video.minimum_fps_target : (config.framerate / 2);
     std::chrono::duration<double, std::milli> max_frametime {1000.0 / minimum_fps_target};
+    auto max_frametime_steady = std::chrono::duration_cast<std::chrono::steady_clock::duration>(max_frametime);
     BOOST_LOG(info) << "Minimum FPS target set to ~"sv << minimum_fps_target << "fps ("sv << max_frametime.count() << "ms)"sv;
+
+    auto next_min_frame_time = std::chrono::steady_clock::now();
+    auto last_encode_loop_report = next_min_frame_time;
+    std::uint64_t encode_loop_attempts = 0;
+    std::uint64_t encode_loop_source_frames = 0;
+    std::uint64_t encode_loop_duplicate_frames = 0;
+    std::uint64_t encode_loop_idr_requests = 0;
+    std::chrono::steady_clock::duration encode_loop_work_time {};
+    bool have_real_frame = false;
 
     auto shutdown_event = mail->event<bool>(mail::shutdown);
     auto packets = mail::man->queue<packet_t>(mail::video_packets);
@@ -2095,6 +2596,7 @@ namespace video {
 
       if (idr_events->peek()) {
         requested_idr_frame = true;
+        encode_loop_idr_requests++;
         idr_events->pop();
       }
 
@@ -2103,12 +2605,44 @@ namespace video {
       }
 
       std::optional<std::chrono::steady_clock::time_point> frame_timestamp;
+      bool encoded_source_frame = false;
 
-      // Encode at a minimum FPS to avoid image quality issues with static content
-      if (!requested_idr_frame || images->peek()) {
-        if (auto img = images->pop(max_frametime)) {
-          frame_timestamp = img->frame_timestamp;
-          if (session->convert(*img)) {
+      // Drive output from an independent frame clock. Capture may only deliver
+      // ~60 Hz on macOS; a 120 Hz stream still needs an encode tick every
+      // 8.33 ms, reusing the last converted frame when no fresh capture exists.
+      auto now = std::chrono::steady_clock::now();
+      if (now < next_min_frame_time) {
+        if (minimum_fps_target >= 60.0) {
+          while (std::chrono::steady_clock::now() < next_min_frame_time) {
+          }
+        } else {
+          std::this_thread::sleep_until(next_min_frame_time);
+        }
+      }
+
+      // Consume the newest available captured frame without letting the capture
+      // queue pace the output loop. Blocking here collapses 120 Hz output back
+      // toward the physical display/capture refresh rate.
+      auto img = images->pop(0ms);
+      while (auto newer_img = images->pop(0ms)) {
+        img = std::move(newer_img);
+      }
+      if (img) {
+        frame_timestamp = img->frame_timestamp;
+        encoded_source_frame = true;
+        have_real_frame = true;
+        if (session->convert(*img)) {
+          BOOST_LOG(error) << "Could not convert image"sv;
+          return;
+        }
+      } else if (!images->running()) {
+        break;
+      } else if (!have_real_frame) {
+        if (auto first_img = images->pop(max_frametime_steady)) {
+          frame_timestamp = first_img->frame_timestamp;
+          encoded_source_frame = true;
+          have_real_frame = true;
+          if (session->convert(*first_img)) {
             BOOST_LOG(error) << "Could not convert image"sv;
             return;
           }
@@ -2117,9 +2651,45 @@ namespace video {
         }
       }
 
+      auto encode_start = std::chrono::steady_clock::now();
       if (encode(frame_nr++, *session, packets, channel_data, frame_timestamp)) {
         BOOST_LOG(error) << "Could not encode video packet"sv;
         return;
+      }
+      auto encode_end = std::chrono::steady_clock::now();
+
+      encode_loop_attempts++;
+      encode_loop_work_time += encode_end - encode_start;
+      if (encoded_source_frame) {
+        encode_loop_source_frames++;
+      } else {
+        encode_loop_duplicate_frames++;
+      }
+
+      next_min_frame_time += max_frametime_steady;
+      auto next_frame_lag = encode_end - next_min_frame_time;
+      if (next_frame_lag > max_frametime_steady) {
+        next_min_frame_time = encode_end + max_frametime_steady;
+      }
+      auto now_after_encode = std::chrono::steady_clock::now();
+      if (now_after_encode - last_encode_loop_report >= 5s) {
+        auto elapsed_seconds = std::chrono::duration<double>(now_after_encode - last_encode_loop_report).count();
+        auto avg_work_ms = encode_loop_attempts ?
+                             std::chrono::duration<double, std::milli>(encode_loop_work_time).count() / encode_loop_attempts :
+                             0.0;
+        BOOST_LOG(info) << "Encode loop rate fps=" << (encode_loop_attempts / elapsed_seconds)
+                        << " attempts=" << encode_loop_attempts
+                        << " source_frames=" << encode_loop_source_frames
+                        << " duplicates=" << encode_loop_duplicate_frames
+                        << " idr_requests=" << encode_loop_idr_requests
+                        << " avg_encode_ms=" << avg_work_ms
+                        << " over_seconds=" << elapsed_seconds;
+        encode_loop_attempts = 0;
+        encode_loop_source_frames = 0;
+        encode_loop_duplicate_frames = 0;
+        encode_loop_idr_requests = 0;
+        encode_loop_work_time = {};
+        last_encode_loop_report = now_after_encode;
       }
 
       session->request_normal_frame();

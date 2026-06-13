@@ -1293,6 +1293,10 @@ namespace stream {
     }
 
     auto ratecontrol_next_frame_start = std::chrono::steady_clock::now();
+    auto last_video_send_report = std::chrono::steady_clock::now();
+    std::uint64_t sent_video_frames = 0;
+    std::uint64_t sent_duplicate_video_frames = 0;
+    std::uint64_t sent_key_video_frames = 0;
 
     while (auto packet = packets->pop()) {
       if (shutdown_event->peek()) {
@@ -1474,6 +1478,27 @@ namespace stream {
           if (!packet->frame_timestamp) {
             packet->frame_timestamp = ratecontrol_next_frame_start;
             frame_is_dupe = true;
+          }
+          sent_video_frames++;
+          if (frame_is_dupe) {
+            sent_duplicate_video_frames++;
+          }
+          if (packet->is_idr()) {
+            sent_key_video_frames++;
+          }
+          auto now_for_send_report = std::chrono::steady_clock::now();
+          auto send_report_elapsed = now_for_send_report - last_video_send_report;
+          if (send_report_elapsed >= 5s) {
+            auto elapsed_seconds = std::chrono::duration<double>(send_report_elapsed).count();
+            BOOST_LOG(info) << "Video send rate fps=" << (sent_video_frames / elapsed_seconds)
+                            << " frames=" << sent_video_frames
+                            << " dupes=" << sent_duplicate_video_frames
+                            << " keyframes=" << sent_key_video_frames
+                            << " over_seconds=" << elapsed_seconds;
+            sent_video_frames = 0;
+            sent_duplicate_video_frames = 0;
+            sent_key_video_frames = 0;
+            last_video_send_report = now_for_send_report;
           }
           using rtp_tick = std::chrono::duration<uint32_t, std::ratio<1, 90000>>;
           uint32_t timestamp = std::chrono::round<rtp_tick>(*packet->frame_timestamp - video_epoch).count();
