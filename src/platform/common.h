@@ -243,6 +243,7 @@ namespace platf {
     p010,  ///< P010
     ayuv,  ///< AYUV
     yuv444p16,  ///< Planar 10-bit (shifted to 16-bit) YUV 4:4:4
+    yuv444p,  ///< Planar 8-bit YUV 4:4:4
     y410,  ///< Y410
     unknown  ///< Unknown
   };
@@ -259,6 +260,7 @@ namespace platf {
       _CONVERT(p010);
       _CONVERT(ayuv);
       _CONVERT(yuv444p16);
+      _CONVERT(yuv444p);
       _CONVERT(y410);
       _CONVERT(unknown);
     }
