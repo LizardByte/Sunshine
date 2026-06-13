@@ -32,3 +32,9 @@ namespace dyn {
   void *handle(const std::vector<const char *> &libs);
 
 }  // namespace dyn
+
+#ifdef SUNSHINE_BUILD_DRM
+namespace platf {
+  int open_drm_card_fd_non_master(const char *path);
+}  // namespace platf
+#endif
