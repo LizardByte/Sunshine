@@ -31,7 +31,7 @@
     Use nearly any controller on your Moonlight client!
     <br><small><ul>
     <li>Nintendo Switch emulation is only available on Linux.</li>
-    <li>Gamepad emulation is not currently supported on macOS.</li>
+    <li>On macOS, only a generic gamepad is emulated, since an Xbox gamepad cannot be properly emulated on it.</li>
     </ul></small>
 
 - title: "Configurable"
